@@ -1,0 +1,32 @@
+language: node_js
+
+sudo: false
+
+# test on node.js versions
+node_js:
+  - '10'
+  - '8'
+  - '6'
+
+services:
+  - redis-server
+
+script:
+  - npm run prettier -- --list-different
+  - npm run test
+
+after_script:
+  - npm run coveralls
+
+jobs:
+  include:
+    # Define the release stage that runs semantic-release
+    - stage: release
+      node_js: lts/*
+      # Advanced: optionally overwrite your default `script` step to skip the tests
+      # script: skip
+      deploy:
+        provider: script
+        skip_cleanup: true
+        script:
+          - npx semantic-release

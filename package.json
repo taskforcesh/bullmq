@@ -1,0 +1,41 @@
+{
+  "name": "bull",
+  "version": "0.0.0-development",
+  "description": "Queue for messages and jobs based on Redis",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "source": "src/index.ts",
+  "author": "Taskforce.sh Inc.",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
+    "test": "yarn lint && tsc && mocha './dist/**/*.spec.js' --exit",
+    "prettier": "prettier --config package.json --write '**/*.js'",
+    "precommit": "yarn prettier && yarn lint && yarn test",
+    "semantic-release": "semantic-release"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^7.2.1",
+    "@commitlint/config-conventional": "^7.1.2",
+    "mocha": "^5.2.0",
+    "prettier": "^1.15.3",
+    "semantic-release": "^15.13.2",
+    "tslint": "^5.12.0",
+    "tslint-eslint-rules": "^5.4.0",
+    "typescript": "^3.2.2"
+  },
+  "prettier": {
+    "singleQuote": true
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "yarn precommit",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taskforcesh/bull.git"
+  }
+}
