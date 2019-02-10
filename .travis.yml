@@ -12,8 +12,8 @@ services:
   - redis-server
 
 script:
-  - npm run prettier -- --list-different
-  - npm run test
+  - yarn prettier -- --list-different
+  - yarn test
 
 after_script:
   - npm run coveralls

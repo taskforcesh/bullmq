@@ -64,12 +64,7 @@ const priorityQueue = new PriorityQueue('name', {});
 
 ```
 
-
-
-
-
 # Idea for delayed jobs
 
 A delayed job is placed in the queue, with the given timestamp. Queue works as normally.
 When the delayed job reaches the tip of the queue, the diff between the created timestamp and the current timestap is calculated and if it is larger or equal than the delay it is executed, otherwise placed on the delayed set.
-

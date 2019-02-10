@@ -13,9 +13,8 @@
     "allowSyntheticDefaultImports": true,
     "strictNullChecks": false,
     "baseUrl": ".",
-    "types": [],
     "paths": {
-      "@/*": ["src/*"]
+      "@src/*": ["src/*"]
     },
     "lib": ["esnext"]
   },
