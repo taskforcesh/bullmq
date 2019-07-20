@@ -2,10 +2,6 @@
   Move next job to be processed to active, lock it and fetch its data. The job
   may be delayed, in that case we need to move it to the delayed set instead.
 
-  This operation guarantees that the worker owns the job during the locks
-  expiration time. The worker is responsible of keeping the lock fresh
-  so that no other worker picks this job again.
-
   Input:
       KEYS[1] wait key
       KEYS[2] active key
@@ -17,16 +13,17 @@
       KEYS[6] rate limiter key
       KEYS[7] delayed key
 
-      --
+      -- Events
       KEYS[8] events stream key
+      KEYS[9] delay stream key
 
+      -- Arguments
       ARGV[1] key prefix
       ARGV[2] timestamp
       ARGV[3] optional jobid
 
       ARGV[4] optional jobs per time unit (rate limiter)
       ARGV[5] optional time unit (rate limiter)
-      ARGV[6] optional do not do anything with job if rate limit hit
 ]]
 
 local jobId
@@ -48,25 +45,22 @@ if jobId then
 
   if(maxJobs) then
     local rateLimiterKey = KEYS[6];
-    local jobCounter = tonumber(rcall("GET", rateLimiterKey))
-    local bounceBack = ARGV[6]
-    
-    -- rate limit hit
-    if jobCounter ~= nil and jobCounter >= maxJobs then
-      local delay = tonumber(rcall("PTTL", rateLimiterKey))
+    local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
+    -- check if rate limit hit
+    if jobCounter > maxJobs then
+      local exceedingJobs = jobCounter - maxJobs
+      local delay = tonumber(rcall("PTTL", rateLimiterKey)) + ((exceedingJobs - 1) * ARGV[5]) / maxJobs;
       local timestamp = delay + tonumber(ARGV[2])
-
-      if bounceBack == 'false' then
-        -- put job into delayed queue
-        rcall("ZADD", KEYS[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId)
-        rcall("PUBLISH", KEYS[7], timestamp)
-      end
+      
+      -- put job into delayed queue
+      rcall("ZADD", KEYS[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
+      rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
+      rcall("XADD", KEYS[9], "*", "nextTimestamp", timestamp);
       -- remove from active queue
       rcall("LREM", KEYS[2], 1, jobId)
       return
     else
-      jobCounter = rcall("INCR", rateLimiterKey)
-      if tonumber(jobCounter) == 1 then
+      if jobCounter == 1 then
         rcall("PEXPIRE", rateLimiterKey, ARGV[5])
       end
     end

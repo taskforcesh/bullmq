@@ -12,6 +12,7 @@ import { Repeat } from './repeat';
 
 export class Worker extends QueueBase {
   private drained: boolean;
+  private waiting = false;
   private processFn: Processor;
 
   private resumeWorker: () => void;
@@ -110,18 +111,14 @@ export class Worker extends QueueBase {
       return;
     }
 
-    if (this.drained) {
-      //
-      // Waiting for new jobs to arrive
-      //
-      try {
-        const opts: WorkerOptions = <WorkerOptions>this.opts;
+    if (this.paused) {
+      await this.paused;
+    }
 
-        const jobId = await this.client.brpoplpush(
-          this.keys.wait,
-          this.keys.active,
-          opts.drainDelay,
-        );
+    if (this.drained) {
+      try {
+        const jobId = await this.waitForJob();
+
         if (jobId) {
           return this.moveToActive(jobId);
         }
@@ -141,6 +138,23 @@ export class Worker extends QueueBase {
     return this.nextJobFromJobData(jobData, id);
   }
 
+  private async waitForJob() {
+    let jobId;
+    const opts: WorkerOptions = <WorkerOptions>this.opts;
+
+    try {
+      this.waiting = true;
+      jobId = await this.client.brpoplpush(
+        this.keys.wait,
+        this.keys.active,
+        opts.drainDelay,
+      );
+    } finally {
+      this.waiting = false;
+    }
+    return jobId;
+  }
+
   private async nextJobFromJobData(jobData: any, jobId: string) {
     if (jobData) {
       this.drained = false;
@@ -158,12 +172,14 @@ export class Worker extends QueueBase {
   }
 
   async processJob(job: Job) {
-    if (!job) {
+    if (!job || this.closing || this.paused) {
       return;
     }
-
     const handleCompleted = async (result: any) => {
-      const jobData = await job.moveToCompleted(result);
+      const jobData = await job.moveToCompleted(
+        result,
+        !(this.closing || this.paused),
+      );
       this.emit('completed', job, result, 'active');
       return jobData ? this.nextJobFromJobData(jobData[0], jobData[1]) : null;
     };
@@ -174,14 +190,22 @@ export class Worker extends QueueBase {
         error instanceof Bluebird.OperationalError &&
         (<any>error).cause instanceof Error
       ) {
-        error = (<any>error).cause; //Handle explicit rejection
+        error = (<any>error).cause; // Handle explicit rejection
       }
 
       await job.moveToFailed(err);
       this.emit('failed', job, error, 'active');
     };
 
-    const jobPromise = this.processFn(job);
+    // TODO: how to cancel the processing? (null -> job.cancel() => throw CancelError()void)
+    this.emit('active', job, null, 'waiting');
+
+    try {
+      const result = await this.processFn(job);
+      return handleCompleted(result);
+    } catch (err) {
+      return handleFailed(err);
+    }
 
     /*
       var timeoutMs = job.opts.timeout;
@@ -190,11 +214,10 @@ export class Worker extends QueueBase {
         jobPromise = jobPromise.timeout(timeoutMs);
       }
     */
-
     // Local event with jobPromise so that we can cancel job.
-    this.emit('active', job, jobPromise, 'waiting');
+    // this.emit('active', job, jobPromise, 'waiting');
 
-    return jobPromise.then(handleCompleted).catch(handleFailed);
+    // return jobPromise.then(handleCompleted).catch(handleFailed);
   }
 
   /**
@@ -221,6 +244,10 @@ export class Worker extends QueueBase {
     }
   }
 
+  isPaused() {
+    return !!this.paused;
+  }
+
   /**
    * Returns a promise that resolves when active jobs are cleared
    *
@@ -230,37 +257,31 @@ export class Worker extends QueueBase {
     //
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
-    await redisClientDisconnect(this.client);
-    await Promise.all(Object.values(this.processing));
-
-    this.client.connect();
+    this.waiting && (await redisClientDisconnect(this.client));
+    const processingPromises = Object.values(this.processing);
+    await Promise.all(processingPromises);
+    this.waiting && (await this.client.connect());
   }
 }
 
-function redisClientDisconnect(client: IORedis.Redis) {
-  if (client.status === 'end') {
-    return Promise.resolve();
-  }
-  let _resolve: any, _reject: any;
-  return new Promise(function(resolve, reject) {
-    _resolve = resolve;
-    _reject = reject;
-    client.once('end', resolve);
-    client.once('error', reject);
+async function redisClientDisconnect(client: IORedis.Redis) {
+  if (client.status !== 'end') {
+    let _resolve, _reject;
 
-    client
-      .quit()
-      .catch(function(err) {
-        if (err.message !== 'Connection is closed.') {
-          throw err;
-        }
-      })
-      //  .timeout(500)
-      .catch(function() {
-        client.disconnect();
-      });
-  }).finally(function() {
-    client.removeListener('end', _resolve);
-    client.removeListener('error', _reject);
-  });
+    const disconnecting = new Promise((resolve, reject) => {
+      client.once('end', resolve);
+      client.once('error', reject);
+      _resolve = resolve;
+      _reject = reject;
+    });
+
+    client.disconnect();
+
+    try {
+      await disconnecting;
+    } finally {
+      client.removeListener('end', _resolve);
+      client.removeListener('error', _reject);
+    }
+  }
 }

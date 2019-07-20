@@ -57,7 +57,7 @@ export class RedisConnection {
 
     await RedisConnection.waitUntilReady(this.client);
 
-    this.client.on('error', err => {
+    this.client.on('error', (err: Error) => {
       console.error(err);
     });
 
@@ -65,9 +65,7 @@ export class RedisConnection {
       const version = await this.getRedisVersion();
       if (semver.lt(version, RedisConnection.minimumVersion)) {
         throw new Error(
-          `Redis version needs to be greater than ${
-            RedisConnection.minimumVersion
-          } Current: ${version}`,
+          `Redis version needs to be greater than ${RedisConnection.minimumVersion} Current: ${version}`,
         );
       }
     }

@@ -207,5 +207,4 @@ describe('Delayed jobs', function() {
 
     return promise;
   });
-
 });

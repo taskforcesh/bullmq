@@ -5,7 +5,7 @@
       KEYS[1] 'wait' or 'paused''
       KEYS[2] 'paused' or 'wait'
       KEYS[3] 'meta-paused'
-      KEYS[4] 'paused' o 'resumed' event.
+      KEYS[4] events stream key
 
       ARGV[1] 'paused' or 'resumed'
 
@@ -24,4 +24,4 @@ else
   rcall("DEL", KEYS[3])
 end
 
-rcall("PUBLISH", KEYS[4], ARGV[1])
+rcall("XADD", KEYS[4], "*", "event", ARGV[1]);

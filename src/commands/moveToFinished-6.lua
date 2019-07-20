@@ -1,8 +1,6 @@
 --[[
   Move job from active to a finished status (completed o failed)
   A job can only be moved to completed if it was active.
-  The job must be locked before it can be moved to a finished status,
-  and the lock must be released in this script.
 
      Input:
       KEYS[1] active key
@@ -26,7 +24,6 @@
      Output:
       0 OK
       -1 Missing key.
-      -2 Missing lock.
 
      Events:
       'completed/failed'
@@ -34,14 +31,6 @@
 local rcall = redis.call
 
 if rcall("EXISTS", KEYS[3]) == 1 then -- // Make sure job exists
---[[   if ARGV[5] ~= "0" then
-    local lockKey = KEYS[3] .. ':lock'
-    if rcall("GET", lockKey) == ARGV[5] then
-      rcall("DEL", lockKey)
-    else
-      return -2
-    end
-  end ]]
 
   -- Remove from active list (if not active we shall return error)
   local numRemovedElements = rcall("LREM", KEYS[1], -1, ARGV[1])
@@ -70,12 +59,8 @@ if rcall("EXISTS", KEYS[3]) == 1 then -- // Make sure job exists
     local jobId = rcall("RPOPLPUSH", KEYS[4], KEYS[1])
     if jobId then
       local jobKey = ARGV[9] .. jobId
-      -- local lockKey = jobKey .. ':lock'
-      -- get a lock
-      -- rcall("SET", lockKey, ARGV[11], "PX", ARGV[10])
 
       rcall("ZREM", KEYS[5], jobId) -- remove from priority
-      -- rcall("PUBLISH", KEYS[6], jobId)
       rcall("XADD", KEYS[6], "*", "event", "active", "jobId", jobId, "prev", "waiting");
       rcall("HSET", jobKey, "processedOn", ARGV[2]) 
 

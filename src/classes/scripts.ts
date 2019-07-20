@@ -5,19 +5,16 @@
 /*eslint-env node */
 'use strict';
 
-import { debuglog } from 'util';
-import IORedis from 'ioredis';
-import { Queue } from './queue';
-import { Job, JobJson } from './job';
-import { JobsOpts } from '../interfaces';
-import { QueueBase } from './queue-base';
-import { Worker } from './worker';
-import { WorkerOptions } from '@src/interfaces/worker-opts';
-import { array2obj } from '../utils';
-import { QueueKeeper } from './queue-keeper';
 import { QueueKeeperOptions } from '@src/interfaces';
-
-const logger = debuglog('bull');
+import { WorkerOptions } from '@src/interfaces/worker-opts';
+import IORedis from 'ioredis';
+import { JobsOpts } from '../interfaces';
+import { array2obj } from '../utils';
+import { Job, JobJson } from './job';
+import { Queue } from './queue';
+import { QueueBase } from './queue-base';
+import { QueueKeeper } from './queue-keeper';
+import { Worker } from './worker';
 
 export class Scripts {
   static async isJobInList(
@@ -71,9 +68,11 @@ export class Scripts {
       dst = 'wait';
     }
 
-    const keys = [src, dst, 'meta-paused', pause ? 'paused' : 'resumed'].map(
-      (name: string) => queue.toKey(name),
+    const keys = [src, dst, 'meta-paused'].map((name: string) =>
+      queue.toKey(name),
     );
+
+    keys.push(queue.eventStreamKey());
 
     return (<any>queue.client).pause(
       keys.concat([pause ? 'paused' : 'resumed']),
@@ -123,8 +122,7 @@ export class Scripts {
     propVal: string,
     shouldRemove: boolean,
     target: string,
-    ignoreLock: boolean,
-    notFetch?: boolean,
+    fetchNext = true,
   ) {
     const queueKeys = queue.keys;
 
@@ -145,7 +143,9 @@ export class Scripts {
       target,
       shouldRemove ? '1' : '0',
       JSON.stringify({ jobId: job.id, val: val }),
-      notFetch || queue.closing || (<WorkerOptions>queue.opts).limiter ? 0 : 1,
+      !fetchNext || queue.closing || (<WorkerOptions>queue.opts).limiter
+        ? 0
+        : 1,
       queueKeys[''],
     ];
 
@@ -159,7 +159,7 @@ export class Scripts {
     propVal: string,
     shouldRemove: boolean,
     target: string,
-    ignoreLock: boolean,
+    fetchNext: boolean,
   ) {
     const args = this.moveToFinishedArgs(
       queue,
@@ -168,7 +168,7 @@ export class Scripts {
       propVal,
       shouldRemove,
       target,
-      ignoreLock,
+      fetchNext,
     );
     const result = await (<any>queue.client).moveToFinished(args);
     if (result < 0) {
@@ -193,7 +193,7 @@ export class Scripts {
     job: Job,
     returnvalue: any,
     removeOnComplete: boolean,
-    ignoreLock: boolean,
+    fetchNext: boolean,
   ): Promise<[JobJson, string]> {
     return this.moveToFinished(
       queue,
@@ -202,7 +202,7 @@ export class Scripts {
       'returnvalue',
       removeOnComplete,
       'completed',
-      ignoreLock,
+      fetchNext,
     );
   }
 
@@ -211,7 +211,7 @@ export class Scripts {
     job: Job,
     failedReason: string,
     removeOnFailed: boolean,
-    ignoreLock: boolean,
+    fetchNext = false,
   ) {
     return this.moveToFinishedArgs(
       queue,
@@ -220,8 +220,7 @@ export class Scripts {
       'failedReason',
       removeOnFailed,
       'failed',
-      ignoreLock,
-      true,
+      fetchNext,
     );
   }
 
@@ -234,12 +233,7 @@ export class Scripts {
   }
 
   // Note: We have an issue here with jobs using custom job ids
-  static moveToDelayedArgs(
-    queue: QueueBase,
-    jobId: string,
-    timestamp: number,
-    ignoreLock: boolean,
-  ) {
+  static moveToDelayedArgs(queue: QueueBase, jobId: string, timestamp: number) {
     //
     // Bake in the job id first 12 bits into the timestamp
     // to guarantee correct execution order of delayed jobs
@@ -258,20 +252,11 @@ export class Scripts {
     const keys = ['active', 'delayed', jobId].map(function(name) {
       return queue.toKey(name);
     });
-    return keys.concat([
-      JSON.stringify(timestamp),
-      jobId,
-      ignoreLock ? '0' : 'queue.token',
-    ]);
+    return keys.concat([JSON.stringify(timestamp), jobId]);
   }
 
-  static async moveToDelayed(
-    queue: Queue,
-    jobId: string,
-    timestamp: number,
-    ignoreLock: boolean,
-  ) {
-    const args = this.moveToDelayedArgs(queue, jobId, timestamp, ignoreLock);
+  static async moveToDelayed(queue: Queue, jobId: string, timestamp: number) {
+    const args = this.moveToDelayedArgs(queue, jobId, timestamp);
     const result = await (<any>queue.client).moveToDelayed(args);
     switch (result) {
       case -1:
@@ -280,16 +265,10 @@ export class Scripts {
             jobId +
             ' when trying to move from active to delayed',
         );
-      case -2:
-        throw new Error(
-          'Job ' +
-            jobId +
-            ' was locked when trying to move from active to delayed',
-        );
     }
   }
 
-  static retryJobArgs(queue: QueueBase, job: Job, ignoreLock: boolean) {
+  static retryJobArgs(queue: QueueBase, job: Job) {
     const jobId = job.id;
 
     const keys = ['active', 'wait', jobId].map(function(name) {
@@ -298,7 +277,7 @@ export class Scripts {
 
     const pushCmd = (job.opts.lifo ? 'R' : 'L') + 'PUSH';
 
-    return keys.concat([pushCmd, jobId, ignoreLock ? '0' : 'queue.token']);
+    return keys.concat([pushCmd, jobId]);
   }
 
   static moveToActive(queue: Worker, jobId: string) {
@@ -310,6 +289,7 @@ export class Scripts {
     keys[5] = queueKeys.limiter;
     keys[6] = queueKeys.delayed;
     keys[7] = queue.eventStreamKey();
+    keys[8] = queue.delayStreamKey();
 
     const args: (string | number | boolean)[] = [
       queueKeys[''],
@@ -320,11 +300,7 @@ export class Scripts {
     const opts: WorkerOptions = <WorkerOptions>queue.opts;
 
     if (opts.limiter) {
-      args.push(
-        opts.limiter.max,
-        opts.limiter.duration,
-        !!opts.limiter.bounceBack,
-      );
+      args.push(opts.limiter.max, opts.limiter.duration);
     }
     return (<any>queue.client)
       .moveToActive((<(string | number | boolean)[]>keys).concat(args))

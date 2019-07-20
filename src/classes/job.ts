@@ -171,12 +171,12 @@ export class Job {
    * Moves a job to the completed queue.
    * Returned job to be used with Queue.prototype.nextJobFromJobData.
    * @param returnValue {string} The jobs success message.
-   * @param ignoreLock {boolean} True when wanting to ignore the redis lock on this job.
+   * @param fetchNext {boolean} True when wanting to fetch the next job
    * @returns {Promise} Returns the jobData of the next job in the waiting queue.
    */
   async moveToCompleted(
     returnValue: any,
-    ignoreLock = true,
+    fetchNext = true,
   ): Promise<[JobJson, string]> {
     await this.queue.waitUntilReady();
 
@@ -192,17 +192,17 @@ export class Job {
       this,
       returnValue,
       this.opts.removeOnComplete,
-      ignoreLock,
+      fetchNext,
     );
   }
 
   /**
    * Moves a job to the failed queue.
    * @param err {Error} The jobs error message.
-   * @param ignoreLock {boolean} True when wanting to ignore the redis lock on this job.
+   * @param fetchNext {boolean} True when wanting to fetch the next job
    * @returns void
    */
-  async moveToFailed(err: Error, ignoreLock = true) {
+  async moveToFailed(err: Error, fetchNext = false) {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
@@ -235,13 +235,12 @@ export class Job {
           queue,
           this.id,
           Date.now() + delay,
-          ignoreLock,
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
       } else {
         // If not, retry immediately
-        (<any>multi).retryJob(Scripts.retryJobArgs(queue, this, ignoreLock));
+        (<any>multi).retryJob(Scripts.retryJobArgs(queue, this));
         command = 'retry';
       }
     } else {
@@ -255,7 +254,7 @@ export class Job {
         this,
         err.message,
         this.opts.removeOnFail,
-        ignoreLock,
+        fetchNext,
       );
       (<any>multi).moveToFinished(args);
       command = 'failed';

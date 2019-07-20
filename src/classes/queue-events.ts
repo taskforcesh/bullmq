@@ -1,6 +1,7 @@
 import { QueueEventsOptions } from '@src/interfaces';
 import { QueueBase } from './queue-base';
 import { array2obj } from '../utils';
+import { Job } from './job';
 
 export class QueueEvents extends QueueBase {
   constructor(name: string, opts?: QueueEventsOptions) {

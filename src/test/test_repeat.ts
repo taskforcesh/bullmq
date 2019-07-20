@@ -156,6 +156,7 @@ describe('repeat', function() {
 
     const date = new Date('2017-02-07 9:24:00');
     this.clock.tick(date.getTime());
+
     const nextTick = 2 * ONE_SECOND + 500;
 
     await queue.append(
@@ -171,7 +172,6 @@ describe('repeat', function() {
 
     return new Promise(resolve => {
       worker.on('completed', async job => {
-        console.log('Completed');
         this.clock.tick(nextTick);
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
@@ -180,7 +180,7 @@ describe('repeat', function() {
         prev = job;
         counter++;
         console.log('COUNTER', counter);
-        if (counter == 20) {
+        if (counter == 5) {
           await worker.close();
           resolve();
         }
@@ -188,7 +188,7 @@ describe('repeat', function() {
     });
   });
 
-  it('should repeat every 2 seconds with startDate in future', async function(done) {
+  it('should repeat every 2 seconds with startDate in future', async function() {
     this.timeout(200000);
     const queueKeeper = new QueueKeeper(queueName);
     await queueKeeper.init();
@@ -207,7 +207,7 @@ describe('repeat', function() {
       { foo: 'bar' },
       {
         repeat: {
-          cron: '* /2 * * * * *',
+          cron: '*/2 * * * * *',
           startDate: new Date('2017-02-07 9:24:05'),
         },
       },
@@ -217,25 +217,34 @@ describe('repeat', function() {
 
     let prev: Job;
     let counter = 0;
-    worker.on('completed', job => {
-      console.log('COMPLETED');
-      this.clock.tick(nextTick);
-      if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        expect(job.timestamp - prev.timestamp).to.be.gte(2000);
-      }
-      prev = job;
-      counter++;
-      if (counter == 20) {
-        done();
-      }
+
+    return new Promise((resolve, reject) => {
+      worker.on('completed', async job => {
+        this.clock.tick(nextTick);
+        if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+        }
+        prev = job;
+        counter++;
+        console.log('COUNTER', counter);
+        if (counter == 5) {
+          resolve();
+          await queueKeeper.close();
+        }
+      });
     });
   });
 
-  it('should repeat every 2 seconds with startDate in past', async function(done) {
+  it('should repeat every 2 seconds with startDate in past', async function() {
+    this.timeout(200000);
+    const queueKeeper = new QueueKeeper(queueName);
+    await queueKeeper.init();
+
     const date = new Date('2017-02-07 9:24:00');
     this.clock.tick(date.getTime());
     const nextTick = 2 * ONE_SECOND + 500;
+    const delay = 5 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {
       console.log('Working...');
@@ -246,30 +255,40 @@ describe('repeat', function() {
       { foo: 'bar' },
       {
         repeat: {
-          cron: '* /2 * * * * *',
+          cron: '*/2 * * * * *',
           startDate: new Date('2017-02-07 9:22:00'),
         },
       },
     );
-    this.clock.tick(nextTick);
+
+    this.clock.tick(nextTick + delay);
 
     let prev: Job;
     let counter = 0;
-    worker.on('completed', job => {
-      this.clock.tick(nextTick);
-      if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        expect(job.timestamp - prev.timestamp).to.be.gte(2000);
-      }
-      prev = job;
-      counter++;
-      if (counter == 20) {
-        done();
-      }
+
+    return new Promise((resolve, reject) => {
+      worker.on('completed', async job => {
+        this.clock.tick(nextTick);
+        if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+        }
+        prev = job;
+        counter++;
+        console.log('COUNTER', counter);
+        if (counter == 5) {
+          resolve();
+          await queueKeeper.close();
+        }
+      });
     });
   });
 
-  it.skip('should repeat once a day for 5 days', async function(done) {
+  // Skipped until we find a way of simulating time to avoid waiting 5 days
+  it.skip('should repeat once a day for 5 days', async function() {
+    const queueKeeper = new QueueKeeper(queueName);
+    await queueKeeper.init();
+
     const date = new Date('2017-05-05 13:12:00');
     this.clock.tick(date.getTime());
     const nextTick = ONE_DAY;
@@ -292,26 +311,34 @@ describe('repeat', function() {
 
     let prev: Job;
     let counter = 0;
-    queue.on('completed', async job => {
-      this.clock.tick(nextTick);
-      if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
-      }
-      prev = job;
+    return new Promise((resolve, reject) => {
+      queue.on('completed', async job => {
+        this.clock.tick(nextTick);
+        if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+        }
+        prev = job;
 
-      counter++;
-      if (counter == 5) {
-        const waitingJobs = await queue.getWaiting();
-        expect(waitingJobs.length).to.be.eql(0);
-        const delayedJobs = await queue.getDelayed();
-        expect(delayedJobs.length).to.be.eql(0);
-        done();
-      }
+        counter++;
+        if (counter == 5) {
+          const waitingJobs = await queue.getWaiting();
+          expect(waitingJobs.length).to.be.eql(0);
+          const delayedJobs = await queue.getDelayed();
+          expect(delayedJobs.length).to.be.eql(0);
+          await queueKeeper.close();
+          await worker.close();
+          resolve();
+        }
+      });
     });
   });
 
-  it('should repeat 7:th day every month at 9:25', async function(done) {
+  // Skipped until we find a way of simulating time to avoid waiting a month
+  it.skip('should repeat 7:th day every month at 9:25', async function(done) {
+    const queueKeeper = new QueueKeeper(queueName);
+    await queueKeeper.init();
+
     const date = new Date('2017-02-02 7:21:42');
     this.clock.tick(date.getTime());
 
@@ -377,7 +404,7 @@ describe('repeat', function() {
     this.clock.tick(date.getTime());
 
     const nextTick = 2 * ONE_SECOND;
-    const repeat = { cron: '* /2 * * * * *' };
+    const repeat = { cron: '*/2 * * * * *' };
 
     const worker = new Worker(queueName, async job => {
       counter++;
@@ -413,7 +440,7 @@ describe('repeat', function() {
     this.clock.tick(date.getTime());
 
     const nextTick = 2 * ONE_SECOND;
-    const repeat = { cron: '* /2 * * * * *' };
+    const repeat = { cron: '*/2 * * * * *' };
 
     await queue.append(
       'test',

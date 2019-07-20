@@ -82,7 +82,7 @@ else
       -- LIFO or FIFO
     rcall(ARGV[10], target, jobId)
 
-    -- Emit waiting event (wait..ing@token)
+    -- Emit waiting event
     rcall("XADD", KEYS[7], "*", "event", "waiting", "jobId", jobId);
   else
     -- Priority add

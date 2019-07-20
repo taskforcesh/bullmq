@@ -36,7 +36,7 @@ export class QueueKeeper extends QueueBase {
   async init() {
     await this.waitUntilReady();
 
-    // TODO: updateDelaySet should also retun the lastDelayStreamTimestamp
+    // TODO: updateDelaySet should also return the lastDelayStreamTimestamp
     const timestamp = await Scripts.updateDelaySet(this, Date.now());
 
     if (timestamp) {
@@ -53,10 +53,12 @@ export class QueueKeeper extends QueueBase {
     while (!this.closing) {
       // Listen to the delay event stream from lastDelayStreamTimestamp
       // Can we use XGROUPS to reduce redundancy?
-      const blockTime = Math.round(Math.min(
-        (<QueueKeeperOptions>this.opts).stalledInterval,
-        Math.max(this.nextTimestamp - Date.now(), 0),
-      ));
+      const blockTime = Math.round(
+        Math.min(
+          (<QueueKeeperOptions>this.opts).stalledInterval,
+          Math.max(this.nextTimestamp - Date.now(), 0),
+        ),
+      );
 
       const data = await this.client.xread(
         'BLOCK',
@@ -83,6 +85,9 @@ export class QueueKeeper extends QueueBase {
 
       const now = Date.now();
       const delay = this.nextTimestamp - now;
+
+      console.log('DELAY', delay, this.nextTimestamp);
+
       if (delay <= 0) {
         const nextTimestamp = await Scripts.updateDelaySet(this, now);
         if (nextTimestamp) {

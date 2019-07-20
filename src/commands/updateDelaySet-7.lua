@@ -16,7 +16,7 @@
       ARGV[2]  delayed timestamp
 
      Events:
-      'removed'
+      'waiting'
 ]]
 local rcall = redis.call;
 

@@ -1,12 +1,7 @@
-import { RedisConnection } from './redis-connection';
-import IORedis from 'ioredis';
-import {
-  QueueBaseOptions,
-  QueueEventsOptions,
-  QueueOptions,
-} from '@src/interfaces';
+import { QueueBaseOptions } from '@src/interfaces';
 import { EventEmitter } from 'events';
-import { WorkerOptions } from '@src/interfaces/worker-opts';
+import IORedis from 'ioredis';
+import { RedisConnection } from './redis-connection';
 
 export class QueueBase extends EventEmitter {
   keys: { [index: string]: string };
