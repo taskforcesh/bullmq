@@ -6,6 +6,9 @@ import { Scripts } from './scripts';
 import * as Bluebird from 'bluebird';
 import IORedis from 'ioredis';
 import { Repeat } from './repeat';
+import fs from "fs";
+import path from "path";
+import { ChildPool } from './child-pool';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -18,6 +21,7 @@ export class Worker extends QueueBase {
   private resumeWorker: () => void;
   private paused: Promise<void>;
   private repeat: Repeat;
+  childPool: ChildPool;
 
   private processing: { [index: number]: Promise<Job | void> } = {};
   constructor(
@@ -40,6 +44,20 @@ export class Worker extends QueueBase {
       this.processFn = processor;
     } else {
       // SANDBOXED
+      const supportedFileTypes = ['.js', '.ts', '.flow'];
+      const processorFile =
+          processor +
+          (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
+
+      if (!fs.existsSync(processorFile)) { // TODO are we forced to use sync api here?
+        throw new Error(`File ${processorFile} does not exist`);
+      }
+
+      this.childPool = this.childPool || require('./child-pool').pool;
+
+      const sandbox = require('./sandbox').default;
+
+      this.processFn = sandbox(processor, this.childPool).bind(this);
     }
 
     this.repeat = new Repeat(name, opts);
@@ -262,6 +280,15 @@ export class Worker extends QueueBase {
     await Promise.all(processingPromises);
     this.waiting && (await this.client.connect());
   }
+
+  close() {
+    try {
+      return super.close();
+    } finally {
+      this.childPool && this.childPool.clean();
+    }
+  }
+
 }
 
 async function redisClientDisconnect(client: IORedis.Redis) {
