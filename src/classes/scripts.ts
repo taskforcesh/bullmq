@@ -253,6 +253,8 @@ export class Scripts {
     const keys = ['active', 'delayed', jobId].map(function(name) {
       return queue.toKey(name);
     });
+    keys.push.apply(keys, [queue.eventStreamKey(), queue.delayStreamKey()]);
+
     return keys.concat([JSON.stringify(timestamp), jobId]);
   }
 
@@ -275,6 +277,8 @@ export class Scripts {
     const keys = ['active', 'wait', jobId].map(function(name) {
       return queue.toKey(name);
     });
+
+    keys.push(queue.eventStreamKey());
 
     const pushCmd = (job.opts.lifo ? 'R' : 'L') + 'PUSH';
 

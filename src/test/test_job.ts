@@ -130,6 +130,9 @@ describe('Job', function() {
     });
 
     it('moves the job to wait for retry if attempts are given', async function() {
+      const queueEvents = new QueueEvents(queueName);
+      await queueEvents.init();
+
       const job = await Job.create(
         queue,
         'test',
@@ -138,13 +141,24 @@ describe('Job', function() {
       );
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
+
+      const waiting = new Promise( resolve => {
+        queueEvents.on('waiting', resolve);
+      });
+
+
       await job.moveToFailed(new Error('test error'), true);
+
+      await waiting;
+
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.equal(false);
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(1);
       const isWaiting = await job.isWaiting();
       expect(isWaiting).to.be.equal(true);
+
+      await queueEvents.close();
     });
 
     it('marks the job as failed when attempts made equal to attempts given', async function() {
