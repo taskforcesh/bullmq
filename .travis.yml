@@ -12,7 +12,7 @@ services:
   - redis-server
 
 script:
-  - yarn prettier -- --list-different
+  - yarn prettier --list-different
   - yarn test
 
 after_script:
