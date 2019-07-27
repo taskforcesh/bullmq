@@ -30,7 +30,7 @@ export class Worker extends QueueBase {
 
     this.opts = {
       // settings: {},
-      drainDelay: 5000,
+      drainDelay: 5,
       concurrency: 1,
       ...this.opts,
     };
