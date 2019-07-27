@@ -21,7 +21,7 @@ const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
  * jobs, etc, will not work correctly or at all.
  *
  */
-export class QueueKeeper extends QueueBase {
+export class QueueScheduler extends QueueBase {
   private nextTimestamp = Number.MAX_VALUE;
 
   constructor(protected name: string, opts?: QueueKeeperOptions) {
@@ -85,8 +85,6 @@ export class QueueKeeper extends QueueBase {
 
       const now = Date.now();
       const delay = this.nextTimestamp - now;
-
-      console.log('DELAY', delay, this.nextTimestamp);
 
       if (delay <= 0) {
         const nextTimestamp = await Scripts.updateDelaySet(this, now);

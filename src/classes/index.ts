@@ -3,7 +3,7 @@ export * from './job';
 export * from './queue-base';
 export * from './queue-events';
 export * from './queue-getters';
-export * from './queue-keeper';
+export * from './queue-scheduler';
 export * from './queue';
 export * from './redis-connection';
 export * from './repeat';
