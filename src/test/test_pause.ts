@@ -1,5 +1,5 @@
 import { Job, Queue } from '@src/classes';
-import { QueueEvents, QueueKeeper } from '../classes';
+import { QueueEvents, QueueScheduler } from '../classes';
 import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
@@ -280,7 +280,7 @@ describe('Pause', function() {
   it('should not processed delayed jobs', async function() {
     this.timeout(5000);
 
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     let processed = false;

@@ -6,7 +6,7 @@ import { v4 } from 'node-uuid';
 import { Worker } from '@src/classes/worker';
 import { after } from 'lodash';
 import { QueueEvents } from '@src/classes/queue-events';
-import { QueueKeeper } from '@src/classes/queue-keeper';
+import { QueueScheduler } from '@src/classes/queue-scheduler';
 
 describe('Rate Limiter', function() {
   let queue: Queue;
@@ -69,7 +69,7 @@ describe('Rate Limiter', function() {
     const numJobs = 4;
     const startTime = new Date().getTime();
 
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const worker = new Worker(queueName, async job => {}, {

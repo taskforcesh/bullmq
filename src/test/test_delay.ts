@@ -5,7 +5,7 @@ import IORedis from 'ioredis';
 import { v4 } from 'node-uuid';
 import { Worker } from '@src/classes/worker';
 import { QueueEvents } from '@src/classes/queue-events';
-import { QueueKeeper } from '@src/classes/queue-keeper';
+import { QueueScheduler } from '@src/classes/queue-scheduler';
 
 describe('Delayed jobs', function() {
   this.timeout(15000);
@@ -31,7 +31,7 @@ describe('Delayed jobs', function() {
 
   it('should process a delayed job only after delayed time', async function() {
     const delay = 500;
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const queueEvents = new QueueEvents(queueName);
@@ -74,7 +74,7 @@ describe('Delayed jobs', function() {
   it('should process delayed jobs in correct order', async function() {
     let order = 0;
 
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const promise = new Promise((resolve, reject) => {
@@ -162,7 +162,7 @@ describe('Delayed jobs', function() {
   it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function() {
     let order = 1;
 
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const now = Date.now();

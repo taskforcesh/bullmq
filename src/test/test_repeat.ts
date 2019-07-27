@@ -7,7 +7,8 @@ import { Worker } from '@src/classes/worker';
 import { after } from 'lodash';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Repeat } from '@src/classes/repeat';
-import { QueueKeeper } from '@src/classes/queue-keeper';
+import { QueueScheduler } from '@src/classes/queue-scheduler';
+import { reject } from 'bluebird';
 
 // const utils = require('./utils');
 const sinon = require('sinon');
@@ -19,6 +20,8 @@ const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 const ONE_DAY = 24 * ONE_HOUR;
 const MAX_INT = 2147483647;
+
+const NoopProc = async (job: Job) => {};
 
 describe('repeat', function() {
   this.timeout(10000);
@@ -147,11 +150,10 @@ describe('repeat', function() {
 
   it('should repeat every 2 seconds', async function() {
     this.timeout(200000);
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const worker = new Worker(queueName, async job => {
-      console.log('Working...');
     });
 
     const date = new Date('2017-02-07 9:24:00');
@@ -179,7 +181,6 @@ describe('repeat', function() {
         }
         prev = job;
         counter++;
-        console.log('COUNTER', counter);
         if (counter == 5) {
           await worker.close();
           resolve();
@@ -190,7 +191,7 @@ describe('repeat', function() {
 
   it('should repeat every 2 seconds with startDate in future', async function() {
     this.timeout(200000);
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const date = new Date('2017-02-07 9:24:00');
@@ -199,7 +200,6 @@ describe('repeat', function() {
     const delay = 5 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {
-      console.log('Working...');
     });
 
     await queue.append(
@@ -227,7 +227,6 @@ describe('repeat', function() {
         }
         prev = job;
         counter++;
-        console.log('COUNTER', counter);
         if (counter == 5) {
           resolve();
           await queueKeeper.close();
@@ -238,7 +237,7 @@ describe('repeat', function() {
 
   it('should repeat every 2 seconds with startDate in past', async function() {
     this.timeout(200000);
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const date = new Date('2017-02-07 9:24:00');
@@ -247,7 +246,6 @@ describe('repeat', function() {
     const delay = 5 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {
-      console.log('Working...');
     });
 
     await queue.append(
@@ -275,7 +273,6 @@ describe('repeat', function() {
         }
         prev = job;
         counter++;
-        console.log('COUNTER', counter);
         if (counter == 5) {
           resolve();
           await queueKeeper.close();
@@ -286,7 +283,7 @@ describe('repeat', function() {
 
   // Skipped until we find a way of simulating time to avoid waiting 5 days
   it.skip('should repeat once a day for 5 days', async function() {
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const date = new Date('2017-05-05 13:12:00');
@@ -294,7 +291,6 @@ describe('repeat', function() {
     const nextTick = ONE_DAY;
 
     const worker = new Worker(queueName, async job => {
-      console.log('Working...');
     });
 
     await queue.append(
@@ -336,14 +332,13 @@ describe('repeat', function() {
 
   // Skipped until we find a way of simulating time to avoid waiting a month
   it.skip('should repeat 7:th day every month at 9:25', async function(done) {
-    const queueKeeper = new QueueKeeper(queueName);
+    const queueKeeper = new QueueScheduler(queueName);
     await queueKeeper.init();
 
     const date = new Date('2017-02-02 7:21:42');
     this.clock.tick(date.getTime());
 
     const worker = new Worker(queueName, async job => {
-      console.log('Working...');
     });
 
     const nextTick = () => {
@@ -396,31 +391,90 @@ describe('repeat', function() {
     expect(jobs[0].id).to.be.eql(jobs[1].id);
   });
 
-  it('should allow removing a named repeatable job', async function(done) {
+  it('should allow removing a named repeatable job', async function() {
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.init();
+
     const date = new Date('2017-02-07 9:24:00');
     let prev: Job;
     let counter = 0;
 
     this.clock.tick(date.getTime());
 
-    const nextTick = 2 * ONE_SECOND;
-    const repeat = { cron: '*/2 * * * * *' };
+    const nextTick = ONE_SECOND + 1;
+    const repeat = { cron: '*/1 * * * * *' };
+    let processor;
 
-    const worker = new Worker(queueName, async job => {
-      counter++;
-      if (counter == 20) {
-        await queue.removeRepeatable('remove', repeat);
-        this.clock.tick(nextTick);
-        const delayed = await queue.getDelayed();
-        expect(delayed).to.be.empty;
-        done();
-      } else if (counter > 20) {
-        done(Error('should not repeat more than 20 times'));
-      }
+    const processing = new Promise((resolve, reject) => {
+      processor = async (job: Job) => {
+        counter++;
+        if (counter == 7) {
+          await queue.removeRepeatable('remove', repeat);
+          this.clock.tick(nextTick);
+          const delayed = await queue.getDelayed();
+          expect(delayed).to.be.empty;
+          resolve();
+        } else if (counter > 7) {
+          reject(Error('should not repeat more than 7 times'));
+        }
+      };
     });
 
-    await queue.append('remove', { foo: 'bar' }, { repeat: repeat });
+    const worker = new Worker(queueName, processor);
+
+    await queue.append('remove', { foo: 'bar' }, { repeat });
     this.clock.tick(nextTick);
+
+    worker.on('completed', job => {
+      this.clock.tick(nextTick);
+      if (prev) {
+        expect(prev.timestamp).to.be.lt(job.timestamp);
+        expect(job.timestamp - prev.timestamp).to.be.gte(ONE_SECOND);
+      }
+      prev = job;
+    });
+
+    await processing;
+    await queueScheduler.close();
+  });
+
+  it.skip('should allow removing a customId repeatable job', async function() {
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.init();
+    const date = new Date('2017-02-07 9:24:00');
+    let prev: Job;
+    let counter = 0;
+    let processor;
+    const jobId = 'xxxx';
+
+    this.clock.tick(date.getTime());
+
+    const nextTick = 2 * ONE_SECOND + 1;
+    const repeat = { cron: '*/2 * * * * *' };
+
+    await queue.append('test', { foo: 'bar' }, { repeat, jobId });
+    this.clock.tick(nextTick);
+
+    const processing = new Promise((resolve, reject) => {
+      processor = async (job: Job) => {
+        counter++;
+        if (counter == 20) {
+          try {
+            await queue.removeRepeatable('test', repeat, jobId);
+            this.clock.tick(nextTick);
+            const delayed = await queue.getDelayed();
+            expect(delayed).to.be.empty;
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        } else if (counter > 20) {
+          reject(Error('should not repeat more than 20 times'));
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor);
 
     worker.on('completed', job => {
       this.clock.tick(nextTick);
@@ -430,61 +484,23 @@ describe('repeat', function() {
       }
       prev = job;
     });
+    await processing;
+    await queueScheduler.close();
   });
 
-  it('should allow removing a customId repeatable job', async function(done) {
+  it.skip('should not re-add a repeatable job after it has been removed', async function() {
+    const queueKeeper = new QueueScheduler(queueName);
+    await queueKeeper.init();
+
     const date = new Date('2017-02-07 9:24:00');
-    let prev: Job;
-    let counter = 0;
-
-    this.clock.tick(date.getTime());
-
-    const nextTick = 2 * ONE_SECOND;
+    const nextTick = 2 * ONE_SECOND + 100;
     const repeat = { cron: '*/2 * * * * *' };
-
-    await queue.append(
-      'test',
-      { foo: 'bar' },
-      { repeat: repeat, jobId: 'xxxx' },
-    );
-    this.clock.tick(nextTick);
-
-    const worker = new Worker(queueName, async job => {
-      counter++;
-      if (counter == 20) {
-        await queue.removeRepeatable(
-          'test',
-          _.defaults({ jobId: 'xxxx' }, repeat),
-        );
-        this.clock.tick(nextTick);
-        const delayed = await queue.getDelayed();
-        expect(delayed).to.be.empty;
-        done();
-      } else if (counter > 20) {
-        done(Error('should not repeat more than 20 times'));
-      }
-    });
-
-    worker.on('completed', job => {
-      this.clock.tick(nextTick);
-      if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        expect(job.timestamp - prev.timestamp).to.be.gte(2000);
-      }
-      prev = job;
-    });
-  });
-
-  it('should not re-add a repeatable job after it has been removed', async function() {
-    const date = new Date('2017-02-07 9:24:00');
-    const nextTick = 2 * ONE_SECOND;
-    const repeat = { cron: '* /2 * * * * *' };
     const nextRepeatableJob = queue.repeat.addNextRepeatableJob;
     this.clock.tick(date.getTime());
 
     const afterRemoved = new Promise(async resolve => {
       const worker = new Worker(queueName, async job => {
-        queue.repeat.addNextRepeatableJob = async (...args) => {
+        worker['repeat'].addNextRepeatableJob = async (...args) => {
           // In order to simulate race condition
           // Make removeRepeatables happen any time after a moveToX is called
           await queue.repeat.removeRepeatable(
@@ -499,33 +515,38 @@ describe('repeat', function() {
         };
       });
 
-      await queue.append(
-        'test',
-        { foo: 'bar' },
-        { repeat: repeat, jobId: 'xxxx' },
-      );
-      this.clock.tick(nextTick);
-
       worker.on('completed', () => {
         this.clock.tick(nextTick);
       });
     });
+
+    await queue.append(
+      'test',
+      { foo: 'bar' },
+      { repeat: repeat, jobId: 'xxxx' },
+    );
+
+    this.clock.tick(nextTick);
 
     await afterRemoved;
 
     const jobs = await queue.repeat.getRepeatableJobs();
     // Repeatable job was recreated
     expect(jobs.length).to.eql(0);
+
+    await queueKeeper.close();
   });
 
   it('should allow adding a repeatable job after removing it', async function() {
+    const queueKeeper = new QueueScheduler(queueName);
+    await queueKeeper.init();
+
     const repeat = {
-      cron: '* /5 * * * *',
+      cron: '*/5 * * * *',
     };
 
-    const worker = new Worker(queueName, async job => {
-      // dummy processor
-    });
+    const worker = new Worker(queueName, NoopProc);
+    worker.waitUntilReady();
 
     await queue.append(
       'myTestJob',
@@ -540,6 +561,7 @@ describe('repeat', function() {
     expect(delayed.length).to.be.eql(1);
 
     await queue.removeRepeatable('myTestJob', repeat);
+
     delayed = await queue.getDelayed();
     expect(delayed.length).to.be.eql(0);
 
@@ -547,40 +569,71 @@ describe('repeat', function() {
 
     delayed = await queue.getDelayed();
     expect(delayed.length).to.be.eql(1);
+
+    await worker.close();
+    await queueKeeper.close();
   });
 
-  it('should not repeat more than 5 times', function(done) {
+  it('should not repeat more than 5 times', async function() {
+    const queueKeeper = new QueueScheduler(queueName);
+    await queueKeeper.init();
+
     const date = new Date('2017-02-07 9:24:00');
     this.clock.tick(date.getTime());
     const nextTick = ONE_SECOND + 500;
 
-    const worker = new Worker(queueName, async job => {
-      // dummy processor
-    });
+    const worker = new Worker(queueName, NoopProc);
 
-    queue.append(
+    await queue.append(
       'repeat',
       { foo: 'bar' },
-      { repeat: { limit: 5, cron: '* /1 * * * * *' } },
+      { repeat: { limit: 5, cron: '*/1 * * * * *' } },
     );
     this.clock.tick(nextTick);
 
     var counter = 0;
-    worker.on('completed', () => {
-      this.clock.tick(nextTick);
-      counter++;
-      if (counter == 5) {
-        done();
-      } else if (counter > 5) {
-        done(Error('should not repeat more than 5 times'));
-      }
+
+    const completting = new Promise((resolve, reject) => {
+      worker.on('completed', () => {
+        this.clock.tick(nextTick);
+        counter++;
+        if (counter == 5) {
+          resolve();
+        } else if (counter > 5) {
+          reject(Error('should not repeat more than 5 times'));
+        }
+      });
     });
+
+    await completting;
+    await worker.close();
+    await queueKeeper.close();
   });
 
-  it('should processes delayed jobs by priority', async function(done) {
+  it('should processes delayed jobs by priority', async function() {
+    const queueKeeper = new QueueScheduler(queueName);
+    await queueKeeper.init();
+
     const jobAdds = [];
     let currentPriority = 1;
     const nextTick = 1000;
+
+    let processor;
+
+    const processing = new Promise((resolve, reject) => {
+      processor = async (job: Job) => {
+        try {
+          expect(job.id).to.be.ok;
+          expect(job.data.p).to.be.eql(currentPriority++);
+        } catch (err) {
+          reject(err);
+        }
+
+        if (currentPriority > 3) {
+          resolve();
+        }
+      };
+    });
 
     jobAdds.push(
       queue.append('test', { p: 1 }, { priority: 1, delay: nextTick * 3 }),
@@ -592,27 +645,22 @@ describe('repeat', function() {
       queue.append('test', { p: 3 }, { priority: 3, delay: nextTick }),
     );
 
-    this.clock.tick(nextTick * 3);
-
     await Promise.all(jobAdds);
 
-    const worker = new Worker(queueName, async job => {
-      // dummy processor
-      try {
-        expect(job.id).to.be.ok;
-        expect(job.data.p).to.be.eql(currentPriority++);
-      } catch (err) {
-        done(err);
-      }
+    this.clock.tick(nextTick * 3 + 100);
 
-      if (currentPriority > 3) {
-        done();
-      }
-    });
+    const worker = new Worker(queueName, processor);
+    await worker.waitUntilReady();
+
+    await processing;
+    await worker.close();
+    await queueKeeper.close();
   });
 
-  // Skip test that only fails on travis
-  it('should use ".every" as a valid interval', async function(done) {
+  it('should use ".every" as a valid interval', async function() {
+    const queueKeeper = new QueueScheduler(queueName);
+    await queueKeeper.init();
+
     const interval = ONE_SECOND * 2;
     const date = new Date('2017-02-07 9:24:00');
 
@@ -634,23 +682,29 @@ describe('repeat', function() {
     );
     this.clock.tick(nextTick);
 
-    const worker = new Worker(queueName, async job => {
-      // dummy processor
-    });
+    const worker = new Worker(queueName, async job => {});
+    await worker.waitUntilReady();
 
     let prevType: string;
     let counter = 0;
-    worker.on('completed', job => {
-      this.clock.tick(nextTick);
-      if (prevType) {
-        expect(prevType).to.not.be.eql(job.data.type);
-      }
-      prevType = job.data.type;
-      counter++;
-      if (counter == 20) {
-        done();
-      }
+
+    const completting = new Promise(resolve => {
+      worker.on('completed', job => {
+        this.clock.tick(nextTick);
+        if (prevType) {
+          expect(prevType).to.not.be.eql(job.data.type);
+        }
+        prevType = job.data.type;
+        counter++;
+        if (counter == 20) {
+          resolve();
+        }
+      });
     });
+
+    await completting;
+    await worker.close();
+    await queueKeeper.close();
   });
 
   it('should throw an error when using .cron and .every simutaneously', async function() {
@@ -668,42 +722,60 @@ describe('repeat', function() {
     }
   });
 
-  // This tests works well locally but fails in travis for some unknown reason.
-  it('should emit a waiting event when adding a repeatable job to the waiting list', async function(done) {
+  it('should emit a waiting event when adding a repeatable job to the waiting list', async function() {
+    const queueKeeper = new QueueScheduler(queueName);
+    await queueKeeper.init();
+
     const date = new Date('2017-02-07 9:24:00');
     this.clock.tick(date.getTime());
     const nextTick = 2 * ONE_SECOND + 500;
 
-    const worker = new Worker(queueName, async job => {
-      // dummy processor
-    });
+    const worker = new Worker(queueName, async job => {});
 
-    worker.on('waiting', function(jobId) {
-      expect(jobId).to.be.equal(
-        'repeat:93168b0ea97b55fb5a8325e8c66e4300:' +
-          (date.getTime() + 2 * ONE_SECOND),
-      );
-      done();
+    const waiting = new Promise(resolve => {
+      queueEvents.on('waiting', function({ event, jobId, prev }) {
+        expect(jobId).to.be.equal(
+          'repeat:93168b0ea97b55fb5a8325e8c66e4300:' +
+            (date.getTime() + 2 * ONE_SECOND),
+        );
+        resolve();
+      });
     });
 
     await queue.append(
       'repeat',
       { foo: 'bar' },
-      { repeat: { cron: '* /2 * * * * *' } },
+      { repeat: { cron: '*/2 * * * * *' } },
     );
     this.clock.tick(nextTick);
+
+    await waiting;
+    await worker.close();
+    await queueKeeper.close();
   });
 
-  it('should have the right count value', async function(done) {
-    await queue.append('test', { foo: 'bar' }, { repeat: { every: 1000 } });
-    this.clock.tick(ONE_SECOND);
+  it('should have the right count value', async function() {
+    const queueKeeper = new QueueScheduler(queueName);
+    await queueKeeper.init();
 
-    const worker = new Worker(queueName, async job => {
-      if (job.opts.repeat.count === 1) {
-        done();
-      } else {
-        done(Error('repeatable job got the wrong repeat count'));
-      }
+    await queue.append('test', { foo: 'bar' }, { repeat: { every: 1000 } });
+    this.clock.tick(ONE_SECOND + 100);
+
+    let processor;
+    const processing = new Promise((resolve, reject) => {
+      processor = async (job: Job) => {
+        if (job.opts.repeat.count === 1) {
+          resolve();
+        } else {
+          reject(new Error('repeatable job got the wrong repeat count'));
+        }
+      };
     });
+
+    const worker = new Worker(queueName, processor);
+
+    await processing;
+    await worker.close();
+    await queueKeeper.close();
   });
 });
