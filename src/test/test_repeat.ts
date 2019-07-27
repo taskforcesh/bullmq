@@ -153,8 +153,7 @@ describe('repeat', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
-    const worker = new Worker(queueName, async job => {
-    });
+    const worker = new Worker(queueName, async job => {});
 
     const date = new Date('2017-02-07 9:24:00');
     this.clock.tick(date.getTime());
@@ -199,8 +198,7 @@ describe('repeat', function() {
     const nextTick = 2 * ONE_SECOND + 500;
     const delay = 5 * ONE_SECOND + 500;
 
-    const worker = new Worker(queueName, async job => {
-    });
+    const worker = new Worker(queueName, async job => {});
 
     await queue.append(
       'repeat',
@@ -245,8 +243,7 @@ describe('repeat', function() {
     const nextTick = 2 * ONE_SECOND + 500;
     const delay = 5 * ONE_SECOND + 500;
 
-    const worker = new Worker(queueName, async job => {
-    });
+    const worker = new Worker(queueName, async job => {});
 
     await queue.append(
       'repeat',
@@ -290,8 +287,7 @@ describe('repeat', function() {
     this.clock.tick(date.getTime());
     const nextTick = ONE_DAY;
 
-    const worker = new Worker(queueName, async job => {
-    });
+    const worker = new Worker(queueName, async job => {});
 
     await queue.append(
       'repeat',
@@ -338,8 +334,7 @@ describe('repeat', function() {
     const date = new Date('2017-02-02 7:21:42');
     this.clock.tick(date.getTime());
 
-    const worker = new Worker(queueName, async job => {
-    });
+    const worker = new Worker(queueName, async job => {});
 
     const nextTick = () => {
       const now = moment();

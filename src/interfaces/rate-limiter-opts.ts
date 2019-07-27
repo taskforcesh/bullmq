@@ -4,5 +4,4 @@ export interface RateLimiterOpts {
 
   // per duration in milliseconds
   duration: number;
-
 }

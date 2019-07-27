@@ -1,8 +1,9 @@
 {
-  "extends": ["tslint-eslint-rules"],
+  "extends": ["tslint-eslint-rules", "tslint-config-prettier"],
+  "rulesDirectory": ["tslint-plugin-prettier"],
   "rules": {
+    "prettier": true,
     "no-unnecessary-class": [false, "allow-empty-class"],
-    "no-use-before-declare": true,
     "no-inferrable-types": true,
     "semicolon": [true, "always"],
     "no-bitwise": false,

@@ -142,10 +142,9 @@ describe('Job', function() {
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
 
-      const waiting = new Promise( resolve => {
+      const waiting = new Promise(resolve => {
         queueEvents.on('waiting', resolve);
       });
-
 
       await job.moveToFailed(new Error('test error'), true);
 
