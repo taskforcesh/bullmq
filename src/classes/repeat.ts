@@ -26,7 +26,6 @@ export class Repeat extends QueueBase {
       typeof repeatOpts.limit !== 'undefined' &&
       currentCount > repeatOpts.limit
     ) {
-      console.log('done?');
       return;
     }
 
@@ -35,11 +34,9 @@ export class Repeat extends QueueBase {
 
     const nextMillis = getNextMillis(now, repeatOpts);
 
-    console.log('nextmillis', nextMillis);
     if (nextMillis) {
       jobId = jobId ? jobId + ':' : ':';
       const repeatJobKey = getRepeatKey(name, repeatOpts, jobId);
-      console.log(repeatJobKey);
 
       let repeatableExists = true;
 
@@ -76,8 +73,6 @@ export class Repeat extends QueueBase {
     data: any,
     currentCount: number,
   ) {
-    console.log('create job');
-
     //
     // Generate unique job id for this iteration.
     //
@@ -93,17 +88,13 @@ export class Repeat extends QueueBase {
       prevMillis: nextMillis,
     };
 
-    mergedOpts.repeat = Object.assign({}, opts.repeat, {
-      count: currentCount,
-    });
+    mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
     await this.client.zadd(
       this.keys.repeat,
       nextMillis.toString(),
       repeatJobKey,
     );
-
-    console.log('JOB OPTS', mergedOpts);
 
     return Job.create(this, name, data, mergedOpts);
   }
@@ -113,7 +104,7 @@ export class Repeat extends QueueBase {
 
     jobId = jobId ? jobId + ':' : ':';
     const repeatJobKey = getRepeatKey(name, repeat, jobId);
-    const repeatJobId = getRepeatJobId(name, jobId, 0, md5(repeatJobKey));
+    const repeatJobId = getRepeatJobId(name, jobId, '', md5(repeatJobKey));
     const queueKey = this.keys[''];
 
     return (<any>this.client).removeRepeatable(
@@ -158,7 +149,7 @@ export class Repeat extends QueueBase {
 function getRepeatJobId(
   name: string,
   jobId: string,
-  nextMillis: number,
+  nextMillis: number | string,
   namespace: string,
 ) {
   return 'repeat:' + md5(name + jobId + namespace) + ':' + nextMillis;
@@ -189,7 +180,6 @@ function getNextMillis(millis: number, opts: RepeatOpts) {
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
-  console.log('EXPRESSION', opts.cron, opts);
   const interval = parser.parseExpression(opts.cron, {
     ...opts,
     currentDate,

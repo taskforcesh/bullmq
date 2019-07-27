@@ -13,7 +13,7 @@ import { array2obj } from '../utils';
 import { Job, JobJson } from './job';
 import { Queue } from './queue';
 import { QueueBase } from './queue-base';
-import { QueueKeeper } from './queue-keeper';
+import { QueueScheduler } from './queue-scheduler';
 import { Worker } from './worker';
 
 export class Scripts {
@@ -56,6 +56,7 @@ export class Scripts {
       opts.priority || 0,
       opts.lifo ? 'RPUSH' : 'LPUSH',
     ];
+
     keys = keys.concat(<string[]>args);
     return (<any>client).addJob(keys);
   }
@@ -336,7 +337,7 @@ export class Scripts {
   //    (e.g. if the job handler keeps crashing),
   //    we limit the number stalled job recoveries to settings.maxStalledCount.
   //
-  static moveStalledJobsToWait(queue: QueueKeeper) {
+  static moveStalledJobsToWait(queue: QueueScheduler) {
     const keys: (string | number)[] = [
       queue.keys.stalled,
       queue.keys.wait,
