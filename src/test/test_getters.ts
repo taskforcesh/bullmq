@@ -1,7 +1,7 @@
 /*eslint-env node */
 'use strict';
 
-import { Queue } from '@src/classes';
+import { Queue, Job } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
@@ -57,14 +57,20 @@ describe('Jobs getters', function() {
   });
 
   it('should get active jobs', async function() {
-    const worker = new Worker(queueName, async job => {
-      const jobs = await queue.getActive();
-      expect(jobs).to.be.a('array');
-      expect(jobs.length).to.be.equal(1);
-      expect(jobs[0].data.foo).to.be.equal('bar');
+    let processor;
+    const processing = new Promise(resolve => {
+      processor = async (job: Job) => {
+        const jobs = await queue.getActive();
+        expect(jobs).to.be.a('array');
+        expect(jobs.length).to.be.equal(1);
+        expect(jobs[0].data.foo).to.be.equal('bar');
+        resolve();
+      };
     });
+    const worker = new Worker(queueName, processor);
 
-    queue.append('test', { foo: 'bar' });
+    await queue.append('test', { foo: 'bar' });
+    await processing;
 
     await worker.close();
   });

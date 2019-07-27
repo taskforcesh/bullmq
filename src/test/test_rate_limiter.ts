@@ -69,8 +69,8 @@ describe('Rate Limiter', function() {
     const numJobs = 4;
     const startTime = new Date().getTime();
 
-    const queueKeeper = new QueueScheduler(queueName);
-    await queueKeeper.init();
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.init();
 
     const worker = new Worker(queueName, async job => {}, {
       limiter: {
@@ -108,6 +108,6 @@ describe('Rate Limiter', function() {
 
     await result;
     await worker.close();
-    await queueKeeper.close();
+    await queueScheduler.close();
   });
 });
