@@ -2,7 +2,10 @@ import childProcess, { ChildProcess } from 'child_process';
 import path from 'path';
 import _ from 'lodash';
 import getPort from 'get-port';
+import fs from 'fs';
+import { promisify } from 'util';
 
+const stat = promisify(fs.stat);
 const fork = childProcess.fork;
 
 export interface ChildProcessExt extends ChildProcess {
@@ -48,7 +51,19 @@ export class ChildPool {
     }
 
     const execArgv = await convertExecArgv(process.execArgv);
-    child = fork(path.join(__dirname, './master.js'), execArgv);
+
+    let masterFile = path.join(__dirname, './master.js');
+    try {
+      await stat(masterFile); // would throw if file not exists
+    } catch (_) {
+      try {
+        masterFile = path.join(process.cwd(), 'dist/classes/master.js');
+        await stat(masterFile);
+      } finally {
+      }
+    }
+
+    child = fork(masterFile, execArgv);
     child.processFile = processFile;
 
     _this.retained[child.pid] = child;

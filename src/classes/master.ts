@@ -3,17 +3,17 @@
  * processor and the main process.
  *
  */
+import { promisify } from 'util';
+import _ from 'lodash';
 
-let status;
-let processor;
-
-const util = require('util');
+let status: any;
+let processor: any;
 
 // https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
 if (!('toJSON' in Error.prototype)) {
   Object.defineProperty(Error.prototype, 'toJSON', {
     value: function() {
-      const alt = {};
+      const alt: any = {};
       const _this = this;
 
       Object.getOwnPropertyNames(_this).forEach(function(key) {
@@ -27,7 +27,7 @@ if (!('toJSON' in Error.prototype)) {
   });
 }
 
-process.on('message', msg => {
+process.on('message', async msg => {
   switch (msg.cmd) {
     case 'init':
       processor = require(msg.value);
@@ -36,7 +36,7 @@ process.on('message', msg => {
         processor = processor.default;
       }
       if (processor.length > 1) {
-        processor = util.promisify(processor);
+        processor = promisify(processor);
       } else {
         const origProcessor = processor;
         processor = function() {
@@ -58,28 +58,23 @@ process.on('message', msg => {
         });
       }
       status = 'STARTED';
-
-      Promise.resolve(processor(wrapJob(msg.job)) || {})
-        .then(
-          result => {
-            process.send({
-              cmd: 'completed',
-              value: result,
-            });
-          },
-          err => {
-            if (!err.message) {
-              err = new Error(err);
-            }
-            process.send({
-              cmd: 'failed',
-              value: err,
-            });
-          },
-        )
-        .finally(() => {
-          status = 'IDLE';
+      try {
+        const result = await Promise.resolve(processor(wrapJob(msg.job)) || {});
+        process.send({
+          cmd: 'completed',
+          value: result,
         });
+      } catch (err) {
+        if (!err.message) {
+          err = new Error(err);
+        }
+        process.send({
+          cmd: 'failed',
+          value: err,
+        });
+      } finally {
+        status = 'IDLE';
+      }
       break;
     case 'stop':
       break;
@@ -97,18 +92,18 @@ process.on('uncaughtException', err => {
   throw err;
 });
 
-function wrapJob(job) {
+function wrapJob(job: any) {
   job.data = JSON.parse(job.data || '{}');
   job.opts = JSON.parse(job.opts || '{}');
 
-  job.progress = function(progress) {
+  job.progress = function(progress: any) {
     process.send({
       cmd: 'progress',
       value: progress,
     });
     return Promise.resolve();
   };
-  job.log = function(row) {
+  job.log = function(row: any) {
     process.send({
       cmd: 'log',
       value: row,
