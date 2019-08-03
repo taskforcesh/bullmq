@@ -5,7 +5,7 @@ import IORedis from 'ioredis';
 import { v4 } from 'node-uuid';
 import { Worker } from '@src/classes/worker';
 import { QueueEvents } from '@src/classes/queue-events';
-import { QueueKeeper } from '@src/classes/queue-keeper';
+import { QueueScheduler } from '@src/classes/queue-scheduler';
 
 describe('Delayed jobs', function() {
   this.timeout(15000);
@@ -31,8 +31,8 @@ describe('Delayed jobs', function() {
 
   it('should process a delayed job only after delayed time', async function() {
     const delay = 500;
-    const queueKeeper = new QueueKeeper(queueName);
-    await queueKeeper.init();
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.init();
 
     const queueEvents = new QueueEvents(queueName);
     await queueEvents.init();
@@ -69,13 +69,14 @@ describe('Delayed jobs', function() {
     expect(job.opts.delay).to.be.eql(delay);
 
     await completed;
+    await queueScheduler.close();
   });
 
   it('should process delayed jobs in correct order', async function() {
     let order = 0;
 
-    const queueKeeper = new QueueKeeper(queueName);
-    await queueKeeper.init();
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.init();
 
     const promise = new Promise((resolve, reject) => {
       const worker = new Worker(queueName, async job => {
@@ -83,7 +84,7 @@ describe('Delayed jobs', function() {
         try {
           expect(order).to.be.equal(job.data.order);
           if (order === 10) {
-            await queueKeeper.close();
+            await queueScheduler.close();
             await worker.close();
             resolve();
           }
@@ -109,7 +110,9 @@ describe('Delayed jobs', function() {
     queue.append('test', { order: 4 }, { delay: 400 });
     queue.append('test', { order: 8 }, { delay: 800 });
 
-    return promise;
+    await promise;
+
+    await queueScheduler.close();
   });
 
   /*
@@ -162,8 +165,8 @@ describe('Delayed jobs', function() {
   it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function() {
     let order = 1;
 
-    const queueKeeper = new QueueKeeper(queueName);
-    await queueKeeper.init();
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.init();
 
     const now = Date.now();
     const promises = [];
@@ -188,7 +191,7 @@ describe('Delayed jobs', function() {
           expect(order).to.be.equal(job.data.order);
 
           if (order === 12) {
-            await queueKeeper.close();
+            await queueScheduler.close();
             await worker.close();
             resolve();
           }
@@ -205,6 +208,8 @@ describe('Delayed jobs', function() {
       });
     });
 
-    return promise;
+    await promise;
+
+    await queueScheduler.close();
   });
 });

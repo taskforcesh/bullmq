@@ -21,7 +21,8 @@ export class Worker extends QueueBase {
   private resumeWorker: () => void;
   private paused: Promise<void>;
   private repeat: Repeat;
-  childPool: ChildPool;
+  private childPool: ChildPool;
+  public opts: WorkerOptions;
 
   private processing: { [index: number]: Promise<Job | void> } = {};
   constructor(
@@ -31,14 +32,12 @@ export class Worker extends QueueBase {
   ) {
     super(name, opts);
 
-    this.opts = Object.assign(
-      {
-        settings: {},
-        drainDelay: 5000,
-        concurrency: 1,
-      },
-      this.opts,
-    );
+    this.opts = {
+      // settings: {},
+      drainDelay: 5,
+      concurrency: 1,
+      ...this.opts,
+    };
 
     if (typeof processor === 'function') {
       this.processFn = processor;

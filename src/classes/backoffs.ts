@@ -60,9 +60,8 @@ function lookupStrategy(
     return Backoffs.builtinStrategies[backoff.type](backoff.delay);
   } else {
     throw new Error(
-      `Unknown backoff strategy ${
-        backoff.type
-      }. If a custom backoff strategy is used, specify it when the queue is created.`,
+      `Unknown backoff strategy ${backoff.type}.
+      If a custom backoff strategy is used, specify it when the queue is created.`,
     );
   }
 }

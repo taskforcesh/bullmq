@@ -152,6 +152,7 @@ export class QueueGetters extends QueueBase {
   }
 
   async getJobs(types: string[] | string, start = 0, end = -1, asc = false) {
+    await this.waitUntilReady();
     types = Array.isArray(types) ? types : [types];
 
     if (types.indexOf('waiting') !== -1) {

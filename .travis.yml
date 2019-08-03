@@ -4,15 +4,15 @@ sudo: false
 
 # test on node.js versions
 node_js:
+  - '12'
   - '10'
   - '8'
-  - '6'
 
 services:
   - redis-server
 
 script:
-  - yarn prettier -- --list-different
+  - yarn lint
   - yarn test
 
 after_script:

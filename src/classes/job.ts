@@ -74,8 +74,6 @@ export class Job {
 
     job.id = await job.addJob(queue.client);
 
-    // job.lockKey = job.toKey(jobId) + ':lock';
-
     logger('Job added', job.id);
     return job;
   }
