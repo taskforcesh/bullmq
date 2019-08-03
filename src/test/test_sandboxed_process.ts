@@ -49,8 +49,8 @@ describe('sandboxed process', () => {
       try {
         expect(job.data).to.be.eql({ foo: 'bar' });
         expect(value).to.be.eql(42);
-        expect(Object.keys(worker.childPool.retained)).to.have.lengthOf(0);
-        expect(worker.childPool.free[processFile]).to.have.lengthOf(1);
+        expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+        expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
         worker.close();
         done();
       } catch (err) {
@@ -65,6 +65,7 @@ describe('sandboxed process', () => {
   it('should process with named processor', done => {
     const processFile = __dirname + '/fixtures/fixture_processor.js';
     const worker = new Worker(queueName, processFile, {
+      drainDelay: 1,
       settings: {
         guardInterval: 300000,
         stalledInterval: 300000,
@@ -75,8 +76,8 @@ describe('sandboxed process', () => {
       try {
         expect(job.data).to.be.eql({ foo: 'bar' });
         expect(value).to.be.eql(42);
-        expect(Object.keys(worker.childPool.retained)).to.have.lengthOf(0);
-        expect(worker.childPool.free[processFile]).to.have.lengthOf(1);
+        expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+        expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
         worker.close();
         done();
       } catch (err) {
@@ -88,69 +89,12 @@ describe('sandboxed process', () => {
     queue.append('foobar', { foo: 'bar' });
   });
 
-  // FIXME no named processors in 4.0
-  // it('should process with several named processors', function(done) {
-  //   this.timeout(10000);
-  //
-  //   const processFileFoo = __dirname + '/fixtures/fixture_processor_foo.js';
-  //   const processFileBar = __dirname + '/fixtures/fixture_processor_bar.js';
-  //
-  //   const worker = new Worker(queueName, processFileFoo, {
-  //     settings: {
-  //       guardInterval: 300000,
-  //       stalledInterval: 300000
-  //     }
-  //   });
-  //
-  //   let count = 0;
-  //   worker.on('completed', (job, value) => {
-  //     let data, result, processFile, retainedLength;
-  //     count++;
-  //     if (count == 1) {
-  //       data = { foo: 'bar' };
-  //       result = 'foo';
-  //       processFile = processFileFoo;
-  //       retainedLength = 1;
-  //     } else {
-  //       data = { bar: 'qux' };
-  //       result = 'bar';
-  //       processFile = processFileBar;
-  //       retainedLength = 0;
-  //     }
-  //
-  //     try {
-  //       expect(job.data).to.be.eql(data);
-  //       expect(value).to.be.eql(result);
-  //       expect(Object.keys(workerFoo.childPool.retained)).to.have.lengthOf(
-  //         retainedLength
-  //       );
-  //       expect(workerFoo.childPool.free[processFile]).to.have.lengthOf(1);
-  //       if (count === 2) {
-  //         done();
-  //       }
-  //     } catch (err) {
-  //       console.error(err);
-  //       done(err);
-  //     }
-  //   });
-  //
-  //   queue.append('foo', { foo: 'bar' }).then(() => {
-  //     delay(500).then(() => {
-  //       queue.append('bar', { bar: 'qux' });
-  //     });
-  //   });
-  //
-  //   worker.on('error', err => {
-  //     console.error(err);
-  //   });
-  // });
-
   it('should process with concurrent processors', function(done) {
     this.timeout(30000);
     let worker: Worker;
 
     const after = _.after(4, () => {
-      expect(worker.childPool.getAllFree().length).to.eql(4);
+      expect(worker['childPool'].getAllFree().length).to.eql(4);
       worker.close();
       done();
     });
@@ -164,6 +108,7 @@ describe('sandboxed process', () => {
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       worker = new Worker(queueName, processFile, {
         concurrency: 4,
+        drainDelay: 1,
         settings: {
           guardInterval: 300000,
           stalledInterval: 300000,
@@ -174,8 +119,8 @@ describe('sandboxed process', () => {
         try {
           expect(value).to.be.eql(42);
           expect(
-            Object.keys(worker.childPool.retained).length +
-              worker.childPool.getAllFree().length,
+            Object.keys(worker['childPool'].retained).length +
+              worker['childPool'].getAllFree().length,
           ).to.eql(4);
           after();
         } catch (err) {
@@ -193,6 +138,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
     worker = new Worker(queueName, processFile, {
       concurrency: 1,
+      drainDelay: 1,
       settings: {
         guardInterval: 300000,
         stalledInterval: 300000,
@@ -200,7 +146,7 @@ describe('sandboxed process', () => {
     });
 
     const after = _.after(4, () => {
-      expect(worker.childPool.getAllFree().length).to.eql(1);
+      expect(worker['childPool'].getAllFree().length).to.eql(1);
       worker.close();
       done();
     });
@@ -215,8 +161,8 @@ describe('sandboxed process', () => {
         try {
           expect(value).to.be.eql(42);
           expect(
-            Object.keys(worker.childPool.retained).length +
-              worker.childPool.getAllFree().length,
+            Object.keys(worker['childPool'].retained).length +
+              worker['childPool'].getAllFree().length,
           ).to.eql(1);
           after();
         } catch (err) {
@@ -227,36 +173,11 @@ describe('sandboxed process', () => {
     });
   });
 
-  // FIXME no done() in 4.0
-  // it('should process and complete using done', done => {
-  //   const processFile = __dirname + '/fixtures/fixture_processor_callback.js';
-  //
-  //   const worker = new Worker(queueName, processFile, {
-  //     settings: {
-  //       guardInterval: 300000,
-  //       stalledInterval: 300000
-  //     }
-  //   });
-  //
-  //   worker.on('completed', (job, value) => {
-  //     try {
-  //       expect(job.data).to.be.eql({ foo: 'bar' });
-  //       expect(value).to.be.eql(42);
-  //       expect(Object.keys(worker.childPool.retained)).to.have.lengthOf(0);
-  //       expect(worker.childPool.getAllFree()).to.have.lengthOf(1);
-  //       done();
-  //     } catch (err) {
-  //       done(err);
-  //     }
-  //   });
-  //
-  //   queue.append('test', { foo: 'bar' });
-  // });
-
   it('should process and update progress', done => {
     const processFile = __dirname + '/fixtures/fixture_processor_progress.js';
 
     const worker = new Worker(queueName, processFile, {
+      drainDelay: 1,
       settings: {
         guardInterval: 300000,
         stalledInterval: 300000,
@@ -271,8 +192,8 @@ describe('sandboxed process', () => {
         expect(value).to.be.eql(37);
         expect(job.progress).to.be.eql(100);
         expect(progresses).to.be.eql([10, 27, 78, 100]);
-        expect(Object.keys(worker.childPool.retained)).to.have.lengthOf(0);
-        expect(worker.childPool.getAllFree()).to.have.lengthOf(1);
+        expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+        expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
         worker.close();
         done();
       } catch (err) {
@@ -292,6 +213,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_fail.js';
 
     const worker = new Worker(queueName, processFile, {
+      drainDelay: 1,
       settings: {
         guardInterval: 300000,
         stalledInterval: 300000,
@@ -304,8 +226,8 @@ describe('sandboxed process', () => {
         expect(job.failedReason).eql('Manually failed processor');
         expect(err.message).eql('Manually failed processor');
         expect(err.stack).include('fixture_processor_fail.js');
-        expect(Object.keys(worker.childPool.retained)).to.have.lengthOf(0);
-        expect(worker.childPool.getAllFree()).to.have.lengthOf(1);
+        expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+        expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
         worker.close();
         done();
       } catch (err) {
@@ -330,37 +252,11 @@ describe('sandboxed process', () => {
     }
   });
 
-  // FIXME no done() in 4.0
-  // it('should process and fail using callback', done => {
-  //   const processFile = __dirname + '/fixtures/fixture_processor_callback_fail.js';
-  //
-  //   const worker = new Worker(queueName, processFile, {
-  //     settings: {
-  //       guardInterval: 300000,
-  //       stalledInterval: 300000
-  //     }
-  //   });
-  //
-  //   worker.on('failed', (job, err) => {
-  //     try {
-  //       expect(job.data).eql({ foo: 'bar' });
-  //       expect(job.failedReason).eql('Manually failed processor');
-  //       expect(err.message).eql('Manually failed processor');
-  //       expect(Object.keys(worker.childPool.retained)).to.have.lengthOf(0);
-  //       expect(worker.childPool.getAllFree()).to.have.lengthOf(1);
-  //       done();
-  //     } catch (err) {
-  //       done(err);
-  //     }
-  //   });
-  //
-  //   queue.append('test', { foo: 'bar' });
-  // });
-
   it('should fail if the process crashes', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
     const worker = new Worker(queueName, processFile, {
+      drainDelay: 1,
       settings: {
         guardInterval: 300000,
         stalledInterval: 300000,
@@ -382,6 +278,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
     const worker = new Worker(queueName, processFile, {
+      drainDelay: 1,
       settings: {
         guardInterval: 300000,
         stalledInterval: 300000,
@@ -405,6 +302,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
     const worker = new Worker(queueName, processFile, {
+      drainDelay: 1,
       settings: {
         guardInterval: 300000,
         stalledInterval: 300000,
@@ -428,6 +326,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_exit.js';
 
     const worker = new Worker(queueName, processFile, {
+      drainDelay: 1,
       settings: {
         guardInterval: 300000,
         stalledInterval: 300000,
@@ -436,12 +335,14 @@ describe('sandboxed process', () => {
 
     worker.on('completed', () => {
       try {
-        expect(Object.keys(worker.childPool.retained)).to.have.lengthOf(0);
-        expect(worker.childPool.getAllFree()).to.have.lengthOf(1);
+        expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+        expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
         delay(500)
           .then(() => {
-            expect(Object.keys(worker.childPool.retained)).to.have.lengthOf(0);
-            expect(worker.childPool.getAllFree()).to.have.lengthOf(0);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
           })
           .then(() => {
             done();
