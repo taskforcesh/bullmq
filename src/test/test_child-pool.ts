@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { ChildPool } from '@src/classes';
-import { ChildProcess } from "child_process";
+import { ChildProcess } from 'child_process';
 
 describe('Child pool', () => {
   let pool: ChildPool;
@@ -104,7 +104,7 @@ describe('Child pool', () => {
       pool.retain(processor),
       pool.retain(processor),
       pool.retain(processor),
-      pool.retain(processor)
+      pool.retain(processor),
     ])
       .then(_children => {
         children = _children;
@@ -126,7 +126,7 @@ describe('Child pool', () => {
       pool.retain(processor),
       pool.retain(processor),
       pool.retain(processor),
-      pool.retain(processor)
+      pool.retain(processor),
     ])
       .then(_children => {
         children = _children;

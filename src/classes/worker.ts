@@ -6,8 +6,8 @@ import { Scripts } from './scripts';
 import * as Bluebird from 'bluebird';
 import IORedis from 'ioredis';
 import { Repeat } from './repeat';
-import fs from "fs";
-import path from "path";
+import fs from 'fs';
+import path from 'path';
 import { ChildPool } from './child-pool';
 
 // note: sandboxed processors would also like to define concurrency per process
@@ -46,10 +46,11 @@ export class Worker extends QueueBase {
       // SANDBOXED
       const supportedFileTypes = ['.js', '.ts', '.flow'];
       const processorFile =
-          processor +
-          (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
+        processor +
+        (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
 
-      if (!fs.existsSync(processorFile)) { // TODO are we forced to use sync api here?
+      if (!fs.existsSync(processorFile)) {
+        // TODO are we forced to use sync api here?
         throw new Error(`File ${processorFile} does not exist`);
       }
 
@@ -288,7 +289,6 @@ export class Worker extends QueueBase {
       this.childPool && this.childPool.clean();
     }
   }
-
 }
 
 async function redisClientDisconnect(client: IORedis.Redis) {

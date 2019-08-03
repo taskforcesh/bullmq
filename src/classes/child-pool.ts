@@ -1,116 +1,112 @@
-import childProcess, {ChildProcess} from "child_process";
-import path from "path";
-import _ from "lodash";
-import getPort from "get-port";
+import childProcess, { ChildProcess } from 'child_process';
+import path from 'path';
+import _ from 'lodash';
+import getPort from 'get-port';
 
 const fork = childProcess.fork;
 
-
 const convertExecArgv = (execArgv: any): Promise<string[]> => {
-    const standard: string[] = [];
-    const promises: Promise<any>[] = [];
+  const standard: string[] = [];
+  const promises: Promise<any>[] = [];
 
-    _.forEach(execArgv, arg => {
-        if (arg.indexOf('--inspect') === -1) {
-            standard.push(arg);
-        } else {
-            const argName = arg.split('=')[0];
-            promises.push(
-                getPort().then((port: any) => {
-                    return `${argName}=${port}`;
-                })
-            );
-        }
-    });
+  _.forEach(execArgv, arg => {
+    if (arg.indexOf('--inspect') === -1) {
+      standard.push(arg);
+    } else {
+      const argName = arg.split('=')[0];
+      promises.push(
+        getPort().then((port: any) => {
+          return `${argName}=${port}`;
+        }),
+      );
+    }
+  });
 
-    return Promise.all(promises).then(convertedArgs => {
-        return standard.concat(convertedArgs);
-    });
+  return Promise.all(promises).then(convertedArgs => {
+    return standard.concat(convertedArgs);
+  });
 };
-
 
 const initChild = function(child: any, processFile: any) {
-    return new Promise(resolve => {
-        child.send({ cmd: 'init', value: processFile }, resolve);
-    });
+  return new Promise(resolve => {
+    child.send({ cmd: 'init', value: processFile }, resolve);
+  });
 };
 
-
 export class ChildPool {
+  retained: any = {};
+  free: any = {};
 
-    retained: any = {};
-    free: any = {};
+  constructor() {
+    // todo for what this check is needed? to implement singleton?
+    if (!(this instanceof ChildPool)) {
+      return new ChildPool();
+    }
+  }
 
-    constructor() {
-        // todo for what this check is needed? to implement singleton?
-        if (!(this instanceof ChildPool)) {
-            return new ChildPool();
-        }
+  retain(processFile: any): Promise<ChildProcess & { processFile?: string }> {
+    const _this = this;
+    let child = _this.getFree(processFile).pop();
+
+    if (child) {
+      _this.retained[child.pid] = child;
+      return Promise.resolve(child);
     }
 
-    retain(processFile: any): Promise<ChildProcess & { processFile?: string }> {
-        const _this = this;
-        let child = _this.getFree(processFile).pop();
+    return convertExecArgv(process.execArgv).then(execArgv => {
+      child = fork(path.join(__dirname, './master.js'), execArgv);
+      child.processFile = processFile;
 
-        if (child) {
-            _this.retained[child.pid] = child;
-            return Promise.resolve(child);
-        }
+      _this.retained[child.pid] = child;
 
-        return convertExecArgv(process.execArgv).then((execArgv) => {
-            child = fork(path.join(__dirname, './master.js'), execArgv);
-            child.processFile = processFile;
+      child.on('exit', _this.remove.bind(_this, child));
 
-            _this.retained[child.pid] = child;
+      return initChild(child, child.processFile).then(() => {
+        return child;
+      });
+    });
+  }
 
-            child.on('exit', _this.remove.bind(_this, child));
+  release(child: any) {
+    delete this.retained[child.pid];
+    this.getFree(child.processFile).push(child);
+  }
 
-            return initChild(child, child.processFile).then(() => {
-                return child;
-            });
-        });
+  remove(child: any) {
+    delete this.retained[child.pid];
+
+    const free = this.getFree(child.processFile);
+
+    const childIndex = free.indexOf(child);
+    if (childIndex > -1) {
+      free.splice(childIndex, 1);
     }
+  }
 
-    release(child: any) {
-        delete this.retained[child.pid];
-        this.getFree(child.processFile).push(child);
-    }
+  kill(child: ChildProcess, signal?: string) {
+    child.kill(signal || 'SIGKILL');
+    this.remove(child);
+  }
 
-    remove(child: any) {
-        delete this.retained[child.pid];
+  clean() {
+    const children = _.values(this.retained).concat(this.getAllFree());
 
-        const free = this.getFree(child.processFile);
+    children.forEach(child => {
+      // TODO: We may want to use SIGKILL if the process does not die after some time.
+      this.kill(child, 'SIGTERM');
+    });
 
-        const childIndex = free.indexOf(child);
-        if (childIndex > -1) {
-            free.splice(childIndex, 1);
-        }
-    }
+    this.retained = {};
+    this.free = {};
+  }
 
-    kill(child: ChildProcess, signal?: string) {
-        child.kill(signal || 'SIGKILL');
-        this.remove(child);
-    }
+  getFree(id: any) {
+    return (this.free[id] = this.free[id] || []);
+  }
 
-    clean() {
-        const children = _.values(this.retained).concat(this.getAllFree());
-
-        children.forEach(child => {
-            // TODO: We may want to use SIGKILL if the process does not die after some time.
-            this.kill(child, 'SIGTERM');
-        });
-
-        this.retained = {};
-        this.free = {};
-    }
-
-    getFree(id: any) {
-        return (this.free[id] = this.free[id] || []);
-    }
-
-    getAllFree() {
-        return _.flatten(_.values(this.free));
-    }
+  getAllFree() {
+    return _.flatten(_.values(this.free));
+  }
 }
 
 export const pool = new ChildPool();

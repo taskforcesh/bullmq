@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import _ from 'lodash';
-import {Queue, QueueEvents, Worker} from "@src/classes";
-import {beforeEach} from "mocha";
-import {v4} from "node-uuid";
+import { Queue, QueueEvents, Worker } from '@src/classes';
+import { beforeEach } from 'mocha';
+import { v4 } from 'node-uuid';
 const delay = require('delay');
 const pReflect = require('p-reflect');
 const pool = require('../classes/child-pool').pool;
@@ -41,8 +41,8 @@ describe('sandboxed process', () => {
       drainDelay: 1,
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     worker.on('completed', (job, value) => {
@@ -59,7 +59,7 @@ describe('sandboxed process', () => {
       }
     });
 
-    queue.append('test',{ foo: 'bar' });
+    queue.append('test', { foo: 'bar' });
   });
 
   it('should process with named processor', done => {
@@ -67,8 +67,8 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     worker.on('completed', (job, value) => {
@@ -146,6 +146,7 @@ describe('sandboxed process', () => {
   // });
 
   it('should process with concurrent processors', function(done) {
+    this.timeout(30000);
     let worker: Worker;
 
     const after = _.after(4, () => {
@@ -156,30 +157,29 @@ describe('sandboxed process', () => {
 
     Promise.all([
       queue.append('test', { foo: 'bar1' }),
-      queue.append('test',{ foo: 'bar2' }),
-      queue.append('test',{ foo: 'bar3' }),
-      queue.append('test',{ foo: 'bar4' })
+      queue.append('test', { foo: 'bar2' }),
+      queue.append('test', { foo: 'bar3' }),
+      queue.append('test', { foo: 'bar4' }),
     ]).then(() => {
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       worker = new Worker(queueName, processFile, {
         concurrency: 4,
         settings: {
           guardInterval: 300000,
-          stalledInterval: 300000
-        }
+          stalledInterval: 300000,
+        },
       });
 
       worker.on('completed', (job, value) => {
         try {
           expect(value).to.be.eql(42);
           expect(
-              Object.keys(worker.childPool.retained).length +
-              worker.childPool.getAllFree().length
+            Object.keys(worker.childPool.retained).length +
+              worker.childPool.getAllFree().length,
           ).to.eql(4);
           after();
         } catch (err) {
           worker.close();
-          console.log("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<");
           done(err);
         }
       });
@@ -195,8 +195,8 @@ describe('sandboxed process', () => {
       concurrency: 1,
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     const after = _.after(4, () => {
@@ -207,16 +207,16 @@ describe('sandboxed process', () => {
 
     Promise.all([
       queue.append('1', { foo: 'bar1' }),
-      queue.append('2',{ foo: 'bar2' }),
-      queue.append('3',{ foo: 'bar3' }),
-      queue.append('4',{ foo: 'bar4' })
+      queue.append('2', { foo: 'bar2' }),
+      queue.append('3', { foo: 'bar3' }),
+      queue.append('4', { foo: 'bar4' }),
     ]).then(() => {
       worker.on('completed', (job, value) => {
         try {
           expect(value).to.be.eql(42);
           expect(
-              Object.keys(worker.childPool.retained).length +
-              worker.childPool.getAllFree().length
+            Object.keys(worker.childPool.retained).length +
+              worker.childPool.getAllFree().length,
           ).to.eql(1);
           after();
         } catch (err) {
@@ -254,14 +254,13 @@ describe('sandboxed process', () => {
   // });
 
   it('should process and update progress', done => {
-
     const processFile = __dirname + '/fixtures/fixture_processor_progress.js';
 
     const worker = new Worker(queueName, processFile, {
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     const progresses: any[] = [];
@@ -282,7 +281,6 @@ describe('sandboxed process', () => {
       }
     });
 
-
     worker.on('progress', (job, progress) => {
       progresses.push(progress);
     });
@@ -296,8 +294,8 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     worker.on('failed', (job, err) => {
@@ -320,7 +318,6 @@ describe('sandboxed process', () => {
   });
 
   it('should error if processor file is missing', done => {
-
     let worker;
     try {
       const missingProcessFile = __dirname + '/fixtures/missing_processor.js';
@@ -361,14 +358,13 @@ describe('sandboxed process', () => {
   // });
 
   it('should fail if the process crashes', () => {
-
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
     const worker = new Worker(queueName, processFile, {
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     return queue
@@ -388,8 +384,8 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     return queue
@@ -400,7 +396,7 @@ describe('sandboxed process', () => {
       .then(inspection => {
         expect(inspection.isRejected).to.be.eql(true);
         expect(inspection.reason.message).to.be.eql(
-          'Unexpected exit code: 0 signal: null'
+          'Unexpected exit code: 0 signal: null',
         );
       });
   });
@@ -411,8 +407,8 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     return queue
@@ -423,7 +419,7 @@ describe('sandboxed process', () => {
       .then(inspection => {
         expect(inspection.isRejected).to.be.eql(true);
         expect(inspection.reason.message).to.be.eql(
-          'Unexpected exit code: 1 signal: null'
+          'Unexpected exit code: 1 signal: null',
         );
       });
   });
@@ -434,8 +430,8 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       settings: {
         guardInterval: 300000,
-        stalledInterval: 300000
-      }
+        stalledInterval: 300000,
+      },
     });
 
     worker.on('completed', () => {
