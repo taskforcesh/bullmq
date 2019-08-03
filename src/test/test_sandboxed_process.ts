@@ -19,7 +19,7 @@ describe('sandboxed process', () => {
     return client.flushdb();
   });
 
-  beforeEach(async function() {
+  beforeEach(async () => {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
@@ -91,20 +91,23 @@ describe('sandboxed process', () => {
 
   it('should process with concurrent processors', function(done) {
     this.timeout(30000);
-    let worker: Worker;
 
-    const after = _.after(4, () => {
-      expect(worker['childPool'].getAllFree().length).to.eql(4);
-      worker.close();
-      done();
-    });
+    (async () => {
+      let worker: Worker;
 
-    Promise.all([
-      queue.append('test', { foo: 'bar1' }),
-      queue.append('test', { foo: 'bar2' }),
-      queue.append('test', { foo: 'bar3' }),
-      queue.append('test', { foo: 'bar4' }),
-    ]).then(() => {
+      const after = _.after(4, () => {
+        expect(worker['childPool'].getAllFree().length).to.eql(4);
+        worker.close();
+        done();
+      });
+
+      await Promise.all([
+        queue.append('test', { foo: 'bar1' }),
+        queue.append('test', { foo: 'bar2' }),
+        queue.append('test', { foo: 'bar3' }),
+        queue.append('test', { foo: 'bar4' }),
+      ]);
+
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       worker = new Worker(queueName, processFile, {
         concurrency: 4,
@@ -128,35 +131,37 @@ describe('sandboxed process', () => {
           done(err);
         }
       });
-    });
+    })();
   });
 
   it('should reuse process with single processors', function(done) {
     this.timeout(30000);
 
-    let worker: Worker;
-    const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
-    worker = new Worker(queueName, processFile, {
-      concurrency: 1,
-      drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
-    });
+    (async () => {
+      let worker: Worker;
+      const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
+      worker = new Worker(queueName, processFile, {
+        concurrency: 1,
+        drainDelay: 1,
+        settings: {
+          guardInterval: 300000,
+          stalledInterval: 300000,
+        },
+      });
 
-    const after = _.after(4, () => {
-      expect(worker['childPool'].getAllFree().length).to.eql(1);
-      worker.close();
-      done();
-    });
+      const after = _.after(4, () => {
+        expect(worker['childPool'].getAllFree().length).to.eql(1);
+        worker.close();
+        done();
+      });
 
-    Promise.all([
-      queue.append('1', { foo: 'bar1' }),
-      queue.append('2', { foo: 'bar2' }),
-      queue.append('3', { foo: 'bar3' }),
-      queue.append('4', { foo: 'bar4' }),
-    ]).then(() => {
+      await Promise.all([
+        queue.append('1', { foo: 'bar1' }),
+        queue.append('2', { foo: 'bar2' }),
+        queue.append('3', { foo: 'bar3' }),
+        queue.append('4', { foo: 'bar4' }),
+      ]);
+
       worker.on('completed', (job, value) => {
         try {
           expect(value).to.be.eql(42);
@@ -170,7 +175,7 @@ describe('sandboxed process', () => {
           done(err);
         }
       });
-    });
+    })();
   });
 
   it('should process and update progress', done => {
@@ -252,7 +257,7 @@ describe('sandboxed process', () => {
     }
   });
 
-  it('should fail if the process crashes', () => {
+  it('should fail if the process crashes', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
     const worker = new Worker(queueName, processFile, {
@@ -263,21 +268,18 @@ describe('sandboxed process', () => {
       },
     });
 
-    return queue
-      .append('test', {})
-      .then(job => {
-        return pReflect(Promise.resolve(job.waitUntilFinished(queueEvents)));
-      })
-      .then(inspection => {
-        expect(inspection.isRejected).to.be.eql(true);
-        expect(inspection.reason.message).to.be.eql('boom!');
-      });
+    const job = await queue.append('test', {});
+    const inspection = await pReflect(
+      Promise.resolve(job.waitUntilFinished(queueEvents)),
+    );
+    expect(inspection.isRejected).to.be.eql(true);
+    expect(inspection.reason.message).to.be.eql('boom!');
   });
 
-  it('should fail if the process exits 0', () => {
+  it('should fail if the process exits 0', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-    const worker = new Worker(queueName, processFile, {
+    new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
         guardInterval: 300000,
@@ -285,23 +287,20 @@ describe('sandboxed process', () => {
       },
     });
 
-    return queue
-      .append('test', { exitCode: 0 })
-      .then(job => {
-        return pReflect(Promise.resolve(job.waitUntilFinished(queueEvents)));
-      })
-      .then(inspection => {
-        expect(inspection.isRejected).to.be.eql(true);
-        expect(inspection.reason.message).to.be.eql(
-          'Unexpected exit code: 0 signal: null',
-        );
-      });
+    const job = await queue.append('test', { exitCode: 0 });
+    const inspection = await pReflect(
+      Promise.resolve(job.waitUntilFinished(queueEvents)),
+    );
+    expect(inspection.isRejected).to.be.eql(true);
+    expect(inspection.reason.message).to.be.eql(
+      'Unexpected exit code: 0 signal: null',
+    );
   });
 
-  it('should fail if the process exits non-0', () => {
+  it('should fail if the process exits non-0', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-    const worker = new Worker(queueName, processFile, {
+    new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
         guardInterval: 300000,
@@ -309,17 +308,14 @@ describe('sandboxed process', () => {
       },
     });
 
-    return queue
-      .append('test', { exitCode: 1 })
-      .then(job => {
-        return pReflect(Promise.resolve(job.waitUntilFinished(queueEvents)));
-      })
-      .then(inspection => {
-        expect(inspection.isRejected).to.be.eql(true);
-        expect(inspection.reason.message).to.be.eql(
-          'Unexpected exit code: 1 signal: null',
-        );
-      });
+    const job = await queue.append('test', { exitCode: 1 });
+    const inspection = await pReflect(
+      Promise.resolve(job.waitUntilFinished(queueEvents)),
+    );
+    expect(inspection.isRejected).to.be.eql(true);
+    expect(inspection.reason.message).to.be.eql(
+      'Unexpected exit code: 1 signal: null',
+    );
   });
 
   it('should remove exited process', done => {
@@ -333,20 +329,14 @@ describe('sandboxed process', () => {
       },
     });
 
-    worker.on('completed', () => {
+    worker.on('completed', async () => {
       try {
         expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
         expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
-        delay(500)
-          .then(() => {
-            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
-              0,
-            );
-            expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
-          })
-          .then(() => {
-            done();
-          }, done);
+        await delay(500);
+        expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+        expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+        done();
       } catch (err) {
         done(err);
       }

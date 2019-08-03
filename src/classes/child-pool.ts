@@ -5,74 +5,66 @@ import getPort from 'get-port';
 
 const fork = childProcess.fork;
 
-const convertExecArgv = (execArgv: any): Promise<string[]> => {
-  const standard: string[] = [];
-  const promises: Promise<any>[] = [];
+export interface ChildProcessExt extends ChildProcess {
+  processFile?: string;
+}
 
-  _.forEach(execArgv, arg => {
+const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
+  const standard: string[] = [];
+  const convertedArgs: string[] = [];
+
+  _.forEach(execArgv, async arg => {
     if (arg.indexOf('--inspect') === -1) {
       standard.push(arg);
     } else {
       const argName = arg.split('=')[0];
-      promises.push(
-        getPort().then((port: any) => {
-          return `${argName}=${port}`;
-        }),
-      );
+      const port = await getPort();
+      convertedArgs.push(`${argName}=${port}`);
     }
   });
 
-  return Promise.all(promises).then(convertedArgs => {
-    return standard.concat(convertedArgs);
-  });
+  return standard.concat(convertedArgs);
 };
 
-const initChild = function(child: any, processFile: any) {
+const initChild = function(child: ChildProcess, processFile: string) {
   return new Promise(resolve => {
     child.send({ cmd: 'init', value: processFile }, resolve);
   });
 };
 
 export class ChildPool {
-  retained: any = {};
-  free: any = {};
+  retained: { [key: number]: ChildProcessExt } = {};
+  free: { [key: string]: ChildProcessExt[] } = {};
 
-  constructor() {
-    // todo for what this check is needed? to implement singleton?
-    if (!(this instanceof ChildPool)) {
-      return new ChildPool();
-    }
-  }
+  constructor() {}
 
-  retain(processFile: any): Promise<ChildProcess & { processFile?: string }> {
+  async retain(processFile: string): Promise<ChildProcessExt> {
     const _this = this;
     let child = _this.getFree(processFile).pop();
 
     if (child) {
       _this.retained[child.pid] = child;
-      return Promise.resolve(child);
+      return child;
     }
 
-    return convertExecArgv(process.execArgv).then(execArgv => {
-      child = fork(path.join(__dirname, './master.js'), execArgv);
-      child.processFile = processFile;
+    const execArgv = await convertExecArgv(process.execArgv);
+    child = fork(path.join(__dirname, './master.js'), execArgv);
+    child.processFile = processFile;
 
-      _this.retained[child.pid] = child;
+    _this.retained[child.pid] = child;
 
-      child.on('exit', _this.remove.bind(_this, child));
+    child.on('exit', _this.remove.bind(_this, child));
 
-      return initChild(child, child.processFile).then(() => {
-        return child;
-      });
-    });
+    await initChild(child, child.processFile);
+    return child;
   }
 
-  release(child: any) {
+  release(child: ChildProcessExt) {
     delete this.retained[child.pid];
     this.getFree(child.processFile).push(child);
   }
 
-  remove(child: any) {
+  remove(child: ChildProcessExt) {
     delete this.retained[child.pid];
 
     const free = this.getFree(child.processFile);
@@ -100,7 +92,7 @@ export class ChildPool {
     this.free = {};
   }
 
-  getFree(id: any) {
+  getFree(id: string): ChildProcessExt[] {
     return (this.free[id] = this.free[id] || []);
   }
 

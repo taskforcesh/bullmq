@@ -7,9 +7,6 @@
 let status;
 let processor;
 
-//TODO remove for node >= 10
-require('promise.prototype.finally').shim();
-
 const util = require('util');
 
 // https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify

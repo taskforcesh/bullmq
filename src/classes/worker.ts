@@ -9,6 +9,8 @@ import { Repeat } from './repeat';
 import fs from 'fs';
 import path from 'path';
 import { ChildPool } from './child-pool';
+import sandbox from './sandbox';
+import { pool } from './child-pool';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -53,10 +55,7 @@ export class Worker extends QueueBase {
         throw new Error(`File ${processorFile} does not exist`);
       }
 
-      this.childPool = this.childPool || require('./child-pool').pool;
-
-      const sandbox = require('./sandbox').default;
-
+      this.childPool = this.childPool || pool;
       this.processFn = sandbox(processor, this.childPool).bind(this);
     }
 

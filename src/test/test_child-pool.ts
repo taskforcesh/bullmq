@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { ChildPool } from '@src/classes';
-import { ChildProcess } from 'child_process';
 
 describe('Child pool', () => {
   let pool: ChildPool;
@@ -13,131 +12,77 @@ describe('Child pool', () => {
     pool.clean();
   });
 
-  it('should return same child if free', () => {
+  it('should return same child if free', async () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
-    let child: ChildProcess;
-    return pool
-      .retain(processor)
-      .then(_child => {
-        expect(_child).to.be.ok;
-        child = _child;
-        pool.release(child);
-
-        expect(pool.retained).to.be.empty;
-
-        return pool.retain(processor);
-      })
-      .then(newChild => {
-        expect(child).to.be.eql(newChild);
-      });
+    const child = await pool.retain(processor);
+    expect(child).to.be.ok;
+    pool.release(child);
+    expect(pool.retained).to.be.empty;
+    const newChild = await pool.retain(processor);
+    expect(child).to.be.eql(newChild);
   });
 
-  it('should return a new child if reused the last free one', () => {
+  it('should return a new child if reused the last free one', async () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
-    let child: ChildProcess;
-    return pool
-      .retain(processor)
-      .then(_child => {
-        expect(_child).to.be.ok;
-        child = _child;
-        pool.release(child);
-
-        expect(pool.retained).to.be.empty;
-
-        return pool.retain(processor);
-      })
-      .then(newChild => {
-        expect(child).to.be.eql(newChild);
-        child = newChild;
-        return pool.retain(processor);
-      })
-      .then(newChild => {
-        expect(child).not.to.be.eql(newChild);
-      });
+    let child = await pool.retain(processor);
+    expect(child).to.be.ok;
+    pool.release(child);
+    expect(pool.retained).to.be.empty;
+    let newChild = await pool.retain(processor);
+    expect(child).to.be.eql(newChild);
+    child = newChild;
+    newChild = await pool.retain(processor);
+    expect(child).not.to.be.eql(newChild);
   });
 
-  it('should return a new child if none free', () => {
+  it('should return a new child if none free', async () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
-    let child: ChildProcess;
-    return pool
-      .retain(processor)
-      .then(_child => {
-        expect(_child).to.be.ok;
-        child = _child;
-
-        expect(pool.retained).not.to.be.empty;
-
-        return pool.retain(processor);
-      })
-      .then(newChild => {
-        expect(child).to.not.be.eql(newChild);
-      });
+    const child = await pool.retain(processor);
+    expect(child).to.be.ok;
+    expect(pool.retained).not.to.be.empty;
+    const newChild = await pool.retain(processor);
+    expect(child).to.not.be.eql(newChild);
   });
 
-  it('should return a new child if killed', () => {
+  it('should return a new child if killed', async () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
-    let child: ChildProcess;
-    return pool
-      .retain(processor)
-      .then(_child => {
-        expect(_child).to.be.ok;
-        child = _child;
-
-        pool.kill(child);
-
-        expect(pool.retained).to.be.empty;
-
-        return pool.retain(processor);
-      })
-      .then(newChild => {
-        expect(child).to.not.be.eql(newChild);
-      });
+    const child = await pool.retain(processor);
+    expect(child).to.be.ok;
+    pool.kill(child);
+    expect(pool.retained).to.be.empty;
+    const newChild = await pool.retain(processor);
+    expect(child).to.not.be.eql(newChild);
   });
 
-  it('should return a new child if many retained and none free', () => {
+  it('should return a new child if many retained and none free', async () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
-    let children: ChildProcess[];
-
-    return Promise.all([
+    const children = await Promise.all([
       pool.retain(processor),
       pool.retain(processor),
       pool.retain(processor),
       pool.retain(processor),
       pool.retain(processor),
       pool.retain(processor),
-    ])
-      .then(_children => {
-        children = _children;
-        expect(children).to.have.length(6);
-        return pool.retain(processor);
-      })
-      .then(child => {
-        expect(children).not.to.include(child);
-      });
+    ]);
+    expect(children).to.have.length(6);
+    const child = await pool.retain(processor);
+    expect(children).not.to.include(child);
   });
 
-  it('should return an old child if many retained and one free', () => {
+  it('should return an old child if many retained and one free', async () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
-    let children: ChildProcess[];
+    const children = await Promise.all([
+      pool.retain(processor),
+      pool.retain(processor),
+      pool.retain(processor),
+      pool.retain(processor),
+      pool.retain(processor),
+      pool.retain(processor),
+    ]);
 
-    return Promise.all([
-      pool.retain(processor),
-      pool.retain(processor),
-      pool.retain(processor),
-      pool.retain(processor),
-      pool.retain(processor),
-      pool.retain(processor),
-    ])
-      .then(_children => {
-        children = _children;
-        expect(children).to.have.length(6);
-
-        pool.release(_children[0]);
-
-        return pool.retain(processor);
-      })
-      .then(child => {
-        expect(children).to.include(child);
-      });
+    expect(children).to.have.length(6);
+    pool.release(children[0]);
+    const child = await pool.retain(processor);
+    expect(children).to.include(child);
   });
 });
