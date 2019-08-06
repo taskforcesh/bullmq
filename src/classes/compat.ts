@@ -38,7 +38,9 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that resolves when Redis is connected and the queue is ready to accept jobs.
    * This replaces the `ready` event emitted on Queue in previous verisons.
    */
-  isReady(): Promise<this>;
+  isReady(): Promise<this> {
+    throw new Error('Not supported');
+  };
 
   /* tslint:disable:unified-signatures */
 
@@ -133,6 +135,10 @@ export default class Queue<T = any> extends EventEmitter {
   process(name: string, concurrency: number, callback: ProcessPromiseFunction<T>): Promise<void>;
   process(name: string, concurrency: number, callback: string): Promise<void>;
 
+  process(arg1: any, arg2?: any, arg3?: any): Promise<void> {
+    throw new Error('Not supported');
+  }
+
   /* tslint:enable:unified-signatures */
 
   /**
@@ -149,6 +155,10 @@ export default class Queue<T = any> extends EventEmitter {
    */
   add(name: string, data: T, opts?: JobOptions): Promise<Job<T>>;
 
+  add(arg1: any, arg2?: any, arg3?: any): Promise<Job<T>> {
+    throw new Error('Not supported');
+  }
+
   /**
    * Returns a promise that resolves when the queue is paused.
    *
@@ -159,7 +169,9 @@ export default class Queue<T = any> extends EventEmitter {
    *
    * Pausing a queue that is already paused does nothing.
    */
-  pause(isLocal?: boolean): Promise<void>;
+  pause(isLocal?: boolean): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves when the queue is resumed after being paused.
@@ -171,18 +183,27 @@ export default class Queue<T = any> extends EventEmitter {
    *
    * Resuming a queue that is not paused does nothing.
    */
-  resume(isLocal?: boolean): Promise<void>;
+  resume(isLocal?: boolean): Promise<void>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Returns a promise that returns the number of jobs in the queue, waiting or paused.
    * Since there may be other processes adding or processing jobs, this value may be true only for a very small amount of time.
    */
-  count(): Promise<number>;
+  count(): Promise<number>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Empties a queue deleting all the input lists and associated jobs.
    */
-  empty(): Promise<void>;
+  empty(): Promise<void>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Closes the underlying redis client. Use this to perform a graceful shutdown.
@@ -190,55 +211,82 @@ export default class Queue<T = any> extends EventEmitter {
    * `close` can be called from anywhere, with one caveat:
    * if called from within a job handler the queue won't close until after the job has been processed
    */
-  close(): Promise<void>;
+  close(): Promise<void>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Returns a promise that will return the job instance associated with the jobId parameter.
    * If the specified job cannot be located, the promise callback parameter will be set to null.
    */
-  getJob(jobId: JobId): Promise<Job<T> | null>;
+  getJob(jobId: JobId): Promise<Job<T> | null>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Returns a promise that will return an array with the waiting jobs between start and end.
    */
-  getWaiting(start?: number, end?: number): Promise<Array<Job<T>>>;
+  getWaiting(start?: number, end?: number): Promise<Array<Job<T>>>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Returns a promise that will return an array with the active jobs between start and end.
    */
-  getActive(start?: number, end?: number): Promise<Array<Job<T>>>;
+  getActive(start?: number, end?: number): Promise<Array<Job<T>>>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Returns a promise that will return an array with the delayed jobs between start and end.
    */
-  getDelayed(start?: number, end?: number): Promise<Array<Job<T>>>;
+  getDelayed(start?: number, end?: number): Promise<Array<Job<T>>>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Returns a promise that will return an array with the completed jobs between start and end.
    */
-  getCompleted(start?: number, end?: number): Promise<Array<Job<T>>>;
+  getCompleted(start?: number, end?: number): Promise<Array<Job<T>>>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Returns a promise that will return an array with the failed jobs between start and end.
    */
-  getFailed(start?: number, end?: number): Promise<Array<Job<T>>>;
+  getFailed(start?: number, end?: number): Promise<Array<Job<T>>>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Returns JobInformation of repeatable jobs (ordered descending). Provide a start and/or an end
    * index to limit the number of results. Start defaults to 0, end to -1 and asc to false.
    */
-  getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<JobInformation[]>;
+  getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<JobInformation[]>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * ???
    */
-  nextRepeatableJob(name: string, data: any, opts: JobOptions): Promise<Job<T>>;
+  nextRepeatableJob(name: string, data: any, opts: JobOptions): Promise<Job<T>>{
+    throw new Error('Not supported');
+  }
+
 
   /**
    * Removes a given repeatable job. The RepeatOptions and JobId needs to be the same as the ones
    * used for the job when it was added.
    */
-  removeRepeatable(repeat: (CronRepeatOptions | EveryRepeatOptions) & { jobId?: JobId }): Promise<void>;
+  removeRepeatable(repeat: (CronRepeatOptions | EveryRepeatOptions) & { jobId?: JobId }): Promise<void>
 
   /**
    * Removes a given repeatable job. The RepeatOptions and JobId needs to be the same as the ones
@@ -248,67 +296,95 @@ export default class Queue<T = any> extends EventEmitter {
    */
   removeRepeatable(name: string, repeat: (CronRepeatOptions | EveryRepeatOptions) & { jobId?: JobId }): Promise<void>;
 
+  removeRepeatable(arg1: any, arg2?: any): Promise<void> {
+    throw new Error('Not supported');
+  }
+
   /**
    * Removes a given repeatable job by key.
    */
-  removeRepeatableByKey(key: string): Promise<void>;
+  removeRepeatableByKey(key: string): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that will return an array of job instances of the given types.
    * Optional parameters for range and ordering are provided.
    */
-  getJobs(types: string[], start?: number, end?: number, asc?: boolean): Promise<Array<Job<T>>>;
+  getJobs(types: string[], start?: number, end?: number, asc?: boolean): Promise<Array<Job<T>>> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a object with the logs according to the start and end arguments. The returned count
    * value is the total amount of logs, useful for implementing pagination.
    */
-  getJobLogs(jobId: string, start?: number, end?: number): Promise<{ logs: string[], count: number }>;
+  getJobLogs(jobId: string, start?: number, end?: number): Promise<{ logs: string[], count: number }> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves with the job counts for the given queue.
    */
-  getJobCounts(): Promise<JobCounts>;
+  getJobCounts(): Promise<JobCounts> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves with the job counts for the given queue of the given types.
    */
-  getJobCountByTypes(types: string[] | string): Promise<JobCounts>;
+  getJobCountByTypes(types: string[] | string): Promise<JobCounts> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves with the quantity of completed jobs.
    */
-  getCompletedCount(): Promise<number>;
+  getCompletedCount(): Promise<number> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves with the quantity of failed jobs.
    */
-  getFailedCount(): Promise<number>;
+  getFailedCount(): Promise<number> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves with the quantity of delayed jobs.
    */
-  getDelayedCount(): Promise<number>;
+  getDelayedCount(): Promise<number> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves with the quantity of waiting jobs.
    */
-  getWaitingCount(): Promise<number>;
+  getWaitingCount(): Promise<number> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves with the quantity of paused jobs.
    */
-  getPausedCount(): Promise<number>;
+  getPausedCount(): Promise<number> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves with the quantity of active jobs.
    */
-  getActiveCount(): Promise<number>;
+  getActiveCount(): Promise<number> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves to the quantity of repeatable jobs.
    */
-  getRepeatableCount(): Promise<number>;
+  getRepeatableCount(): Promise<number> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Tells the queue remove all jobs created outside of a grace period in milliseconds.
@@ -317,7 +393,9 @@ export default class Queue<T = any> extends EventEmitter {
    * @param status Status of the job to clean. Values are completed, wait, active, delayed, and failed. Defaults to completed.
    * @param limit Maximum amount of jobs to clean per call. If not provided will clean all matching jobs.
    */
-  clean(grace: number, status?: JobStatusClean, limit?: number): Promise<Array<Job<T>>>;
+  clean(grace: number, status?: JobStatusClean, limit?: number): Promise<Array<Job<T>>> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Listens to queue events
@@ -389,6 +467,10 @@ export default class Queue<T = any> extends EventEmitter {
    */
   on(event: 'drained', callback: EventCallback): this; // tslint:disable-line unified-signatures
 
+  on(event: string, callback: Function): this {
+    throw new Error('Not supported');
+  }
+
   /**
    * Array of Redis clients the queue uses
    */
@@ -397,29 +479,39 @@ export default class Queue<T = any> extends EventEmitter {
   /**
    * Set clientName to Redis.client
    */
-  setWorkerName(): Promise<any>;
+  setWorkerName(): Promise<any> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns Redis clients array which belongs to current Queue
    */
-  getWorkers(): Promise<IORedis.Redis[]>;
+  getWorkers(): Promise<IORedis.Redis[]> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns Queue name in base64 encoded format
    */
-  base64Name(): string;
+  base64Name(): string {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns Queue name with keyPrefix (default: 'bull')
    */
-  clientName(): string;
+  clientName(): string {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns Redis clients array which belongs to current Queue from string with all redis clients
    *
    * @param list String with all redis clients
    */
-  parseClientList(list: string): IORedis.Redis[];
+  parseClientList(list: string): IORedis.Redis[] {
+    throw new Error('Not supported');
+  }
 
 }
 
@@ -508,7 +600,7 @@ export type JobId = number | string;
 export type ProcessCallbackFunction<T> = (job: Job<T>, done: DoneCallback) => void;
 export type ProcessPromiseFunction<T> = (job: Job<T>) => Promise<void>;
 
-export interface Job<T = any> {
+export class Job<T = any> {
   id: JobId;
 
   /**
@@ -558,49 +650,67 @@ export interface Job<T = any> {
   /**
    * Report progress on a job
    */
-  progress(value: any): Promise<void>;
+  progress(value: any): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Logs one row of log data.
    *
    * @param row String with log data to be logged.
    */
-  log(row: string): Promise<any>;
+  log(row: string): Promise<any> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is completed
    */
-  isCompleted(): Promise<boolean>;
+  isCompleted(): Promise<boolean> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is failed
    */
-  isFailed(): Promise<boolean>;
+  isFailed(): Promise<boolean> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is delayed
    */
-  isDelayed(): Promise<boolean>;
+  isDelayed(): Promise<boolean> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is active
    */
-  isActive(): Promise<boolean>;
+  isActive(): Promise<boolean> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is wait
    */
-  isWaiting(): Promise<boolean>;
+  isWaiting(): Promise<boolean> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is paused
    */
-  isPaused(): Promise<boolean>;
+  isPaused(): Promise<boolean> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is stuck
    */
-  isStuck(): Promise<boolean>;
+  isStuck(): Promise<boolean> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise resolving to the current job's status.
@@ -608,68 +718,92 @@ export interface Job<T = any> {
    * it atomic. If your queue does have a very large quantity of jobs, you may want to
    * avoid using this method.
    */
-  getState(): Promise<JobStatus>;
+  getState(): Promise<JobStatus> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Update a specific job's data. Promise resolves when the job has been updated.
    */
-  update(data: any): Promise<void>;
+  update(data: any): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Removes a job from the queue and from any lists it may be included in.
    * The returned promise resolves when the job has been removed.
    */
-  remove(): Promise<void>;
+  remove(): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Re-run a job that has failed. The returned promise resolves when the job
    * has been scheduled for retry.
    */
-  retry(): Promise<void>;
+  retry(): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Ensure this job is never ran again even if attemptsMade is less than job.attempts.
    */
-  discard(): Promise<void>;
+  discard(): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Returns a promise that resolves to the returned data when the job has been finished.
    * TODO: Add a watchdog to check if the job has finished periodically.
    * since pubsub does not give any guarantees.
    */
-  finished(): Promise<any>;
+  finished(): Promise<any> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Moves a job to the `completed` queue. Pulls a job from 'waiting' to 'active'
    * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
    */
-  moveToCompleted(returnValue?: string, ignoreLock?: boolean): Promise<[any, JobId] | null>;
+  moveToCompleted(returnValue?: string, ignoreLock?: boolean): Promise<[any, JobId] | null> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Moves a job to the `failed` queue. Pulls a job from 'waiting' to 'active'
    * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
    */
-  moveToFailed(errorInfo: { message: string; }, ignoreLock?: boolean): Promise<[any, JobId] | null>;
+  moveToFailed(errorInfo: { message: string; }, ignoreLock?: boolean): Promise<[any, JobId] | null> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Promotes a job that is currently "delayed" to the "waiting" state and executed as soon as possible.
    */
-  promote(): Promise<void>;
+  promote(): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * The lock id of the job
    */
-  lockKey(): string;
+  lockKey(): string {
+    throw new Error('Not supported');
+  }
 
   /**
    * Releases the lock on the job. Only locks owned by the queue instance can be released.
    */
-  releaseLock(): Promise<void>;
+  releaseLock(): Promise<void> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Takes a lock for this job so that no other queue worker can process it at the same time.
    */
-  takeLock(): Promise<number | false>;
+  takeLock(): Promise<number | false> {
+    throw new Error('Not supported');
+  }
 
   /**
    * Get job properties as Json Object
@@ -688,7 +822,9 @@ export interface Job<T = any> {
     returnvalue: any,
     finishedOn: number | null,
     processedOn: number | null
-  };
+  } {
+    throw new Error('Not supported');
+  }
 }
 
 export type JobStatus = 'completed' | 'waiting' | 'active' | 'delayed' | 'failed';
