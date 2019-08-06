@@ -11,7 +11,7 @@ export class Queue extends QueueGetters {
   limiter: RateLimiterOpts = null;
   repeat: Repeat;
 
-  constructor(name: string, opts?: QueueBaseOptions) {
+  constructor(name: string, opts?: QueueOptions) {
     super(name, opts);
 
     this.repeat = new Repeat(name, {
