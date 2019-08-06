@@ -35,6 +35,19 @@ export default class Queue<T = any> extends EventEmitter {
   client: IORedis.Redis;
 
   /**
+   * This is the Queue constructor.
+   * It creates a new Queue that is persisted in Redis.
+   * Everytime the same queue is instantiated it tries to process all the old jobs that may exist from a previous unfinished session.
+   */
+  constructor(queueName: string, opts?: QueueOptions);
+  constructor(queueName: string, url: string, opts?: QueueOptions);
+
+  constructor(queueName: string, arg2?: any, arg3?: any) {
+    super();
+    throw new Error('Not supported');
+  }
+
+  /**
    * Returns a promise that resolves when Redis is connected and the queue is ready to accept jobs.
    * This replaces the `ready` event emitted on Queue in previous verisons.
    */
