@@ -21,6 +21,28 @@
 
 import * as IORedis from "ioredis";
 import { EventEmitter } from "events";
+import {
+  QueueEvents as V4QueueEvents,
+  Worker as V4Worker,
+  Queue as V4Queue,
+  Job as V4Job,
+  Queue as BullMQ,
+} from '@src/classes';
+import {
+  ClientType as V4ClientType,
+  JobsOpts as V4JobsOpts,
+  QueueOptions as V4QueueOptions,
+  QueueBaseOptions as V4QueueBaseOptions,
+  AdvancedOpts as V4AdvancedOpts,
+  BackoffOpts as V4BackoffOpts,
+  RateLimiterOpts as V4RateLimiterOpts,
+  RepeatOpts as V4RepeatOpts,
+  QueueEventsOptions as V4QueueEventsOptions,
+  WorkerOptions as V4WorkerOptions,
+  Processor as V4Processor,
+} from '@src/interfaces';
+import _ from 'lodash';
+import url from "url";
 
 export default class Queue<T = any> extends EventEmitter {
 
@@ -34,6 +56,13 @@ export default class Queue<T = any> extends EventEmitter {
    */
   client: IORedis.Redis;
 
+  private opts: QueueOptions;
+  private keyPrefix: string;
+
+  private queue: V4Queue;
+  private queueEvents: V4QueueEvents;
+  private worker: V4Worker;
+
   /**
    * This is the Queue constructor.
    * It creates a new Queue that is persisted in Redis.
@@ -44,15 +73,40 @@ export default class Queue<T = any> extends EventEmitter {
 
   constructor(queueName: string, arg2?: any, arg3?: any) {
     super();
-    throw new Error('Not supported');
+
+    let opts: QueueOptions;
+
+    if (_.isString(arg2)) {
+      opts = _.extend(
+        {},
+        {
+          redis: Utils.redisOptsFromUrl(arg2)
+        },
+        arg3
+      );
+    } else {
+      opts = arg2;
+    }
+
+    this.opts = opts;
+    this.name = queueName;
+
+    this.keyPrefix = opts.redis.keyPrefix || opts.prefix || 'bull';
+
+    //
+    // We cannot use ioredis keyPrefix feature since we
+    // create keys dynamically in lua scripts.
+    //
+    delete opts.redis.keyPrefix;
   }
 
   /**
    * Returns a promise that resolves when Redis is connected and the queue is ready to accept jobs.
    * This replaces the `ready` event emitted on Queue in previous verisons.
    */
-  isReady(): Promise<this> {
-    throw new Error('Not supported');
+  async isReady(): Promise<this> {
+    await this.getQueue().waitUntilReady();
+    return this;
   };
 
   /* tslint:disable:unified-signatures */
@@ -524,6 +578,13 @@ export default class Queue<T = any> extends EventEmitter {
    */
   parseClientList(list: string): IORedis.Redis[] {
     throw new Error('Not supported');
+  }
+
+  private getQueue() {
+    if (! this.queue) {
+      this.queue = new V4Queue(this.name, Utils.convertToV4QueueOptions(this.opts));
+    }
+    return this.queue;
   }
 
 }
@@ -1003,3 +1064,28 @@ export type CleanedEventCallback<T = any> = (jobs: Array<Job<T>>, status: JobSta
 export type RemovedEventCallback<T = any> = (job: Job<T>) => void;
 
 export type WaitingEventCallback = (jobId: JobId) => void;
+
+class Utils {
+
+  static redisOptsFromUrl(urlString: string) {
+    const redisOpts: IORedis.RedisOptions = {};
+    try {
+      const redisUrl = url.parse(urlString);
+      redisOpts.port = parseInt(redisUrl.port, 10) || 6379;
+      redisOpts.host = redisUrl.hostname;
+      redisOpts.db = parseInt(redisUrl.pathname, 10) ? parseInt(redisUrl.pathname.split('/')[1], 10) : 0;
+      if (redisUrl.auth) {
+        redisOpts.password = redisUrl.auth.split(':')[1];
+      }
+    } catch (e) {
+      throw new Error(e.message);
+    }
+    return redisOpts;
+  };
+
+  static convertToV4QueueOptions(source: QueueOptions): V4QueueOptions {
+    // TODO
+    return undefined;
+  }
+
+}
