@@ -19,14 +19,12 @@
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 // TypeScript Version: 2.8
 
-import * as IORedis from "ioredis";
+import IORedis from "ioredis";
 import { EventEmitter } from "events";
 import {
   QueueEvents as V4QueueEvents,
   Worker as V4Worker,
-  Queue as V4Queue,
-  Job as V4Job,
-  Queue as BullMQ,
+  Queue as V4Queue
 } from '@src/classes';
 import {
   ClientType as V4ClientType,
@@ -1073,7 +1071,8 @@ class Utils {
       const redisUrl = url.parse(urlString);
       redisOpts.port = parseInt(redisUrl.port, 10) || 6379;
       redisOpts.host = redisUrl.hostname;
-      redisOpts.db = parseInt(redisUrl.pathname, 10) ? parseInt(redisUrl.pathname.split('/')[1], 10) : 0;
+      redisOpts.db = parseInt(redisUrl.pathname, 10) ?
+        parseInt(redisUrl.pathname.split('/')[1], 10) : 0;
       if (redisUrl.auth) {
         redisOpts.password = redisUrl.auth.split(':')[1];
       }
@@ -1083,9 +1082,143 @@ class Utils {
     return redisOpts;
   };
 
+  static convertToV4JobId(id: JobId): string {
+    if(id) {
+      if(typeof id === "string") {
+        return id;
+      } else {
+        return id.toString();
+      }
+    }
+  }
+
+  static convertToV4QueueBaseOptions(source: QueueOptions): V4QueueBaseOptions {
+    if(! source) {
+      return;
+    }
+
+    const target: V4QueueBaseOptions = {};
+
+    if (source.redis) {
+      const client = new IORedis(source.redis);
+      target.connection = client;
+      target.client = client;
+    }
+
+    target.prefix = source.prefix;
+
+    return target;
+  }
+
   static convertToV4QueueOptions(source: QueueOptions): V4QueueOptions {
-    // TODO
-    return undefined;
+    if(! source) {
+      return;
+    }
+
+    const target: V4QueueOptions = Utils.convertToV4QueueBaseOptions(source);
+
+    target.defaultJobOptions = Utils.convertToV4JobsOpts(source.defaultJobOptions);
+    target.createClient = Utils.adaptToV4CreateClient(source.createClient, source.redis);
+
+    return target;
+  }
+
+  static convertToV4JobsOpts(source: JobOptions): V4JobsOpts {
+    if(! source) {
+      return;
+    }
+
+    const target: V4JobsOpts = {};
+
+    target.timestamp = (source as any).timestamp;
+    target.priority = source.priority;
+    target.delay = source.delay;
+    target.attempts = source.attempts;
+    target.repeat = Utils.convertToV4RepeatOpts(source.repeat);
+
+    if(source.backoff !== undefined) {
+      if(typeof source.backoff === "number") {
+        target.backoff = source.backoff;
+      } else {
+        target.backoff = Utils.convertToV4BackoffOpts(source.backoff);
+      }
+    }
+
+    target.lifo = source.lifo;
+    target.timeout = source.timeout;
+
+    if(source.jobId !== undefined) {
+      target.jobId = Utils.convertToV4JobId(source.jobId);
+    }
+
+    if(source.removeOnComplete !== undefined) {
+      if(typeof source.removeOnComplete === "number") {
+        console.log("Warning: numeric removeOnComplete option is not supported");
+      } else {
+        target.removeOnComplete = source.removeOnComplete;
+      }
+    }
+
+    if(source.removeOnFail !== undefined) {
+      if(typeof source.removeOnFail === "number") {
+        console.log("Warning: numeric removeOnFail option is not supported");
+      } else {
+        target.removeOnFail = source.removeOnFail;
+      }
+    }
+    target.stackTraceLimit = source.stackTraceLimit;
+    return target;
+  }
+
+  static convertToV4RepeatOpts(source: CronRepeatOptions | EveryRepeatOptions): V4RepeatOpts {
+    if(! source) {
+      return;
+    }
+
+    const target: V4RepeatOpts = {};
+
+    target.cron = (source as CronRepeatOptions).cron;
+    target.tz = (source as CronRepeatOptions).tz;
+    target.startDate = (source as CronRepeatOptions).startDate;
+    target.endDate = (source as CronRepeatOptions).endDate;
+    target.limit = (source as EveryRepeatOptions).limit;
+    target.every = (source as EveryRepeatOptions).every;
+    target.count = undefined;
+    target.prevMillis = undefined;
+
+    return target;
+  }
+
+  static convertToV4BackoffOpts(source: BackoffOptions): V4BackoffOpts {
+    if(! source) {
+      return;
+    }
+
+    const target: V4BackoffOpts = { type: undefined, delay: undefined };
+
+    target.type = source.type;
+    target.delay = source.delay;
+
+    return target;
+  }
+
+  static adaptToV4CreateClient(
+    createClient: (type: 'client' | 'subscriber' | 'bclient', redisOpts?: IORedis.RedisOptions) => IORedis.Redis | IORedis.Cluster,
+    redis: IORedis.RedisOptions): (type: V4ClientType) => IORedis.Redis {
+    if(! createClient) {
+      return;
+    }
+
+    return ((type) => {
+      switch(type) {
+        case V4ClientType.blocking:
+          return createClient('bclient', redis) as IORedis.Redis;
+        case V4ClientType.normal:
+          return createClient('client', redis) as IORedis.Redis;
+        default:
+          return undefined;
+      }
+    });
   }
 
 }
