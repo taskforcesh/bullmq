@@ -377,40 +377,45 @@ export default class Queue<T = any> extends EventEmitter {
   /**
    * Returns a promise that will return an array with the waiting jobs between start and end.
    */
-  getWaiting(start?: number, end?: number): Promise<Array<Job<T>>>{
-    throw new Error('Not supported');
+  async getWaiting(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
+    const result: V4Job[] = await this.getQueue().getWaiting(start, end);
+    return result.map(job => Utils.convertToJob(job, this));
   }
 
 
   /**
    * Returns a promise that will return an array with the active jobs between start and end.
    */
-  getActive(start?: number, end?: number): Promise<Array<Job<T>>>{
-    throw new Error('Not supported');
+  async getActive(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
+    const result: V4Job[] = await this.getQueue().getActive(start, end);
+    return result.map(job => Utils.convertToJob(job, this));
   }
 
 
   /**
    * Returns a promise that will return an array with the delayed jobs between start and end.
    */
-  getDelayed(start?: number, end?: number): Promise<Array<Job<T>>>{
-    throw new Error('Not supported');
+  async getDelayed(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
+    const result: V4Job[] = await this.getQueue().getDelayed(start, end);
+    return result.map(job => Utils.convertToJob(job, this));
   }
 
 
   /**
    * Returns a promise that will return an array with the completed jobs between start and end.
    */
-  getCompleted(start?: number, end?: number): Promise<Array<Job<T>>>{
-    throw new Error('Not supported');
+  async getCompleted(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
+    const result: V4Job[] = await this.getQueue().getCompleted(start, end);
+    return result.map(job => Utils.convertToJob(job, this));
   }
 
 
   /**
    * Returns a promise that will return an array with the failed jobs between start and end.
    */
-  getFailed(start?: number, end?: number): Promise<Array<Job<T>>>{
-    throw new Error('Not supported');
+  async getFailed(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
+    const result: V4Job[] = await this.getQueue().getFailed(start, end);
+    return result.map(job => Utils.convertToJob(job, this));
   }
 
 
@@ -418,16 +423,23 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns JobInformation of repeatable jobs (ordered descending). Provide a start and/or an end
    * index to limit the number of results. Start defaults to 0, end to -1 and asc to false.
    */
-  getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<JobInformation[]>{
-    throw new Error('Not supported');
+  getRepeatableJobs(start: number = 0, end: number = -1, asc: boolean = false): Promise<JobInformation[]>{
+    return this.getQueue().repeat.getRepeatableJobs(start, end, asc);
   }
 
 
   /**
    * ???
    */
-  nextRepeatableJob(name: string, data: any, opts: JobOptions): Promise<Job<T>>{
-    throw new Error('Not supported');
+  async nextRepeatableJob(name: string, data: any, opts: JobOptions, skipCheckExists?: boolean): Promise<Job<T>>{
+    const result = await this.getQueue().repeat.addNextRepeatableJob(
+      name || Queue.DEFAULT_JOB_NAME,
+      data,
+      Utils.convertToV4JobsOpts(opts),
+      (opts.repeat as any).jobId,
+      skipCheckExists
+    );
+    return Utils.convertToJob(result, this);
   }
 
 
@@ -445,15 +457,45 @@ export default class Queue<T = any> extends EventEmitter {
    */
   removeRepeatable(name: string, repeat: (CronRepeatOptions | EveryRepeatOptions) & { jobId?: JobId }): Promise<void>;
 
-  removeRepeatable(arg1: any, arg2?: any): Promise<void> {
-    throw new Error('Not supported');
+  async removeRepeatable(arg1: any, arg2?: any): Promise<void> {
+    let name: string = Queue.DEFAULT_JOB_NAME;
+    let repeat: (CronRepeatOptions | EveryRepeatOptions) & { jobId?: JobId };
+
+    if(typeof arg1 === 'string') {
+      name = arg1;
+      repeat = arg2;
+    } else {
+      repeat = arg1;
+    }
+    return this.getQueue().repeat.removeRepeatable(name,
+      Utils.convertToV4RepeatOpts(repeat), Utils.convertToV4JobId(repeat.jobId))
   }
 
   /**
    * Removes a given repeatable job by key.
    */
-  removeRepeatableByKey(key: string): Promise<void> {
-    throw new Error('Not supported');
+  async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
+    const repeat = this.getQueue().repeat;
+    await repeat.waitUntilReady();
+
+    const tokens = repeatJobKey.split(':');
+    const data = {
+      key: repeatJobKey,
+      name: tokens[0],
+      id: tokens[1] || null,
+      endDate: parseInt(tokens[2]) || null,
+      tz: tokens[3] || null,
+      cron: tokens[4]
+    };
+
+    const queueKey = repeat.toKey('');
+    return (<any>repeat.client).removeRepeatable(
+      repeat.keys.repeat,
+      repeat.keys.delayed,
+      data.id,
+      repeatJobKey,
+      queueKey
+    );
   }
 
   /**
