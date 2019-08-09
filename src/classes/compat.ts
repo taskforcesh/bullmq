@@ -298,8 +298,12 @@ export default class Queue<T = any> extends EventEmitter {
    *
    * Pausing a queue that is already paused does nothing.
    */
-  pause(isLocal?: boolean): Promise<void> {
-    throw new Error('Not supported');
+  async pause(isLocal?: boolean): Promise<void> {
+    if(isLocal) {
+      return this.worker && this.worker.pause(true);
+    } else {
+      return this.queue && this.queue.pause();
+    }
   }
 
   /**
@@ -312,8 +316,12 @@ export default class Queue<T = any> extends EventEmitter {
    *
    * Resuming a queue that is not paused does nothing.
    */
-  resume(isLocal?: boolean): Promise<void>{
-    throw new Error('Not supported');
+  async resume(isLocal?: boolean): Promise<void>{
+    if(isLocal) {
+      return this.worker && this.worker.resume();
+    } else {
+      return this.queue && this.queue.resume();
+    }
   }
 
 
@@ -322,7 +330,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Since there may be other processes adding or processing jobs, this value may be true only for a very small amount of time.
    */
   count(): Promise<number>{
-    throw new Error('Not supported');
+    return this.getQueue().count();
   }
 
 
@@ -340,8 +348,19 @@ export default class Queue<T = any> extends EventEmitter {
    * `close` can be called from anywhere, with one caveat:
    * if called from within a job handler the queue won't close until after the job has been processed
    */
-  close(): Promise<void>{
-    throw new Error('Not supported');
+  close(): Promise<any>{
+    const promises = [];
+
+    if(this.queue) {
+      promises.push(this.queue.close());
+    }
+    if(this.queueEvents) {
+      promises.push(this.queueEvents.close());
+    }
+    if(this.worker) {
+      promises.push(this.worker.close());
+    }
+    return Promise.all(promises);
   }
 
 
@@ -349,8 +368,9 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return the job instance associated with the jobId parameter.
    * If the specified job cannot be located, the promise callback parameter will be set to null.
    */
-  getJob(jobId: JobId): Promise<Job<T> | null>{
-    throw new Error('Not supported');
+  async getJob(jobId: JobId): Promise<Job<T> | null>{
+    const job = await this.getQueue().getJob(Utils.convertToV4JobId(jobId));
+    return Utils.convertToJob(job, this);
   }
 
 
@@ -767,6 +787,14 @@ export type ProcessCallbackFunction<T> = (job: Job<T>, done: DoneCallback) => vo
 export type ProcessPromiseFunction<T> = (job: Job<T>) => Promise<void>;
 
 export class Job<T = any> {
+
+  constructor(queue: Queue, data: any, opts?: JobOptions);
+  constructor(queue: Queue, name: string, data: any, opts?: JobOptions);
+
+  constructor(queue: Queue, arg2: any, arg3?: any, arg4?: any) {
+    throw new Error('Not supported');
+  }
+
   id: JobId;
 
   /**
@@ -1186,6 +1214,42 @@ class Utils {
     }
   }
 
+  static convertToJob(source: V4Job, queue: Queue<any>): Job {
+    if(source) {
+      return new Job(queue, source.name, source.data, Utils.convertToJobOptions(source.opts));
+    }
+  };
+
+  static convertToJobOptions(source: V4JobsOpts): JobOptions {
+    if(! source) {
+      return;
+    }
+
+    const target: JobOptions = {};
+
+    (target as any).timestamp = source.timestamp;
+    target.priority = source.priority;
+    target.delay = source.delay;
+    target.attempts = source.attempts;
+    target.repeat = Utils.convertToRepeatOptions(source.repeat);
+
+    if(source.backoff !== undefined) {
+      if(typeof source.backoff === "number") {
+        target.backoff = source.backoff;
+      } else {
+        target.backoff = Utils.convertToBackoffOptions(source.backoff);
+      }
+    }
+
+    target.lifo = source.lifo;
+    target.timeout = source.timeout;
+    target.jobId = source.jobId;
+    target.removeOnComplete = source.removeOnComplete;
+    target.removeOnFail = source.removeOnFail;
+    target.stackTraceLimit = source.stackTraceLimit;
+    return target;
+  }
+
   static convertToV4QueueBaseOptions(source: QueueOptions): V4QueueBaseOptions {
     if(! source) {
       return;
@@ -1283,12 +1347,48 @@ class Utils {
     return target;
   }
 
+  static convertToRepeatOptions(source: V4RepeatOpts): CronRepeatOptions | EveryRepeatOptions {
+    if(! source) {
+      return;
+    }
+
+    if(source.cron) {
+      const target: CronRepeatOptions = { cron: undefined };
+      target.cron = (source as CronRepeatOptions).cron;
+      target.tz = (source as CronRepeatOptions).tz;
+      target.startDate = (source as CronRepeatOptions).startDate;
+      target.endDate = (source as CronRepeatOptions).endDate;
+      target.limit = (source as EveryRepeatOptions).limit;
+      return target;
+    } else {
+      const target: EveryRepeatOptions = { every: undefined };
+      target.tz = (source as CronRepeatOptions).tz;
+      target.endDate = (source as CronRepeatOptions).endDate;
+      target.limit = (source as EveryRepeatOptions).limit;
+      target.every = (source as EveryRepeatOptions).every;
+      return target;
+    }
+  }
+
   static convertToV4BackoffOpts(source: BackoffOptions): V4BackoffOpts {
     if(! source) {
       return;
     }
 
     const target: V4BackoffOpts = { type: undefined, delay: undefined };
+
+    target.type = source.type;
+    target.delay = source.delay;
+
+    return target;
+  }
+
+  static convertToBackoffOptions(source: V4BackoffOpts): BackoffOptions {
+    if(! source) {
+      return;
+    }
+
+    const target: BackoffOptions = { type: undefined };
 
     target.type = source.type;
     target.delay = source.delay;
