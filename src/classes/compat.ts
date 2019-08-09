@@ -24,7 +24,8 @@ import { EventEmitter } from "events";
 import {
   QueueEvents as V4QueueEvents,
   Worker as V4Worker,
-  Queue as V4Queue
+  Queue as V4Queue,
+  Job as V4Job,
 } from '@src/classes';
 import {
   ClientType as V4ClientType,
@@ -44,6 +45,8 @@ import url from "url";
 
 export default class Queue<T = any> extends EventEmitter {
 
+  static readonly DEFAULT_JOB_NAME = "__default__";
+
   /**
    * The name of the queue
    */
@@ -60,6 +63,7 @@ export default class Queue<T = any> extends EventEmitter {
   private queue: V4Queue;
   private queueEvents: V4QueueEvents;
   private worker: V4Worker;
+  private handlers: { [key:string]: Function };
 
   /**
    * This is the Queue constructor.
@@ -201,7 +205,67 @@ export default class Queue<T = any> extends EventEmitter {
   process(name: string, concurrency: number, callback: string): Promise<void>;
 
   process(arg1: any, arg2?: any, arg3?: any): Promise<void> {
-    throw new Error('Not supported');
+    let name: string = Queue.DEFAULT_JOB_NAME;
+    let concurrency: number = 1;
+    let handler: Function;
+    let handlerFile: string;
+
+    if(arguments.length === 1) {
+      if(typeof arg1 === "function") {
+        handler = arg1;
+      } else if(typeof arg1 === "string") {
+        handlerFile = arg1;
+      }
+    }
+    else if(arguments.length === 2) {
+      if(typeof arg1 === "number") {
+        concurrency = arg1 > 0 ? arg1 : 1;
+      } else if(typeof arg1 === "string") {
+        name = arg1;
+      }
+      if(typeof arg2 === "function") {
+        handler = arg2;
+      } else if(typeof arg2 === "string") {
+        handlerFile = arg2;
+      }
+    }
+    else if(arguments.length === 3) {
+      if(typeof arg1 === "string") {
+        name = arg1;
+      }
+      if(typeof arg2 === "number") {
+        concurrency = arg2 > 0 ? arg2 : 1;
+      }
+      if(typeof arg3 === "function") {
+        handler = arg3;
+      } else if(typeof arg3 === "string") {
+        handlerFile = arg3;
+      }
+    }
+
+    if (!handler && !handlerFile) {
+      throw new Error('Cannot set an undefined handler');
+    }
+    if (this.handlers[name]) {
+      throw new Error('Cannot define the same handler twice ' + name);
+    }
+
+    if(handlerFile && name !== Queue.DEFAULT_JOB_NAME) {
+      throw new Error('Named processors are not supported with sandboxed workers');
+    }
+
+    this.handlers[name] = handler;
+
+    if(! this.worker) {
+      const workerOpts = Utils.convertToV4WorkerOptions(this.opts);
+      workerOpts.concurrency = concurrency;
+      if(handlerFile) {
+        this.worker = new V4Worker(this.name, handlerFile, workerOpts);
+      } else {
+        this.worker = new V4Worker(this.name, this.createProcessor(), workerOpts);
+      }
+    }
+    return this.worker.waitUntilReady();
   }
 
   /* tslint:enable:unified-signatures */
@@ -583,6 +647,36 @@ export default class Queue<T = any> extends EventEmitter {
       this.queue = new V4Queue(this.name, Utils.convertToV4QueueOptions(this.opts));
     }
     return this.queue;
+  }
+
+  private createProcessor(): V4Processor {
+    const handlers = this.handlers;
+
+    return (job: V4Job): Promise<any> => {
+      const name = job.name || Queue.DEFAULT_JOB_NAME;
+      const handler = handlers[name] || handlers['*'];
+      if(! handler) {
+        throw new Error('Missing process handler for job type ' + name);
+      }
+
+      return new Promise((resolve, reject) => {
+        if (handler.length > 1) {
+          const done = (err: any, res: any) => {
+            if(err) {
+              reject(err);
+            }
+            resolve(res);
+          };
+          handler.apply(null, [job, done]); // TODO convert to Bull3 job
+        } else {
+          try {
+            return resolve(handler.apply(null, [job])); // TODO convert to Bull3 job
+          } catch (err) {
+            return reject(err);
+          }
+        }
+      });
+    };
   }
 
 }
@@ -1198,6 +1292,61 @@ class Utils {
 
     target.type = source.type;
     target.delay = source.delay;
+
+    return target;
+  }
+
+  static convertToV4WorkerOptions(source: QueueOptions): V4WorkerOptions {
+    if(! source) {
+      return;
+    }
+    const target: V4WorkerOptions = Utils.convertToV4QueueBaseOptions(source);
+
+    target.concurrency = undefined;
+    target.limiter = Utils.convertToV4RateLimiterOpts(source.limiter);
+    target.skipDelayCheck = undefined;
+    target.drainDelay = undefined;
+    target.visibilityWindow = undefined;
+    target.settings = Utils.convertToV4AdvancedOpts(source.settings);
+
+    return target;
+  }
+
+  static convertToV4RateLimiterOpts(source: RateLimiter): V4RateLimiterOpts {
+    if(! source) {
+      return;
+    }
+
+    const target: V4RateLimiterOpts = { max: undefined, duration: undefined };
+
+    target.max = source.max;
+    target.duration = source.duration;
+
+    if(source.bounceBack !== undefined) {
+      console.log("Warning: bounceBack option is not supported");
+    }
+
+    return target;
+  }
+
+  static convertToV4AdvancedOpts(source: AdvancedSettings): V4AdvancedOpts {
+    if(! source) {
+      return;
+    }
+
+    const target: V4AdvancedOpts = {};
+
+    target.lockDuration = source.lockDuration;
+    target.stalledInterval = source.stalledInterval;
+    target.maxStalledCount = source.maxStalledCount;
+    target.guardInterval = source.guardInterval;
+    target.retryProcessDelay = source.retryProcessDelay;
+    target.backoffStrategies = source.backoffStrategies;
+    target.drainDelay = source.drainDelay;
+
+    if(source.lockRenewTime !== undefined) {
+      console.log("Warning: property lockRenewTime option is not supported");
+    }
 
     return target;
   }
