@@ -57,6 +57,11 @@ export default class Queue<T = any> extends EventEmitter {
    */
   client: IORedis.Redis;
 
+  /**
+   * Array of Redis clients the queue uses
+   */
+  clients: IORedis.Redis[];
+
   private opts: QueueOptions;
   private keyPrefix: string;
 
@@ -502,79 +507,81 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return an array of job instances of the given types.
    * Optional parameters for range and ordering are provided.
    */
-  getJobs(types: string[], start?: number, end?: number, asc?: boolean): Promise<Array<Job<T>>> {
-    throw new Error('Not supported');
+  async getJobs(types: string[], start: number = 0, end: number = -1, asc: boolean = false): Promise<Array<Job<T>>> {
+    const result: V4Job[] = await this.getQueue().getJobs(types, start, end, asc);
+    return result.map(job => Utils.convertToJob(job, this));
   }
 
   /**
    * Returns a object with the logs according to the start and end arguments. The returned count
    * value is the total amount of logs, useful for implementing pagination.
    */
-  getJobLogs(jobId: string, start?: number, end?: number): Promise<{ logs: string[], count: number }> {
+  getJobLogs(jobId: string, start: number = 0, end: number = -1): Promise<{ logs: string[], count: number }> {
     throw new Error('Not supported');
   }
 
   /**
    * Returns a promise that resolves with the job counts for the given queue.
    */
-  getJobCounts(): Promise<JobCounts> {
-    throw new Error('Not supported');
+  async getJobCounts(): Promise<JobCounts> {
+    const result = await this.getQueue().getJobCounts();
+    return Utils.convertToJobCounts(result);
   }
 
   /**
    * Returns a promise that resolves with the job counts for the given queue of the given types.
    */
-  getJobCountByTypes(types: string[] | string): Promise<JobCounts> {
-    throw new Error('Not supported');
+  async getJobCountByTypes(types: string[] | string): Promise<number> {
+    return this.getQueue().getJobCountByTypes(...types);
   }
 
   /**
    * Returns a promise that resolves with the quantity of completed jobs.
    */
   getCompletedCount(): Promise<number> {
-    throw new Error('Not supported');
+    return this.getQueue().getCompletedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of failed jobs.
    */
   getFailedCount(): Promise<number> {
-    throw new Error('Not supported');
+    return this.getQueue().getFailedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of delayed jobs.
    */
   getDelayedCount(): Promise<number> {
-    throw new Error('Not supported');
+    return this.getQueue().getDelayedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of waiting jobs.
    */
   getWaitingCount(): Promise<number> {
-    throw new Error('Not supported');
+    return this.getQueue().getWaitingCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of paused jobs.
    */
   getPausedCount(): Promise<number> {
-    throw new Error('Not supported');
+    return this.getQueue().getJobCountByTypes('paused');
   }
 
   /**
    * Returns a promise that resolves with the quantity of active jobs.
    */
   getActiveCount(): Promise<number> {
-    throw new Error('Not supported');
+    return this.getQueue().getActiveCount();
   }
 
   /**
    * Returns a promise that resolves to the quantity of repeatable jobs.
    */
   getRepeatableCount(): Promise<number> {
-    throw new Error('Not supported');
+    return this.getQueue().repeat.getRepeatableCount();
   }
 
   /**
@@ -663,11 +670,6 @@ export default class Queue<T = any> extends EventEmitter {
   }
 
   /**
-   * Array of Redis clients the queue uses
-   */
-  clients: IORedis.Redis[];
-
-  /**
    * Set clientName to Redis.client
    */
   setWorkerName(): Promise<any> {
@@ -677,32 +679,32 @@ export default class Queue<T = any> extends EventEmitter {
   /**
    * Returns Redis clients array which belongs to current Queue
    */
-  getWorkers(): Promise<IORedis.Redis[]> {
-    throw new Error('Not supported');
+  getWorkers(): Promise<{[key: string]: string }[]> {
+    return this.getQueue().getWorkers();
   }
 
   /**
    * Returns Queue name in base64 encoded format
    */
   base64Name(): string {
-    throw new Error('Not supported');
-  }
+    return (this.getQueue() as any).base64Name();
+  };
 
   /**
    * Returns Queue name with keyPrefix (default: 'bull')
    */
   clientName(): string {
-    throw new Error('Not supported');
-  }
+    return (this.getQueue() as any).clientName();
+  };
 
   /**
    * Returns Redis clients array which belongs to current Queue from string with all redis clients
    *
    * @param list String with all redis clients
    */
-  parseClientList(list: string): IORedis.Redis[] {
-    throw new Error('Not supported');
-  }
+  parseClientList(list: string): {[key: string]: string }[] {
+    return (this.getQueue() as any).parseClientList(list);
+  };
 
   private getQueue() {
     if (! this.queue) {
@@ -742,91 +744,6 @@ export default class Queue<T = any> extends EventEmitter {
   }
 
 }
-
-export interface RateLimiter {
-  /** Max numbers of jobs processed */
-  max: number;
-  /** Per duration in milliseconds */
-  duration: number;
-  /** When jobs get rate limited, they stay in the waiting queue and are not moved to the delayed queue */
-  bounceBack?: boolean;
-}
-
-export interface QueueOptions {
-  /**
-   * Options passed directly to the `ioredis` constructor
-   */
-  redis?: IORedis.RedisOptions;
-
-  /**
-   * When specified, the `Queue` will use this function to create new `ioredis` client connections.
-   * This is useful if you want to re-use connections or connect to a Redis cluster.
-   */
-  createClient?(type: 'client' | 'subscriber' | 'bclient', redisOpts?: IORedis.RedisOptions): IORedis.Redis | IORedis.Cluster;
-
-  /**
-   * Prefix to use for all redis keys
-   */
-  prefix?: string;
-
-  settings?: AdvancedSettings;
-
-  limiter?: RateLimiter;
-
-  defaultJobOptions?: JobOptions;
-}
-
-export interface AdvancedSettings {
-  /**
-   * Key expiration time for job locks
-   */
-  lockDuration?: number;
-
-  /**
-   * Interval in milliseconds on which to acquire the job lock.
-   */
-  lockRenewTime?: number;
-
-  /**
-   * How often check for stalled jobs (use 0 for never checking)
-   */
-  stalledInterval?: number;
-
-  /**
-   * Max amount of times a stalled job will be re-processed
-   */
-  maxStalledCount?: number;
-
-  /**
-   * Poll interval for delayed jobs and added jobs
-   */
-  guardInterval?: number;
-
-  /**
-   * Delay before processing next job in case of internal error
-   */
-  retryProcessDelay?: number;
-
-  /**
-   * Define a custom backoff strategy
-   */
-  backoffStrategies?: {
-    [key: string]: (attemptsMade: number, err: Error) => number;
-  };
-
-  /**
-   * A timeout for when the queue is in `drained` state (empty waiting for jobs).
-   * It is used when calling `queue.getNextJob()`, which will pass it to `.brpoplpush` on the Redis client.
-   */
-  drainDelay?: number;
-}
-
-export type DoneCallback = (error?: Error | null, value?: any) => void;
-
-export type JobId = number | string;
-
-export type ProcessCallbackFunction<T> = (job: Job<T>, done: DoneCallback) => void;
-export type ProcessPromiseFunction<T> = (job: Job<T>) => Promise<void>;
 
 export class Job<T = any> {
 
@@ -1062,6 +979,91 @@ export class Job<T = any> {
     throw new Error('Not supported');
   }
 }
+
+export interface RateLimiter {
+  /** Max numbers of jobs processed */
+  max: number;
+  /** Per duration in milliseconds */
+  duration: number;
+  /** When jobs get rate limited, they stay in the waiting queue and are not moved to the delayed queue */
+  bounceBack?: boolean;
+}
+
+export interface QueueOptions {
+  /**
+   * Options passed directly to the `ioredis` constructor
+   */
+  redis?: IORedis.RedisOptions;
+
+  /**
+   * When specified, the `Queue` will use this function to create new `ioredis` client connections.
+   * This is useful if you want to re-use connections or connect to a Redis cluster.
+   */
+  createClient?(type: 'client' | 'subscriber' | 'bclient', redisOpts?: IORedis.RedisOptions): IORedis.Redis | IORedis.Cluster;
+
+  /**
+   * Prefix to use for all redis keys
+   */
+  prefix?: string;
+
+  settings?: AdvancedSettings;
+
+  limiter?: RateLimiter;
+
+  defaultJobOptions?: JobOptions;
+}
+
+export interface AdvancedSettings {
+  /**
+   * Key expiration time for job locks
+   */
+  lockDuration?: number;
+
+  /**
+   * Interval in milliseconds on which to acquire the job lock.
+   */
+  lockRenewTime?: number;
+
+  /**
+   * How often check for stalled jobs (use 0 for never checking)
+   */
+  stalledInterval?: number;
+
+  /**
+   * Max amount of times a stalled job will be re-processed
+   */
+  maxStalledCount?: number;
+
+  /**
+   * Poll interval for delayed jobs and added jobs
+   */
+  guardInterval?: number;
+
+  /**
+   * Delay before processing next job in case of internal error
+   */
+  retryProcessDelay?: number;
+
+  /**
+   * Define a custom backoff strategy
+   */
+  backoffStrategies?: {
+    [key: string]: (attemptsMade: number, err: Error) => number;
+  };
+
+  /**
+   * A timeout for when the queue is in `drained` state (empty waiting for jobs).
+   * It is used when calling `queue.getNextJob()`, which will pass it to `.brpoplpush` on the Redis client.
+   */
+  drainDelay?: number;
+}
+
+export type DoneCallback = (error?: Error | null, value?: any) => void;
+
+export type JobId = number | string;
+
+export type ProcessCallbackFunction<T> = (job: Job<T>, done: DoneCallback) => void;
+export type ProcessPromiseFunction<T> = (job: Job<T>) => Promise<void>;
 
 export type JobStatus = 'completed' | 'waiting' | 'active' | 'delayed' | 'failed';
 export type JobStatusClean = 'completed' | 'wait' | 'active' | 'delayed' | 'failed';
@@ -1491,6 +1493,30 @@ class Utils {
     }
 
     return target;
+  }
+
+  static convertToJobCounts(source: { [key:string]: number }): JobCounts {
+    if(source) {
+      const target: JobCounts = { active: undefined,
+        completed: undefined, failed: undefined, delayed: undefined, waiting: undefined };
+      Object.keys(source).forEach((key) => {
+        if(typeof source[key] === "number") {
+          switch(key) {
+            case 'active':
+              target.active = source[key]; break;
+            case 'completed':
+              target.completed = source[key]; break;
+            case  'failed':
+              target.failed = source[key]; break;
+            case  'delayed':
+              target.delayed = source[key]; break;
+            case  'waiting':
+              target.waiting = source[key]; break;
+          }
+        }
+      });
+      return target;
+    }
   }
 
   static adaptToV4CreateClient(
