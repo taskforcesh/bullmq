@@ -1,4 +1,4 @@
-import { JobsOpts, RateLimiterOpts, QueueBaseOptions } from '@src/interfaces';
+import { JobsOpts, RateLimiterOpts, QueueOptions } from '@src/interfaces';
 import { v4 } from 'node-uuid';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
