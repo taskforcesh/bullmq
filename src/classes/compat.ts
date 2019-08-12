@@ -65,9 +65,9 @@ export default class Queue<T = any> extends EventEmitter {
   private opts: QueueOptions;
   private keyPrefix: string;
 
-  private queue: V4Queue;
-  private queueEvents: V4QueueEvents;
-  private worker: V4Worker;
+  private v4Queue: V4Queue;
+  private v4QueueEvents: V4QueueEvents;
+  private v4Worker: V4Worker;
   private handlers: { [key:string]: Function };
 
   /**
@@ -112,7 +112,7 @@ export default class Queue<T = any> extends EventEmitter {
    * This replaces the `ready` event emitted on Queue in previous verisons.
    */
   async isReady(): Promise<this> {
-    await this.getQueue().waitUntilReady();
+    await this.getV4Queue().waitUntilReady();
     return this;
   };
 
@@ -261,16 +261,16 @@ export default class Queue<T = any> extends EventEmitter {
 
     this.handlers[name] = handler;
 
-    if(! this.worker) {
+    if(! this.v4Worker) {
       const workerOpts = Utils.convertToV4WorkerOptions(this.opts);
       workerOpts.concurrency = concurrency;
       if(handlerFile) {
-        this.worker = new V4Worker(this.name, handlerFile, workerOpts);
+        this.v4Worker = new V4Worker(this.name, handlerFile, workerOpts);
       } else {
-        this.worker = new V4Worker(this.name, this.createProcessor(), workerOpts);
+        this.v4Worker = new V4Worker(this.name, this.createProcessor(), workerOpts);
       }
     }
-    return this.worker.waitUntilReady();
+    return this.v4Worker.waitUntilReady();
   }
 
   /* tslint:enable:unified-signatures */
@@ -304,7 +304,7 @@ export default class Queue<T = any> extends EventEmitter {
     }
 
     if (opts.repeat) {
-      const result = await this.getQueue().repeat.addNextRepeatableJob(
+      const result = await this.getV4Queue().repeat.addNextRepeatableJob(
         name, data,
         Utils.convertToV4JobsOpts(opts),
         (opts.repeat as any).jobId,
@@ -312,7 +312,7 @@ export default class Queue<T = any> extends EventEmitter {
       );
       return Utils.convertToJob(result, this);
     } else {
-      const result = await this.getQueue().append(name, data, Utils.convertToV4JobsOpts(opts));
+      const result = await this.getV4Queue().append(name, data, Utils.convertToV4JobsOpts(opts));
       return Utils.convertToJob(result, this);
     }
   }
@@ -329,9 +329,9 @@ export default class Queue<T = any> extends EventEmitter {
    */
   async pause(isLocal?: boolean): Promise<void> {
     if(isLocal) {
-      return this.worker && this.worker.pause(true);
+      return this.v4Worker && this.v4Worker.pause(true);
     } else {
-      return this.queue && this.queue.pause();
+      return this.v4Queue && this.v4Queue.pause();
     }
   }
 
@@ -347,9 +347,9 @@ export default class Queue<T = any> extends EventEmitter {
    */
   async resume(isLocal?: boolean): Promise<void>{
     if(isLocal) {
-      return this.worker && this.worker.resume();
+      return this.v4Worker && this.v4Worker.resume();
     } else {
-      return this.queue && this.queue.resume();
+      return this.v4Queue && this.v4Queue.resume();
     }
   }
 
@@ -359,7 +359,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Since there may be other processes adding or processing jobs, this value may be true only for a very small amount of time.
    */
   count(): Promise<number>{
-    return this.getQueue().count();
+    return this.getV4Queue().count();
   }
 
 
@@ -380,14 +380,14 @@ export default class Queue<T = any> extends EventEmitter {
   close(): Promise<any>{
     const promises = [];
 
-    if(this.queue) {
-      promises.push(this.queue.close());
+    if(this.v4Queue) {
+      promises.push(this.v4Queue.close());
     }
-    if(this.queueEvents) {
-      promises.push(this.queueEvents.close());
+    if(this.v4QueueEvents) {
+      promises.push(this.v4QueueEvents.close());
     }
-    if(this.worker) {
-      promises.push(this.worker.close());
+    if(this.v4Worker) {
+      promises.push(this.v4Worker.close());
     }
     return Promise.all(promises);
   }
@@ -398,7 +398,7 @@ export default class Queue<T = any> extends EventEmitter {
    * If the specified job cannot be located, the promise callback parameter will be set to null.
    */
   async getJob(jobId: JobId): Promise<Job<T> | null>{
-    const job = await this.getQueue().getJob(Utils.convertToV4JobId(jobId));
+    const job = await this.getV4Queue().getJob(Utils.convertToV4JobId(jobId));
     return Utils.convertToJob(job, this);
   }
 
@@ -407,7 +407,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return an array with the waiting jobs between start and end.
    */
   async getWaiting(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getQueue().getWaiting(start, end);
+    const result: V4Job[] = await this.getV4Queue().getWaiting(start, end);
     return result.map(job => Utils.convertToJob(job, this));
   }
 
@@ -416,7 +416,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return an array with the active jobs between start and end.
    */
   async getActive(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getQueue().getActive(start, end);
+    const result: V4Job[] = await this.getV4Queue().getActive(start, end);
     return result.map(job => Utils.convertToJob(job, this));
   }
 
@@ -425,7 +425,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return an array with the delayed jobs between start and end.
    */
   async getDelayed(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getQueue().getDelayed(start, end);
+    const result: V4Job[] = await this.getV4Queue().getDelayed(start, end);
     return result.map(job => Utils.convertToJob(job, this));
   }
 
@@ -434,7 +434,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return an array with the completed jobs between start and end.
    */
   async getCompleted(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getQueue().getCompleted(start, end);
+    const result: V4Job[] = await this.getV4Queue().getCompleted(start, end);
     return result.map(job => Utils.convertToJob(job, this));
   }
 
@@ -443,7 +443,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return an array with the failed jobs between start and end.
    */
   async getFailed(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getQueue().getFailed(start, end);
+    const result: V4Job[] = await this.getV4Queue().getFailed(start, end);
     return result.map(job => Utils.convertToJob(job, this));
   }
 
@@ -453,7 +453,7 @@ export default class Queue<T = any> extends EventEmitter {
    * index to limit the number of results. Start defaults to 0, end to -1 and asc to false.
    */
   getRepeatableJobs(start: number = 0, end: number = -1, asc: boolean = false): Promise<JobInformation[]>{
-    return this.getQueue().repeat.getRepeatableJobs(start, end, asc);
+    return this.getV4Queue().repeat.getRepeatableJobs(start, end, asc);
   }
 
 
@@ -461,7 +461,7 @@ export default class Queue<T = any> extends EventEmitter {
    * ???
    */
   async nextRepeatableJob(name: string, data: any, opts: JobOptions, skipCheckExists?: boolean): Promise<Job<T>>{
-    const result = await this.getQueue().repeat.addNextRepeatableJob(
+    const result = await this.getV4Queue().repeat.addNextRepeatableJob(
       name || Queue.DEFAULT_JOB_NAME,
       data,
       Utils.convertToV4JobsOpts(opts),
@@ -496,7 +496,7 @@ export default class Queue<T = any> extends EventEmitter {
     } else {
       repeat = arg1;
     }
-    return this.getQueue().repeat.removeRepeatable(name,
+    return this.getV4Queue().repeat.removeRepeatable(name,
       Utils.convertToV4RepeatOpts(repeat), Utils.convertToV4JobId(repeat.jobId))
   }
 
@@ -504,7 +504,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Removes a given repeatable job by key.
    */
   async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
-    const repeat = this.getQueue().repeat;
+    const repeat = this.getV4Queue().repeat;
     await repeat.waitUntilReady();
 
     const tokens = repeatJobKey.split(':');
@@ -532,7 +532,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Optional parameters for range and ordering are provided.
    */
   async getJobs(types: string[], start: number = 0, end: number = -1, asc: boolean = false): Promise<Array<Job<T>>> {
-    const result: V4Job[] = await this.getQueue().getJobs(types, start, end, asc);
+    const result: V4Job[] = await this.getV4Queue().getJobs(types, start, end, asc);
     return result.map(job => Utils.convertToJob(job, this));
   }
 
@@ -548,7 +548,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that resolves with the job counts for the given queue.
    */
   async getJobCounts(): Promise<JobCounts> {
-    const result = await this.getQueue().getJobCounts();
+    const result = await this.getV4Queue().getJobCounts();
     return Utils.convertToJobCounts(result);
   }
 
@@ -556,56 +556,56 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that resolves with the job counts for the given queue of the given types.
    */
   async getJobCountByTypes(types: string[] | string): Promise<number> {
-    return this.getQueue().getJobCountByTypes(...types);
+    return this.getV4Queue().getJobCountByTypes(...types);
   }
 
   /**
    * Returns a promise that resolves with the quantity of completed jobs.
    */
   getCompletedCount(): Promise<number> {
-    return this.getQueue().getCompletedCount();
+    return this.getV4Queue().getCompletedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of failed jobs.
    */
   getFailedCount(): Promise<number> {
-    return this.getQueue().getFailedCount();
+    return this.getV4Queue().getFailedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of delayed jobs.
    */
   getDelayedCount(): Promise<number> {
-    return this.getQueue().getDelayedCount();
+    return this.getV4Queue().getDelayedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of waiting jobs.
    */
   getWaitingCount(): Promise<number> {
-    return this.getQueue().getWaitingCount();
+    return this.getV4Queue().getWaitingCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of paused jobs.
    */
   getPausedCount(): Promise<number> {
-    return this.getQueue().getJobCountByTypes('paused');
+    return this.getV4Queue().getJobCountByTypes('paused');
   }
 
   /**
    * Returns a promise that resolves with the quantity of active jobs.
    */
   getActiveCount(): Promise<number> {
-    return this.getQueue().getActiveCount();
+    return this.getV4Queue().getActiveCount();
   }
 
   /**
    * Returns a promise that resolves to the quantity of repeatable jobs.
    */
   getRepeatableCount(): Promise<number> {
-    return this.getQueue().repeat.getRepeatableCount();
+    return this.getV4Queue().repeat.getRepeatableCount();
   }
 
   /**
@@ -704,21 +704,21 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns Redis clients array which belongs to current Queue
    */
   getWorkers(): Promise<{[key: string]: string }[]> {
-    return this.getQueue().getWorkers();
+    return this.getV4Queue().getWorkers();
   }
 
   /**
    * Returns Queue name in base64 encoded format
    */
   base64Name(): string {
-    return (this.getQueue() as any).base64Name();
+    return (this.getV4Queue() as any).base64Name();
   };
 
   /**
    * Returns Queue name with keyPrefix (default: 'bull')
    */
   clientName(): string {
-    return (this.getQueue() as any).clientName();
+    return (this.getV4Queue() as any).clientName();
   };
 
   /**
@@ -727,14 +727,14 @@ export default class Queue<T = any> extends EventEmitter {
    * @param list String with all redis clients
    */
   parseClientList(list: string): {[key: string]: string }[] {
-    return (this.getQueue() as any).parseClientList(list);
+    return (this.getV4Queue() as any).parseClientList(list);
   };
 
-  private getQueue() {
-    if (! this.queue) {
-      this.queue = new V4Queue(this.name, Utils.convertToV4QueueOptions(this.opts));
+  private getV4Queue() {
+    if (! this.v4Queue) {
+      this.v4Queue = new V4Queue(this.name, Utils.convertToV4QueueOptions(this.opts));
     }
-    return this.queue;
+    return this.v4Queue;
   }
 
   private createProcessor(): V4Processor {
