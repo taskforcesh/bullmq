@@ -40,6 +40,9 @@ import {
   WorkerOptions as V4WorkerOptions,
   Processor as V4Processor,
 } from '@src/interfaces';
+import {
+  JobJson as V4JobJson,
+} from '@src/classes';
 import _ from 'lodash';
 import url from "url";
 
@@ -80,6 +83,30 @@ export default class Queue<T = any> extends EventEmitter {
 
   constructor(queueName: string, arg2?: any, arg3?: any) {
     super();
+
+    Object.defineProperties(this, {
+      v4Queue: {
+        enumerable: false,
+        writable: true
+      },
+      v4QueueEvents: {
+        enumerable: false,
+        writable: true
+      },
+      v4Worker: {
+        enumerable: false,
+        writable: true
+      },
+      client: {
+        // TODO
+      },
+      clients: {
+        // TODO
+      },
+      toKey: {
+        get: () => { return this.getV4Queue().toKey; }
+      }
+    });
 
     let opts: QueueOptions;
 
@@ -377,7 +404,7 @@ export default class Queue<T = any> extends EventEmitter {
    * `close` can be called from anywhere, with one caveat:
    * if called from within a job handler the queue won't close until after the job has been processed
    */
-  close(): Promise<any>{
+  close(): Promise<any> {
     const promises = [];
 
     if(this.v4Queue) {
@@ -737,6 +764,13 @@ export default class Queue<T = any> extends EventEmitter {
     return this.v4Queue;
   }
 
+  private getV4QueueEvents() {
+    if (! this.v4QueueEvents) {
+      this.v4QueueEvents = new V4QueueEvents(this.name, Utils.convertToV4QueueEventsOptions(this.opts));
+    }
+    return this.v4QueueEvents;
+  }
+
   private createProcessor(): V4Processor {
     const handlers = this.handlers;
 
@@ -770,13 +804,6 @@ export default class Queue<T = any> extends EventEmitter {
 }
 
 export class Job<T = any> {
-
-  constructor(queue: Queue, data: any, opts?: JobOptions);
-  constructor(queue: Queue, name: string, data: any, opts?: JobOptions);
-
-  constructor(queue: Queue, arg2: any, arg3?: any, arg4?: any) {
-    throw new Error('Not supported');
-  }
 
   id: JobId;
 
@@ -824,11 +851,105 @@ export class Job<T = any> {
 
   returnvalue: any;
 
+  private _progress: any;
+  private delay: number;
+  private failedReason: string;
+
+  private v4Job: V4Job;
+
+  constructor(queue: Queue, data: any, opts?: JobOptions);
+  constructor(queue: Queue, name: string, data: any, opts?: JobOptions);
+
+  constructor(queue: Queue, arg2: any, arg3?: any, arg4?: any) {
+
+    Object.defineProperties(this, {
+      v4Job: {
+        enumerable: false,
+        writable: true
+      },
+      id: {
+        get: () => { return Utils.convertToJobId(this.v4Job.id); },
+        set: (val) => { this.v4Job.id = Utils.convertToV4JobId(val); }
+      },
+      name: {
+        get: () => { return this.v4Job.name; },
+        set: (val) => { this.v4Job.name = val; }
+      },
+      data: {
+        get: () => { return this.v4Job.data; },
+        set: (val) => { this.v4Job.data = val; }
+      },
+      opts: {
+        get: () => { return Utils.convertToJobOptions(this.v4Job.opts); },
+        set: (val) => { this.v4Job.opts = Utils.convertToV4JobsOpts(val); }
+      },
+      _progress: {
+        get: () => { return this.v4Job.progress; },
+        set: (val) => { this.v4Job.progress = val; }
+      },
+      delay: {
+        get: () => { return this.v4Job.opts && this.v4Job.opts.delay; },
+        set: (val) => { this.v4Job.opts = { ...this.v4Job.opts, delay: val }; }
+      },
+      timestamp: {
+        get: () => { return this.v4Job.timestamp; },
+        set: (val) => { this.v4Job.timestamp = val; }
+      },
+      finishedOn: {
+        get: () => { return (this.v4Job as any).finishedOn; },
+        set: (val) => { (this.v4Job as any).finishedOn = val; }
+      },
+      processedOn: {
+        get: () => { return (this.v4Job as any).processedOn; },
+        set: (val) => { (this.v4Job as any).processedOn = val; }
+      },
+      failedReason: {
+        get: () => { return (this.v4Job as any).failedReason; },
+        set: (val) => { (this.v4Job as any).failedReason = val; }
+      },
+      attemptsMade: {
+        get: () => { return (this.v4Job as any).attemptsMade; },
+        set: (val) => { (this.v4Job as any).attemptsMade = val; }
+      },
+      stacktrace: {
+        get: () => { return this.v4Job.stacktrace; },
+        set: (val) => { this.v4Job.stacktrace = val; }
+      },
+      returnvalue: {
+        get: () => { return this.v4Job.returnvalue; },
+        set: (val) => { this.v4Job.returnvalue = val; }
+      },
+      toKey: {
+        enumerable: false,
+        get: () => { return (this.v4Job as any).toKey; }
+      }
+    });
+
+
+    let name: string = Queue.DEFAULT_JOB_NAME;
+    let data: any;
+    let opts: JobOptions;
+
+    if (typeof arg2 !== 'string') {
+      // formally we cannot resolve args when data is string
+      data = arg2;
+      opts = arg3;
+    } else {
+      name = arg2;
+      data = arg3;
+      opts = arg4;
+    }
+
+    this.queue = queue;
+    this.v4Job = new V4Job((queue as any).getV4Queue(), name, data, Utils.convertToV4JobsOpts(opts));
+    this.stacktrace = [];
+  }
+
   /**
    * Report progress on a job
    */
   progress(value: any): Promise<void> {
-    throw new Error('Not supported');
+    return this.v4Job.updateProgress(value);
   }
 
   /**
@@ -844,35 +965,35 @@ export class Job<T = any> {
    * Returns a promise resolving to a boolean which, if true, current job's state is completed
    */
   isCompleted(): Promise<boolean> {
-    throw new Error('Not supported');
+    return this.v4Job.isCompleted();
   }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is failed
    */
   isFailed(): Promise<boolean> {
-    throw new Error('Not supported');
+    return this.v4Job.isFailed();
   }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is delayed
    */
   isDelayed(): Promise<boolean> {
-    throw new Error('Not supported');
+    return this.v4Job.isDelayed();
   }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is active
    */
   isActive(): Promise<boolean> {
-    throw new Error('Not supported');
+    return this.v4Job.isActive();
   }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is wait
    */
   isWaiting(): Promise<boolean> {
-    throw new Error('Not supported');
+    return this.v4Job.isWaiting();
   }
 
   /**
@@ -903,7 +1024,7 @@ export class Job<T = any> {
    * Update a specific job's data. Promise resolves when the job has been updated.
    */
   update(data: any): Promise<void> {
-    throw new Error('Not supported');
+    return this.v4Job.update(data);
   }
 
   /**
@@ -911,7 +1032,7 @@ export class Job<T = any> {
    * The returned promise resolves when the job has been removed.
    */
   remove(): Promise<void> {
-    throw new Error('Not supported');
+    return this.v4Job.remove();
   }
 
   /**
@@ -934,24 +1055,34 @@ export class Job<T = any> {
    * TODO: Add a watchdog to check if the job has finished periodically.
    * since pubsub does not give any guarantees.
    */
-  finished(): Promise<any> {
-    throw new Error('Not supported');
+  finished(watchdog = 5000, ttl?: number): Promise<any> {
+    return this.v4Job.waitUntilFinished((this.queue as any).getV4QueueEvents(), watchdog, ttl);
   }
 
   /**
    * Moves a job to the `completed` queue. Pulls a job from 'waiting' to 'active'
    * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
    */
-  moveToCompleted(returnValue?: string, ignoreLock?: boolean): Promise<[any, JobId] | null> {
-    throw new Error('Not supported');
+  async moveToCompleted(returnValue?: string, ignoreLock?: boolean): Promise<[SerializedJob, JobId] | null> {
+    if(ignoreLock) {
+      console.warn("ignoreLock is not supported");
+    }
+    const result = await this.v4Job.moveToCompleted(returnValue);
+    if(result) {
+      return [Utils.convertToSerializedJob(result[0]), Utils.convertToJobId(result[1])];
+    }
   }
 
   /**
    * Moves a job to the `failed` queue. Pulls a job from 'waiting' to 'active'
    * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
    */
-  moveToFailed(errorInfo: { message: string; }, ignoreLock?: boolean): Promise<[any, JobId] | null> {
-    throw new Error('Not supported');
+  async moveToFailed(errorInfo: any, ignoreLock?: boolean): Promise<[any, JobId] | null> {
+    if(ignoreLock) {
+      console.warn("ignoreLock is not supported");
+    }
+    await this.v4Job.moveToFailed(errorInfo);
+    return null;
   }
 
   /**
@@ -985,23 +1116,102 @@ export class Job<T = any> {
   /**
    * Get job properties as Json Object
    */
-  toJSON(): {
-    id: JobId,
-    name: string,
-    data: T,
-    opts: JobOptions,
-    progress: number,
-    delay: number,
-    timestamp: number,
-    attemptsMade: number,
-    failedReason: any,
-    stacktrace: string[] | null,
-    returnvalue: any,
-    finishedOn: number | null,
-    processedOn: number | null
-  } {
-    throw new Error('Not supported');
+  toJSON(): JobJson<T> {
+    const result = {
+      id: this.id,
+      name: this.name,
+      data: this.data,
+      opts: { ...this.opts },
+      progress: this._progress,
+      delay: this.delay, // Move to opts
+      timestamp: this.timestamp,
+      attemptsMade: this.attemptsMade,
+      failedReason: this.failedReason,
+      stacktrace: this.stacktrace || null,
+      returnvalue: this.returnvalue || null,
+      finishedOn: this.finishedOn || null,
+      processedOn: this.processedOn || null
+    };
+    if(! result.data) {
+      (result as any).data = {};
+    }
+    return result;
   }
+
+
+  private toData(): SerializedJob {
+    const target: SerializedJob = {
+      id: undefined,
+      name: undefined,
+      data: undefined,
+      opts: undefined,
+      progress: undefined,
+      delay: undefined,
+      timestamp: undefined,
+      attemptsMade: undefined,
+      failedReason: undefined,
+      stacktrace: undefined,
+      returnvalue: undefined,
+      finishedOn: undefined,
+      processedOn: undefined
+    };
+    const json = this.toJSON();
+    target.id = undefined;
+    target.name = undefined;
+    target.data = JSON.stringify(json.data);
+    target.opts = JSON.stringify(json.opts);
+    target.progress = undefined;
+    target.delay = undefined;
+    target.timestamp = undefined;
+    target.attemptsMade = undefined;
+    target.failedReason = JSON.stringify(json.failedReason);
+    target.stacktrace = JSON.stringify(json.stacktrace);
+    target.returnvalue = JSON.stringify(json.returnvalue);
+    target.finishedOn = undefined;
+    target.processedOn = undefined;
+    return target;
+  };
+
+  private static fromJSON<T>(queue: Queue, json: SerializedJob, jobId?: JobId) {
+    const data = JSON.parse(json.data || '{}');
+    const opts = JSON.parse(json.opts || '{}');
+
+    const job = new Job(queue, json.name || Queue.DEFAULT_JOB_NAME, data, opts);
+
+    job.id = json.id || jobId;
+    job._progress = JSON.parse(json.progress || '0');
+    job.delay = parseInt(json.delay);
+    job.timestamp = parseInt(json.timestamp);
+    if (json.finishedOn) {
+      job.finishedOn = parseInt(json.finishedOn);
+    }
+
+    if (json.processedOn) {
+      job.processedOn = parseInt(json.processedOn);
+    }
+
+    job.failedReason = json.failedReason;
+    job.attemptsMade = parseInt(json.attemptsMade) || 0;
+
+    job.stacktrace = [];
+    try {
+      const parsed = JSON.parse(json.stacktrace);
+      if(Array.isArray(parsed)) {
+        job.stacktrace = parsed;
+      }
+    } catch (e) {
+    }
+
+    if (typeof json.returnvalue === 'string') {
+      try {
+        job.returnvalue = JSON.parse(json.returnvalue);
+      } catch (e) {
+      }
+    }
+
+    return job;
+  }
+
 }
 
 export interface RateLimiter {
@@ -1091,6 +1301,38 @@ export type ProcessPromiseFunction<T> = (job: Job<T>) => Promise<void>;
 
 export type JobStatus = 'completed' | 'waiting' | 'active' | 'delayed' | 'failed';
 export type JobStatusClean = 'completed' | 'wait' | 'active' | 'delayed' | 'failed';
+
+export interface SerializedJob {
+  id: JobId,
+  name: string,
+  data: string,
+  opts: string,
+  progress: any,
+  delay: string,
+  timestamp: string,
+  attemptsMade: string,
+  failedReason: any,
+  stacktrace: string,
+  returnvalue: any,
+  finishedOn: string,
+  processedOn: string
+}
+
+export interface JobJson<T> {
+  id: JobId,
+  name: string,
+  data: T,
+  opts: JobOptions,
+  progress: any,
+  delay?: number,
+  timestamp: number,
+  attemptsMade: number,
+  failedReason: any,
+  stacktrace: string[] | null,
+  returnvalue: any,
+  finishedOn: number,
+  processedOn: number
+}
 
 export interface BackoffOptions {
   /**
@@ -1273,12 +1515,21 @@ class Utils {
   };
 
   static convertToV4JobId(id: JobId): string {
-    if(id) {
+    if(id !== undefined) {
       if(typeof id === "string") {
         return id;
       } else {
         return id.toString();
       }
+    }
+  }
+
+  static convertToJobId(id: string): JobId {
+    if(id !== undefined) {
+      if((/^\d+$/g).test(id)) {
+        return parseInt(id);
+      }
+      return id;
     }
   }
 
@@ -1349,6 +1600,19 @@ class Utils {
     return target;
   }
 
+  static convertToV4QueueEventsOptions(source: QueueOptions) {
+    if(! source) {
+      return;
+    }
+
+    const target: V4QueueEventsOptions = Utils.convertToV4QueueBaseOptions(source);
+
+    target.lastEventId = undefined;
+    target.blockingTimeout = undefined;
+
+    return target;
+  }
+
   static convertToV4JobsOpts(source: JobOptions): V4JobsOpts {
     if(! source) {
       return;
@@ -1379,7 +1643,7 @@ class Utils {
 
     if(source.removeOnComplete !== undefined) {
       if(typeof source.removeOnComplete === "number") {
-        console.log("Warning: numeric removeOnComplete option is not supported");
+        console.warn("numeric removeOnComplete option is not supported");
       } else {
         target.removeOnComplete = source.removeOnComplete;
       }
@@ -1387,7 +1651,7 @@ class Utils {
 
     if(source.removeOnFail !== undefined) {
       if(typeof source.removeOnFail === "number") {
-        console.log("Warning: numeric removeOnFail option is not supported");
+        console.warn("numeric removeOnFail option is not supported");
       } else {
         target.removeOnFail = source.removeOnFail;
       }
@@ -1491,7 +1755,7 @@ class Utils {
     target.duration = source.duration;
 
     if(source.bounceBack !== undefined) {
-      console.log("Warning: bounceBack option is not supported");
+      console.warn("bounceBack option is not supported");
     }
 
     return target;
@@ -1513,7 +1777,7 @@ class Utils {
     target.drainDelay = source.drainDelay;
 
     if(source.lockRenewTime !== undefined) {
-      console.log("Warning: property lockRenewTime option is not supported");
+      console.warn("lockRenewTime option is not supported");
     }
 
     return target;
@@ -1539,6 +1803,53 @@ class Utils {
           }
         }
       });
+      return target;
+    }
+  }
+
+  static convertToSerializedJob(source: V4JobJson): SerializedJob {
+    if(source) {
+      const target: SerializedJob = {
+        id: undefined,
+        name: undefined,
+        data: undefined,
+        opts: undefined,
+        progress: undefined,
+        delay: undefined,
+        timestamp: undefined,
+        attemptsMade: undefined,
+        failedReason: undefined,
+        stacktrace: undefined,
+        returnvalue: undefined,
+        finishedOn: undefined,
+        processedOn: undefined
+      };
+      target.id = source.id;
+      target.name = source.name;
+      target.data = source.data;
+      target.opts = source.opts;
+      target.progress = source.progress;
+      if(source.opts) {
+        try {
+          target.delay = JSON.parse(source.opts).delay;
+        } catch(e) {
+        }
+      }
+      if(source.timestamp !== undefined) {
+        target.timestamp = source.timestamp.toString();
+      }
+      if(source.attemptsMade !== undefined) {
+        target.attemptsMade = source.attemptsMade.toString();
+      }
+      target.failedReason = source.failedReason;
+      target.stacktrace = source.stacktrace;
+      target.returnvalue = source.returnvalue;
+      if(source.finishedOn !== undefined) {
+        target.finishedOn = source.finishedOn.toString();
+      }
+      if(source.processedOn !== undefined) {
+        target.processedOn = source.processedOn.toString();
+      }
       return target;
     }
   }
