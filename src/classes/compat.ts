@@ -25,6 +25,7 @@ import {
   QueueEvents as V4QueueEvents,
   Worker as V4Worker,
   Queue as V4Queue,
+  QueueScheduler as V4QueueScheduler,
   Job as V4Job,
 } from '@src/classes';
 import {
@@ -37,6 +38,7 @@ import {
   RateLimiterOpts as V4RateLimiterOpts,
   RepeatOpts as V4RepeatOpts,
   QueueEventsOptions as V4QueueEventsOptions,
+  QueueKeeperOptions as V4QueueKeeperOptions,
   WorkerOptions as V4WorkerOptions,
   Processor as V4Processor,
 } from '@src/interfaces';
@@ -69,8 +71,15 @@ export default class Queue<T = any> extends EventEmitter {
   private keyPrefix: string;
 
   private v4Queue: V4Queue;
+  private v4QueuePromise: Promise<V4Queue>;
+  private v4QueuePromiseResolve: (value: V4Queue) => void;
+  private v4QueuePromiseReject: (reason: any) => void;
+  private v4QueueScheduler: V4QueueScheduler;
   private v4QueueEvents: V4QueueEvents;
   private v4Worker: V4Worker;
+  private v4WorkerPromise: Promise<V4Worker>;
+  private v4WorkerPromiseResolve: (value: V4Worker) => void;
+  private v4WorkerPromiseReject: (reason: any) => void;
   private handlers: { [key:string]: Function };
 
   /**
@@ -89,6 +98,10 @@ export default class Queue<T = any> extends EventEmitter {
         enumerable: false,
         writable: true
       },
+      v4QueueScheduler: {
+        enumerable: false,
+        writable: true
+      },
       v4QueueEvents: {
         enumerable: false,
         writable: true
@@ -97,14 +110,32 @@ export default class Queue<T = any> extends EventEmitter {
         enumerable: false,
         writable: true
       },
+      v4WorkerPromise: {
+        enumerable: false,
+        writable: true
+      },
+      v4WorkerPromiseResolve: {
+        enumerable: false,
+        writable: true
+      },
+      v4WorkerPromiseReject: {
+        enumerable: false,
+        writable: true
+      },
       client: {
-        // TODO
+        get: () => { return this.v4QueueScheduler.client; }
       },
       clients: {
-        // TODO
+        get: () => {
+          const clients = [this.v4QueueScheduler.client];
+          this.v4Queue && clients.push(this.v4Queue.client);
+          this.v4QueueEvents && clients.push(this.v4QueueEvents.client);
+          this.v4Worker && clients.push(this.v4Worker.client);
+          return clients;
+        }
       },
       toKey: {
-        get: () => { return this.getV4Queue().toKey; }
+        get: () => { return this.getV4QueueScheduler().toKey; }
       }
     });
 
@@ -132,6 +163,19 @@ export default class Queue<T = any> extends EventEmitter {
     // create keys dynamically in lua scripts.
     //
     delete opts.redis.keyPrefix;
+
+    // Forcibly create scheduler to let queue act as expected by default
+    this.getV4QueueScheduler();
+
+    this.v4QueuePromise = new Promise<V4Queue>((resolve, reject) => {
+      this.v4QueuePromiseResolve = resolve;
+      this.v4QueuePromiseReject = reject;
+    }).catch(e => this.v4Queue);
+
+    this.v4WorkerPromise = new Promise<V4Worker>((resolve, reject) => {
+      this.v4WorkerPromiseResolve = resolve;
+      this.v4WorkerPromiseReject = reject;
+    }).catch(e => this.v4Worker);
   }
 
   /**
@@ -139,7 +183,7 @@ export default class Queue<T = any> extends EventEmitter {
    * This replaces the `ready` event emitted on Queue in previous verisons.
    */
   async isReady(): Promise<this> {
-    await this.getV4Queue().waitUntilReady();
+    await this.getV4QueueScheduler().waitUntilReady();
     return this;
   };
 
@@ -294,8 +338,9 @@ export default class Queue<T = any> extends EventEmitter {
       if(handlerFile) {
         this.v4Worker = new V4Worker(this.name, handlerFile, workerOpts);
       } else {
-        this.v4Worker = new V4Worker(this.name, this.createProcessor(), workerOpts);
+        this.v4Worker = new V4Worker(this.name, Queue.createProcessor(this), workerOpts);
       }
+      this.v4WorkerPromiseResolve(this.v4Worker);
     }
     return this.v4Worker.waitUntilReady();
   }
@@ -407,6 +452,9 @@ export default class Queue<T = any> extends EventEmitter {
   close(): Promise<any> {
     const promises = [];
 
+    if(this.v4QueueScheduler) {
+      promises.push(this.v4QueueScheduler.close());
+    }
     if(this.v4Queue) {
       promises.push(this.v4Queue.close());
     }
@@ -716,8 +764,92 @@ export default class Queue<T = any> extends EventEmitter {
    */
   on(event: 'drained', callback: EventCallback): this; // tslint:disable-line unified-signatures
 
-  on(event: string, callback: Function): this {
-    throw new Error('Not supported');
+
+  on(event: string | symbol, listener: (...args: any[]) => void): this {
+    return this.registerEventHandler(false, event, listener);
+  }
+
+  once(event: string | symbol, listener: (...args: any[]) => void): this {
+    return this.registerEventHandler(true, event, listener);
+  };
+
+  off(event: string | symbol, listener: (...args: any[]) => void): this {
+    return this.removeListener(event, listener);
+  }
+
+  removeListener(event: string | symbol, listener: (...args: any[]) => void): this {
+
+    const global = this.v4QueueEvents;
+
+    switch (event) {
+      case 'active':
+        this.onWorkerInit((worker) => {
+          worker.removeListener('active', listener);
+        });
+        break;
+      case 'completed':
+        this.onWorkerInit((worker) => {
+          worker.removeListener('completed', listener);
+        });
+        break;
+      case 'drained':
+        this.onWorkerInit((worker) => {
+          worker.removeListener('drained', listener);
+        });
+        break;
+      case 'failed':
+        this.onWorkerInit((worker) => {
+          worker.removeListener('failed', listener);
+        });
+        break;
+      case 'paused':
+        this.onWorkerInit((worker) => {
+          worker.removeListener('paused', listener);
+        });
+        this.onQueueInit((queue) => {
+          queue.removeListener('paused', listener);
+        });
+        break;
+      case 'resumed':
+        this.onWorkerInit((worker) => {
+          worker.removeListener('resumed', listener);
+        });
+        this.onQueueInit((queue) => {
+          queue.removeListener('resumed', listener);
+        });
+        break;
+      case 'progress':
+        this.onWorkerInit((worker) => {
+          worker.removeListener('progress', listener);
+        });
+        this.onQueueInit((queue) => {
+          queue.removeListener('progress', listener);
+        });
+        break;
+      case 'global:active':
+        global && global.removeListener('active', listener);
+        break;
+      case 'global:completed':
+        global && global.removeListener('completed', listener);
+        break;
+      case  'global:drained':
+        global && global.removeListener('drained', listener);
+        break;
+      case 'global:failed':
+        global && global.removeListener('failed', listener);
+        break;
+      case 'global:paused':
+        global && global.removeListener('paused', listener);
+        break;
+      case 'global:resumed':
+        global && global.removeListener('resumed', listener);
+        break;
+      case 'global:waiting':
+        global && global.removeListener('waiting', listener);
+        break;
+    }
+
+    return this;
   }
 
   /**
@@ -757,9 +889,17 @@ export default class Queue<T = any> extends EventEmitter {
     return (this.getV4Queue() as any).parseClientList(list);
   };
 
+  private getV4QueueScheduler() {
+    if (! this.v4QueueScheduler) {
+      this.v4QueueScheduler = new V4QueueScheduler(this.name, Utils.convertToV4QueueKeeperOptions(this.opts));
+    }
+    return this.v4QueueScheduler;
+  }
+
   private getV4Queue() {
     if (! this.v4Queue) {
       this.v4Queue = new V4Queue(this.name, Utils.convertToV4QueueOptions(this.opts));
+      this.v4QueuePromiseResolve(this.v4Queue);
     }
     return this.v4Queue;
   }
@@ -771,12 +911,259 @@ export default class Queue<T = any> extends EventEmitter {
     return this.v4QueueEvents;
   }
 
-  private createProcessor(): V4Processor {
-    const handlers = this.handlers;
+  private onQueueInit(cb: (queue: V4Queue) => void) {
+    this.v4QueuePromise = this.v4QueuePromise.then(
+      (_) => { cb(this.v4Queue); return this.v4Queue; }
+    ).catch((_) => { return this.v4Queue; });
+  }
+
+  private onWorkerInit(cb: (worker: V4Worker) => void) {
+    this.v4WorkerPromise = this.v4WorkerPromise.then(
+      (_) => { cb(this.v4Worker); return this.v4Worker; }
+    ).catch((_) => { return this.v4Worker; });
+  }
+
+  private registerEventHandler(once: boolean,
+                               event: string | symbol,
+                               listener: (...args: any[]) => void): this {
+    switch (event) {
+      case 'active':
+        console.warn('jobPromise won\'t be available on `active` event handler');
+        if (once) {
+          this.onWorkerInit((worker) => {
+            worker.once('active', (job, jobPromise, prev) => {
+              listener(job, jobPromise, prev);
+            });
+          });
+        } else {
+          this.onWorkerInit((worker) => {
+            worker.on('active', (job, jobPromise, prev) => {
+              listener(job, jobPromise, prev);
+            });
+          });
+        }
+        break;
+      case 'cleaned':
+        console.warn('listening on `cleaned` event is not supported');
+        break;
+      case 'completed':
+        if (once) {
+          this.onWorkerInit((worker) => {
+            worker.once('completed', (job, result, prev) => {
+              listener(job, result, prev);
+            });
+          });
+        } else {
+          this.onWorkerInit((worker) => {
+            worker.on('completed', (job, result, prev) => {
+              listener(job, result, prev);
+            });
+          });
+        }
+        break;
+      case 'drained':
+        if (once) {
+          this.onWorkerInit((worker) => {
+            worker.once('drained', () => {
+              listener();
+            });
+          });
+        } else {
+          this.onWorkerInit((worker) => {
+            worker.on('drained', () => {
+              listener();
+            });
+          });
+        }
+        break;
+      case 'error':
+        console.warn('listening on `error` event is not supported');
+        break;
+      case 'failed':
+        if (once) {
+          this.onWorkerInit((worker) => {
+            worker.once('failed', (job, error, prev) => {
+              listener(job, error, prev);
+            });
+          });
+        } else {
+          this.onWorkerInit((worker) => {
+            worker.on('failed', (job, error, prev) => {
+              listener(job, error, prev);
+            });
+          });
+        }
+        break;
+      case 'paused':
+        if (once) {
+          this.onWorkerInit((worker) => {
+            worker.once('paused', () => {
+              listener();
+            });
+          });
+          this.onQueueInit((queue) => {
+            queue.once('paused', () => {
+              listener();
+            });
+          });
+        } else {
+          this.onWorkerInit((worker) => {
+            worker.on('paused', () => {
+              listener();
+            });
+          });
+          this.onQueueInit((queue) => {
+            queue.on('paused', () => {
+              listener();
+            });
+          });
+        }
+        break;
+      case 'resumed':
+        if (once) {
+          this.onWorkerInit((worker) => {
+            worker.once('resumed', () => {
+              listener();
+            });
+          });
+          this.onQueueInit((queue) => {
+            queue.once('resumed', () => {
+              listener();
+            });
+          });
+        } else {
+          this.onWorkerInit((worker) => {
+            worker.on('resumed', () => {
+              listener();
+            });
+          });
+          this.onQueueInit((queue) => {
+            queue.on('resumed', () => {
+              listener();
+            });
+          });
+        }
+        break;
+      case 'progress':
+        if (once) {
+          this.onWorkerInit((worker) => {
+            worker.once('progress', (job, progress) => {
+              listener(job, progress);
+            });
+          });
+          this.onQueueInit((queue) => {
+            queue.once('progress', () => {
+              listener();
+            });
+          });
+        } else {
+          this.onWorkerInit((worker) => {
+            worker.on('progress', (job, progress) => {
+              listener(job, progress);
+            });
+          });
+          this.onQueueInit((queue) => {
+            queue.on('progress', () => {
+              listener();
+            });
+          });
+        }
+        break;
+      case 'stalled':
+        console.warn('listening on `stalled` event is not supported');
+        break;
+      case 'global:active':
+        if (once) {
+          this.getV4QueueEvents().once('active', ({ jobId, prev }) => {
+            listener(jobId, prev);
+          });
+        } else {
+          this.getV4QueueEvents().on('active', ({ jobId, prev }) => {
+            listener(jobId, prev);
+          });
+        }
+        break;
+      case 'global:completed':
+        if (once) {
+          this.getV4QueueEvents().once('completed', ({ jobId, returnvalue, prev }) => {
+            listener(jobId, returnvalue, prev || 'active');
+          });
+        } else {
+          this.getV4QueueEvents().on('completed', ({ jobId, returnvalue, prev }) => {
+            listener(jobId, returnvalue, prev || 'active');
+          });
+        }
+        break;
+      case  'global:drained':
+        if (once) {
+          this.getV4QueueEvents().once('drained', () => {
+            listener();
+          });
+        } else {
+          this.getV4QueueEvents().on('drained', () => {
+            listener();
+          });
+        }
+        break;
+      case 'global:failed':
+        if (once) {
+          this.getV4QueueEvents().once('failed', ({ jobId, failedReason, prev }) => {
+            listener(jobId, failedReason, prev || 'active');
+          });
+        } else {
+          this.getV4QueueEvents().on('failed', ({ jobId, failedReason, prev }) => {
+            listener(jobId, failedReason, prev || 'active');
+          });
+        }
+        break;
+      case 'global:paused':
+        if (once) {
+          this.getV4QueueEvents().once('paused', () => {
+            listener();
+          });
+        } else {
+          this.getV4QueueEvents().on('paused', () => {
+            listener();
+          });
+        }
+        break;
+      case 'global:progress':
+        console.warn('listening on `global:progress` event is not supported');
+        break;
+      case 'global:resumed':
+        if (once) {
+          this.getV4QueueEvents().once('resumed', () => {
+            listener();
+          });
+        } else {
+          this.getV4QueueEvents().on('resumed', () => {
+            listener();
+          });
+        }
+        break;
+      case 'global:stalled':
+        console.warn('listening on `global:stalled` event is not supported');
+        break;
+      case 'global:waiting':
+        if (once) {
+          this.getV4QueueEvents().once('waiting', ({ jobId }) => {
+            listener(jobId, null);
+          });
+        } else {
+          this.getV4QueueEvents().on('waiting', ({ jobId }) => {
+            listener(jobId, null);
+          });
+        }
+        break;
+    }
+    return this;
+  }
+
+  private static createProcessor(queue: Queue): V4Processor {
 
     return (job: V4Job): Promise<any> => {
       const name = job.name || Queue.DEFAULT_JOB_NAME;
-      const handler = handlers[name] || handlers['*'];
+      const handler = queue.handlers[name] || queue.handlers['*'];
       if(! handler) {
         throw new Error('Missing process handler for job type ' + name);
       }
@@ -789,10 +1176,10 @@ export default class Queue<T = any> extends EventEmitter {
             }
             resolve(res);
           };
-          handler.apply(null, [Utils.convertToJob(job, this), done]);
+          handler.apply(null, [Utils.convertToJob(job, queue), done]);
         } else {
           try {
-            return resolve(handler.apply(null, [Utils.convertToJob(job, this)]));
+            return resolve(handler.apply(null, [Utils.convertToJob(job, queue)]));
           } catch (err) {
             return reject(err);
           }
@@ -1600,7 +1987,7 @@ class Utils {
     return target;
   }
 
-  static convertToV4QueueEventsOptions(source: QueueOptions) {
+  static convertToV4QueueEventsOptions(source: QueueOptions): V4QueueEventsOptions {
     if(! source) {
       return;
     }
@@ -1609,6 +1996,21 @@ class Utils {
 
     target.lastEventId = undefined;
     target.blockingTimeout = undefined;
+
+    return target;
+  }
+
+  static convertToV4QueueKeeperOptions(source: QueueOptions): V4QueueKeeperOptions {
+    if(! source) {
+      return;
+    }
+
+    const target: V4QueueKeeperOptions = Utils.convertToV4QueueBaseOptions(source);
+
+    if(source.settings) {
+      target.maxStalledCount = source.settings.maxStalledCount;
+      target.stalledInterval = source.settings.stalledInterval;
+    }
 
     return target;
   }
