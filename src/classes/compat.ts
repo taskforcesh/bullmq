@@ -928,23 +928,23 @@ export default class Queue3<T = any> extends EventEmitter {
                                listener: (...args: any[]) => void): this {
     switch (event) {
       case 'active':
-        console.warn('jobPromise won\'t be available on `active` event handler');
+        console.warn(`jobPromise won't be available on 'active' event handler`);
         if (once) {
           this.onWorkerInit((worker) => {
             worker.once('active', (job, jobPromise, prev) => {
-              listener(job, jobPromise, prev);
+              listener(job, Utils.getFakeJobPromise3(), prev);
             });
           });
         } else {
           this.onWorkerInit((worker) => {
             worker.on('active', (job, jobPromise, prev) => {
-              listener(job, jobPromise, prev);
+              listener(job, Utils.getFakeJobPromise3(), prev);
             });
           });
         }
         break;
       case 'cleaned':
-        console.warn('listening on `cleaned` event is not supported');
+        console.warn(`listening on 'cleaned' event is not supported`);
         break;
       case 'completed':
         if (once) {
@@ -977,7 +977,7 @@ export default class Queue3<T = any> extends EventEmitter {
         }
         break;
       case 'error':
-        console.warn('listening on `error` event is not supported');
+        console.warn(`listening on 'error' event is not supported`);
         break;
       case 'failed':
         if (once) {
@@ -1070,7 +1070,7 @@ export default class Queue3<T = any> extends EventEmitter {
         }
         break;
       case 'stalled':
-        console.warn('listening on `stalled` event is not supported');
+        console.warn(`listening on 'stalled' event is not supported`);
         break;
       case 'global:active':
         if (once) {
@@ -1128,7 +1128,7 @@ export default class Queue3<T = any> extends EventEmitter {
         }
         break;
       case 'global:progress':
-        console.warn('listening on `global:progress` event is not supported');
+        console.warn(`listening on 'global:progress' event is not supported`);
         break;
       case 'global:resumed':
         if (once) {
@@ -1142,7 +1142,7 @@ export default class Queue3<T = any> extends EventEmitter {
         }
         break;
       case 'global:stalled':
-        console.warn('listening on `global:stalled` event is not supported');
+        console.warn(`listening on 'global:stalled' event is not supported`);
         break;
       case 'global:waiting':
         if (once) {
@@ -2273,6 +2273,16 @@ class Utils {
           return undefined;
       }
     });
+  }
+
+  static getFakeJobPromise3() {
+    const msg = 'jobPromise is not supported';
+    return {
+      then: () => { console.warn(msg + " (then() call is a no-op)"); },
+      catch: () => { console.warn(msg + " (catch() call is a no-op)"); },
+      finally: () => { console.warn(msg + " (finally() call is a no-op)"); },
+      cancel: () => { console.warn(msg + " (cancel() call is a no-op)"); },
+    }
   }
 
 }
