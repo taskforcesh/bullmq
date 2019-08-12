@@ -22,33 +22,33 @@
 import IORedis from "ioredis";
 import { EventEmitter } from "events";
 import {
-  QueueEvents as V4QueueEvents,
-  Worker as V4Worker,
-  Queue as V4Queue,
-  QueueScheduler as V4QueueScheduler,
-  Job as V4Job,
+  QueueEvents,
+  Worker,
+  Queue,
+  QueueScheduler,
+  Job,
 } from '@src/classes';
 import {
-  ClientType as V4ClientType,
-  JobsOpts as V4JobsOpts,
-  QueueOptions as V4QueueOptions,
-  QueueBaseOptions as V4QueueBaseOptions,
-  AdvancedOpts as V4AdvancedOpts,
-  BackoffOpts as V4BackoffOpts,
-  RateLimiterOpts as V4RateLimiterOpts,
-  RepeatOpts as V4RepeatOpts,
-  QueueEventsOptions as V4QueueEventsOptions,
-  QueueKeeperOptions as V4QueueKeeperOptions,
-  WorkerOptions as V4WorkerOptions,
-  Processor as V4Processor,
+  ClientType,
+  JobsOpts,
+  QueueOptions,
+  QueueBaseOptions,
+  AdvancedOpts,
+  BackoffOpts,
+  RateLimiterOpts,
+  RepeatOpts,
+  QueueEventsOptions,
+  QueueKeeperOptions,
+  WorkerOptions,
+  Processor,
 } from '@src/interfaces';
 import {
-  JobJson as V4JobJson,
+  JobJson as JobJson,
 } from '@src/classes';
 import _ from 'lodash';
 import url from "url";
 
-export default class Queue<T = any> extends EventEmitter {
+export default class Queue3<T = any> extends EventEmitter {
 
   static readonly DEFAULT_JOB_NAME = "__default__";
 
@@ -67,19 +67,19 @@ export default class Queue<T = any> extends EventEmitter {
    */
   clients: IORedis.Redis[];
 
-  private opts: QueueOptions;
+  private opts: QueueOptions3;
   private keyPrefix: string;
 
-  private v4Queue: V4Queue;
-  private v4QueuePromise: Promise<V4Queue>;
-  private v4QueuePromiseResolve: (value: V4Queue) => void;
-  private v4QueuePromiseReject: (reason: any) => void;
-  private v4QueueScheduler: V4QueueScheduler;
-  private v4QueueEvents: V4QueueEvents;
-  private v4Worker: V4Worker;
-  private v4WorkerPromise: Promise<V4Worker>;
-  private v4WorkerPromiseResolve: (value: V4Worker) => void;
-  private v4WorkerPromiseReject: (reason: any) => void;
+  private queue: Queue;
+  private queuePromise: Promise<Queue>;
+  private queuePromiseResolve: (value: Queue) => void;
+  private queuePromiseReject: (reason: any) => void;
+  private queueScheduler: QueueScheduler;
+  private queueEvents: QueueEvents;
+  private worker: Worker;
+  private workerPromise: Promise<Worker>;
+  private workerPromiseResolve: (value: Worker) => void;
+  private workerPromiseReject: (reason: any) => void;
   private handlers: { [key:string]: Function };
 
   /**
@@ -87,59 +87,59 @@ export default class Queue<T = any> extends EventEmitter {
    * It creates a new Queue that is persisted in Redis.
    * Everytime the same queue is instantiated it tries to process all the old jobs that may exist from a previous unfinished session.
    */
-  constructor(queueName: string, opts?: QueueOptions);
-  constructor(queueName: string, url: string, opts?: QueueOptions);
+  constructor(queueName: string, opts?: QueueOptions3);
+  constructor(queueName: string, url: string, opts?: QueueOptions3);
 
   constructor(queueName: string, arg2?: any, arg3?: any) {
     super();
 
     Object.defineProperties(this, {
-      v4Queue: {
+      queue: {
         enumerable: false,
         writable: true
       },
-      v4QueueScheduler: {
+      queueScheduler: {
         enumerable: false,
         writable: true
       },
-      v4QueueEvents: {
+      queueEvents: {
         enumerable: false,
         writable: true
       },
-      v4Worker: {
+      worker: {
         enumerable: false,
         writable: true
       },
-      v4WorkerPromise: {
+      workerPromise: {
         enumerable: false,
         writable: true
       },
-      v4WorkerPromiseResolve: {
+      workerPromiseResolve: {
         enumerable: false,
         writable: true
       },
-      v4WorkerPromiseReject: {
+      workerPromiseReject: {
         enumerable: false,
         writable: true
       },
       client: {
-        get: () => { return this.v4QueueScheduler.client; }
+        get: () => { return this.queueScheduler.client; }
       },
       clients: {
         get: () => {
-          const clients = [this.v4QueueScheduler.client];
-          this.v4Queue && clients.push(this.v4Queue.client);
-          this.v4QueueEvents && clients.push(this.v4QueueEvents.client);
-          this.v4Worker && clients.push(this.v4Worker.client);
+          const clients = [this.queueScheduler.client];
+          this.queue && clients.push(this.queue.client);
+          this.queueEvents && clients.push(this.queueEvents.client);
+          this.worker && clients.push(this.worker.client);
           return clients;
         }
       },
       toKey: {
-        get: () => { return this.getV4QueueScheduler().toKey; }
+        get: () => { return this.getQueueScheduler().toKey; }
       }
     });
 
-    let opts: QueueOptions;
+    let opts: QueueOptions3;
 
     if (_.isString(arg2)) {
       opts = _.extend(
@@ -165,17 +165,17 @@ export default class Queue<T = any> extends EventEmitter {
     delete opts.redis.keyPrefix;
 
     // Forcibly create scheduler to let queue act as expected by default
-    this.getV4QueueScheduler();
+    this.getQueueScheduler();
 
-    this.v4QueuePromise = new Promise<V4Queue>((resolve, reject) => {
-      this.v4QueuePromiseResolve = resolve;
-      this.v4QueuePromiseReject = reject;
-    }).catch(e => this.v4Queue);
+    this.queuePromise = new Promise<Queue>((resolve, reject) => {
+      this.queuePromiseResolve = resolve;
+      this.queuePromiseReject = reject;
+    }).catch(e => this.queue);
 
-    this.v4WorkerPromise = new Promise<V4Worker>((resolve, reject) => {
-      this.v4WorkerPromiseResolve = resolve;
-      this.v4WorkerPromiseReject = reject;
-    }).catch(e => this.v4Worker);
+    this.workerPromise = new Promise<Worker>((resolve, reject) => {
+      this.workerPromiseResolve = resolve;
+      this.workerPromiseReject = reject;
+    }).catch(e => this.worker);
   }
 
   /**
@@ -183,7 +183,7 @@ export default class Queue<T = any> extends EventEmitter {
    * This replaces the `ready` event emitted on Queue in previous verisons.
    */
   async isReady(): Promise<this> {
-    await this.getV4QueueScheduler().waitUntilReady();
+    await this.getQueueScheduler().waitUntilReady();
     return this;
   };
 
@@ -206,8 +206,8 @@ export default class Queue<T = any> extends EventEmitter {
    * If the promise is rejected, the error will be passed as a second argument to the "failed" event.
    * If it is resolved, its value will be the "completed" event's second argument.
    */
-  process(callback: ProcessCallbackFunction<T>): Promise<void>;
-  process(callback: ProcessPromiseFunction<T>): Promise<void>;
+  process(callback: ProcessCallbackFunction3<T>): Promise<void>;
+  process(callback: ProcessPromiseFunction3<T>): Promise<void>;
   process(callback: string): Promise<void>;
 
   /**
@@ -229,8 +229,8 @@ export default class Queue<T = any> extends EventEmitter {
    *
    * @param concurrency Bull will then call your handler in parallel respecting this maximum value.
    */
-  process(concurrency: number, callback: ProcessCallbackFunction<T>): Promise<void>;
-  process(concurrency: number, callback: ProcessPromiseFunction<T>): Promise<void>;
+  process(concurrency: number, callback: ProcessCallbackFunction3<T>): Promise<void>;
+  process(concurrency: number, callback: ProcessPromiseFunction3<T>): Promise<void>;
   process(concurrency: number, callback: string): Promise<void>;
 
   /**
@@ -252,8 +252,8 @@ export default class Queue<T = any> extends EventEmitter {
    *
    * @param name Bull will only call the handler if the job name matches
    */
-  process(name: string, callback: ProcessCallbackFunction<T>): Promise<void>;
-  process(name: string, callback: ProcessPromiseFunction<T>): Promise<void>;
+  process(name: string, callback: ProcessCallbackFunction3<T>): Promise<void>;
+  process(name: string, callback: ProcessPromiseFunction3<T>): Promise<void>;
   process(name: string, callback: string): Promise<void>;
 
   /**
@@ -276,12 +276,12 @@ export default class Queue<T = any> extends EventEmitter {
    * @param name Bull will only call the handler if the job name matches
    * @param concurrency Bull will then call your handler in parallel respecting this maximum value.
    */
-  process(name: string, concurrency: number, callback: ProcessCallbackFunction<T>): Promise<void>;
-  process(name: string, concurrency: number, callback: ProcessPromiseFunction<T>): Promise<void>;
+  process(name: string, concurrency: number, callback: ProcessCallbackFunction3<T>): Promise<void>;
+  process(name: string, concurrency: number, callback: ProcessPromiseFunction3<T>): Promise<void>;
   process(name: string, concurrency: number, callback: string): Promise<void>;
 
   process(arg1: any, arg2?: any, arg3?: any): Promise<void> {
-    let name: string = Queue.DEFAULT_JOB_NAME;
+    let name: string = Queue3.DEFAULT_JOB_NAME;
     let concurrency: number = 1;
     let handler: Function;
     let handlerFile: string;
@@ -326,23 +326,23 @@ export default class Queue<T = any> extends EventEmitter {
       throw new Error('Cannot define the same handler twice ' + name);
     }
 
-    if(handlerFile && name !== Queue.DEFAULT_JOB_NAME) {
+    if(handlerFile && name !== Queue3.DEFAULT_JOB_NAME) {
       throw new Error('Named processors are not supported with sandboxed workers');
     }
 
     this.handlers[name] = handler;
 
-    if(! this.v4Worker) {
-      const workerOpts = Utils.convertToV4WorkerOptions(this.opts);
+    if(! this.worker) {
+      const workerOpts = Utils.convertToWorkerOptions(this.opts);
       workerOpts.concurrency = concurrency;
       if(handlerFile) {
-        this.v4Worker = new V4Worker(this.name, handlerFile, workerOpts);
+        this.worker = new Worker(this.name, handlerFile, workerOpts);
       } else {
-        this.v4Worker = new V4Worker(this.name, Queue.createProcessor(this), workerOpts);
+        this.worker = new Worker(this.name, Queue3.createProcessor(this), workerOpts);
       }
-      this.v4WorkerPromiseResolve(this.v4Worker);
+      this.workerPromiseResolve(this.worker);
     }
-    return this.v4Worker.waitUntilReady();
+    return this.worker.waitUntilReady();
   }
 
   /* tslint:enable:unified-signatures */
@@ -352,22 +352,22 @@ export default class Queue<T = any> extends EventEmitter {
    * If the queue is empty the job will be executed directly,
    * otherwise it will be placed in the queue and executed as soon as possible.
    */
-  add(data: T, opts?: JobOptions): Promise<Job<T>>;
+  add(data: T, opts?: JobOptions3): Promise<Job3<T>>;
 
   /**
    * Creates a new named job and adds it to the queue.
    * If the queue is empty the job will be executed directly,
    * otherwise it will be placed in the queue and executed as soon as possible.
    */
-  add(name: string, data: T, opts?: JobOptions): Promise<Job<T>>;
+  add(name: string, data: T, opts?: JobOptions3): Promise<Job3<T>>;
 
-  async add(arg1: any, arg2?: any, arg3?: any): Promise<Job<T>> {
-    let name: string = Queue.DEFAULT_JOB_NAME;
+  async add(arg1: any, arg2?: any, arg3?: any): Promise<Job3<T>> {
+    let name: string = Queue3.DEFAULT_JOB_NAME;
     let data: any;
-    let opts: JobOptions = {};
+    let opts: JobOptions3 = {};
 
     if (typeof arg1 === 'string') {
-      name = arg1 || Queue.DEFAULT_JOB_NAME;
+      name = arg1 || Queue3.DEFAULT_JOB_NAME;
       data = arg2;
       opts = arg3 || {};
     } else {
@@ -376,16 +376,16 @@ export default class Queue<T = any> extends EventEmitter {
     }
 
     if (opts.repeat) {
-      const result = await this.getV4Queue().repeat.addNextRepeatableJob(
+      const result = await this.getQueue().repeat.addNextRepeatableJob(
         name, data,
-        Utils.convertToV4JobsOpts(opts),
+        Utils.convertToJobsOpts(opts),
         (opts.repeat as any).jobId,
         true
       );
-      return Utils.convertToJob(result, this);
+      return Utils.convertToJob3(result, this);
     } else {
-      const result = await this.getV4Queue().append(name, data, Utils.convertToV4JobsOpts(opts));
-      return Utils.convertToJob(result, this);
+      const result = await this.getQueue().append(name, data, Utils.convertToJobsOpts(opts));
+      return Utils.convertToJob3(result, this);
     }
   }
 
@@ -401,9 +401,9 @@ export default class Queue<T = any> extends EventEmitter {
    */
   async pause(isLocal?: boolean): Promise<void> {
     if(isLocal) {
-      return this.v4Worker && this.v4Worker.pause(true);
+      return this.worker && this.worker.pause(true);
     } else {
-      return this.v4Queue && this.v4Queue.pause();
+      return this.queue && this.queue.pause();
     }
   }
 
@@ -419,9 +419,9 @@ export default class Queue<T = any> extends EventEmitter {
    */
   async resume(isLocal?: boolean): Promise<void>{
     if(isLocal) {
-      return this.v4Worker && this.v4Worker.resume();
+      return this.worker && this.worker.resume();
     } else {
-      return this.v4Queue && this.v4Queue.resume();
+      return this.queue && this.queue.resume();
     }
   }
 
@@ -431,7 +431,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Since there may be other processes adding or processing jobs, this value may be true only for a very small amount of time.
    */
   count(): Promise<number>{
-    return this.getV4Queue().count();
+    return this.getQueue().count();
   }
 
 
@@ -452,17 +452,17 @@ export default class Queue<T = any> extends EventEmitter {
   close(): Promise<any> {
     const promises = [];
 
-    if(this.v4QueueScheduler) {
-      promises.push(this.v4QueueScheduler.close());
+    if(this.queueScheduler) {
+      promises.push(this.queueScheduler.close());
     }
-    if(this.v4Queue) {
-      promises.push(this.v4Queue.close());
+    if(this.queue) {
+      promises.push(this.queue.close());
     }
-    if(this.v4QueueEvents) {
-      promises.push(this.v4QueueEvents.close());
+    if(this.queueEvents) {
+      promises.push(this.queueEvents.close());
     }
-    if(this.v4Worker) {
-      promises.push(this.v4Worker.close());
+    if(this.worker) {
+      promises.push(this.worker.close());
     }
     return Promise.all(promises);
   }
@@ -472,54 +472,54 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return the job instance associated with the jobId parameter.
    * If the specified job cannot be located, the promise callback parameter will be set to null.
    */
-  async getJob(jobId: JobId): Promise<Job<T> | null>{
-    const job = await this.getV4Queue().getJob(Utils.convertToV4JobId(jobId));
-    return Utils.convertToJob(job, this);
+  async getJob(jobId: JobId3): Promise<Job3<T> | null>{
+    const job = await this.getQueue().getJob(Utils.convertToJobId(jobId));
+    return Utils.convertToJob3(job, this);
   }
 
 
   /**
    * Returns a promise that will return an array with the waiting jobs between start and end.
    */
-  async getWaiting(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getV4Queue().getWaiting(start, end);
-    return result.map(job => Utils.convertToJob(job, this));
+  async getWaiting(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+    const result: Job[] = await this.getQueue().getWaiting(start, end);
+    return result.map(job => Utils.convertToJob3(job, this));
   }
 
 
   /**
    * Returns a promise that will return an array with the active jobs between start and end.
    */
-  async getActive(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getV4Queue().getActive(start, end);
-    return result.map(job => Utils.convertToJob(job, this));
+  async getActive(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+    const result: Job[] = await this.getQueue().getActive(start, end);
+    return result.map(job => Utils.convertToJob3(job, this));
   }
 
 
   /**
    * Returns a promise that will return an array with the delayed jobs between start and end.
    */
-  async getDelayed(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getV4Queue().getDelayed(start, end);
-    return result.map(job => Utils.convertToJob(job, this));
+  async getDelayed(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+    const result: Job[] = await this.getQueue().getDelayed(start, end);
+    return result.map(job => Utils.convertToJob3(job, this));
   }
 
 
   /**
    * Returns a promise that will return an array with the completed jobs between start and end.
    */
-  async getCompleted(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getV4Queue().getCompleted(start, end);
-    return result.map(job => Utils.convertToJob(job, this));
+  async getCompleted(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+    const result: Job[] = await this.getQueue().getCompleted(start, end);
+    return result.map(job => Utils.convertToJob3(job, this));
   }
 
 
   /**
    * Returns a promise that will return an array with the failed jobs between start and end.
    */
-  async getFailed(start: number = 0, end: number = -1): Promise<Array<Job<T>>>{
-    const result: V4Job[] = await this.getV4Queue().getFailed(start, end);
-    return result.map(job => Utils.convertToJob(job, this));
+  async getFailed(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+    const result: Job[] = await this.getQueue().getFailed(start, end);
+    return result.map(job => Utils.convertToJob3(job, this));
   }
 
 
@@ -527,23 +527,23 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns JobInformation of repeatable jobs (ordered descending). Provide a start and/or an end
    * index to limit the number of results. Start defaults to 0, end to -1 and asc to false.
    */
-  getRepeatableJobs(start: number = 0, end: number = -1, asc: boolean = false): Promise<JobInformation[]>{
-    return this.getV4Queue().repeat.getRepeatableJobs(start, end, asc);
+  getRepeatableJobs(start: number = 0, end: number = -1, asc: boolean = false): Promise<JobInformation3[]>{
+    return this.getQueue().repeat.getRepeatableJobs(start, end, asc);
   }
 
 
   /**
    * ???
    */
-  async nextRepeatableJob(name: string, data: any, opts: JobOptions, skipCheckExists?: boolean): Promise<Job<T>>{
-    const result = await this.getV4Queue().repeat.addNextRepeatableJob(
-      name || Queue.DEFAULT_JOB_NAME,
+  async nextRepeatableJob(name: string, data: any, opts: JobOptions3, skipCheckExists?: boolean): Promise<Job3<T>>{
+    const result = await this.getQueue().repeat.addNextRepeatableJob(
+      name || Queue3.DEFAULT_JOB_NAME,
       data,
-      Utils.convertToV4JobsOpts(opts),
+      Utils.convertToJobsOpts(opts),
       (opts.repeat as any).jobId,
       skipCheckExists
     );
-    return Utils.convertToJob(result, this);
+    return Utils.convertToJob3(result, this);
   }
 
 
@@ -551,7 +551,7 @@ export default class Queue<T = any> extends EventEmitter {
    * Removes a given repeatable job. The RepeatOptions and JobId needs to be the same as the ones
    * used for the job when it was added.
    */
-  removeRepeatable(repeat: (CronRepeatOptions | EveryRepeatOptions) & { jobId?: JobId }): Promise<void>
+  removeRepeatable(repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 }): Promise<void>
 
   /**
    * Removes a given repeatable job. The RepeatOptions and JobId needs to be the same as the ones
@@ -559,11 +559,11 @@ export default class Queue<T = any> extends EventEmitter {
    *
    * name: The name of the to be removed job
    */
-  removeRepeatable(name: string, repeat: (CronRepeatOptions | EveryRepeatOptions) & { jobId?: JobId }): Promise<void>;
+  removeRepeatable(name: string, repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 }): Promise<void>;
 
   async removeRepeatable(arg1: any, arg2?: any): Promise<void> {
-    let name: string = Queue.DEFAULT_JOB_NAME;
-    let repeat: (CronRepeatOptions | EveryRepeatOptions) & { jobId?: JobId };
+    let name: string = Queue3.DEFAULT_JOB_NAME;
+    let repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 };
 
     if(typeof arg1 === 'string') {
       name = arg1;
@@ -571,15 +571,15 @@ export default class Queue<T = any> extends EventEmitter {
     } else {
       repeat = arg1;
     }
-    return this.getV4Queue().repeat.removeRepeatable(name,
-      Utils.convertToV4RepeatOpts(repeat), Utils.convertToV4JobId(repeat.jobId))
+    return this.getQueue().repeat.removeRepeatable(name,
+      Utils.convertToRepeatOpts(repeat), Utils.convertToJobId(repeat.jobId))
   }
 
   /**
    * Removes a given repeatable job by key.
    */
   async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
-    const repeat = this.getV4Queue().repeat;
+    const repeat = this.getQueue().repeat;
     await repeat.waitUntilReady();
 
     const tokens = repeatJobKey.split(':');
@@ -606,9 +606,9 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns a promise that will return an array of job instances of the given types.
    * Optional parameters for range and ordering are provided.
    */
-  async getJobs(types: string[], start: number = 0, end: number = -1, asc: boolean = false): Promise<Array<Job<T>>> {
-    const result: V4Job[] = await this.getV4Queue().getJobs(types, start, end, asc);
-    return result.map(job => Utils.convertToJob(job, this));
+  async getJobs(types: string[], start: number = 0, end: number = -1, asc: boolean = false): Promise<Array<Job3<T>>> {
+    const result: Job[] = await this.getQueue().getJobs(types, start, end, asc);
+    return result.map(job => Utils.convertToJob3(job, this));
   }
 
   /**
@@ -622,65 +622,65 @@ export default class Queue<T = any> extends EventEmitter {
   /**
    * Returns a promise that resolves with the job counts for the given queue.
    */
-  async getJobCounts(): Promise<JobCounts> {
-    const result = await this.getV4Queue().getJobCounts();
-    return Utils.convertToJobCounts(result);
+  async getJobCounts(): Promise<JobCounts3> {
+    const result = await this.getQueue().getJobCounts();
+    return Utils.convertToJobCounts3(result);
   }
 
   /**
    * Returns a promise that resolves with the job counts for the given queue of the given types.
    */
   async getJobCountByTypes(types: string[] | string): Promise<number> {
-    return this.getV4Queue().getJobCountByTypes(...types);
+    return this.getQueue().getJobCountByTypes(...types);
   }
 
   /**
    * Returns a promise that resolves with the quantity of completed jobs.
    */
   getCompletedCount(): Promise<number> {
-    return this.getV4Queue().getCompletedCount();
+    return this.getQueue().getCompletedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of failed jobs.
    */
   getFailedCount(): Promise<number> {
-    return this.getV4Queue().getFailedCount();
+    return this.getQueue().getFailedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of delayed jobs.
    */
   getDelayedCount(): Promise<number> {
-    return this.getV4Queue().getDelayedCount();
+    return this.getQueue().getDelayedCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of waiting jobs.
    */
   getWaitingCount(): Promise<number> {
-    return this.getV4Queue().getWaitingCount();
+    return this.getQueue().getWaitingCount();
   }
 
   /**
    * Returns a promise that resolves with the quantity of paused jobs.
    */
   getPausedCount(): Promise<number> {
-    return this.getV4Queue().getJobCountByTypes('paused');
+    return this.getQueue().getJobCountByTypes('paused');
   }
 
   /**
    * Returns a promise that resolves with the quantity of active jobs.
    */
   getActiveCount(): Promise<number> {
-    return this.getV4Queue().getActiveCount();
+    return this.getQueue().getActiveCount();
   }
 
   /**
    * Returns a promise that resolves to the quantity of repeatable jobs.
    */
   getRepeatableCount(): Promise<number> {
-    return this.getV4Queue().repeat.getRepeatableCount();
+    return this.getQueue().repeat.getRepeatableCount();
   }
 
   /**
@@ -690,7 +690,7 @@ export default class Queue<T = any> extends EventEmitter {
    * @param status Status of the job to clean. Values are completed, wait, active, delayed, and failed. Defaults to completed.
    * @param limit Maximum amount of jobs to clean per call. If not provided will clean all matching jobs.
    */
-  clean(grace: number, status?: JobStatusClean, limit?: number): Promise<Array<Job<T>>> {
+  clean(grace: number, status?: JobStatusClean3, limit?: number): Promise<Array<Job3<T>>> {
     throw new Error('Not supported');
   }
 
@@ -702,53 +702,53 @@ export default class Queue<T = any> extends EventEmitter {
   /**
    * An error occured
    */
-  on(event: 'error', callback: ErrorEventCallback): this;
+  on(event: 'error', callback: ErrorEventCallback3): this;
 
   /**
    * A Job is waiting to be processed as soon as a worker is idling.
    */
-  on(event: 'waiting', callback: WaitingEventCallback): this;
+  on(event: 'waiting', callback: WaitingEventCallback3): this;
 
   /**
    * A job has started. You can use `jobPromise.cancel()` to abort it
    */
-  on(event: 'active', callback: ActiveEventCallback<T>): this;
+  on(event: 'active', callback: ActiveEventCallback3<T>): this;
 
   /**
    * A job has been marked as stalled.
    * This is useful for debugging job workers that crash or pause the event loop.
    */
-  on(event: 'stalled', callback: StalledEventCallback<T>): this;
+  on(event: 'stalled', callback: StalledEventCallback3<T>): this;
 
   /**
    * A job's progress was updated
    */
-  on(event: 'progress', callback: ProgressEventCallback<T>): this;
+  on(event: 'progress', callback: ProgressEventCallback3<T>): this;
 
   /**
    * A job successfully completed with a `result`
    */
-  on(event: 'completed', callback: CompletedEventCallback<T>): this;
+  on(event: 'completed', callback: CompletedEventCallback3<T>): this;
 
   /**
    * A job failed with `err` as the reason
    */
-  on(event: 'failed', callback: FailedEventCallback<T>): this;
+  on(event: 'failed', callback: FailedEventCallback3<T>): this;
 
   /**
    * The queue has been paused
    */
-  on(event: 'paused', callback: EventCallback): this;
+  on(event: 'paused', callback: EventCallback3): this;
 
   /**
    * The queue has been resumed
    */
-  on(event: 'resumed', callback: EventCallback): this; // tslint:disable-line unified-signatures
+  on(event: 'resumed', callback: EventCallback3): this; // tslint:disable-line unified-signatures
 
   /**
    * A job successfully removed.
    */
-  on(event: 'removed', callback: RemovedEventCallback<T>): this;
+  on(event: 'removed', callback: RemovedEventCallback3<T>): this;
 
   /**
    * Old jobs have been cleaned from the queue.
@@ -756,13 +756,13 @@ export default class Queue<T = any> extends EventEmitter {
    *
    * @see Queue#clean() for details
    */
-  on(event: 'cleaned', callback: CleanedEventCallback<T>): this;
+  on(event: 'cleaned', callback: CleanedEventCallback3<T>): this;
 
   /**
    * Emitted every time the queue has processed all the waiting jobs
    * (even if there can be some delayed jobs not yet processed)
    */
-  on(event: 'drained', callback: EventCallback): this; // tslint:disable-line unified-signatures
+  on(event: 'drained', callback: EventCallback3): this; // tslint:disable-line unified-signatures
 
 
   on(event: string | symbol, listener: (...args: any[]) => void): this {
@@ -779,7 +779,7 @@ export default class Queue<T = any> extends EventEmitter {
 
   removeListener(event: string | symbol, listener: (...args: any[]) => void): this {
 
-    const global = this.v4QueueEvents;
+    const global = this.queueEvents;
 
     switch (event) {
       case 'active':
@@ -863,21 +863,21 @@ export default class Queue<T = any> extends EventEmitter {
    * Returns Redis clients array which belongs to current Queue
    */
   getWorkers(): Promise<{[key: string]: string }[]> {
-    return this.getV4Queue().getWorkers();
+    return this.getQueue().getWorkers();
   }
 
   /**
    * Returns Queue name in base64 encoded format
    */
   base64Name(): string {
-    return (this.getV4Queue() as any).base64Name();
+    return (this.getQueue() as any).base64Name();
   };
 
   /**
    * Returns Queue name with keyPrefix (default: 'bull')
    */
   clientName(): string {
-    return (this.getV4Queue() as any).clientName();
+    return (this.getQueue() as any).clientName();
   };
 
   /**
@@ -886,41 +886,41 @@ export default class Queue<T = any> extends EventEmitter {
    * @param list String with all redis clients
    */
   parseClientList(list: string): {[key: string]: string }[] {
-    return (this.getV4Queue() as any).parseClientList(list);
+    return (this.getQueue() as any).parseClientList(list);
   };
 
-  private getV4QueueScheduler() {
-    if (! this.v4QueueScheduler) {
-      this.v4QueueScheduler = new V4QueueScheduler(this.name, Utils.convertToV4QueueKeeperOptions(this.opts));
+  private getQueueScheduler() {
+    if (! this.queueScheduler) {
+      this.queueScheduler = new QueueScheduler(this.name, Utils.convertToQueueKeeperOptions(this.opts));
     }
-    return this.v4QueueScheduler;
+    return this.queueScheduler;
   }
 
-  private getV4Queue() {
-    if (! this.v4Queue) {
-      this.v4Queue = new V4Queue(this.name, Utils.convertToV4QueueOptions(this.opts));
-      this.v4QueuePromiseResolve(this.v4Queue);
+  private getQueue() {
+    if (! this.queue) {
+      this.queue = new Queue(this.name, Utils.convertToQueueOptions(this.opts));
+      this.queuePromiseResolve(this.queue);
     }
-    return this.v4Queue;
+    return this.queue;
   }
 
-  private getV4QueueEvents() {
-    if (! this.v4QueueEvents) {
-      this.v4QueueEvents = new V4QueueEvents(this.name, Utils.convertToV4QueueEventsOptions(this.opts));
+  private getQueueEvents() {
+    if (! this.queueEvents) {
+      this.queueEvents = new QueueEvents(this.name, Utils.convertToQueueEventsOptions(this.opts));
     }
-    return this.v4QueueEvents;
+    return this.queueEvents;
   }
 
-  private onQueueInit(cb: (queue: V4Queue) => void) {
-    this.v4QueuePromise = this.v4QueuePromise.then(
-      (_) => { cb(this.v4Queue); return this.v4Queue; }
-    ).catch((_) => { return this.v4Queue; });
+  private onQueueInit(cb: (queue: Queue) => void) {
+    this.queuePromise = this.queuePromise.then(
+      (_) => { cb(this.queue); return this.queue; }
+    ).catch((_) => { return this.queue; });
   }
 
-  private onWorkerInit(cb: (worker: V4Worker) => void) {
-    this.v4WorkerPromise = this.v4WorkerPromise.then(
-      (_) => { cb(this.v4Worker); return this.v4Worker; }
-    ).catch((_) => { return this.v4Worker; });
+  private onWorkerInit(cb: (worker: Worker) => void) {
+    this.workerPromise = this.workerPromise.then(
+      (_) => { cb(this.worker); return this.worker; }
+    ).catch((_) => { return this.worker; });
   }
 
   private registerEventHandler(once: boolean,
@@ -1074,55 +1074,55 @@ export default class Queue<T = any> extends EventEmitter {
         break;
       case 'global:active':
         if (once) {
-          this.getV4QueueEvents().once('active', ({ jobId, prev }) => {
+          this.getQueueEvents().once('active', ({ jobId, prev }) => {
             listener(jobId, prev);
           });
         } else {
-          this.getV4QueueEvents().on('active', ({ jobId, prev }) => {
+          this.getQueueEvents().on('active', ({ jobId, prev }) => {
             listener(jobId, prev);
           });
         }
         break;
       case 'global:completed':
         if (once) {
-          this.getV4QueueEvents().once('completed', ({ jobId, returnvalue, prev }) => {
+          this.getQueueEvents().once('completed', ({ jobId, returnvalue, prev }) => {
             listener(jobId, returnvalue, prev || 'active');
           });
         } else {
-          this.getV4QueueEvents().on('completed', ({ jobId, returnvalue, prev }) => {
+          this.getQueueEvents().on('completed', ({ jobId, returnvalue, prev }) => {
             listener(jobId, returnvalue, prev || 'active');
           });
         }
         break;
       case  'global:drained':
         if (once) {
-          this.getV4QueueEvents().once('drained', () => {
+          this.getQueueEvents().once('drained', () => {
             listener();
           });
         } else {
-          this.getV4QueueEvents().on('drained', () => {
+          this.getQueueEvents().on('drained', () => {
             listener();
           });
         }
         break;
       case 'global:failed':
         if (once) {
-          this.getV4QueueEvents().once('failed', ({ jobId, failedReason, prev }) => {
+          this.getQueueEvents().once('failed', ({ jobId, failedReason, prev }) => {
             listener(jobId, failedReason, prev || 'active');
           });
         } else {
-          this.getV4QueueEvents().on('failed', ({ jobId, failedReason, prev }) => {
+          this.getQueueEvents().on('failed', ({ jobId, failedReason, prev }) => {
             listener(jobId, failedReason, prev || 'active');
           });
         }
         break;
       case 'global:paused':
         if (once) {
-          this.getV4QueueEvents().once('paused', () => {
+          this.getQueueEvents().once('paused', () => {
             listener();
           });
         } else {
-          this.getV4QueueEvents().on('paused', () => {
+          this.getQueueEvents().on('paused', () => {
             listener();
           });
         }
@@ -1132,11 +1132,11 @@ export default class Queue<T = any> extends EventEmitter {
         break;
       case 'global:resumed':
         if (once) {
-          this.getV4QueueEvents().once('resumed', () => {
+          this.getQueueEvents().once('resumed', () => {
             listener();
           });
         } else {
-          this.getV4QueueEvents().on('resumed', () => {
+          this.getQueueEvents().on('resumed', () => {
             listener();
           });
         }
@@ -1146,11 +1146,11 @@ export default class Queue<T = any> extends EventEmitter {
         break;
       case 'global:waiting':
         if (once) {
-          this.getV4QueueEvents().once('waiting', ({ jobId }) => {
+          this.getQueueEvents().once('waiting', ({ jobId }) => {
             listener(jobId, null);
           });
         } else {
-          this.getV4QueueEvents().on('waiting', ({ jobId }) => {
+          this.getQueueEvents().on('waiting', ({ jobId }) => {
             listener(jobId, null);
           });
         }
@@ -1159,10 +1159,10 @@ export default class Queue<T = any> extends EventEmitter {
     return this;
   }
 
-  private static createProcessor(queue: Queue): V4Processor {
+  private static createProcessor(queue: Queue3): Processor {
 
-    return (job: V4Job): Promise<any> => {
-      const name = job.name || Queue.DEFAULT_JOB_NAME;
+    return (job: Job): Promise<any> => {
+      const name = job.name || Queue3.DEFAULT_JOB_NAME;
       const handler = queue.handlers[name] || queue.handlers['*'];
       if(! handler) {
         throw new Error('Missing process handler for job type ' + name);
@@ -1176,10 +1176,10 @@ export default class Queue<T = any> extends EventEmitter {
             }
             resolve(res);
           };
-          handler.apply(null, [Utils.convertToJob(job, queue), done]);
+          handler.apply(null, [Utils.convertToJob3(job, queue), done]);
         } else {
           try {
-            return resolve(handler.apply(null, [Utils.convertToJob(job, queue)]));
+            return resolve(handler.apply(null, [Utils.convertToJob3(job, queue)]));
           } catch (err) {
             return reject(err);
           }
@@ -1190,9 +1190,9 @@ export default class Queue<T = any> extends EventEmitter {
 
 }
 
-export class Job<T = any> {
+export class Job3<T = any> {
 
-  id: JobId;
+  id: JobId3;
 
   /**
    * The custom data passed when the job was created
@@ -1202,7 +1202,7 @@ export class Job<T = any> {
   /**
    * Options of the job
    */
-  opts: JobOptions;
+  opts: JobOptions3;
 
   /**
    * How many attempts where made to run this job
@@ -1222,7 +1222,7 @@ export class Job<T = any> {
   /**
    * Which queue this job was part of
    */
-  queue: Queue<T>;
+  queue: Queue3<T>;
 
   timestamp: number;
 
@@ -1242,80 +1242,80 @@ export class Job<T = any> {
   private delay: number;
   private failedReason: string;
 
-  private v4Job: V4Job;
+  private job: Job;
 
-  constructor(queue: Queue, data: any, opts?: JobOptions);
-  constructor(queue: Queue, name: string, data: any, opts?: JobOptions);
+  constructor(queue: Queue3, data: any, opts?: JobOptions3);
+  constructor(queue: Queue3, name: string, data: any, opts?: JobOptions3);
 
-  constructor(queue: Queue, arg2: any, arg3?: any, arg4?: any) {
+  constructor(queue: Queue3, arg2: any, arg3?: any, arg4?: any) {
 
     Object.defineProperties(this, {
-      v4Job: {
+      job: {
         enumerable: false,
         writable: true
       },
       id: {
-        get: () => { return Utils.convertToJobId(this.v4Job.id); },
-        set: (val) => { this.v4Job.id = Utils.convertToV4JobId(val); }
+        get: () => { return Utils.convertToJobId3(this.job.id); },
+        set: (val) => { this.job.id = Utils.convertToJobId(val); }
       },
       name: {
-        get: () => { return this.v4Job.name; },
-        set: (val) => { this.v4Job.name = val; }
+        get: () => { return this.job.name; },
+        set: (val) => { this.job.name = val; }
       },
       data: {
-        get: () => { return this.v4Job.data; },
-        set: (val) => { this.v4Job.data = val; }
+        get: () => { return this.job.data; },
+        set: (val) => { this.job.data = val; }
       },
       opts: {
-        get: () => { return Utils.convertToJobOptions(this.v4Job.opts); },
-        set: (val) => { this.v4Job.opts = Utils.convertToV4JobsOpts(val); }
+        get: () => { return Utils.convertToJobOptions3(this.job.opts); },
+        set: (val) => { this.job.opts = Utils.convertToJobsOpts(val); }
       },
       _progress: {
-        get: () => { return this.v4Job.progress; },
-        set: (val) => { this.v4Job.progress = val; }
+        get: () => { return this.job.progress; },
+        set: (val) => { this.job.progress = val; }
       },
       delay: {
-        get: () => { return this.v4Job.opts && this.v4Job.opts.delay; },
-        set: (val) => { this.v4Job.opts = { ...this.v4Job.opts, delay: val }; }
+        get: () => { return this.job.opts && this.job.opts.delay; },
+        set: (val) => { this.job.opts = { ...this.job.opts, delay: val }; }
       },
       timestamp: {
-        get: () => { return this.v4Job.timestamp; },
-        set: (val) => { this.v4Job.timestamp = val; }
+        get: () => { return this.job.timestamp; },
+        set: (val) => { this.job.timestamp = val; }
       },
       finishedOn: {
-        get: () => { return (this.v4Job as any).finishedOn; },
-        set: (val) => { (this.v4Job as any).finishedOn = val; }
+        get: () => { return (this.job as any).finishedOn; },
+        set: (val) => { (this.job as any).finishedOn = val; }
       },
       processedOn: {
-        get: () => { return (this.v4Job as any).processedOn; },
-        set: (val) => { (this.v4Job as any).processedOn = val; }
+        get: () => { return (this.job as any).processedOn; },
+        set: (val) => { (this.job as any).processedOn = val; }
       },
       failedReason: {
-        get: () => { return (this.v4Job as any).failedReason; },
-        set: (val) => { (this.v4Job as any).failedReason = val; }
+        get: () => { return (this.job as any).failedReason; },
+        set: (val) => { (this.job as any).failedReason = val; }
       },
       attemptsMade: {
-        get: () => { return (this.v4Job as any).attemptsMade; },
-        set: (val) => { (this.v4Job as any).attemptsMade = val; }
+        get: () => { return (this.job as any).attemptsMade; },
+        set: (val) => { (this.job as any).attemptsMade = val; }
       },
       stacktrace: {
-        get: () => { return this.v4Job.stacktrace; },
-        set: (val) => { this.v4Job.stacktrace = val; }
+        get: () => { return this.job.stacktrace; },
+        set: (val) => { this.job.stacktrace = val; }
       },
       returnvalue: {
-        get: () => { return this.v4Job.returnvalue; },
-        set: (val) => { this.v4Job.returnvalue = val; }
+        get: () => { return this.job.returnvalue; },
+        set: (val) => { this.job.returnvalue = val; }
       },
       toKey: {
         enumerable: false,
-        get: () => { return (this.v4Job as any).toKey; }
+        get: () => { return (this.job as any).toKey; }
       }
     });
 
 
-    let name: string = Queue.DEFAULT_JOB_NAME;
+    let name: string = Queue3.DEFAULT_JOB_NAME;
     let data: any;
-    let opts: JobOptions;
+    let opts: JobOptions3;
 
     if (typeof arg2 !== 'string') {
       // formally we cannot resolve args when data is string
@@ -1328,7 +1328,7 @@ export class Job<T = any> {
     }
 
     this.queue = queue;
-    this.v4Job = new V4Job((queue as any).getV4Queue(), name, data, Utils.convertToV4JobsOpts(opts));
+    this.job = new Job((queue as any).getQueue(), name, data, Utils.convertToJobsOpts(opts));
     this.stacktrace = [];
   }
 
@@ -1336,7 +1336,7 @@ export class Job<T = any> {
    * Report progress on a job
    */
   progress(value: any): Promise<void> {
-    return this.v4Job.updateProgress(value);
+    return this.job.updateProgress(value);
   }
 
   /**
@@ -1352,35 +1352,35 @@ export class Job<T = any> {
    * Returns a promise resolving to a boolean which, if true, current job's state is completed
    */
   isCompleted(): Promise<boolean> {
-    return this.v4Job.isCompleted();
+    return this.job.isCompleted();
   }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is failed
    */
   isFailed(): Promise<boolean> {
-    return this.v4Job.isFailed();
+    return this.job.isFailed();
   }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is delayed
    */
   isDelayed(): Promise<boolean> {
-    return this.v4Job.isDelayed();
+    return this.job.isDelayed();
   }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is active
    */
   isActive(): Promise<boolean> {
-    return this.v4Job.isActive();
+    return this.job.isActive();
   }
 
   /**
    * Returns a promise resolving to a boolean which, if true, current job's state is wait
    */
   isWaiting(): Promise<boolean> {
-    return this.v4Job.isWaiting();
+    return this.job.isWaiting();
   }
 
   /**
@@ -1403,7 +1403,7 @@ export class Job<T = any> {
    * it atomic. If your queue does have a very large quantity of jobs, you may want to
    * avoid using this method.
    */
-  getState(): Promise<JobStatus> {
+  getState(): Promise<JobStatus3> {
     throw new Error('Not supported');
   }
 
@@ -1411,7 +1411,7 @@ export class Job<T = any> {
    * Update a specific job's data. Promise resolves when the job has been updated.
    */
   update(data: any): Promise<void> {
-    return this.v4Job.update(data);
+    return this.job.update(data);
   }
 
   /**
@@ -1419,7 +1419,7 @@ export class Job<T = any> {
    * The returned promise resolves when the job has been removed.
    */
   remove(): Promise<void> {
-    return this.v4Job.remove();
+    return this.job.remove();
   }
 
   /**
@@ -1443,20 +1443,20 @@ export class Job<T = any> {
    * since pubsub does not give any guarantees.
    */
   finished(watchdog = 5000, ttl?: number): Promise<any> {
-    return this.v4Job.waitUntilFinished((this.queue as any).getV4QueueEvents(), watchdog, ttl);
+    return this.job.waitUntilFinished((this.queue as any).getQueueEvents(), watchdog, ttl);
   }
 
   /**
    * Moves a job to the `completed` queue. Pulls a job from 'waiting' to 'active'
    * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
    */
-  async moveToCompleted(returnValue?: string, ignoreLock?: boolean): Promise<[SerializedJob, JobId] | null> {
+  async moveToCompleted(returnValue?: string, ignoreLock?: boolean): Promise<[SerializedJob3, JobId3] | null> {
     if(ignoreLock) {
       console.warn("ignoreLock is not supported");
     }
-    const result = await this.v4Job.moveToCompleted(returnValue);
+    const result = await this.job.moveToCompleted(returnValue);
     if(result) {
-      return [Utils.convertToSerializedJob(result[0]), Utils.convertToJobId(result[1])];
+      return [Utils.convertToSerializedJob3(result[0]), Utils.convertToJobId3(result[1])];
     }
   }
 
@@ -1464,11 +1464,11 @@ export class Job<T = any> {
    * Moves a job to the `failed` queue. Pulls a job from 'waiting' to 'active'
    * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
    */
-  async moveToFailed(errorInfo: any, ignoreLock?: boolean): Promise<[any, JobId] | null> {
+  async moveToFailed(errorInfo: any, ignoreLock?: boolean): Promise<[any, JobId3] | null> {
     if(ignoreLock) {
       console.warn("ignoreLock is not supported");
     }
-    await this.v4Job.moveToFailed(errorInfo);
+    await this.job.moveToFailed(errorInfo);
     return null;
   }
 
@@ -1503,7 +1503,7 @@ export class Job<T = any> {
   /**
    * Get job properties as Json Object
    */
-  toJSON(): JobJson<T> {
+  toJSON(): JobJson3<T> {
     const result = {
       id: this.id,
       name: this.name,
@@ -1526,8 +1526,8 @@ export class Job<T = any> {
   }
 
 
-  private toData(): SerializedJob {
-    const target: SerializedJob = {
+  private toData(): SerializedJob3 {
+    const target: SerializedJob3 = {
       id: undefined,
       name: undefined,
       data: undefined,
@@ -1559,11 +1559,11 @@ export class Job<T = any> {
     return target;
   };
 
-  private static fromJSON<T>(queue: Queue, json: SerializedJob, jobId?: JobId) {
+  private static fromJSON<T>(queue: Queue3, json: SerializedJob3, jobId?: JobId3) {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
-    const job = new Job(queue, json.name || Queue.DEFAULT_JOB_NAME, data, opts);
+    const job = new Job3(queue, json.name || Queue3.DEFAULT_JOB_NAME, data, opts);
 
     job.id = json.id || jobId;
     job._progress = JSON.parse(json.progress || '0');
@@ -1601,7 +1601,7 @@ export class Job<T = any> {
 
 }
 
-export interface RateLimiter {
+export interface RateLimiter3 {
   /** Max numbers of jobs processed */
   max: number;
   /** Per duration in milliseconds */
@@ -1610,7 +1610,7 @@ export interface RateLimiter {
   bounceBack?: boolean;
 }
 
-export interface QueueOptions {
+export interface QueueOptions3 {
   /**
    * Options passed directly to the `ioredis` constructor
    */
@@ -1627,14 +1627,14 @@ export interface QueueOptions {
    */
   prefix?: string;
 
-  settings?: AdvancedSettings;
+  settings?: AdvancedSettings3;
 
-  limiter?: RateLimiter;
+  limiter?: RateLimiter3;
 
-  defaultJobOptions?: JobOptions;
+  defaultJobOptions?: JobOptions3;
 }
 
-export interface AdvancedSettings {
+export interface AdvancedSettings3 {
   /**
    * Key expiration time for job locks
    */
@@ -1679,18 +1679,18 @@ export interface AdvancedSettings {
   drainDelay?: number;
 }
 
-export type DoneCallback = (error?: Error | null, value?: any) => void;
+export type DoneCallback3 = (error?: Error | null, value?: any) => void;
 
-export type JobId = number | string;
+export type JobId3 = number | string;
 
-export type ProcessCallbackFunction<T> = (job: Job<T>, done: DoneCallback) => void;
-export type ProcessPromiseFunction<T> = (job: Job<T>) => Promise<void>;
+export type ProcessCallbackFunction3<T> = (job: Job3<T>, done: DoneCallback3) => void;
+export type ProcessPromiseFunction3<T> = (job: Job3<T>) => Promise<void>;
 
-export type JobStatus = 'completed' | 'waiting' | 'active' | 'delayed' | 'failed';
-export type JobStatusClean = 'completed' | 'wait' | 'active' | 'delayed' | 'failed';
+export type JobStatus3 = 'completed' | 'waiting' | 'active' | 'delayed' | 'failed';
+export type JobStatusClean3 = 'completed' | 'wait' | 'active' | 'delayed' | 'failed';
 
-export interface SerializedJob {
-  id: JobId,
+export interface SerializedJob3 {
+  id: JobId3,
   name: string,
   data: string,
   opts: string,
@@ -1705,11 +1705,11 @@ export interface SerializedJob {
   processedOn: string
 }
 
-export interface JobJson<T> {
-  id: JobId,
+export interface JobJson3<T> {
+  id: JobId3,
   name: string,
   data: T,
-  opts: JobOptions,
+  opts: JobOptions3,
   progress: any,
   delay?: number,
   timestamp: number,
@@ -1721,7 +1721,7 @@ export interface JobJson<T> {
   processedOn: number
 }
 
-export interface BackoffOptions {
+export interface BackoffOptions3 {
   /**
    * Backoff type, which can be either `fixed` or `exponential`
    */
@@ -1733,7 +1733,7 @@ export interface BackoffOptions {
   delay?: number;
 }
 
-export interface RepeatOptions {
+export interface RepeatOptions3 {
   /**
    * Timezone
    */
@@ -1750,7 +1750,7 @@ export interface RepeatOptions {
   limit?: number;
 }
 
-export interface CronRepeatOptions extends RepeatOptions {
+export interface CronRepeatOptions3 extends RepeatOptions3 {
   /**
    * Cron pattern specifying when the job should execute
    */
@@ -1762,14 +1762,14 @@ export interface CronRepeatOptions extends RepeatOptions {
   startDate?: Date | string | number;
 }
 
-export interface EveryRepeatOptions extends RepeatOptions {
+export interface EveryRepeatOptions3 extends RepeatOptions3 {
   /**
    * Repeat every millis (cron setting cannot be used together with this setting.)
    */
   every: number;
 }
 
-export interface JobOptions {
+export interface JobOptions3 {
   /**
    * Optional priority value. ranges from 1 (highest priority) to MAX_INT  (lowest priority).
    * Note that using priorities has a slight impact on performance, so do not use it if not required
@@ -1790,12 +1790,12 @@ export interface JobOptions {
   /**
    * Repeat job according to a cron specification
    */
-  repeat?: CronRepeatOptions | EveryRepeatOptions;
+  repeat?: CronRepeatOptions3 | EveryRepeatOptions3;
 
   /**
    * Backoff setting for automatic retries if the job fails
    */
-  backoff?: number | BackoffOptions;
+  backoff?: number | BackoffOptions3;
 
   /**
    * A boolean which, if true, adds the job to the right
@@ -1815,7 +1815,7 @@ export interface JobOptions {
    * jobId is unique. If you attempt to add a job with an id that
    * already exists, it will not be added.
    */
-  jobId?: JobId;
+  jobId?: JobId3;
 
   /**
    * A boolean which, if true, removes the job when it successfully completes.
@@ -1837,7 +1837,7 @@ export interface JobOptions {
   stackTraceLimit?: number;
 }
 
-export interface JobCounts {
+export interface JobCounts3 {
   active: number;
   completed: number;
   failed: number;
@@ -1845,7 +1845,7 @@ export interface JobCounts {
   waiting: number;
 }
 
-export interface JobInformation {
+export interface JobInformation3 {
   key: string;
   name: string;
   id?: string;
@@ -1855,32 +1855,32 @@ export interface JobInformation {
   next: number;
 }
 
-export type EventCallback = () => void;
+export type EventCallback3 = () => void;
 
-export type ErrorEventCallback = (error: Error) => void;
+export type ErrorEventCallback3 = (error: Error) => void;
 
-export interface JobPromise {
+export interface JobPromise3 {
   /**
    * Abort this job
    */
   cancel(): void;
 }
 
-export type ActiveEventCallback<T = any> = (job: Job<T>, jobPromise?: JobPromise) => void;
+export type ActiveEventCallback3<T = any> = (job: Job3<T>, jobPromise?: JobPromise3) => void;
 
-export type StalledEventCallback<T = any> = (job: Job<T>) => void;
+export type StalledEventCallback3<T = any> = (job: Job3<T>) => void;
 
-export type ProgressEventCallback<T = any> = (job: Job<T>, progress: any) => void;
+export type ProgressEventCallback3<T = any> = (job: Job3<T>, progress: any) => void;
 
-export type CompletedEventCallback<T = any> = (job: Job<T>, result: any) => void;
+export type CompletedEventCallback3<T = any> = (job: Job3<T>, result: any) => void;
 
-export type FailedEventCallback<T = any> = (job: Job<T>, error: Error) => void;
+export type FailedEventCallback3<T = any> = (job: Job3<T>, error: Error) => void;
 
-export type CleanedEventCallback<T = any> = (jobs: Array<Job<T>>, status: JobStatusClean) => void;
+export type CleanedEventCallback3<T = any> = (jobs: Array<Job3<T>>, status: JobStatusClean3) => void;
 
-export type RemovedEventCallback<T = any> = (job: Job<T>) => void;
+export type RemovedEventCallback3<T = any> = (job: Job3<T>) => void;
 
-export type WaitingEventCallback = (jobId: JobId) => void;
+export type WaitingEventCallback3 = (jobId: JobId3) => void;
 
 class Utils {
 
@@ -1901,7 +1901,7 @@ class Utils {
     return redisOpts;
   };
 
-  static convertToV4JobId(id: JobId): string {
+  static convertToJobId(id: JobId3): string {
     if(id !== undefined) {
       if(typeof id === "string") {
         return id;
@@ -1911,7 +1911,7 @@ class Utils {
     }
   }
 
-  static convertToJobId(id: string): JobId {
+  static convertToJobId3(id: string): JobId3 {
     if(id !== undefined) {
       if((/^\d+$/g).test(id)) {
         return parseInt(id);
@@ -1920,30 +1920,30 @@ class Utils {
     }
   }
 
-  static convertToJob(source: V4Job, queue: Queue<any>): Job {
+  static convertToJob3(source: Job, queue: Queue3<any>): Job3 {
     if(source) {
-      return new Job(queue, source.name, source.data, Utils.convertToJobOptions(source.opts));
+      return new Job3(queue, source.name, source.data, Utils.convertToJobOptions3(source.opts));
     }
   };
 
-  static convertToJobOptions(source: V4JobsOpts): JobOptions {
+  static convertToJobOptions3(source: JobsOpts): JobOptions3 {
     if(! source) {
       return;
     }
 
-    const target: JobOptions = {};
+    const target: JobOptions3 = {};
 
     (target as any).timestamp = source.timestamp;
     target.priority = source.priority;
     target.delay = source.delay;
     target.attempts = source.attempts;
-    target.repeat = Utils.convertToRepeatOptions(source.repeat);
+    target.repeat = Utils.convertToRepeatOptions3(source.repeat);
 
     if(source.backoff !== undefined) {
       if(typeof source.backoff === "number") {
         target.backoff = source.backoff;
       } else {
-        target.backoff = Utils.convertToBackoffOptions(source.backoff);
+        target.backoff = Utils.convertToBackoffOptions3(source.backoff);
       }
     }
 
@@ -1956,12 +1956,12 @@ class Utils {
     return target;
   }
 
-  static convertToV4QueueBaseOptions(source: QueueOptions): V4QueueBaseOptions {
+  static convertToQueueBaseOptions(source: QueueOptions3): QueueBaseOptions {
     if(! source) {
       return;
     }
 
-    const target: V4QueueBaseOptions = {};
+    const target: QueueBaseOptions = {};
 
     if (source.redis) {
       const client = new IORedis(source.redis);
@@ -1974,25 +1974,25 @@ class Utils {
     return target;
   }
 
-  static convertToV4QueueOptions(source: QueueOptions): V4QueueOptions {
+  static convertToQueueOptions(source: QueueOptions3): QueueOptions {
     if(! source) {
       return;
     }
 
-    const target: V4QueueOptions = Utils.convertToV4QueueBaseOptions(source);
+    const target: QueueOptions = Utils.convertToQueueBaseOptions(source);
 
-    target.defaultJobOptions = Utils.convertToV4JobsOpts(source.defaultJobOptions);
-    target.createClient = Utils.adaptToV4CreateClient(source.createClient, source.redis);
+    target.defaultJobOptions = Utils.convertToJobsOpts(source.defaultJobOptions);
+    target.createClient = Utils.adaptToCreateClient(source.createClient, source.redis);
 
     return target;
   }
 
-  static convertToV4QueueEventsOptions(source: QueueOptions): V4QueueEventsOptions {
+  static convertToQueueEventsOptions(source: QueueOptions3): QueueEventsOptions {
     if(! source) {
       return;
     }
 
-    const target: V4QueueEventsOptions = Utils.convertToV4QueueBaseOptions(source);
+    const target: QueueEventsOptions = Utils.convertToQueueBaseOptions(source);
 
     target.lastEventId = undefined;
     target.blockingTimeout = undefined;
@@ -2000,12 +2000,12 @@ class Utils {
     return target;
   }
 
-  static convertToV4QueueKeeperOptions(source: QueueOptions): V4QueueKeeperOptions {
+  static convertToQueueKeeperOptions(source: QueueOptions3): QueueKeeperOptions {
     if(! source) {
       return;
     }
 
-    const target: V4QueueKeeperOptions = Utils.convertToV4QueueBaseOptions(source);
+    const target: QueueKeeperOptions = Utils.convertToQueueBaseOptions(source);
 
     if(source.settings) {
       target.maxStalledCount = source.settings.maxStalledCount;
@@ -2015,24 +2015,24 @@ class Utils {
     return target;
   }
 
-  static convertToV4JobsOpts(source: JobOptions): V4JobsOpts {
+  static convertToJobsOpts(source: JobOptions3): JobsOpts {
     if(! source) {
       return;
     }
 
-    const target: V4JobsOpts = {};
+    const target: JobsOpts = {};
 
     target.timestamp = (source as any).timestamp;
     target.priority = source.priority;
     target.delay = source.delay;
     target.attempts = source.attempts;
-    target.repeat = Utils.convertToV4RepeatOpts(source.repeat);
+    target.repeat = Utils.convertToRepeatOpts(source.repeat);
 
     if(source.backoff !== undefined) {
       if(typeof source.backoff === "number") {
         target.backoff = source.backoff;
       } else {
-        target.backoff = Utils.convertToV4BackoffOpts(source.backoff);
+        target.backoff = Utils.convertToBackoffOpts(source.backoff);
       }
     }
 
@@ -2040,7 +2040,7 @@ class Utils {
     target.timeout = source.timeout;
 
     if(source.jobId !== undefined) {
-      target.jobId = Utils.convertToV4JobId(source.jobId);
+      target.jobId = Utils.convertToJobId(source.jobId);
     }
 
     if(source.removeOnComplete !== undefined) {
@@ -2062,54 +2062,54 @@ class Utils {
     return target;
   }
 
-  static convertToV4RepeatOpts(source: CronRepeatOptions | EveryRepeatOptions): V4RepeatOpts {
+  static convertToRepeatOpts(source: CronRepeatOptions3 | EveryRepeatOptions3): RepeatOpts {
     if(! source) {
       return;
     }
 
-    const target: V4RepeatOpts = {};
+    const target: RepeatOpts = {};
 
-    target.cron = (source as CronRepeatOptions).cron;
-    target.tz = (source as CronRepeatOptions).tz;
-    target.startDate = (source as CronRepeatOptions).startDate;
-    target.endDate = (source as CronRepeatOptions).endDate;
-    target.limit = (source as EveryRepeatOptions).limit;
-    target.every = (source as EveryRepeatOptions).every;
+    target.cron = (source as CronRepeatOptions3).cron;
+    target.tz = (source as CronRepeatOptions3).tz;
+    target.startDate = (source as CronRepeatOptions3).startDate;
+    target.endDate = (source as CronRepeatOptions3).endDate;
+    target.limit = (source as EveryRepeatOptions3).limit;
+    target.every = (source as EveryRepeatOptions3).every;
     target.count = undefined;
     target.prevMillis = undefined;
 
     return target;
   }
 
-  static convertToRepeatOptions(source: V4RepeatOpts): CronRepeatOptions | EveryRepeatOptions {
+  static convertToRepeatOptions3(source: RepeatOpts): CronRepeatOptions3 | EveryRepeatOptions3 {
     if(! source) {
       return;
     }
 
     if(source.cron) {
-      const target: CronRepeatOptions = { cron: undefined };
-      target.cron = (source as CronRepeatOptions).cron;
-      target.tz = (source as CronRepeatOptions).tz;
-      target.startDate = (source as CronRepeatOptions).startDate;
-      target.endDate = (source as CronRepeatOptions).endDate;
-      target.limit = (source as EveryRepeatOptions).limit;
+      const target: CronRepeatOptions3 = { cron: undefined };
+      target.cron = (source as CronRepeatOptions3).cron;
+      target.tz = (source as CronRepeatOptions3).tz;
+      target.startDate = (source as CronRepeatOptions3).startDate;
+      target.endDate = (source as CronRepeatOptions3).endDate;
+      target.limit = (source as EveryRepeatOptions3).limit;
       return target;
     } else {
-      const target: EveryRepeatOptions = { every: undefined };
-      target.tz = (source as CronRepeatOptions).tz;
-      target.endDate = (source as CronRepeatOptions).endDate;
-      target.limit = (source as EveryRepeatOptions).limit;
-      target.every = (source as EveryRepeatOptions).every;
+      const target: EveryRepeatOptions3 = { every: undefined };
+      target.tz = (source as CronRepeatOptions3).tz;
+      target.endDate = (source as CronRepeatOptions3).endDate;
+      target.limit = (source as EveryRepeatOptions3).limit;
+      target.every = (source as EveryRepeatOptions3).every;
       return target;
     }
   }
 
-  static convertToV4BackoffOpts(source: BackoffOptions): V4BackoffOpts {
+  static convertToBackoffOpts(source: BackoffOptions3): BackoffOpts {
     if(! source) {
       return;
     }
 
-    const target: V4BackoffOpts = { type: undefined, delay: undefined };
+    const target: BackoffOpts = { type: undefined, delay: undefined };
 
     target.type = source.type;
     target.delay = source.delay;
@@ -2117,12 +2117,12 @@ class Utils {
     return target;
   }
 
-  static convertToBackoffOptions(source: V4BackoffOpts): BackoffOptions {
+  static convertToBackoffOptions3(source: BackoffOpts): BackoffOptions3 {
     if(! source) {
       return;
     }
 
-    const target: BackoffOptions = { type: undefined };
+    const target: BackoffOptions3 = { type: undefined };
 
     target.type = source.type;
     target.delay = source.delay;
@@ -2130,28 +2130,28 @@ class Utils {
     return target;
   }
 
-  static convertToV4WorkerOptions(source: QueueOptions): V4WorkerOptions {
+  static convertToWorkerOptions(source: QueueOptions3): WorkerOptions {
     if(! source) {
       return;
     }
-    const target: V4WorkerOptions = Utils.convertToV4QueueBaseOptions(source);
+    const target: WorkerOptions = Utils.convertToQueueBaseOptions(source);
 
     target.concurrency = undefined;
-    target.limiter = Utils.convertToV4RateLimiterOpts(source.limiter);
+    target.limiter = Utils.convertToRateLimiterOpts(source.limiter);
     target.skipDelayCheck = undefined;
     target.drainDelay = undefined;
     target.visibilityWindow = undefined;
-    target.settings = Utils.convertToV4AdvancedOpts(source.settings);
+    target.settings = Utils.convertToAdvancedOpts(source.settings);
 
     return target;
   }
 
-  static convertToV4RateLimiterOpts(source: RateLimiter): V4RateLimiterOpts {
+  static convertToRateLimiterOpts(source: RateLimiter3): RateLimiterOpts {
     if(! source) {
       return;
     }
 
-    const target: V4RateLimiterOpts = { max: undefined, duration: undefined };
+    const target: RateLimiterOpts = { max: undefined, duration: undefined };
 
     target.max = source.max;
     target.duration = source.duration;
@@ -2163,12 +2163,12 @@ class Utils {
     return target;
   }
 
-  static convertToV4AdvancedOpts(source: AdvancedSettings): V4AdvancedOpts {
+  static convertToAdvancedOpts(source: AdvancedSettings3): AdvancedOpts {
     if(! source) {
       return;
     }
 
-    const target: V4AdvancedOpts = {};
+    const target: AdvancedOpts = {};
 
     target.lockDuration = source.lockDuration;
     target.stalledInterval = source.stalledInterval;
@@ -2185,9 +2185,9 @@ class Utils {
     return target;
   }
 
-  static convertToJobCounts(source: { [key:string]: number }): JobCounts {
+  static convertToJobCounts3(source: { [key:string]: number }): JobCounts3 {
     if(source) {
-      const target: JobCounts = { active: undefined,
+      const target: JobCounts3 = { active: undefined,
         completed: undefined, failed: undefined, delayed: undefined, waiting: undefined };
       Object.keys(source).forEach((key) => {
         if(typeof source[key] === "number") {
@@ -2209,9 +2209,9 @@ class Utils {
     }
   }
 
-  static convertToSerializedJob(source: V4JobJson): SerializedJob {
+  static convertToSerializedJob3(source: JobJson): SerializedJob3 {
     if(source) {
-      const target: SerializedJob = {
+      const target: SerializedJob3 = {
         id: undefined,
         name: undefined,
         data: undefined,
@@ -2256,18 +2256,18 @@ class Utils {
     }
   }
 
-  static adaptToV4CreateClient(
+  static adaptToCreateClient(
     createClient: (type: 'client' | 'subscriber' | 'bclient', redisOpts?: IORedis.RedisOptions) => IORedis.Redis | IORedis.Cluster,
-    redis: IORedis.RedisOptions): (type: V4ClientType) => IORedis.Redis {
+    redis: IORedis.RedisOptions): (type: ClientType) => IORedis.Redis {
     if(! createClient) {
       return;
     }
 
     return ((type) => {
       switch(type) {
-        case V4ClientType.blocking:
+        case ClientType.blocking:
           return createClient('bclient', redis) as IORedis.Redis;
-        case V4ClientType.normal:
+        case ClientType.normal:
           return createClient('client', redis) as IORedis.Redis;
         default:
           return undefined;
