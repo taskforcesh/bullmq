@@ -19,15 +19,9 @@
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 // TypeScript Version: 2.8
 
-import IORedis from "ioredis";
-import { EventEmitter } from "events";
-import {
-  QueueEvents,
-  Worker,
-  Queue,
-  QueueScheduler,
-  Job,
-} from '@src/classes';
+import IORedis from 'ioredis';
+import { EventEmitter } from 'events';
+import { QueueEvents, Worker, Queue, QueueScheduler, Job } from '@src/classes';
 import {
   ClientType,
   JobsOpts,
@@ -42,15 +36,12 @@ import {
   WorkerOptions,
   Processor,
 } from '@src/interfaces';
-import {
-  JobJson as JobJson,
-} from '@src/classes';
+import { JobJson } from '@src/classes';
 import _ from 'lodash';
-import url from "url";
+import url from 'url';
 
 export default class Queue3<T = any> extends EventEmitter {
-
-  static readonly DEFAULT_JOB_NAME = "__default__";
+  static readonly DEFAULT_JOB_NAME = '__default__';
 
   /**
    * The name of the queue
@@ -80,12 +71,13 @@ export default class Queue3<T = any> extends EventEmitter {
   private workerPromise: Promise<Worker>;
   private workerPromiseResolve: (value: Worker) => void;
   private workerPromiseReject: (reason: any) => void;
-  private handlers: { [key:string]: Function };
+  private handlers: { [key: string]: Function };
 
   /**
    * This is the Queue constructor.
    * It creates a new Queue that is persisted in Redis.
-   * Everytime the same queue is instantiated it tries to process all the old jobs that may exist from a previous unfinished session.
+   * Everytime the same queue is instantiated it tries to process all the old jobs
+   * that may exist from a previous unfinished session.
    */
   constructor(queueName: string, opts?: QueueOptions3);
   constructor(queueName: string, url: string, opts?: QueueOptions3);
@@ -96,34 +88,36 @@ export default class Queue3<T = any> extends EventEmitter {
     Object.defineProperties(this, {
       queue: {
         enumerable: false,
-        writable: true
+        writable: true,
       },
       queueScheduler: {
         enumerable: false,
-        writable: true
+        writable: true,
       },
       queueEvents: {
         enumerable: false,
-        writable: true
+        writable: true,
       },
       worker: {
         enumerable: false,
-        writable: true
+        writable: true,
       },
       workerPromise: {
         enumerable: false,
-        writable: true
+        writable: true,
       },
       workerPromiseResolve: {
         enumerable: false,
-        writable: true
+        writable: true,
       },
       workerPromiseReject: {
         enumerable: false,
-        writable: true
+        writable: true,
       },
       client: {
-        get: () => { return this.queueScheduler.client; }
+        get: () => {
+          return this.queueScheduler.client;
+        },
       },
       clients: {
         get: () => {
@@ -132,11 +126,13 @@ export default class Queue3<T = any> extends EventEmitter {
           this.queueEvents && clients.push(this.queueEvents.client);
           this.worker && clients.push(this.worker.client);
           return clients;
-        }
+        },
       },
       toKey: {
-        get: () => { return this.getQueueScheduler().toKey; }
-      }
+        get: () => {
+          return this.getQueueScheduler().toKey;
+        },
+      },
     });
 
     let opts: QueueOptions3;
@@ -145,9 +141,9 @@ export default class Queue3<T = any> extends EventEmitter {
       opts = _.extend(
         {},
         {
-          redis: Utils.redisOptsFromUrl(arg2)
+          redis: Utils.redisOptsFromUrl(arg2),
         },
-        arg3
+        arg3,
       );
     } else {
       opts = arg2;
@@ -185,7 +181,7 @@ export default class Queue3<T = any> extends EventEmitter {
   async isReady(): Promise<this> {
     await this.getQueueScheduler().waitUntilReady();
     return this;
-  };
+  }
 
   /* tslint:disable:unified-signatures */
 
@@ -199,7 +195,8 @@ export default class Queue3<T = any> extends EventEmitter {
    * the callback will be passed a done callback to be called after the job has been completed.
    * The done callback can be called with an Error instance, to signal that the job did not complete successfully,
    * or with a result as second argument (e.g.: done(null, result);) when the job is successful.
-   * Errors will be passed as a second argument to the "failed" event; results, as a second argument to the "completed" event.
+   * Errors will be passed as a second argument to the "failed" event; results,
+   * as a second argument to the "completed" event.
    *
    * If, however, the callback signature does not contain the done argument,
    * a promise must be returned to signal job completion.
@@ -220,7 +217,8 @@ export default class Queue3<T = any> extends EventEmitter {
    * the callback will be passed a done callback to be called after the job has been completed.
    * The done callback can be called with an Error instance, to signal that the job did not complete successfully,
    * or with a result as second argument (e.g.: done(null, result);) when the job is successful.
-   * Errors will be passed as a second argument to the "failed" event; results, as a second argument to the "completed" event.
+   * Errors will be passed as a second argument to the "failed" event; results,
+   * as a second argument to the "completed" event.
    *
    * If, however, the callback signature does not contain the done argument,
    * a promise must be returned to signal job completion.
@@ -229,8 +227,14 @@ export default class Queue3<T = any> extends EventEmitter {
    *
    * @param concurrency Bull will then call your handler in parallel respecting this maximum value.
    */
-  process(concurrency: number, callback: ProcessCallbackFunction3<T>): Promise<void>;
-  process(concurrency: number, callback: ProcessPromiseFunction3<T>): Promise<void>;
+  process(
+    concurrency: number,
+    callback: ProcessCallbackFunction3<T>,
+  ): Promise<void>;
+  process(
+    concurrency: number,
+    callback: ProcessPromiseFunction3<T>,
+  ): Promise<void>;
   process(concurrency: number, callback: string): Promise<void>;
 
   /**
@@ -243,7 +247,8 @@ export default class Queue3<T = any> extends EventEmitter {
    * the callback will be passed a done callback to be called after the job has been completed.
    * The done callback can be called with an Error instance, to signal that the job did not complete successfully,
    * or with a result as second argument (e.g.: done(null, result);) when the job is successful.
-   * Errors will be passed as a second argument to the "failed" event; results, as a second argument to the "completed" event.
+   * Errors will be passed as a second argument to the "failed" event;
+   * results, as a second argument to the "completed" event.
    *
    * If, however, the callback signature does not contain the done argument,
    * a promise must be returned to signal job completion.
@@ -266,7 +271,8 @@ export default class Queue3<T = any> extends EventEmitter {
    * the callback will be passed a done callback to be called after the job has been completed.
    * The done callback can be called with an Error instance, to signal that the job did not complete successfully,
    * or with a result as second argument (e.g.: done(null, result);) when the job is successful.
-   * Errors will be passed as a second argument to the "failed" event; results, as a second argument to the "completed" event.
+   * Errors will be passed as a second argument to the "failed" event;
+   * results, as a second argument to the "completed" event.
    *
    * If, however, the callback signature does not contain the done argument,
    * a promise must be returned to signal job completion.
@@ -276,45 +282,51 @@ export default class Queue3<T = any> extends EventEmitter {
    * @param name Bull will only call the handler if the job name matches
    * @param concurrency Bull will then call your handler in parallel respecting this maximum value.
    */
-  process(name: string, concurrency: number, callback: ProcessCallbackFunction3<T>): Promise<void>;
-  process(name: string, concurrency: number, callback: ProcessPromiseFunction3<T>): Promise<void>;
+  process(
+    name: string,
+    concurrency: number,
+    callback: ProcessCallbackFunction3<T>,
+  ): Promise<void>;
+  process(
+    name: string,
+    concurrency: number,
+    callback: ProcessPromiseFunction3<T>,
+  ): Promise<void>;
   process(name: string, concurrency: number, callback: string): Promise<void>;
 
   process(arg1: any, arg2?: any, arg3?: any): Promise<void> {
     let name: string = Queue3.DEFAULT_JOB_NAME;
-    let concurrency: number = 1;
+    let concurrency = 1;
     let handler: Function;
     let handlerFile: string;
 
-    if(arguments.length === 1) {
-      if(typeof arg1 === "function") {
+    if (arguments.length === 1) {
+      if (typeof arg1 === 'function') {
         handler = arg1;
-      } else if(typeof arg1 === "string") {
+      } else if (typeof arg1 === 'string') {
         handlerFile = arg1;
       }
-    }
-    else if(arguments.length === 2) {
-      if(typeof arg1 === "number") {
+    } else if (arguments.length === 2) {
+      if (typeof arg1 === 'number') {
         concurrency = arg1 > 0 ? arg1 : 1;
-      } else if(typeof arg1 === "string") {
+      } else if (typeof arg1 === 'string') {
         name = arg1;
       }
-      if(typeof arg2 === "function") {
+      if (typeof arg2 === 'function') {
         handler = arg2;
-      } else if(typeof arg2 === "string") {
+      } else if (typeof arg2 === 'string') {
         handlerFile = arg2;
       }
-    }
-    else if(arguments.length === 3) {
-      if(typeof arg1 === "string") {
+    } else if (arguments.length === 3) {
+      if (typeof arg1 === 'string') {
         name = arg1;
       }
-      if(typeof arg2 === "number") {
+      if (typeof arg2 === 'number') {
         concurrency = arg2 > 0 ? arg2 : 1;
       }
-      if(typeof arg3 === "function") {
+      if (typeof arg3 === 'function') {
         handler = arg3;
-      } else if(typeof arg3 === "string") {
+      } else if (typeof arg3 === 'string') {
         handlerFile = arg3;
       }
     }
@@ -326,19 +338,25 @@ export default class Queue3<T = any> extends EventEmitter {
       throw new Error('Cannot define the same handler twice ' + name);
     }
 
-    if(handlerFile && name !== Queue3.DEFAULT_JOB_NAME) {
-      throw new Error('Named processors are not supported with sandboxed workers');
+    if (handlerFile && name !== Queue3.DEFAULT_JOB_NAME) {
+      throw new Error(
+        'Named processors are not supported with sandboxed workers',
+      );
     }
 
     this.handlers[name] = handler;
 
-    if(! this.worker) {
+    if (!this.worker) {
       const workerOpts = Utils.convertToWorkerOptions(this.opts);
       workerOpts.concurrency = concurrency;
-      if(handlerFile) {
+      if (handlerFile) {
         this.worker = new Worker(this.name, handlerFile, workerOpts);
       } else {
-        this.worker = new Worker(this.name, Queue3.createProcessor(this), workerOpts);
+        this.worker = new Worker(
+          this.name,
+          Queue3.createProcessor(this),
+          workerOpts,
+        );
       }
       this.workerPromiseResolve(this.worker);
     }
@@ -377,14 +395,19 @@ export default class Queue3<T = any> extends EventEmitter {
 
     if (opts.repeat) {
       const result = await this.getQueue().repeat.addNextRepeatableJob(
-        name, data,
+        name,
+        data,
         Utils.convertToJobsOpts(opts),
         (opts.repeat as any).jobId,
-        true
+        true,
       );
       return Utils.convertToJob3(result, this);
     } else {
-      const result = await this.getQueue().append(name, data, Utils.convertToJobsOpts(opts));
+      const result = await this.getQueue().append(
+        name,
+        data,
+        Utils.convertToJobsOpts(opts),
+      );
       return Utils.convertToJob3(result, this);
     }
   }
@@ -400,7 +423,7 @@ export default class Queue3<T = any> extends EventEmitter {
    * Pausing a queue that is already paused does nothing.
    */
   async pause(isLocal?: boolean): Promise<void> {
-    if(isLocal) {
+    if (isLocal) {
       return this.worker && this.worker.pause(true);
     } else {
       return this.queue && this.queue.pause();
@@ -417,31 +440,29 @@ export default class Queue3<T = any> extends EventEmitter {
    *
    * Resuming a queue that is not paused does nothing.
    */
-  async resume(isLocal?: boolean): Promise<void>{
-    if(isLocal) {
+  async resume(isLocal?: boolean): Promise<void> {
+    if (isLocal) {
       return this.worker && this.worker.resume();
     } else {
       return this.queue && this.queue.resume();
     }
   }
 
-
   /**
    * Returns a promise that returns the number of jobs in the queue, waiting or paused.
-   * Since there may be other processes adding or processing jobs, this value may be true only for a very small amount of time.
+   * Since there may be other processes adding or processing jobs,
+   * this value may be true only for a very small amount of time.
    */
-  count(): Promise<number>{
+  count(): Promise<number> {
     return this.getQueue().count();
   }
-
 
   /**
    * Empties a queue deleting all the input lists and associated jobs.
    */
-  empty(): Promise<void>{
+  empty(): Promise<void> {
     throw new Error('Not supported');
   }
-
 
   /**
    * Closes the underlying redis client. Use this to perform a graceful shutdown.
@@ -452,106 +473,108 @@ export default class Queue3<T = any> extends EventEmitter {
   close(): Promise<any> {
     const promises = [];
 
-    if(this.queueScheduler) {
+    if (this.queueScheduler) {
       promises.push(this.queueScheduler.close());
     }
-    if(this.queue) {
+    if (this.queue) {
       promises.push(this.queue.close());
     }
-    if(this.queueEvents) {
+    if (this.queueEvents) {
       promises.push(this.queueEvents.close());
     }
-    if(this.worker) {
+    if (this.worker) {
       promises.push(this.worker.close());
     }
     return Promise.all(promises);
   }
 
-
   /**
    * Returns a promise that will return the job instance associated with the jobId parameter.
    * If the specified job cannot be located, the promise callback parameter will be set to null.
    */
-  async getJob(jobId: JobId3): Promise<Job3<T> | null>{
+  async getJob(jobId: JobId3): Promise<Job3<T> | null> {
     const job = await this.getQueue().getJob(Utils.convertToJobId(jobId));
     return Utils.convertToJob3(job, this);
   }
 
-
   /**
    * Returns a promise that will return an array with the waiting jobs between start and end.
    */
-  async getWaiting(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+  async getWaiting(start = 0, end = -1): Promise<Array<Job3<T>>> {
     const result: Job[] = await this.getQueue().getWaiting(start, end);
     return result.map(job => Utils.convertToJob3(job, this));
   }
 
-
   /**
    * Returns a promise that will return an array with the active jobs between start and end.
    */
-  async getActive(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+  async getActive(start = 0, end = -1): Promise<Array<Job3<T>>> {
     const result: Job[] = await this.getQueue().getActive(start, end);
     return result.map(job => Utils.convertToJob3(job, this));
   }
 
-
   /**
    * Returns a promise that will return an array with the delayed jobs between start and end.
    */
-  async getDelayed(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+  async getDelayed(start = 0, end = -1): Promise<Array<Job3<T>>> {
     const result: Job[] = await this.getQueue().getDelayed(start, end);
     return result.map(job => Utils.convertToJob3(job, this));
   }
 
-
   /**
    * Returns a promise that will return an array with the completed jobs between start and end.
    */
-  async getCompleted(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+  async getCompleted(start = 0, end = -1): Promise<Array<Job3<T>>> {
     const result: Job[] = await this.getQueue().getCompleted(start, end);
     return result.map(job => Utils.convertToJob3(job, this));
   }
 
-
   /**
    * Returns a promise that will return an array with the failed jobs between start and end.
    */
-  async getFailed(start: number = 0, end: number = -1): Promise<Array<Job3<T>>>{
+  async getFailed(start = 0, end = -1): Promise<Array<Job3<T>>> {
     const result: Job[] = await this.getQueue().getFailed(start, end);
     return result.map(job => Utils.convertToJob3(job, this));
   }
-
 
   /**
    * Returns JobInformation of repeatable jobs (ordered descending). Provide a start and/or an end
    * index to limit the number of results. Start defaults to 0, end to -1 and asc to false.
    */
-  getRepeatableJobs(start: number = 0, end: number = -1, asc: boolean = false): Promise<JobInformation3[]>{
+  getRepeatableJobs(
+    start = 0,
+    end = -1,
+    asc = false,
+  ): Promise<JobInformation3[]> {
     return this.getQueue().repeat.getRepeatableJobs(start, end, asc);
   }
-
 
   /**
    * ???
    */
-  async nextRepeatableJob(name: string, data: any, opts: JobOptions3, skipCheckExists?: boolean): Promise<Job3<T>>{
+  async nextRepeatableJob(
+    name: string,
+    data: any,
+    opts: JobOptions3,
+    skipCheckExists?: boolean,
+  ): Promise<Job3<T>> {
     const result = await this.getQueue().repeat.addNextRepeatableJob(
       name || Queue3.DEFAULT_JOB_NAME,
       data,
       Utils.convertToJobsOpts(opts),
       (opts.repeat as any).jobId,
-      skipCheckExists
+      skipCheckExists,
     );
     return Utils.convertToJob3(result, this);
   }
-
 
   /**
    * Removes a given repeatable job. The RepeatOptions and JobId needs to be the same as the ones
    * used for the job when it was added.
    */
-  removeRepeatable(repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 }): Promise<void>
+  removeRepeatable(
+    repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 },
+  ): Promise<void>;
 
   /**
    * Removes a given repeatable job. The RepeatOptions and JobId needs to be the same as the ones
@@ -559,20 +582,26 @@ export default class Queue3<T = any> extends EventEmitter {
    *
    * name: The name of the to be removed job
    */
-  removeRepeatable(name: string, repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 }): Promise<void>;
+  removeRepeatable(
+    name: string,
+    repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 },
+  ): Promise<void>;
 
   async removeRepeatable(arg1: any, arg2?: any): Promise<void> {
     let name: string = Queue3.DEFAULT_JOB_NAME;
     let repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 };
 
-    if(typeof arg1 === 'string') {
+    if (typeof arg1 === 'string') {
       name = arg1;
       repeat = arg2;
     } else {
       repeat = arg1;
     }
-    return this.getQueue().repeat.removeRepeatable(name,
-      Utils.convertToRepeatOpts(repeat), Utils.convertToJobId(repeat.jobId))
+    return this.getQueue().repeat.removeRepeatable(
+      name,
+      Utils.convertToRepeatOpts(repeat),
+      Utils.convertToJobId(repeat.jobId),
+    );
   }
 
   /**
@@ -589,7 +618,7 @@ export default class Queue3<T = any> extends EventEmitter {
       id: tokens[1] || null,
       endDate: parseInt(tokens[2]) || null,
       tz: tokens[3] || null,
-      cron: tokens[4]
+      cron: tokens[4],
     };
 
     const queueKey = repeat.toKey('');
@@ -598,7 +627,7 @@ export default class Queue3<T = any> extends EventEmitter {
       repeat.keys.delayed,
       data.id,
       repeatJobKey,
-      queueKey
+      queueKey,
     );
   }
 
@@ -606,7 +635,12 @@ export default class Queue3<T = any> extends EventEmitter {
    * Returns a promise that will return an array of job instances of the given types.
    * Optional parameters for range and ordering are provided.
    */
-  async getJobs(types: string[], start: number = 0, end: number = -1, asc: boolean = false): Promise<Array<Job3<T>>> {
+  async getJobs(
+    types: string[],
+    start = 0,
+    end = -1,
+    asc = false,
+  ): Promise<Array<Job3<T>>> {
     const result: Job[] = await this.getQueue().getJobs(types, start, end, asc);
     return result.map(job => Utils.convertToJob3(job, this));
   }
@@ -615,7 +649,11 @@ export default class Queue3<T = any> extends EventEmitter {
    * Returns a object with the logs according to the start and end arguments. The returned count
    * value is the total amount of logs, useful for implementing pagination.
    */
-  getJobLogs(jobId: string, start: number = 0, end: number = -1): Promise<{ logs: string[], count: number }> {
+  getJobLogs(
+    jobId: string,
+    start = 0,
+    end = -1,
+  ): Promise<{ logs: string[]; count: number }> {
     throw new Error('Not supported');
   }
 
@@ -687,10 +725,15 @@ export default class Queue3<T = any> extends EventEmitter {
    * Tells the queue remove all jobs created outside of a grace period in milliseconds.
    * You can clean the jobs with the following states: completed, wait (typo for waiting), active, delayed, and failed.
    * @param grace Grace period in milliseconds.
-   * @param status Status of the job to clean. Values are completed, wait, active, delayed, and failed. Defaults to completed.
+   * @param status Status of the job to clean. Values are completed, wait,
+   * active, delayed, and failed. Defaults to completed.
    * @param limit Maximum amount of jobs to clean per call. If not provided will clean all matching jobs.
    */
-  clean(grace: number, status?: JobStatusClean3, limit?: number): Promise<Array<Job3<T>>> {
+  clean(
+    grace: number,
+    status?: JobStatusClean3,
+    limit?: number,
+  ): Promise<Array<Job3<T>>> {
     throw new Error('Not supported');
   }
 
@@ -764,65 +807,66 @@ export default class Queue3<T = any> extends EventEmitter {
    */
   on(event: 'drained', callback: EventCallback3): this; // tslint:disable-line unified-signatures
 
-
   on(event: string | symbol, listener: (...args: any[]) => void): this {
     return this.registerEventHandler(false, event, listener);
   }
 
   once(event: string | symbol, listener: (...args: any[]) => void): this {
     return this.registerEventHandler(true, event, listener);
-  };
+  }
 
   off(event: string | symbol, listener: (...args: any[]) => void): this {
     return this.removeListener(event, listener);
   }
 
-  removeListener(event: string | symbol, listener: (...args: any[]) => void): this {
-
+  removeListener(
+    event: string | symbol,
+    listener: (...args: any[]) => void,
+  ): this {
     const global = this.queueEvents;
 
     switch (event) {
       case 'active':
-        this.onWorkerInit((worker) => {
+        this.onWorkerInit(worker => {
           worker.removeListener('active', listener);
         });
         break;
       case 'completed':
-        this.onWorkerInit((worker) => {
+        this.onWorkerInit(worker => {
           worker.removeListener('completed', listener);
         });
         break;
       case 'drained':
-        this.onWorkerInit((worker) => {
+        this.onWorkerInit(worker => {
           worker.removeListener('drained', listener);
         });
         break;
       case 'failed':
-        this.onWorkerInit((worker) => {
+        this.onWorkerInit(worker => {
           worker.removeListener('failed', listener);
         });
         break;
       case 'paused':
-        this.onWorkerInit((worker) => {
+        this.onWorkerInit(worker => {
           worker.removeListener('paused', listener);
         });
-        this.onQueueInit((queue) => {
+        this.onQueueInit(queue => {
           queue.removeListener('paused', listener);
         });
         break;
       case 'resumed':
-        this.onWorkerInit((worker) => {
+        this.onWorkerInit(worker => {
           worker.removeListener('resumed', listener);
         });
-        this.onQueueInit((queue) => {
+        this.onQueueInit(queue => {
           queue.removeListener('resumed', listener);
         });
         break;
       case 'progress':
-        this.onWorkerInit((worker) => {
+        this.onWorkerInit(worker => {
           worker.removeListener('progress', listener);
         });
-        this.onQueueInit((queue) => {
+        this.onQueueInit(queue => {
           queue.removeListener('progress', listener);
         });
         break;
@@ -832,7 +876,7 @@ export default class Queue3<T = any> extends EventEmitter {
       case 'global:completed':
         global && global.removeListener('completed', listener);
         break;
-      case  'global:drained':
+      case 'global:drained':
         global && global.removeListener('drained', listener);
         break;
       case 'global:failed':
@@ -862,7 +906,7 @@ export default class Queue3<T = any> extends EventEmitter {
   /**
    * Returns Redis clients array which belongs to current Queue
    */
-  getWorkers(): Promise<{[key: string]: string }[]> {
+  getWorkers(): Promise<{ [key: string]: string }[]> {
     return this.getQueue().getWorkers();
   }
 
@@ -871,33 +915,36 @@ export default class Queue3<T = any> extends EventEmitter {
    */
   base64Name(): string {
     return (this.getQueue() as any).base64Name();
-  };
+  }
 
   /**
    * Returns Queue name with keyPrefix (default: 'bull')
    */
   clientName(): string {
     return (this.getQueue() as any).clientName();
-  };
+  }
 
   /**
    * Returns Redis clients array which belongs to current Queue from string with all redis clients
    *
    * @param list String with all redis clients
    */
-  parseClientList(list: string): {[key: string]: string }[] {
+  parseClientList(list: string): { [key: string]: string }[] {
     return (this.getQueue() as any).parseClientList(list);
-  };
+  }
 
   private getQueueScheduler() {
-    if (! this.queueScheduler) {
-      this.queueScheduler = new QueueScheduler(this.name, Utils.convertToQueueKeeperOptions(this.opts));
+    if (!this.queueScheduler) {
+      this.queueScheduler = new QueueScheduler(
+        this.name,
+        Utils.convertToQueueKeeperOptions(this.opts),
+      );
     }
     return this.queueScheduler;
   }
 
   private getQueue() {
-    if (! this.queue) {
+    if (!this.queue) {
       this.queue = new Queue(this.name, Utils.convertToQueueOptions(this.opts));
       this.queuePromiseResolve(this.queue);
     }
@@ -905,38 +952,53 @@ export default class Queue3<T = any> extends EventEmitter {
   }
 
   private getQueueEvents() {
-    if (! this.queueEvents) {
-      this.queueEvents = new QueueEvents(this.name, Utils.convertToQueueEventsOptions(this.opts));
+    if (!this.queueEvents) {
+      this.queueEvents = new QueueEvents(
+        this.name,
+        Utils.convertToQueueEventsOptions(this.opts),
+      );
     }
     return this.queueEvents;
   }
 
   private onQueueInit(cb: (queue: Queue) => void) {
-    this.queuePromise = this.queuePromise.then(
-      (_) => { cb(this.queue); return this.queue; }
-    ).catch((_) => { return this.queue; });
+    this.queuePromise = this.queuePromise
+      .then(_ => {
+        cb(this.queue);
+        return this.queue;
+      })
+      .catch(_ => {
+        return this.queue;
+      });
   }
 
   private onWorkerInit(cb: (worker: Worker) => void) {
-    this.workerPromise = this.workerPromise.then(
-      (_) => { cb(this.worker); return this.worker; }
-    ).catch((_) => { return this.worker; });
+    this.workerPromise = this.workerPromise
+      .then(_ => {
+        cb(this.worker);
+        return this.worker;
+      })
+      .catch(_ => {
+        return this.worker;
+      });
   }
 
-  private registerEventHandler(once: boolean,
-                               event: string | symbol,
-                               listener: (...args: any[]) => void): this {
+  private registerEventHandler(
+    once: boolean,
+    event: string | symbol,
+    listener: (...args: any[]) => void,
+  ): this {
     switch (event) {
       case 'active':
         console.warn(`jobPromise won't be available on 'active' event handler`);
         if (once) {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.once('active', (job, jobPromise, prev) => {
               listener(job, Utils.getFakeJobPromise3(), prev);
             });
           });
         } else {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.on('active', (job, jobPromise, prev) => {
               listener(job, Utils.getFakeJobPromise3(), prev);
             });
@@ -948,13 +1010,13 @@ export default class Queue3<T = any> extends EventEmitter {
         break;
       case 'completed':
         if (once) {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.once('completed', (job, result, prev) => {
               listener(job, result, prev);
             });
           });
         } else {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.on('completed', (job, result, prev) => {
               listener(job, result, prev);
             });
@@ -963,13 +1025,13 @@ export default class Queue3<T = any> extends EventEmitter {
         break;
       case 'drained':
         if (once) {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.once('drained', () => {
               listener();
             });
           });
         } else {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.on('drained', () => {
               listener();
             });
@@ -981,13 +1043,13 @@ export default class Queue3<T = any> extends EventEmitter {
         break;
       case 'failed':
         if (once) {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.once('failed', (job, error, prev) => {
               listener(job, error, prev);
             });
           });
         } else {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.on('failed', (job, error, prev) => {
               listener(job, error, prev);
             });
@@ -996,23 +1058,23 @@ export default class Queue3<T = any> extends EventEmitter {
         break;
       case 'paused':
         if (once) {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.once('paused', () => {
               listener();
             });
           });
-          this.onQueueInit((queue) => {
+          this.onQueueInit(queue => {
             queue.once('paused', () => {
               listener();
             });
           });
         } else {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.on('paused', () => {
               listener();
             });
           });
-          this.onQueueInit((queue) => {
+          this.onQueueInit(queue => {
             queue.on('paused', () => {
               listener();
             });
@@ -1021,23 +1083,23 @@ export default class Queue3<T = any> extends EventEmitter {
         break;
       case 'resumed':
         if (once) {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.once('resumed', () => {
               listener();
             });
           });
-          this.onQueueInit((queue) => {
+          this.onQueueInit(queue => {
             queue.once('resumed', () => {
               listener();
             });
           });
         } else {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.on('resumed', () => {
               listener();
             });
           });
-          this.onQueueInit((queue) => {
+          this.onQueueInit(queue => {
             queue.on('resumed', () => {
               listener();
             });
@@ -1046,23 +1108,23 @@ export default class Queue3<T = any> extends EventEmitter {
         break;
       case 'progress':
         if (once) {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.once('progress', (job, progress) => {
               listener(job, progress);
             });
           });
-          this.onQueueInit((queue) => {
+          this.onQueueInit(queue => {
             queue.once('progress', () => {
               listener();
             });
           });
         } else {
-          this.onWorkerInit((worker) => {
+          this.onWorkerInit(worker => {
             worker.on('progress', (job, progress) => {
               listener(job, progress);
             });
           });
-          this.onQueueInit((queue) => {
+          this.onQueueInit(queue => {
             queue.on('progress', () => {
               listener();
             });
@@ -1085,16 +1147,22 @@ export default class Queue3<T = any> extends EventEmitter {
         break;
       case 'global:completed':
         if (once) {
-          this.getQueueEvents().once('completed', ({ jobId, returnvalue, prev }) => {
-            listener(jobId, returnvalue, prev || 'active');
-          });
+          this.getQueueEvents().once(
+            'completed',
+            ({ jobId, returnvalue, prev }) => {
+              listener(jobId, returnvalue, prev || 'active');
+            },
+          );
         } else {
-          this.getQueueEvents().on('completed', ({ jobId, returnvalue, prev }) => {
-            listener(jobId, returnvalue, prev || 'active');
-          });
+          this.getQueueEvents().on(
+            'completed',
+            ({ jobId, returnvalue, prev }) => {
+              listener(jobId, returnvalue, prev || 'active');
+            },
+          );
         }
         break;
-      case  'global:drained':
+      case 'global:drained':
         if (once) {
           this.getQueueEvents().once('drained', () => {
             listener();
@@ -1107,13 +1175,19 @@ export default class Queue3<T = any> extends EventEmitter {
         break;
       case 'global:failed':
         if (once) {
-          this.getQueueEvents().once('failed', ({ jobId, failedReason, prev }) => {
-            listener(jobId, failedReason, prev || 'active');
-          });
+          this.getQueueEvents().once(
+            'failed',
+            ({ jobId, failedReason, prev }) => {
+              listener(jobId, failedReason, prev || 'active');
+            },
+          );
         } else {
-          this.getQueueEvents().on('failed', ({ jobId, failedReason, prev }) => {
-            listener(jobId, failedReason, prev || 'active');
-          });
+          this.getQueueEvents().on(
+            'failed',
+            ({ jobId, failedReason, prev }) => {
+              listener(jobId, failedReason, prev || 'active');
+            },
+          );
         }
         break;
       case 'global:paused':
@@ -1160,18 +1234,17 @@ export default class Queue3<T = any> extends EventEmitter {
   }
 
   private static createProcessor(queue: Queue3): Processor {
-
     return (job: Job): Promise<any> => {
       const name = job.name || Queue3.DEFAULT_JOB_NAME;
       const handler = queue.handlers[name] || queue.handlers['*'];
-      if(! handler) {
+      if (!handler) {
         throw new Error('Missing process handler for job type ' + name);
       }
 
       return new Promise((resolve, reject) => {
         if (handler.length > 1) {
           const done = (err: any, res: any) => {
-            if(err) {
+            if (err) {
               reject(err);
             }
             resolve(res);
@@ -1179,7 +1252,9 @@ export default class Queue3<T = any> extends EventEmitter {
           handler.apply(null, [Utils.convertToJob3(job, queue), done]);
         } else {
           try {
-            return resolve(handler.apply(null, [Utils.convertToJob3(job, queue)]));
+            return resolve(
+              handler.apply(null, [Utils.convertToJob3(job, queue)]),
+            );
           } catch (err) {
             return reject(err);
           }
@@ -1187,11 +1262,9 @@ export default class Queue3<T = any> extends EventEmitter {
       });
     };
   }
-
 }
 
 export class Job3<T = any> {
-
   id: JobId3;
 
   /**
@@ -1248,70 +1321,122 @@ export class Job3<T = any> {
   constructor(queue: Queue3, name: string, data: any, opts?: JobOptions3);
 
   constructor(queue: Queue3, arg2: any, arg3?: any, arg4?: any) {
-
     Object.defineProperties(this, {
       job: {
         enumerable: false,
-        writable: true
+        writable: true,
       },
       id: {
-        get: () => { return Utils.convertToJobId3(this.job.id); },
-        set: (val) => { this.job.id = Utils.convertToJobId(val); }
+        get: () => {
+          return Utils.convertToJobId3(this.job.id);
+        },
+        set: val => {
+          this.job.id = Utils.convertToJobId(val);
+        },
       },
       name: {
-        get: () => { return this.job.name; },
-        set: (val) => { this.job.name = val; }
+        get: () => {
+          return this.job.name;
+        },
+        set: val => {
+          this.job.name = val;
+        },
       },
       data: {
-        get: () => { return this.job.data; },
-        set: (val) => { this.job.data = val; }
+        get: () => {
+          return this.job.data;
+        },
+        set: val => {
+          this.job.data = val;
+        },
       },
       opts: {
-        get: () => { return Utils.convertToJobOptions3(this.job.opts); },
-        set: (val) => { this.job.opts = Utils.convertToJobsOpts(val); }
+        get: () => {
+          return Utils.convertToJobOptions3(this.job.opts);
+        },
+        set: val => {
+          this.job.opts = Utils.convertToJobsOpts(val);
+        },
       },
       _progress: {
-        get: () => { return this.job.progress; },
-        set: (val) => { this.job.progress = val; }
+        get: () => {
+          return this.job.progress;
+        },
+        set: val => {
+          this.job.progress = val;
+        },
       },
       delay: {
-        get: () => { return this.job.opts && this.job.opts.delay; },
-        set: (val) => { this.job.opts = { ...this.job.opts, delay: val }; }
+        get: () => {
+          return this.job.opts && this.job.opts.delay;
+        },
+        set: val => {
+          this.job.opts = { ...this.job.opts, delay: val };
+        },
       },
       timestamp: {
-        get: () => { return this.job.timestamp; },
-        set: (val) => { this.job.timestamp = val; }
+        get: () => {
+          return this.job.timestamp;
+        },
+        set: val => {
+          this.job.timestamp = val;
+        },
       },
       finishedOn: {
-        get: () => { return (this.job as any).finishedOn; },
-        set: (val) => { (this.job as any).finishedOn = val; }
+        get: () => {
+          return (this.job as any).finishedOn;
+        },
+        set: val => {
+          (this.job as any).finishedOn = val;
+        },
       },
       processedOn: {
-        get: () => { return (this.job as any).processedOn; },
-        set: (val) => { (this.job as any).processedOn = val; }
+        get: () => {
+          return (this.job as any).processedOn;
+        },
+        set: val => {
+          (this.job as any).processedOn = val;
+        },
       },
       failedReason: {
-        get: () => { return (this.job as any).failedReason; },
-        set: (val) => { (this.job as any).failedReason = val; }
+        get: () => {
+          return (this.job as any).failedReason;
+        },
+        set: val => {
+          (this.job as any).failedReason = val;
+        },
       },
       attemptsMade: {
-        get: () => { return (this.job as any).attemptsMade; },
-        set: (val) => { (this.job as any).attemptsMade = val; }
+        get: () => {
+          return (this.job as any).attemptsMade;
+        },
+        set: val => {
+          (this.job as any).attemptsMade = val;
+        },
       },
       stacktrace: {
-        get: () => { return this.job.stacktrace; },
-        set: (val) => { this.job.stacktrace = val; }
+        get: () => {
+          return this.job.stacktrace;
+        },
+        set: val => {
+          this.job.stacktrace = val;
+        },
       },
       returnvalue: {
-        get: () => { return this.job.returnvalue; },
-        set: (val) => { this.job.returnvalue = val; }
+        get: () => {
+          return this.job.returnvalue;
+        },
+        set: val => {
+          this.job.returnvalue = val;
+        },
       },
       toKey: {
         enumerable: false,
-        get: () => { return (this.job as any).toKey; }
-      }
+        get: () => {
+          return (this.job as any).toKey;
+        },
+      },
     });
-
 
     let name: string = Queue3.DEFAULT_JOB_NAME;
     let data: any;
@@ -1328,7 +1453,12 @@ export class Job3<T = any> {
     }
 
     this.queue = queue;
-    this.job = new Job((queue as any).getQueue(), name, data, Utils.convertToJobsOpts(opts));
+    this.job = new Job(
+      (queue as any).getQueue(),
+      name,
+      data,
+      Utils.convertToJobsOpts(opts),
+    );
     this.stacktrace = [];
   }
 
@@ -1443,20 +1573,30 @@ export class Job3<T = any> {
    * since pubsub does not give any guarantees.
    */
   finished(watchdog = 5000, ttl?: number): Promise<any> {
-    return this.job.waitUntilFinished((this.queue as any).getQueueEvents(), watchdog, ttl);
+    return this.job.waitUntilFinished(
+      (this.queue as any).getQueueEvents(),
+      watchdog,
+      ttl,
+    );
   }
 
   /**
    * Moves a job to the `completed` queue. Pulls a job from 'waiting' to 'active'
    * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
    */
-  async moveToCompleted(returnValue?: string, ignoreLock?: boolean): Promise<[SerializedJob3, JobId3] | null> {
-    if(ignoreLock) {
-      console.warn("ignoreLock is not supported");
+  async moveToCompleted(
+    returnValue?: string,
+    ignoreLock?: boolean,
+  ): Promise<[SerializedJob3, JobId3] | null> {
+    if (ignoreLock) {
+      console.warn('ignoreLock is not supported');
     }
     const result = await this.job.moveToCompleted(returnValue);
-    if(result) {
-      return [Utils.convertToSerializedJob3(result[0]), Utils.convertToJobId3(result[1])];
+    if (result) {
+      return [
+        Utils.convertToSerializedJob3(result[0]),
+        Utils.convertToJobId3(result[1]),
+      ];
     }
   }
 
@@ -1464,9 +1604,12 @@ export class Job3<T = any> {
    * Moves a job to the `failed` queue. Pulls a job from 'waiting' to 'active'
    * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
    */
-  async moveToFailed(errorInfo: any, ignoreLock?: boolean): Promise<[any, JobId3] | null> {
-    if(ignoreLock) {
-      console.warn("ignoreLock is not supported");
+  async moveToFailed(
+    errorInfo: any,
+    ignoreLock?: boolean,
+  ): Promise<[any, JobId3] | null> {
+    if (ignoreLock) {
+      console.warn('ignoreLock is not supported');
     }
     await this.job.moveToFailed(errorInfo);
     return null;
@@ -1517,14 +1660,13 @@ export class Job3<T = any> {
       stacktrace: this.stacktrace || null,
       returnvalue: this.returnvalue || null,
       finishedOn: this.finishedOn || null,
-      processedOn: this.processedOn || null
+      processedOn: this.processedOn || null,
     };
-    if(! result.data) {
+    if (!result.data) {
       (result as any).data = {};
     }
     return result;
   }
-
 
   private toData(): SerializedJob3 {
     const target: SerializedJob3 = {
@@ -1540,7 +1682,7 @@ export class Job3<T = any> {
       stacktrace: undefined,
       returnvalue: undefined,
       finishedOn: undefined,
-      processedOn: undefined
+      processedOn: undefined,
     };
     const json = this.toJSON();
     target.id = undefined;
@@ -1557,13 +1699,22 @@ export class Job3<T = any> {
     target.finishedOn = undefined;
     target.processedOn = undefined;
     return target;
-  };
+  }
 
-  private static fromJSON<T>(queue: Queue3, json: SerializedJob3, jobId?: JobId3) {
+  private static fromJSON<T>(
+    queue: Queue3,
+    json: SerializedJob3,
+    jobId?: JobId3,
+  ) {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
-    const job = new Job3(queue, json.name || Queue3.DEFAULT_JOB_NAME, data, opts);
+    const job = new Job3(
+      queue,
+      json.name || Queue3.DEFAULT_JOB_NAME,
+      data,
+      opts,
+    );
 
     job.id = json.id || jobId;
     job._progress = JSON.parse(json.progress || '0');
@@ -1583,22 +1734,19 @@ export class Job3<T = any> {
     job.stacktrace = [];
     try {
       const parsed = JSON.parse(json.stacktrace);
-      if(Array.isArray(parsed)) {
+      if (Array.isArray(parsed)) {
         job.stacktrace = parsed;
       }
-    } catch (e) {
-    }
+    } catch (e) {}
 
     if (typeof json.returnvalue === 'string') {
       try {
         job.returnvalue = JSON.parse(json.returnvalue);
-      } catch (e) {
-      }
+      } catch (e) {}
     }
 
     return job;
   }
-
 }
 
 export interface RateLimiter3 {
@@ -1620,7 +1768,10 @@ export interface QueueOptions3 {
    * When specified, the `Queue` will use this function to create new `ioredis` client connections.
    * This is useful if you want to re-use connections or connect to a Redis cluster.
    */
-  createClient?(type: 'client' | 'subscriber' | 'bclient', redisOpts?: IORedis.RedisOptions): IORedis.Redis | IORedis.Cluster;
+  createClient?(
+    type: 'client' | 'subscriber' | 'bclient',
+    redisOpts?: IORedis.RedisOptions,
+  ): IORedis.Redis | IORedis.Cluster;
 
   /**
    * Prefix to use for all redis keys
@@ -1683,42 +1834,55 @@ export type DoneCallback3 = (error?: Error | null, value?: any) => void;
 
 export type JobId3 = number | string;
 
-export type ProcessCallbackFunction3<T> = (job: Job3<T>, done: DoneCallback3) => void;
+export type ProcessCallbackFunction3<T> = (
+  job: Job3<T>,
+  done: DoneCallback3,
+) => void;
 export type ProcessPromiseFunction3<T> = (job: Job3<T>) => Promise<void>;
 
-export type JobStatus3 = 'completed' | 'waiting' | 'active' | 'delayed' | 'failed';
-export type JobStatusClean3 = 'completed' | 'wait' | 'active' | 'delayed' | 'failed';
+export type JobStatus3 =
+  | 'completed'
+  | 'waiting'
+  | 'active'
+  | 'delayed'
+  | 'failed';
+export type JobStatusClean3 =
+  | 'completed'
+  | 'wait'
+  | 'active'
+  | 'delayed'
+  | 'failed';
 
 export interface SerializedJob3 {
-  id: JobId3,
-  name: string,
-  data: string,
-  opts: string,
-  progress: any,
-  delay: string,
-  timestamp: string,
-  attemptsMade: string,
-  failedReason: any,
-  stacktrace: string,
-  returnvalue: any,
-  finishedOn: string,
-  processedOn: string
+  id: JobId3;
+  name: string;
+  data: string;
+  opts: string;
+  progress: any;
+  delay: string;
+  timestamp: string;
+  attemptsMade: string;
+  failedReason: any;
+  stacktrace: string;
+  returnvalue: any;
+  finishedOn: string;
+  processedOn: string;
 }
 
 export interface JobJson3<T> {
-  id: JobId3,
-  name: string,
-  data: T,
-  opts: JobOptions3,
-  progress: any,
-  delay?: number,
-  timestamp: number,
-  attemptsMade: number,
-  failedReason: any,
-  stacktrace: string[] | null,
-  returnvalue: any,
-  finishedOn: number,
-  processedOn: number
+  id: JobId3;
+  name: string;
+  data: T;
+  opts: JobOptions3;
+  progress: any;
+  delay?: number;
+  timestamp: number;
+  attemptsMade: number;
+  failedReason: any;
+  stacktrace: string[] | null;
+  returnvalue: any;
+  finishedOn: number;
+  processedOn: number;
 }
 
 export interface BackoffOptions3 {
@@ -1866,32 +2030,47 @@ export interface JobPromise3 {
   cancel(): void;
 }
 
-export type ActiveEventCallback3<T = any> = (job: Job3<T>, jobPromise?: JobPromise3) => void;
+export type ActiveEventCallback3<T = any> = (
+  job: Job3<T>,
+  jobPromise?: JobPromise3,
+) => void;
 
 export type StalledEventCallback3<T = any> = (job: Job3<T>) => void;
 
-export type ProgressEventCallback3<T = any> = (job: Job3<T>, progress: any) => void;
+export type ProgressEventCallback3<T = any> = (
+  job: Job3<T>,
+  progress: any,
+) => void;
 
-export type CompletedEventCallback3<T = any> = (job: Job3<T>, result: any) => void;
+export type CompletedEventCallback3<T = any> = (
+  job: Job3<T>,
+  result: any,
+) => void;
 
-export type FailedEventCallback3<T = any> = (job: Job3<T>, error: Error) => void;
+export type FailedEventCallback3<T = any> = (
+  job: Job3<T>,
+  error: Error,
+) => void;
 
-export type CleanedEventCallback3<T = any> = (jobs: Array<Job3<T>>, status: JobStatusClean3) => void;
+export type CleanedEventCallback3<T = any> = (
+  jobs: Array<Job3<T>>,
+  status: JobStatusClean3,
+) => void;
 
 export type RemovedEventCallback3<T = any> = (job: Job3<T>) => void;
 
 export type WaitingEventCallback3 = (jobId: JobId3) => void;
 
 class Utils {
-
   static redisOptsFromUrl(urlString: string) {
     const redisOpts: IORedis.RedisOptions = {};
     try {
       const redisUrl = url.parse(urlString);
-      redisOpts.port = parseInt(redisUrl.port, 10) || 6379;
+      redisOpts.port = parseInt(redisUrl.port) || 6379;
       redisOpts.host = redisUrl.hostname;
-      redisOpts.db = parseInt(redisUrl.pathname, 10) ?
-        parseInt(redisUrl.pathname.split('/')[1], 10) : 0;
+      redisOpts.db = parseInt(redisUrl.pathname)
+        ? parseInt(redisUrl.pathname.split('/')[1])
+        : 0;
       if (redisUrl.auth) {
         redisOpts.password = redisUrl.auth.split(':')[1];
       }
@@ -1899,11 +2078,11 @@ class Utils {
       throw new Error(e.message);
     }
     return redisOpts;
-  };
+  }
 
   static convertToJobId(id: JobId3): string {
-    if(id !== undefined) {
-      if(typeof id === "string") {
+    if (id !== undefined) {
+      if (typeof id === 'string') {
         return id;
       } else {
         return id.toString();
@@ -1912,8 +2091,8 @@ class Utils {
   }
 
   static convertToJobId3(id: string): JobId3 {
-    if(id !== undefined) {
-      if((/^\d+$/g).test(id)) {
+    if (id !== undefined) {
+      if (/^\d+$/g.test(id)) {
         return parseInt(id);
       }
       return id;
@@ -1921,13 +2100,18 @@ class Utils {
   }
 
   static convertToJob3(source: Job, queue: Queue3<any>): Job3 {
-    if(source) {
-      return new Job3(queue, source.name, source.data, Utils.convertToJobOptions3(source.opts));
+    if (source) {
+      return new Job3(
+        queue,
+        source.name,
+        source.data,
+        Utils.convertToJobOptions3(source.opts),
+      );
     }
-  };
+  }
 
   static convertToJobOptions3(source: JobsOpts): JobOptions3 {
-    if(! source) {
+    if (!source) {
       return;
     }
 
@@ -1939,8 +2123,8 @@ class Utils {
     target.attempts = source.attempts;
     target.repeat = Utils.convertToRepeatOptions3(source.repeat);
 
-    if(source.backoff !== undefined) {
-      if(typeof source.backoff === "number") {
+    if (source.backoff !== undefined) {
+      if (typeof source.backoff === 'number') {
         target.backoff = source.backoff;
       } else {
         target.backoff = Utils.convertToBackoffOptions3(source.backoff);
@@ -1957,7 +2141,7 @@ class Utils {
   }
 
   static convertToQueueBaseOptions(source: QueueOptions3): QueueBaseOptions {
-    if(! source) {
+    if (!source) {
       return;
     }
 
@@ -1975,20 +2159,27 @@ class Utils {
   }
 
   static convertToQueueOptions(source: QueueOptions3): QueueOptions {
-    if(! source) {
+    if (!source) {
       return;
     }
 
     const target: QueueOptions = Utils.convertToQueueBaseOptions(source);
 
-    target.defaultJobOptions = Utils.convertToJobsOpts(source.defaultJobOptions);
-    target.createClient = Utils.adaptToCreateClient(source.createClient, source.redis);
+    target.defaultJobOptions = Utils.convertToJobsOpts(
+      source.defaultJobOptions,
+    );
+    target.createClient = Utils.adaptToCreateClient(
+      source.createClient,
+      source.redis,
+    );
 
     return target;
   }
 
-  static convertToQueueEventsOptions(source: QueueOptions3): QueueEventsOptions {
-    if(! source) {
+  static convertToQueueEventsOptions(
+    source: QueueOptions3,
+  ): QueueEventsOptions {
+    if (!source) {
       return;
     }
 
@@ -2000,14 +2191,16 @@ class Utils {
     return target;
   }
 
-  static convertToQueueKeeperOptions(source: QueueOptions3): QueueKeeperOptions {
-    if(! source) {
+  static convertToQueueKeeperOptions(
+    source: QueueOptions3,
+  ): QueueKeeperOptions {
+    if (!source) {
       return;
     }
 
     const target: QueueKeeperOptions = Utils.convertToQueueBaseOptions(source);
 
-    if(source.settings) {
+    if (source.settings) {
       target.maxStalledCount = source.settings.maxStalledCount;
       target.stalledInterval = source.settings.stalledInterval;
     }
@@ -2016,7 +2209,7 @@ class Utils {
   }
 
   static convertToJobsOpts(source: JobOptions3): JobsOpts {
-    if(! source) {
+    if (!source) {
       return;
     }
 
@@ -2028,8 +2221,8 @@ class Utils {
     target.attempts = source.attempts;
     target.repeat = Utils.convertToRepeatOpts(source.repeat);
 
-    if(source.backoff !== undefined) {
-      if(typeof source.backoff === "number") {
+    if (source.backoff !== undefined) {
+      if (typeof source.backoff === 'number') {
         target.backoff = source.backoff;
       } else {
         target.backoff = Utils.convertToBackoffOpts(source.backoff);
@@ -2039,21 +2232,21 @@ class Utils {
     target.lifo = source.lifo;
     target.timeout = source.timeout;
 
-    if(source.jobId !== undefined) {
+    if (source.jobId !== undefined) {
       target.jobId = Utils.convertToJobId(source.jobId);
     }
 
-    if(source.removeOnComplete !== undefined) {
-      if(typeof source.removeOnComplete === "number") {
-        console.warn("numeric removeOnComplete option is not supported");
+    if (source.removeOnComplete !== undefined) {
+      if (typeof source.removeOnComplete === 'number') {
+        console.warn('numeric removeOnComplete option is not supported');
       } else {
         target.removeOnComplete = source.removeOnComplete;
       }
     }
 
-    if(source.removeOnFail !== undefined) {
-      if(typeof source.removeOnFail === "number") {
-        console.warn("numeric removeOnFail option is not supported");
+    if (source.removeOnFail !== undefined) {
+      if (typeof source.removeOnFail === 'number') {
+        console.warn('numeric removeOnFail option is not supported');
       } else {
         target.removeOnFail = source.removeOnFail;
       }
@@ -2062,8 +2255,10 @@ class Utils {
     return target;
   }
 
-  static convertToRepeatOpts(source: CronRepeatOptions3 | EveryRepeatOptions3): RepeatOpts {
-    if(! source) {
+  static convertToRepeatOpts(
+    source: CronRepeatOptions3 | EveryRepeatOptions3,
+  ): RepeatOpts {
+    if (!source) {
       return;
     }
 
@@ -2081,12 +2276,14 @@ class Utils {
     return target;
   }
 
-  static convertToRepeatOptions3(source: RepeatOpts): CronRepeatOptions3 | EveryRepeatOptions3 {
-    if(! source) {
+  static convertToRepeatOptions3(
+    source: RepeatOpts,
+  ): CronRepeatOptions3 | EveryRepeatOptions3 {
+    if (!source) {
       return;
     }
 
-    if(source.cron) {
+    if (source.cron) {
       const target: CronRepeatOptions3 = { cron: undefined };
       target.cron = (source as CronRepeatOptions3).cron;
       target.tz = (source as CronRepeatOptions3).tz;
@@ -2105,7 +2302,7 @@ class Utils {
   }
 
   static convertToBackoffOpts(source: BackoffOptions3): BackoffOpts {
-    if(! source) {
+    if (!source) {
       return;
     }
 
@@ -2118,7 +2315,7 @@ class Utils {
   }
 
   static convertToBackoffOptions3(source: BackoffOpts): BackoffOptions3 {
-    if(! source) {
+    if (!source) {
       return;
     }
 
@@ -2131,7 +2328,7 @@ class Utils {
   }
 
   static convertToWorkerOptions(source: QueueOptions3): WorkerOptions {
-    if(! source) {
+    if (!source) {
       return;
     }
     const target: WorkerOptions = Utils.convertToQueueBaseOptions(source);
@@ -2147,7 +2344,7 @@ class Utils {
   }
 
   static convertToRateLimiterOpts(source: RateLimiter3): RateLimiterOpts {
-    if(! source) {
+    if (!source) {
       return;
     }
 
@@ -2156,15 +2353,15 @@ class Utils {
     target.max = source.max;
     target.duration = source.duration;
 
-    if(source.bounceBack !== undefined) {
-      console.warn("bounceBack option is not supported");
+    if (source.bounceBack !== undefined) {
+      console.warn('bounceBack option is not supported');
     }
 
     return target;
   }
 
   static convertToAdvancedOpts(source: AdvancedSettings3): AdvancedOpts {
-    if(! source) {
+    if (!source) {
       return;
     }
 
@@ -2178,30 +2375,40 @@ class Utils {
     target.backoffStrategies = source.backoffStrategies;
     target.drainDelay = source.drainDelay;
 
-    if(source.lockRenewTime !== undefined) {
-      console.warn("lockRenewTime option is not supported");
+    if (source.lockRenewTime !== undefined) {
+      console.warn('lockRenewTime option is not supported');
     }
 
     return target;
   }
 
-  static convertToJobCounts3(source: { [key:string]: number }): JobCounts3 {
-    if(source) {
-      const target: JobCounts3 = { active: undefined,
-        completed: undefined, failed: undefined, delayed: undefined, waiting: undefined };
-      Object.keys(source).forEach((key) => {
-        if(typeof source[key] === "number") {
-          switch(key) {
+  static convertToJobCounts3(source: { [key: string]: number }): JobCounts3 {
+    if (source) {
+      const target: JobCounts3 = {
+        active: undefined,
+        completed: undefined,
+        failed: undefined,
+        delayed: undefined,
+        waiting: undefined,
+      };
+      Object.keys(source).forEach(key => {
+        if (typeof source[key] === 'number') {
+          switch (key) {
             case 'active':
-              target.active = source[key]; break;
+              target.active = source[key];
+              break;
             case 'completed':
-              target.completed = source[key]; break;
-            case  'failed':
-              target.failed = source[key]; break;
-            case  'delayed':
-              target.delayed = source[key]; break;
-            case  'waiting':
-              target.waiting = source[key]; break;
+              target.completed = source[key];
+              break;
+            case 'failed':
+              target.failed = source[key];
+              break;
+            case 'delayed':
+              target.delayed = source[key];
+              break;
+            case 'waiting':
+              target.waiting = source[key];
+              break;
           }
         }
       });
@@ -2210,7 +2417,7 @@ class Utils {
   }
 
   static convertToSerializedJob3(source: JobJson): SerializedJob3 {
-    if(source) {
+    if (source) {
       const target: SerializedJob3 = {
         id: undefined,
         name: undefined,
@@ -2224,32 +2431,31 @@ class Utils {
         stacktrace: undefined,
         returnvalue: undefined,
         finishedOn: undefined,
-        processedOn: undefined
+        processedOn: undefined,
       };
       target.id = source.id;
       target.name = source.name;
       target.data = source.data;
       target.opts = source.opts;
       target.progress = source.progress;
-      if(source.opts) {
+      if (source.opts) {
         try {
           target.delay = JSON.parse(source.opts).delay;
-        } catch(e) {
-        }
+        } catch (e) {}
       }
-      if(source.timestamp !== undefined) {
+      if (source.timestamp !== undefined) {
         target.timestamp = source.timestamp.toString();
       }
-      if(source.attemptsMade !== undefined) {
+      if (source.attemptsMade !== undefined) {
         target.attemptsMade = source.attemptsMade.toString();
       }
       target.failedReason = source.failedReason;
       target.stacktrace = source.stacktrace;
       target.returnvalue = source.returnvalue;
-      if(source.finishedOn !== undefined) {
+      if (source.finishedOn !== undefined) {
         target.finishedOn = source.finishedOn.toString();
       }
-      if(source.processedOn !== undefined) {
+      if (source.processedOn !== undefined) {
         target.processedOn = source.processedOn.toString();
       }
       return target;
@@ -2257,14 +2463,18 @@ class Utils {
   }
 
   static adaptToCreateClient(
-    createClient: (type: 'client' | 'subscriber' | 'bclient', redisOpts?: IORedis.RedisOptions) => IORedis.Redis | IORedis.Cluster,
-    redis: IORedis.RedisOptions): (type: ClientType) => IORedis.Redis {
-    if(! createClient) {
+    createClient: (
+      type: 'client' | 'subscriber' | 'bclient',
+      redisOpts?: IORedis.RedisOptions,
+    ) => IORedis.Redis | IORedis.Cluster,
+    redis: IORedis.RedisOptions,
+  ): (type: ClientType) => IORedis.Redis {
+    if (!createClient) {
       return;
     }
 
-    return ((type) => {
-      switch(type) {
+    return type => {
+      switch (type) {
         case ClientType.blocking:
           return createClient('bclient', redis) as IORedis.Redis;
         case ClientType.normal:
@@ -2272,17 +2482,24 @@ class Utils {
         default:
           return undefined;
       }
-    });
+    };
   }
 
   static getFakeJobPromise3() {
     const msg = 'jobPromise is not supported';
     return {
-      then: () => { console.warn(msg + " (then() call is a no-op)"); },
-      catch: () => { console.warn(msg + " (catch() call is a no-op)"); },
-      finally: () => { console.warn(msg + " (finally() call is a no-op)"); },
-      cancel: () => { console.warn(msg + " (cancel() call is a no-op)"); },
-    }
+      then: () => {
+        console.warn(msg + ' (then() call is a no-op)');
+      },
+      catch: () => {
+        console.warn(msg + ' (catch() call is a no-op)');
+      },
+      finally: () => {
+        console.warn(msg + ' (finally() call is a no-op)');
+      },
+      cancel: () => {
+        console.warn(msg + ' (cancel() call is a no-op)');
+      },
+    };
   }
-
 }
