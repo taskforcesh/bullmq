@@ -289,8 +289,32 @@ export default class Queue<T = any> extends EventEmitter {
    */
   add(name: string, data: T, opts?: JobOptions): Promise<Job<T>>;
 
-  add(arg1: any, arg2?: any, arg3?: any): Promise<Job<T>> {
-    throw new Error('Not supported');
+  async add(arg1: any, arg2?: any, arg3?: any): Promise<Job<T>> {
+    let name: string = Queue.DEFAULT_JOB_NAME;
+    let data: any;
+    let opts: JobOptions = {};
+
+    if (typeof arg1 === 'string') {
+      name = arg1 || Queue.DEFAULT_JOB_NAME;
+      data = arg2;
+      opts = arg3 || {};
+    } else {
+      data = arg1;
+      opts = arg2 || {};
+    }
+
+    if (opts.repeat) {
+      const result = await this.getQueue().repeat.addNextRepeatableJob(
+        name, data,
+        Utils.convertToV4JobsOpts(opts),
+        (opts.repeat as any).jobId,
+        true
+      );
+      return Utils.convertToJob(result, this);
+    } else {
+      const result = await this.getQueue().append(name, data, Utils.convertToV4JobsOpts(opts));
+      return Utils.convertToJob(result, this);
+    }
   }
 
   /**
@@ -731,10 +755,10 @@ export default class Queue<T = any> extends EventEmitter {
             }
             resolve(res);
           };
-          handler.apply(null, [job, done]); // TODO convert to Bull3 job
+          handler.apply(null, [Utils.convertToJob(job, this), done]);
         } else {
           try {
-            return resolve(handler.apply(null, [job])); // TODO convert to Bull3 job
+            return resolve(handler.apply(null, [Utils.convertToJob(job, this)]));
           } catch (err) {
             return reject(err);
           }
