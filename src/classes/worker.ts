@@ -6,6 +6,11 @@ import { Scripts } from './scripts';
 import * as Bluebird from 'bluebird';
 import IORedis from 'ioredis';
 import { Repeat } from './repeat';
+import fs from 'fs';
+import path from 'path';
+import { ChildPool } from './child-pool';
+import sandbox from './sandbox';
+import { pool } from './child-pool';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -20,6 +25,7 @@ export class Worker extends QueueBase {
   private resumeWorker: () => void;
   private paused: Promise<void>;
   private repeat: Repeat;
+  private childPool: ChildPool;
   public opts: WorkerOptions;
 
   private processing: { [index: number]: Promise<Job | void> } = {};
@@ -41,6 +47,18 @@ export class Worker extends QueueBase {
       this.processFn = processor;
     } else {
       // SANDBOXED
+      const supportedFileTypes = ['.js', '.ts', '.flow'];
+      const processorFile =
+        processor +
+        (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
+
+      if (!fs.existsSync(processorFile)) {
+        // TODO are we forced to use sync api here?
+        throw new Error(`File ${processorFile} does not exist`);
+      }
+
+      this.childPool = this.childPool || pool;
+      this.processFn = sandbox(processor, this.childPool).bind(this);
     }
 
     this.repeat = new Repeat(name, opts);
@@ -268,6 +286,14 @@ export class Worker extends QueueBase {
     const processingPromises = Object.values(this.processing);
     await Promise.all(processingPromises);
     this.waiting && (await this.client.connect());
+  }
+
+  close() {
+    try {
+      return super.close();
+    } finally {
+      this.childPool && this.childPool.clean();
+    }
   }
 }
 
