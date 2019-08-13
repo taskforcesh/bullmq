@@ -40,7 +40,7 @@ import { JobJson } from '@src/classes';
 import _ from 'lodash';
 import url from 'url';
 
-export default class Queue3<T = any> extends EventEmitter {
+export class Queue3<T = any> extends EventEmitter {
   static readonly DEFAULT_JOB_NAME = '__default__';
 
   /**
@@ -53,12 +53,18 @@ export default class Queue3<T = any> extends EventEmitter {
    */
   client: IORedis.Redis;
 
+  eclient: IORedis.Redis;
+
   /**
    * Array of Redis clients the queue uses
    */
   clients: IORedis.Redis[];
 
+  toKey: (type: string) => string;
+
   private opts: QueueOptions3;
+  private settings: AdvancedSettings3;
+  private defaultJobOptions: JobOptions3;
   private keyPrefix: string;
 
   private queue: Queue;
@@ -71,7 +77,7 @@ export default class Queue3<T = any> extends EventEmitter {
   private workerPromise: Promise<Worker>;
   private workerPromiseResolve: (value: Worker) => void;
   private workerPromiseReject: (reason: any) => void;
-  private handlers: { [key: string]: Function };
+  private readonly handlers: { [key: string]: Function } = {};
 
   /**
    * This is the Queue constructor.
@@ -116,7 +122,12 @@ export default class Queue3<T = any> extends EventEmitter {
       },
       client: {
         get: () => {
-          return this.queueScheduler.client;
+          return (this.queueScheduler as any).connection.client;
+        },
+      },
+      eclient: {
+        get: () => {
+          return (this.getQueueEvents() as any).connection.client;
         },
       },
       clients: {
@@ -146,19 +157,56 @@ export default class Queue3<T = any> extends EventEmitter {
         arg3,
       );
     } else {
-      opts = arg2;
+      opts = arg2 || {};
+    }
+
+    opts.settings = opts.settings || {};
+    _.defaults(opts.settings, {
+      lockDuration: 30000,
+      stalledInterval: 30000,
+      maxStalledCount: 1,
+      guardInterval: 5000,
+      retryProcessDelay: 5000,
+      drainDelay: 5,
+      backoffStrategies: {}
+    });
+    opts.settings.lockRenewTime =
+      opts.settings.lockRenewTime || opts.settings.lockDuration / 2;
+
+    opts.redis = opts.redis || {};
+    _.defaults(opts.redis, {
+      port: 6379,
+      host: '127.0.0.1',
+      retryStrategy: (times: number) => {
+        return Math.min(Math.exp(times), 20000);
+      }
+    });
+
+    if(! opts.redis.db && opts.redis.db !== 0) {
+      opts.redis.db = 0;
+      if((opts.redis as any).DB) {
+        opts.redis.db = (opts.redis as any).DB;
+      }
     }
 
     this.opts = opts;
-    this.name = queueName;
+    this.settings = opts.settings;
 
-    this.keyPrefix = opts.redis.keyPrefix || opts.prefix || 'bull';
+    if (opts.defaultJobOptions) {
+      this.defaultJobOptions = opts.defaultJobOptions;
+    }
+
+    this.name = queueName || "";
+
+    this.keyPrefix = (this.opts.redis && this.opts.redis.keyPrefix) || this.opts.prefix || 'bull';
 
     //
     // We cannot use ioredis keyPrefix feature since we
     // create keys dynamically in lua scripts.
     //
-    delete opts.redis.keyPrefix;
+    if (this.opts.redis && this.opts.redis.keyPrefix) {
+      delete this.opts.redis.keyPrefix;
+    }
 
     // Forcibly create scheduler to let queue act as expected by default
     this.getQueueScheduler();
@@ -392,6 +440,9 @@ export default class Queue3<T = any> extends EventEmitter {
       data = arg1;
       opts = arg2 || {};
     }
+
+    opts = _.cloneDeep(opts || {});
+    _.defaults(opts, this.defaultJobOptions);
 
     if (opts.repeat) {
       const result = await this.getQueue().repeat.addNextRepeatableJob(
@@ -645,12 +696,20 @@ export default class Queue3<T = any> extends EventEmitter {
     return result.map(job => Utils.convertToJob3(job, this));
   }
 
+  async getNextJob() {
+    await this.getWorker().waitUntilReady();
+    const result: Job = await this.worker.getNextJob();
+    if(result) {
+      return Utils.convertToJob3(result, this);
+    }
+  }
+
   /**
    * Returns a object with the logs according to the start and end arguments. The returned count
    * value is the total amount of logs, useful for implementing pagination.
    */
   getJobLogs(
-    jobId: string,
+    jobId: JobId3,
     start = 0,
     end = -1,
   ): Promise<{ logs: string[]; count: number }> {
@@ -933,6 +992,10 @@ export default class Queue3<T = any> extends EventEmitter {
     return (this.getQueue() as any).parseClientList(list);
   }
 
+  retryJob(job: Job3) {
+    throw new Error('Not supported');
+  };
+
   private getQueueScheduler() {
     if (!this.queueScheduler) {
       this.queueScheduler = new QueueScheduler(
@@ -949,6 +1012,18 @@ export default class Queue3<T = any> extends EventEmitter {
       this.queuePromiseResolve(this.queue);
     }
     return this.queue;
+  }
+
+  private getWorker() {
+    if (! this.worker) {
+      this.worker = new Worker(
+        this.name,
+        Queue3.createProcessor(this),
+        Utils.convertToWorkerOptions(this.opts),
+      );
+      this.workerPromiseResolve(this.worker);
+    }
+    return this.worker;
   }
 
   private getQueueEvents() {
@@ -1229,6 +1304,8 @@ export default class Queue3<T = any> extends EventEmitter {
           });
         }
         break;
+      default:
+        console.warn(`Listening on '${String(event)}' event is not supported`);
     }
     return this;
   }
@@ -1311,6 +1388,8 @@ export class Job3<T = any> {
 
   returnvalue: any;
 
+  toKey: (type: string) => string;
+
   private _progress: any;
   private delay: number;
   private failedReason: string;
@@ -1320,7 +1399,7 @@ export class Job3<T = any> {
   constructor(queue: Queue3, data: any, opts?: JobOptions3);
   constructor(queue: Queue3, name: string, data: any, opts?: JobOptions3);
 
-  constructor(queue: Queue3, arg2: any, arg3?: any, arg4?: any) {
+  constructor(queue: Queue3 | InternalJobAndQueueWrapper, arg2: any, arg3?: any, arg4?: any) {
     Object.defineProperties(this, {
       job: {
         enumerable: false,
@@ -1452,20 +1531,30 @@ export class Job3<T = any> {
       opts = arg4;
     }
 
-    this.queue = queue;
-    this.job = new Job(
-      (queue as any).getQueue(),
-      name,
-      data,
-      Utils.convertToJobsOpts(opts),
-    );
+    const wrapper = queue as InternalJobAndQueueWrapper;
+    if(wrapper.job && wrapper.queue) { // wrapper used
+      this.queue = wrapper.queue;
+      this.job = wrapper.job;
+    } else {
+      this.queue = queue as Queue3;
+      this.job = new Job(
+        (queue as any).getQueue(),
+        name,
+        data,
+        Utils.convertToJobsOpts(opts),
+      );
+    }
+
     this.stacktrace = [];
   }
 
   /**
    * Report progress on a job
    */
-  progress(value: any): Promise<void> {
+  progress(value?: any): Promise<void> | any {
+    if (_.isUndefined(value)) {
+      return this._progress;
+    }
     return this.job.updateProgress(value);
   }
 
@@ -1615,6 +1704,10 @@ export class Job3<T = any> {
     return null;
   }
 
+  moveToDelayed(timestamp?: number, ignoreLock = false): Promise<void> {
+    throw new Error('Not supported');
+  }
+
   /**
    * Promotes a job that is currently "delayed" to the "waiting" state and executed as soon as possible.
    */
@@ -1700,6 +1793,24 @@ export class Job3<T = any> {
     target.processedOn = undefined;
     return target;
   }
+
+  static async create(queue: Queue3, arg2?: any, arg3?: any, arg4?: any) {
+    await queue.isReady();
+    return queue.add(arg2, arg3, arg4);
+  };
+
+  static async fromId(queue: Queue3, jobId: JobId3): Promise<Job3> {
+    // jobId can be undefined if moveJob returns undefined
+    if (! jobId) {
+      return Promise.resolve(undefined);
+    }
+
+    const serializedJob: SerializedJob3 = await queue.client.hgetall(queue.toKey("" + jobId));
+    if(serializedJob && Object.keys(serializedJob).length > 0) {
+      return Job3.fromJSON(queue, serializedJob, jobId);
+    }
+    return null;
+  };
 
   private static fromJSON<T>(
     queue: Queue3,
@@ -2061,6 +2172,11 @@ export type RemovedEventCallback3<T = any> = (job: Job3<T>) => void;
 
 export type WaitingEventCallback3 = (jobId: JobId3) => void;
 
+interface InternalJobAndQueueWrapper {
+  job: Job,
+  queue: Queue3
+}
+
 class Utils {
   static redisOptsFromUrl(urlString: string) {
     const redisOpts: IORedis.RedisOptions = {};
@@ -2068,9 +2184,7 @@ class Utils {
       const redisUrl = url.parse(urlString);
       redisOpts.port = parseInt(redisUrl.port) || 6379;
       redisOpts.host = redisUrl.hostname;
-      redisOpts.db = parseInt(redisUrl.pathname)
-        ? parseInt(redisUrl.pathname.split('/')[1])
-        : 0;
+      redisOpts.db = redisUrl.pathname ? parseInt(redisUrl.pathname.split('/')[1]) : 0;
       if (redisUrl.auth) {
         redisOpts.password = redisUrl.auth.split(':')[1];
       }
@@ -2092,17 +2206,19 @@ class Utils {
 
   static convertToJobId3(id: string): JobId3 {
     if (id !== undefined) {
-      if (/^\d+$/g.test(id)) {
-        return parseInt(id);
-      }
       return id;
     }
   }
 
   static convertToJob3(source: Job, queue: Queue3<any>): Job3 {
     if (source) {
-      return new Job3(
+      const wrapper = {
         queue,
+        job: source
+      };
+
+      return new Job3(
+        wrapper as any,
         source.name,
         source.data,
         Utils.convertToJobOptions3(source.opts),
@@ -2336,7 +2452,7 @@ class Utils {
     target.concurrency = undefined;
     target.limiter = Utils.convertToRateLimiterOpts(source.limiter);
     target.skipDelayCheck = undefined;
-    target.drainDelay = undefined;
+    target.drainDelay = source.settings ? source.settings.drainDelay : undefined;
     target.visibilityWindow = undefined;
     target.settings = Utils.convertToAdvancedOpts(source.settings);
 
