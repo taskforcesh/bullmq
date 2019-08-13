@@ -38,13 +38,15 @@ export interface JobsOpts {
   // already exists, it will not be added.
   jobId?: string;
 
-  // If true, removes the job when it successfully
-  // completes. Default behavior is to keep the job in the completed set.
-  removeOnComplete?: boolean;
+  // If true, removes the job when it successfully completes
+  // A number specify the max amount of jobs to keep.
+  // Default behavior is to keep the job in the completed set.
+  removeOnComplete?: boolean | number;
 
   // If true, removes the job when it fails after all attempts.
+  // A number specify the max amount of jobs to keep.
   // Default behavior is to keep the job in the failed set.
-  removeOnFail?: boolean;
+  removeOnFail?: boolean | number;
 
   // Limits the amount of stack trace lines that will be recorded in the stacktrace.
   stackTraceLimit?: number;

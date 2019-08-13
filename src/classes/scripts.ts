@@ -31,6 +31,7 @@ export class Scripts {
     queue: QueueBase,
     job: JobJson,
     opts: JobsOpts,
+    jobId: string,
   ) {
     const queueKeys = queue.keys;
     let keys = [
@@ -46,7 +47,7 @@ export class Scripts {
 
     const args = [
       queueKeys[''],
-      typeof opts.jobId !== 'undefined' ? opts.jobId : '',
+      typeof jobId !== 'undefined' ? jobId : '',
       job.name,
       job.data,
       job.opts,
@@ -90,12 +91,11 @@ export class Scripts {
       'failed',
       'priority',
       jobId,
-    ].map(function(name) {
-      return queue.toKey(name);
-    });
-
-    keys.push(jobId);
-    return (<any>queue.client).removeJob(keys);
+      `${jobId}:logs`,
+    ].map(name => queue.toKey(name));
+    return (<any>queue.client).removeJob(
+      keys.concat([queue.eventStreamKey(), jobId]),
+    );
   }
 
   static async updateProgress(
@@ -121,7 +121,7 @@ export class Scripts {
     job: Job,
     val: any,
     propVal: string,
-    shouldRemove: boolean,
+    shouldRemove: boolean | number,
     target: string,
     fetchNext = true,
   ) {
@@ -136,13 +136,20 @@ export class Scripts {
       queue.eventStreamKey(),
     ];
 
+    let remove;
+    if (typeof shouldRemove === 'boolean') {
+      remove = shouldRemove ? '1' : '0';
+    } else if (typeof shouldRemove === 'number') {
+      remove = `${shouldRemove + 1}`;
+    }
+
     const args = [
       job.id,
       Date.now(),
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      shouldRemove ? '1' : '0',
+      remove,
       JSON.stringify({ jobId: job.id, val: val }),
       !fetchNext || queue.closing || (<WorkerOptions>queue.opts).limiter
         ? 0
@@ -158,7 +165,7 @@ export class Scripts {
     job: Job,
     val: any,
     propVal: string,
-    shouldRemove: boolean,
+    shouldRemove: boolean | number,
     target: string,
     fetchNext: boolean,
   ) {
@@ -171,6 +178,7 @@ export class Scripts {
       target,
       fetchNext,
     );
+
     const result = await (<any>queue.client).moveToFinished(args);
     if (result < 0) {
       throw this.finishedErrors(result, job.id, 'finished');
@@ -193,7 +201,7 @@ export class Scripts {
     queue: QueueBase,
     job: Job,
     returnvalue: any,
-    removeOnComplete: boolean,
+    removeOnComplete: boolean | number,
     fetchNext: boolean,
   ): Promise<[JobJson, string]> {
     return this.moveToFinished(
@@ -211,7 +219,7 @@ export class Scripts {
     queue: QueueBase,
     job: Job,
     failedReason: string,
-    removeOnFailed: boolean,
+    removeOnFailed: boolean | number,
     fetchNext = false,
   ) {
     return this.moveToFinishedArgs(
@@ -258,7 +266,11 @@ export class Scripts {
     return keys.concat([JSON.stringify(timestamp), jobId]);
   }
 
-  static async moveToDelayed(queue: Queue, jobId: string, timestamp: number) {
+  static async moveToDelayed(
+    queue: QueueBase,
+    jobId: string,
+    timestamp: number,
+  ) {
     const args = this.moveToDelayedArgs(queue, jobId, timestamp);
     const result = await (<any>queue.client).moveToDelayed(args);
     switch (result) {
@@ -269,6 +281,21 @@ export class Scripts {
             ' when trying to move from active to delayed',
         );
     }
+  }
+
+  static cleanJobsInSet(
+    queue: QueueBase,
+    set: string,
+    timestamp: number,
+    limit = 0,
+  ) {
+    return (<any>queue.client).cleanJobsInSet([
+      queue.toKey(set),
+      queue.toKey(''),
+      timestamp,
+      limit,
+      set,
+    ]);
   }
 
   static retryJobArgs(queue: QueueBase, job: Job) {
@@ -283,6 +310,37 @@ export class Scripts {
     const pushCmd = (job.opts.lifo ? 'R' : 'L') + 'PUSH';
 
     return keys.concat([pushCmd, jobId]);
+  }
+
+  /**
+   * Attempts to reprocess a job
+   *
+   * @param {Job} job
+   * @param {Object} options
+   * @param {String} options.state The expected job state. If the job is not found
+   * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
+   *
+   * @return {Promise<Number>} Returns a promise that evaluates to a return code:
+   * 1 means the operation was a success
+   * 0 means the job does not exist
+   * -1 means the job is currently locked and can't be retried.
+   * -2 means the job was not found in the expected set
+   */
+  static reprocessJob(
+    queue: QueueBase,
+    job: Job,
+    state: 'failed' | 'completed',
+  ) {
+    const keys = [
+      queue.toKey(job.id),
+      queue.eventStreamKey(),
+      queue.toKey(state),
+      queue.toKey('wait'),
+    ];
+
+    const args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH'];
+
+    return (<any>queue.client).reprocessJob(keys.concat(args));
   }
 
   static moveToActive(queue: Worker, jobId: string) {
@@ -330,6 +388,19 @@ export class Scripts {
     const args = [queue.toKey(''), delayedTimestamp];
 
     return (<any>queue.client).updateDelaySet(keys.concat(args));
+  }
+
+  static promote(queue: QueueBase, jobId: string) {
+    const keys = [
+      queue.keys.delayed,
+      queue.keys.wait,
+      queue.keys.priority,
+      queue.eventStreamKey(),
+    ];
+
+    const args = [queue.toKey(''), jobId];
+
+    return (<any>queue.client).promote(keys.concat(args));
   }
 
   //

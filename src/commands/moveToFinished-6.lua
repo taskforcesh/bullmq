@@ -35,21 +35,34 @@ if rcall("EXISTS", KEYS[3]) == 1 then -- // Make sure job exists
   -- Remove from active list (if not active we shall return error)
   local numRemovedElements = rcall("LREM", KEYS[1], -1, ARGV[1])
 
-  -- What if we just ignore this?
+  -- What if we just ignore this? I think it is good to know regardless.
 --[[   if(numRemovedElements < 1) then
     return -2
   end
  ]]
   -- Remove job?
-  if ARGV[6] == "1" then
-    rcall("DEL", KEYS[3])
-  else
+  local removeJobs = tonumber(ARGV[6])
+  if removeJobs ~= 1 then
     -- Add to complete/failed set
     rcall("ZADD", KEYS[2], ARGV[2], ARGV[1])
     rcall("HMSET", KEYS[3], ARGV[3], ARGV[4], "finishedOn", ARGV[2]) -- "returnvalue" / "failedReason" and "finishedOn"
+
+     -- Remove old jobs?
+    if removeJobs and removeJobs > 1 then
+      local start = removeJobs - 1
+      local jobIds = rcall("ZREVRANGE", KEYS[2], start, -1)
+      for i, jobId in ipairs(jobIds) do
+        local jobKey = ARGV[9] .. jobId
+        local jobLogKey = jobKey .. ':logs'
+        rcall("DEL", jobKey, jobLogKey)
+      end
+      rcall("ZREMRANGEBYRANK", KEYS[2], 0, -removeJobs);
+    end
+  else
+    local jobLogKey = KEYS[3] .. ':logs'
+    rcall("DEL", KEYS[3], jobLogKey)
   end
 
-  -- rcall("PUBLISH", KEYS[2], ARGV[7])
   rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", ARGV[1], ARGV[3], ARGV[4])
 
   -- Try to get next job to avoid an extra roundtrip if the queue is not closing, 

@@ -10,6 +10,8 @@ import { Repeat } from './repeat';
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
+export const clientCommandMessageReg = /ERR unknown command '\s*client\s*'/;
+
 export class Worker extends QueueBase {
   private drained: boolean;
   private waiting = false;
@@ -59,7 +61,13 @@ export class Worker extends QueueBase {
     // We keep a hash table bull:myqueue:workers where every worker is a hash key workername:workerId with json holding
     // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
     //
-    await this.client.client('setname', this.clientName());
+    try {
+      await this.client.client('setname', this.clientName());
+    } catch (err) {
+      if (!clientCommandMessageReg.test(err.message)) {
+        throw err;
+      }
+    }
 
     const opts: WorkerOptions = <WorkerOptions>this.opts;
     const processors = [];

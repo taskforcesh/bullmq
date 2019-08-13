@@ -433,9 +433,21 @@ describe('repeat', function() {
     await queueScheduler.close();
   });
 
-  it.skip('should allow removing a customId repeatable job', async function() {
+  it('should be able to remove repeatable jobs by key', async () => {
+    const repeat = { cron: '*/2 * * * * *' };
+
+    await queue.append('remove', { foo: 'bar' }, { repeat });
+    const repeatableJobs = await queue.repeat.getRepeatableJobs();
+    expect(repeatableJobs).to.have.length(1);
+    await queue.removeRepeatableByKey(repeatableJobs[0].key);
+    const repeatableJobsAfterRemove = await queue.repeat.getRepeatableJobs();
+    expect(repeatableJobsAfterRemove).to.have.length(0);
+  });
+
+  it('should allow removing a customId repeatable job', async function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
+
     const date = new Date('2017-02-07 9:24:00');
     let prev: Job;
     let counter = 0;
@@ -444,16 +456,17 @@ describe('repeat', function() {
 
     this.clock.tick(date.getTime());
 
-    const nextTick = 2 * ONE_SECOND + 1;
+    const nextTick = 2 * ONE_SECOND + 10;
     const repeat = { cron: '*/2 * * * * *' };
 
     await queue.append('test', { foo: 'bar' }, { repeat, jobId });
+
     this.clock.tick(nextTick);
 
     const processing = new Promise((resolve, reject) => {
       processor = async (job: Job) => {
         counter++;
-        if (counter == 20) {
+        if (counter == 4) {
           try {
             await queue.removeRepeatable('test', repeat, jobId);
             this.clock.tick(nextTick);
@@ -463,13 +476,14 @@ describe('repeat', function() {
           } catch (err) {
             reject(err);
           }
-        } else if (counter > 20) {
-          reject(Error('should not repeat more than 20 times'));
+        } else if (counter > 4) {
+          reject(Error('should not repeat more than 4 times'));
         }
       };
     });
 
     const worker = new Worker(queueName, processor);
+    worker.waitUntilReady();
 
     worker.on('completed', job => {
       this.clock.tick(nextTick);
@@ -479,6 +493,7 @@ describe('repeat', function() {
       }
       prev = job;
     });
+
     await processing;
     await queueScheduler.close();
   });
@@ -487,6 +502,7 @@ describe('repeat', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
+    const jobId = 'xxxx';
     const date = new Date('2017-02-07 9:24:00');
     const nextTick = 2 * ONE_SECOND + 100;
     const repeat = { cron: '*/2 * * * * *' };
@@ -500,7 +516,7 @@ describe('repeat', function() {
           // Make removeRepeatables happen any time after a moveToX is called
           await queue.repeat.removeRepeatable(
             'test',
-            _.defaults({ jobId: 'xxxx' }, repeat),
+            _.defaults({ jobId }, repeat),
           );
 
           // nextRepeatableJob will now re-add the removed repeatable
@@ -515,11 +531,7 @@ describe('repeat', function() {
       });
     });
 
-    await queue.append(
-      'test',
-      { foo: 'bar' },
-      { repeat: repeat, jobId: 'xxxx' },
-    );
+    await queue.append('test', { foo: 'bar' }, { repeat, jobId });
 
     this.clock.tick(nextTick);
 
