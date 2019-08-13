@@ -12,8 +12,9 @@
     "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
     "test": "yarn lint && tsc && ts-mocha --paths src/**/test_*.ts --exit",
     "coveralls": "istanbul cover ./node_modules/mocha/bin/_mocha --report lcovonly -- -R spec && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
-    "precommit": "yarn prettier && yarn lint && yarn test",
-    "semantic-release": "semantic-release"
+    "precommit": "yarn lint",
+    "semantic-release": "semantic-release",
+    "prettier": "prettier --config package.json src/**/*.ts"
   },
   "devDependencies": {
     "@commitlint/cli": "^8.1.0",
@@ -28,6 +29,7 @@
     "chai": "^4.2.0",
     "coveralls": "^3.0.2",
     "delay": "^4.3.0",
+    "husky": "^3.0.3",
     "istanbul": "^0.4.5",
     "lodash": "^4.17.11",
     "mocha": "^6.1.4",
@@ -55,7 +57,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/taskforcesh/bull.git"
+    "url": "https://github.com/taskforcesh/bullmq.git"
   },
   "dependencies": {
     "@types/semver": "^6.0.1",
