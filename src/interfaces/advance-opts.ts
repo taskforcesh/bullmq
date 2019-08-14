@@ -1,24 +1,24 @@
 export interface AdvancedOpts {
   // Key expiration time for job locks.
-  lockDuration: number;
+  lockDuration?: number;
 
   // How often check for stalled jobs (use 0 for never checking).
-  stalledInterval: number;
+  stalledInterval?: number;
 
   // Max amount of times a stalled job will be re-processed.
-  maxStalledCount: number;
+  maxStalledCount?: number;
 
   // Poll interval for delayed jobs and added jobs.
-  guardInterval: number;
+  guardInterval?: number;
 
   // delay before processing next job in case of internal error.
-  retryProcessDelay: number;
+  retryProcessDelay?: number;
 
   // A set of custom backoff strategies keyed by name.
-  backoffStrategies: {};
+  backoffStrategies?: {};
 
   // A timeout for when the queue is in drained state (empty waiting for jobs).
-  drainDelay: number;
+  drainDelay?: number;
 }
 
 export const AdvancedOptsDefaults: AdvancedOpts = {
