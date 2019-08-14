@@ -3,6 +3,7 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
+import { clientCommandMessageReg } from './worker';
 
 export class QueueGetters extends QueueBase {
   getJob(jobId: string) {
@@ -163,10 +164,29 @@ export class QueueGetters extends QueueBase {
     return Promise.all(jobIds.map(jobId => Job.fromId(this, jobId)));
   }
 
+  async getJobLogs(jobId: string, start = 0, end = -1) {
+    const multi = this.client.multi();
+
+    const logsKey = this.toKey(jobId + ':logs');
+    multi.lrange(logsKey, -(end + 1), -(start + 1));
+    multi.llen(logsKey);
+    return multi.exec().then(result => ({
+      logs: result[0][1],
+      count: result[1][1],
+    }));
+  }
+
   async getWorkers() {
     await this.waitUntilReady();
     const clients = await this.client.client('list');
-    return this.parseClientList(clients);
+    try {
+      const list = await this.parseClientList(clients);
+      return list;
+    } catch (err) {
+      if (!clientCommandMessageReg.test(err.message)) {
+        throw err;
+      }
+    }
   }
 
   private parseClientList(list: string) {

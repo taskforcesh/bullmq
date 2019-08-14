@@ -1,7 +1,7 @@
 /*eslint-env node */
 'use strict';
 
-import { Job, Queue } from '@src/classes';
+import { Job, Queue, QueueScheduler } from '@src/classes';
 import { describe, beforeEach, afterEach, it } from 'mocha';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
@@ -10,7 +10,7 @@ import { JobsOpts } from '@src/interfaces';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Worker } from '@src/classes/worker';
 
-import * as Bluebird from 'bluebird';
+import { delay } from 'bluebird';
 
 describe('Job', function() {
   let queue: Queue;
@@ -100,6 +100,24 @@ describe('Job', function() {
       await job.updateProgress({ total: 120, completed: 40 });
       const storedJob = await Job.fromId(queue, job.id);
       expect(storedJob.progress).to.eql({ total: 120, completed: 40 });
+    });
+  });
+
+  describe('.log', () => {
+    it('can log two rows with text', async () => {
+      const firstLog = 'some log text 1';
+      const secondLog = 'some log text 2';
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await job.log(firstLog);
+      await job.log(secondLog);
+      const logs = await queue.getJobLogs(job.id);
+      expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
+      await job.remove();
+
+      const logsRemoved = await queue.getJobLogs(job.id);
+      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
     });
   });
 
@@ -212,6 +230,181 @@ describe('Job', function() {
     });
   });
 
+  describe('.promote', () => {
+    it('can promote a delayed job to be executed immediately', async () => {
+      const job = await Job.create(
+        queue,
+        'test',
+        { foo: 'bar' },
+        { delay: 1500 },
+      );
+      const isDelayed = await job.isDelayed();
+      expect(isDelayed).to.be.equal(true);
+      await job.promote();
+
+      const isDelayedAfterPromote = await job.isDelayed();
+      expect(isDelayedAfterPromote).to.be.equal(false);
+      const isWaiting = await job.isWaiting();
+      expect(isWaiting).to.be.equal(true);
+    });
+
+    it('should process a promoted job according to its priority', async function() {
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.init();
+
+      this.timeout(10000);
+      const worker = new Worker(queueName, job => {
+        return delay(100);
+      });
+      await worker.waitUntilReady();
+
+      const completed: string[] = [];
+
+      const done = new Promise(resolve => {
+        worker.on('completed', job => {
+          completed.push(job.id);
+          if (completed.length > 3) {
+            expect(completed).to.be.eql(['1', '2', '3', '4']);
+            resolve();
+          }
+        });
+      });
+
+      const processStarted = new Promise(resolve =>
+        worker.once('active', resolve),
+      );
+
+      const add = (jobId: string, ms = 0) =>
+        queue.append('test', {}, { jobId, delay: ms, priority: 1 });
+
+      await add('1');
+      await add('2', 1);
+      await processStarted;
+      const job = await add('3', 5000);
+      await job.promote();
+      await add('4', 1);
+
+      await done;
+
+      await queueScheduler.close();
+    });
+
+    it('should not promote a job that is not delayed', async () => {
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      const isDelayed = await job.isDelayed();
+      expect(isDelayed).to.be.equal(false);
+
+      try {
+        await job.promote();
+        throw new Error('Job should not be promoted!');
+      } catch (err) {}
+    });
+  });
+
+  // TODO:
+  // Divide into several tests
+  //
+  /*
+  const scripts = require('../lib/scripts');
+  it('get job status', function() {
+    this.timeout(12000);
+
+    const client = new redis();
+    return Job.create(queue, { foo: 'baz' })
+      .then(job => {
+        return job
+          .isStuck()
+          .then(isStuck => {
+            expect(isStuck).to.be(false);
+            return job.getState();
+          })
+          .then(state => {
+            expect(state).to.be('waiting');
+            return scripts.moveToActive(queue).then(() => {
+              return job.moveToCompleted();
+            });
+          })
+          .then(() => {
+            return job.isCompleted();
+          })
+          .then(isCompleted => {
+            expect(isCompleted).to.be(true);
+            return job.getState();
+          })
+          .then(state => {
+            expect(state).to.be('completed');
+            return client.zrem(queue.toKey('completed'), job.id);
+          })
+          .then(() => {
+            return job.moveToDelayed(Date.now() + 10000, true);
+          })
+          .then(() => {
+            return job.isDelayed();
+          })
+          .then(yes => {
+            expect(yes).to.be(true);
+            return job.getState();
+          })
+          .then(state => {
+            expect(state).to.be('delayed');
+            return client.zrem(queue.toKey('delayed'), job.id);
+          })
+          .then(() => {
+            return job.moveToFailed(new Error('test'), true);
+          })
+          .then(() => {
+            return job.isFailed();
+          })
+          .then(isFailed => {
+            expect(isFailed).to.be(true);
+            return job.getState();
+          })
+          .then(state => {
+            expect(state).to.be('failed');
+            return client.zrem(queue.toKey('failed'), job.id);
+          })
+          .then(res => {
+            expect(res).to.be(1);
+            return job.getState();
+          })
+          .then(state => {
+            expect(state).to.be('stuck');
+            return client.rpop(queue.toKey('wait'));
+          })
+          .then(() => {
+            return client.lpush(queue.toKey('paused'), job.id);
+          })
+          .then(() => {
+            return job.isPaused();
+          })
+          .then(isPaused => {
+            expect(isPaused).to.be(true);
+            return job.getState();
+          })
+          .then(state => {
+            expect(state).to.be('paused');
+            return client.rpop(queue.toKey('paused'));
+          })
+          .then(() => {
+            return client.lpush(queue.toKey('wait'), job.id);
+          })
+          .then(() => {
+            return job.isWaiting();
+          })
+          .then(isWaiting => {
+            expect(isWaiting).to.be(true);
+            return job.getState();
+          })
+          .then(state => {
+            expect(state).to.be('waiting');
+          });
+      })
+      .then(() => {
+        return client.quit();
+      });
+  });
+  */
+
   describe('.finished', function() {
     let queueEvents: QueueEvents;
 
@@ -251,12 +444,12 @@ describe('Job', function() {
 
     it('should resolve when the job has been delayed and completed and return object', async function() {
       const worker = new Worker(queueName, async job => {
-        await Bluebird.Promise.delay(300);
+        await delay(300);
         return { resultFoo: 'bar' };
       });
 
       const job = await queue.append('test', { foo: 'bar' });
-      await Bluebird.Promise.delay(600);
+      await delay(600);
 
       const result = await job.waitUntilFinished(queueEvents);
       expect(result).to.be.an('object');
@@ -280,7 +473,7 @@ describe('Job', function() {
 
     it('should reject when the job has been failed', async function() {
       const worker = new Worker(queueName, async job => {
-        await Bluebird.Promise.delay(500);
+        await delay(500);
         throw new Error('test error');
       });
 
@@ -301,7 +494,7 @@ describe('Job', function() {
 
       const job = await queue.append('test', { foo: 'bar' });
 
-      await Bluebird.Promise.delay(500);
+      await delay(500);
       const result = await job.waitUntilFinished(queueEvents);
 
       expect(result).to.be.an('object');
@@ -317,7 +510,7 @@ describe('Job', function() {
 
       const job = await queue.append('test', { foo: 'bar' });
 
-      await Bluebird.Promise.delay(500);
+      await delay(500);
       try {
         await job.waitUntilFinished(queueEvents);
         throw new Error('should have been rejected');

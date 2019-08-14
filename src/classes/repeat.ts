@@ -11,9 +11,10 @@ export class Repeat extends QueueBase {
     name: string,
     data: any,
     opts: JobsOpts,
-    jobId?: string,
     skipCheckExists?: boolean,
   ) {
+    let jobId;
+
     await this.waitUntilReady();
 
     const repeatOpts = { ...opts.repeat };
@@ -35,7 +36,8 @@ export class Repeat extends QueueBase {
     const nextMillis = getNextMillis(now, repeatOpts);
 
     if (nextMillis) {
-      jobId = jobId ? jobId + ':' : ':';
+      jobId = opts.jobId ? opts.jobId + ':' : ':';
+
       const repeatJobKey = getRepeatKey(name, repeatOpts, jobId);
 
       let repeatableExists = true;
@@ -69,7 +71,7 @@ export class Repeat extends QueueBase {
     nextMillis: number,
     repeatJobKey: string,
     jobId: string,
-    opts: any,
+    opts: JobsOpts,
     data: any,
     currentCount: number,
   ) {
@@ -82,7 +84,6 @@ export class Repeat extends QueueBase {
 
     const mergedOpts = {
       ...opts,
-      jobId: customId,
       delay: delay < 0 ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
@@ -96,7 +97,7 @@ export class Repeat extends QueueBase {
       repeatJobKey,
     );
 
-    return Job.create(this, name, data, mergedOpts);
+    return Job.create(this, name, data, mergedOpts, customId);
   }
 
   async removeRepeatable(name: string, repeat: RepeatOpts, jobId?: string) {
@@ -114,6 +115,34 @@ export class Repeat extends QueueBase {
       repeatJobKey,
       queueKey,
     );
+  }
+
+  async removeRepeatableByKey(repeatJobKey: string) {
+    await this.waitUntilReady();
+
+    const data = this._keyToData(repeatJobKey);
+    const queueKey = this.keys[''];
+
+    return (<any>this.client).removeRepeatable(
+      this.keys.repeat,
+      this.keys.delayed,
+      data.id,
+      repeatJobKey,
+      queueKey,
+    );
+  }
+
+  _keyToData(key: string) {
+    const data = key.split(':');
+
+    return {
+      key: key,
+      name: data[0],
+      id: data[1] || null,
+      endDate: parseInt(data[2]) || null,
+      tz: data[3] || null,
+      cron: data[4],
+    };
   }
 
   async getRepeatableJobs(start = 0, end = -1, asc = false) {

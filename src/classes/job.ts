@@ -1,13 +1,13 @@
-import IORedis from 'ioredis';
-import { JobsOpts } from '../interfaces';
-import { debuglog } from 'util';
-import { Scripts } from './scripts';
-import { Backoffs } from './backoffs';
-import { tryCatch, errorObject, isEmpty } from '../utils';
 import { BackoffOpts } from '@src/interfaces/backoff-opts';
-import { QueueEvents } from './queue-events';
-import { QueueBase } from './queue-base';
 import { WorkerOptions } from '@src/interfaces/worker-opts';
+import IORedis from 'ioredis';
+import { debuglog } from 'util';
+import { JobsOpts } from '../interfaces';
+import { errorObject, isEmpty, tryCatch } from '../utils';
+import { Backoffs } from './backoffs';
+import { QueueBase } from './queue-base';
+import { QueueEvents } from './queue-events';
+import { Scripts } from './scripts';
 
 const logger = debuglog('bull');
 
@@ -27,7 +27,6 @@ export interface JobJson {
 }
 
 export class Job {
-  id: string;
   progress: number | object = 0;
   returnvalue: any = null;
   stacktrace: string[] = null;
@@ -46,6 +45,7 @@ export class Job {
     public name: string,
     public data: any,
     public opts: JobsOpts = {},
+    public id?: string,
   ) {
     this.opts = Object.assign(
       {
@@ -67,10 +67,11 @@ export class Job {
     name: string,
     data: any,
     opts?: JobsOpts,
+    jobId?: string,
   ) {
     await queue.waitUntilReady();
 
-    const job = new Job(queue, name, data, opts);
+    const job = new Job(queue, name, data, opts, jobId);
 
     job.id = await job.addJob(queue.client);
 
@@ -78,13 +79,12 @@ export class Job {
     return job;
   }
 
-  static fromJSON(queue: QueueBase, json: any, jobId: string) {
+  static fromJSON(queue: QueueBase, json: any, jobId?: string) {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
-    const job = new Job(queue, json.name, data, opts);
+    const job = new Job(queue, json.name, data, opts, json.id || jobId);
 
-    job.id = json.id || jobId;
     job.progress = JSON.parse(json.progress || 0);
 
     // job.delay = parseInt(json.delay);
@@ -149,6 +149,17 @@ export class Job {
   async updateProgress(progress: number | object) {
     this.progress = progress;
     return Scripts.updateProgress(this.queue, this, progress);
+  }
+
+  /**
+   * Logs one row of log data.
+   *
+   * @params logRow: string String with log data to be logged.
+   *
+   */
+  log(logRow: string) {
+    const logsKey = this.toKey(this.id) + ':logs';
+    return this.queue.client.rpush(logsKey, logRow);
   }
 
   async remove() {
@@ -285,6 +296,15 @@ export class Job {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
+  async getState() {
+    if (await this.isCompleted()) return 'completed';
+    if (await this.isFailed()) return 'failed';
+    if (await this.isDelayed()) return 'delayed';
+    if (await this.isActive()) return 'active';
+    if (await this.isWaiting()) return 'waiting';
+    return 'unknown';
+  }
+
   /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */
@@ -354,6 +374,51 @@ export class Job {
     }
   }
 
+  moveToDelayed(timestamp: number) {
+    return Scripts.moveToDelayed(this.queue, this.id, timestamp);
+  }
+
+  async promote() {
+    const queue = this.queue;
+    const jobId = this.id;
+
+    const result = await Scripts.promote(queue, jobId);
+    if (result === -1) {
+      throw new Error('Job ' + jobId + ' is not in a delayed state');
+    }
+  }
+
+  /**
+   * Attempts to retry the job. Only a job that has failed can be retried.
+   *
+   * @return {Promise} If resolved and return code is 1, then the queue emits a waiting event
+   * otherwise the operation was not a success and throw the corresponding error. If the promise
+   * rejects, it indicates that the script failed to execute
+   */
+  async retry(state: 'completed' | 'failed' = 'failed') {
+    await this.queue.waitUntilReady();
+
+    this.failedReason = null;
+    this.finishedOn = null;
+    this.processedOn = null;
+
+    await this.queue.client.hdel(
+      this.queue.toKey(this.id),
+      'finishedOn',
+      'processedOn',
+      'failedReason',
+    );
+
+    const result = await Scripts.reprocessJob(this.queue, this, state);
+    if (result === 1) {
+      return;
+    } else if (result === 0) {
+      throw new Error('Retried job does not exist');
+    } else if (result === -2) {
+      throw new Error('Retried job not failed');
+    }
+  }
+
   private async isInZSet(set: string) {
     const score = await this.queue.client.zscore(
       this.queue.toKey(set),
@@ -374,7 +439,8 @@ export class Job {
     const queue = this.queue;
 
     const jobData = this.toJSON();
-    return Scripts.addJob(client, queue, jobData, this.opts);
+
+    return Scripts.addJob(client, queue, jobData, this.opts, this.id);
   }
 
   private saveAttempt(multi: IORedis.Pipeline, err: Error) {

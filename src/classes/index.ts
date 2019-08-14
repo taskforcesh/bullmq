@@ -9,3 +9,5 @@ export * from './redis-connection';
 export * from './repeat';
 export * from './scripts';
 export * from './worker';
+export * from './child-pool';
+export * from './sandbox';

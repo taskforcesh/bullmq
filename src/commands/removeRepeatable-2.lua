@@ -9,14 +9,15 @@
     ARGV[2] repeat job key
     ARGV[3] queue key
 ]]
-local millis = redis.call("ZSCORE", KEYS[1], ARGV[2])
+local rcall = redis.call
+local millis = rcall("ZSCORE", KEYS[1], ARGV[2])
 
 if(millis) then
   -- Delete next programmed job.
   local repeatJobId = ARGV[1] .. millis
-  if(redis.call("ZREM", KEYS[2], repeatJobId) == 1) then
-    redis.call("DEL", ARGV[3] .. repeatJobId)
+  if(rcall("ZREM", KEYS[2], repeatJobId) == 1) then
+    rcall("DEL", ARGV[3] .. repeatJobId)
   end
 end
 
-redis.call("ZREM", KEYS[1], ARGV[2]);
+rcall("ZREM", KEYS[1], ARGV[2]);
