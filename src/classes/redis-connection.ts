@@ -73,7 +73,7 @@ export class RedisConnection {
   }
 
   async close() {
-    if(this.client) {
+    if (this.client) {
       if (this.client.status === 'end') {
         return;
       }
@@ -86,17 +86,22 @@ export class RedisConnection {
 
         let tryDisconnect = true;
 
-        this.client.quit().then(() => { tryDisconnect = true; }).catch(err => {
-          if (err.message !== 'Connection is closed.') {
-            throw err;
-          }
-        });
+        this.client
+          .quit()
+          .then(() => {
+            tryDisconnect = true;
+          })
+          .catch(err => {
+            if (err.message !== 'Connection is closed.') {
+              throw err;
+            }
+          });
 
         setTimeout(() => {
-          if(this.client) { if(tryDisconnect) this.client.disconnect(); }
+          if (this.client) {
+            if (tryDisconnect) this.client.disconnect();
+          }
         }, 500);
-
-
       }).finally(() => {
         this.client.removeListener('end', _resolve);
         this.client.removeListener('error', _reject);

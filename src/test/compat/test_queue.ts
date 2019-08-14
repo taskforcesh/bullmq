@@ -1,4 +1,9 @@
-import { Queue3 as Queue, Job3 as Job, QueueOptions3 as QueueOptions, JobOptions3 as JobOptions } from '@src/classes/compat';
+import {
+  Queue3 as Queue,
+  Job3 as Job,
+  QueueOptions3 as QueueOptions,
+  JobOptions3 as JobOptions,
+} from '@src/classes/compat';
 import _ from 'lodash';
 import IORedis from 'ioredis';
 import { expect } from 'chai';
@@ -74,7 +79,9 @@ describe('Queue', () => {
       });
 
       testQueue.on('completed', () => {
-        testQueue.close().then(() => { done(); });
+        testQueue.close().then(() => {
+          done();
+        });
       });
       testQueue.add({ foo: 'bar' });
     });
@@ -86,7 +93,9 @@ describe('Queue', () => {
         testQueue.process((job, jobDone) => {
           expect(job.data.foo).to.be.equal('bar');
           jobDone();
-          testQueue.close().then(() => { done(); });
+          testQueue.close().then(() => {
+            done();
+          });
         });
 
         testQueue.add({ foo: 'bar' }).then(job => {
@@ -102,7 +111,9 @@ describe('Queue', () => {
         });
 
         testQueue.on('completed', () => {
-          testQueue.close().then(() => { done(); });
+          testQueue.close().then(() => {
+            done();
+          });
         });
 
         testQueue.add({ foo: 'bar' }).then(job => {
@@ -126,7 +137,14 @@ describe('Queue', () => {
       expect((queue.client as any).options.db).to.be.equal(0);
       expect((queue.eclient as any).options.db).to.be.equal(0);
 
-      queue.close().then(() => { done(); }, () => { done(); });
+      queue.close().then(
+        () => {
+          done();
+        },
+        () => {
+          done();
+        },
+      );
     });
 
     it('should create a queue with a redis connection string', () => {
@@ -193,7 +211,14 @@ describe('Queue', () => {
       expect((queue.client as any).options.db).to.be.equal(1);
       expect((queue.eclient as any).options.db).to.be.equal(1);
 
-      queue.close().then(() => { done(); }, () => { done(); });
+      queue.close().then(
+        () => {
+          done();
+        },
+        () => {
+          done();
+        },
+      );
     });
 
     it('creates a queue using the supplied redis host', done => {
@@ -205,7 +230,14 @@ describe('Queue', () => {
       expect((queue.client as any).options.db).to.be.equal(0);
       expect((queue.eclient as any).options.db).to.be.equal(0);
 
-      queue.close().then(() => { done(); }, () => { done(); });
+      queue.close().then(
+        () => {
+          done();
+        },
+        () => {
+          done();
+        },
+      );
     });
 
     it('creates a queue with dots in its name', () => {
@@ -251,7 +283,9 @@ describe('Queue', () => {
     });
 
     it('should create a queue with a prefix option', () => {
-      const queue = new Queue('q', 'redis://127.0.0.1', { keyPrefix: 'myQ' } as any);
+      const queue = new Queue('q', 'redis://127.0.0.1', {
+        keyPrefix: 'myQ',
+      } as any);
 
       return queue
         .add({ foo: 'bar' })
@@ -335,12 +369,19 @@ describe('Queue', () => {
     it('creates a queue with default job options', done => {
       const defaultJobOptions = { removeOnComplete: true };
       const queue = new Queue('custom', {
-        defaultJobOptions
+        defaultJobOptions,
       });
 
       expect(queue['defaultJobOptions']).to.be.equal(defaultJobOptions);
 
-      queue.close().then(() => { done(); }, () => { done(); });
+      queue.close().then(
+        () => {
+          done();
+        },
+        () => {
+          done();
+        },
+      );
     });
   });
 
@@ -361,7 +402,8 @@ describe('Queue', () => {
 
     afterEach(function() {
       this.timeout(
-        queue['settings'].stalledInterval * (1 + queue['settings'].maxStalledCount)
+        queue['settings'].stalledInterval *
+          (1 + queue['settings'].maxStalledCount),
       );
       return utils.cleanupQueues();
     });
@@ -373,7 +415,9 @@ describe('Queue', () => {
           jobDone();
           done();
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       queue.add({ foo: 'bar' }).then(job => {
         expect(job.id).to.be.ok;
@@ -415,8 +459,8 @@ describe('Queue', () => {
         utils
           .newQueue('test-' + uuid(), {
             defaultJobOptions: {
-              removeOnComplete: true
-            }
+              removeOnComplete: true,
+            },
           })
           .then(myQueue => {
             myQueue.process(job => {
@@ -425,11 +469,18 @@ describe('Queue', () => {
 
             myQueue
               .add({ foo: 'bar' })
-              .then(job => {
-                expect(job.id).to.be.ok;
-                expect(job.data.foo).to.be.equal('bar');
-              }, done)
-              .catch(done);
+              .then(
+                job => {
+                  expect(job.id).to.be.ok;
+                  expect(job.data.foo).to.be.equal('bar');
+                },
+                () => {
+                  done();
+                },
+              )
+              .catch(() => {
+                done();
+              });
 
             myQueue.on('completed', job => {
               myQueue
@@ -445,12 +496,18 @@ describe('Queue', () => {
 
                   return utils.cleanupQueues();
                 })
-                .then(() => { done(); })
-                .catch(() => { done(); });
+                .then(() => {
+                  done();
+                })
+                .catch(() => {
+                  done();
+                });
             });
             return null;
           })
-          .catch(() => { done(); });
+          .catch(() => {
+            done();
+          });
       });
 
       // TODO
@@ -513,7 +570,7 @@ describe('Queue', () => {
       //
       //   return new Promise((resolve, reject) => {
       //     localQueue.on('completed', async job => {
-      //       if (job.data == 8) {
+      //       if (job.data === 8) {
       //         try {
       //           const counts = await localQueue.getJobCounts();
       //           expect(counts.completed).to.be.equal(keepJobs);
@@ -571,8 +628,8 @@ describe('Queue', () => {
         utils
           .newQueue('test-' + uuid(), {
             defaultJobOptions: {
-              removeOnFail: true
-            }
+              removeOnFail: true,
+            },
           })
           .then(myQueue => {
             myQueue.process(job => {
@@ -586,7 +643,9 @@ describe('Queue', () => {
                 expect(job.id).to.be.ok;
                 expect(job.data.foo).to.be.equal('bar');
               }, done)
-              .catch(done);
+              .catch(() => {
+                done();
+              });
 
             myQueue.on('failed', job => {
               const jobId = job.id;
@@ -603,12 +662,18 @@ describe('Queue', () => {
 
                   return utils.cleanupQueues();
                 })
-                .then(() => { done(); })
-                .catch(() => { done(); });
+                .then(() => {
+                  done();
+                })
+                .catch(() => {
+                  done();
+                });
             });
             return null;
           })
-          .catch(() => { done(); });
+          .catch(() => {
+            done();
+          });
       });
 
       // TODO
@@ -718,12 +783,12 @@ describe('Queue', () => {
             { count: ++currentValue },
             { count: ++currentValue },
             { count: ++currentValue },
-            { count: ++currentValue }
+            { count: ++currentValue },
           ];
           return Promise.all(
             jobs.map(jobData => {
               return queue2.add(jobData, { lifo: true });
-            })
+            }),
           ).then(() => {
             queue2.resume();
           });
@@ -747,27 +812,30 @@ describe('Queue', () => {
       }
 
       // wait for all jobs to enter the queue and then start processing
-      Promise.all([].concat(normalPriority, mediumPriority, highPriority)).then(() => {
-        let currentPriority = 1;
-        let counter = 0;
-        let total = 0;
+      Promise.all([].concat(normalPriority, mediumPriority, highPriority)).then(
+        () => {
+          let currentPriority = 1;
+          let counter = 0;
+          let total = 0;
 
-        queue.process((job, jobDone) => {
-          expect(job.id).to.be.ok;
-          expect(job.data.p).to.be.equal(currentPriority);
-          jobDone();
+          queue.process((job, jobDone) => {
+            expect(job.id).to.be.ok;
+            expect(job.data.p).to.be.equal(currentPriority);
+            jobDone();
 
-          total++;
-          if (++counter === numJobsPerPriority) {
-            currentPriority++;
-            counter = 0;
+            total++;
+            if (++counter === numJobsPerPriority) {
+              currentPriority++;
+              counter = 0;
 
-            if (currentPriority === 4 && total === numJobsPerPriority * 3) {
-              done();
+              if (currentPriority === 4 && total === numJobsPerPriority * 3) {
+                done();
+              }
             }
-          }
-        });
-      }, done);
+          });
+        },
+        done,
+      );
     });
 
     it('process several jobs serially', function(done) {
@@ -803,7 +871,9 @@ describe('Queue', () => {
           expect(job.id).to.be.ok;
           expect(job.data.foo).to.be.equal('bar');
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       queue.on('progress', (job, progress) => {
         expect(job).to.be.ok;
@@ -824,7 +894,9 @@ describe('Queue', () => {
           expect(job.id).to.be.ok;
           expect(job.data.foo).to.be.equal('bar');
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       queue.on('completed', (job, data) => {
         expect(job).to.be.ok;
@@ -849,7 +921,9 @@ describe('Queue', () => {
               expect(job.returnvalue).to.be.equal(testString);
               done();
             })
-            .catch(done);
+            .catch(() => {
+              done();
+            });
         }, 100);
       });
 
@@ -860,7 +934,7 @@ describe('Queue', () => {
       queue.add({ testing: true });
     });
 
-    it('process a job that returns data in the process handler and the returnvalue gets stored in the database', done => {
+    it('process a job that returns data and the returnvalue gets stored in the database', done => {
       queue.process((job, jobDone) => {
         expect(job.data.foo).to.be.equal('bar');
         jobDone(null, 37);
@@ -872,17 +946,21 @@ describe('Queue', () => {
           expect(job.id).to.be.ok;
           expect(job.data.foo).to.be.equal('bar');
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       queue.on('completed', (job, data) => {
         expect(job).to.be.ok;
         expect(data).to.be.equal(37);
         queue.getJob(job.id).then(job => {
           expect(job.returnvalue).to.be.equal(37);
-          queue.client.hget(queue.toKey("" + job.id), 'returnvalue').then(retval => {
-            expect(JSON.parse(retval)).to.be.equal(37);
-            done();
-          });
+          queue.client
+            .hget(queue.toKey('' + job.id), 'returnvalue')
+            .then(retval => {
+              expect(JSON.parse(retval)).to.be.equal(37);
+              done();
+            });
         });
       });
     });
@@ -901,7 +979,9 @@ describe('Queue', () => {
           expect(job.id).to.be.ok;
           expect(job.data.foo).to.be.equal('bar');
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       queue.on('completed', (job, data) => {
         expect(job).to.be.ok;
@@ -911,7 +991,7 @@ describe('Queue', () => {
     });
 
     it('process a job that returns data in a promise', done => {
-      queue.process((job) => {
+      queue.process(job => {
         expect(job.data.foo).to.be.equal('bar');
         return utils.sleep(250, { value: 42 });
       });
@@ -922,7 +1002,9 @@ describe('Queue', () => {
           expect(job.id).to.be.ok;
           expect(job.data.foo).to.be.equal('bar');
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       queue.on('completed', (job, data) => {
         expect(job).to.be.ok;
@@ -942,7 +1024,9 @@ describe('Queue', () => {
           expect(job.id).to.be.ok;
           expect(job.data.foo).to.be.equal('bar');
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       queue.on('completed', job => {
         expect(job).to.be.ok;
@@ -1017,15 +1101,15 @@ describe('Queue', () => {
       return utils
         .newQueue('test queue added before', {
           settings: {
-            lockRenewTime: 10
-          }
+            lockRenewTime: 10,
+          },
         })
         .then(queueStalled => {
           const jobs = [
             queueStalled.add({ bar: 'baz' }),
             queueStalled.add({ bar1: 'baz1' }),
             queueStalled.add({ bar2: 'baz2' }),
-            queueStalled.add({ bar3: 'baz3' })
+            queueStalled.add({ bar3: 'baz3' }),
           ];
 
           return Promise.all(jobs)
@@ -1059,7 +1143,9 @@ describe('Queue', () => {
           expect(job.id).to.be.ok;
           expect(job.data.foo).to.be.equal('bar');
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       queue.on('completed', (job, data) => {
         expect(job).to.be.ok;
@@ -1092,7 +1178,9 @@ describe('Queue', () => {
         .then(() => {
           return queue.add('myname2', { baz: 'qux' });
         })
-        .catch(done);
+        .catch(() => {
+          done();
+        });
 
       let one: boolean, two: boolean;
       queue.on('completed', (job, data) => {
@@ -1378,7 +1466,7 @@ describe('Queue', () => {
         },
         err => {
           done(err);
-        }
+        },
       );
 
       queue.once('failed', (job, err) => {
@@ -1404,7 +1492,7 @@ describe('Queue', () => {
         },
         err => {
           done(err);
-        }
+        },
       );
 
       queue.once('failed', (job, err) => {
@@ -1447,7 +1535,7 @@ describe('Queue', () => {
         },
         err => {
           done(err);
-        }
+        },
       );
 
       queue.once('failed', (job, err) => {
@@ -1477,7 +1565,7 @@ describe('Queue', () => {
         },
         err => {
           done(err);
-        }
+        },
       );
 
       queue.once('failed', (job, err) => {
@@ -1625,7 +1713,7 @@ describe('Queue', () => {
   // });
 
   describe('Delayed jobs', () => {
-    let queue: Queue;
+    const queue: Queue = null;
 
     beforeEach(() => {
       const client = new IORedis();
@@ -1856,7 +1944,8 @@ describe('Queue', () => {
 
     afterEach(function() {
       this.timeout(
-        queue['settings'].stalledInterval * (1 + queue['settings'].maxStalledCount)
+        queue['settings'].stalledInterval *
+          (1 + queue['settings'].maxStalledCount),
       );
       return queue.close();
     });
@@ -1973,7 +2062,8 @@ describe('Queue', () => {
 
     afterEach(function() {
       this.timeout(
-        queue['settings'].stalledInterval * (1 + queue['settings'].maxStalledCount)
+        queue['settings'].stalledInterval *
+          (1 + queue['settings'].maxStalledCount),
       );
       return queue.close();
     });
@@ -1992,8 +2082,8 @@ describe('Queue', () => {
         queue.add(
           { foo: 'bar' },
           {
-            attempts: 5
-          }
+            attempts: 5,
+          },
         );
       });
       queue.on('failed', () => {
@@ -2018,8 +2108,8 @@ describe('Queue', () => {
         queue.add(
           { foo: 'bar' },
           {
-            attempts: 3
-          }
+            attempts: 3,
+          },
         );
       });
       queue.on('completed', () => {
@@ -2043,8 +2133,8 @@ describe('Queue', () => {
         queue.add(
           { foo: 'bar' },
           {
-            attempts: 3
-          }
+            attempts: 3,
+          },
         );
       });
       queue.on('completed', () => {
@@ -2158,43 +2248,43 @@ describe('Queue', () => {
     //   });
     // });
 
-    it('should not retry a job if the custom backoff returns -1', done => {
-      queue = utils.buildQueue('test retries and backoffs', {
-        settings: {
-          backoffStrategies: {
-            custom() {
-              return -1;
-            }
-          }
-        }
-      });
-      let tries = 0;
-      queue.process((job, jobDone) => {
-        tries++;
-        if (job.attemptsMade < 3) {
-          throw new Error('Not yet!');
-        }
-        jobDone();
-      });
-
-      queue.add(
-        { foo: 'bar' },
-        {
-          attempts: 3,
-          backoff: {
-            type: 'custom'
-          }
-        }
-      );
-      queue.on('completed', () => {
-        done(new Error('Failed job was retried more than it should be!'));
-      });
-      queue.on('failed', () => {
-        if (tries === 1) {
-          done();
-        }
-      });
-    });
+    // it('should not retry a job if the custom backoff returns -1', done => {
+    //   queue = utils.buildQueue('test retries and backoffs', {
+    //     settings: {
+    //       backoffStrategies: {
+    //         custom() {
+    //           return -1;
+    //         }
+    //       }
+    //     }
+    //   });
+    //   let tries = 0;
+    //   queue.process((job, jobDone) => {
+    //     tries++;
+    //     if (job.attemptsMade < 3) {
+    //       throw new Error('Not yet!');
+    //     }
+    //     jobDone();
+    //   });
+    //
+    //   queue.add(
+    //     { foo: 'bar' },
+    //     {
+    //       attempts: 3,
+    //       backoff: {
+    //         type: 'custom'
+    //       }
+    //     }
+    //   );
+    //   queue.on('completed', () => {
+    //     done(new Error('Failed job was retried more than it should be!'));
+    //   });
+    //   queue.on('failed', () => {
+    //     if (tries === 1) {
+    //       done();
+    //     }
+    //   });
+    // });
 
     // TODO
     // it('should retry a job after a delay if a custom backoff is given based on the error thrown', function(done) {
@@ -2414,36 +2504,37 @@ describe('Queue', () => {
 
     afterEach(function() {
       this.timeout(
-        queue['settings'].stalledInterval * (1 + queue['settings'].maxStalledCount)
+        queue['settings'].stalledInterval *
+          (1 + queue['settings'].maxStalledCount),
       );
       return queue.close();
     });
 
     // TODO clean not supported
-    // it('should reject the cleaner with no grace', done => {
-    //   queue.clean(undefined).then(
-    //     () => {
-    //       done(new Error('Promise should not resolve'));
-    //     },
-    //     err => {
-    //       expect(err).to.be.instanceof(Error);
-    //       done();
-    //     }
-    //   );
-    // });
+    it('should reject the cleaner with no grace', done => {
+      queue.clean(undefined).then(
+        () => {
+          done(new Error('Promise should not resolve'));
+        },
+        err => {
+          expect(err).to.be.instanceof(Error);
+          done();
+        },
+      );
+    });
 
     // TODO clean not supported
-    // it('should reject the cleaner an unknown type', done => {
-    //   queue.clean(0, 'bad' as any).then(
-    //     () => {
-    //       done(new Error('Promise should not resolve'));
-    //     },
-    //     e => {
-    //       expect(e).to.be.instanceof(Error);
-    //       done();
-    //     }
-    //   );
-    // });
+    it('should reject the cleaner an unknown type', done => {
+      queue.clean(0, 'bad' as any).then(
+        () => {
+          done(new Error('Promise should not resolve'));
+        },
+        e => {
+          expect(e).to.be.instanceof(Error);
+          done();
+        },
+      );
+    });
 
     // TODO clean not supported
     // it('should clean an empty queue', done => {
@@ -2464,23 +2555,23 @@ describe('Queue', () => {
     // });
 
     // TODO clean not supported
-    // it('should clean two jobs from the queue', done => {
-    //   queue.add({ some: 'data' });
-    //   queue.add({ some: 'data' });
-    //   queue.process((job, jobDone) => {
-    //     jobDone();
-    //   });
-    //
-    //   queue.on(
-    //     'completed',
-    //     _.after(2, () => {
-    //       queue.clean(0).then(jobs => {
-    //         expect(jobs.length).to.be.equal(2);
-    //         done();
-    //       }, done);
-    //     })
-    //   );
-    // });
+    it('should clean two jobs from the queue', done => {
+      queue.add({ some: 'data' });
+      queue.add({ some: 'data' });
+      queue.process((job, jobDone) => {
+        jobDone();
+      });
+
+      queue.on(
+        'completed',
+        _.after(2, () => {
+          queue.clean(0).then(jobs => {
+            expect(jobs.length).to.be.equal(2);
+            done();
+          }, done);
+        }),
+      );
+    });
 
     // TODO clean not supported
     // it('should only remove a job outside of the grace period', done => {
@@ -2510,109 +2601,113 @@ describe('Queue', () => {
     //     });
     // });
 
-    // TODO clean not supported
-    // it('should clean all failed jobs', done => {
-    //   queue.add({ some: 'data' });
-    //   queue.add({ some: 'data' });
-    //   queue.process((job, jobDone) => {
-    //     jobDone(new Error('It failed'));
-    //   });
-    //   utils.sleep(100)
-    //     .then(() => {
-    //       return queue.clean(0, 'failed');
-    //     })
-    //     .then(jobs => {
-    //       expect(jobs.length).to.be.equal(2);
-    //       return queue.count();
-    //     })
-    //     .then(len => {
-    //       expect(len).to.be.equal(0);
-    //       done();
-    //     });
-    // });
+    it('should clean all failed jobs', done => {
+      queue.add({ some: 'data' });
+      queue.add({ some: 'data' });
+      queue.process((job, jobDone) => {
+        jobDone(new Error('It failed'));
+      });
+      utils
+        .sleep(100)
+        .then(() => {
+          return queue.clean(0, 'failed');
+        })
+        .then(jobs => {
+          expect(jobs.length).to.be.equal(2);
+          return queue.count();
+        })
+        .then(len => {
+          expect(len).to.be.equal(0);
+          done();
+        });
+    });
 
-    // TODO clean not supported
-    // it('should clean all waiting jobs', done => {
-    //   queue.add({ some: 'data' });
-    //   queue.add({ some: 'data' });
-    //   utils.sleep(100)
-    //     .then(() => {
-    //       return queue.clean(0, 'wait');
-    //     })
-    //     .then(jobs => {
-    //       expect(jobs.length).to.be.equal(2);
-    //       return queue.count();
-    //     })
-    //     .then(len => {
-    //       expect(len).to.be.equal(0);
-    //       done();
-    //     });
-    // });
+    it('should clean all waiting jobs', done => {
+      queue.add({ some: 'data' });
+      queue.add({ some: 'data' });
+      utils
+        .sleep(100)
+        .then(() => {
+          return queue.clean(0, 'wait');
+        })
+        .then(jobs => {
+          expect(jobs.length).to.be.equal(2);
+          return queue.count();
+        })
+        .then(len => {
+          expect(len).to.be.equal(0);
+          done();
+        });
+    });
 
-    // TODO clean not supported
-    // it('should clean all delayed jobs', done => {
-    //   queue.add({ some: 'data' }, { delay: 5000 });
-    //   queue.add({ some: 'data' }, { delay: 5000 });
-    //   utils.sleep(100)
-    //     .then(() => {
-    //       return queue.clean(0, 'delayed');
-    //     })
-    //     .then(jobs => {
-    //       expect(jobs.length).to.be.equal(2);
-    //       return queue.count();
-    //     })
-    //     .then(len => {
-    //       expect(len).to.be.equal(0);
-    //       done();
-    //     });
-    // });
+    it('should clean all delayed jobs', done => {
+      queue.add({ some: 'data' }, { delay: 5000 });
+      queue.add({ some: 'data' }, { delay: 5000 });
+      utils
+        .sleep(100)
+        .then(() => {
+          return queue.clean(0, 'delayed');
+        })
+        .then(jobs => {
+          expect(jobs.length).to.be.equal(2);
+          return queue.count();
+        })
+        .then(len => {
+          expect(len).to.be.equal(0);
+          done();
+        });
+    });
 
-    // TODO clean not supported
-    // it('should clean the number of jobs requested', done => {
-    //   queue.add({ some: 'data' });
-    //   queue.add({ some: 'data' });
-    //   queue.add({ some: 'data' });
-    //   utils.sleep(100)
-    //     .then(() => {
-    //       return queue.clean(0, 'wait', 1);
-    //     })
-    //     .then(jobs => {
-    //       expect(jobs.length).to.be.equal(1);
-    //       return queue.count();
-    //     })
-    //     .then(len => {
-    //       expect(len).to.be.equal(2);
-    //       done();
-    //     });
-    // });
+    it('should clean the number of jobs requested', done => {
+      queue.add({ some: 'data' });
+      queue.add({ some: 'data' });
+      queue.add({ some: 'data' });
+      utils
+        .sleep(100)
+        .then(() => {
+          return queue.clean(0, 'wait', 1);
+        })
+        .then(jobs => {
+          expect(jobs.length).to.be.equal(1);
+          return queue.count();
+        })
+        .then(len => {
+          expect(len).to.be.equal(2);
+          done();
+        });
+    });
 
-    // TODO clean not supported
-    // it('should clean a job without a timestamp', done => {
-    //   const client = new IORedis(6379, '127.0.0.1', {});
-    //
-    //   queue.add({ some: 'data' });
-    //   queue.add({ some: 'data' });
-    //   queue.process((job, jobDone) => {
-    //     jobDone(new Error('It failed'));
-    //   });
-    //
-    //   utils.sleep(100)
-    //     .then(() => {
-    //       return new Promise(resolve => {
-    //         client.hdel('bull:' + queue.name + ':1', 'timestamp', resolve as any);
-    //       });
-    //     })
-    //     .then(() => {
-    //       return queue.clean(0, 'failed');
-    //     })
-    //     .then(jobs => {
-    //       expect(jobs.length).to.be.equal(2);
-    //       return queue.getFailed();
-    //     })
-    //     .then(failed => {
-    //       expect(failed.length).to.be.equal(0);
-    //       done();
-    //     });
-    // });
+    it('should clean a job without a timestamp', done => {
+      const client = new IORedis(6379, '127.0.0.1', {});
+
+      queue.add({ some: 'data' });
+      queue.add({ some: 'data' });
+      queue.process((job, jobDone) => {
+        jobDone(new Error('It failed'));
+      });
+
+      utils
+        .sleep(100)
+        .then(() => {
+          return new Promise(resolve => {
+            client.hdel(
+              'bull:' + queue.name + ':1',
+              'timestamp',
+              resolve as any,
+            );
+          });
+        })
+        .then(() => {
+          return queue.clean(0, 'failed');
+        })
+        .then(jobs => {
+          expect(jobs.length).to.be.equal(2);
+          return queue.getFailed();
+        })
+        .then(failed => {
+          expect(failed.length).to.be.equal(0);
+          done();
+        });
+    });
   });
 });

@@ -1,4 +1,7 @@
-import { Queue3 as Queue, QueueOptions3 as QueueOptions } from '@src/classes/compat';
+import {
+  Queue3 as Queue,
+  QueueOptions3 as QueueOptions,
+} from '@src/classes/compat';
 import _ from 'lodash';
 
 const STD_QUEUE_NAME = 'test queue';
@@ -34,7 +37,7 @@ export function cleanupQueues() {
       const errHandler = function() {};
       queue.on('error', errHandler);
       return queue.close().catch(errHandler);
-    })
+    }),
   ).then(() => {
     queues = [];
   });
@@ -43,7 +46,7 @@ export function cleanupQueues() {
 export function sleep(ms: number, retval?: any) {
   return new Promise(resolve => {
     originalSetTimeout(() => {
-      if(retval && retval.value) {
+      if (retval && retval.value) {
         resolve(retval.value);
       } else {
         resolve();
