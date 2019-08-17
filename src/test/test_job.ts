@@ -29,10 +29,9 @@ describe('Job', function() {
     });
   });
 
-  afterEach(function() {
-    return queue.close().then(function() {
-      return client.quit();
-    });
+  afterEach(async () => {
+    await queue.close();
+    return client.quit();
   });
 
   describe('.create', function() {
