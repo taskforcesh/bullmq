@@ -55,19 +55,10 @@ describe('repeat', function() {
 
   it('should create multiple jobs if they have the same cron pattern', async function() {
     const cron = '*/10 * * * * *';
-    const customJobIds = ['customjobone', 'customjobtwo'];
 
     await Promise.all([
-      queue.append(
-        'test',
-        {},
-        { jobId: customJobIds[0], repeat: { cron: cron } },
-      ),
-      queue.append(
-        'test',
-        {},
-        { jobId: customJobIds[1], repeat: { cron: cron } },
-      ),
+      queue.append('test1', {}, { repeat: { cron: cron } }),
+      queue.append('test2', {}, { repeat: { cron: cron } }),
     ]);
 
     const count = await queue.count();
@@ -99,9 +90,14 @@ describe('repeat', function() {
         {},
         { repeat: { cron: crons[3], tz: 'Africa/Accra' } },
       ),
+      queue.append(
+        'fifth',
+        {},
+        { repeat: { every: 5000, tz: 'Europa/Copenhaguen' } },
+      ),
     ]);
     const count = await repeat.getRepeatableCount();
-    expect(count).to.be.eql(4);
+    expect(count).to.be.eql(5);
 
     let jobs = await repeat.getRepeatableJobs(0, -1, true);
     jobs = await jobs.sort(function(a, b) {
@@ -109,7 +105,7 @@ describe('repeat', function() {
     });
     expect(jobs)
       .to.be.and.an('array')
-      .and.have.length(4)
+      .and.have.length(5)
       .and.to.deep.include({
         key: 'first::12345::10 * * * * *',
         name: 'first',
@@ -161,7 +157,7 @@ describe('repeat', function() {
     const nextTick = 2 * ONE_SECOND + 500;
 
     await queue.append(
-      'repeat',
+      'test',
       { foo: 'bar' },
       { repeat: { cron: '*/2 * * * * *' } },
     );
@@ -201,7 +197,7 @@ describe('repeat', function() {
     const worker = new Worker(queueName, async job => {});
 
     await queue.append(
-      'repeat',
+      'test',
       { foo: 'bar' },
       {
         repeat: {
@@ -390,6 +386,7 @@ describe('repeat', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
+    const numJobs = 3;
     const date = new Date('2017-02-07 9:24:00');
     let prev: Job;
     let counter = 0;
@@ -403,13 +400,13 @@ describe('repeat', function() {
     const processing = new Promise((resolve, reject) => {
       processor = async (job: Job) => {
         counter++;
-        if (counter == 7) {
+        if (counter == numJobs) {
           await queue.removeRepeatable('remove', repeat);
           this.clock.tick(nextTick);
           const delayed = await queue.getDelayed();
           expect(delayed).to.be.empty;
           resolve();
-        } else if (counter > 7) {
+        } else if (counter > numJobs) {
           reject(Error('should not repeat more than 7 times'));
         }
       };
@@ -498,7 +495,7 @@ describe('repeat', function() {
     await queueScheduler.close();
   });
 
-  it.skip('should not re-add a repeatable job after it has been removed', async function() {
+  it('should not re-add a repeatable job after it has been removed', async function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
@@ -735,24 +732,28 @@ describe('repeat', function() {
 
     const date = new Date('2017-02-07 9:24:00');
     this.clock.tick(date.getTime());
-    const nextTick = 2 * ONE_SECOND + 500;
+    const nextTick = 1 * ONE_SECOND + 100;
 
     const worker = new Worker(queueName, async job => {});
 
-    const waiting = new Promise(resolve => {
+    const waiting = new Promise((resolve, reject) => {
       queueEvents.on('waiting', function({ event, jobId, prev }) {
-        expect(jobId).to.be.equal(
-          'repeat:93168b0ea97b55fb5a8325e8c66e4300:' +
-            (date.getTime() + 2 * ONE_SECOND),
-        );
-        resolve();
+        try {
+          expect(jobId).to.be.equal(
+            'repeat:test:16db7a9b166154f5c636abf3c8fe3364:' +
+              (date.getTime() + 1 * ONE_SECOND),
+          );
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
     });
 
     await queue.append(
-      'repeat',
+      'test',
       { foo: 'bar' },
-      { repeat: { cron: '*/2 * * * * *' } },
+      { repeat: { cron: '*/1 * * * * *' } },
     );
     this.clock.tick(nextTick);
 
