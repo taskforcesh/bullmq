@@ -25,7 +25,7 @@ describe('Compat', function() {
 
     beforeEach(async function() {
       queueName = 'test-' + v4();
-      queue = new Queue3(queueName, 'redis://127.0.0.1:6379/0');
+      queue = new Queue3(queueName);
     });
 
     afterEach(async function() {
@@ -34,8 +34,8 @@ describe('Compat', function() {
     });
 
     it('should get waiting jobs', async function() {
-      await queue.add('test', { foo: 'bar' });
-      await queue.add('test', { baz: 'qux' });
+      await queue.append('test', { foo: 'bar' });
+      await queue.append('test', { baz: 'qux' });
 
       const jobs = await queue.getWaiting();
       expect(jobs).to.be.a('array');
@@ -47,8 +47,8 @@ describe('Compat', function() {
     it('should get paused jobs', async function() {
       await queue.pause();
       await Promise.all([
-        queue.add('test', { foo: 'bar' }),
-        queue.add('test', { baz: 'qux' }),
+        queue.append('test', { foo: 'bar' }),
+        queue.append('test', { baz: 'qux' }),
       ]);
       const jobs = await queue.getWaiting();
       expect(jobs).to.be.a('array');
@@ -69,13 +69,13 @@ describe('Compat', function() {
         };
       });
 
-      await queue.add('test', { foo: 'bar' });
-      await queue.process('test', processor);
+      await queue.append('test', { foo: 'bar' });
+      await queue.process(processor);
       await processing;
     });
 
     it('should get completed jobs', function(done) {
-      queue.process('test', async job => {});
+      queue.process(async job => {});
 
       let counter = 2;
 
@@ -89,12 +89,12 @@ describe('Compat', function() {
         }
       });
 
-      queue.add('test', { foo: 'bar' });
-      queue.add('test', { baz: 'qux' });
+      queue.append('test', { foo: 'bar' });
+      queue.append('test', { baz: 'qux' });
     });
 
     it('should get failed jobs', function(done) {
-      queue.process('test', async job => {
+      queue.process(async job => {
         throw new Error('Forced error');
       });
 
@@ -110,12 +110,12 @@ describe('Compat', function() {
         }
       });
 
-      queue.add('test', { foo: 'bar' });
-      queue.add('test', { baz: 'qux' });
+      queue.append('test', { foo: 'bar' });
+      queue.append('test', { baz: 'qux' });
     });
 
     it('should return all completed jobs when not setting start/end', function(done) {
-      queue.process('test', async job => {});
+      queue.process(async job => {});
 
       queue.on(
         'completed',
@@ -139,13 +139,13 @@ describe('Compat', function() {
         }),
       );
 
-      queue.add('test', { foo: 1 });
-      queue.add('test', { foo: 2 });
-      queue.add('test', { foo: 3 });
+      queue.append('test', { foo: 1 });
+      queue.append('test', { foo: 2 });
+      queue.append('test', { foo: 3 });
     });
 
     it('should return all failed jobs when not setting start/end', function(done) {
-      queue.process('test', async job => {
+      queue.process(async job => {
         throw new Error('error');
       });
 
@@ -172,13 +172,13 @@ describe('Compat', function() {
         }),
       );
 
-      queue.add('test', { foo: 1 });
-      queue.add('test', { foo: 2 });
-      queue.add('test', { foo: 3 });
+      queue.append('test', { foo: 1 });
+      queue.append('test', { foo: 2 });
+      queue.append('test', { foo: 3 });
     });
 
     it('should return subset of jobs when setting positive range', function(done) {
-      queue.process('test', async job => {});
+      queue.process(async job => {});
 
       queue.on(
         'completed',
@@ -201,13 +201,13 @@ describe('Compat', function() {
         }),
       );
 
-      queue.add('test', { foo: 1 });
-      queue.add('test', { foo: 2 });
-      queue.add('test', { foo: 3 });
+      queue.append('test', { foo: 1 });
+      queue.append('test', { foo: 2 });
+      queue.append('test', { foo: 3 });
     });
 
     it('should return subset of jobs when setting a negative range', function(done) {
-      queue.process('test', async job => {});
+      queue.process(async job => {});
 
       queue.on(
         'completed',
@@ -227,13 +227,13 @@ describe('Compat', function() {
         }),
       );
 
-      queue.add('test', { foo: 1 });
-      queue.add('test', { foo: 2 });
-      queue.add('test', { foo: 3 });
+      queue.append('test', { foo: 1 });
+      queue.append('test', { foo: 2 });
+      queue.append('test', { foo: 3 });
     });
 
     it('should return subset of jobs when range overflows', function(done) {
-      queue.process('test', async job => {});
+      queue.process(async job => {});
 
       queue.on(
         'completed',
@@ -253,18 +253,18 @@ describe('Compat', function() {
         }),
       );
 
-      queue.add('test', { foo: 1 });
-      queue.add('test', { foo: 2 });
-      queue.add('test', { foo: 3 });
+      queue.append('test', { foo: 1 });
+      queue.append('test', { foo: 2 });
+      queue.append('test', { foo: 3 });
     });
 
     it('should return jobs for multiple types', function(done) {
       let counter = 0;
 
-      queue.process('test', async job => {
+      queue.process(async job => {
         counter++;
         if (counter == 2) {
-          await queue.add('test', { foo: 3 });
+          await queue.append('test', { foo: 3 });
           return queue.pause();
         }
       });
@@ -283,8 +283,8 @@ describe('Compat', function() {
         }),
       );
 
-      queue.add('test', { foo: 1 });
-      queue.add('test', { foo: 2 });
+      queue.append('test', { foo: 1 });
+      queue.append('test', { foo: 2 });
     });
   });
 
@@ -314,7 +314,7 @@ describe('Compat', function() {
         done();
       });
 
-      queue.add('test', { foo: 'bar' });
+      queue.append('test', { foo: 'bar' });
     });
 
     it('should emit global waiting event when a job has been added', function(done) {
@@ -322,11 +322,11 @@ describe('Compat', function() {
         done();
       });
 
-      queue.add('test', { foo: 'bar' });
+      queue.append('test', { foo: 'bar' });
     });
 
     it('emits drained and global:drained event when all jobs have been processed', function(done) {
-      queue.process('test', async job => {});
+      queue.process(async job => {});
 
       const drainedCallback = after(2, async function() {
         const jobs = await queue.getJobCountByTypes('completed');
@@ -337,20 +337,20 @@ describe('Compat', function() {
       queue.once('drained', drainedCallback);
       queue.once('global:drained', drainedCallback);
 
-      queue.add('test', { foo: 'bar' });
-      queue.add('test', { foo: 'baz' });
+      queue.append('test', { foo: 'bar' });
+      queue.append('test', { foo: 'baz' });
     });
 
     it('should emit an event when a job becomes active', function(done) {
-      queue.add('test', {});
+      queue.append('test', {});
+
+      queue.process(async () => {});
 
       queue.once('active', function() {
         queue.once('completed', async function() {
           done();
         });
       });
-
-      queue.process('test', async () => {});
     });
 
     it('should listen to global events', function(done) {
@@ -368,8 +368,8 @@ describe('Compat', function() {
         done();
       });
 
-      queue.add('test', {});
-      queue.process('test', async () => {});
+      queue.append('test', {});
+      queue.process(async () => {});
     });
   });
 
@@ -408,12 +408,12 @@ describe('Compat', function() {
     //     };
     //   });
     //
-    //   await queue.process('test', process);
+    //   await queue.process(process);
     //
     //   await queue.pause();
     //   isPaused = true;
-    //   await queue.add('test', { foo: 'paused' });
-    //   await queue.add('test', { foo: 'paused' });
+    //   await queue.append('test', { foo: 'paused' });
+    //   await queue.append('test', { foo: 'paused' });
     //   isPaused = false;
     //   await queue.resume();
     //
@@ -448,10 +448,10 @@ describe('Compat', function() {
         };
       });
 
-      await queue.process('test', process);
+      await queue.process(process);
 
-      queue.add('test', { foo: 'paused' });
-      queue.add('test', { foo: 'paused' });
+      queue.append('test', { foo: 'paused' });
+      queue.append('test', { foo: 'paused' });
 
       queue.on('global:paused', async () => {
         isPaused = false;
@@ -470,7 +470,7 @@ describe('Compat', function() {
       let process;
       const processPromise = new Promise(resolve => {
         process = async (job: Job) => {
-          expect(queue.isPaused()).to.be.eql(false);
+          expect(queue.isWorkerPaused()).to.be.eql(false);
           counter--;
           if (counter === 0) {
             await queue.close();
@@ -479,20 +479,20 @@ describe('Compat', function() {
         };
       });
 
-      await queue.process('test', process);
-      await queue.pause(true);
+      await queue.process(process);
+      await queue.pauseWorker();
 
       // Add the worker after the queue is in paused mode since the normal behavior is to pause
       // it after the current lock expires. This way, we can ensure there isn't a lock already
       // to test that pausing behavior works.
 
-      await queue.add('test', { foo: 'paused' });
-      await queue.add('test', { foo: 'paused' });
+      await queue.append('test', { foo: 'paused' });
+      await queue.append('test', { foo: 'paused' });
 
       expect(counter).to.be.eql(2);
-      expect(queue.isPaused()).to.be.eql(true);
+      expect(queue.isWorkerPaused()).to.be.eql(true);
 
-      await queue.resume(true);
+      await queue.resumeWorker();
       return processPromise;
     });
 
@@ -506,11 +506,11 @@ describe('Compat', function() {
     //     };
     //   });
     //
-    //   await queue.process('test', process);
+    //   await queue.process(process);
     //
     //   const jobs = [];
     //   for (let i = 0; i < 10; i++) {
-    //     jobs.push(queue.add('test', i));
+    //     jobs.push(queue.append('test', i));
     //   }
     //
     //   //
@@ -529,7 +529,7 @@ describe('Compat', function() {
     //   expect(paused).to.be.eql(9);
     //   await Promise.all([active, paused]);
     //
-    //   await queue.add('test', {});
+    //   await queue.append('test', {});
     //
     //   active = await queue.getJobCountByTypes('active');
     //   expect(active).to.be.eql(0);
@@ -563,10 +563,10 @@ describe('Compat', function() {
       const worker2 = new Worker(queueName, process2);
       await worker2.waitUntilReady();
 
-      queue.add('test', 1);
-      queue.add('test', 2);
-      queue.add('test', 3);
-      queue.add('test', 4);
+      queue.append('test', 1);
+      queue.append('test', 2);
+      queue.append('test', 3);
+      queue.append('test', 4);
 
       await Promise.all([startProcessing1, startProcessing2]);
       await Promise.all([worker1.pause(), worker2.pause()]);
@@ -589,12 +589,12 @@ describe('Compat', function() {
     //     };
     //   });
     //
-    //   await queue.process('test', process);
+    //   await queue.process(process);
     //
-    //   await queue.add('test', 1);
+    //   await queue.append('test', 1);
     //   await startProcessing;
     //   await queue.pause(true);
-    //   await queue.add('test', 2);
+    //   await queue.append('test', 2);
     //
     //   const count = await queue.getJobCounts('active', 'waiting', 'completed');
     //   expect(count.active).to.be.eql(0);
@@ -603,9 +603,9 @@ describe('Compat', function() {
     // });
 
     it('pauses fast when queue is drained', async function() {
-      await queue.process('test', async () => {});
+      await queue.process(async () => {});
 
-      await queue.add('test', {});
+      await queue.append('test', {});
 
       return new Promise((resolve, reject) => {
         queue.on('global:drained', async () => {
