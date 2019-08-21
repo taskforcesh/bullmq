@@ -9,6 +9,7 @@ import { v4 } from 'node-uuid';
 import { JobsOpts } from '@src/interfaces';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Worker } from '@src/classes/worker';
+import { after } from 'lodash';
 
 import { delay } from 'bluebird';
 
@@ -29,10 +30,9 @@ describe('Job', function() {
     });
   });
 
-  afterEach(function() {
-    return queue.close().then(function() {
-      return client.quit();
-    });
+  afterEach(async () => {
+    await queue.close();
+    return client.quit();
   });
 
   describe('.create', function() {
@@ -271,7 +271,7 @@ describe('Job', function() {
       });
 
       const processStarted = new Promise(resolve =>
-        worker.once('active', resolve),
+        worker.on('active', after(2, resolve)),
       );
 
       const add = (jobId: string, ms = 0) =>
@@ -280,7 +280,8 @@ describe('Job', function() {
       await add('1');
       await add('2', 1);
       await processStarted;
-      const job = await add('3', 5000);
+      const job = await add('3', 2000);
+
       await job.promote();
       await add('4', 1);
 

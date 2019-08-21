@@ -67,11 +67,10 @@ export class Job {
     name: string,
     data: any,
     opts?: JobsOpts,
-    jobId?: string,
   ) {
     await queue.waitUntilReady();
 
-    const job = new Job(queue, name, data, opts, jobId);
+    const job = new Job(queue, name, data, opts, opts && opts.jobId);
 
     job.id = await job.addJob(queue.client);
 

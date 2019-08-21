@@ -11,7 +11,9 @@ export interface RepeatOpts {
   limit?: number;
   // Repeat every millis (cron setting cannot be used together with this setting.)
   every?: number;
+
   // The start value for the repeat iteration count.
   count?: number;
   prevMillis?: number;
+  jobId?: string;
 }

@@ -13,8 +13,6 @@ export class Repeat extends QueueBase {
     opts: JobsOpts,
     skipCheckExists?: boolean,
   ) {
-    let jobId;
-
     await this.waitUntilReady();
 
     const repeatOpts = { ...opts.repeat };
@@ -36,9 +34,7 @@ export class Repeat extends QueueBase {
     const nextMillis = getNextMillis(now, repeatOpts);
 
     if (nextMillis) {
-      jobId = opts.jobId ? opts.jobId + ':' : ':';
-
-      const repeatJobKey = getRepeatKey(name, repeatOpts, jobId);
+      const repeatJobKey = getRepeatKey(name, repeatOpts);
 
       let repeatableExists = true;
 
@@ -57,7 +53,6 @@ export class Repeat extends QueueBase {
           name,
           nextMillis,
           repeatJobKey,
-          jobId,
           { ...opts, repeat: repeatOpts },
           data,
           currentCount,
@@ -70,7 +65,6 @@ export class Repeat extends QueueBase {
     name: string,
     nextMillis: number,
     repeatJobKey: string,
-    jobId: string,
     opts: JobsOpts,
     data: any,
     currentCount: number,
@@ -78,12 +72,13 @@ export class Repeat extends QueueBase {
     //
     // Generate unique job id for this iteration.
     //
-    const customId = getRepeatJobId(name, jobId, nextMillis, md5(repeatJobKey));
+    const jobId = getRepeatJobId(name, nextMillis, md5(repeatJobKey));
     const now = Date.now();
     const delay = nextMillis - now;
 
     const mergedOpts = {
       ...opts,
+      jobId,
       delay: delay < 0 ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
@@ -97,15 +92,14 @@ export class Repeat extends QueueBase {
       repeatJobKey,
     );
 
-    return Job.create(this, name, data, mergedOpts, customId);
+    return Job.create(this, name, data, mergedOpts);
   }
 
   async removeRepeatable(name: string, repeat: RepeatOpts, jobId?: string) {
     await this.waitUntilReady();
 
-    jobId = jobId ? jobId + ':' : ':';
-    const repeatJobKey = getRepeatKey(name, repeat, jobId);
-    const repeatJobId = getRepeatJobId(name, jobId, '', md5(repeatJobKey));
+    const repeatJobKey = getRepeatKey(name, repeat);
+    const repeatJobId = getRepeatJobId(name, '', md5(repeatJobKey));
     const queueKey = this.keys[''];
 
     return (<any>this.client).removeRepeatable(
@@ -136,7 +130,7 @@ export class Repeat extends QueueBase {
     const data = key.split(':');
 
     return {
-      key: key,
+      key,
       name: data[0],
       id: data[1] || null,
       endDate: parseInt(data[2]) || null,
@@ -177,21 +171,18 @@ export class Repeat extends QueueBase {
 
 function getRepeatJobId(
   name: string,
-  jobId: string,
   nextMillis: number | string,
   namespace: string,
 ) {
-  return 'repeat:' + md5(name + jobId + namespace) + ':' + nextMillis;
+  return `repeat:${name}:${namespace}:${nextMillis}`;
 }
 
-function getRepeatKey(name: string, repeat: RepeatOpts, jobId: string) {
-  const endDate = repeat.endDate
-    ? new Date(repeat.endDate).getTime() + ':'
-    : ':';
-  const tz = repeat.tz ? repeat.tz + ':' : ':';
-  const suffix = repeat.cron ? tz + repeat.cron : String(repeat.every);
+function getRepeatKey(name: string, repeat: RepeatOpts) {
+  const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
+  const tz = repeat.tz || '';
+  const suffix = (repeat.cron ? repeat.cron : String(repeat.every)) || '';
 
-  return name + ':' + jobId + endDate + suffix;
+  return `${name}::${endDate}:${tz}:${suffix}`;
 }
 
 function getNextMillis(millis: number, opts: RepeatOpts) {
