@@ -36,7 +36,6 @@ import {
   WorkerOptions,
   Processor,
 } from '@src/interfaces';
-import { JobJson } from '@src/classes';
 import _ from 'lodash';
 import url from 'url';
 
@@ -418,16 +417,16 @@ export class Queue3<T = any> extends EventEmitter {
    * If the queue is empty the job will be executed directly,
    * otherwise it will be placed in the queue and executed as soon as possible.
    */
-  add(data: T, opts?: JobOptions3): Promise<Job3<T>>;
+  add(data: T, opts?: JobOptions3): Promise<Job>;
 
   /**
    * Creates a new named job and adds it to the queue.
    * If the queue is empty the job will be executed directly,
    * otherwise it will be placed in the queue and executed as soon as possible.
    */
-  add(name: string, data: T, opts?: JobOptions3): Promise<Job3<T>>;
+  add(name: string, data: T, opts?: JobOptions3): Promise<Job>;
 
-  async add(arg1: any, arg2?: any, arg3?: any): Promise<Job3<T>> {
+  async add(arg1: any, arg2?: any, arg3?: any): Promise<Job> {
     let name: string = Queue3.DEFAULT_JOB_NAME;
     let data: any;
     let opts: JobOptions3 = {};
@@ -451,14 +450,14 @@ export class Queue3<T = any> extends EventEmitter {
         Utils.convertToJobsOpts(opts),
         true,
       );
-      return Utils.convertToJob3(result, this);
+      return result;
     } else {
       const result = await this.getQueue().append(
         name,
         data,
         Utils.convertToJobsOpts(opts),
       );
-      return Utils.convertToJob3(result, this);
+      return result;
     }
   }
 
@@ -542,49 +541,43 @@ export class Queue3<T = any> extends EventEmitter {
    * Returns a promise that will return the job instance associated with the jobId parameter.
    * If the specified job cannot be located, the promise callback parameter will be set to null.
    */
-  async getJob(jobId: JobId3): Promise<Job3<T> | null> {
-    const job = await this.getQueue().getJob(Utils.convertToJobId(jobId));
-    return Utils.convertToJob3(job, this);
+  getJob(jobId: string): Promise<Job | null> {
+    return this.getQueue().getJob(jobId);
   }
 
   /**
    * Returns a promise that will return an array with the waiting jobs between start and end.
    */
-  async getWaiting(start = 0, end = -1): Promise<Array<Job3<T>>> {
-    const result: Job[] = await this.getQueue().getWaiting(start, end);
-    return result.map(job => Utils.convertToJob3(job, this));
+  getWaiting(start = 0, end = -1): Promise<Array<Job>> {
+    return this.getQueue().getWaiting(start, end);
   }
 
   /**
    * Returns a promise that will return an array with the active jobs between start and end.
    */
-  async getActive(start = 0, end = -1): Promise<Array<Job3<T>>> {
-    const result: Job[] = await this.getQueue().getActive(start, end);
-    return result.map(job => Utils.convertToJob3(job, this));
+  getActive(start = 0, end = -1): Promise<Array<Job>> {
+    return this.getQueue().getActive(start, end);
   }
 
   /**
    * Returns a promise that will return an array with the delayed jobs between start and end.
    */
-  async getDelayed(start = 0, end = -1): Promise<Array<Job3<T>>> {
-    const result: Job[] = await this.getQueue().getDelayed(start, end);
-    return result.map(job => Utils.convertToJob3(job, this));
+  getDelayed(start = 0, end = -1): Promise<Array<Job>> {
+    return this.getQueue().getDelayed(start, end);
   }
 
   /**
    * Returns a promise that will return an array with the completed jobs between start and end.
    */
-  async getCompleted(start = 0, end = -1): Promise<Array<Job3<T>>> {
-    const result: Job[] = await this.getQueue().getCompleted(start, end);
-    return result.map(job => Utils.convertToJob3(job, this));
+  getCompleted(start = 0, end = -1): Promise<Array<Job>> {
+    return this.getQueue().getCompleted(start, end);
   }
 
   /**
    * Returns a promise that will return an array with the failed jobs between start and end.
    */
-  async getFailed(start = 0, end = -1): Promise<Array<Job3<T>>> {
-    const result: Job[] = await this.getQueue().getFailed(start, end);
-    return result.map(job => Utils.convertToJob3(job, this));
+  async getFailed(start = 0, end = -1): Promise<Array<Job>> {
+    return this.getQueue().getFailed(start, end);
   }
 
   /**
@@ -607,14 +600,13 @@ export class Queue3<T = any> extends EventEmitter {
     data: any,
     opts: JobOptions3,
     skipCheckExists?: boolean,
-  ): Promise<Job3<T>> {
-    const result = await this.getQueue().repeat.addNextRepeatableJob(
+  ): Promise<Job> {
+    return this.getQueue().repeat.addNextRepeatableJob(
       name || Queue3.DEFAULT_JOB_NAME,
       data,
       Utils.convertToJobsOpts(opts),
       skipCheckExists,
     );
-    return Utils.convertToJob3(result, this);
   }
 
   /**
@@ -622,7 +614,7 @@ export class Queue3<T = any> extends EventEmitter {
    * used for the job when it was added.
    */
   removeRepeatable(
-    repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 },
+    repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: string },
   ): Promise<void>;
 
   /**
@@ -633,12 +625,12 @@ export class Queue3<T = any> extends EventEmitter {
    */
   removeRepeatable(
     name: string,
-    repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 },
+    repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: string },
   ): Promise<void>;
 
   async removeRepeatable(arg1: any, arg2?: any): Promise<void> {
     let name: string = Queue3.DEFAULT_JOB_NAME;
-    let repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: JobId3 };
+    let repeat: (CronRepeatOptions3 | EveryRepeatOptions3) & { jobId?: string };
 
     if (typeof arg1 === 'string') {
       name = arg1;
@@ -649,7 +641,7 @@ export class Queue3<T = any> extends EventEmitter {
     return this.getQueue().repeat.removeRepeatable(
       name,
       Utils.convertToRepeatOpts(repeat),
-      Utils.convertToJobId(repeat.jobId),
+      repeat.jobId,
     );
   }
 
@@ -684,22 +676,18 @@ export class Queue3<T = any> extends EventEmitter {
    * Returns a promise that will return an array of job instances of the given types.
    * Optional parameters for range and ordering are provided.
    */
-  async getJobs(
+  getJobs(
     types: string[],
     start = 0,
     end = -1,
     asc = false,
-  ): Promise<Array<Job3<T>>> {
-    const result: Job[] = await this.getQueue().getJobs(types, start, end, asc);
-    return result.map(job => Utils.convertToJob3(job, this));
+  ): Promise<Array<Job>> {
+    return this.getQueue().getJobs(types, start, end, asc);
   }
 
-  async getNextJob() {
+  async getNextJob(): Promise<Job> {
     await this.getWorker().waitUntilReady();
-    const result: Job = await this.worker.getNextJob();
-    if (result) {
-      return Utils.convertToJob3(result, this);
-    }
+    return this.worker.getNextJob();
   }
 
   /**
@@ -707,21 +695,20 @@ export class Queue3<T = any> extends EventEmitter {
    * value is the total amount of logs, useful for implementing pagination.
    */
   getJobLogs(
-    jobId: JobId3,
+    jobId: string,
     start = 0,
     end = -1,
   ): Promise<{ logs: string[]; count: number }> {
-    return this.getQueue().getJobLogs(Utils.convertToJobId(jobId), start, end);
+    return this.getQueue().getJobLogs(jobId, start, end);
   }
 
   /**
    * Returns a promise that resolves with the job counts for the given queue.
    */
-  async getJobCounts(types?: string[] | string): Promise<JobCounts3> {
-    const result = await this.getQueue().getJobCounts(
-      ...Utils.parseTypeArg(types),
-    );
-    return Utils.convertToJobCounts3(result);
+  getJobCounts(
+    types?: string[] | string,
+  ): Promise<{ [index: string]: number }> {
+    return this.getQueue().getJobCounts(...Utils.parseTypeArg(types));
   }
 
   /**
@@ -792,7 +779,7 @@ export class Queue3<T = any> extends EventEmitter {
     grace: number,
     status: JobStatusClean3 = 'completed',
     limit = -1,
-  ): Promise<Array<Job3<T>>> {
+  ): Promise<Array<Job>> {
     return this.getQueue().clean(grace, status, limit);
   }
 
@@ -992,7 +979,7 @@ export class Queue3<T = any> extends EventEmitter {
     return (this.getQueue() as any).parseClientList(list);
   }
 
-  retryJob(job: Job3): Promise<void> {
+  retryJob(job: Job): Promise<void> {
     return job.retry();
   }
 
@@ -1070,13 +1057,13 @@ export class Queue3<T = any> extends EventEmitter {
         if (once) {
           this.onWorkerInit(worker => {
             worker.once('active', (job, jobPromise, prev) => {
-              listener(job, Utils.getFakeJobPromise3(), prev);
+              listener(job, jobPromise, prev);
             });
           });
         } else {
           this.onWorkerInit(worker => {
             worker.on('active', (job, jobPromise, prev) => {
-              listener(job, Utils.getFakeJobPromise3(), prev);
+              listener(job, jobPromise, prev);
             });
           });
         }
@@ -1316,560 +1303,16 @@ export class Queue3<T = any> extends EventEmitter {
             }
             resolve(res);
           };
-          handler.apply(null, [Utils.convertToJob3(job, queue), done]);
+          handler.apply(null, [job, done]);
         } else {
           try {
-            return resolve(
-              handler.apply(null, [Utils.convertToJob3(job, queue)]),
-            );
+            return resolve(handler.apply(null, [job]));
           } catch (err) {
             return reject(err);
           }
         }
       });
     };
-  }
-}
-
-export class Job3<T = any> {
-  id: JobId3;
-
-  /**
-   * The custom data passed when the job was created
-   */
-  data: T;
-
-  /**
-   * Options of the job
-   */
-  opts: JobOptions3;
-
-  /**
-   * How many attempts where made to run this job
-   */
-  attemptsMade: number;
-
-  /**
-   * When this job was started (unix milliseconds)
-   */
-  processedOn?: number;
-
-  /**
-   * When this job was completed (unix milliseconds)
-   */
-  finishedOn?: number;
-
-  /**
-   * Which queue this job was part of
-   */
-  queue: Queue3<T>;
-
-  timestamp: number;
-
-  /**
-   * The named processor name
-   */
-  name: string;
-
-  /**
-   * The stacktrace for any errors
-   */
-  stacktrace: string[];
-
-  returnvalue: any;
-
-  toKey: (type: string) => string;
-
-  private _progress: any;
-  private delay: number;
-  private failedReason: string;
-
-  private job: Job;
-
-  constructor(queue: Queue3, data: any, opts?: JobOptions3);
-  constructor(queue: Queue3, name: string, data: any, opts?: JobOptions3);
-
-  constructor(
-    queue: Queue3 | InternalJobAndQueueWrapper,
-    arg2: any,
-    arg3?: any,
-    arg4?: any,
-  ) {
-    Object.defineProperties(this, {
-      job: {
-        enumerable: false,
-        writable: true,
-      },
-      id: {
-        get: () => {
-          return Utils.convertToJobId3(this.job.id);
-        },
-        set: val => {
-          this.job.id = Utils.convertToJobId(val);
-        },
-      },
-      name: {
-        get: () => {
-          return this.job.name;
-        },
-        set: val => {
-          this.job.name = val;
-        },
-      },
-      data: {
-        get: () => {
-          return this.job.data;
-        },
-        set: val => {
-          this.job.data = val;
-        },
-      },
-      opts: {
-        get: () => {
-          return Utils.convertToJobOptions3(this.job.opts);
-        },
-        set: val => {
-          this.job.opts = Utils.convertToJobsOpts(val);
-        },
-      },
-      _progress: {
-        get: () => {
-          return this.job.progress;
-        },
-        set: val => {
-          this.job.progress = val;
-        },
-      },
-      delay: {
-        get: () => {
-          return this.job.opts && this.job.opts.delay;
-        },
-        set: val => {
-          this.job.opts = { ...this.job.opts, delay: val };
-        },
-      },
-      timestamp: {
-        get: () => {
-          return this.job.timestamp;
-        },
-        set: val => {
-          this.job.timestamp = val;
-        },
-      },
-      finishedOn: {
-        get: () => {
-          return (this.job as any).finishedOn;
-        },
-        set: val => {
-          (this.job as any).finishedOn = val;
-        },
-      },
-      processedOn: {
-        get: () => {
-          return (this.job as any).processedOn;
-        },
-        set: val => {
-          (this.job as any).processedOn = val;
-        },
-      },
-      failedReason: {
-        get: () => {
-          return (this.job as any).failedReason;
-        },
-        set: val => {
-          (this.job as any).failedReason = val;
-        },
-      },
-      attemptsMade: {
-        get: () => {
-          return (this.job as any).attemptsMade;
-        },
-        set: val => {
-          (this.job as any).attemptsMade = val;
-        },
-      },
-      stacktrace: {
-        get: () => {
-          return this.job.stacktrace;
-        },
-        set: val => {
-          this.job.stacktrace = val;
-        },
-      },
-      returnvalue: {
-        get: () => {
-          return this.job.returnvalue;
-        },
-        set: val => {
-          this.job.returnvalue = val;
-        },
-      },
-      toKey: {
-        enumerable: false,
-        get: () => {
-          return (this.job as any).toKey;
-        },
-      },
-    });
-
-    let name: string = Queue3.DEFAULT_JOB_NAME;
-    let data: any;
-    let opts: JobOptions3;
-
-    if (typeof arg2 !== 'string') {
-      // formally we cannot resolve args when data is string
-      data = arg2;
-      opts = arg3;
-    } else {
-      name = arg2;
-      data = arg3;
-      opts = arg4;
-    }
-
-    const wrapper = queue as InternalJobAndQueueWrapper;
-    if (wrapper.job && wrapper.queue) {
-      // wrapper used
-      this.queue = wrapper.queue;
-      this.job = wrapper.job;
-    } else {
-      this.queue = queue as Queue3;
-      this.job = new Job(
-        (queue as any).getQueue(),
-        name,
-        data,
-        Utils.convertToJobsOpts(opts),
-      );
-    }
-
-    this.stacktrace = [];
-  }
-
-  /**
-   * Report progress on a job
-   */
-  progress(value?: any): Promise<void> | any {
-    if (_.isUndefined(value)) {
-      return this._progress;
-    }
-    return this.job.updateProgress(value);
-  }
-
-  /**
-   * Logs one row of log data.
-   *
-   * @param row String with log data to be logged.
-   */
-  log(row: string): Promise<any> {
-    return this.job.log(row);
-  }
-
-  /**
-   * Returns a promise resolving to a boolean which, if true, current job's state is completed
-   */
-  isCompleted(): Promise<boolean> {
-    return this.job.isCompleted();
-  }
-
-  /**
-   * Returns a promise resolving to a boolean which, if true, current job's state is failed
-   */
-  isFailed(): Promise<boolean> {
-    return this.job.isFailed();
-  }
-
-  /**
-   * Returns a promise resolving to a boolean which, if true, current job's state is delayed
-   */
-  isDelayed(): Promise<boolean> {
-    return this.job.isDelayed();
-  }
-
-  /**
-   * Returns a promise resolving to a boolean which, if true, current job's state is active
-   */
-  isActive(): Promise<boolean> {
-    return this.job.isActive();
-  }
-
-  /**
-   * Returns a promise resolving to a boolean which, if true, current job's state is wait
-   */
-  isWaiting(): Promise<boolean> {
-    return this.job.isWaiting();
-  }
-
-  /**
-   * Returns a promise resolving to a boolean which, if true, current job's state is paused
-   */
-  isPaused(): Promise<boolean> {
-    throw new Error('Not supported');
-  }
-
-  /**
-   * Returns a promise resolving to a boolean which, if true, current job's state is stuck
-   */
-  isStuck(): Promise<boolean> {
-    throw new Error('Not supported');
-  }
-
-  /**
-   * Returns a promise resolving to the current job's status.
-   * Please take note that the implementation of this method is not very efficient, nor is
-   * it atomic. If your queue does have a very large quantity of jobs, you may want to
-   * avoid using this method.
-   */
-  async getState(): Promise<JobStatus3> {
-    const result = await this.job.getState();
-    switch (result) {
-      case 'completed':
-        return 'completed';
-      case 'failed':
-        return 'failed';
-      case 'delayed':
-        return 'delayed';
-      case 'active':
-        return 'active';
-      case 'waiting':
-        return 'waiting';
-    }
-  }
-
-  /**
-   * Update a specific job's data. Promise resolves when the job has been updated.
-   */
-  update(data: any): Promise<void> {
-    return this.job.update(data);
-  }
-
-  /**
-   * Removes a job from the queue and from any lists it may be included in.
-   * The returned promise resolves when the job has been removed.
-   */
-  remove(): Promise<void> {
-    return this.job.remove();
-  }
-
-  /**
-   * Re-run a job that has failed. The returned promise resolves when the job
-   * has been scheduled for retry.
-   */
-  retry(): Promise<void> {
-    return this.job.retry();
-  }
-
-  /**
-   * Ensure this job is never ran again even if attemptsMade is less than job.attempts.
-   */
-  discard(): Promise<void> {
-    throw new Error('Not supported');
-  }
-
-  /**
-   * Returns a promise that resolves to the returned data when the job has been finished.
-   * TODO: Add a watchdog to check if the job has finished periodically.
-   * since pubsub does not give any guarantees.
-   */
-  finished(watchdog = 5000, ttl?: number): Promise<any> {
-    return this.job.waitUntilFinished(
-      (this.queue as any).getQueueEvents(),
-      watchdog,
-      ttl,
-    );
-  }
-
-  /**
-   * Moves a job to the `completed` queue. Pulls a job from 'waiting' to 'active'
-   * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
-   */
-  async moveToCompleted(
-    returnValue?: string,
-    ignoreLock?: boolean,
-  ): Promise<[SerializedJob3, JobId3] | null> {
-    if (ignoreLock) {
-      console.warn('ignoreLock is not supported');
-    }
-    const result = await this.job.moveToCompleted(returnValue);
-    if (result) {
-      return [
-        Utils.convertToSerializedJob3(result[0]),
-        Utils.convertToJobId3(result[1]),
-      ];
-    }
-  }
-
-  /**
-   * Moves a job to the `failed` queue. Pulls a job from 'waiting' to 'active'
-   * and returns a tuple containing the next jobs data and id. If no job is in the `waiting` queue, returns null.
-   */
-  async moveToFailed(
-    errorInfo: any,
-    ignoreLock?: boolean,
-  ): Promise<[any, JobId3] | null> {
-    if (ignoreLock) {
-      console.warn('ignoreLock is not supported');
-    }
-    await this.job.moveToFailed(errorInfo);
-    return null;
-  }
-
-  moveToDelayed(timestamp?: number, ignoreLock = false): Promise<void> {
-    if (ignoreLock) {
-      console.warn('ignoreLock is not supported');
-    }
-    return this.job.moveToDelayed(timestamp);
-  }
-
-  /**
-   * Promotes a job that is currently "delayed" to the "waiting" state and executed as soon as possible.
-   */
-  promote(): Promise<void> {
-    return this.job.promote();
-  }
-
-  /**
-   * The lock id of the job
-   */
-  lockKey(): string {
-    throw new Error('Not supported');
-  }
-
-  /**
-   * Releases the lock on the job. Only locks owned by the queue instance can be released.
-   */
-  releaseLock(): Promise<void> {
-    throw new Error('Not supported');
-  }
-
-  /**
-   * Takes a lock for this job so that no other queue worker can process it at the same time.
-   */
-  takeLock(): Promise<number | false> {
-    throw new Error('Not supported');
-  }
-
-  /**
-   * Get job properties as Json Object
-   */
-  toJSON(): JobJson3<T> {
-    const result = {
-      id: this.id,
-      name: this.name,
-      data: this.data,
-      opts: { ...this.opts },
-      progress: this._progress,
-      delay: this.delay, // Move to opts
-      timestamp: this.timestamp,
-      attemptsMade: this.attemptsMade,
-      failedReason: this.failedReason,
-      stacktrace: this.stacktrace || null,
-      returnvalue: this.returnvalue || null,
-      finishedOn: this.finishedOn || null,
-      processedOn: this.processedOn || null,
-    };
-    if (!result.data) {
-      (result as any).data = {};
-    }
-    return result;
-  }
-
-  private toData(): SerializedJob3 {
-    const target: SerializedJob3 = {
-      id: undefined,
-      name: undefined,
-      data: undefined,
-      opts: undefined,
-      progress: undefined,
-      delay: undefined,
-      timestamp: undefined,
-      attemptsMade: undefined,
-      failedReason: undefined,
-      stacktrace: undefined,
-      returnvalue: undefined,
-      finishedOn: undefined,
-      processedOn: undefined,
-    };
-    const json = this.toJSON();
-    target.id = undefined;
-    target.name = undefined;
-    target.data = JSON.stringify(json.data);
-    target.opts = JSON.stringify(json.opts);
-    target.progress = undefined;
-    target.delay = undefined;
-    target.timestamp = undefined;
-    target.attemptsMade = undefined;
-    target.failedReason = JSON.stringify(json.failedReason);
-    target.stacktrace = JSON.stringify(json.stacktrace);
-    target.returnvalue = JSON.stringify(json.returnvalue);
-    target.finishedOn = undefined;
-    target.processedOn = undefined;
-    return target;
-  }
-
-  static async create(queue: Queue3, arg2?: any, arg3?: any, arg4?: any) {
-    await queue.isReady();
-    return queue.add(arg2, arg3, arg4);
-  }
-
-  static async fromId(queue: Queue3, jobId: JobId3): Promise<Job3> {
-    // jobId can be undefined if moveJob returns undefined
-    if (!jobId) {
-      return Promise.resolve(undefined);
-    }
-
-    const serializedJob: SerializedJob3 = await queue.client.hgetall(
-      queue.toKey('' + jobId),
-    );
-    if (serializedJob && Object.keys(serializedJob).length > 0) {
-      return Job3.fromJSON(queue, serializedJob, jobId);
-    }
-    return null;
-  }
-
-  private static fromJSON<T>(
-    queue: Queue3,
-    json: SerializedJob3,
-    jobId?: JobId3,
-  ) {
-    const data = JSON.parse(json.data || '{}');
-    const opts = JSON.parse(json.opts || '{}');
-
-    const job = new Job3(
-      queue,
-      json.name || Queue3.DEFAULT_JOB_NAME,
-      data,
-      opts,
-    );
-
-    job.id = json.id || jobId;
-    job._progress = JSON.parse(json.progress || '0');
-    job.delay = parseInt(json.delay);
-    job.timestamp = parseInt(json.timestamp);
-    if (json.finishedOn) {
-      job.finishedOn = parseInt(json.finishedOn);
-    }
-
-    if (json.processedOn) {
-      job.processedOn = parseInt(json.processedOn);
-    }
-
-    job.failedReason = json.failedReason;
-    job.attemptsMade = parseInt(json.attemptsMade) || 0;
-
-    job.stacktrace = [];
-    try {
-      const parsed = JSON.parse(json.stacktrace);
-      if (Array.isArray(parsed)) {
-        job.stacktrace = parsed;
-      }
-    } catch (e) {}
-
-    if (typeof json.returnvalue === 'string') {
-      try {
-        job.returnvalue = JSON.parse(json.returnvalue);
-      } catch (e) {}
-    }
-
-    return job;
   }
 }
 
@@ -1956,13 +1399,11 @@ export interface AdvancedSettings3 {
 
 export type DoneCallback3 = (error?: Error | null, value?: any) => void;
 
-export type JobId3 = number | string;
-
 export type ProcessCallbackFunction3<T> = (
-  job: Job3<T>,
+  job: Job,
   done: DoneCallback3,
 ) => void;
-export type ProcessPromiseFunction3<T> = (job: Job3<T>) => Promise<void>;
+export type ProcessPromiseFunction3<T> = (job: Job) => Promise<void>;
 
 export type JobStatus3 =
   | 'completed'
@@ -1977,38 +1418,6 @@ export type JobStatusClean3 =
   | 'delayed'
   | 'paused'
   | 'failed';
-
-export interface SerializedJob3 {
-  id: JobId3;
-  name: string;
-  data: string;
-  opts: string;
-  progress: any;
-  delay: string;
-  timestamp: string;
-  attemptsMade: string;
-  failedReason: any;
-  stacktrace: string;
-  returnvalue: any;
-  finishedOn: string;
-  processedOn: string;
-}
-
-export interface JobJson3<T> {
-  id: JobId3;
-  name: string;
-  data: T;
-  opts: JobOptions3;
-  progress: any;
-  delay?: number;
-  timestamp: number;
-  attemptsMade: number;
-  failedReason: any;
-  stacktrace: string[] | null;
-  returnvalue: any;
-  finishedOn: number;
-  processedOn: number;
-}
 
 export interface BackoffOptions3 {
   /**
@@ -2104,7 +1513,7 @@ export interface JobOptions3 {
    * jobId is unique. If you attempt to add a job with an id that
    * already exists, it will not be added.
    */
-  jobId?: JobId3;
+  jobId?: string;
 
   /**
    * A boolean which, if true, removes the job when it successfully completes.
@@ -2156,40 +1565,26 @@ export interface JobPromise3 {
 }
 
 export type ActiveEventCallback3<T = any> = (
-  job: Job3<T>,
+  job: Job,
   jobPromise?: JobPromise3,
 ) => void;
 
-export type StalledEventCallback3<T = any> = (job: Job3<T>) => void;
+export type StalledEventCallback3<T = any> = (job: Job) => void;
 
-export type ProgressEventCallback3<T = any> = (
-  job: Job3<T>,
-  progress: any,
-) => void;
+export type ProgressEventCallback3<T = any> = (job: Job, progress: any) => void;
 
-export type CompletedEventCallback3<T = any> = (
-  job: Job3<T>,
-  result: any,
-) => void;
+export type CompletedEventCallback3<T = any> = (job: Job, result: any) => void;
 
-export type FailedEventCallback3<T = any> = (
-  job: Job3<T>,
-  error: Error,
-) => void;
+export type FailedEventCallback3<T = any> = (job: Job, error: Error) => void;
 
 export type CleanedEventCallback3<T = any> = (
-  jobs: Array<Job3<T>>,
+  jobs: Array<Job>,
   status: JobStatusClean3,
 ) => void;
 
-export type RemovedEventCallback3<T = any> = (job: Job3<T>) => void;
+export type RemovedEventCallback3<T = any> = (job: Job) => void;
 
-export type WaitingEventCallback3 = (jobId: JobId3) => void;
-
-interface InternalJobAndQueueWrapper {
-  job: Job;
-  queue: Queue3;
-}
+export type WaitingEventCallback3 = (jobId: string) => void;
 
 class Utils {
   static redisOptsFromUrl(urlString: string) {
@@ -2208,68 +1603,6 @@ class Utils {
       throw new Error(e.message);
     }
     return redisOpts;
-  }
-
-  static convertToJobId(id: JobId3): string {
-    if (id !== undefined) {
-      if (typeof id === 'string') {
-        return id;
-      } else {
-        return id.toString();
-      }
-    }
-  }
-
-  static convertToJobId3(id: string): JobId3 {
-    if (id !== undefined) {
-      return id;
-    }
-  }
-
-  static convertToJob3(source: Job, queue: Queue3<any>): Job3 {
-    if (source) {
-      const wrapper = {
-        queue,
-        job: source,
-      };
-
-      return new Job3(
-        wrapper as any,
-        source.name,
-        source.data,
-        Utils.convertToJobOptions3(source.opts),
-      );
-    }
-  }
-
-  static convertToJobOptions3(source: JobsOpts): JobOptions3 {
-    if (!source) {
-      return;
-    }
-
-    const target: JobOptions3 = {};
-
-    (target as any).timestamp = source.timestamp;
-    target.priority = source.priority;
-    target.delay = source.delay;
-    target.attempts = source.attempts;
-    target.repeat = Utils.convertToRepeatOptions3(source.repeat);
-
-    if (source.backoff !== undefined) {
-      if (typeof source.backoff === 'number') {
-        target.backoff = source.backoff;
-      } else {
-        target.backoff = Utils.convertToBackoffOptions3(source.backoff);
-      }
-    }
-
-    target.lifo = source.lifo;
-    target.timeout = source.timeout;
-    target.jobId = source.jobId;
-    target.removeOnComplete = source.removeOnComplete;
-    target.removeOnFail = source.removeOnFail;
-    target.stackTraceLimit = source.stackTraceLimit;
-    return target;
   }
 
   static convertToQueueBaseOptions(source: QueueOptions3): QueueBaseOptions {
@@ -2365,7 +1698,7 @@ class Utils {
     target.timeout = source.timeout;
 
     if (source.jobId !== undefined) {
-      target.jobId = Utils.convertToJobId(source.jobId);
+      target.jobId = source.jobId;
     }
 
     target.removeOnComplete = source.removeOnComplete;
@@ -2395,50 +1728,12 @@ class Utils {
     return target;
   }
 
-  static convertToRepeatOptions3(
-    source: RepeatOpts,
-  ): CronRepeatOptions3 | EveryRepeatOptions3 {
-    if (!source) {
-      return;
-    }
-
-    if (source.cron) {
-      const target: CronRepeatOptions3 = { cron: undefined };
-      target.cron = (source as CronRepeatOptions3).cron;
-      target.tz = (source as CronRepeatOptions3).tz;
-      target.startDate = (source as CronRepeatOptions3).startDate;
-      target.endDate = (source as CronRepeatOptions3).endDate;
-      target.limit = (source as EveryRepeatOptions3).limit;
-      return target;
-    } else {
-      const target: EveryRepeatOptions3 = { every: undefined };
-      target.tz = (source as CronRepeatOptions3).tz;
-      target.endDate = (source as CronRepeatOptions3).endDate;
-      target.limit = (source as EveryRepeatOptions3).limit;
-      target.every = (source as EveryRepeatOptions3).every;
-      return target;
-    }
-  }
-
   static convertToBackoffOpts(source: BackoffOptions3): BackoffOpts {
     if (!source) {
       return;
     }
 
     const target: BackoffOpts = { type: undefined, delay: undefined };
-
-    target.type = source.type;
-    target.delay = source.delay;
-
-    return target;
-  }
-
-  static convertToBackoffOptions3(source: BackoffOpts): BackoffOptions3 {
-    if (!source) {
-      return;
-    }
-
-    const target: BackoffOptions3 = { type: undefined };
 
     target.type = source.type;
     target.delay = source.delay;
@@ -2503,86 +1798,6 @@ class Utils {
     return target;
   }
 
-  static convertToJobCounts3(source: { [key: string]: number }): JobCounts3 {
-    if (source) {
-      const target: JobCounts3 = {
-        active: undefined,
-        completed: undefined,
-        failed: undefined,
-        delayed: undefined,
-        waiting: undefined,
-      };
-      Object.keys(source).forEach(key => {
-        if (typeof source[key] === 'number') {
-          switch (key) {
-            case 'active':
-              target.active = source[key];
-              break;
-            case 'completed':
-              target.completed = source[key];
-              break;
-            case 'failed':
-              target.failed = source[key];
-              break;
-            case 'delayed':
-              target.delayed = source[key];
-              break;
-            case 'waiting':
-              target.waiting = source[key];
-              break;
-          }
-        }
-      });
-      return target;
-    }
-  }
-
-  static convertToSerializedJob3(source: JobJson): SerializedJob3 {
-    if (source) {
-      const target: SerializedJob3 = {
-        id: undefined,
-        name: undefined,
-        data: undefined,
-        opts: undefined,
-        progress: undefined,
-        delay: undefined,
-        timestamp: undefined,
-        attemptsMade: undefined,
-        failedReason: undefined,
-        stacktrace: undefined,
-        returnvalue: undefined,
-        finishedOn: undefined,
-        processedOn: undefined,
-      };
-      target.id = source.id;
-      target.name = source.name;
-      target.data = source.data;
-      target.opts = source.opts;
-      target.progress = source.progress;
-      if (source.opts) {
-        try {
-          target.delay = JSON.parse(source.opts).delay;
-        } catch (e) {}
-      }
-      if (source.timestamp !== undefined) {
-        target.timestamp = source.timestamp.toString();
-      }
-      if (source.attemptsMade !== undefined) {
-        target.attemptsMade = source.attemptsMade.toString();
-      }
-      target.failedReason = source.failedReason;
-      target.stacktrace = source.stacktrace;
-      target.returnvalue = source.returnvalue;
-      if (source.finishedOn !== undefined) {
-        target.finishedOn = source.finishedOn.toString();
-      }
-      if (source.processedOn !== undefined) {
-        target.processedOn = source.processedOn.toString();
-      }
-      return target;
-    }
-  }
-
   static adaptToCreateClient(
     createClient: (
       type: 'client' | 'subscriber' | 'bclient',
@@ -2603,24 +1818,6 @@ class Utils {
         default:
           return undefined;
       }
-    };
-  }
-
-  static getFakeJobPromise3() {
-    const msg = 'jobPromise is not supported';
-    return {
-      then: () => {
-        console.warn(msg + ' (then() call is a no-op)');
-      },
-      catch: () => {
-        console.warn(msg + ' (catch() call is a no-op)');
-      },
-      finally: () => {
-        console.warn(msg + ' (finally() call is a no-op)');
-      },
-      cancel: () => {
-        console.warn(msg + ' (cancel() call is a no-op)');
-      },
     };
   }
 
