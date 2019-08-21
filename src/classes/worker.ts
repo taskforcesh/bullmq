@@ -36,7 +36,6 @@ export class Worker extends QueueBase {
   ) {
     super(name, opts);
 
-    // FIXME this is not the same as merge, falsy values like undefined may overwrite defaults
     this.opts = {
       // settings: {},
       drainDelay: 5,

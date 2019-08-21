@@ -12,10 +12,7 @@ export class Queue extends QueueGetters {
   repeat: Repeat;
   jobsOpts: JobsOpts;
 
-  constructor(
-    name: string,
-    opts?: QueueOptions & { defaultJobOptions?: JobsOpts },
-  ) {
+  constructor(name: string, opts?: QueueOptions) {
     super(name, opts);
 
     this.repeat = new Repeat(name, {

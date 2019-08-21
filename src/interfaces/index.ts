@@ -1,4 +1,4 @@
-export * from './advance-opts';
+export * from './advanced-opts';
 export * from './backoff-opts';
 export * from './jobs-opts';
 export * from './queue-opts';

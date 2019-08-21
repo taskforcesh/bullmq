@@ -73,6 +73,7 @@ export class RedisConnection {
   }
 
   async close() {
+    // TODO: this implementation is taken from bull3 as is and probably should be rewritten
     if (this.client) {
       if (this.client.status === 'end') {
         return;
