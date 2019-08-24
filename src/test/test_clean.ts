@@ -92,7 +92,7 @@ describe('Cleaner', () => {
         })
         .then(jobs => {
           expect(jobs.length).to.be.eql(1);
-          return queue.empty();
+          return queue.drain();
         })
         .then(() => {
           done();

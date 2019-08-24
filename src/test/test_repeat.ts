@@ -57,8 +57,8 @@ describe('repeat', function() {
     const cron = '*/10 * * * * *';
 
     await Promise.all([
-      queue.append('test1', {}, { repeat: { cron: cron } }),
-      queue.append('test2', {}, { repeat: { cron: cron } }),
+      queue.add('test1', {}, { repeat: { cron: cron } }),
+      queue.add('test2', {}, { repeat: { cron: cron } }),
     ]);
 
     const count = await queue.count();
@@ -74,23 +74,19 @@ describe('repeat', function() {
     ];
 
     await Promise.all([
-      queue.append('first', {}, { repeat: { cron: crons[0], endDate: 12345 } }),
-      queue.append(
-        'second',
-        {},
-        { repeat: { cron: crons[1], endDate: 610000 } },
-      ),
-      queue.append(
+      queue.add('first', {}, { repeat: { cron: crons[0], endDate: 12345 } }),
+      queue.add('second', {}, { repeat: { cron: crons[1], endDate: 610000 } }),
+      queue.add(
         'third',
         {},
         { repeat: { cron: crons[2], tz: 'Africa/Abidjan' } },
       ),
-      queue.append(
+      queue.add(
         'fourth',
         {},
         { repeat: { cron: crons[3], tz: 'Africa/Accra' } },
       ),
-      queue.append(
+      queue.add(
         'fifth',
         {},
         { repeat: { every: 5000, tz: 'Europa/Copenhaguen' } },
@@ -156,7 +152,7 @@ describe('repeat', function() {
 
     const nextTick = 2 * ONE_SECOND + 500;
 
-    await queue.append(
+    await queue.add(
       'test',
       { foo: 'bar' },
       { repeat: { cron: '*/2 * * * * *' } },
@@ -196,7 +192,7 @@ describe('repeat', function() {
 
     const worker = new Worker(queueName, async job => {});
 
-    await queue.append(
+    await queue.add(
       'test',
       { foo: 'bar' },
       {
@@ -241,7 +237,7 @@ describe('repeat', function() {
 
     const worker = new Worker(queueName, async job => {});
 
-    await queue.append(
+    await queue.add(
       'repeat',
       { foo: 'bar' },
       {
@@ -285,7 +281,7 @@ describe('repeat', function() {
 
     const worker = new Worker(queueName, async job => {});
 
-    await queue.append(
+    await queue.add(
       'repeat',
       { foo: 'bar' },
       {
@@ -338,7 +334,7 @@ describe('repeat', function() {
       this.clock.tick(nextMonth - now);
     };
 
-    await queue.append(
+    await queue.add(
       'repeat',
       { foo: 'bar' },
       { repeat: { cron: '* 25 9 7 * *' } },
@@ -374,8 +370,8 @@ describe('repeat', function() {
       },
     };
 
-    const p1 = queue.append('test', { foo: 'bar' }, options);
-    const p2 = queue.append('test', { foo: 'bar' }, options);
+    const p1 = queue.add('test', { foo: 'bar' }, options);
+    const p2 = queue.add('test', { foo: 'bar' }, options);
 
     const jobs = await Promise.all([p1, p2]);
     expect(jobs.length).to.be.eql(2);
@@ -414,7 +410,7 @@ describe('repeat', function() {
 
     const worker = new Worker(queueName, processor);
 
-    await queue.append('remove', { foo: 'bar' }, { repeat });
+    await queue.add('remove', { foo: 'bar' }, { repeat });
     this.clock.tick(nextTick);
 
     worker.on('completed', job => {
@@ -433,7 +429,7 @@ describe('repeat', function() {
   it('should be able to remove repeatable jobs by key', async () => {
     const repeat = { cron: '*/2 * * * * *' };
 
-    await queue.append('remove', { foo: 'bar' }, { repeat });
+    await queue.add('remove', { foo: 'bar' }, { repeat });
     const repeatableJobs = await queue.repeat.getRepeatableJobs();
     expect(repeatableJobs).to.have.length(1);
     await queue.removeRepeatableByKey(repeatableJobs[0].key);
@@ -456,7 +452,7 @@ describe('repeat', function() {
     const nextTick = 2 * ONE_SECOND + 10;
     const repeat = { cron: '*/2 * * * * *' };
 
-    await queue.append('test', { foo: 'bar' }, { repeat, jobId });
+    await queue.add('test', { foo: 'bar' }, { repeat, jobId });
 
     this.clock.tick(nextTick);
 
@@ -528,7 +524,7 @@ describe('repeat', function() {
       });
     });
 
-    await queue.append('test', { foo: 'bar' }, { repeat, jobId });
+    await queue.add('test', { foo: 'bar' }, { repeat, jobId });
 
     this.clock.tick(nextTick);
 
@@ -552,7 +548,7 @@ describe('repeat', function() {
     const worker = new Worker(queueName, NoopProc);
     worker.waitUntilReady();
 
-    await queue.append(
+    await queue.add(
       'myTestJob',
       {
         data: '2',
@@ -569,7 +565,7 @@ describe('repeat', function() {
     delayed = await queue.getDelayed();
     expect(delayed.length).to.be.eql(0);
 
-    await queue.append('myTestJob', { data: '2' }, { repeat: repeat });
+    await queue.add('myTestJob', { data: '2' }, { repeat: repeat });
 
     delayed = await queue.getDelayed();
     expect(delayed.length).to.be.eql(1);
@@ -588,7 +584,7 @@ describe('repeat', function() {
 
     const worker = new Worker(queueName, NoopProc);
 
-    await queue.append(
+    await queue.add(
       'repeat',
       { foo: 'bar' },
       { repeat: { limit: 5, cron: '*/1 * * * * *' } },
@@ -640,14 +636,12 @@ describe('repeat', function() {
     });
 
     jobAdds.push(
-      queue.append('test', { p: 1 }, { priority: 1, delay: nextTick * 3 }),
+      queue.add('test', { p: 1 }, { priority: 1, delay: nextTick * 3 }),
     );
     jobAdds.push(
-      queue.append('test', { p: 2 }, { priority: 2, delay: nextTick * 2 }),
+      queue.add('test', { p: 2 }, { priority: 2, delay: nextTick * 2 }),
     );
-    jobAdds.push(
-      queue.append('test', { p: 3 }, { priority: 3, delay: nextTick }),
-    );
+    jobAdds.push(queue.add('test', { p: 3 }, { priority: 3, delay: nextTick }));
 
     await Promise.all(jobAdds);
 
@@ -674,16 +668,8 @@ describe('repeat', function() {
 
     const nextTick = ONE_SECOND * 2 + 500;
 
-    await queue.append(
-      'repeat m',
-      { type: 'm' },
-      { repeat: { every: interval } },
-    );
-    await queue.append(
-      'repeat s',
-      { type: 's' },
-      { repeat: { every: interval } },
-    );
+    await queue.add('repeat m', { type: 'm' }, { repeat: { every: interval } });
+    await queue.add('repeat s', { type: 's' }, { repeat: { every: interval } });
     this.clock.tick(nextTick);
 
     const worker = new Worker(queueName, async job => {});
@@ -713,7 +699,7 @@ describe('repeat', function() {
 
   it('should throw an error when using .cron and .every simutaneously', async function() {
     try {
-      await queue.append(
+      await queue.add(
         'repeat',
         { type: 'm' },
         { repeat: { every: 5000, cron: '* /1 * * * * *' } },
@@ -750,7 +736,7 @@ describe('repeat', function() {
       });
     });
 
-    await queue.append(
+    await queue.add(
       'test',
       { foo: 'bar' },
       { repeat: { cron: '*/1 * * * * *' } },
@@ -766,7 +752,7 @@ describe('repeat', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
-    await queue.append('test', { foo: 'bar' }, { repeat: { every: 1000 } });
+    await queue.add('test', { foo: 'bar' }, { repeat: { every: 1000 } });
     this.clock.tick(ONE_SECOND + 100);
 
     let processor;

@@ -275,7 +275,7 @@ describe('Job', function() {
       );
 
       const add = (jobId: string, ms = 0) =>
-        queue.append('test', {}, { jobId, delay: ms, priority: 1 });
+        queue.add('test', {}, { jobId, delay: ms, priority: 1 });
 
       await add('1');
       await add('2', 1);
@@ -421,7 +421,7 @@ describe('Job', function() {
     it('should resolve when the job has been completed', async function() {
       const worker = new Worker(queueName, async job => 'qux');
 
-      const job = await queue.append('test', { foo: 'bar' });
+      const job = await queue.add('test', { foo: 'bar' });
 
       const result = await job.waitUntilFinished(queueEvents);
 
@@ -433,7 +433,7 @@ describe('Job', function() {
     it('should resolve when the job has been completed and return object', async function() {
       const worker = new Worker(queueName, async job => ({ resultFoo: 'bar' }));
 
-      const job = await queue.append('test', { foo: 'bar' });
+      const job = await queue.add('test', { foo: 'bar' });
 
       const result = await job.waitUntilFinished(queueEvents);
 
@@ -449,7 +449,7 @@ describe('Job', function() {
         return { resultFoo: 'bar' };
       });
 
-      const job = await queue.append('test', { foo: 'bar' });
+      const job = await queue.add('test', { foo: 'bar' });
       await delay(600);
 
       const result = await job.waitUntilFinished(queueEvents);
@@ -462,7 +462,7 @@ describe('Job', function() {
     it('should resolve when the job has been completed and return string', async function() {
       const worker = new Worker(queueName, async job => 'a string');
 
-      const job = await queue.append('test', { foo: 'bar' });
+      const job = await queue.add('test', { foo: 'bar' });
 
       const result = await job.waitUntilFinished(queueEvents);
 
@@ -478,7 +478,7 @@ describe('Job', function() {
         throw new Error('test error');
       });
 
-      const job = await queue.append('test', { foo: 'bar' });
+      const job = await queue.add('test', { foo: 'bar' });
 
       try {
         await job.waitUntilFinished(queueEvents);
@@ -493,7 +493,7 @@ describe('Job', function() {
     it('should resolve directly if already processed', async function() {
       const worker = new Worker(queueName, async job => ({ resultFoo: 'bar' }));
 
-      const job = await queue.append('test', { foo: 'bar' });
+      const job = await queue.add('test', { foo: 'bar' });
 
       await delay(500);
       const result = await job.waitUntilFinished(queueEvents);
@@ -509,7 +509,7 @@ describe('Job', function() {
         throw new Error('test error');
       });
 
-      const job = await queue.append('test', { foo: 'bar' });
+      const job = await queue.add('test', { foo: 'bar' });
 
       await delay(500);
       try {

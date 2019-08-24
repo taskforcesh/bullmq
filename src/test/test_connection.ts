@@ -52,7 +52,7 @@ describe('connection', () => {
     worker.client.emit('error', new Error('ECONNRESET'));
 
     // add something to the queue
-    await queue.append('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'bar' });
 
     await processing;
 
@@ -90,12 +90,12 @@ describe('connection', () => {
         (<any>worker.client).stream.end();
         worker.client.emit('error', new Error('ECONNRESET'));
 
-        queue.append('test', { foo: 'bar' });
+        queue.add('test', { foo: 'bar' });
       }
     });
 
     await queue.waitUntilReady();
-    await queue.append('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'bar' });
 
     await processing;
 

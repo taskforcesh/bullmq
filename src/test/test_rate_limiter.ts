@@ -46,10 +46,10 @@ describe('Rate Limiter', function() {
     });
 
     await Promise.all([
-      queue.append('test', {}),
-      queue.append('test', {}),
-      queue.append('test', {}),
-      queue.append('test', {}),
+      queue.add('test', {}),
+      queue.add('test', {}),
+      queue.add('test', {}),
+      queue.add('test', {}),
     ]);
 
     await Promise.all([
@@ -103,7 +103,7 @@ describe('Rate Limiter', function() {
     });
 
     for (let i = 0; i < numJobs; i++) {
-      await queue.append('rate test', {});
+      await queue.add('rate test', {});
     }
 
     await result;

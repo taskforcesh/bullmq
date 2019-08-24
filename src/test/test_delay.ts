@@ -62,7 +62,7 @@ describe('Delayed jobs', function() {
       });
     });
 
-    const job = await queue.append('test', { delayed: 'foobar' }, { delay });
+    const job = await queue.add('test', { delayed: 'foobar' }, { delay });
 
     expect(job.id).to.be.ok;
     expect(job.data.delayed).to.be.eql('foobar');
@@ -99,16 +99,16 @@ describe('Delayed jobs', function() {
       });
     });
 
-    queue.append('test', { order: 1 }, { delay: 100 });
-    queue.append('test', { order: 6 }, { delay: 600 });
-    queue.append('test', { order: 10 }, { delay: 1000 });
-    queue.append('test', { order: 2 }, { delay: 200 });
-    queue.append('test', { order: 9 }, { delay: 900 });
-    queue.append('test', { order: 5 }, { delay: 500 });
-    queue.append('test', { order: 3 }, { delay: 300 });
-    queue.append('test', { order: 7 }, { delay: 700 });
-    queue.append('test', { order: 4 }, { delay: 400 });
-    queue.append('test', { order: 8 }, { delay: 800 });
+    queue.add('test', { order: 1 }, { delay: 100 });
+    queue.add('test', { order: 6 }, { delay: 600 });
+    queue.add('test', { order: 10 }, { delay: 1000 });
+    queue.add('test', { order: 2 }, { delay: 200 });
+    queue.add('test', { order: 9 }, { delay: 900 });
+    queue.add('test', { order: 5 }, { delay: 500 });
+    queue.add('test', { order: 3 }, { delay: 300 });
+    queue.add('test', { order: 7 }, { delay: 700 });
+    queue.add('test', { order: 4 }, { delay: 400 });
+    queue.add('test', { order: 8 }, { delay: 800 });
 
     await promise;
 
@@ -173,7 +173,7 @@ describe('Delayed jobs', function() {
     let i = 1;
     for (i; i <= 12; i++) {
       promises.push(
-        queue.append(
+        queue.add(
           'test',
           { order: i },
           {

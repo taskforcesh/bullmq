@@ -30,7 +30,7 @@ export class Queue extends QueueGetters {
     return this.jobsOpts;
   }
 
-  async append(jobName: string, data: any, opts?: JobsOpts) {
+  async add(jobName: string, data: any, opts?: JobsOpts) {
     if (opts && opts.repeat) {
       return this.repeat.addNextRepeatableJob(
         jobName,

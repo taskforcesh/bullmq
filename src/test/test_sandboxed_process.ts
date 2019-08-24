@@ -59,7 +59,7 @@ describe('sandboxed process', () => {
       }
     });
 
-    queue.append('test', { foo: 'bar' });
+    queue.add('test', { foo: 'bar' });
   });
 
   it('should process with named processor', done => {
@@ -86,7 +86,7 @@ describe('sandboxed process', () => {
       }
     });
 
-    queue.append('foobar', { foo: 'bar' });
+    queue.add('foobar', { foo: 'bar' });
   });
 
   it('should process with concurrent processors', function(done) {
@@ -102,10 +102,10 @@ describe('sandboxed process', () => {
       });
 
       await Promise.all([
-        queue.append('test', { foo: 'bar1' }),
-        queue.append('test', { foo: 'bar2' }),
-        queue.append('test', { foo: 'bar3' }),
-        queue.append('test', { foo: 'bar4' }),
+        queue.add('test', { foo: 'bar1' }),
+        queue.add('test', { foo: 'bar2' }),
+        queue.add('test', { foo: 'bar3' }),
+        queue.add('test', { foo: 'bar4' }),
       ]);
 
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
@@ -156,10 +156,10 @@ describe('sandboxed process', () => {
       });
 
       await Promise.all([
-        queue.append('1', { foo: 'bar1' }),
-        queue.append('2', { foo: 'bar2' }),
-        queue.append('3', { foo: 'bar3' }),
-        queue.append('4', { foo: 'bar4' }),
+        queue.add('1', { foo: 'bar1' }),
+        queue.add('2', { foo: 'bar2' }),
+        queue.add('3', { foo: 'bar3' }),
+        queue.add('4', { foo: 'bar4' }),
       ]);
 
       worker.on('completed', (job, value) => {
@@ -211,7 +211,7 @@ describe('sandboxed process', () => {
       progresses.push(progress);
     });
 
-    queue.append('test', { foo: 'bar' });
+    queue.add('test', { foo: 'bar' });
   });
 
   it('should process and fail', done => {
@@ -241,7 +241,7 @@ describe('sandboxed process', () => {
       }
     });
 
-    queue.append('test', { foo: 'bar' });
+    queue.add('test', { foo: 'bar' });
   });
 
   it('should error if processor file is missing', done => {
@@ -268,7 +268,7 @@ describe('sandboxed process', () => {
       },
     });
 
-    const job = await queue.append('test', {});
+    const job = await queue.add('test', {});
     const inspection = await pReflect(
       Promise.resolve(job.waitUntilFinished(queueEvents)),
     );
@@ -287,7 +287,7 @@ describe('sandboxed process', () => {
       },
     });
 
-    const job = await queue.append('test', { exitCode: 0 });
+    const job = await queue.add('test', { exitCode: 0 });
     const inspection = await pReflect(
       Promise.resolve(job.waitUntilFinished(queueEvents)),
     );
@@ -308,7 +308,7 @@ describe('sandboxed process', () => {
       },
     });
 
-    const job = await queue.append('test', { exitCode: 1 });
+    const job = await queue.add('test', { exitCode: 1 });
     const inspection = await pReflect(
       Promise.resolve(job.waitUntilFinished(queueEvents)),
     );
@@ -342,6 +342,6 @@ describe('sandboxed process', () => {
       }
     });
 
-    queue.append('test', { foo: 'bar' });
+    queue.add('test', { foo: 'bar' });
   });
 });

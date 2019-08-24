@@ -33,8 +33,8 @@ describe('Jobs getters', function() {
   });
 
   it('should get waiting jobs', async function() {
-    await queue.append('test', { foo: 'bar' });
-    await queue.append('test', { baz: 'qux' });
+    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { baz: 'qux' });
 
     const jobs = await queue.getWaiting();
     expect(jobs).to.be.a('array');
@@ -46,8 +46,8 @@ describe('Jobs getters', function() {
   it('should get paused jobs', async function() {
     await queue.pause();
     await Promise.all([
-      queue.append('test', { foo: 'bar' }),
-      queue.append('test', { baz: 'qux' }),
+      queue.add('test', { foo: 'bar' }),
+      queue.add('test', { baz: 'qux' }),
     ]);
     const jobs = await queue.getWaiting();
     expect(jobs).to.be.a('array');
@@ -69,7 +69,7 @@ describe('Jobs getters', function() {
     });
     const worker = new Worker(queueName, processor);
 
-    await queue.append('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'bar' });
     await processing;
 
     await worker.close();
@@ -106,8 +106,8 @@ describe('Jobs getters', function() {
       }
     });
 
-    queue.append('test', { foo: 'bar' });
-    queue.append('test', { baz: 'qux' });
+    queue.add('test', { foo: 'bar' });
+    queue.add('test', { baz: 'qux' });
   });
 
   it('should get failed jobs', function(done) {
@@ -128,8 +128,8 @@ describe('Jobs getters', function() {
       }
     });
 
-    queue.append('test', { foo: 'bar' });
-    queue.append('test', { baz: 'qux' });
+    queue.add('test', { foo: 'bar' });
+    queue.add('test', { baz: 'qux' });
   });
 
   /*
@@ -185,9 +185,9 @@ describe('Jobs getters', function() {
       }),
     );
 
-    queue.append('test', { foo: 1 });
-    queue.append('test', { foo: 2 });
-    queue.append('test', { foo: 3 });
+    queue.add('test', { foo: 1 });
+    queue.add('test', { foo: 2 });
+    queue.add('test', { foo: 3 });
   });
 
   it('should return all failed jobs when not setting start/end', function(done) {
@@ -219,9 +219,9 @@ describe('Jobs getters', function() {
       }),
     );
 
-    queue.append('test', { foo: 1 });
-    queue.append('test', { foo: 2 });
-    queue.append('test', { foo: 3 });
+    queue.add('test', { foo: 1 });
+    queue.add('test', { foo: 2 });
+    queue.add('test', { foo: 3 });
   });
 
   it('should return subset of jobs when setting positive range', function(done) {
@@ -249,9 +249,9 @@ describe('Jobs getters', function() {
       }),
     );
 
-    queue.append('test', { foo: 1 });
-    queue.append('test', { foo: 2 });
-    queue.append('test', { foo: 3 });
+    queue.add('test', { foo: 1 });
+    queue.add('test', { foo: 2 });
+    queue.add('test', { foo: 3 });
   });
 
   it('should return subset of jobs when setting a negative range', function(done) {
@@ -276,9 +276,9 @@ describe('Jobs getters', function() {
       }),
     );
 
-    queue.append('test', { foo: 1 });
-    queue.append('test', { foo: 2 });
-    queue.append('test', { foo: 3 });
+    queue.add('test', { foo: 1 });
+    queue.add('test', { foo: 2 });
+    queue.add('test', { foo: 3 });
   });
 
   it('should return subset of jobs when range overflows', function(done) {
@@ -303,9 +303,9 @@ describe('Jobs getters', function() {
       }),
     );
 
-    queue.append('test', { foo: 1 });
-    queue.append('test', { foo: 2 });
-    queue.append('test', { foo: 3 });
+    queue.add('test', { foo: 1 });
+    queue.add('test', { foo: 2 });
+    queue.add('test', { foo: 3 });
   });
 
   it('should return jobs for multiple types', function(done) {
@@ -313,7 +313,7 @@ describe('Jobs getters', function() {
     const worker = new Worker(queueName, async job => {
       counter++;
       if (counter == 2) {
-        await queue.append('test', { foo: 3 });
+        await queue.add('test', { foo: 3 });
         return queue.pause();
       }
     });
@@ -333,7 +333,7 @@ describe('Jobs getters', function() {
       }),
     );
 
-    queue.append('test', { foo: 1 });
-    queue.append('test', { foo: 2 });
+    queue.add('test', { foo: 1 });
+    queue.add('test', { foo: 2 });
   });
 });
