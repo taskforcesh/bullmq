@@ -11,6 +11,7 @@ import path from 'path';
 import { ChildPool } from './child-pool';
 import sandbox from './sandbox';
 import { pool } from './child-pool';
+import { stringify } from 'querystring';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -28,7 +29,7 @@ export class Worker extends QueueBase {
   private childPool: ChildPool;
   public opts: WorkerOptions;
 
-  private processing: { [index: number]: Promise<Job | void> } = {};
+  private processing: Set<Promise<Job | void>>; // { [index: number]: Promise<Job | void> } = {};
   constructor(
     name: string,
     processor: string | Processor,
@@ -63,11 +64,6 @@ export class Worker extends QueueBase {
 
     this.repeat = new Repeat(name, opts);
 
-    //
-    // We will reuse the repeat client connection for other things such as
-    // job completion/failure, delay handling and stuck jobs.
-    //
-
     this.run();
   }
 
@@ -88,44 +84,30 @@ export class Worker extends QueueBase {
     }
 
     const opts: WorkerOptions = <WorkerOptions>this.opts;
-    const processors = [];
 
-    // An idea for implemeting the concurrency differently:
-    /*
-      const processing: Promise<[number, Job | void][] = this.processing = [];
-      for(let i=0; i < concurrency; i++){
-        this.processing.push([Promise.resolve(i), null])
-      }
-      
-      while(!this.closing){
-        // Get a free processing slot and maybe a job to process.
-        const [index, job] = await Promise.race(this.processing);
+    const processing = (this.processing = new Set());
 
-        if(!job){
-          job: Job | void = await this.getNextJob();
-        }
-
-        processing[index] = this.processJob(job).then( async () => [index, job])
-      }
-      return Promise.all(processing);
-    */
-
-    for (let i = 0; i < opts.concurrency; i++) {
-      processors.push(this.processJobs(i));
-    }
-
-    return Promise.all(processors);
-  }
-
-  private async processJobs(index: number) {
     while (!this.closing) {
-      let job: Job | void = await this.getNextJob();
+      if (processing.size < opts.concurrency) {
+        processing.add(this.getNextJob());
+      }
 
-      while (job) {
-        this.processing[index] = this.processJob(job);
-        job = await this.processing[index];
+      //
+      // Get the first promise that completes
+      //
+      const [completed] = await Promise.race(
+        [...processing].map(p => p.then(res => [p])),
+      );
+
+      processing.delete(completed);
+
+      const job = await completed;
+
+      if (job) {
+        processing.add(this.processJob(job));
       }
     }
+    return Promise.all(processing);
   }
 
   /**
@@ -188,10 +170,8 @@ export class Worker extends QueueBase {
         await this.repeat.addNextRepeatableJob(job.name, job.data, job.opts);
       }
       return job;
-    } else {
-      if (!this.drained) {
-        this.emit('drained');
-      }
+    } else if (!this.drained) {
+      this.emit('drained');
       this.drained = true;
     }
   }
@@ -227,7 +207,8 @@ export class Worker extends QueueBase {
 
     try {
       const result = await this.processFn(job);
-      return handleCompleted(result);
+      const nextJob = await handleCompleted(result);
+      return nextJob;
     } catch (err) {
       return handleFailed(err);
     }
@@ -283,17 +264,21 @@ export class Worker extends QueueBase {
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
     this.waiting && (await redisClientDisconnect(this.client));
-    const processingPromises = Object.values(this.processing);
-    await Promise.all(processingPromises);
+
+    if (this.processing) {
+      await Promise.all(this.processing);
+    }
     this.waiting && (await this.client.connect());
   }
 
-  close() {
+  async close() {
+    this.emit('closing', 'closing queue');
     try {
-      return super.close();
+      await super.close();
     } finally {
       this.childPool && this.childPool.clean();
     }
+    this.emit('closed');
   }
 }
 
