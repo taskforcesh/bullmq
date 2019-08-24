@@ -42,6 +42,19 @@ export class QueueEvents extends QueueBase {
         for (let i = 0; i < events.length; i++) {
           id = events[i][0];
           const args = array2obj(events[i][1]);
+
+          //
+          // TODO: we may need to have a separate xtream for progress data
+          // to avoid this hack.
+          switch (args.event) {
+            case 'progress':
+              args.data = JSON.parse(args.data);
+              break;
+            case 'completed':
+              args.returnvalue = JSON.parse(args.returnvalue);
+              break;
+          }
+
           this.emit(args.event, args, id);
           this.emit(`${args.event}:${args.jobId}`, args, id);
         }
