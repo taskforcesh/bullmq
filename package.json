@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc",
     "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
-    "test": "yarn lint && ts-mocha --paths 'src/**/test_*.ts' --exit",
+    "test": "yarn lint && tsc && ts-mocha --paths 'src/**/test_*.ts' --exit",
     "test:watch": "yarn lint  && ts-mocha --paths 'src/**/test_*.ts' -w --watch-extensions ts",
     "coveralls": "istanbul cover ./node_modules/mocha/bin/_mocha --report lcovonly -- -R spec && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
     "precommit": "yarn lint",
