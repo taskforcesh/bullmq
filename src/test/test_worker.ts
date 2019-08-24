@@ -1068,22 +1068,26 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    worker.once('failed', (job, err) => {
+    worker.once('failed', async (job, err) => {
       expect(job).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
       expect(err).to.be.eql(notEvenErr);
       failedOnce = true;
-      job.retry().then(() => {
-        expect(job.failedReason).to.be.null;
-        expect(job.processedOn).to.be.null;
-        expect(job.finishedOn).to.be.null;
 
-        queue.getJob(job.id).then(updatedJob => {
-          expect(updatedJob.failedReason).to.be.undefined;
-          expect(updatedJob.processedOn).to.be.undefined;
-          expect(updatedJob.finishedOn).to.be.undefined;
-        });
-      });
+      await worker.pause(true);
+
+      await job.retry();
+
+      expect(job.failedReason).to.be.null;
+      expect(job.processedOn).to.be.null;
+      expect(job.finishedOn).to.be.null;
+
+      const updatedJob = await queue.getJob(job.id);
+      expect(updatedJob.failedReason).to.be.undefined;
+      expect(updatedJob.processedOn).to.be.undefined;
+      expect(updatedJob.finishedOn).to.be.undefined;
+
+      await worker.resume();
     });
 
     await new Promise(resolve => {
@@ -1328,8 +1332,12 @@ describe('workers', function() {
       await worker.close();
     });
 
-    it.skip('should retry a job after a delay if a fixed backoff is given', async () => {
+    it('should retry a job after a delay if a fixed backoff is given', async function() {
       this.timeout(12000);
+
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.init();
+
       let start: number;
 
       const worker = new Worker(queueName, async job => {
@@ -1359,11 +1367,15 @@ describe('workers', function() {
       });
 
       await worker.close();
+      await queueScheduler.close();
     });
 
-    it.skip('should retry a job after a delay if an exponential backoff is given', async () => {
+    it('should retry a job after a delay if an exponential backoff is given', async function() {
       this.timeout(12000);
       let start: number;
+
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.init();
 
       const worker = new Worker(queueName, async job => {
         if (job.attemptsMade < 2) {
@@ -1396,10 +1408,14 @@ describe('workers', function() {
       });
 
       await worker.close();
+      await queueScheduler.close();
     });
 
-    it.skip('should retry a job after a delay if a custom backoff is given', async () => {
+    it('should retry a job after a delay if a custom backoff is given', async function() {
       this.timeout(12000);
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.init();
+
       let start: number;
 
       const worker = new Worker(
@@ -1443,6 +1459,8 @@ describe('workers', function() {
       });
 
       await worker.close();
+
+      await queueScheduler.close();
     });
 
     it('should not retry a job if the custom backoff returns -1', async () => {
@@ -1492,10 +1510,12 @@ describe('workers', function() {
       await worker.close();
     });
 
-    it.skip('should retry a job after a delay if a custom backoff is given based on the error thrown', async () => {
+    it('should retry a job after a delay if a custom backoff is given based on the error thrown', async function() {
       class CustomError extends Error {}
 
       this.timeout(12000);
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.init();
 
       const worker = new Worker(
         queueName,
@@ -1539,9 +1559,14 @@ describe('workers', function() {
       });
 
       await worker.close();
+
+      await queueScheduler.close();
     });
 
     it.skip('should not retry a job that has been removed', async () => {
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.init();
+
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {
           attempts++;
@@ -1587,10 +1612,13 @@ describe('workers', function() {
       });
 
       await worker.close();
+      await queueScheduler.close();
     });
 
     it.skip('should not retry a job that has been retried already', async () => {
       let attempts = 0;
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.init();
 
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {
@@ -1633,9 +1661,10 @@ describe('workers', function() {
       });
 
       await worker.close();
+      await queueScheduler.close();
     });
 
-    it.skip('should not retry a job that is active', async () => {
+    it('should not retry a job that is active', async () => {
       const worker = new Worker(queueName, async job => {
         await delay(300);
       });
@@ -1650,7 +1679,7 @@ describe('workers', function() {
         try {
           await job.retry();
         } catch (err) {
-          expect(err.message).to.equal(RetryErrors.JobIsActive);
+          expect(err.message).to.equal('Retried job not failed');
         }
       });
 

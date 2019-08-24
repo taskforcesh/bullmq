@@ -228,7 +228,8 @@ export class Job {
     //
     var moveToFailed = false;
     if (this.attemptsMade < this.opts.attempts && !this.discarded) {
-      const opts = <WorkerOptions>queue.opts;
+      const opts = queue.opts as WorkerOptions;
+
       // Check if backoff is needed
       const delay = Backoffs.calculate(
         <BackoffOpts>this.opts.backoff,
@@ -238,10 +239,8 @@ export class Job {
       );
 
       if (delay === -1) {
-        // If delay is -1, we should no continue retrying
         moveToFailed = true;
       } else if (delay) {
-        // If so, move to delayed (need to unlock job in this case!)
         const args = Scripts.moveToDelayedArgs(
           queue,
           this.id,
@@ -250,7 +249,7 @@ export class Job {
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
       } else {
-        // If not, retry immediately
+        // Retry immediately
         (<any>multi).retryJob(Scripts.retryJobArgs(queue, this));
         command = 'retry';
       }

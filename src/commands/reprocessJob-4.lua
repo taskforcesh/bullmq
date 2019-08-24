@@ -20,16 +20,17 @@
 ]]
 local rcall = redis.call;
 if (rcall("EXISTS", KEYS[1]) == 1) then
-    if (rcall("ZREM", KEYS[3], ARGV[1]) == 1) then
-      rcall(ARGV[2], KEYS[4], ARGV[1])
-      rcall(ARGV[2], KEYS[4] .. ":added", ARGV[1])
+  local jobId = ARGV[1]
+  if (rcall("ZREM", KEYS[3], jobId) == 1) then
+    rcall(ARGV[2], KEYS[4], jobId)
+    rcall(ARGV[2], KEYS[4] .. ":added", jobId)
 
-      -- Emit waiting event
-      rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId);
-      return 1
-    else
-      return -2
-    end
+    -- Emit waiting event
+    rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId);
+    return 1
+  else
+    return -2
+  end
 else
   return 0
 end
