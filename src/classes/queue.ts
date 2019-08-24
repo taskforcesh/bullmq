@@ -26,6 +26,10 @@ export class Queue extends QueueGetters {
     this.jobsOpts = opts && opts.defaultJobOptions;
   }
 
+  get defaultJobOptions() {
+    return this.jobsOpts;
+  }
+
   async append(jobName: string, data: any, opts?: JobsOpts) {
     if (opts && opts.repeat) {
       return this.repeat.addNextRepeatableJob(
@@ -115,29 +119,23 @@ export class Queue extends QueueGetters {
    * Cleans jobs from a queue. Similar to remove but keeps jobs within a certain
    * grace period.
    *
-   * @param {int} grace - The grace period
+   * @param {number} grace - The grace period
+   * @param {number} The max number of jobs to clean
    * @param {string} [type=completed] - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
-   * @param {int} The max number of jobs to clean
    */
-  async clean(grace: number, type = 'completed', limit: number) {
+  async clean(
+    grace: number,
+    limit: number,
+    type:
+      | 'completed'
+      | 'wait'
+      | 'active'
+      | 'paused'
+      | 'delayed'
+      | 'failed' = 'completed',
+  ) {
     await this.waitUntilReady();
-
-    if (grace === undefined || grace === null) {
-      throw new Error('You must define a grace period.');
-    }
-
-    if (!type) {
-      type = 'completed';
-    }
-
-    if (
-      ['completed', 'wait', 'active', 'paused', 'delayed', 'failed'].indexOf(
-        type,
-      ) === -1
-    ) {
-      throw new Error('Cannot clean unknown queue type ' + type);
-    }
 
     const jobs = await Scripts.cleanJobsInSet(
       this,
@@ -146,5 +144,45 @@ export class Queue extends QueueGetters {
       limit,
     );
     return jobs;
+  }
+
+  /**
+  Empties the queue.
+
+  Returns a promise that is resolved after the operation has been completed.
+  Note that if some other process is adding jobs at the same time as emptying,
+  the queues may not be really empty after this method has executed completely.
+  Also, if the method does error between emptying the lists and removing all the
+  jobs, there will be zombie jobs left in redis.
+
+  TODO: Use EVAL to make this operation fully atomic.
+*/
+  empty() {
+    // Get all jobids and empty all lists atomically.
+    let multi = this.client.multi();
+
+    multi.lrange(this.toKey('wait'), 0, -1);
+    multi.lrange(this.toKey('paused'), 0, -1);
+    multi.del(this.toKey('wait'));
+    multi.del(this.toKey('paused'));
+    multi.del(this.toKey('meta-paused'));
+    multi.del(this.toKey('delayed'));
+    multi.del(this.toKey('priority'));
+
+    return multi.exec().then(res => {
+      let waiting = res[0],
+        paused = res[1];
+
+      waiting = waiting[1];
+      paused = paused[1];
+      const jobKeys = paused.concat(waiting).map(this.toKey, this);
+
+      if (jobKeys.length) {
+        multi = this.client.multi();
+
+        multi.del.apply(multi, jobKeys);
+        return multi.exec();
+      }
+    });
   }
 }
