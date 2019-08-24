@@ -1,7 +1,7 @@
 import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
 import { array2obj } from '@src/utils';
-import { QueueKeeperOptions } from '@src/interfaces';
+import { QueueSchedulerOptions } from '@src/interfaces';
 
 const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
 
@@ -24,7 +24,7 @@ const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
 export class QueueScheduler extends QueueBase {
   private nextTimestamp = Number.MAX_VALUE;
 
-  constructor(protected name: string, opts?: QueueKeeperOptions) {
+  constructor(protected name: string, opts?: QueueSchedulerOptions) {
     super(name, opts);
 
     this.opts = Object.assign(this.opts, {
@@ -55,7 +55,7 @@ export class QueueScheduler extends QueueBase {
       // Can we use XGROUPS to reduce redundancy?
       const blockTime = Math.round(
         Math.min(
-          (<QueueKeeperOptions>this.opts).stalledInterval,
+          (<QueueSchedulerOptions>this.opts).stalledInterval,
           Math.max(this.nextTimestamp - Date.now(), 0),
         ),
       );

@@ -23,7 +23,11 @@ export class Queue extends QueueGetters {
     this.jobsOpts = opts && opts.defaultJobOptions;
   }
 
-  async append(jobName: string, data: any, opts?: JobsOpts) {
+  get defaultJobOptions() {
+    return this.jobsOpts;
+  }
+
+  async add(jobName: string, data: any, opts?: JobsOpts) {
     if (opts && opts.repeat) {
       return this.repeat.addNextRepeatableJob(
         jobName,
@@ -112,29 +116,23 @@ export class Queue extends QueueGetters {
    * Cleans jobs from a queue. Similar to remove but keeps jobs within a certain
    * grace period.
    *
-   * @param {int} grace - The grace period
+   * @param {number} grace - The grace period
+   * @param {number} The max number of jobs to clean
    * @param {string} [type=completed] - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
-   * @param {int} The max number of jobs to clean
    */
-  async clean(grace: number, type = 'completed', limit: number) {
+  async clean(
+    grace: number,
+    limit: number,
+    type:
+      | 'completed'
+      | 'wait'
+      | 'active'
+      | 'paused'
+      | 'delayed'
+      | 'failed' = 'completed',
+  ) {
     await this.waitUntilReady();
-
-    if (grace === undefined || grace === null) {
-      throw new Error('You must define a grace period.');
-    }
-
-    if (!type) {
-      type = 'completed';
-    }
-
-    if (
-      ['completed', 'wait', 'active', 'paused', 'delayed', 'failed'].indexOf(
-        type,
-      ) === -1
-    ) {
-      throw new Error('Cannot clean unknown queue type ' + type);
-    }
 
     const jobs = await Scripts.cleanJobsInSet(
       this,

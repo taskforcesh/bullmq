@@ -23,23 +23,17 @@ import IORedis from 'ioredis';
 import { EventEmitter } from 'events';
 import { QueueEvents, Worker, Queue, QueueScheduler, Job } from '@src/classes';
 import {
-  ClientType,
   JobsOpts,
   QueueOptions,
-  QueueBaseOptions,
   AdvancedOpts,
-  BackoffOpts,
-  RateLimiterOpts,
   RepeatOpts,
   QueueEventsOptions,
-  QueueKeeperOptions,
+  QueueSchedulerOptions,
   WorkerOptions,
   Processor,
 } from '@src/interfaces';
-import _ from 'lodash';
-import url from 'url';
 
-type CommonOptions = QueueKeeperOptions &
+type CommonOptions = QueueSchedulerOptions &
   QueueOptions &
   WorkerOptions &
   QueueEventsOptions;
@@ -50,24 +44,7 @@ export class Queue3<T = any> extends EventEmitter {
    */
   name: string;
 
-  /**
-   * Queue client (used to add jobs, pause queues, etc);
-   */
-  client: IORedis.Redis;
-
-  eclient: IORedis.Redis;
-
-  /**
-   * Array of Redis clients the queue uses
-   */
-  clients: IORedis.Redis[];
-
-  toKey: (type: string) => string;
-
   private opts: CommonOptions;
-  private settings: AdvancedOpts;
-  private defaultJobOptions: JobsOpts;
-  private keyPrefix: string;
 
   private readonly queue: Queue;
   private queueEvents: QueueEvents;
@@ -84,60 +61,6 @@ export class Queue3<T = any> extends EventEmitter {
    */
   constructor(name: string, opts?: CommonOptions) {
     super();
-
-    Object.defineProperties(this, {
-      queue: {
-        enumerable: false,
-        writable: true,
-      },
-      queueScheduler: {
-        enumerable: false,
-        writable: true,
-      },
-      queueEvents: {
-        enumerable: false,
-        writable: true,
-      },
-      worker: {
-        enumerable: false,
-        writable: true,
-      },
-      workerPromise: {
-        enumerable: false,
-        writable: true,
-      },
-      workerPromiseResolve: {
-        enumerable: false,
-        writable: true,
-      },
-      workerPromiseReject: {
-        enumerable: false,
-        writable: true,
-      },
-      client: {
-        get: () => {
-          return (this.queue as any).connection.client;
-        },
-      },
-      eclient: {
-        get: () => {
-          return (this.getQueueEvents() as any).connection.client;
-        },
-      },
-      clients: {
-        get: () => {
-          const clients = [this.queue.client];
-          this.queueEvents && clients.push(this.queueEvents.client);
-          this.worker && clients.push(this.worker.client);
-          return clients;
-        },
-      },
-      toKey: {
-        get: () => {
-          return this.queue.toKey;
-        },
-      },
-    });
 
     this.opts = opts;
     this.name = name;
@@ -182,11 +105,11 @@ export class Queue3<T = any> extends EventEmitter {
     return this.worker.waitUntilReady();
   }
 
-  append(jobName: string, data: any, opts?: JobsOpts): Promise<Job> {
+  add(jobName: string, data: any, opts?: JobsOpts): Promise<Job> {
     if (opts && opts.repeat) {
       return this.queue.repeat.addNextRepeatableJob(jobName, data, opts, false);
     } else {
-      return this.queue.append(jobName, data, opts);
+      return this.queue.add(jobName, data, opts);
     }
   }
 
@@ -481,16 +404,22 @@ export class Queue3<T = any> extends EventEmitter {
    * Tells the queue remove all jobs created outside of a grace period in milliseconds.
    * You can clean the jobs with the following states: completed, wait (typo for waiting), active, delayed, and failed.
    * @param grace Grace period in milliseconds.
-   * @param status Status of the job to clean. Values are completed, wait,
-   * active, delayed, and failed. Defaults to completed.
    * @param limit Maximum amount of jobs to clean per call. If not provided will clean all matching jobs.
+   * @param type Status of the job to clean. Values are completed, wait,
+   * active, paused, delayed, and failed. Defaults to completed.
    */
   clean(
     grace: number,
-    status: JobStatusClean3 = 'completed',
-    limit = -1,
+    limit: number,
+    type:
+      | 'completed'
+      | 'wait'
+      | 'active'
+      | 'paused'
+      | 'delayed'
+      | 'failed' = 'completed',
   ): Promise<Array<Job>> {
-    return this.queue.clean(grace, status, limit);
+    return this.queue.clean(grace, limit, type);
   }
 
   /**

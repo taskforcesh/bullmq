@@ -47,7 +47,7 @@ describe('Pause', function() {
     await worker.waitUntilReady();
 
     await queue.pause();
-    await queue.append('test', {}, { delay: 200 });
+    await queue.add('test', {}, { delay: 200 });
     const counts = await queue.getJobCounts('waiting', 'delayed');
 
     expect(counts).to.have.property('waiting', 0);
@@ -86,8 +86,8 @@ describe('Pause', function() {
 
     await queue.pause();
     isPaused = true;
-    await queue.append('test', { foo: 'paused' });
-    await queue.append('test', { foo: 'paused' });
+    await queue.add('test', { foo: 'paused' });
+    await queue.add('test', { foo: 'paused' });
     isPaused = false;
     await queue.resume();
 
@@ -126,8 +126,8 @@ describe('Pause', function() {
     const worker = new Worker(queueName, process);
     await worker.waitUntilReady();
 
-    queue.append('test', { foo: 'paused' });
-    queue.append('test', { foo: 'paused' });
+    queue.add('test', { foo: 'paused' });
+    queue.add('test', { foo: 'paused' });
 
     queueEvents.on('paused', async () => {
       isPaused = false;
@@ -165,8 +165,8 @@ describe('Pause', function() {
     // it after the current lock expires. This way, we can ensure there isn't a lock already
     // to test that pausing behavior works.
 
-    await queue.append('test', { foo: 'paused' });
-    await queue.append('test', { foo: 'paused' });
+    await queue.add('test', { foo: 'paused' });
+    await queue.add('test', { foo: 'paused' });
 
     expect(counter).to.be.eql(2);
     expect(worker.isPaused()).to.be.eql(true);
@@ -191,7 +191,7 @@ describe('Pause', function() {
 
     const jobs = [];
     for (let i = 0; i < 10; i++) {
-      jobs.push(queue.append('test', i));
+      jobs.push(queue.add('test', i));
     }
 
     //
@@ -210,7 +210,7 @@ describe('Pause', function() {
     expect(paused).to.be.eql(9);
     await Promise.all([active, paused]);
 
-    await queue.append('test', {});
+    await queue.add('test', {});
 
     active = await queue.getJobCountByTypes('active');
     expect(active).to.be.eql(0);
@@ -245,10 +245,10 @@ describe('Pause', function() {
     const worker2 = new Worker(queueName, process2);
     await worker2.waitUntilReady();
 
-    queue.append('test', 1);
-    queue.append('test', 2);
-    queue.append('test', 3);
-    queue.append('test', 4);
+    queue.add('test', 1);
+    queue.add('test', 2);
+    queue.add('test', 3);
+    queue.add('test', 4);
 
     await Promise.all([startProcessing1, startProcessing2]);
     await Promise.all([worker1.pause(), worker2.pause()]);
@@ -274,10 +274,10 @@ describe('Pause', function() {
     const worker = new Worker(queueName, process);
     await worker.waitUntilReady();
 
-    await queue.append('test', 1);
+    await queue.add('test', 1);
     await startProcessing;
     await worker.pause();
-    await queue.append('test', 2);
+    await queue.add('test', 2);
 
     const count = await queue.getJobCounts('active', 'waiting', 'completed');
     expect(count.active).to.be.eql(0);
@@ -291,7 +291,7 @@ describe('Pause', function() {
     const worker = new Worker(queueName, async () => {});
     await worker.waitUntilReady();
 
-    await queue.append('test', {});
+    await queue.add('test', {});
 
     return new Promise((resolve, reject) => {
       queueEvents.on('drained', async () => {

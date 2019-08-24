@@ -37,7 +37,7 @@ describe('events', function() {
       done();
     });
 
-    queue.append('test', { foo: 'bar' });
+    queue.add('test', { foo: 'bar' });
   });
 
   it('should emit global waiting event when a job has been added', function(done) {
@@ -45,7 +45,7 @@ describe('events', function() {
       done();
     });
 
-    queue.append('test', { foo: 'bar' });
+    queue.add('test', { foo: 'bar' });
   });
 
   /*
@@ -131,8 +131,8 @@ describe('events', function() {
     worker.once('drained', drainedCallback);
     queueEvents.once('drained', drainedCallback);
 
-    queue.append('test', { foo: 'bar' });
-    queue.append('test', { foo: 'baz' });
+    queue.add('test', { foo: 'bar' });
+    queue.add('test', { foo: 'baz' });
   });
 
   /*
@@ -153,7 +153,7 @@ describe('events', function() {
   it('should emit an event when a job becomes active', function(done) {
     const worker = new Worker(queueName, async job => {});
 
-    queue.append('test', {});
+    queue.add('test', {});
 
     worker.once('active', function() {
       worker.once('completed', async function() {
@@ -181,6 +181,6 @@ describe('events', function() {
       done();
     });
 
-    queue.append('test', {});
+    queue.add('test', {});
   });
 });

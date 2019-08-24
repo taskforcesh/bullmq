@@ -5,7 +5,7 @@
 /*eslint-env node */
 'use strict';
 
-import { QueueKeeperOptions } from '@src/interfaces';
+import { QueueSchedulerOptions } from '@src/interfaces';
 import { WorkerOptions } from '@src/interfaces/worker-opts';
 import IORedis from 'ioredis';
 import { JobsOpts } from '../interfaces';
@@ -103,16 +103,10 @@ export class Scripts {
     job: Job,
     progress: number | object,
   ) {
-    const keys = [job.id, 'progress'].map(function(name) {
-      return queue.toKey(name);
-    });
-
+    const keys = [queue.toKey(job.id), queue.eventStreamKey()];
     const progressJson = JSON.stringify(progress);
 
-    await (<any>queue.client).updateProgress(keys, [
-      progressJson,
-      job.id + ',' + progressJson,
-    ]);
+    await (<any>queue.client).updateProgress(keys, [job.id, progressJson]);
     queue.emit('progress', job, progress);
   }
 
@@ -424,10 +418,10 @@ export class Scripts {
       queue.eventStreamKey(),
     ];
     const args = [
-      (<QueueKeeperOptions>queue.opts).maxStalledCount,
+      (<QueueSchedulerOptions>queue.opts).maxStalledCount,
       queue.toKey(''),
       Date.now(),
-      (<QueueKeeperOptions>queue.opts).stalledInterval,
+      (<QueueSchedulerOptions>queue.opts).stalledInterval,
     ];
     return (<any>queue.client).moveStalledJobsToWait(keys.concat(args));
   }

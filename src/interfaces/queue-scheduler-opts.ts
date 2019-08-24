@@ -1,6 +1,6 @@
 import { QueueBaseOptions } from '@src/interfaces';
 
-export interface QueueKeeperOptions extends QueueBaseOptions {
+export interface QueueSchedulerOptions extends QueueBaseOptions {
   maxStalledCount?: number;
   stalledInterval?: number;
 }

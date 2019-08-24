@@ -18,17 +18,19 @@
   Events:
     emits 'added' if succesfully moved job to wait.
 ]]
-if (redis.call("EXISTS", KEYS[1]) == 1) then
-    if (redis.call("ZREM", KEYS[3], ARGV[1]) == 1) then
-      redis.call(ARGV[2], KEYS[4], ARGV[1])
-      redis.call(ARGV[2], KEYS[4] .. ":added", ARGV[1])
+local rcall = redis.call;
+if (rcall("EXISTS", KEYS[1]) == 1) then
+  local jobId = ARGV[1]
+  if (rcall("ZREM", KEYS[3], jobId) == 1) then
+    rcall(ARGV[2], KEYS[4], jobId)
+    rcall(ARGV[2], KEYS[4] .. ":added", jobId)
 
-      -- Emit waiting event
-      rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId);
-      return 1
-    else
-      return -2
-    end
+    -- Emit waiting event
+    rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId);
+    return 1
+  else
+    return -2
+  end
 else
   return 0
 end

@@ -30,11 +30,7 @@ const queue = new Queue("name", {
   redis: RedisOpts
 });
 
-// FIFO
-queue.append("jobName", data, opts: JobOpts);
-
-// LIFO
-queue.prepend("jobName", data, opts: JobOpts);
+queue.add("jobName", data, opts: JobOpts);
 
 queue.on("completed", jobId => {});
 

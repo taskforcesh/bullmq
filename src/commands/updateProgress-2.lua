@@ -3,13 +3,13 @@
 
      Input:
         KEYS[1] Job id key
-        KEYS[2] progress event key
+        KEYS[2] event stream key
       
-        ARGV[1] progress
-        ARGV[2] event data
-
+        ARGV[1] id
+        ARGV[2] progress
+        
       Event:
         progress(jobId, progress)
 ]]
-redis.call("HSET", KEYS[1], "progress", ARGV[1])
-redis.call("PUBLISH", KEYS[2], ARGV[2])
+redis.call("HSET", KEYS[1], "progress", ARGV[2])
+redis.call("XADD", KEYS[2], "*", "event", "progress", "jobId", ARGV[1], "data", ARGV[2]);
