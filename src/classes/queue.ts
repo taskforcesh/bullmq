@@ -145,44 +145,4 @@ export class Queue extends QueueGetters {
     );
     return jobs;
   }
-
-  /**
-  Empties the queue.
-
-  Returns a promise that is resolved after the operation has been completed.
-  Note that if some other process is adding jobs at the same time as emptying,
-  the queues may not be really empty after this method has executed completely.
-  Also, if the method does error between emptying the lists and removing all the
-  jobs, there will be zombie jobs left in redis.
-
-  TODO: Use EVAL to make this operation fully atomic.
-*/
-  empty() {
-    // Get all jobids and empty all lists atomically.
-    let multi = this.client.multi();
-
-    multi.lrange(this.toKey('wait'), 0, -1);
-    multi.lrange(this.toKey('paused'), 0, -1);
-    multi.del(this.toKey('wait'));
-    multi.del(this.toKey('paused'));
-    multi.del(this.toKey('meta-paused'));
-    multi.del(this.toKey('delayed'));
-    multi.del(this.toKey('priority'));
-
-    return multi.exec().then(res => {
-      let waiting = res[0],
-        paused = res[1];
-
-      waiting = waiting[1];
-      paused = paused[1];
-      const jobKeys = paused.concat(waiting).map(this.toKey, this);
-
-      if (jobKeys.length) {
-        multi = this.client.multi();
-
-        multi.del.apply(multi, jobKeys);
-        return multi.exec();
-      }
-    });
-  }
 }

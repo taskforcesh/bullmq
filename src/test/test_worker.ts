@@ -1108,7 +1108,7 @@ describe('workers', function() {
     await Promise.all(added);
     const count = await queue.count();
     expect(count).to.be.eql(maxJobs);
-    queue.empty();
+    queue.drain();
     const countAfterEmpty = await queue.count();
     expect(countAfterEmpty).to.be.eql(0);
   });
