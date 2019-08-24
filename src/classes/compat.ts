@@ -19,13 +19,11 @@
 // Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
 // TypeScript Version: 2.8
 
-import IORedis from 'ioredis';
 import { EventEmitter } from 'events';
 import { QueueEvents, Worker, Queue, QueueScheduler, Job } from '@src/classes';
 import {
   JobsOpts,
   QueueOptions,
-  AdvancedOpts,
   RepeatOpts,
   QueueEventsOptions,
   QueueSchedulerOptions,
@@ -50,8 +48,6 @@ export class Queue3<T = any> extends EventEmitter {
   private queueEvents: QueueEvents;
   private worker: Worker;
   private queueScheduler: QueueScheduler;
-
-  private readonly handlers: { [key: string]: Function } = {};
 
   /**
    * This is the Queue constructor.
@@ -683,6 +679,13 @@ export class Queue3<T = any> extends EventEmitter {
           this.getQueueEvents().once('resumed', listener);
         } else {
           this.getQueueEvents().on('resumed', listener);
+        }
+        break;
+      case 'global:progress':
+        if (once) {
+          this.getQueueEvents().once('progress', listener);
+        } else {
+          this.getQueueEvents().on('progress', listener);
         }
         break;
       case 'global:waiting':
