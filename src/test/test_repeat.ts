@@ -1,14 +1,12 @@
-import { Queue, Job } from '@src/classes';
-import { describe, beforeEach, it } from 'mocha';
+import { Job, Queue } from '@src/classes';
+import { QueueEvents } from '@src/classes/queue-events';
+import { QueueScheduler } from '@src/classes/queue-scheduler';
+import { Repeat } from '@src/classes/repeat';
+import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
+import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'node-uuid';
-import { Worker } from '@src/classes/worker';
-import { after } from 'lodash';
-import { QueueEvents } from '@src/classes/queue-events';
-import { Repeat } from '@src/classes/repeat';
-import { QueueScheduler } from '@src/classes/queue-scheduler';
-import { reject } from 'bluebird';
 
 // const utils = require('./utils');
 const sinon = require('sinon');
