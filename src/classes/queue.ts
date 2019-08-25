@@ -143,6 +143,8 @@ export class Queue extends QueueGetters {
       Date.now() - grace,
       limit,
     );
+
+    this.emit('cleaned', jobs, type);
     return jobs;
   }
 }
