@@ -72,43 +72,7 @@ export class RedisConnection {
     return this.client;
   }
 
-  async close() {
-    // TODO: this implementation is taken from bull3 as is and probably should be rewritten
-    if (this.client) {
-      if (this.client.status === 'end') {
-        return;
-      }
-      let _resolve: (...args: any[]) => void, _reject: (...args: any[]) => void;
-      return new Promise<void>((resolve, reject) => {
-        _resolve = resolve;
-        _reject = reject;
-        this.client.once('end', resolve);
-        this.client.once('error', reject);
-
-        let tryDisconnect = true;
-
-        this.client
-          .quit()
-          .then(() => {
-            tryDisconnect = true;
-          })
-          .catch(err => {
-            if (err.message !== 'Connection is closed.') {
-              throw err;
-            }
-          });
-
-        setTimeout(() => {
-          if (this.client) {
-            if (tryDisconnect) this.client.disconnect();
-          }
-        }, 500);
-      }).finally(() => {
-        this.client.removeListener('end', _resolve);
-        this.client.removeListener('error', _reject);
-      });
-    }
-  }
+  async close() {}
 
   private async getRedisVersion() {
     const doc = await this.client.info();

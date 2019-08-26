@@ -102,11 +102,7 @@ export class Queue3<T = any> extends EventEmitter {
   }
 
   add(jobName: string, data: any, opts?: JobsOpts): Promise<Job> {
-    if (opts && opts.repeat) {
-      return this.queue.repeat.addNextRepeatableJob(jobName, data, opts, false);
-    } else {
-      return this.queue.add(jobName, data, opts);
-    }
+    return this.queue.add(jobName, data, opts);
   }
 
   /**
