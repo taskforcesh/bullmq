@@ -75,8 +75,36 @@ export class Job {
 
     job.id = await job.addJob(queue.client);
 
-    logger('Job added', job.id);
     return job;
+  }
+
+  static async createBulk(
+    queue: QueueBase,
+    jobs: {
+      name: string;
+      data: any;
+      opts?: JobsOpts;
+    }[],
+  ) {
+    await queue.waitUntilReady();
+
+    const jobInstances = jobs.map(
+      job => new Job(queue, job.name, job.data, job.opts),
+    );
+
+    const multi = queue.client.multi();
+
+    for (const job of jobInstances) {
+      job.addJob(<IORedis.Redis>(multi as unknown));
+    }
+
+    const result = (await multi.exec()) as [null | Error, string][];
+    result.forEach((res, index: number) => {
+      const [err, id] = res;
+      jobInstances[index].id = id;
+    });
+
+    return jobInstances;
   }
 
   static fromJSON(queue: QueueBase, json: any, jobId?: string) {

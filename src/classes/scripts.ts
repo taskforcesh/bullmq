@@ -27,7 +27,7 @@ export class Scripts {
   }
 
   static addJob(
-    client: IORedis.Redis,
+    client: any,
     queue: QueueBase,
     job: JobJson,
     opts: JobsOpts,
@@ -59,7 +59,7 @@ export class Scripts {
     ];
 
     keys = keys.concat(<string[]>args);
-    return (<any>client).addJob(keys);
+    return client.addJob(keys);
   }
 
   static pause(queue: Queue, pause: boolean) {

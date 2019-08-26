@@ -49,6 +49,23 @@ export class Queue extends QueueGetters {
   }
 
   /**
+  Adds an array of jobs to the queue.
+  @method add
+  @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3 
+  properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
+*/
+  async addBulk(jobs: { name: string; data: any; opts?: JobsOpts }[]) {
+    return Job.createBulk(
+      this,
+      jobs.map(job => ({
+        name: job.name,
+        data: job.data,
+        opts: { ...job.opts, ...this.jobsOpts },
+      })),
+    );
+  }
+
+  /**
     Pauses the processing of this queue globally.
 
     We use an atomic RENAME operation on the wait queue. Since
