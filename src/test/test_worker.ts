@@ -6,7 +6,6 @@ import { v4 } from 'node-uuid';
 import { delay } from 'bluebird';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '@src/enums';
-import { ErrorRetryNotFailed } from '@src/classes/error-retry-not-failed';
 
 describe('workers', function() {
   let queue: Queue;
