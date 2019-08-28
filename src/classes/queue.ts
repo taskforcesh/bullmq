@@ -1,4 +1,4 @@
-import { JobsOpts, RateLimiterOpts, QueueBaseOptions } from '@src/interfaces';
+import { JobsOpts, RateLimiterOpts, QueueOptions } from '@src/interfaces';
 import { v4 } from 'node-uuid';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
@@ -12,10 +12,7 @@ export class Queue extends QueueGetters {
   repeat: Repeat;
   jobsOpts: JobsOpts;
 
-  constructor(
-    name: string,
-    opts?: QueueBaseOptions & { defaultJobOptions?: JobsOpts },
-  ) {
+  constructor(name: string, opts?: QueueOptions) {
     super(name, opts);
 
     this.repeat = new Repeat(name, {

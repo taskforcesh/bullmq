@@ -54,17 +54,6 @@ const sandbox = (processFile: any, childPool: any) => {
         childPool.release(child);
       }
     }
-
-    // return done.finally(() => {
-    //   child.removeListener('message', msgHandler);
-    //   child.removeListener('exit', exitHandler);
-    //
-    //   if (child.exitCode !== null) {
-    //     childPool.remove(child);
-    //   } else {
-    //     childPool.release(child);
-    //   }
-    // });
   };
 };
 
