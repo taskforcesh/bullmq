@@ -1,5 +1,13 @@
 # Bull
 
+<div align="center">
+<p>
+    <a href="http://travis-ci.org/taskforcesh/bullmq">
+      <img src="https://travis-ci.org/taskforcesh/bullmq.svg?branch=master"/>
+    </a>
+</p>
+</div>
+
 ```js
 //
 // A worker could just consume 1 redis connection (blocking) 
