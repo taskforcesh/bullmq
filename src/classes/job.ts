@@ -8,6 +8,7 @@ import { Backoffs } from './backoffs';
 import { QueueBase } from './queue-base';
 import { QueueEvents } from './queue-events';
 import { Scripts } from './scripts';
+import { RetryErrors } from '@src/enums';
 
 const logger = debuglog('bull');
 
@@ -166,7 +167,7 @@ export class Job {
 
   async update(data: any) {
     await this.queue.waitUntilReady();
-
+    this.data = data;
     await this.queue.client.hset(
       this.queue.toKey(this.id),
       'data',
@@ -422,10 +423,12 @@ export class Job {
     const result = await Scripts.reprocessJob(this.queue, this, state);
     if (result === 1) {
       return;
-    } else if (result === 0) {
-      throw new Error('Retried job does not exist');
-    } else if (result === -2) {
-      throw new Error('Retried job not failed');
+    } else if (result === RetryErrors.JobNotExist) {
+      throw RetryErrors.JobNotExist;
+    } else if (result === RetryErrors.JobNotFailed) {
+      throw RetryErrors.JobNotFailed;
+    } else if (result === RetryErrors.JobIsActive) {
+      throw RetryErrors.JobIsActive;
     }
   }
 
