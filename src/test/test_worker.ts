@@ -6,6 +6,7 @@ import { v4 } from 'node-uuid';
 import { delay } from 'bluebird';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '@src/enums';
+import { ErrorRetryNotFailed } from '@src/classes/error-retry-not-failed';
 
 describe('workers', function() {
   let queue: Queue;
@@ -1028,11 +1029,6 @@ describe('workers', function() {
     });
     await worker.waitUntilReady();
 
-    queue.add('test', { foo: 'bar' }).then(job => {
-      expect(job.id).to.be.ok;
-      expect(job.data.foo).to.be.eql('bar');
-    });
-
     worker.once('failed', async (job, err) => {
       expect(job).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
@@ -1041,12 +1037,19 @@ describe('workers', function() {
       await job.retry();
     });
 
-    await new Promise(resolve => {
+    const completing = new Promise(resolve => {
       worker.once('completed', () => {
         expect(failedOnce).to.be.eql(true);
         resolve();
       });
     });
+
+    await queue.add('test', { foo: 'bar' }).then(job => {
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+    });
+
+    await completing;
 
     await worker.close();
   });
@@ -1646,7 +1649,7 @@ describe('workers', function() {
           try {
             await job.retry();
           } catch (err) {
-            expect(err.message).to.equal(RetryErrors.JobNotFailed);
+            expect(err).to.be.equal(RetryErrors.JobNotExist);
           }
 
           const completedCount2 = await queue.getCompletedCount();
