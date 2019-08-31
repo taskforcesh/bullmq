@@ -1666,9 +1666,9 @@ describe('workers', function() {
       await queueScheduler.close();
     });
 
-    it('should not retry a job that is active', async () => {
+    it('should not retry a job that is not failed', async () => {
       const worker = new Worker(queueName, async job => {
-        await delay(300);
+        await delay(500);
       });
 
       await worker.waitUntilReady();
