@@ -1,7 +1,4 @@
 export interface AdvancedOpts {
-  // Key expiration time for job locks.
-  lockDuration?: number;
-
   // How often check for stalled jobs (use 0 for never checking).
   stalledInterval?: number;
 
@@ -22,7 +19,6 @@ export interface AdvancedOpts {
 }
 
 export const AdvancedOptsDefaults: AdvancedOpts = {
-  lockDuration: 30000,
   stalledInterval: 30000,
   maxStalledCount: 1,
   guardInterval: 5000,

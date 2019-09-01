@@ -6,8 +6,11 @@ import { v4 } from 'node-uuid';
 import { delay } from 'bluebird';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '@src/enums';
+import * as sinon from 'sinon'
 
 describe('workers', function() {
+  const sandbox = sinon.createSandbox();
+
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -26,6 +29,7 @@ describe('workers', function() {
   });
 
   afterEach(async function() {
+    sandbox.restore();
     await queue.close();
     await queueEvents.close();
     return client.quit();
@@ -649,39 +653,61 @@ describe('workers', function() {
 
     await worker.close();
   });
-
-  /*
-  it('process stalled jobs when starting a queue', function(done) {
+/*
+  it.only('process stalled jobs when starting a queue', function(done) {
     this.timeout(6000);
-    utils
-      .newQueue('test queue stalled', {
-        settings: {
-          lockDuration: 15,
-          lockRenewTime: 5,
-          stalledInterval: 100,
-        },
-      })
-      .then(queueStalled => {
-        const jobs = [
-          queueStalled.add({ bar: 'baz' }),
-          queueStalled.add({ bar1: 'baz1' }),
-          queueStalled.add({ bar2: 'baz2' }),
-          queueStalled.add({ bar3: 'baz3' }),
-        ];
+
+    const onceRunning = once(afterJobsRunning);
+
+    const worker = new Worker(queueName, async job => {
+      onceRunning();
+      return delay(150);
+    }, {settings: {
+      stalledInterval: 100,
+    },
+    });
+
+    queue2.on('completed', doneAfterFour);
+    queue2.on('stalled', stalledCallback);
+
+    await worker.waitUntilReady();
+
+    const jobs = await Promise.all([
+      queue.add('test', { bar: 'baz' }),
+      queue.add('test', { bar1: 'baz1' }),
+      queue.add('test', { bar2: 'baz2' }),
+      queue.add('test', { bar3: 'baz3' }),
+    ]);
+  });
+
+  it.only('process stalled jobs when starting a queue', function(done) {
+    this.timeout(6000);
+
+    const worker = new Worker(queueName, async job => {
+    }, {settings: {
+      stalledInterval: 100,
+    },
+    });
+
+    await worker.waitUntilReady();
+    const jobs = [
+      queue.add('test', { bar: 'baz' }),
+      queue.add('test', { bar1: 'baz1' }),
+      queue.add('test', { bar2: 'baz2' }),
+      queue.add('test', { bar3: 'baz3' }),
+    ];
         Promise.all(jobs).then(() => {
           const afterJobsRunning = function() {
             const stalledCallback = sandbox.spy();
-            return queueStalled
-              .close(true)
-              .then(() => {
+            await worker.close();
+
                 return new Promise((resolve, reject) => {
-                  utils
-                    .newQueue('test queue stalled', {
-                      settings: {
-                        stalledInterval: 100,
-                      },
-                    })
-                    .then(queue2 => {
+                  const worker2 = new Worker(queueName, async job => {
+                  }, {settings: {
+                    stalledInterval: 100,
+                  },
+                  });
+                    
                       const doneAfterFour = _.after(4, () => {
                         try {
                           expect(stalledCallback.calledOnce).to.be.eql(true);
@@ -712,7 +738,7 @@ describe('workers', function() {
         });
       });
   });
-*/
+
   it('processes jobs that were added before the worker started', async () => {
     const jobs = [
       queue.add('test', { bar: 'baz' }),
@@ -733,7 +759,7 @@ describe('workers', function() {
 
     await worker.close();
   });
-
+*/
   /*
   it('processes several stalled jobs when starting several queues', function(done) {
     const queueScheduler = new QueueScheduler(queueName, {
@@ -1028,12 +1054,19 @@ describe('workers', function() {
     });
     await worker.waitUntilReady();
 
-    worker.once('failed', async (job, err) => {
-      expect(job).to.be.ok;
-      expect(job.data.foo).to.be.eql('bar');
-      expect(err).to.be.eql(notEvenErr);
-      failedOnce = true;
-      await job.retry();
+    const failing = new Promise((resolve, reject) => {
+      worker.once('failed', async (job, err) => {
+        try {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          expect(err).to.be.eql(notEvenErr);
+          failedOnce = true;
+          await job.retry();
+        } catch (err) {
+          reject(err);
+        }
+        resolve();
+      });
     });
 
     const completing = new Promise(resolve => {
@@ -1048,6 +1081,7 @@ describe('workers', function() {
       expect(job.data.foo).to.be.eql('bar');
     });
 
+    await failing;
     await completing;
 
     await worker.close();
@@ -1666,7 +1700,7 @@ describe('workers', function() {
       await queueScheduler.close();
     });
 
-    it('should not retry a job that is not failed', async () => {
+    it('should not retry a job that is active', async () => {
       const worker = new Worker(queueName, async job => {
         await delay(500);
       });

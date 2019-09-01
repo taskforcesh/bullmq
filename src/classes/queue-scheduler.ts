@@ -7,17 +7,17 @@ const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
 
 /**
  * This class is just used for some automatic bookkeeping of the queue,
- * such as updating the delay set as well as moving stuck jobs back
+ * such as updating the delay set as well as moving stalled jobs back
  * to the waiting list.
  *
- * Jobs are checked for stuckness once every "visibility window" seconds.
- * Jobs are then marked as candidates for being stuck, in the next check,
- * the candidates are marked as stuck and moved to wait.
+ * Jobs are checked for stallness once every "visibility window" seconds.
+ * Jobs are then marked as candidates for being stalled, in the next check,
+ * the candidates are marked as stalled and moved to wait.
  * Workers need to clean the candidate list with the jobs that they are working
- * on, failing to update the list results in the job ending being stuck.
+ * on, failing to update the list results in the job ending being stalled.
  *
  * This class requires a dedicated redis connection, and at least one is needed
- * to be running at a given time, otherwise delays, stuck jobs, retries, repeatable
+ * to be running at a given time, otherwise delays, stalled jobs, retries, repeatable
  * jobs, etc, will not work correctly or at all.
  *
  */
@@ -51,6 +51,9 @@ export class QueueScheduler extends QueueBase {
     let streamLastId = '0-0'; // TODO: updateDelaySet should also return the last event id
 
     while (!this.closing) {
+      // Check if at least the min stalled check time has passed.
+      await this.moveStalledJobsToWait();
+
       // Listen to the delay event stream from lastDelayStreamTimestamp
       // Can we use XGROUPS to reduce redundancy?
       const blockTime = Math.round(
@@ -94,9 +97,6 @@ export class QueueScheduler extends QueueBase {
           this.nextTimestamp = Number.MAX_VALUE;
         }
       }
-
-      // Check if at least the min stalled check time has passed.
-      // await this.moveStalledJobsToWait();
     }
   }
 
@@ -106,5 +106,19 @@ export class QueueScheduler extends QueueBase {
     }
 
     const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
+
+    failed.forEach((jobId: string) => {
+      this.emit(
+        'failed',
+        jobId,
+        new Error('job stalled more than allowable limit'),
+        'active',
+      );
+    });
+    stalled.forEach((jobId: string) => {
+      this.emit('stalled', jobId);
+    });
+
+    console.log({ failed, stalled });
   }
 }
