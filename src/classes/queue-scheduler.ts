@@ -43,6 +43,7 @@ export class QueueScheduler extends QueueBase {
 
   private async run(streamLastId = '0-0') {
     const key = this.delayStreamKey();
+    const opts = this.opts as QueueSchedulerOptions;
 
     while (!this.closing) {
       // Check if at least the min stalled check time has passed.
@@ -52,7 +53,7 @@ export class QueueScheduler extends QueueBase {
       // Can we use XGROUPS to reduce redundancy?
       const blockTime = Math.round(
         Math.min(
-          (<QueueSchedulerOptions>this.opts).stalledInterval,
+          opts.stalledInterval,
           Math.max(this.nextTimestamp - Date.now(), 0),
         ),
       );
