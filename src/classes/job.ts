@@ -424,11 +424,9 @@ export class Job {
     if (result === 1) {
       return;
     } else if (result === RetryErrors.JobNotExist) {
-      throw RetryErrors.JobNotExist;
+      throw new Error('Retried job not exist');
     } else if (result === RetryErrors.JobNotFailed) {
-      throw RetryErrors.JobNotFailed;
-    } else if (result === RetryErrors.JobIsActive) {
-      throw RetryErrors.JobIsActive;
+      throw new Error('Retried job not failed');
     }
   }
 
