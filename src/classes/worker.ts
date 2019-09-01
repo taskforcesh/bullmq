@@ -114,12 +114,12 @@ export class Worker extends QueueBase {
     Returns a promise that resolves to the next job in queue.
   */
   async getNextJob() {
-    if (this.closing) {
-      return;
-    }
-
     if (this.paused) {
       await this.paused;
+    }
+
+    if (this.closing) {
+      return;
     }
 
     if (this.drained) {
@@ -259,22 +259,31 @@ export class Worker extends QueueBase {
    *
    * @returns {Promise}
    */
-  private async whenCurrentJobsFinished() {
+  private async whenCurrentJobsFinished(reconnect = true) {
     //
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
     this.waiting && (await redisClientDisconnect(this.client));
 
+    // If we are disconnected, how are we going to update the completed/failed sets?
     if (this.processing) {
       await Promise.all(this.processing);
     }
-    this.waiting && (await this.client.connect());
+
+    this.waiting && reconnect && (await this.client.connect());
   }
 
-  async close() {
+  async close(force = false) {
     this.emit('closing', 'closing queue');
+    await super.close();
+
     try {
-      await super.close();
+      await this.resume();
+      if (!force) {
+        await this.whenCurrentJobsFinished(false);
+      } else {
+        await redisClientDisconnect(this.client);
+      }
     } finally {
       this.childPool && this.childPool.clean();
     }
