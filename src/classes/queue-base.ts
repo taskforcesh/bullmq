@@ -14,12 +14,10 @@ export class QueueBase extends EventEmitter {
   constructor(protected name: string, public opts: QueueBaseOptions = {}) {
     super();
 
-    this.opts = Object.assign(
-      {
-        prefix: 'bull',
-      },
-      opts,
-    );
+    this.opts = {
+      prefix: 'bull',
+      ...opts,
+    };
 
     this.connection = new RedisConnection(opts.connection);
     this.initializing = this.connection.init();

@@ -24,13 +24,8 @@ const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
 export class QueueScheduler extends QueueBase {
   private nextTimestamp = Number.MAX_VALUE;
 
-  constructor(protected name: string, opts?: QueueSchedulerOptions) {
-    super(name, opts);
-
-    this.opts = Object.assign(this.opts, {
-      maxStalledCount: 1,
-      stalledInterval: 30000,
-    });
+  constructor(protected name: string, opts: QueueSchedulerOptions = {}) {
+    super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
   }
 
   async init() {
@@ -111,16 +106,14 @@ export class QueueScheduler extends QueueBase {
 
     const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
 
-    failed.forEach((jobId: string) => {
+    failed.forEach((jobId: string) =>
       this.emit(
         'failed',
         jobId,
         new Error('job stalled more than allowable limit'),
         'active',
-      );
-    });
-    stalled.forEach((jobId: string) => {
-      this.emit('stalled', jobId);
-    });
+      ),
+    );
+    stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
   }
 }
