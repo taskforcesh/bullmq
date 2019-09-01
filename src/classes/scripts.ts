@@ -407,6 +407,7 @@ export class Scripts {
   //    we limit the number stalled job recoveries to settings.maxStalledCount.
   //
   static moveStalledJobsToWait(queue: QueueScheduler) {
+    const opts = queue.opts as QueueSchedulerOptions;
     const keys: (string | number)[] = [
       queue.keys.stalled,
       queue.keys.wait,
@@ -418,10 +419,10 @@ export class Scripts {
       queue.eventStreamKey(),
     ];
     const args = [
-      (<QueueSchedulerOptions>queue.opts).maxStalledCount,
+      opts.maxStalledCount,
       queue.toKey(''),
       Date.now(),
-      (<QueueSchedulerOptions>queue.opts).stalledInterval,
+      opts.stalledInterval,
     ];
     return (<any>queue.client).moveStalledJobsToWait(keys.concat(args));
   }
