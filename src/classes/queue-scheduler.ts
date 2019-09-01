@@ -46,9 +46,8 @@ export class QueueScheduler extends QueueBase {
     this.run();
   }
 
-  private async run() {
+  private async run(streamLastId = '0-0') {
     const key = this.delayStreamKey();
-    let streamLastId = '0-0'; // TODO: updateDelaySet should also return the last event id
 
     while (!this.closing) {
       // Check if at least the min stalled check time has passed.
@@ -63,13 +62,18 @@ export class QueueScheduler extends QueueBase {
         ),
       );
 
-      const data = await this.client.xread(
-        'BLOCK',
-        blockTime,
-        'STREAMS',
-        key,
-        streamLastId,
-      );
+      let data;
+      if (blockTime) {
+        data = await this.client.xread(
+          'BLOCK',
+          blockTime,
+          'STREAMS',
+          key,
+          streamLastId,
+        );
+      } else {
+        data = await this.client.xread('STREAMS', key, streamLastId);
+      }
 
       if (data && data[0]) {
         const stream = data[0];
@@ -118,7 +122,5 @@ export class QueueScheduler extends QueueBase {
     stalled.forEach((jobId: string) => {
       this.emit('stalled', jobId);
     });
-
-    console.log({ failed, stalled });
   }
 }
