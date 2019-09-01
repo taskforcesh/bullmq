@@ -2,16 +2,15 @@
 'use strict';
 
 import { Job, Queue, QueueScheduler } from '@src/classes';
-import { describe, beforeEach, afterEach, it } from 'mocha';
-import { expect } from 'chai';
-import IORedis from 'ioredis';
-import { v4 } from 'node-uuid';
-import { JobsOpts } from '@src/interfaces';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Worker } from '@src/classes/worker';
-import { after } from 'lodash';
-
+import { JobsOpts } from '@src/interfaces';
 import { delay } from 'bluebird';
+import { expect } from 'chai';
+import IORedis from 'ioredis';
+import { after } from 'lodash';
+import { afterEach, beforeEach, describe, it } from 'mocha';
+import { v4 } from 'node-uuid';
 
 describe('Job', function() {
   let queue: Queue;

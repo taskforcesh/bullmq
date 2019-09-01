@@ -1,15 +1,14 @@
 /*eslint-env node */
 'use strict';
 
-import { Job, Queue, QueueEvents, QueueScheduler, Worker } from '@src/classes';
-import { describe, beforeEach, afterEach, it } from 'mocha';
+import { Job, Worker } from '@src/classes';
+import { Queue3 } from '@src/classes/compat';
+import { delay } from 'bluebird';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
-import { v4 } from 'node-uuid';
 import { after } from 'lodash';
-
-import { delay } from 'bluebird';
-import { Queue3 } from '@src/classes/compat';
+import { afterEach, beforeEach, describe, it } from 'mocha';
+import { v4 } from 'node-uuid';
 
 describe('Compat', function() {
   describe('jobs getters', function() {

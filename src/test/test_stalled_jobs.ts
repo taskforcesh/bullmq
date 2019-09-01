@@ -34,11 +34,11 @@ describe('stalled jobs', function() {
     const worker = new Worker(
       queueName,
       async job => {
-        return delay(500);
+        return delay(10000);
       },
       {
         settings: {
-          stalledInterval: 50,
+          stalledInterval: 10,
         },
         concurrency,
       },
@@ -92,7 +92,7 @@ describe('stalled jobs', function() {
     const worker = new Worker(
       queueName,
       async job => {
-        return delay(500);
+        return delay(10000);
       },
       {
         settings: {

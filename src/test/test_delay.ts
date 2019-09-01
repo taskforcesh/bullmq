@@ -84,7 +84,6 @@ describe('Delayed jobs', function() {
         try {
           expect(order).to.be.equal(job.data.order);
           if (order === 10) {
-            await queueScheduler.close();
             resolve();
           }
         } catch (err) {
@@ -177,8 +176,6 @@ describe('Delayed jobs', function() {
           expect(order).to.be.equal(job.data.order);
 
           if (order === 12) {
-            await queueScheduler.close();
-            // await worker.close();
             resolve();
           }
         } catch (err) {

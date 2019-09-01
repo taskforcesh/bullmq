@@ -7,8 +7,8 @@ import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'node-uuid';
+import { worker } from 'cluster';
 
-// const utils = require('./utils');
 const sinon = require('sinon');
 const moment = require('moment');
 const _ = require('lodash');
@@ -161,7 +161,7 @@ describe('repeat', function() {
     let prev: any;
     var counter = 0;
 
-    return new Promise(resolve => {
+    const completting = new Promise(resolve => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -171,11 +171,14 @@ describe('repeat', function() {
         prev = job;
         counter++;
         if (counter == 5) {
-          await worker.close();
           resolve();
         }
       });
     });
+
+    await completting;
+    await worker.close();
+    await queueScheduler.close();
   });
 
   it('should repeat every 2 seconds with startDate in future', async function() {
@@ -206,7 +209,7 @@ describe('repeat', function() {
     let prev: Job;
     let counter = 0;
 
-    return new Promise((resolve, reject) => {
+    const completting = new Promise((resolve, reject) => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -217,10 +220,14 @@ describe('repeat', function() {
         counter++;
         if (counter == 5) {
           resolve();
-          await queueScheduler.close();
         }
       });
     });
+
+    await completting;
+
+    await queueScheduler.close();
+    await worker.close();
   });
 
   it('should repeat every 2 seconds with startDate in past', async function() {
@@ -251,7 +258,7 @@ describe('repeat', function() {
     let prev: Job;
     let counter = 0;
 
-    return new Promise((resolve, reject) => {
+    const completting = new Promise((resolve, reject) => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -262,10 +269,13 @@ describe('repeat', function() {
         counter++;
         if (counter == 5) {
           resolve();
-          await queueScheduler.close();
         }
       });
     });
+
+    await completting;
+    await queueScheduler.close();
+    await worker.close();
   });
 
   // Skipped until we find a way of simulating time to avoid waiting 5 days
@@ -293,7 +303,7 @@ describe('repeat', function() {
 
     let prev: Job;
     let counter = 0;
-    return new Promise((resolve, reject) => {
+    const completting = new Promise((resolve, reject) => {
       queue.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -308,12 +318,14 @@ describe('repeat', function() {
           expect(waitingJobs.length).to.be.eql(0);
           const delayedJobs = await queue.getDelayed();
           expect(delayedJobs.length).to.be.eql(0);
-          await queueScheduler.close();
-          await worker.close();
           resolve();
         }
       });
     });
+
+    await completting;
+    await queueScheduler.close();
+    await worker.close();
   });
 
   // Skipped until we find a way of simulating time to avoid waiting a month
@@ -422,6 +434,7 @@ describe('repeat', function() {
 
     await processing;
     await queueScheduler.close();
+    await worker.close();
   });
 
   it('should be able to remove repeatable jobs by key', async () => {
@@ -493,6 +506,7 @@ describe('repeat', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
+    let worker: Worker;
     const jobId = 'xxxx';
     const date = new Date('2017-02-07 9:24:00');
     const nextTick = 2 * ONE_SECOND + 100;
@@ -501,7 +515,7 @@ describe('repeat', function() {
     this.clock.tick(date.getTime());
 
     const afterRemoved = new Promise(async resolve => {
-      const worker = new Worker(queueName, async job => {
+      worker = new Worker(queueName, async job => {
         worker['repeat'].addNextRepeatableJob = async (...args) => {
           // In order to simulate race condition
           // Make removeRepeatables happen any time after a moveToX is called
@@ -533,6 +547,7 @@ describe('repeat', function() {
     expect(jobs.length).to.eql(0);
 
     await queueScheduler.close();
+    await worker.close();
   });
 
   it('should allow adding a repeatable job after removing it', async function() {

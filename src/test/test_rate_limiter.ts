@@ -1,12 +1,12 @@
 import { Queue } from '@src/classes';
-import { describe, beforeEach, it } from 'mocha';
-import { expect, assert } from 'chai';
-import IORedis from 'ioredis';
-import { v4 } from 'node-uuid';
-import { Worker } from '@src/classes/worker';
-import { after } from 'lodash';
 import { QueueEvents } from '@src/classes/queue-events';
 import { QueueScheduler } from '@src/classes/queue-scheduler';
+import { Worker } from '@src/classes/worker';
+import { assert, expect } from 'chai';
+import IORedis from 'ioredis';
+import { after } from 'lodash';
+import { beforeEach, describe, it } from 'mocha';
+import { v4 } from 'node-uuid';
 
 describe('Rate Limiter', function() {
   let queue: Queue;
