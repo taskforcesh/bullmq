@@ -139,7 +139,7 @@ describe('repeat', function() {
   });
 
   it('should repeat every 2 seconds', async function() {
-    this.timeout(200000);
+    this.timeout(20000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
@@ -148,7 +148,7 @@ describe('repeat', function() {
     const date = new Date('2017-02-07 9:24:00');
     this.clock.tick(date.getTime());
 
-    const nextTick = 2 * ONE_SECOND + 500;
+    const nextTick = 2 * ONE_SECOND + 100;
 
     await queue.add(
       'test',

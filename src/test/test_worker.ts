@@ -6,7 +6,7 @@ import { v4 } from 'node-uuid';
 import { delay } from 'bluebird';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '@src/enums';
-import * as sinon from 'sinon'
+import * as sinon from 'sinon';
 
 describe('workers', function() {
   const sandbox = sinon.createSandbox();
@@ -653,7 +653,7 @@ describe('workers', function() {
 
     await worker.close();
   });
-/*
+  /*
   it.only('process stalled jobs when starting a queue', function(done) {
     this.timeout(6000);
 

@@ -69,7 +69,6 @@ describe('connection', () => {
           if (count == 0) {
             expect(job.data.foo).to.be.equal('bar');
           } else {
-            await worker.close();
             resolve();
           }
           count++;

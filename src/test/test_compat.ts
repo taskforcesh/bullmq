@@ -439,7 +439,6 @@ describe('Compat', function() {
               return queue.pause();
             } else {
               expect(isResumed).to.be.eql(true);
-              await queue.close();
               resolve();
             }
           } catch (err) {
@@ -473,7 +472,6 @@ describe('Compat', function() {
           expect(queue.isWorkerPaused()).to.be.eql(false);
           counter--;
           if (counter === 0) {
-            await queue.close();
             resolve();
           }
         };

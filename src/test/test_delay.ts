@@ -1,4 +1,4 @@
-import { Queue } from '@src/classes';
+import { Queue, Job } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
@@ -74,29 +74,29 @@ describe('Delayed jobs', function() {
 
   it('should process delayed jobs in correct order', async function() {
     let order = 0;
-
+    let processor;
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
-    const promise = new Promise((resolve, reject) => {
-      const worker = new Worker(queueName, async job => {
+    const processing = new Promise((resolve, reject) => {
+      processor = async (job: Job) => {
         order++;
         try {
           expect(order).to.be.equal(job.data.order);
           if (order === 10) {
             await queueScheduler.close();
-            await worker.close();
             resolve();
           }
         } catch (err) {
           reject(err);
         }
-      });
+      };
+    });
 
-      worker.on('failed', function(job, err) {
-        err.job = job;
-        reject(err);
-      });
+    const worker = new Worker(queueName, processor);
+
+    worker.on('failed', function(job, err) {
+      err.job = job;
     });
 
     queue.add('test', { order: 1 }, { delay: 100 });
@@ -110,9 +110,10 @@ describe('Delayed jobs', function() {
     queue.add('test', { order: 4 }, { delay: 400 });
     queue.add('test', { order: 8 }, { delay: 800 });
 
-    await promise;
+    await processing;
 
     await queueScheduler.close();
+    await worker.close();
   });
 
   /*
@@ -168,6 +169,26 @@ describe('Delayed jobs', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
+    let processor;
+
+    const processing = new Promise((resolve, reject) => {
+      processor = async (job: Job) => {
+        try {
+          expect(order).to.be.equal(job.data.order);
+
+          if (order === 12) {
+            await queueScheduler.close();
+            // await worker.close();
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
+        }
+
+        order++;
+      };
+    });
+
     const now = Date.now();
     const promises = [];
     let i = 1;
@@ -185,31 +206,16 @@ describe('Delayed jobs', function() {
     }
     await Promise.all(promises);
 
-    const promise = new Promise((resolve, reject) => {
-      const worker = new Worker(queueName, async job => {
-        try {
-          expect(order).to.be.equal(job.data.order);
+    const worker = new Worker(queueName, processor);
 
-          if (order === 12) {
-            await queueScheduler.close();
-            await worker.close();
-            resolve();
-          }
-        } catch (err) {
-          reject(err);
-        }
-
-        order++;
-      });
-
-      worker.on('failed', function(job, err) {
-        err.job = job;
-        reject(err);
-      });
+    worker.on('failed', function(job, err) {
+      err.job = job;
     });
 
-    await promise;
+    await processing;
 
     await queueScheduler.close();
+
+    await worker.close();
   });
 });

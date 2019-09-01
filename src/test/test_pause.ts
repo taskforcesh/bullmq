@@ -208,7 +208,6 @@ describe('Pause', function() {
     // One job from the 10 posted above will be processed, so we expect 9 jobs pending
     let paused = await queue.getJobCountByTypes('delayed', 'waiting');
     expect(paused).to.be.eql(9);
-    await Promise.all([active, paused]);
 
     await queue.add('test', {});
 
@@ -218,7 +217,6 @@ describe('Pause', function() {
     paused = await queue.getJobCountByTypes('paused', 'waiting', 'delayed');
     expect(paused).to.be.eql(10);
 
-    await Promise.all([active, paused]);
     await worker.close();
   });
 
