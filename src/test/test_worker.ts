@@ -788,13 +788,11 @@ describe('workers', function() {
   });
 
   it('retry a job that fails', async () => {
-    let called = 0;
     let failedOnce = false;
     const notEvenErr = new Error('Not even!');
 
     const worker = new Worker(queueName, async job => {
-      called++;
-      if (called % 2 !== 0) {
+      if (!failedOnce) {
         throw notEvenErr;
       }
     });
@@ -815,10 +813,14 @@ describe('workers', function() {
       });
     });
 
-    const completing = new Promise(resolve => {
+    const completing = new Promise((resolve, reject) => {
       worker.once('completed', () => {
-        expect(failedOnce).to.be.eql(true);
-        resolve();
+        try {
+          expect(failedOnce).to.be.eql(true);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
     });
 
@@ -1452,21 +1454,21 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      const addedHandler = once(async job => {
-        expect(job.data.foo).to.equal('bar');
-
-        await delay(100);
-
-        try {
-          await job.retry();
-        } catch (err) {
-          expect(err.message).to.equal('Retried job not failed');
-        }
+      const activating = new Promise(resolve => {
+        worker.on('active', resolve);
       });
 
       const job = await queue.add('test', { foo: 'bar' });
 
-      await addedHandler(job);
+      expect(job.data.foo).to.equal('bar');
+
+      await activating;
+
+      try {
+        await job.retry();
+      } catch (err) {
+        expect(err.message).to.equal('Retried job not failed');
+      }
 
       await worker.close();
     });
