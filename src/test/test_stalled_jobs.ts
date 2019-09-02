@@ -27,7 +27,7 @@ describe('stalled jobs', function() {
   });
 
   it('process stalled jobs when starting a queue', async function() {
-    this.timeout(6000);
+    this.timeout(10000);
 
     const concurrency = 4;
 
@@ -38,7 +38,7 @@ describe('stalled jobs', function() {
       },
       {
         settings: {
-          stalledInterval: 10,
+          stalledInterval: 1000,
         },
         concurrency,
       },

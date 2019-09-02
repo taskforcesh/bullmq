@@ -805,7 +805,6 @@ describe('workers', function() {
           expect(job.data.foo).to.be.eql('bar');
           expect(err).to.be.eql(notEvenErr);
           failedOnce = true;
-          await job.retry();
         } catch (err) {
           reject(err);
         }
@@ -829,6 +828,7 @@ describe('workers', function() {
     expect(job.data.foo).to.be.eql('bar');
 
     await failing;
+    await job.retry();
     await completing;
 
     await worker.close();
