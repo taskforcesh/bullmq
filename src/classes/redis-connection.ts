@@ -72,6 +72,29 @@ export class RedisConnection {
     return this.client;
   }
 
+  async disconnect() {
+    const client = this.client;
+    if (client.status !== 'end') {
+      let _resolve, _reject;
+
+      const disconnecting = new Promise((resolve, reject) => {
+        client.once('end', resolve);
+        client.once('error', reject);
+        _resolve = resolve;
+        _reject = reject;
+      });
+
+      client.disconnect();
+
+      try {
+        await disconnecting;
+      } finally {
+        client.removeListener('end', _resolve);
+        client.removeListener('error', _reject);
+      }
+    }
+  }
+
   async close() {}
 
   private async getRedisVersion() {

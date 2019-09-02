@@ -263,7 +263,7 @@ export class Worker extends QueueBase {
     //
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
-    this.waiting && (await redisClientDisconnect(this.client));
+    this.waiting && (await this.client.disconnect());
 
     // If we are disconnected, how are we going to update the completed/failed sets?
     if (this.processing) {
@@ -282,33 +282,11 @@ export class Worker extends QueueBase {
       if (!force) {
         await this.whenCurrentJobsFinished(false);
       } else {
-        await redisClientDisconnect(this.client);
+        await this.disconnect();
       }
     } finally {
       this.childPool && this.childPool.clean();
     }
     this.emit('closed');
-  }
-}
-
-async function redisClientDisconnect(client: IORedis.Redis) {
-  if (client.status !== 'end') {
-    let _resolve, _reject;
-
-    const disconnecting = new Promise((resolve, reject) => {
-      client.once('end', resolve);
-      client.once('error', reject);
-      _resolve = resolve;
-      _reject = reject;
-    });
-
-    client.disconnect();
-
-    try {
-      await disconnecting;
-    } finally {
-      client.removeListener('end', _resolve);
-      client.removeListener('error', _reject);
-    }
   }
 }
