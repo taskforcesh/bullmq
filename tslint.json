@@ -1,19 +1,20 @@
 {
-  "extends": ["tslint-eslint-rules"],
+  "extends": ["tslint-eslint-rules", "tslint-config-prettier"],
+  "rulesDirectory": ["tslint-plugin-prettier"],
   "rules": {
-    "no-unnecessary-class": [true, "allow-empty-class"],
-    "no-use-before-declare": true,
+    "prettier": true,
+    "no-unnecessary-class": [false, "allow-empty-class"],
     "no-inferrable-types": true,
     "semicolon": [true, "always"],
     "no-bitwise": false,
     "eofline": true,
-    "no-any": true,
+    "no-any": false,
     "prefer-const": true,
     "forin": false,
     "max-line-length": [
       true,
       {
-        "limit": 80,
+        "limit": 120,
         "ignore-pattern": "^import |^export {(.*?)}"
       }
     ]
