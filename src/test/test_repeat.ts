@@ -7,7 +7,6 @@ import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'node-uuid';
-import { worker } from 'cluster';
 
 const sinon = require('sinon');
 const moment = require('moment');
@@ -731,7 +730,7 @@ describe('repeat', function() {
 
     const date = new Date('2017-02-07 9:24:00');
     this.clock.tick(date.getTime());
-    const nextTick = 1 * ONE_SECOND + 100;
+    const nextTick = 1 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {});
 
