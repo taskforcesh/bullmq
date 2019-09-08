@@ -20,7 +20,6 @@ export class QueueBase extends EventEmitter {
     };
 
     this.connection = new RedisConnection(opts.connection);
-    this.initializing = this.connection.init();
 
     const keys: { [index: string]: string } = {};
     [
@@ -30,7 +29,6 @@ export class QueueBase extends EventEmitter {
       'waiting',
       'paused',
       'resumed',
-      'meta-paused',
       'active',
       'id',
       'delayed',
@@ -43,22 +41,19 @@ export class QueueBase extends EventEmitter {
       'limiter',
       'drained',
       'progress',
+      'meta',
+      'events',
+      'delay',
     ].forEach(key => {
       keys[key] = this.toKey(key);
     });
     this.keys = keys;
+
+    this.initializing = this.connection.init();
   }
 
   toKey(type: string) {
-    return [this.opts.prefix, this.name, type].join(':');
-  }
-
-  eventStreamKey() {
-    return `${this.opts.prefix}:${this.name}:events`;
-  }
-
-  delayStreamKey() {
-    return `${this.opts.prefix}:${this.name}:delay`;
+    return `${this.opts.prefix}:${this.name}:${type}`;
   }
 
   async waitUntilReady() {

@@ -20,10 +20,14 @@ export class QueueEvents extends QueueBase {
     this.consumeEvents();
   }
 
+  trim(maxLength: number) {
+    this.client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+  }
+
   private async consumeEvents() {
     const opts: QueueEventsOptions = this.opts;
 
-    const key = this.eventStreamKey();
+    const key = this.keys.events;
     let id = opts.lastEventId || '0-0';
 
     while (!this.closing) {

@@ -22,9 +22,9 @@
 import { EventEmitter } from 'events';
 import { QueueEvents, Worker, Queue, QueueScheduler, Job } from '@src/classes';
 import {
-  JobsOpts,
+  JobsOptions,
   QueueOptions,
-  RepeatOpts,
+  RepeatOptions,
   QueueEventsOptions,
   QueueSchedulerOptions,
   WorkerOptions,
@@ -101,7 +101,7 @@ export class Queue3<T = any> extends EventEmitter {
     return this.worker.waitUntilReady();
   }
 
-  add(jobName: string, data: any, opts?: JobsOpts): Promise<Job> {
+  add(jobName: string, data: any, opts?: JobsOptions): Promise<Job> {
     return this.queue.add(jobName, data, opts);
   }
 
@@ -252,7 +252,7 @@ export class Queue3<T = any> extends EventEmitter {
   async nextRepeatableJob(
     name: string,
     data: any,
-    opts?: JobsOpts,
+    opts?: JobsOptions,
     skipCheckExists?: boolean,
   ): Promise<Job> {
     return this.queue.repeat.addNextRepeatableJob(
@@ -269,7 +269,7 @@ export class Queue3<T = any> extends EventEmitter {
    *
    * name: The name of the to be removed job
    */
-  async removeRepeatable(name: string, repeat: RepeatOpts): Promise<void> {
+  async removeRepeatable(name: string, repeat: RepeatOptions): Promise<void> {
     return this.queue.repeat.removeRepeatable(name, repeat, repeat.jobId);
   }
 

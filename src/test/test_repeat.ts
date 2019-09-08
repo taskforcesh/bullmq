@@ -627,7 +627,6 @@ describe('repeat', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.init();
 
-    const jobAdds = [];
     let currentPriority = 1;
     const nextTick = 1000;
 
@@ -648,15 +647,11 @@ describe('repeat', function() {
       };
     });
 
-    jobAdds.push(
+    await Promise.all([
       queue.add('test', { p: 1 }, { priority: 1, delay: nextTick * 3 }),
-    );
-    jobAdds.push(
       queue.add('test', { p: 2 }, { priority: 2, delay: nextTick * 2 }),
-    );
-    jobAdds.push(queue.add('test', { p: 3 }, { priority: 3, delay: nextTick }));
-
-    await Promise.all(jobAdds);
+      queue.add('test', { p: 3 }, { priority: 3, delay: nextTick }),
+    ]);
 
     this.clock.tick(nextTick * 3 + 100);
 
@@ -664,6 +659,7 @@ describe('repeat', function() {
     await worker.waitUntilReady();
 
     await processing;
+
     await worker.close();
     await queueScheduler.close();
   });

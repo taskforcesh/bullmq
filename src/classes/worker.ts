@@ -1,4 +1,4 @@
-import { WorkerOptions, Processor } from '@src/interfaces/worker-opts';
+import { WorkerOptions, Processor } from '@src/interfaces/worker-options';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { Scripts } from './scripts';

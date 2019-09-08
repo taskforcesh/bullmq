@@ -17,7 +17,7 @@
     Input:
       KEYS[1] 'wait',
       KEYS[2] 'paused'
-      KEYS[3] 'meta-paused'
+      KEYS[3] 'meta'
       KEYS[4] 'id'
       KEYS[5] 'delayed'
       KEYS[6] 'priority'
@@ -65,10 +65,10 @@ if(delayedTimestamp ~= 0) then
 else
   local target
 
-  -- Whe check for the meta-paused key to decide if we are paused or not
+  -- Whe check for the meta.paused key to decide if we are paused or not
   -- (since an empty list and !EXISTS are not really the same)
   local paused
-  if rcall("EXISTS", KEYS[3]) ~= 1 then
+  if rcall("HEXISTS", KEYS[3], "paused") ~= 1 then
     target = KEYS[1]
     paused = false
   else

@@ -8,7 +8,7 @@
       KEYS[4] 'failed', (ZSET)
       KEYS[5] 'stalled-check', (KEY)
 
-      KEYS[6] 'meta-paused', (KEY)
+      KEYS[6] 'meta', (KEY)
       KEYS[7] 'paused', (LIST)
 
       KEYS[8] 'event stream' (STREAM)
@@ -39,7 +39,7 @@ if(#stalling > 0) then
 
   local dst
   -- wait or paused destination
-  if rcall("EXISTS", KEYS[6]) ~= 1 then
+  if rcall("HEXISTS", KEYS[6], "paused") ~= 1 then
     dst = KEYS[2]
   else
     dst = KEYS[7]

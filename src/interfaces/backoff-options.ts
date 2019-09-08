@@ -1,4 +1,4 @@
-export interface BackoffOpts {
+export interface BackoffOptions {
   type: string;
   delay?: number;
 }

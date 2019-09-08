@@ -1,7 +1,7 @@
-import { JobsOpts } from '@src/interfaces';
+import { JobsOptions } from '@src/interfaces';
 
 import IORedis from 'ioredis';
-import { ConnectionOptions } from './redis-opts';
+import { ConnectionOptions } from './redis-options';
 
 export enum ClientType {
   blocking = 'blocking',
@@ -15,8 +15,13 @@ export interface QueueBaseOptions {
 }
 
 export interface QueueOptions extends QueueBaseOptions {
-  defaultJobOptions?: JobsOpts;
-  createClient?: (type: ClientType) => IORedis.Redis;
+  defaultJobOptions?: JobsOptions;
+
+  streams?: {
+    events: {
+      maxLen: number; // Max aproximated length for streams
+    };
+  };
 }
 
 export interface QueueEventsOptions extends QueueBaseOptions {

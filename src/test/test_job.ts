@@ -4,7 +4,7 @@
 import { Job, Queue, QueueScheduler } from '@src/classes';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Worker } from '@src/classes/worker';
-import { JobsOpts } from '@src/interfaces';
+import { JobsOptions } from '@src/interfaces';
 import { delay } from 'bluebird';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
@@ -38,7 +38,7 @@ describe('Job', function() {
     const timestamp = 1234567890;
     let job: Job;
     let data: any;
-    let opts: JobsOpts;
+    let opts: JobsOptions;
 
     beforeEach(async function() {
       data = { foo: 'bar' };
