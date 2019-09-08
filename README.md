@@ -8,6 +8,7 @@
     The fastest, most reliable, Redis-based distributed queue for Node. <br/>
     Carefully written for rock solid stability and atomicity.
   </p>
+  Read the <a href="https://docs.bullmq.io">documentation</a>
   <br/>
   <br/>
   <p>
@@ -25,10 +26,11 @@
     </a>
   </p>
   <p>
-    <em>Follow <a href="http://twitter.com/manast">@manast</a> for Bull news and updates!</em>
+    <em>Follow <a href="https://twitter.com/manast">@manast</a> for Bull news and updates!</em>
   </p>
 </div>
 
+# The gist
 
 Add jobs to the queue:
 ```ts
@@ -56,7 +58,7 @@ Listen to jobs for completion:
 ```ts
 import { QueueEvents } from 'bullmq';
 
-const queueEvents = new QueueEvents('Pain');
+const queueEvents = new QueueEvents('Paint');
 
 queueEvents.on('completed', (jobId) => {
     console.log('done painting');
@@ -67,4 +69,4 @@ queueEvents.on('failed', (jobId, err) => {
 });
 ```
 
-
+This is just the tip of the iceberg, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>
