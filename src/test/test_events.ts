@@ -116,23 +116,44 @@ describe('events', function() {
   });
   */
 
-  it('emits drained and global:drained event when all jobs have been processed', function(done) {
+  it('emits drained global drained event when all jobs have been processed', async function() {
     const worker = new Worker(queueName, async job => {}, {
       drainDelay: 1,
     });
 
-    const drainedCallback = after(2, async function() {
-      const jobs = await queue.getJobCountByTypes('completed');
-      expect(jobs).to.be.equal(2);
-      await worker.close();
-      done();
+    const drained = new Promise(resolve => {
+      queueEvents.once('drained', resolve);
     });
 
-    worker.once('drained', drainedCallback);
-    queueEvents.once('drained', drainedCallback);
+    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'baz' });
 
-    queue.add('test', { foo: 'bar' });
-    queue.add('test', { foo: 'baz' });
+    await drained;
+
+    const jobs = await queue.getJobCountByTypes('completed');
+    expect(jobs).to.be.equal(2);
+
+    await worker.close();
+  });
+
+  it('emits drained event when all jobs have been processed', async function() {
+    const worker = new Worker(queueName, async job => {}, {
+      drainDelay: 1,
+    });
+
+    const drained = new Promise(resolve => {
+      worker.once('drained', resolve);
+    });
+
+    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'baz' });
+
+    await drained;
+
+    const jobs = await queue.getJobCountByTypes('completed');
+    expect(jobs).to.be.equal(2);
+
+    await worker.close();
   });
 
   /*
