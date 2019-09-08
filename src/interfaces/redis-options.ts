@@ -1,9 +1,9 @@
 import IORedis from 'ioredis';
 
-export interface RedisOpts {
+export interface RedisOptions {
   skipVersionCheck?: boolean;
   port: number;
   host: string;
 }
 
-export type ConnectionOptions = RedisOpts | IORedis.Redis;
+export type ConnectionOptions = RedisOptions | IORedis.Redis;

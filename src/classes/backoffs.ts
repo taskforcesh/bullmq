@@ -1,4 +1,4 @@
-import { BackoffOpts } from '../interfaces/backoff-opts';
+import { BackoffOptions } from '../interfaces/backoff-options';
 
 interface BuiltInStrategies {
   [index: string]: (delay: number) => BackoffFunction;
@@ -25,19 +25,19 @@ export class Backoffs {
     },
   };
 
-  static normalize(backoff: number | BackoffOpts): BackoffOpts {
+  static normalize(backoff: number | BackoffOptions): BackoffOptions {
     if (Number.isFinite(<number>backoff)) {
       return {
         type: 'fixed',
         delay: <number>backoff,
       };
     } else if (backoff) {
-      return <BackoffOpts>backoff;
+      return <BackoffOptions>backoff;
     }
   }
 
   static calculate(
-    backoff: BackoffOpts,
+    backoff: BackoffOptions,
     attemptsMade: number,
     customStrategies: Strategies,
     err: Error,
@@ -51,7 +51,7 @@ export class Backoffs {
 }
 
 function lookupStrategy(
-  backoff: BackoffOpts,
+  backoff: BackoffOptions,
   customStrategies: Strategies,
 ): BackoffFunction {
   if (backoff.type in (customStrategies || {})) {
