@@ -9,6 +9,7 @@
     Carefully written for rock solid stability and atomicity.
   </p>
   <br/>
+  Read the documentation  <a href="https://docs.bullmq.io">here</a>
   <br/>
   <p>
     <a href="https://gitter.im/OptimalBits/bull">
@@ -25,7 +26,7 @@
     </a>
   </p>
   <p>
-    <em>Follow <a href="http://twitter.com/manast">@manast</a> for Bull news and updates!</em>
+    <em>Follow <a href="https://twitter.com/manast">@manast</a> for Bull news and updates!</em>
   </p>
 </div>
 
