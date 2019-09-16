@@ -47,9 +47,9 @@ Process the jobs in your workers:
 
 import { Worker } from 'bullmq';
 
-const worker = new Worker('Paint', (job) => {
+const worker = new Worker('Paint', async (job) => {
     if(job.name === 'cars'){
-       paintCar(job.data.color);
+       await paintCar(job.data.color);
     }
 });
 ```
