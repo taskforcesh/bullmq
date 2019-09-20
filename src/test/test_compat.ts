@@ -324,20 +324,36 @@ describe('Compat', function() {
       queue.add('test', { foo: 'bar' });
     });
 
-    it('emits drained and global:drained event when all jobs have been processed', function(done) {
+    it('emits drained event when all jobs have been processed', async function() {
+      await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { foo: 'baz' });
+
       queue.process(async job => {});
 
-      const drainedCallback = after(2, async function() {
-        const jobs = await queue.getJobCountByTypes('completed');
-        expect(jobs).to.be.equal(2);
-        done();
+      const drained = new Promise(resolve => {
+        queue.once('drained', resolve);
       });
 
-      queue.once('drained', drainedCallback);
-      queue.once('global:drained', drainedCallback);
+      await drained;
 
-      queue.add('test', { foo: 'bar' });
-      queue.add('test', { foo: 'baz' });
+      const jobs = await queue.getJobCountByTypes('completed');
+      expect(jobs).to.be.equal(2);
+    });
+
+    it('emits drained event when all jobs have been processed', async function() {
+      await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { foo: 'baz' });
+
+      queue.process(async job => {});
+
+      const drained = new Promise(resolve => {
+        queue.once('global:drained', resolve);
+      });
+
+      await drained;
+
+      const jobs = await queue.getJobCountByTypes('completed');
+      expect(jobs).to.be.equal(2);
     });
 
     it('should emit an event when a job becomes active', function(done) {
