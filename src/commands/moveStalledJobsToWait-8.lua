@@ -70,6 +70,9 @@ if(#stalling > 0) then
           -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
           rcall("RPUSH", dst, jobId)
           rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId, 'prev', 'active');
+
+          -- Emit the stalled event
+          rcall("XADD", KEYS[8], "*", "event", "stalled", "jobId", jobId);
           table.insert(stalled, jobId)
         end
       end
