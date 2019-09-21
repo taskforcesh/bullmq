@@ -1,17 +1,13 @@
-import { WorkerOptions, Processor } from '@src/interfaces/worker-options';
-import { QueueBase } from './queue-base';
-import { Job } from './job';
-import { Scripts } from './scripts';
-
+import { Processor, WorkerOptions } from '@src/interfaces/worker-options';
 import * as Bluebird from 'bluebird';
-import IORedis from 'ioredis';
-import { Repeat } from './repeat';
 import fs from 'fs';
 import path from 'path';
-import { ChildPool } from './child-pool';
+import { ChildPool, pool } from './child-pool';
+import { Job } from './job';
+import { QueueBase } from './queue-base';
+import { Repeat } from './repeat';
 import sandbox from './sandbox';
-import { pool } from './child-pool';
-import { stringify } from 'querystring';
+import { Scripts } from './scripts';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
