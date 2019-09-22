@@ -1,4 +1,4 @@
-import { JobsOptions } from '@src/interfaces';
+import { JobsOptions } from '../interfaces';
 
 import IORedis from 'ioredis';
 import { ConnectionOptions } from './redis-options';

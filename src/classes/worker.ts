@@ -1,11 +1,10 @@
-import { Processor, WorkerOptions } from '@src/interfaces/worker-options';
 import * as Bluebird from 'bluebird';
 import fs from 'fs';
 import path from 'path';
+import { Processor, WorkerOptions } from '../interfaces';
+import { QueueBase, Repeat } from './';
 import { ChildPool, pool } from './child-pool';
 import { Job } from './job';
-import { QueueBase } from './queue-base';
-import { Repeat } from './repeat';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 

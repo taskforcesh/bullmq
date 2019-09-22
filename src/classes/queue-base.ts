@@ -1,6 +1,6 @@
-import { QueueBaseOptions } from '@src/interfaces';
 import { EventEmitter } from 'events';
 import IORedis from 'ioredis';
+import { QueueBaseOptions } from '../interfaces';
 import { RedisConnection } from './redis-connection';
 
 export class QueueBase extends EventEmitter {

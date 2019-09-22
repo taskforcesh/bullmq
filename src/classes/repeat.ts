@@ -1,9 +1,7 @@
-import { QueueBase } from './queue-base';
-import { Job } from './job';
-
 import { createHash } from 'crypto';
-import { RepeatOptions } from '@src/interfaces/repeat-options';
-import { JobsOptions } from '@src/interfaces';
+import { JobsOptions, RepeatOptions } from '../interfaces';
+import { Job, QueueBase } from './';
+
 const parser = require('cron-parser');
 
 export class Repeat extends QueueBase {

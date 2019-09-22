@@ -1,4 +1,4 @@
-import { Queue, Worker, Job } from '@src/classes';
+import { Queue, Worker, Job } from '../classes';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';

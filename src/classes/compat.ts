@@ -20,7 +20,7 @@
 // TypeScript Version: 2.8
 
 import { EventEmitter } from 'events';
-import { QueueEvents, Worker, Queue, QueueScheduler, Job } from '@src/classes';
+import { QueueEvents, Worker, Queue, QueueScheduler, Job } from './';
 import {
   JobsOptions,
   QueueOptions,
@@ -29,7 +29,7 @@ import {
   QueueSchedulerOptions,
   WorkerOptions,
   Processor,
-} from '@src/interfaces';
+} from '../interfaces';
 
 type CommonOptions = QueueSchedulerOptions &
   QueueOptions &

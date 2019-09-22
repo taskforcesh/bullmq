@@ -1,10 +1,12 @@
-import { JobsOptions, QueueOptions, RateLimiterOptions } from '@src/interfaces';
-import { RepeatOptions } from '@src/interfaces/repeat-options';
 import { get } from 'lodash';
 import { v4 } from 'node-uuid';
-import { Job } from './job';
-import { QueueGetters } from './queue-getters';
-import { Repeat } from './repeat';
+import {
+  JobsOptions,
+  QueueOptions,
+  RateLimiterOptions,
+  RepeatOptions,
+} from '../interfaces';
+import { Job, QueueGetters, Repeat } from './';
 import { Scripts } from './scripts';
 
 export class Queue extends QueueGetters {

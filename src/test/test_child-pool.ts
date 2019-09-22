@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ChildPool } from '@src/classes';
+import { ChildPool } from '../classes';
 
 describe('Child pool', () => {
   let pool: ChildPool;

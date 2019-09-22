@@ -5,16 +5,15 @@
 /*eslint-env node */
 'use strict';
 
-import { QueueSchedulerOptions } from '@src/interfaces';
-import { WorkerOptions } from '@src/interfaces/worker-options';
 import IORedis from 'ioredis';
-import { JobsOptions } from '../interfaces';
+import {
+  JobsOptions,
+  QueueSchedulerOptions,
+  WorkerOptions,
+} from '../interfaces';
 import { array2obj } from '../utils';
+import { Queue, QueueBase, QueueScheduler, Worker } from './';
 import { Job, JobJson } from './job';
-import { Queue } from './queue';
-import { QueueBase } from './queue-base';
-import { QueueScheduler } from './queue-scheduler';
-import { Worker } from './worker';
 
 export class Scripts {
   static async isJobInList(

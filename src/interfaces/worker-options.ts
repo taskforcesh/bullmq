@@ -1,7 +1,5 @@
-import { RateLimiterOptions } from './rate-limiter-options';
-import { Job } from '@src/classes';
-import { QueueBaseOptions } from './queue-options';
-import { AdvancedOptions } from './advanced-options';
+import { Job } from '../classes';
+import { AdvancedOptions, QueueBaseOptions, RateLimiterOptions } from './';
 
 export type Processor = (job: Job) => Promise<any>;
 

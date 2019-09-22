@@ -1,7 +1,7 @@
-import { RedisOptions, ConnectionOptions } from '@src/interfaces';
 import IORedis from 'ioredis';
 import * as semver from 'semver';
-import { load } from '@src/commands';
+import { load } from '../commands';
+import { ConnectionOptions, RedisOptions } from '../interfaces';
 
 export class RedisConnection {
   static minimumVersion = '5.0.0';

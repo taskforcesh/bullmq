@@ -1,7 +1,7 @@
-import { QueueBase } from './queue-base';
+import { QueueSchedulerOptions } from '../interfaces';
+import { array2obj } from '../utils';
+import { QueueBase } from './';
 import { Scripts } from './scripts';
-import { array2obj } from '@src/utils';
-import { QueueSchedulerOptions } from '@src/interfaces';
 
 const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
 

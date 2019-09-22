@@ -1,2 +1,4 @@
-export * from '@src/classes';
-export * from '@src/interfaces';
+export * from './classes';
+export * from './commands';
+export * from './enums';
+export * from './interfaces';

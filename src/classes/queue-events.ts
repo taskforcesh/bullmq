@@ -1,5 +1,5 @@
-import { QueueEventsOptions } from '@src/interfaces';
 import { delay } from 'bluebird';
+import { QueueEventsOptions } from '../interfaces';
 import { array2obj } from '../utils';
 import { QueueBase } from './queue-base';
 

@@ -1,14 +1,10 @@
-import { BackoffOptions } from '@src/interfaces/backoff-options';
-import { WorkerOptions } from '@src/interfaces/worker-options';
 import IORedis from 'ioredis';
 import { debuglog } from 'util';
-import { JobsOptions } from '../interfaces';
+import { RetryErrors } from '../enums';
+import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
-import { Backoffs } from './backoffs';
-import { QueueBase } from './queue-base';
-import { QueueEvents } from './queue-events';
+import { Backoffs, QueueBase, QueueEvents } from './';
 import { Scripts } from './scripts';
-import { RetryErrors } from '@src/enums';
 
 const logger = debuglog('bull');
 

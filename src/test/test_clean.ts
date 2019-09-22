@@ -1,4 +1,4 @@
-import { Queue, QueueEvents, Worker } from '@src/classes';
+import { Queue, QueueEvents, Worker } from '../classes';
 import { delay } from 'bluebird';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
