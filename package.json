@@ -8,6 +8,7 @@
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
   "scripts": {
+    "docs": "typedoc --out docs src",
     "build": "tsc && yarn copylua",
     "copylua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
     "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
