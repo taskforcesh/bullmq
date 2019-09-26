@@ -32,10 +32,10 @@ describe('Delayed jobs', function() {
   it('should process a delayed job only after delayed time', async function() {
     const delay = 500;
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     const queueEvents = new QueueEvents(queueName);
-    await queueEvents.init();
+    await queueEvents.waitUntilReady();
 
     const worker = new Worker(queueName, async job => {});
 
@@ -76,7 +76,7 @@ describe('Delayed jobs', function() {
     let order = 0;
     let processor;
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     const processing = new Promise((resolve, reject) => {
       processor = async (job: Job) => {
@@ -166,7 +166,7 @@ describe('Delayed jobs', function() {
     let order = 1;
 
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     let processor;
 

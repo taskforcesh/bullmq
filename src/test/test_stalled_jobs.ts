@@ -30,7 +30,7 @@ describe('stalled jobs', function() {
     this.timeout(10000);
 
     const queueEvents = new QueueEvents(queueName);
-    await queueEvents.init();
+    await queueEvents.waitUntilReady();
 
     const concurrency = 4;
 
@@ -65,7 +65,7 @@ describe('stalled jobs', function() {
     const queueScheduler = new QueueScheduler(queueName, {
       stalledInterval: 100,
     });
-    queueScheduler.init();
+    queueScheduler.waitUntilReady();
 
     const allStalled = new Promise(resolve => {
       queueScheduler.on('stalled', after(concurrency, resolve));
@@ -131,7 +131,7 @@ describe('stalled jobs', function() {
       stalledInterval: 100,
       maxStalledCount: 0,
     });
-    queueScheduler.init();
+    queueScheduler.waitUntilReady();
 
     const allFailed = new Promise(resolve => {
       queueScheduler.on('failed', after(concurrency, resolve));

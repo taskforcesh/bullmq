@@ -15,8 +15,8 @@ export class QueueEvents extends QueueBase {
     );
   }
 
-  async init() {
-    this.client = await this.connection.init();
+  async waitUntilReady() {
+    await super.waitUntilReady();
     this.consumeEvents();
   }
 

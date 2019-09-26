@@ -23,7 +23,7 @@ describe('Rate Limiter', function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    await queueEvents.init();
+    await queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {
@@ -70,7 +70,7 @@ describe('Rate Limiter', function() {
     const startTime = new Date().getTime();
 
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     const worker = new Worker(queueName, async job => {}, {
       limiter: {

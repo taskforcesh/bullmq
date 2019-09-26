@@ -23,7 +23,7 @@ describe('Pause', function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    await queueEvents.init();
+    await queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {
@@ -37,7 +37,7 @@ describe('Pause', function() {
     this.timeout(5000);
 
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     let processed = false;
 

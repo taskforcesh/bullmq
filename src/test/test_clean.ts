@@ -21,7 +21,7 @@ describe('Cleaner', () => {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.init();
+    return queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {

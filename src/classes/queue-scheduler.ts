@@ -28,8 +28,8 @@ export class QueueScheduler extends QueueBase {
     super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
   }
 
-  async init() {
-    await this.waitUntilReady();
+  async waitUntilReady() {
+    await super.waitUntilReady();
 
     const [nextTimestamp, streamLastId] = await Scripts.updateDelaySet(
       this,

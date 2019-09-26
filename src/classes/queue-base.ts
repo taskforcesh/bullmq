@@ -48,8 +48,6 @@ export class QueueBase extends EventEmitter {
       keys[key] = this.toKey(key);
     });
     this.keys = keys;
-
-    this.initializing = this.connection.init();
   }
 
   toKey(type: string) {
@@ -57,6 +55,10 @@ export class QueueBase extends EventEmitter {
   }
 
   async waitUntilReady() {
+    if (!this.initializing) {
+      this.initializing = this.connection.init();
+    }
+
     this.client = await this.initializing;
   }
 

@@ -25,7 +25,7 @@ describe('workers', function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.init();
+    return queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {
@@ -1119,7 +1119,7 @@ describe('workers', function() {
       this.timeout(12000);
 
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       let start: number;
 
@@ -1158,7 +1158,7 @@ describe('workers', function() {
       let start: number;
 
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(queueName, async job => {
         if (job.attemptsMade < 2) {
@@ -1197,7 +1197,7 @@ describe('workers', function() {
     it('should retry a job after a delay if a custom backoff is given', async function() {
       this.timeout(12000);
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       let start: number;
 
@@ -1298,7 +1298,7 @@ describe('workers', function() {
 
       this.timeout(12000);
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -1348,7 +1348,7 @@ describe('workers', function() {
 
     it.skip('should not retry a job that has been removed', async () => {
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {
@@ -1401,7 +1401,7 @@ describe('workers', function() {
     it.skip('should not retry a job that has been retried already', async () => {
       let attempts = 0;
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {
