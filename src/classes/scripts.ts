@@ -125,6 +125,7 @@ export class Scripts {
       queueKeys.wait,
       queueKeys.priority,
       queueKeys.events,
+      queueKeys.meta,
     ];
 
     let remove;

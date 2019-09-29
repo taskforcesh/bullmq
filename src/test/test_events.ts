@@ -1,11 +1,10 @@
 import { Queue } from '@src/classes';
-import { describe, beforeEach, it } from 'mocha';
+import { QueueEvents } from '@src/classes/queue-events';
+import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
+import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'node-uuid';
-import { Worker } from '@src/classes/worker';
-import { after } from 'lodash';
-import { QueueEvents } from '@src/classes/queue-events';
 
 describe('events', function() {
   this.timeout(4000);
@@ -48,74 +47,6 @@ describe('events', function() {
     queue.add('test', { foo: 'bar' });
   });
 
-  /*
-  it('should emit stalled when a job has been stalled', function(done) {
-    queue.on('completed', function(job) {
-      done(new Error('should not have completed'));
-    });
-
-    queue.process(function(job) {
-      return Bluebird.delay(250);
-    });
-
-    queue.add({ foo: 'bar' });
-
-    var queue2 = utils.buildQueue('test events', {
-      settings: {
-        stalledInterval: 100,
-      },
-    });
-
-    queue2.on('stalled', function(job) {
-      queue2.close().then(done);
-    });
-
-    queue.on('active', function() {
-      queue2.startMoveUnlockedJobsToWait();
-      queue.close(true);
-    });
-  });
-
-  it('should emit global:stalled when a job has been stalled', function(done) {
-    queue.on('completed', function(job) {
-      done(new Error('should not have completed'));
-    });
-
-    queue.process(function(job) {
-      return Bluebird.delay(250);
-    });
-
-    queue.add({ foo: 'bar' });
-
-    var queue2 = utils.buildQueue('test events', {
-      settings: {
-        stalledInterval: 100,
-      },
-    });
-
-    queue2.on('global:stalled', function(job) {
-      queue2.close().then(done);
-    });
-
-    queue.on('active', function() {
-      queue2.startMoveUnlockedJobsToWait();
-      queue.close(true);
-    });
-  });
-
-  it('emits waiting event when a job is added', function(done) {
-    queue.once('waiting', function(jobId) {
-      Job.fromId(queue, jobId).then(function(job) {
-        expect(job.data.foo).to.be.equal('bar');
-        queue.close().then(done);
-      });
-    });
-    queue.once('registered:waiting', function() {
-      queue.add({ foo: 'bar' });
-    });
-  });
-  */
-
   it('emits drained global drained event when all jobs have been processed', async function() {
     const worker = new Worker(queueName, async job => {}, {
       drainDelay: 1,
@@ -156,21 +87,6 @@ describe('events', function() {
     await worker.close();
   });
 
-  /*
-  it('should emit an event when a new message is added to the queue', function(done) {
-    var client = new redis(6379, '127.0.0.1', {});
-    client.select(0);
-    var queue = new Queue('test pub sub');
-    queue.on('waiting', function(jobId) {
-      expect(parseInt(jobId, 10)).to.be.eql(1);
-      client.quit();
-      done();
-    });
-    queue.once('registered:waiting', function() {
-      queue.add({ test: 'stuff' });
-    });
-  });
-*/
   it('should emit an event when a job becomes active', function(done) {
     const worker = new Worker(queueName, async job => {});
 
@@ -203,5 +119,67 @@ describe('events', function() {
     });
 
     queue.add('test', {});
+  });
+
+  it('should trim events automatically', async () => {
+    const worker = new Worker('test', async () => {});
+    const trimmedQueue = new Queue('test', {
+      streams: {
+        events: {
+          maxLen: 0,
+        },
+      },
+    });
+
+    await trimmedQueue.add('test', {});
+    await trimmedQueue.add('test', {});
+    await trimmedQueue.add('test', {});
+    await trimmedQueue.add('test', {});
+
+    const waitForCompletion = new Promise(resolve => {
+      worker.on('drained', resolve);
+    });
+
+    await waitForCompletion;
+    await worker.close();
+
+    const [[id, [_, event]]] = await trimmedQueue.client.xrange(
+      trimmedQueue.keys.events,
+      '-',
+      '+',
+    );
+
+    expect(event).to.be.equal('drained');
+
+    const eventsLength = await trimmedQueue.client.xlen(
+      trimmedQueue.keys.events,
+    );
+
+    expect(eventsLength).to.be.equal(1);
+
+    await trimmedQueue.close();
+  });
+
+  it('should trim events manually', async () => {
+    const trimmedQueue = new Queue('test-manual');
+
+    await trimmedQueue.add('test', {});
+    await trimmedQueue.add('test', {});
+    await trimmedQueue.add('test', {});
+    await trimmedQueue.add('test', {});
+
+    await trimmedQueue.waitUntilReady();
+
+    let eventsLength = await trimmedQueue.client.xlen(trimmedQueue.keys.events);
+
+    expect(eventsLength).to.be.equal(4);
+
+    await trimmedQueue.trimEvents(0);
+
+    eventsLength = await trimmedQueue.client.xlen(trimmedQueue.keys.events);
+
+    expect(eventsLength).to.be.equal(0);
+
+    await trimmedQueue.close();
   });
 });
