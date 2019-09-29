@@ -25,6 +25,7 @@ export class Queue extends QueueGetters {
 
     this.jobsOpts = get(opts, 'defaultJobOptions');
 
+    // tslint:disable: no-floating-promises
     this.waitUntilReady().then(() => {
       this.client.hset(
         this.keys.meta,

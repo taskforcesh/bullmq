@@ -7,7 +7,7 @@ export class RedisConnection {
   static minimumVersion = '5.0.0';
   client: IORedis.Redis;
 
-  constructor(private opts?: ConnectionOptions) {
+  constructor(private opts?: ConnectionOptions | IORedis.Redis) {
     if (!(opts instanceof IORedis)) {
       this.opts = Object.assign(
         {

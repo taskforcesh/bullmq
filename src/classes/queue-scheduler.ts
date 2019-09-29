@@ -26,26 +26,24 @@ export class QueueScheduler extends QueueBase {
 
   constructor(protected name: string, opts: QueueSchedulerOptions = {}) {
     super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
+
+    // tslint:disable: no-floating-promises
+    this.run();
   }
 
-  async waitUntilReady() {
-    await super.waitUntilReady();
+  private async run() {
+    await this.waitUntilReady();
 
-    const [nextTimestamp, streamLastId] = await Scripts.updateDelaySet(
-      this,
-      Date.now(),
-    );
+    const key = this.keys.delay;
+    const opts = this.opts as QueueSchedulerOptions;
+    const delaySet = await Scripts.updateDelaySet(this, Date.now());
+
+    const [nextTimestamp] = delaySet;
+    let streamLastId = delaySet[1] || '0-0';
 
     if (nextTimestamp) {
       this.nextTimestamp = nextTimestamp;
     }
-
-    this.run(streamLastId);
-  }
-
-  private async run(streamLastId = '0-0') {
-    const key = this.keys.delay;
-    const opts = this.opts as QueueSchedulerOptions;
 
     while (!this.closing) {
       // Check if at least the min stalled check time has passed.

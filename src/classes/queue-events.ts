@@ -16,7 +16,8 @@ export class QueueEvents extends QueueBase {
       this.opts,
     );
 
-    this.consumeEvents();
+    // tslint:disable: no-floating-promises
+    this.consumeEvents().catch(err => this.emit('error'));
   }
 
   private async consumeEvents() {
@@ -63,9 +64,9 @@ export class QueueEvents extends QueueBase {
         }
       } catch (err) {
         if (err.message !== 'Connection is closed.') {
-          await delay(5000);
           throw err;
         }
+        await delay(5000);
       }
     }
   }

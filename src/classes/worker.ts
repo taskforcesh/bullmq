@@ -59,6 +59,7 @@ export class Worker extends QueueBase {
 
     this.repeat = new Repeat(name, opts);
 
+    /* tslint:disable: no-floating-promises */
     this.run();
   }
 
