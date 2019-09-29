@@ -126,8 +126,8 @@ describe('Pause', function() {
     const worker = new Worker(queueName, process);
     await worker.waitUntilReady();
 
-    queue.add('test', { foo: 'paused' });
-    queue.add('test', { foo: 'paused' });
+    await queue.add('test', { foo: 'paused' });
+    await queue.add('test', { foo: 'paused' });
 
     queueEvents.on('paused', async () => {
       isPaused = false;
@@ -243,10 +243,12 @@ describe('Pause', function() {
     const worker2 = new Worker(queueName, process2);
     await worker2.waitUntilReady();
 
-    queue.add('test', 1);
-    queue.add('test', 2);
-    queue.add('test', 3);
-    queue.add('test', 4);
+    await Promise.all([
+      queue.add('test', 1),
+      queue.add('test', 2),
+      queue.add('test', 3),
+      queue.add('test', 4),
+    ]);
 
     await Promise.all([startProcessing1, startProcessing2]);
     await Promise.all([worker1.pause(), worker2.pause()]);

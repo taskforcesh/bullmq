@@ -1,4 +1,5 @@
 /*eslint-env node */
+/* tslint:disable: no-floating-promises */
 'use strict';
 
 import { Queue, Job } from '@src/classes';
@@ -88,48 +89,56 @@ describe('Jobs getters', function() {
   });
   */
 
-  it('should get completed jobs', function(done) {
+  it('should get completed jobs', async () => {
     const worker = new Worker(queueName, async job => {});
     let counter = 2;
 
-    worker.on('completed', async function() {
-      counter--;
+    const completed = new Promise(resolve => {
+      worker.on('completed', async function() {
+        counter--;
 
-      if (counter === 0) {
-        const jobs = await queue.getCompleted();
-        expect(jobs).to.be.a('array');
+        if (counter === 0) {
+          const jobs = await queue.getCompleted();
+          expect(jobs).to.be.a('array');
 
-        // We need a "empty completed" kind of function.
-        //expect(jobs.length).to.be.equal(2);
-        await worker.close();
-        done();
-      }
+          // We need a "empty completed" kind of function.
+          //expect(jobs.length).to.be.equal(2);
+          await worker.close();
+          resolve();
+        }
+      });
     });
 
-    queue.add('test', { foo: 'bar' });
-    queue.add('test', { baz: 'qux' });
+    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { baz: 'qux' });
+
+    await completed;
   });
 
-  it('should get failed jobs', function(done) {
+  it('should get failed jobs', async () => {
     const worker = new Worker(queueName, async job => {
       throw new Error('Forced error');
     });
 
     let counter = 2;
 
-    worker.on('failed', async function() {
-      counter--;
+    const failed = new Promise(resolve => {
+      worker.on('failed', async function() {
+        counter--;
 
-      if (counter === 0) {
-        const jobs = await queue.getFailed();
-        expect(jobs).to.be.a('array');
-        await worker.close();
-        done();
-      }
+        if (counter === 0) {
+          const jobs = await queue.getFailed();
+          expect(jobs).to.be.a('array');
+          await worker.close();
+          resolve();
+        }
+      });
     });
 
-    queue.add('test', { foo: 'bar' });
-    queue.add('test', { baz: 'qux' });
+    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { baz: 'qux' });
+
+    await failed;
   });
 
   /*

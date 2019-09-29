@@ -81,7 +81,7 @@ describe('connection', () => {
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
-    worker.on('completed', () => {
+    worker.on('completed', async () => {
       if (count === 1) {
         (<any>queue.client).stream.end();
         queue.client.emit('error', new Error('ECONNRESET'));
@@ -89,7 +89,7 @@ describe('connection', () => {
         (<any>worker.client).stream.end();
         worker.client.emit('error', new Error('ECONNRESET'));
 
-        queue.add('test', { foo: 'bar' });
+        await queue.add('test', { foo: 'bar' });
       }
     });
 

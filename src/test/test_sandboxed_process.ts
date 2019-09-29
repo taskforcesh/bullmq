@@ -46,16 +46,16 @@ describe('sandboxed process', () => {
     });
 
     const completting = new Promise((resolve, reject) => {
-      worker.on('completed', (job, value) => {
+      worker.on('completed', async (job, value) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(42);
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
           expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-          worker.close();
+          await worker.close();
           resolve();
         } catch (err) {
-          worker.close();
+          await worker.close();
           reject(err);
         }
       });
@@ -79,16 +79,16 @@ describe('sandboxed process', () => {
     });
 
     const completting = new Promise((resolve, reject) => {
-      worker.on('completed', (job, value) => {
+      worker.on('completed', async (job, value) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(42);
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
           expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-          worker.close();
+          await worker.close();
           resolve();
         } catch (err) {
-          worker.close();
+          await worker.close();
           reject(err);
         }
       });
@@ -127,7 +127,7 @@ describe('sandboxed process', () => {
         resolve();
       });
 
-      worker.on('completed', (job, value) => {
+      worker.on('completed', async (job, value) => {
         try {
           expect(value).to.be.eql(42);
           expect(
@@ -136,7 +136,7 @@ describe('sandboxed process', () => {
           ).to.eql(4);
           after4();
         } catch (err) {
-          worker.close();
+          await worker.close();
           reject(err);
         }
       });
@@ -168,29 +168,28 @@ describe('sandboxed process', () => {
     ]);
 
     const completting = new Promise((resolve, reject) => {
-      const after4 = after(4, () => {
+      const after4 = after(4, async () => {
         expect(worker['childPool'].getAllFree().length).to.eql(1);
-        worker.close();
+        await worker.close();
         resolve();
       });
 
-      worker.on('completed', (job, value) => {
+      worker.on('completed', async (job, value) => {
         try {
           expect(value).to.be.eql(42);
           expect(
             Object.keys(worker['childPool'].retained).length +
               worker['childPool'].getAllFree().length,
           ).to.eql(1);
-          after4();
+          await after4();
         } catch (err) {
-          worker.close();
+          await worker.close();
           reject(err);
         }
       });
     });
 
     await completting;
-    await worker.close();
   });
 
   it('should process and update progress', async () => {
@@ -217,7 +216,6 @@ describe('sandboxed process', () => {
           expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
           resolve();
         } catch (err) {
-          worker.close();
           reject(err);
         }
       });
@@ -230,7 +228,6 @@ describe('sandboxed process', () => {
     await queue.add('test', { foo: 'bar' });
 
     await completting;
-
     await worker.close();
   });
 
@@ -246,7 +243,7 @@ describe('sandboxed process', () => {
     });
 
     const failing = new Promise((resolve, reject) => {
-      worker.on('failed', (job, err) => {
+      worker.on('failed', async (job, err) => {
         try {
           expect(job.data).eql({ foo: 'bar' });
           expect(job.failedReason).eql('Manually failed processor');
@@ -257,7 +254,7 @@ describe('sandboxed process', () => {
 
           resolve();
         } catch (err) {
-          worker.close();
+          await worker.close();
           reject(err);
         }
       });

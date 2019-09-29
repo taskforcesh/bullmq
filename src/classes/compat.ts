@@ -554,7 +554,6 @@ export class Queue3<T = any> extends EventEmitter {
   private getQueueEvents() {
     if (!this.queueEvents) {
       this.queueEvents = new QueueEvents(this.name, this.opts);
-      this.queueEvents.waitUntilReady();
     }
     return this.queueEvents;
   }

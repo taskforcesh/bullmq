@@ -486,7 +486,7 @@ describe('repeat', function() {
     });
 
     const worker = new Worker(queueName, processor);
-    worker.waitUntilReady();
+    await worker.waitUntilReady();
 
     worker.on('completed', job => {
       this.clock.tick(nextTick);
@@ -558,7 +558,7 @@ describe('repeat', function() {
     };
 
     const worker = new Worker(queueName, NoopProc);
-    worker.waitUntilReady();
+    await worker.waitUntilReady();
 
     await queue.add(
       'myTestJob',

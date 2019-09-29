@@ -31,20 +31,24 @@ describe('events', function() {
     return client.quit();
   });
 
-  it('should emit waiting when a job has been added', function(done) {
-    queue.on('waiting', function() {
-      done();
+  it('should emit waiting when a job has been added', async function() {
+    const waiting = new Promise(resolve => {
+      queue.on('waiting', resolve);
     });
 
-    queue.add('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'bar' });
+
+    await waiting;
   });
 
-  it('should emit global waiting event when a job has been added', function(done) {
-    queueEvents.on('waiting', function() {
-      done();
+  it('should emit global waiting event when a job has been added', async function() {
+    const waiting = new Promise(resolve => {
+      queue.on('waiting', resolve);
     });
 
-    queue.add('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'bar' });
+
+    await waiting;
   });
 
   it('emits drained global drained event when all jobs have been processed', async function() {
@@ -87,20 +91,24 @@ describe('events', function() {
     await worker.close();
   });
 
-  it('should emit an event when a job becomes active', function(done) {
+  it('should emit an event when a job becomes active', async () => {
     const worker = new Worker(queueName, async job => {});
 
-    queue.add('test', {});
+    await queue.add('test', {});
 
-    worker.once('active', function() {
-      worker.once('completed', async function() {
-        await worker.close();
-        done();
+    const completed = new Promise(resolve => {
+      worker.once('active', function() {
+        worker.once('completed', async function() {
+          await worker.close();
+          resolve();
+        });
       });
     });
+
+    await completed;
   });
 
-  it('should listen to global events', function(done) {
+  it('should listen to global events', async () => {
     const worker = new Worker(queueName, async job => {});
 
     let state: string;
@@ -112,13 +120,18 @@ describe('events', function() {
       expect(state).to.be.equal('waiting');
       state = 'active';
     });
-    queueEvents.once('completed', async function() {
-      expect(state).to.be.equal('active');
-      await worker.close();
-      done();
+
+    const completed = new Promise(resolve => {
+      queueEvents.once('completed', async function() {
+        expect(state).to.be.equal('active');
+        resolve();
+      });
     });
 
-    queue.add('test', {});
+    await queue.add('test', {});
+
+    await completed;
+    await worker.close();
   });
 
   it('should trim events automatically', async () => {
