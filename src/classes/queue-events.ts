@@ -4,6 +4,8 @@ import { array2obj } from '../utils';
 import { QueueBase } from './queue-base';
 
 export class QueueEvents extends QueueBase {
+  consuming: Promise<void>;
+
   constructor(name: string, opts?: QueueEventsOptions) {
     super(name, opts);
 
@@ -13,18 +15,13 @@ export class QueueEvents extends QueueBase {
       },
       this.opts,
     );
-  }
 
-  async waitUntilReady() {
-    await super.waitUntilReady();
     this.consumeEvents();
   }
 
-  trim(maxLength: number) {
-    this.client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
-  }
-
   private async consumeEvents() {
+    await this.waitUntilReady();
+
     const opts: QueueEventsOptions = this.opts;
 
     const key = this.keys.events;
