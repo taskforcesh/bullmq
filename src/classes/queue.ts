@@ -171,4 +171,9 @@ export class Queue extends QueueGetters {
     this.emit('cleaned', jobs, type);
     return jobs;
   }
+
+  async trimEvents(maxLength: number) {
+    await this.waitUntilReady();
+    return this.client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+  }
 }
