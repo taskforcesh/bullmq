@@ -30,6 +30,7 @@ import {
   WorkerOptions,
   Processor,
 } from '../interfaces';
+import IORedis = require('ioredis');
 
 type CommonOptions = QueueSchedulerOptions &
   QueueOptions &
@@ -91,7 +92,7 @@ export class Queue3<T = any> extends EventEmitter {
    * If the promise is rejected, the error will be passed as a second argument to the "failed" event.
    * If it is resolved, its value will be the "completed" event's second argument.
    */
-  process(processor: string | Processor): Promise<void> {
+  process(processor: string | Processor): Promise<IORedis.Redis> {
     if (this.worker) {
       throw new Error('Queue3.process() cannot be called twice');
     }
