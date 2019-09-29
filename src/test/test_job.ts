@@ -4,7 +4,7 @@
 import { Job, Queue, QueueScheduler } from '@src/classes';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Worker } from '@src/classes/worker';
-import { JobsOpts } from '@src/interfaces';
+import { JobsOptions } from '@src/interfaces';
 import { delay } from 'bluebird';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
@@ -38,7 +38,7 @@ describe('Job', function() {
     const timestamp = 1234567890;
     let job: Job;
     let data: any;
-    let opts: JobsOpts;
+    let opts: JobsOptions;
 
     beforeEach(async function() {
       data = { foo: 'bar' };
@@ -148,7 +148,7 @@ describe('Job', function() {
 
     it('moves the job to wait for retry if attempts are given', async function() {
       const queueEvents = new QueueEvents(queueName);
-      await queueEvents.init();
+      await queueEvents.waitUntilReady();
 
       const job = await Job.create(
         queue,
@@ -249,7 +249,7 @@ describe('Job', function() {
 
     it('should process a promoted job according to its priority', async function() {
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       this.timeout(10000);
       const worker = new Worker(queueName, job => {
@@ -410,7 +410,7 @@ describe('Job', function() {
 
     beforeEach(async function() {
       queueEvents = new QueueEvents(queueName);
-      return queueEvents.init();
+      return queueEvents.waitUntilReady();
     });
 
     afterEach(async function() {

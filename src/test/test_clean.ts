@@ -1,4 +1,4 @@
-import { Queue, QueueEvents, Worker } from '@src/classes';
+import { Queue, QueueEvents, Worker } from '../classes';
 import { delay } from 'bluebird';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
@@ -21,7 +21,7 @@ describe('Cleaner', () => {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.init();
+    return queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {

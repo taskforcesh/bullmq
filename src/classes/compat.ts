@@ -20,16 +20,17 @@
 // TypeScript Version: 2.8
 
 import { EventEmitter } from 'events';
-import { QueueEvents, Worker, Queue, QueueScheduler, Job } from '@src/classes';
+import { QueueEvents, Worker, Queue, QueueScheduler, Job } from './';
 import {
-  JobsOpts,
+  JobsOptions,
   QueueOptions,
-  RepeatOpts,
+  RepeatOptions,
   QueueEventsOptions,
   QueueSchedulerOptions,
   WorkerOptions,
   Processor,
-} from '@src/interfaces';
+} from '../interfaces';
+import IORedis = require('ioredis');
 
 type CommonOptions = QueueSchedulerOptions &
   QueueOptions &
@@ -91,7 +92,7 @@ export class Queue3<T = any> extends EventEmitter {
    * If the promise is rejected, the error will be passed as a second argument to the "failed" event.
    * If it is resolved, its value will be the "completed" event's second argument.
    */
-  process(processor: string | Processor): Promise<void> {
+  process(processor: string | Processor): Promise<IORedis.Redis> {
     if (this.worker) {
       throw new Error('Queue3.process() cannot be called twice');
     }
@@ -101,7 +102,7 @@ export class Queue3<T = any> extends EventEmitter {
     return this.worker.waitUntilReady();
   }
 
-  add(jobName: string, data: any, opts?: JobsOpts): Promise<Job> {
+  add(jobName: string, data: any, opts?: JobsOptions): Promise<Job> {
     return this.queue.add(jobName, data, opts);
   }
 
@@ -252,7 +253,7 @@ export class Queue3<T = any> extends EventEmitter {
   async nextRepeatableJob(
     name: string,
     data: any,
-    opts?: JobsOpts,
+    opts?: JobsOptions,
     skipCheckExists?: boolean,
   ): Promise<Job> {
     return this.queue.repeat.addNextRepeatableJob(
@@ -269,7 +270,7 @@ export class Queue3<T = any> extends EventEmitter {
    *
    * name: The name of the to be removed job
    */
-  async removeRepeatable(name: string, repeat: RepeatOpts): Promise<void> {
+  async removeRepeatable(name: string, repeat: RepeatOptions): Promise<void> {
     return this.queue.repeat.removeRepeatable(name, repeat, repeat.jobId);
   }
 
@@ -554,7 +555,6 @@ export class Queue3<T = any> extends EventEmitter {
   private getQueueEvents() {
     if (!this.queueEvents) {
       this.queueEvents = new QueueEvents(this.name, this.opts);
-      this.queueEvents.init();
     }
     return this.queueEvents;
   }

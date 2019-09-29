@@ -2,9 +2,11 @@
   "compilerOptions": {
     "target": "ES2017",
     "module": "commonjs",
+    "declaration": true,
     "outDir": "dist",
     "sourceMap": true,
     "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "strict": true,
     "jsx": "preserve",
     "importHelpers": true,

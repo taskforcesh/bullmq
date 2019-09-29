@@ -1,7 +1,7 @@
-import { QueueBase } from './queue-base';
+import { QueueSchedulerOptions } from '../interfaces';
+import { array2obj } from '../utils';
+import { QueueBase } from './';
 import { Scripts } from './scripts';
-import { array2obj } from '@src/utils';
-import { QueueSchedulerOptions } from '@src/interfaces';
 
 const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
 
@@ -26,24 +26,24 @@ export class QueueScheduler extends QueueBase {
 
   constructor(protected name: string, opts: QueueSchedulerOptions = {}) {
     super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
-  }
 
-  async init() {
-    await this.waitUntilReady();
-
-    // TODO: updateDelaySet should also return the lastDelayStreamTimestamp
-    const timestamp = await Scripts.updateDelaySet(this, Date.now());
-
-    if (timestamp) {
-      this.nextTimestamp = timestamp;
-    }
-
+    // tslint:disable: no-floating-promises
     this.run();
   }
 
-  private async run(streamLastId = '0-0') {
-    const key = this.delayStreamKey();
+  private async run() {
+    await this.waitUntilReady();
+
+    const key = this.keys.delay;
     const opts = this.opts as QueueSchedulerOptions;
+    const delaySet = await Scripts.updateDelaySet(this, Date.now());
+
+    const [nextTimestamp] = delaySet;
+    let streamLastId = delaySet[1] || '0-0';
+
+    if (nextTimestamp) {
+      this.nextTimestamp = nextTimestamp;
+    }
 
     while (!this.closing) {
       // Check if at least the min stalled check time has passed.
@@ -51,11 +51,9 @@ export class QueueScheduler extends QueueBase {
 
       // Listen to the delay event stream from lastDelayStreamTimestamp
       // Can we use XGROUPS to reduce redundancy?
+      const nextDelay = this.nextTimestamp - Date.now();
       const blockTime = Math.round(
-        Math.min(
-          opts.stalledInterval,
-          Math.max(this.nextTimestamp - Date.now(), 0),
-        ),
+        Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
       );
 
       let data;
@@ -84,15 +82,22 @@ export class QueueScheduler extends QueueBase {
             this.nextTimestamp = nextTimestamp;
           }
         }
+
+        //
+        // We trim to a length of 100, which should be a very safe value
+        // for all kind of scenarios.
+        //
+        this.client.xtrim(key, 'MAXLEN', '~', 100);
       }
 
       const now = Date.now();
       const delay = this.nextTimestamp - now;
 
       if (delay <= 0) {
-        const nextTimestamp = await Scripts.updateDelaySet(this, now);
+        const [nextTimestamp, id] = await Scripts.updateDelaySet(this, now);
         if (nextTimestamp) {
           this.nextTimestamp = nextTimestamp / 4096;
+          streamLastId = id;
         } else {
           this.nextTimestamp = Number.MAX_VALUE;
         }

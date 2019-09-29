@@ -1,17 +1,12 @@
-import { WorkerOptions, Processor } from '@src/interfaces/worker-opts';
-import { QueueBase } from './queue-base';
-import { Job } from './job';
-import { Scripts } from './scripts';
-
 import * as Bluebird from 'bluebird';
-import IORedis from 'ioredis';
-import { Repeat } from './repeat';
 import fs from 'fs';
 import path from 'path';
-import { ChildPool } from './child-pool';
+import { Processor, WorkerOptions } from '../interfaces';
+import { QueueBase, Repeat } from './';
+import { ChildPool, pool } from './child-pool';
+import { Job } from './job';
 import sandbox from './sandbox';
-import { pool } from './child-pool';
-import { stringify } from 'querystring';
+import { Scripts } from './scripts';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -64,6 +59,7 @@ export class Worker extends QueueBase {
 
     this.repeat = new Repeat(name, opts);
 
+    /* tslint:disable: no-floating-promises */
     this.run();
   }
 

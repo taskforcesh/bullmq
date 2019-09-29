@@ -1,13 +1,13 @@
-import { RedisOpts, ConnectionOptions } from '@src/interfaces';
 import IORedis from 'ioredis';
 import * as semver from 'semver';
-import { load } from '@src/commands';
+import { load } from '../commands';
+import { ConnectionOptions, RedisOptions } from '../interfaces';
 
 export class RedisConnection {
   static minimumVersion = '5.0.0';
   client: IORedis.Redis;
 
-  constructor(private opts?: ConnectionOptions) {
+  constructor(private opts?: ConnectionOptions | IORedis.Redis) {
     if (!(opts instanceof IORedis)) {
       this.opts = Object.assign(
         {
@@ -52,7 +52,7 @@ export class RedisConnection {
 
   async init() {
     if (!this.client) {
-      this.client = new IORedis(<RedisOpts>this.opts);
+      this.client = new IORedis(<RedisOptions>this.opts);
     }
 
     await RedisConnection.waitUntilReady(this.client);
@@ -61,7 +61,7 @@ export class RedisConnection {
       console.error(err);
     });
 
-    if ((<RedisOpts>this.opts).skipVersionCheck !== true) {
+    if ((<RedisOptions>this.opts).skipVersionCheck !== true) {
       const version = await this.getRedisVersion();
       if (semver.lt(version, RedisConnection.minimumVersion)) {
         throw new Error(

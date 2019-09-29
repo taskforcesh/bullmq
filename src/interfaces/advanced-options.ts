@@ -1,4 +1,4 @@
-export interface AdvancedOpts {
+export interface AdvancedOptions {
   // How often check for stalled jobs (use 0 for never checking).
   stalledInterval?: number;
 
@@ -18,7 +18,7 @@ export interface AdvancedOpts {
   drainDelay?: number;
 }
 
-export const AdvancedOptsDefaults: AdvancedOpts = {
+export const AdvancedOptionsDefaults: AdvancedOptions = {
   stalledInterval: 30000,
   maxStalledCount: 1,
   guardInterval: 5000,

@@ -1,14 +1,10 @@
-import { BackoffOpts } from '@src/interfaces/backoff-opts';
-import { WorkerOptions } from '@src/interfaces/worker-opts';
 import IORedis from 'ioredis';
 import { debuglog } from 'util';
-import { JobsOpts } from '../interfaces';
+import { RetryErrors } from '../enums';
+import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
-import { Backoffs } from './backoffs';
-import { QueueBase } from './queue-base';
-import { QueueEvents } from './queue-events';
+import { Backoffs, QueueBase, QueueEvents } from './';
 import { Scripts } from './scripts';
-import { RetryErrors } from '@src/enums';
 
 const logger = debuglog('bull');
 
@@ -46,7 +42,7 @@ export class Job {
     private queue: QueueBase,
     public name: string,
     public data: any,
-    public opts: JobsOpts = {},
+    public opts: JobsOptions = {},
     public id?: string,
   ) {
     this.opts = Object.assign(
@@ -68,7 +64,7 @@ export class Job {
     queue: QueueBase,
     name: string,
     data: any,
-    opts?: JobsOpts,
+    opts?: JobsOptions,
   ) {
     await queue.waitUntilReady();
 
@@ -84,7 +80,7 @@ export class Job {
     jobs: {
       name: string;
       data: any;
-      opts?: JobsOpts;
+      opts?: JobsOptions;
     }[],
   ) {
     await queue.waitUntilReady();
@@ -261,7 +257,7 @@ export class Job {
 
       // Check if backoff is needed
       const delay = Backoffs.calculate(
-        <BackoffOpts>this.opts.backoff,
+        <BackoffOptions>this.opts.backoff,
         this.attemptsMade,
         opts.settings && opts.settings.backoffStrategies,
         err,

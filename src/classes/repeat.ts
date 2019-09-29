@@ -1,16 +1,14 @@
-import { QueueBase } from './queue-base';
-import { Job } from './job';
-
 import { createHash } from 'crypto';
-import { RepeatOpts } from '@src/interfaces/repeat-opts';
-import { JobsOpts } from '@src/interfaces';
+import { JobsOptions, RepeatOptions } from '../interfaces';
+import { Job, QueueBase } from './';
+
 const parser = require('cron-parser');
 
 export class Repeat extends QueueBase {
   async addNextRepeatableJob(
     name: string,
     data: any,
-    opts: JobsOpts,
+    opts: JobsOptions,
     skipCheckExists?: boolean,
   ) {
     await this.waitUntilReady();
@@ -65,7 +63,7 @@ export class Repeat extends QueueBase {
     name: string,
     nextMillis: number,
     repeatJobKey: string,
-    opts: JobsOpts,
+    opts: JobsOptions,
     data: any,
     currentCount: number,
   ) {
@@ -95,7 +93,7 @@ export class Repeat extends QueueBase {
     return Job.create(this, name, data, mergedOpts);
   }
 
-  async removeRepeatable(name: string, repeat: RepeatOpts, jobId?: string) {
+  async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {
     await this.waitUntilReady();
 
     const repeatJobKey = getRepeatKey(name, repeat);
@@ -177,7 +175,7 @@ function getRepeatJobId(
   return `repeat:${name}:${namespace}:${nextMillis}`;
 }
 
-function getRepeatKey(name: string, repeat: RepeatOpts) {
+function getRepeatKey(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
   const suffix = (repeat.cron ? repeat.cron : String(repeat.every)) || '';
@@ -185,7 +183,7 @@ function getRepeatKey(name: string, repeat: RepeatOpts) {
   return `${name}::${endDate}:${tz}:${suffix}`;
 }
 
-function getNextMillis(millis: number, opts: RepeatOpts) {
+function getNextMillis(millis: number, opts: RepeatOptions) {
   if (opts.cron && opts.every) {
     throw new Error(
       'Both .cron and .every options are defined for this repeatable job',

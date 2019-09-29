@@ -1,4 +1,4 @@
-import { Queue, QueueScheduler, Worker } from '@src/classes';
+import { Queue, QueueScheduler, Worker, QueueEvents } from '@src/classes';
 import { delay } from 'bluebird';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
@@ -28,6 +28,9 @@ describe('stalled jobs', function() {
 
   it('process stalled jobs when starting a queue', async function() {
     this.timeout(10000);
+
+    const queueEvents = new QueueEvents(queueName);
+    await queueEvents.waitUntilReady();
 
     const concurrency = 4;
 
@@ -62,13 +65,18 @@ describe('stalled jobs', function() {
     const queueScheduler = new QueueScheduler(queueName, {
       stalledInterval: 100,
     });
-    queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     const allStalled = new Promise(resolve => {
       queueScheduler.on('stalled', after(concurrency, resolve));
     });
 
+    const allStalledGlobalEvent = new Promise(resolve => {
+      queueEvents.on('stalled', after(concurrency, resolve));
+    });
+
     await allStalled;
+    await allStalledGlobalEvent;
 
     await worker.close(true);
 
@@ -79,6 +87,8 @@ describe('stalled jobs', function() {
     });
 
     await allCompleted;
+
+    await queueEvents.close();
 
     await queueScheduler.close();
     await worker2.close();
@@ -121,7 +131,7 @@ describe('stalled jobs', function() {
       stalledInterval: 100,
       maxStalledCount: 0,
     });
-    queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     const allFailed = new Promise(resolve => {
       queueScheduler.on('failed', after(concurrency, resolve));

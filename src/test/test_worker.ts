@@ -25,7 +25,7 @@ describe('workers', function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.init();
+    return queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {
@@ -191,8 +191,8 @@ describe('workers', function() {
             } catch (err) {
               reject(err);
             } finally {
-              worker.close();
-              newQueue.close();
+              await worker.close();
+              await newQueue.close();
             }
 
             resolve();
@@ -217,8 +217,8 @@ describe('workers', function() {
       expect(job.data.foo).to.be.eql('bar');
 
       return new Promise((resolve, reject) => {
-        worker.on('failed', jobId => {
-          queue
+        worker.on('failed', async jobId => {
+          await queue
             .getJob(jobId)
             .then(job => {
               expect(job).to.be.equal(null);
@@ -477,7 +477,7 @@ describe('workers', function() {
     await worker.waitUntilReady();
 
     for (let i = 1; i <= maxJobs; i++) {
-      queue.add('test', { foo: 'bar', num: i });
+      await queue.add('test', { foo: 'bar', num: i });
     }
 
     await processing;
@@ -502,7 +502,7 @@ describe('workers', function() {
       processor = async (job: Job) => {
         try {
           expect(job.data.foo).to.be.equal('bar');
-          job.updateProgress(42);
+          await job.updateProgress(42);
         } catch (err) {
           reject(err);
         }
@@ -894,7 +894,7 @@ describe('workers', function() {
     await Promise.all(added);
     const count = await queue.count();
     expect(count).to.be.eql(maxJobs);
-    queue.drain();
+    await queue.drain();
     const countAfterEmpty = await queue.count();
     expect(countAfterEmpty).to.be.eql(0);
   });
@@ -1119,7 +1119,7 @@ describe('workers', function() {
       this.timeout(12000);
 
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       let start: number;
 
@@ -1158,7 +1158,7 @@ describe('workers', function() {
       let start: number;
 
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(queueName, async job => {
         if (job.attemptsMade < 2) {
@@ -1197,7 +1197,7 @@ describe('workers', function() {
     it('should retry a job after a delay if a custom backoff is given', async function() {
       this.timeout(12000);
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       let start: number;
 
@@ -1298,7 +1298,7 @@ describe('workers', function() {
 
       this.timeout(12000);
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -1348,7 +1348,7 @@ describe('workers', function() {
 
     it.skip('should not retry a job that has been removed', async () => {
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {
@@ -1401,7 +1401,7 @@ describe('workers', function() {
     it.skip('should not retry a job that has been retried already', async () => {
       let attempts = 0;
       const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.init();
+      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {

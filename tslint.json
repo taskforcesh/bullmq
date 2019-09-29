@@ -17,6 +17,7 @@
         "limit": 120,
         "ignore-pattern": "^import |^export {(.*?)}"
       }
-    ]
+    ],
+    "no-floating-promises": true
   }
 }

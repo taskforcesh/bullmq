@@ -1,7 +1,7 @@
-import { RepeatOpts } from './repeat-opts';
-import { BackoffOpts } from './backoff-opts';
+import { RepeatOptions } from './repeat-options';
+import { BackoffOptions } from './backoff-options';
 
-export interface JobsOpts {
+export interface JobsOptions {
   //  default Date.now()
   timestamp?: number;
 
@@ -19,10 +19,10 @@ export interface JobsOpts {
   attempts?: number;
 
   // Repeat job according to a cron specification.
-  repeat?: RepeatOpts;
+  repeat?: RepeatOptions;
 
   // Backoff setting for automatic retries if the job fails
-  backoff?: number | BackoffOpts;
+  backoff?: number | BackoffOptions;
 
   // if true, adds the job to the right of the queue instead of the left (default false)
   lifo?: boolean;

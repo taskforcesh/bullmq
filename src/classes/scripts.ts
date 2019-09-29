@@ -5,16 +5,15 @@
 /*eslint-env node */
 'use strict';
 
-import { QueueSchedulerOptions } from '@src/interfaces';
-import { WorkerOptions } from '@src/interfaces/worker-opts';
 import IORedis from 'ioredis';
-import { JobsOpts } from '../interfaces';
+import {
+  JobsOptions,
+  QueueSchedulerOptions,
+  WorkerOptions,
+} from '../interfaces';
 import { array2obj } from '../utils';
+import { Queue, QueueBase, QueueScheduler, Worker } from './';
 import { Job, JobJson } from './job';
-import { Queue } from './queue';
-import { QueueBase } from './queue-base';
-import { QueueScheduler } from './queue-scheduler';
-import { Worker } from './worker';
 
 export class Scripts {
   static async isJobInList(
@@ -30,19 +29,19 @@ export class Scripts {
     client: any,
     queue: QueueBase,
     job: JobJson,
-    opts: JobsOpts,
+    opts: JobsOptions,
     jobId: string,
   ) {
     const queueKeys = queue.keys;
     let keys = [
       queueKeys.wait,
       queueKeys.paused,
-      queueKeys['meta-paused'],
+      queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
       queueKeys.priority,
-      queue.eventStreamKey(),
-      queue.delayStreamKey(),
+      queueKeys.events,
+      queueKeys.delay,
     ];
 
     const args = [
@@ -70,11 +69,9 @@ export class Scripts {
       dst = 'wait';
     }
 
-    const keys = [src, dst, 'meta-paused'].map((name: string) =>
-      queue.toKey(name),
-    );
+    const keys = [src, dst, 'meta'].map((name: string) => queue.toKey(name));
 
-    keys.push(queue.eventStreamKey());
+    keys.push(queue.keys.events);
 
     return (<any>queue.client).pause(
       keys.concat([pause ? 'paused' : 'resumed']),
@@ -94,7 +91,7 @@ export class Scripts {
       `${jobId}:logs`,
     ].map(name => queue.toKey(name));
     return (<any>queue.client).removeJob(
-      keys.concat([queue.eventStreamKey(), jobId]),
+      keys.concat([queue.keys.events, jobId]),
     );
   }
 
@@ -103,7 +100,7 @@ export class Scripts {
     job: Job,
     progress: number | object,
   ) {
-    const keys = [queue.toKey(job.id), queue.eventStreamKey()];
+    const keys = [queue.toKey(job.id), queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
     await (<any>queue.client).updateProgress(keys, [job.id, progressJson]);
@@ -127,7 +124,8 @@ export class Scripts {
       queue.toKey(job.id),
       queueKeys.wait,
       queueKeys.priority,
-      queue.eventStreamKey(),
+      queueKeys.events,
+      queueKeys.meta,
     ];
 
     let remove;
@@ -255,7 +253,7 @@ export class Scripts {
     const keys = ['active', 'delayed', jobId].map(function(name) {
       return queue.toKey(name);
     });
-    keys.push.apply(keys, [queue.eventStreamKey(), queue.delayStreamKey()]);
+    keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
 
     return keys.concat([JSON.stringify(timestamp), jobId]);
   }
@@ -299,7 +297,7 @@ export class Scripts {
       return queue.toKey(name);
     });
 
-    keys.push(queue.eventStreamKey());
+    keys.push(queue.keys.events);
 
     const pushCmd = (job.opts.lifo ? 'R' : 'L') + 'PUSH';
 
@@ -327,7 +325,7 @@ export class Scripts {
   ) {
     const keys = [
       queue.toKey(job.id),
-      queue.eventStreamKey(),
+      queue.keys.events,
       queue.toKey(state),
       queue.toKey('wait'),
     ];
@@ -341,12 +339,11 @@ export class Scripts {
     const queueKeys = queue.keys;
     const keys = [queueKeys.wait, queueKeys.active, queueKeys.priority];
 
-    keys[3] = queue.eventStreamKey();
+    keys[3] = queueKeys.events;
     keys[4] = queueKeys.stalled;
     keys[5] = queueKeys.limiter;
     keys[6] = queueKeys.delayed;
-    keys[7] = queue.eventStreamKey();
-    keys[8] = queue.delayStreamKey();
+    keys[7] = queueKeys.delay;
 
     const args: (string | number | boolean)[] = [
       queueKeys[''],
@@ -374,9 +371,9 @@ export class Scripts {
       queue.keys.wait,
       queue.keys.priority,
       queue.keys.paused,
-      queue.keys['meta-paused'],
-      queue.eventStreamKey(),
-      queue.delayStreamKey(),
+      queue.keys.meta,
+      queue.keys.events,
+      queue.keys.delay,
     ];
 
     const args = [queue.toKey(''), delayedTimestamp];
@@ -389,7 +386,7 @@ export class Scripts {
       queue.keys.delayed,
       queue.keys.wait,
       queue.keys.priority,
-      queue.eventStreamKey(),
+      queue.keys.events,
     ];
 
     const args = [queue.toKey(''), jobId];
@@ -414,9 +411,9 @@ export class Scripts {
       queue.keys.active,
       queue.keys.failed,
       queue.keys['stalled-check'],
-      queue.keys['meta-paused'],
+      queue.keys.meta,
       queue.keys.paused,
-      queue.eventStreamKey(),
+      queue.keys.events,
     ];
     const args = [
       opts.maxStalledCount,

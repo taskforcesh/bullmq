@@ -13,9 +13,8 @@
       KEYS[6] rate limiter key
       KEYS[7] delayed key
 
-      -- Events
-      KEYS[8] events stream key
-      KEYS[9] delay stream key
+      -- Delay events
+      KEYS[8] delay stream key
 
       -- Arguments
       ARGV[1] key prefix
@@ -54,8 +53,8 @@ if jobId then
       
       -- put job into delayed queue
       rcall("ZADD", KEYS[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
-      rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
-      rcall("XADD", KEYS[9], "*", "nextTimestamp", timestamp);
+      rcall("XADD", KEYS[4], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
+      rcall("XADD", KEYS[8], "*", "nextTimestamp", timestamp);
       -- remove from active queue
       rcall("LREM", KEYS[2], 1, jobId)
       return
@@ -76,5 +75,5 @@ if jobId then
 
   return {rcall("HGETALL", jobKey), jobId} -- get job data
 else
-  rcall("XADD", KEYS[8], "*", "event", "drained");
+  rcall("XADD", KEYS[4], "*", "event", "drained");
 end

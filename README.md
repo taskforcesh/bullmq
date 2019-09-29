@@ -69,4 +69,10 @@ queueEvents.on('failed', (jobId, err) => {
 });
 ```
 
-This is just the tip of the iceberg, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>
+This is just scratching the surface, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>
+
+# Thanks
+
+Thanks for all the contributors that made this library possible,
+also a special mention to Leon van Kammen that kindly donated
+his npm bullmq repo.

@@ -1,9 +1,11 @@
-import { QueueEventsOptions } from '@src/interfaces';
 import { delay } from 'bluebird';
+import { QueueEventsOptions } from '../interfaces';
 import { array2obj } from '../utils';
 import { QueueBase } from './queue-base';
 
 export class QueueEvents extends QueueBase {
+  consuming: Promise<void>;
+
   constructor(name: string, opts?: QueueEventsOptions) {
     super(name, opts);
 
@@ -13,17 +15,17 @@ export class QueueEvents extends QueueBase {
       },
       this.opts,
     );
-  }
 
-  async init() {
-    this.client = await this.connection.init();
-    this.consumeEvents();
+    // tslint:disable: no-floating-promises
+    this.consumeEvents().catch(err => this.emit('error'));
   }
 
   private async consumeEvents() {
+    await this.waitUntilReady();
+
     const opts: QueueEventsOptions = this.opts;
 
-    const key = this.eventStreamKey();
+    const key = this.keys.events;
     let id = opts.lastEventId || '0-0';
 
     while (!this.closing) {
@@ -62,9 +64,9 @@ export class QueueEvents extends QueueBase {
         }
       } catch (err) {
         if (err.message !== 'Connection is closed.') {
-          await delay(5000);
           throw err;
         }
+        await delay(5000);
       }
     }
   }

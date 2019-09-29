@@ -1,4 +1,4 @@
-export interface RepeatOpts {
+export interface RepeatOptions {
   // Cron string
   cron?: string;
   // Timezone

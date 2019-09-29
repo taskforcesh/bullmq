@@ -1,16 +1,19 @@
-import { JobsOpts, RateLimiterOpts, QueueOptions } from '@src/interfaces';
+import { get } from 'lodash';
 import { v4 } from 'node-uuid';
-import { Job } from './job';
-import { QueueGetters } from './queue-getters';
+import {
+  JobsOptions,
+  QueueOptions,
+  RateLimiterOptions,
+  RepeatOptions,
+} from '../interfaces';
+import { Job, QueueGetters, Repeat } from './';
 import { Scripts } from './scripts';
-import { Repeat } from './repeat';
-import { RepeatOpts } from '@src/interfaces/repeat-opts';
 
 export class Queue extends QueueGetters {
   token = v4();
-  limiter: RateLimiterOpts = null;
+  limiter: RateLimiterOptions = null;
   repeat: Repeat;
-  jobsOpts: JobsOpts;
+  jobsOpts: JobsOptions;
 
   constructor(name: string, opts?: QueueOptions) {
     super(name, opts);
@@ -20,14 +23,23 @@ export class Queue extends QueueGetters {
       connection: this.client,
     });
 
-    this.jobsOpts = opts && opts.defaultJobOptions;
+    this.jobsOpts = get(opts, 'defaultJobOptions');
+
+    // tslint:disable: no-floating-promises
+    this.waitUntilReady().then(() => {
+      this.client.hset(
+        this.keys.meta,
+        'opts.maxLenEvents',
+        get(opts, 'streams.events.maxLen', 10000),
+      );
+    });
   }
 
   get defaultJobOptions() {
     return this.jobsOpts;
   }
 
-  async add(jobName: string, data: any, opts?: JobsOpts) {
+  async add(jobName: string, data: any, opts?: JobsOptions) {
     if (opts && opts.repeat) {
       return this.repeat.addNextRepeatableJob(
         jobName,
@@ -51,7 +63,7 @@ export class Queue extends QueueGetters {
   @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3 
   properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
 */
-  async addBulk(jobs: { name: string; data: any; opts?: JobsOpts }[]) {
+  async addBulk(jobs: { name: string; data: any; opts?: JobsOptions }[]) {
     return Job.createBulk(
       this,
       jobs.map(job => ({
@@ -85,7 +97,7 @@ export class Queue extends QueueGetters {
     this.emit('resumed');
   }
 
-  removeRepeatable(name: string, repeatOpts: RepeatOpts, jobId?: string) {
+  removeRepeatable(name: string, repeatOpts: RepeatOptions, jobId?: string) {
     return this.repeat.removeRepeatable(name, repeatOpts, jobId);
   }
 
@@ -111,7 +123,6 @@ export class Queue extends QueueGetters {
     }
     multi.del(this.toKey('wait'));
     multi.del(this.toKey('paused'));
-    multi.del(this.toKey('meta-paused'));
     multi.del(this.toKey('priority'));
 
     const [waiting, paused] = await multi.exec();
@@ -160,5 +171,10 @@ export class Queue extends QueueGetters {
 
     this.emit('cleaned', jobs, type);
     return jobs;
+  }
+
+  async trimEvents(maxLength: number) {
+    await this.waitUntilReady();
+    return this.client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
   }
 }

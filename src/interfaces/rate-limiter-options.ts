@@ -1,4 +1,4 @@
-export interface RateLimiterOpts {
+export interface RateLimiterOptions {
   // Max number of jobs processed
   max: number;
 

@@ -4,7 +4,7 @@
    Input:
       KEYS[1] 'wait' or 'paused''
       KEYS[2] 'paused' or 'wait'
-      KEYS[3] 'meta-paused'
+      KEYS[3] 'meta'
       KEYS[4] events stream key
 
       ARGV[1] 'paused' or 'resumed'
@@ -19,9 +19,9 @@ if rcall("EXISTS", KEYS[1]) == 1 then
 end
 
 if ARGV[1] == "paused" then
-  rcall("SET", KEYS[3], 1)
+  rcall("HSET", KEYS[3], "paused", 1)
 else
-  rcall("DEL", KEYS[3])
+  rcall("HDEL", KEYS[3], "paused")
 end
 
 rcall("XADD", KEYS[4], "*", "event", ARGV[1]);

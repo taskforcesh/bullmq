@@ -32,10 +32,10 @@ describe('Delayed jobs', function() {
   it('should process a delayed job only after delayed time', async function() {
     const delay = 500;
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     const queueEvents = new QueueEvents(queueName);
-    await queueEvents.init();
+    await queueEvents.waitUntilReady();
 
     const worker = new Worker(queueName, async job => {});
 
@@ -76,7 +76,7 @@ describe('Delayed jobs', function() {
     let order = 0;
     let processor;
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     const processing = new Promise((resolve, reject) => {
       processor = async (job: Job) => {
@@ -98,16 +98,18 @@ describe('Delayed jobs', function() {
       err.job = job;
     });
 
-    queue.add('test', { order: 1 }, { delay: 100 });
-    queue.add('test', { order: 6 }, { delay: 600 });
-    queue.add('test', { order: 10 }, { delay: 1000 });
-    queue.add('test', { order: 2 }, { delay: 200 });
-    queue.add('test', { order: 9 }, { delay: 900 });
-    queue.add('test', { order: 5 }, { delay: 500 });
-    queue.add('test', { order: 3 }, { delay: 300 });
-    queue.add('test', { order: 7 }, { delay: 700 });
-    queue.add('test', { order: 4 }, { delay: 400 });
-    queue.add('test', { order: 8 }, { delay: 800 });
+    await Promise.all([
+      queue.add('test', { order: 1 }, { delay: 100 }),
+      queue.add('test', { order: 6 }, { delay: 600 }),
+      queue.add('test', { order: 10 }, { delay: 1000 }),
+      queue.add('test', { order: 2 }, { delay: 200 }),
+      queue.add('test', { order: 9 }, { delay: 900 }),
+      queue.add('test', { order: 5 }, { delay: 500 }),
+      queue.add('test', { order: 3 }, { delay: 300 }),
+      queue.add('test', { order: 7 }, { delay: 700 }),
+      queue.add('test', { order: 4 }, { delay: 400 }),
+      queue.add('test', { order: 8 }, { delay: 800 }),
+    ]);
 
     await processing;
 
@@ -166,7 +168,7 @@ describe('Delayed jobs', function() {
     let order = 1;
 
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.init();
+    await queueScheduler.waitUntilReady();
 
     let processor;
 

@@ -1,4 +1,5 @@
 /*eslint-env node */
+/* tslint:disable: no-floating-promises */
 'use strict';
 
 import { Job, Worker } from '@src/classes';
