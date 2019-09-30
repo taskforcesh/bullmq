@@ -32,6 +32,12 @@
 
 # The gist
 
+Install:
+
+```
+$ yarn add bullmq
+```
+
 Add jobs to the queue:
 ```ts
 import { Queue } from 'bullmq'
