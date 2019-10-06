@@ -25,11 +25,11 @@
     "@commitlint/config-conventional": "^8.1.0",
     "@types/bluebird": "^3.5.25",
     "@types/chai": "^4.1.7",
-    "@types/ioredis": "^4.0.13",
     "@types/lodash": "^4.14.119",
     "@types/mocha": "^5.2.5",
     "@types/node": "^12.6.8",
     "@types/node-uuid": "^0.0.28",
+    "@types/semver": "^6.0.1",
     "@types/sinon": "^7.0.13",
     "chai": "^4.2.0",
     "copyfiles": "^2.1.1",
@@ -78,7 +78,7 @@
     "url": "https://github.com/taskforcesh/bullmq.git"
   },
   "dependencies": {
-    "@types/semver": "^6.0.1",
+    "@types/ioredis": "^4.0.13",
     "bluebird": "^3.5.3",
     "cron-parser": "^2.7.3",
     "get-port": "^5.0.0",
