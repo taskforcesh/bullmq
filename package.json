@@ -18,7 +18,8 @@
     "precommit": "yarn lint",
     "semantic-release": "semantic-release",
     "prettier": "prettier --config package.json src/**/*.ts",
-    "semantic-release-prepare": "ts-node tools/semantic-release-prepare"
+    "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
+    "prepublish": "yarn build"
   },
   "devDependencies": {
     "@commitlint/cli": "^8.1.0",
