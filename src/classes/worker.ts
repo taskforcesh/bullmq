@@ -16,7 +16,6 @@ import { Scripts } from './scripts';
 export const clientCommandMessageReg = /ERR unknown command '\s*client\s*'/;
 
 export class Worker extends QueueBase {
-  bclient: Redis;
   opts: WorkerOptions;
 
   private drained: boolean;
@@ -25,11 +24,10 @@ export class Worker extends QueueBase {
 
   private resumeWorker: () => void;
   private paused: Promise<void>;
-  private repeat: Repeat;
+  private _repeat: Repeat;
   private childPool: ChildPool;
 
-  private bconnection: RedisConnection;
-  private binitializing: Promise<Redis>;
+  private blockingConnection: RedisConnection;
 
   private processing: Set<Promise<Job | void>>; // { [index: number]: Promise<Job | void> } = {};
   constructor(
@@ -46,13 +44,8 @@ export class Worker extends QueueBase {
       ...this.opts,
     };
 
-    this.bconnection = new RedisConnection(opts.connection);
-    this.binitializing = this.bconnection.init();
-
-    this.binitializing
-      .then(client => client.on('error', this.emit.bind(this)))
-      .then(client => (this.bclient = client))
-      .catch(err => this.emit('error', err));
+    this.blockingConnection = new RedisConnection(opts.connection);
+    this.blockingConnection.on('error', this.emit.bind(this));
 
     if (typeof processor === 'function') {
       this.processFn = processor;
@@ -72,19 +65,25 @@ export class Worker extends QueueBase {
       this.processFn = sandbox(processor, this.childPool).bind(this);
     }
 
-    this.repeat = new Repeat(name, opts);
-
     /* tslint:disable: no-floating-promises */
     this.run();
   }
 
-  async waitUntilReady() {
-    await this.binitializing;
-    return super.waitUntilReady();
+  get repeat() {
+    return new Promise<Repeat>(async resolve => {
+      if (!this._repeat) {
+        const connection = await this.client;
+        this._repeat = new Repeat(this.name, {
+          ...this.opts,
+          connection,
+        });
+      }
+      resolve(this._repeat);
+    });
   }
 
   private async run() {
-    await this.waitUntilReady();
+    const client = await this.client;
 
     // IDEA, How to store metadata associated to a worker.
     // create a key from the worker ID associated to the given name.
@@ -92,7 +91,7 @@ export class Worker extends QueueBase {
     // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
     //
     try {
-      await this.bclient.client('setname', this.clientName());
+      await client.client('setname', this.clientName());
     } catch (err) {
       if (!clientCommandMessageReg.test(err.message)) {
         throw err;
@@ -112,7 +111,7 @@ export class Worker extends QueueBase {
       // Get the first promise that completes
       //
       const [completed] = await Promise.race(
-        [...processing].map(p => p.then(res => [p])),
+        [...processing].map(p => p.then(() => [p])),
       );
 
       processing.delete(completed);
@@ -162,12 +161,14 @@ export class Worker extends QueueBase {
   }
 
   private async waitForJob() {
+    const client = await this.blockingConnection.client;
+
     let jobId;
     const opts: WorkerOptions = <WorkerOptions>this.opts;
 
     try {
       this.waiting = true;
-      jobId = await this.bclient.brpoplpush(
+      jobId = await client.brpoplpush(
         this.keys.wait,
         this.keys.active,
         opts.drainDelay,
@@ -183,7 +184,8 @@ export class Worker extends QueueBase {
       this.drained = false;
       const job = Job.fromJSON(this, jobData, jobId);
       if (job.opts.repeat) {
-        await this.repeat.addNextRepeatableJob(job.name, job.data, job.opts);
+        const repeat = await this.repeat;
+        await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
       }
       return job;
     } else if (!this.drained) {
@@ -279,17 +281,19 @@ export class Worker extends QueueBase {
     //
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
-    this.waiting && (await this.bclient.disconnect());
+    this.waiting && (await this.blockingConnection.disconnect());
 
     // If we are disconnected, how are we going to update the completed/failed sets?
     if (this.processing) {
       await Promise.all(this.processing);
     }
 
-    this.waiting && reconnect && (await this.bclient.connect());
+    this.waiting && reconnect && (await this.blockingConnection.reconnect());
   }
 
   async close(force = false) {
+    const client = await this.blockingConnection.client;
+
     this.emit('closing', 'closing queue');
     await super.close();
 
@@ -298,7 +302,7 @@ export class Worker extends QueueBase {
       if (!force) {
         await this.whenCurrentJobsFinished(false);
       } else {
-        await this.bclient.disconnect();
+        await client.disconnect();
       }
       await this.disconnect();
     } finally {

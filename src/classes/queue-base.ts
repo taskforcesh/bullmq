@@ -1,15 +1,12 @@
 import { EventEmitter } from 'events';
-import IORedis from 'ioredis';
 import { QueueBaseOptions } from '../interfaces';
 import { RedisConnection } from './redis-connection';
 
 export class QueueBase extends EventEmitter {
   keys: { [index: string]: string };
-  client: IORedis.Redis;
+  closing: Promise<void>;
 
   protected connection: RedisConnection;
-  closing: Promise<void>;
-  private initializing: Promise<IORedis.Redis>;
 
   constructor(protected name: string, public opts: QueueBaseOptions = {}) {
     super();
@@ -20,6 +17,7 @@ export class QueueBase extends EventEmitter {
     };
 
     this.connection = new RedisConnection(opts.connection);
+    this.connection.on('error', this.emit.bind(this));
 
     const keys: { [index: string]: string } = {};
     [
@@ -48,21 +46,19 @@ export class QueueBase extends EventEmitter {
       keys[key] = this.toKey(key);
     });
     this.keys = keys;
-
-    this.initializing = this.connection.init();
-
-    this.initializing
-      .then(client => client.on('error', this.emit.bind(this)))
-      .then(client => (this.client = client))
-      .catch(err => this.emit('error', err));
   }
 
   toKey(type: string) {
     return `${this.opts.prefix}:${this.name}:${type}`;
   }
 
+  get client() {
+    return this.connection.client;
+  }
+
+  // TO BE DEPRECATED
   async waitUntilReady() {
-    return this.initializing;
+    return this.client;
   }
 
   protected base64Name() {

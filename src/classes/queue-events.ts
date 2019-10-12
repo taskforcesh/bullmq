@@ -21,7 +21,7 @@ export class QueueEvents extends QueueBase {
   }
 
   private async consumeEvents() {
-    await this.waitUntilReady();
+    const client = await this.client;
 
     const opts: QueueEventsOptions = this.opts;
 
@@ -30,7 +30,7 @@ export class QueueEvents extends QueueBase {
 
     while (!this.closing) {
       try {
-        const data = await this.client.xread(
+        const data = await client.xread(
           'BLOCK',
           opts.blockingTimeout,
           'STREAMS',

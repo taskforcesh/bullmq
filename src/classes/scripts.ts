@@ -5,7 +5,7 @@
 /*eslint-env node */
 'use strict';
 
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 import {
   JobsOptions,
   QueueSchedulerOptions,
@@ -16,17 +16,13 @@ import { Queue, QueueBase, QueueScheduler, Worker } from './';
 import { Job, JobJson } from './job';
 
 export class Scripts {
-  static async isJobInList(
-    client: IORedis.Redis,
-    listKey: string,
-    jobId: string,
-  ) {
+  static async isJobInList(client: Redis, listKey: string, jobId: string) {
     const result = await (<any>client).isJobInList([listKey, jobId]);
     return result === 1;
   }
 
   static addJob(
-    client: any,
+    client: Redis,
     queue: QueueBase,
     job: JobJson,
     opts: JobsOptions,
@@ -58,10 +54,12 @@ export class Scripts {
     ];
 
     keys = keys.concat(<string[]>args);
-    return client.addJob(keys);
+    return (<any>client).addJob(keys);
   }
 
-  static pause(queue: Queue, pause: boolean) {
+  static async pause(queue: Queue, pause: boolean) {
+    const client = await queue.client;
+
     var src = 'wait',
       dst = 'paused';
     if (!pause) {
@@ -73,12 +71,12 @@ export class Scripts {
 
     keys.push(queue.keys.events);
 
-    return (<any>queue.client).pause(
-      keys.concat([pause ? 'paused' : 'resumed']),
-    );
+    return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
 
-  static remove(queue: QueueBase, jobId: string) {
+  static async remove(queue: QueueBase, jobId: string) {
+    const client = await queue.client;
+
     const keys = [
       'active',
       'wait',
@@ -90,9 +88,7 @@ export class Scripts {
       jobId,
       `${jobId}:logs`,
     ].map(name => queue.toKey(name));
-    return (<any>queue.client).removeJob(
-      keys.concat([queue.keys.events, jobId]),
-    );
+    return (<any>client).removeJob(keys.concat([queue.keys.events, jobId]));
   }
 
   static async updateProgress(
@@ -100,10 +96,12 @@ export class Scripts {
     job: Job,
     progress: number | object,
   ) {
+    const client = await queue.client;
+
     const keys = [queue.toKey(job.id), queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
-    await (<any>queue.client).updateProgress(keys, [job.id, progressJson]);
+    await (<any>client).updateProgress(keys, [job.id, progressJson]);
     queue.emit('progress', job, progress);
   }
 
@@ -161,6 +159,7 @@ export class Scripts {
     target: string,
     fetchNext: boolean,
   ) {
+    const client = await queue.client;
     const args = this.moveToFinishedArgs(
       queue,
       job,
@@ -171,7 +170,7 @@ export class Scripts {
       fetchNext,
     );
 
-    const result = await (<any>queue.client).moveToFinished(args);
+    const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
       throw this.finishedErrors(result, job.id, 'finished');
     } else if (result) {
@@ -188,7 +187,6 @@ export class Scripts {
     }
   }
 
-  // TODO: add a retention argument for completed and finished jobs (in time).
   static moveToCompleted(
     queue: QueueBase,
     job: Job,
@@ -225,12 +223,14 @@ export class Scripts {
     );
   }
 
-  static isFinished(queue: QueueBase, jobId: string) {
+  static async isFinished(queue: QueueBase, jobId: string) {
+    const client = await queue.client;
+
     const keys = ['completed', 'failed'].map(function(key: string) {
       return queue.toKey(key);
     });
 
-    return (<any>queue.client).isFinished(keys.concat([jobId]));
+    return (<any>client).isFinished(keys.concat([jobId]));
   }
 
   // Note: We have an issue here with jobs using custom job ids
@@ -263,8 +263,10 @@ export class Scripts {
     jobId: string,
     timestamp: number,
   ) {
+    const client = await queue.client;
+
     const args = this.moveToDelayedArgs(queue, jobId, timestamp);
-    const result = await (<any>queue.client).moveToDelayed(args);
+    const result = await (<any>client).moveToDelayed(args);
     switch (result) {
       case -1:
         throw new Error(
@@ -275,13 +277,15 @@ export class Scripts {
     }
   }
 
-  static cleanJobsInSet(
+  static async cleanJobsInSet(
     queue: QueueBase,
     set: string,
     timestamp: number,
     limit = 0,
   ) {
-    return (<any>queue.client).cleanJobsInSet([
+    const client = await queue.client;
+
+    return (<any>client).cleanJobsInSet([
       queue.toKey(set),
       queue.toKey(''),
       timestamp,
@@ -318,11 +322,13 @@ export class Scripts {
    * -1 means the job is currently locked and can't be retried.
    * -2 means the job was not found in the expected set
    */
-  static reprocessJob(
+  static async reprocessJob(
     queue: QueueBase,
     job: Job,
     state: 'failed' | 'completed',
   ) {
+    const client = await queue.client;
+
     const keys = [
       queue.toKey(job.id),
       queue.keys.events,
@@ -332,10 +338,12 @@ export class Scripts {
 
     const args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH'];
 
-    return (<any>queue.client).reprocessJob(keys.concat(args));
+    return (<any>client).reprocessJob(keys.concat(args));
   }
 
-  static moveToActive(queue: Worker, jobId: string) {
+  static async moveToActive(queue: Worker, jobId: string) {
+    const client = await queue.client;
+
     const queueKeys = queue.keys;
     const keys = [queueKeys.wait, queueKeys.active, queueKeys.priority];
 
@@ -356,7 +364,7 @@ export class Scripts {
     if (opts.limiter) {
       args.push(opts.limiter.max, opts.limiter.duration);
     }
-    return (<any>queue.client)
+    return (<any>client)
       .moveToActive((<(string | number | boolean)[]>keys).concat(args))
       .then(raw2jobData);
   }
@@ -365,7 +373,9 @@ export class Scripts {
   //  It checks if the job in the top of the delay set should be moved back to the
   //  top of the  wait queue (so that it will be processed as soon as possible)
   //
-  static updateDelaySet(queue: QueueBase, delayedTimestamp: number) {
+  static async updateDelaySet(queue: QueueBase, delayedTimestamp: number) {
+    const client = await queue.client;
+
     const keys: (string | number)[] = [
       queue.keys.delayed,
       queue.keys.wait,
@@ -378,10 +388,12 @@ export class Scripts {
 
     const args = [queue.toKey(''), delayedTimestamp];
 
-    return (<any>queue.client).updateDelaySet(keys.concat(args));
+    return (<any>client).updateDelaySet(keys.concat(args));
   }
 
-  static promote(queue: QueueBase, jobId: string) {
+  static async promote(queue: QueueBase, jobId: string) {
+    const client = await queue.client;
+
     const keys = [
       queue.keys.delayed,
       queue.keys.wait,
@@ -391,7 +403,7 @@ export class Scripts {
 
     const args = [queue.toKey(''), jobId];
 
-    return (<any>queue.client).promote(keys.concat(args));
+    return (<any>client).promote(keys.concat(args));
   }
 
   //
@@ -403,7 +415,9 @@ export class Scripts {
   //    (e.g. if the job handler keeps crashing),
   //    we limit the number stalled job recoveries to settings.maxStalledCount.
   //
-  static moveStalledJobsToWait(queue: QueueScheduler) {
+  static async moveStalledJobsToWait(queue: QueueScheduler) {
+    const client = await queue.client;
+
     const opts = queue.opts as QueueSchedulerOptions;
     const keys: (string | number)[] = [
       queue.keys.stalled,
@@ -421,7 +435,7 @@ export class Scripts {
       Date.now(),
       opts.stalledInterval,
     ];
-    return (<any>queue.client).moveStalledJobsToWait(keys.concat(args));
+    return (<any>client).moveStalledJobsToWait(keys.concat(args));
   }
 
   /*

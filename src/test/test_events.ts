@@ -156,7 +156,9 @@ describe('events', function() {
     await waitForCompletion;
     await worker.close();
 
-    const [[id, [_, event]]] = await trimmedQueue.client.xrange(
+    const client = await trimmedQueue.client;
+
+    const [[id, [_, event]]] = await client.xrange(
       trimmedQueue.keys.events,
       '-',
       '+',
@@ -164,9 +166,7 @@ describe('events', function() {
 
     expect(event).to.be.equal('drained');
 
-    const eventsLength = await trimmedQueue.client.xlen(
-      trimmedQueue.keys.events,
-    );
+    const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
     expect(eventsLength).to.be.equal(1);
 
@@ -181,15 +181,15 @@ describe('events', function() {
     await trimmedQueue.add('test', {});
     await trimmedQueue.add('test', {});
 
-    await trimmedQueue.waitUntilReady();
+    const client = await trimmedQueue.client;
 
-    let eventsLength = await trimmedQueue.client.xlen(trimmedQueue.keys.events);
+    let eventsLength = await client.xlen(trimmedQueue.keys.events);
 
     expect(eventsLength).to.be.equal(4);
 
     await trimmedQueue.trimEvents(0);
 
-    eventsLength = await trimmedQueue.client.xlen(trimmedQueue.keys.events);
+    eventsLength = await client.xlen(trimmedQueue.keys.events);
 
     expect(eventsLength).to.be.equal(0);
 
