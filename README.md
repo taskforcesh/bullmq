@@ -15,14 +15,14 @@
     <a href="https://gitter.im/OptimalBits/bull">
       <img src="https://badges.gitter.im/Join%20Chat.svg"/>
     </a>
-    <a href="http://travis-ci.org/OptimalBits/bull">
+    <a href="https://travis-ci.org/taskforcesh/bullmq">
       <img src="https://img.shields.io/travis/OptimalBits/bull/master.svg"/>
     </a>
-    <a href="http://badge.fury.io/js/bull">
-      <img src="https://badge.fury.io/js/bull.svg"/>
+    <a href="https://badge.fury.io/js/bullmq">
+      <img src="https://badge.fury.io/js/bullmq.svg"/>
     </a>
-    <a href="https://coveralls.io/github/OptimalBits/bull?branch=master">
-      <img src="https://coveralls.io/repos/github/OptimalBits/bull/badge.svg?branch=master"/>
+    <a href="https://coveralls.io/github/taskforcesh/bullmq?branch=master">
+      <img src="https://coveralls.io/repos/github/taskforcesh/bullmq/badge.svg?branch=master"/>
     </a>
   </p>
   <p>
