@@ -1,10 +1,12 @@
 import * as Bluebird from 'bluebird';
 import fs from 'fs';
+import { Redis } from 'ioredis';
 import path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
 import { ChildPool, pool } from './child-pool';
 import { Job } from './job';
+import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 
@@ -14,6 +16,9 @@ import { Scripts } from './scripts';
 export const clientCommandMessageReg = /ERR unknown command '\s*client\s*'/;
 
 export class Worker extends QueueBase {
+  bclient: Redis;
+  opts: WorkerOptions;
+
   private drained: boolean;
   private waiting = false;
   private processFn: Processor;
@@ -22,7 +27,9 @@ export class Worker extends QueueBase {
   private paused: Promise<void>;
   private repeat: Repeat;
   private childPool: ChildPool;
-  public opts: WorkerOptions;
+
+  private bconnection: RedisConnection;
+  private binitializing: Promise<Redis>;
 
   private processing: Set<Promise<Job | void>>; // { [index: number]: Promise<Job | void> } = {};
   constructor(
@@ -38,6 +45,14 @@ export class Worker extends QueueBase {
       concurrency: 1,
       ...this.opts,
     };
+
+    this.bconnection = new RedisConnection(opts.connection);
+    this.binitializing = this.bconnection.init();
+
+    this.binitializing
+      .then(client => client.on('error', this.emit.bind(this)))
+      .then(client => (this.bclient = client))
+      .catch(err => this.emit('error', err));
 
     if (typeof processor === 'function') {
       this.processFn = processor;
@@ -63,6 +78,11 @@ export class Worker extends QueueBase {
     this.run();
   }
 
+  async waitUntilReady() {
+    await this.binitializing;
+    return super.waitUntilReady();
+  }
+
   private async run() {
     await this.waitUntilReady();
 
@@ -72,7 +92,7 @@ export class Worker extends QueueBase {
     // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
     //
     try {
-      await this.client.client('setname', this.clientName());
+      await this.bclient.client('setname', this.clientName());
     } catch (err) {
       if (!clientCommandMessageReg.test(err.message)) {
         throw err;
@@ -147,7 +167,7 @@ export class Worker extends QueueBase {
 
     try {
       this.waiting = true;
-      jobId = await this.client.brpoplpush(
+      jobId = await this.bclient.brpoplpush(
         this.keys.wait,
         this.keys.active,
         opts.drainDelay,
@@ -259,14 +279,14 @@ export class Worker extends QueueBase {
     //
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
-    this.waiting && (await this.client.disconnect());
+    this.waiting && (await this.bclient.disconnect());
 
     // If we are disconnected, how are we going to update the completed/failed sets?
     if (this.processing) {
       await Promise.all(this.processing);
     }
 
-    this.waiting && reconnect && (await this.client.connect());
+    this.waiting && reconnect && (await this.bclient.connect());
   }
 
   async close(force = false) {
@@ -278,8 +298,9 @@ export class Worker extends QueueBase {
       if (!force) {
         await this.whenCurrentJobsFinished(false);
       } else {
-        await this.disconnect();
+        await this.bclient.disconnect();
       }
+      await this.disconnect();
     } finally {
       this.childPool && this.childPool.clean();
     }
