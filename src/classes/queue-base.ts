@@ -51,9 +51,10 @@ export class QueueBase extends EventEmitter {
 
     this.initializing = this.connection.init();
 
-    this.waitUntilReady()
+    this.initializing
       .then(client => client.on('error', this.emit.bind(this)))
-      .catch(err => this.emit('error'));
+      .then(client => (this.client = client))
+      .catch(err => this.emit('error', err));
   }
 
   toKey(type: string) {
@@ -61,11 +62,7 @@ export class QueueBase extends EventEmitter {
   }
 
   async waitUntilReady() {
-    if (!this.initializing) {
-      this.initializing = this.connection.init();
-    }
-
-    return (this.client = await this.initializing);
+    return this.initializing;
   }
 
   protected base64Name() {
