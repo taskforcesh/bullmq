@@ -124,10 +124,6 @@ describe('Pause', function() {
     });
 
     const worker = new Worker(queueName, process);
-    await worker.waitUntilReady();
-
-    await queue.add('test', { foo: 'paused' });
-    await queue.add('test', { foo: 'paused' });
 
     queueEvents.on('paused', async () => {
       isPaused = false;
@@ -137,6 +133,9 @@ describe('Pause', function() {
     queueEvents.on('resumed', () => {
       isResumed = true;
     });
+
+    await queue.add('test', { foo: 'paused' });
+    await queue.add('test', { foo: 'paused' });
 
     return processPromise;
   });
