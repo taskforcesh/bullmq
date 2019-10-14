@@ -11,12 +11,8 @@ export class Repeat extends QueueBase {
     opts: JobsOptions,
     skipCheckExists?: boolean,
   ) {
-    await this.waitUntilReady();
-
     const repeatOpts = { ...opts.repeat };
-
     const prevMillis = repeatOpts.prevMillis || 0;
-
     const currentCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
 
     if (
@@ -39,7 +35,8 @@ export class Repeat extends QueueBase {
       if (!skipCheckExists) {
         // Check that the repeatable job hasn't been removed
         // TODO: a lua script would be better here
-        repeatableExists = !!(await this.client.zscore(
+        const client = await this.client;
+        repeatableExists = !!(await client.zscore(
           this.keys.repeat,
           repeatJobKey,
         ));
@@ -67,6 +64,8 @@ export class Repeat extends QueueBase {
     data: any,
     currentCount: number,
   ) {
+    const client = await this.client;
+
     //
     // Generate unique job id for this iteration.
     //
@@ -84,23 +83,19 @@ export class Repeat extends QueueBase {
 
     mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
-    await this.client.zadd(
-      this.keys.repeat,
-      nextMillis.toString(),
-      repeatJobKey,
-    );
+    await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 
     return Job.create(this, name, data, mergedOpts);
   }
 
   async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {
-    await this.waitUntilReady();
+    const client = await this.client;
 
     const repeatJobKey = getRepeatKey(name, repeat);
     const repeatJobId = getRepeatJobId(name, '', md5(repeatJobKey));
     const queueKey = this.keys[''];
 
-    return (<any>this.client).removeRepeatable(
+    return (<any>client).removeRepeatable(
       this.keys.repeat,
       this.keys.delayed,
       repeatJobId,
@@ -110,12 +105,12 @@ export class Repeat extends QueueBase {
   }
 
   async removeRepeatableByKey(repeatJobKey: string) {
-    await this.waitUntilReady();
+    const client = await this.client;
 
     const data = this._keyToData(repeatJobKey);
     const queueKey = this.keys[''];
 
-    return (<any>this.client).removeRepeatable(
+    return (<any>client).removeRepeatable(
       this.keys.repeat,
       this.keys.delayed,
       data.id,
@@ -138,12 +133,12 @@ export class Repeat extends QueueBase {
   }
 
   async getRepeatableJobs(start = 0, end = -1, asc = false) {
-    await this.waitUntilReady();
+    const client = await this.client;
 
     const key = this.keys.repeat;
     const result = asc
-      ? await this.client.zrange(key, start, end, 'WITHSCORES')
-      : await this.client.zrevrange(key, start, end, 'WITHSCORES');
+      ? await client.zrange(key, start, end, 'WITHSCORES')
+      : await client.zrevrange(key, start, end, 'WITHSCORES');
 
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
@@ -162,8 +157,8 @@ export class Repeat extends QueueBase {
   }
 
   async getRepeatableCount() {
-    await this.waitUntilReady();
-    return this.client.zcard(this.toKey('repeat'));
+    const client = await this.client;
+    return client.zcard(this.toKey('repeat'));
   }
 }
 

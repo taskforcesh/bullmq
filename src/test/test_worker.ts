@@ -616,7 +616,7 @@ describe('workers', function() {
           const gotJob = await queue.getJob(job.id);
           expect(gotJob.returnvalue).to.be.eql(37);
 
-          const retval = await queue.client.hget(
+          const retval = await (await queue.client).hget(
             queue.toKey(gotJob.id),
             'returnvalue',
           );
@@ -995,12 +995,12 @@ describe('workers', function() {
             console.error(err);
           }
 
-          // 100 - i*20 is to force to finish job n°4 before lower job that will wait longer
+          // 100 - i*20 is to force to finish job n°4 before lower jobs that will wait longer
           await delay(100 - i * 10);
           nbJobFinish++;
 
           // We simulate an error of one processing job.
-          if (i % 3 === 0) {
+          if (i % 7 === 0) {
             throw new Error();
           }
         },

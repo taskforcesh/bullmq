@@ -70,7 +70,7 @@ export class Queue3<T = any> extends EventEmitter {
    * This replaces the `ready` event emitted on Queue in previous verisons.
    */
   async isReady(): Promise<this> {
-    await this.queue.waitUntilReady();
+    await this.queue.client;
     return this;
   }
 
@@ -92,14 +92,14 @@ export class Queue3<T = any> extends EventEmitter {
    * If the promise is rejected, the error will be passed as a second argument to the "failed" event.
    * If it is resolved, its value will be the "completed" event's second argument.
    */
-  process(processor: string | Processor): Promise<IORedis.Redis> {
+  async process(processor: string | Processor) {
     if (this.worker) {
       throw new Error('Queue3.process() cannot be called twice');
     }
 
     this.worker = new Worker(this.name, processor, this.opts);
     this.queueScheduler = new QueueScheduler(this.name, this.opts);
-    return this.worker.waitUntilReady();
+    await this.worker.client;
   }
 
   add(jobName: string, data: any, opts?: JobsOptions): Promise<Job> {
@@ -239,12 +239,13 @@ export class Queue3<T = any> extends EventEmitter {
    * Returns JobInformation of repeatable jobs (ordered descending). Provide a start and/or an end
    * index to limit the number of results. Start defaults to 0, end to -1 and asc to false.
    */
-  getRepeatableJobs(
+  async getRepeatableJobs(
     start = 0,
     end = -1,
     asc = false,
   ): Promise<JobInformation3[]> {
-    return this.queue.repeat.getRepeatableJobs(start, end, asc);
+    const repeat = await this.queue.repeat;
+    return repeat.getRepeatableJobs(start, end, asc);
   }
 
   /**
@@ -256,12 +257,8 @@ export class Queue3<T = any> extends EventEmitter {
     opts?: JobsOptions,
     skipCheckExists?: boolean,
   ): Promise<Job> {
-    return this.queue.repeat.addNextRepeatableJob(
-      name,
-      data,
-      opts,
-      skipCheckExists,
-    );
+    const repeat = await this.queue.repeat;
+    return repeat.addNextRepeatableJob(name, data, opts, skipCheckExists);
   }
 
   /**
@@ -270,16 +267,17 @@ export class Queue3<T = any> extends EventEmitter {
    *
    * name: The name of the to be removed job
    */
-  async removeRepeatable(name: string, repeat: RepeatOptions): Promise<void> {
-    return this.queue.repeat.removeRepeatable(name, repeat, repeat.jobId);
+  async removeRepeatable(name: string, opts: RepeatOptions): Promise<void> {
+    const repeat = await this.queue.repeat;
+    return repeat.removeRepeatable(name, opts, opts.jobId);
   }
 
   /**
    * Removes a given repeatable job by key.
    */
   async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
-    const repeat = this.queue.repeat;
-    await repeat.waitUntilReady();
+    const repeat = await this.queue.repeat;
+    const client = await repeat.client;
 
     const tokens = repeatJobKey.split(':');
     const data = {
@@ -292,7 +290,7 @@ export class Queue3<T = any> extends EventEmitter {
     };
 
     const queueKey = repeat.toKey('');
-    return (<any>repeat.client).removeRepeatable(
+    return (<any>client).removeRepeatable(
       repeat.keys.repeat,
       repeat.keys.delayed,
       data.id,
@@ -389,8 +387,9 @@ export class Queue3<T = any> extends EventEmitter {
   /**
    * Returns a promise that resolves to the quantity of repeatable jobs.
    */
-  getRepeatableCount(): Promise<number> {
-    return this.queue.repeat.getRepeatableCount();
+  async getRepeatableCount(): Promise<number> {
+    const repeat = await this.queue.repeat;
+    return repeat.getRepeatableCount();
   }
 
   /**

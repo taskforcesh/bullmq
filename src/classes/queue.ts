@@ -12,22 +12,18 @@ import { Scripts } from './scripts';
 export class Queue extends QueueGetters {
   token = v4();
   limiter: RateLimiterOptions = null;
-  repeat: Repeat;
   jobsOpts: JobsOptions;
+
+  private _repeat: Repeat;
 
   constructor(name: string, opts?: QueueOptions) {
     super(name, opts);
 
-    this.repeat = new Repeat(name, {
-      ...opts,
-      connection: this.client,
-    });
-
     this.jobsOpts = get(opts, 'defaultJobOptions');
 
     // tslint:disable: no-floating-promises
-    this.waitUntilReady().then(() => {
-      this.client.hset(
+    this.waitUntilReady().then(client => {
+      client.hset(
         this.keys.meta,
         'opts.maxLenEvents',
         get(opts, 'streams.events.maxLen', 10000),
@@ -39,9 +35,21 @@ export class Queue extends QueueGetters {
     return this.jobsOpts;
   }
 
+  get repeat() {
+    return new Promise<Repeat>(async resolve => {
+      if (!this._repeat) {
+        this._repeat = new Repeat(this.name, {
+          ...this.opts,
+          connection: await this.client,
+        });
+      }
+      resolve(this._repeat);
+    });
+  }
+
   async add(jobName: string, data: any, opts?: JobsOptions) {
     if (opts && opts.repeat) {
-      return this.repeat.addNextRepeatableJob(
+      return (await this.repeat).addNextRepeatableJob(
         jobName,
         data,
         { ...opts, ...this.jobsOpts },
@@ -86,23 +94,29 @@ export class Queue extends QueueGetters {
     and in that case it will add it there instead of the wait list.
   */
   async pause() {
-    await this.waitUntilReady();
     await Scripts.pause(this, true);
     this.emit('paused');
   }
 
   async resume() {
-    await this.waitUntilReady();
     await Scripts.pause(this, false);
     this.emit('resumed');
   }
 
-  removeRepeatable(name: string, repeatOpts: RepeatOptions, jobId?: string) {
-    return this.repeat.removeRepeatable(name, repeatOpts, jobId);
+  async getRepeatableJobs(start?: number, end?: number, asc?: boolean) {
+    return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
 
-  removeRepeatableByKey(key: string) {
-    return this.repeat.removeRepeatableByKey(key);
+  async removeRepeatable(
+    name: string,
+    repeatOpts: RepeatOptions,
+    jobId?: string,
+  ) {
+    return (await this.repeat).removeRepeatable(name, repeatOpts, jobId);
+  }
+
+  async removeRepeatableByKey(key: string) {
+    return (await this.repeat).removeRepeatableByKey(key);
   }
 
   /**
@@ -113,7 +127,9 @@ export class Queue extends QueueGetters {
    */
   async drain(delayed = false) {
     // Get all jobids and empty all lists atomically.
-    let multi = this.client.multi();
+    const client = await this.client;
+
+    let multi = client.multi();
 
     multi.lrange(this.toKey('wait'), 0, -1);
     multi.lrange(this.toKey('paused'), 0, -1);
@@ -132,7 +148,7 @@ export class Queue extends QueueGetters {
     const jobKeys = pausedJobs.concat(waitingjobs).map(this.toKey, this);
 
     if (jobKeys.length) {
-      multi = this.client.multi();
+      multi = client.multi();
 
       multi.del.apply(multi, jobKeys);
       return multi.exec();
@@ -160,8 +176,6 @@ export class Queue extends QueueGetters {
       | 'delayed'
       | 'failed' = 'completed',
   ) {
-    await this.waitUntilReady();
-
     const jobs = await Scripts.cleanJobsInSet(
       this,
       type,
@@ -174,7 +188,7 @@ export class Queue extends QueueGetters {
   }
 
   async trimEvents(maxLength: number) {
-    await this.waitUntilReady();
-    return this.client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+    const client = await this.client;
+    return client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
   }
 }

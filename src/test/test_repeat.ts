@@ -440,10 +440,10 @@ describe('repeat', function() {
     const repeat = { cron: '*/2 * * * * *' };
 
     await queue.add('remove', { foo: 'bar' }, { repeat });
-    const repeatableJobs = await queue.repeat.getRepeatableJobs();
+    const repeatableJobs = await queue.getRepeatableJobs();
     expect(repeatableJobs).to.have.length(1);
     await queue.removeRepeatableByKey(repeatableJobs[0].key);
-    const repeatableJobsAfterRemove = await queue.repeat.getRepeatableJobs();
+    const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
     expect(repeatableJobsAfterRemove).to.have.length(0);
   });
 
@@ -505,26 +505,30 @@ describe('repeat', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
+    const repeat = await queue.repeat;
+
     let worker: Worker;
     const jobId = 'xxxx';
     const date = new Date('2017-02-07 9:24:00');
     const nextTick = 2 * ONE_SECOND + 100;
-    const repeat = { cron: '*/2 * * * * *' };
-    const nextRepeatableJob = queue.repeat.addNextRepeatableJob;
+    const nextRepeatableJob = repeat.addNextRepeatableJob;
     this.clock.tick(date.getTime());
+
+    const repeatOpts = { cron: '*/2 * * * * *' };
 
     const afterRemoved = new Promise(async resolve => {
       worker = new Worker(queueName, async job => {
-        worker['repeat'].addNextRepeatableJob = async (...args) => {
+        const repeatWorker = await worker.repeat;
+        repeatWorker.addNextRepeatableJob = async (...args) => {
           // In order to simulate race condition
           // Make removeRepeatables happen any time after a moveToX is called
-          await queue.repeat.removeRepeatable(
+          await queue.removeRepeatable(
             'test',
-            _.defaults({ jobId }, repeat),
+            _.defaults({ jobId }, repeatOpts),
           );
 
           // nextRepeatableJob will now re-add the removed repeatable
-          const result = await nextRepeatableJob.apply(queue.repeat, args);
+          const result = await nextRepeatableJob.apply(repeat, args);
           resolve();
           return result;
         };
@@ -535,13 +539,13 @@ describe('repeat', function() {
       });
     });
 
-    await queue.add('test', { foo: 'bar' }, { repeat, jobId });
+    await queue.add('test', { foo: 'bar' }, { repeat: repeatOpts, jobId });
 
     this.clock.tick(nextTick);
 
     await afterRemoved;
 
-    const jobs = await queue.repeat.getRepeatableJobs();
+    const jobs = await queue.getRepeatableJobs();
     // Repeatable job was recreated
     expect(jobs.length).to.eql(0);
 

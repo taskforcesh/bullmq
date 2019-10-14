@@ -66,11 +66,11 @@ export class Job {
     data: any,
     opts?: JobsOptions,
   ) {
-    await queue.waitUntilReady();
+    const client = await queue.client;
 
     const job = new Job(queue, name, data, opts, opts && opts.jobId);
 
-    job.id = await job.addJob(queue.client);
+    job.id = await job.addJob(client);
 
     return job;
   }
@@ -83,13 +83,13 @@ export class Job {
       opts?: JobsOptions;
     }[],
   ) {
-    await queue.waitUntilReady();
+    const client = await queue.client;
 
     const jobInstances = jobs.map(
       job => new Job(queue, job.name, job.data, job.opts),
     );
 
-    const multi = queue.client.multi();
+    const multi = client.multi();
 
     for (const job of jobInstances) {
       job.addJob(<IORedis.Redis>(multi as unknown));
@@ -138,8 +138,8 @@ export class Job {
   static async fromId(queue: QueueBase, jobId: string) {
     // jobId can be undefined if moveJob returns undefined
     if (jobId) {
-      await queue.waitUntilReady();
-      const jobData = await queue.client.hgetall(queue.toKey(jobId));
+      const client = await queue.client;
+      const jobData = await client.hgetall(queue.toKey(jobId));
       return isEmpty(jobData) ? null : Job.fromJSON(queue, jobData, jobId);
     }
   }
@@ -162,13 +162,10 @@ export class Job {
   }
 
   async update(data: any) {
-    await this.queue.waitUntilReady();
+    const client = await this.queue.client;
+
     this.data = data;
-    await this.queue.client.hset(
-      this.queue.toKey(this.id),
-      'data',
-      JSON.stringify(data),
-    );
+    await client.hset(this.queue.toKey(this.id), 'data', JSON.stringify(data));
   }
 
   async updateProgress(progress: number | object) {
@@ -182,9 +179,10 @@ export class Job {
    * @params logRow: string String with log data to be logged.
    *
    */
-  log(logRow: string) {
+  async log(logRow: string) {
+    const client = await this.queue.client;
     const logsKey = this.toKey(this.id) + ':logs';
-    return this.queue.client.rpush(logsKey, logRow);
+    return client.rpush(logsKey, logRow);
   }
 
   async remove() {
@@ -239,13 +237,13 @@ export class Job {
    * @returns void
    */
   async moveToFailed(err: Error, fetchNext = false) {
-    await this.queue.waitUntilReady();
+    const client = await this.queue.client;
 
     const queue = this.queue;
     this.failedReason = err.message;
 
     let command: string;
-    const multi = queue.client.multi();
+    const multi = client.multi();
     this.saveAttempt(multi, err);
 
     //
@@ -405,13 +403,13 @@ export class Job {
    * rejects, it indicates that the script failed to execute
    */
   async retry(state: 'completed' | 'failed' = 'failed') {
-    await this.queue.waitUntilReady();
+    const client = await this.queue.client;
 
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
 
-    await this.queue.client.hdel(
+    await client.hdel(
       this.queue.toKey(this.id),
       'finishedOn',
       'processedOn',
@@ -433,16 +431,15 @@ export class Job {
   }
 
   private async isInZSet(set: string) {
-    const score = await this.queue.client.zscore(
-      this.queue.toKey(set),
-      this.id,
-    );
+    const client = await this.queue.client;
+
+    const score = await client.zscore(this.queue.toKey(set), this.id);
     return score !== null;
   }
 
   private async isInList(list: string) {
     return Scripts.isJobInList(
-      this.queue.client,
+      await this.queue.client,
       this.queue.toKey(list),
       this.id,
     );

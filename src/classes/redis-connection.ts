@@ -1,13 +1,17 @@
-import IORedis from 'ioredis';
+import { EventEmitter } from 'events';
+import IORedis, { Redis } from 'ioredis';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 
-export class RedisConnection {
+export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
-  client: IORedis.Redis;
+  private _client: Redis;
+  private initializing: Promise<Redis>;
 
-  constructor(private opts?: ConnectionOptions | IORedis.Redis) {
+  constructor(private opts?: ConnectionOptions) {
+    super();
+
     if (!(opts instanceof IORedis)) {
       this.opts = Object.assign(
         {
@@ -20,8 +24,14 @@ export class RedisConnection {
         opts,
       );
     } else {
-      this.client = opts;
+      this._client = opts;
     }
+
+    this.initializing = this.init();
+
+    this.initializing
+      .then(client => client.on('error', this.emit.bind(this)))
+      .catch(err => this.emit('error', err));
   }
 
   /**
@@ -50,18 +60,19 @@ export class RedisConnection {
     });
   }
 
-  async init() {
-    if (!this.client) {
-      this.client = new IORedis(<RedisOptions>this.opts);
+  get client(): Promise<Redis> {
+    return this.initializing;
+  }
+
+  private async init() {
+    const opts = this.opts as RedisOptions;
+    if (!this._client) {
+      this._client = new IORedis(opts);
     }
 
-    await RedisConnection.waitUntilReady(this.client);
+    await RedisConnection.waitUntilReady(this._client);
 
-    this.client.on('error', (err: Error) => {
-      console.error(err);
-    });
-
-    if ((<RedisOptions>this.opts).skipVersionCheck !== true) {
+    if (opts.skipVersionCheck !== true) {
       const version = await this.getRedisVersion();
       if (semver.lt(version, RedisConnection.minimumVersion)) {
         throw new Error(
@@ -69,11 +80,11 @@ export class RedisConnection {
         );
       }
     }
-    return this.client;
+    return this._client;
   }
 
   async disconnect() {
-    const client = this.client;
+    const client = await this.client;
     if (client.status !== 'end') {
       let _resolve, _reject;
 
@@ -95,10 +106,15 @@ export class RedisConnection {
     }
   }
 
+  async reconnect() {
+    const client = await this.client;
+    return client.connect();
+  }
+
   async close() {}
 
   private async getRedisVersion() {
-    const doc = await this.client.info();
+    const doc = await this._client.info();
     const prefix = 'redis_version:';
     const lines = doc.split('\r\n');
 
