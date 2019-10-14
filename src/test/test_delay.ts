@@ -30,10 +30,8 @@ describe('Delayed jobs', function() {
   });
 
   it('should process a delayed job only after delayed time', async function() {
-    const delay = 500;
+    const delay = 1000;
     const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.waitUntilReady();
-
     const queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
 
@@ -42,7 +40,9 @@ describe('Delayed jobs', function() {
     const timestamp = Date.now();
     let publishHappened = false;
 
-    queueEvents.on('delayed', () => (publishHappened = true));
+    queueEvents.on('delayed', () => {
+      console.log('delayed!'), (publishHappened = true);
+    });
 
     const completed = new Promise((resolve, reject) => {
       queueEvents.on('completed', async function() {
@@ -70,6 +70,7 @@ describe('Delayed jobs', function() {
 
     await completed;
     await queueScheduler.close();
+    await queueEvents.close();
   });
 
   it('should process delayed jobs in correct order', async function() {

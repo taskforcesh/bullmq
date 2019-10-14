@@ -101,6 +101,6 @@ else
 end
 
 local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents")
-if (maxEvents ~= nil) then rcall("XTRIM", KEYS[7], "MAXLEN", "~", maxEvents) end
+if (maxEvents) then rcall("XTRIM", KEYS[7], "MAXLEN", "~", maxEvents) end
 
 return jobId .. "" -- convert to string
