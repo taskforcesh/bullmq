@@ -5,4 +5,4 @@ structure:
   summary: SUMMARY.md
 
 redirects:
-  /changelog ../../CHANGELOG.md
+  /changelog: ../../CHANGELOG.md
