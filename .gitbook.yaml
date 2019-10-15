@@ -1,0 +1,6 @@
+root: ./docs/gitbook/
+
+structure:
+  readme: README.md
+  summary: SUMMARY.md
+  changelog: ../../changelog.db

@@ -15,4 +15,4 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw*
-docs
+docs/api
