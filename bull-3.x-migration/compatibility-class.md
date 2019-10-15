@@ -1,0 +1,2 @@
+# Compatibility class
+
