@@ -46,6 +46,8 @@ export class QueueScheduler extends QueueBase {
     }
 
     while (!this.closing) {
+      const client = await this.waitUntilReady();
+
       // Check if at least the min stalled check time has passed.
       await this.moveStalledJobsToWait();
 
@@ -58,7 +60,7 @@ export class QueueScheduler extends QueueBase {
 
       let data;
       if (blockTime) {
-        data = await this.client.xread(
+        data = await client.xread(
           'BLOCK',
           blockTime,
           'STREAMS',
@@ -66,7 +68,7 @@ export class QueueScheduler extends QueueBase {
           streamLastId,
         );
       } else {
-        data = await this.client.xread('STREAMS', key, streamLastId);
+        data = await client.xread('STREAMS', key, streamLastId);
       }
 
       if (data && data[0]) {
@@ -87,7 +89,7 @@ export class QueueScheduler extends QueueBase {
         // We trim to a length of 100, which should be a very safe value
         // for all kind of scenarios.
         //
-        this.client.xtrim(key, 'MAXLEN', '~', 100);
+        client.xtrim(key, 'MAXLEN', '~', 100);
       }
 
       const now = Date.now();

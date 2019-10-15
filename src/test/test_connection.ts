@@ -41,21 +41,20 @@ describe('connection', () => {
 
     const worker = new Worker(queueName, processor);
 
-    await worker.waitUntilReady();
-    await queue.waitUntilReady();
+    const workerClient = await worker.client;
+    const queueClient = await queue.client;
 
     // Simulate disconnect
-    (<any>queue.client).stream.end();
-    queue.client.emit('error', new Error('ECONNRESET'));
+    (<any>queueClient).stream.end();
+    queueClient.emit('error', new Error('ECONNRESET'));
 
-    (<any>worker.client).stream.end();
-    worker.client.emit('error', new Error('ECONNRESET'));
+    (<any>workerClient).stream.end();
+    workerClient.emit('error', new Error('ECONNRESET'));
 
     // add something to the queue
     await queue.add('test', { foo: 'bar' });
 
     await processing;
-
     await worker.close();
   });
 
@@ -83,11 +82,14 @@ describe('connection', () => {
 
     worker.on('completed', async () => {
       if (count === 1) {
-        (<any>queue.client).stream.end();
-        queue.client.emit('error', new Error('ECONNRESET'));
+        const workerClient = await worker.client;
+        const queueClient = await queue.client;
 
-        (<any>worker.client).stream.end();
-        worker.client.emit('error', new Error('ECONNRESET'));
+        (<any>queueClient).stream.end();
+        queueClient.emit('error', new Error('ECONNRESET'));
+
+        (<any>workerClient).stream.end();
+        workerClient.emit('error', new Error('ECONNRESET'));
 
         await queue.add('test', { foo: 'bar' });
       }

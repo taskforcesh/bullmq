@@ -56,9 +56,8 @@ export class QueueGetters extends QueueBase {
    *
    */
   async getJobCounts(...types: string[]) {
-    await this.waitUntilReady();
-
-    const multi = this.client.multi();
+    const client = await this.client;
+    const multi = client.multi();
 
     this.commandByType(types, true, function(key, command) {
       (<any>multi)[command](key);
@@ -113,7 +112,8 @@ export class QueueGetters extends QueueBase {
   }
 
   async getRanges(types: string[], start = 0, end = 1, asc = false) {
-    const multi = this.client.multi();
+    const client = await this.client;
+    const multi = client.multi();
     const multiCommands: string[] = [];
 
     this.commandByType(types, false, (key, command) => {
@@ -153,7 +153,6 @@ export class QueueGetters extends QueueBase {
   }
 
   async getJobs(types: string[] | string, start = 0, end = -1, asc = false) {
-    await this.waitUntilReady();
     types = Array.isArray(types) ? types : [types];
 
     if (types.indexOf('waiting') !== -1) {
@@ -165,7 +164,8 @@ export class QueueGetters extends QueueBase {
   }
 
   async getJobLogs(jobId: string, start = 0, end = -1) {
-    const multi = this.client.multi();
+    const client = await this.client;
+    const multi = client.multi();
 
     const logsKey = this.toKey(jobId + ':logs');
     multi.lrange(logsKey, -(end + 1), -(start + 1));
@@ -177,8 +177,8 @@ export class QueueGetters extends QueueBase {
   }
 
   async getWorkers() {
-    await this.waitUntilReady();
-    const clients = await this.client.client('list');
+    const client = await this.client;
+    const clients = await client.client('list');
     try {
       const list = await this.parseClientList(clients);
       return list;

@@ -86,6 +86,6 @@ local active = rcall('LRANGE', KEYS[3], 0, -1)
 if (#active > 0) then rcall('SADD', KEYS[1], unpack(active)) end
 
 local maxEvents = rcall("HGET", KEYS[6], "opts.maxLenEvents")
-rcall("XTRIM", KEYS[8], "MAXLEN", "~", maxEvents)
+if maxEvents then rcall("XTRIM", KEYS[8], "MAXLEN", "~", maxEvents) end
 
 return {failed, stalled}
