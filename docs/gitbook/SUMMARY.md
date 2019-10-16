@@ -9,12 +9,14 @@
 
 * [Introduction](guide/introduction.md)
 * [Connections](guide/connections.md)
+* [Queues](guide/untitled.md)
 * [Jobs](guide/jobs/README.md)
   * [Delayed](guide/jobs/untitled.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Proritized](guide/jobs/proritized.md)
   * [Stalled](guide/jobs/stalled.md)
 * [Events](guide/events.md)
+* [QueueScheduler](guide/queuescheduler.md)
 * [Architecture](guide/architecture.md)
 
 ## Patterns
