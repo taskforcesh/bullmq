@@ -3,7 +3,7 @@ import IORedis from 'ioredis';
 import { after } from 'lodash';
 import { Queue, QueueEvents, Worker } from '@src/classes';
 import { beforeEach } from 'mocha';
-import { v4 } from 'node-uuid';
+import { v4 } from 'uuid';
 const delay = require('delay');
 const pReflect = require('p-reflect');
 const pool = require('../classes/child-pool').pool;

@@ -1,5 +1,5 @@
 import { get } from 'lodash';
-import { v4 } from 'node-uuid';
+import { v4 } from 'uuid';
 import {
   JobsOptions,
   QueueOptions,

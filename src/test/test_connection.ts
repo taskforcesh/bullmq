@@ -1,7 +1,7 @@
 import IORedis from 'ioredis';
 import { Queue, QueueEvents, Job, Worker } from '@src/classes';
 
-import { v4 } from 'node-uuid';
+import { v4 } from 'uuid';
 import { expect } from 'chai';
 
 describe('connection', () => {

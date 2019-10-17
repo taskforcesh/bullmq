@@ -2,7 +2,7 @@ import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
-import { v4 } from 'node-uuid';
+import { v4 } from 'uuid';
 import { delay } from 'bluebird';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '@src/enums';

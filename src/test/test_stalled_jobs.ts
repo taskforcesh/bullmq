@@ -3,7 +3,7 @@ import { delay } from 'bluebird';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'node-uuid';
+import { v4 } from 'uuid';
 import * as sinon from 'sinon';
 
 describe('stalled jobs', function() {
