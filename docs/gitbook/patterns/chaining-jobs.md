@@ -1,2 +1,2 @@
-# Chaining jobs
+# Workflows
 
