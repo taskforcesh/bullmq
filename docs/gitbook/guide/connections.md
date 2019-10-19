@@ -34,5 +34,5 @@ const myWorker = new Worker('myworker', { redis });
 
 Note that in the second example, even though the redis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections.
 
-
+If you can afford many connections, by all means just use them. Redis connections have quite low overhead, so you should not need to care about reusing connections unless your service provider is imposing you hard limitations.
 

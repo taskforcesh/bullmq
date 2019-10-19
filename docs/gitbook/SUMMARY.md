@@ -11,6 +11,8 @@
 * [Connections](guide/connections.md)
 * [Queues](guide/untitled.md)
 * [Jobs](guide/jobs/README.md)
+  * [FIFO](guide/jobs/fifo.md)
+  * [LIFO](guide/jobs/lifo.md)
   * [Delayed](guide/jobs/untitled.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Proritized](guide/jobs/proritized.md)
