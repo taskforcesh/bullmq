@@ -35,3 +35,13 @@ await myQueue.add('bird', { color: 'bird' },
 
 ```
 
+
+
+There are some important considerations regarding repeatable jobs:
+
+* Bull is smart enough not to add the same repeatable job if the repeat options are the same.
+* If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
+* repeatable jobs can be removed using the [removeRepeatable](https://github.com/OptimalBits/bull/blob/master/REFERENCE.md#queueremoverepeatable) method.
+
+
+

@@ -1,6 +1,6 @@
 import * as Bluebird from 'bluebird';
 import fs from 'fs';
-import { Redis } from 'ioredis';
+import IORedis from 'ioredis';
 import path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
@@ -44,7 +44,11 @@ export class Worker extends QueueBase {
       ...this.opts,
     };
 
-    this.blockingConnection = new RedisConnection(opts.connection);
+    this.blockingConnection = new RedisConnection(
+      opts instanceof IORedis
+        ? (<IORedis.Redis>opts.connection).duplicate()
+        : opts.connection,
+    );
     this.blockingConnection.on('error', this.emit.bind(this));
 
     if (typeof processor === 'function') {
@@ -84,6 +88,10 @@ export class Worker extends QueueBase {
 
   private async run() {
     const client = await this.client;
+
+    if (this.closing) {
+      return;
+    }
 
     // IDEA, How to store metadata associated to a worker.
     // create a key from the worker ID associated to the given name.
@@ -283,7 +291,6 @@ export class Worker extends QueueBase {
     //
     this.waiting && (await this.blockingConnection.disconnect());
 
-    // If we are disconnected, how are we going to update the completed/failed sets?
     if (this.processing) {
       await Promise.all(this.processing);
     }
@@ -292,22 +299,28 @@ export class Worker extends QueueBase {
   }
 
   async close(force = false) {
-    const client = await this.blockingConnection.client;
+    if (!this.closing) {
+      this.emit('closing', 'closing queue');
+      this.closing = new Promise(async (resolve, reject) => {
+        try {
+          const client = await this.blockingConnection.client;
 
-    this.emit('closing', 'closing queue');
-    await super.close();
-
-    try {
-      await this.resume();
-      if (!force) {
-        await this.whenCurrentJobsFinished(false);
-      } else {
-        await client.disconnect();
-      }
-      await this.disconnect();
-    } finally {
-      this.childPool && this.childPool.clean();
+          await this.resume();
+          if (!force) {
+            await this.whenCurrentJobsFinished(false);
+          } else {
+            await client.disconnect();
+          }
+          // await this.disconnect();
+          await super.close();
+        } catch (err) {
+          reject(err);
+        } finally {
+          this.childPool && this.childPool.clean();
+        }
+        this.emit('closed');
+        resolve();
+      });
     }
-    this.emit('closed');
   }
 }

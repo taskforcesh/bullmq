@@ -2,6 +2,7 @@ import { QueueSchedulerOptions } from '../interfaces';
 import { array2obj } from '../utils';
 import { QueueBase } from './';
 import { Scripts } from './scripts';
+import IORedis = require('ioredis');
 
 const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
 
@@ -23,6 +24,7 @@ const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
  */
 export class QueueScheduler extends QueueBase {
   private nextTimestamp = Number.MAX_VALUE;
+  private isBlocked = false;
 
   constructor(protected name: string, opts: QueueSchedulerOptions = {}) {
     super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
@@ -32,11 +34,11 @@ export class QueueScheduler extends QueueBase {
   }
 
   private async run() {
-    await this.waitUntilReady();
+    const client = await this.waitUntilReady();
 
     const key = this.keys.delay;
     const opts = this.opts as QueueSchedulerOptions;
-    const delaySet = await Scripts.updateDelaySet(this, Date.now());
+    const delaySet = await this.updateDelaySet(Date.now());
 
     const [nextTimestamp] = delaySet;
     let streamLastId = delaySet[1] || '0-0';
@@ -46,8 +48,6 @@ export class QueueScheduler extends QueueBase {
     }
 
     while (!this.closing) {
-      const client = await this.waitUntilReady();
-
       // Check if at least the min stalled check time has passed.
       await this.moveStalledJobsToWait();
 
@@ -58,18 +58,12 @@ export class QueueScheduler extends QueueBase {
         Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
       );
 
-      let data;
-      if (blockTime) {
-        data = await client.xread(
-          'BLOCK',
-          blockTime,
-          'STREAMS',
-          key,
-          streamLastId,
-        );
-      } else {
-        data = await client.xread('STREAMS', key, streamLastId);
-      }
+      const data = await this.readDelayedData(
+        client,
+        key,
+        streamLastId,
+        blockTime,
+      );
 
       if (data && data[0]) {
         const stream = data[0];
@@ -89,14 +83,16 @@ export class QueueScheduler extends QueueBase {
         // We trim to a length of 100, which should be a very safe value
         // for all kind of scenarios.
         //
-        client.xtrim(key, 'MAXLEN', '~', 100);
+        if (!this.closing) {
+          await client.xtrim(key, 'MAXLEN', '~', 100);
+        }
       }
 
       const now = Date.now();
       const delay = this.nextTimestamp - now;
 
       if (delay <= 0) {
-        const [nextTimestamp, id] = await Scripts.updateDelaySet(this, now);
+        const [nextTimestamp, id] = await this.updateDelaySet(now);
         if (nextTimestamp) {
           this.nextTimestamp = nextTimestamp / 4096;
           streamLastId = id;
@@ -107,21 +103,68 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  private async moveStalledJobsToWait() {
-    if (this.closing) {
-      return;
+  private async readDelayedData(
+    client: IORedis.Redis,
+    key: string,
+    streamLastId: string,
+    blockTime: number,
+  ) {
+    if (!this.closing) {
+      let data;
+      if (blockTime) {
+        try {
+          this.isBlocked = true;
+          data = await client.xread(
+            'BLOCK',
+            blockTime,
+            'STREAMS',
+            key,
+            streamLastId,
+          );
+        } catch (err) {
+          // We can ignore closed connection errors
+          if (err.message !== 'Connection is closed.') {
+            throw err;
+          }
+        } finally {
+          this.isBlocked = false;
+        }
+      } else {
+        data = await client.xread('STREAMS', key, streamLastId);
+      }
+      return data;
     }
+  }
 
-    const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
+  private async updateDelaySet(timestamp: number) {
+    if (!this.closing) {
+      return Scripts.updateDelaySet(this, timestamp);
+    }
+    return [0, 0];
+  }
 
-    failed.forEach((jobId: string) =>
-      this.emit(
-        'failed',
-        jobId,
-        new Error('job stalled more than allowable limit'),
-        'active',
-      ),
-    );
-    stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
+  private async moveStalledJobsToWait() {
+    if (!this.closing) {
+      const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
+
+      failed.forEach((jobId: string) =>
+        this.emit(
+          'failed',
+          jobId,
+          new Error('job stalled more than allowable limit'),
+          'active',
+        ),
+      );
+      stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
+    }
+  }
+
+  async close() {
+    if (this.isBlocked) {
+      this.closing = this.disconnect();
+    } else {
+      super.close();
+    }
+    return this.closing;
   }
 }

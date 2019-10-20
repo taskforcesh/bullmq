@@ -2,7 +2,7 @@
 
 When a job is an active state, i.e., it is being processed by a worker, it needs to continuously update the queue to notify that the worker is still working on the job. This mechanism prevents that a worker that crashes or enters an endless loop will keep a job in active state for ever.
 
-When a worker is not able to notify the queue that it is still working on a given job, that job is moved back to the waiting list. We then said that the job has stalled and the queue will emit the 'stalled' event.
+When a worker is not able to notify the queue that it is still working on a given job, that job is moved back to the waiting list, or to the failed set. We then said that the job has stalled and the queue will emit the 'stalled' event.
 
 {% hint style="info" %}
 There is not a 'stalled' state, only a 'stalled' event emitted when a job is automatically moved from active to waiting state.
