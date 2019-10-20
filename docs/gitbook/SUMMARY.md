@@ -9,18 +9,25 @@
 
 * [Introduction](guide/introduction.md)
 * [Connections](guide/connections.md)
+* [Queues](guide/untitled.md)
 * [Jobs](guide/jobs/README.md)
+  * [FIFO](guide/jobs/fifo.md)
+  * [LIFO](guide/jobs/lifo.md)
   * [Delayed](guide/jobs/untitled.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Proritized](guide/jobs/proritized.md)
   * [Stalled](guide/jobs/stalled.md)
+* [Rate limiting](guide/rate-limiting.md)
+* [Retrying failing jobs](guide/retrying-failing-jobs.md)
+* [Returning job data](guide/returning-job-data.md)
 * [Events](guide/events.md)
+* [QueueScheduler](guide/queuescheduler.md)
 * [Architecture](guide/architecture.md)
 
 ## Patterns
 
 * [Producer - Consumer](patterns/producer-consumer.md)
-* [Chaining jobs](patterns/chaining-jobs.md)
+* [Workflows](patterns/chaining-jobs.md)
 * [Real time updates](patterns/real-time-updates.md)
 * [Sender - Receiver](patterns/sender-receiver.md)
 * [Working with batches](patterns/working-with-batches.md)

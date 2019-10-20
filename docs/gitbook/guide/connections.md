@@ -1,2 +1,38 @@
 # Connections
 
+In order to start working with a Queue, a connection to a Redis instance is necessary. BullMQ uses the node module [ioredis](https://github.com/luin/ioredis), and the options you pass to BullMQ are just passed to the constructor of ioredis. If you do not provide any options, it will default to port 6739 and localhost. 
+
+Every class will consume at least one redis connection, but it is also possible to reuse connections in some situations. For example, the _Queue_ and _Worker_ classes can accept an existing ioredis instance, and by that reusing that connection, however _QueueScheduler_ and _QueueEvents_ cannot do that because they require blocking connections to Redis, which makes it impossible to reuse them.
+
+Some examples:
+
+```typescript
+import { Queue, Worker } from 'bullmq'
+
+// Create a new connection in every instance
+const myQueue = new Queue('myqueue', { redis: {
+  host: myredis.taskforce.run,
+  port: 32856
+}});
+  
+const myWorker = new Worker('myworker', { redis: {
+  host: myredis.taskforce.run,
+  port: 32856
+}});
+```
+
+```typescript
+import { Queue, Worker } from 'bullmq';
+import IORedis from 'ioredis';
+
+const redis = new IORedis();
+
+// Reuse the redis instance
+const myQueue = new Queue('myqueue', { redis });
+const myWorker = new Worker('myworker', { redis });
+```
+
+Note that in the second example, even though the redis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections.
+
+If you can afford many connections, by all means just use them. Redis connections have quite low overhead, so you should not need to care about reusing connections unless your service provider is imposing you hard limitations.
+
