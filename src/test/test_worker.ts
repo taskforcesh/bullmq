@@ -1346,7 +1346,53 @@ describe('workers', function() {
       await queueScheduler.close();
     });
 
-    it.skip('should not retry a job that has been removed', async () => {
+    it('should be able to handle a custom backoff if it returns a promise', async function() {
+      this.timeout(12000);
+
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.waitUntilReady();
+
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          if (job.attemptsMade < 2) {
+            throw new Error('some error');
+          }
+        },
+        {
+          settings: {
+            backoffStrategies: {
+              async custom() {
+                return delay(500);
+              },
+            },
+          },
+        },
+      );
+      const start = Date.now();
+      await queue.add(
+        'test',
+        { foo: 'bar' },
+        {
+          attempts: 3,
+          backoff: {
+            type: 'custom',
+          },
+        },
+      );
+
+      await new Promise(resolve => {
+        worker.on('completed', () => {
+          const elapse = Date.now() - start;
+          expect(elapse).to.be.greaterThan(1000);
+          resolve();
+        });
+      });
+
+      await worker.close();
+    });
+
+    it('should not retry a job that has been removed', async () => {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
@@ -1379,7 +1425,8 @@ describe('workers', function() {
             try {
               await job.retry();
             } catch (err) {
-              expect(err.message).to.equal(RetryErrors.JobNotExist);
+              // expect(err.message).to.equal(RetryErrors.JobNotExist);
+              expect(err.message).to.equal('Retried job not exist');
             }
 
             const completedCount = await queue.getCompletedCount();
@@ -1389,6 +1436,7 @@ describe('workers', function() {
           } catch (err) {
             reject(err);
           }
+          resolve();
         });
 
         worker.on('failed', failedHandler);
@@ -1396,7 +1444,7 @@ describe('workers', function() {
 
       await worker.close();
       await queueScheduler.close();
-    });
+    }).timeout(5000);
 
     it.skip('should not retry a job that has been retried already', async () => {
       let attempts = 0;
