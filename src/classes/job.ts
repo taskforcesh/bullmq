@@ -254,7 +254,7 @@ export class Job {
       const opts = queue.opts as WorkerOptions;
 
       // Check if backoff is needed
-      const delay = Backoffs.calculate(
+      const delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
         this.attemptsMade,
         opts.settings && opts.settings.backoffStrategies,
