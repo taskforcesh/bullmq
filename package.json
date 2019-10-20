@@ -21,9 +21,25 @@
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "prepublish": "yarn build"
   },
+  "dependencies": {
+    "@types/ioredis": "^4.0.13",
+    "bluebird": "^3.5.3",
+    "cron-parser": "^2.7.3",
+    "get-port": "^5.0.0",
+    "ioredis": "^4.3.0",
+    "node-uuid": "^1.4.8",
+    "lodash": "^4.17.11",
+    "semver": "^6.3.0",
+    "uuid": "^3.3.3"
+  },
   "devDependencies": {
     "@commitlint/cli": "^8.1.0",
     "@commitlint/config-conventional": "^8.1.0",
+    "@semantic-release/changelog": "^3.0.4",
+    "@semantic-release/commit-analyzer": "^6.3.0",
+    "@semantic-release/github": "^5.5.4",
+    "@semantic-release/npm": "^5.2.0",
+    "@semantic-release/release-notes-generator": "^7.3.0",
     "@types/bluebird": "^3.5.25",
     "@types/chai": "^4.1.7",
     "@types/lodash": "^4.14.119",
@@ -77,14 +93,30 @@
     "type": "git",
     "url": "https://github.com/taskforcesh/bullmq.git"
   },
-  "dependencies": {
-    "@types/ioredis": "^4.0.13",
-    "bluebird": "^3.5.3",
-    "cron-parser": "^2.7.3",
-    "get-port": "^5.0.0",
-    "ioredis": "^4.3.0",
-    "lodash": "^4.17.11",
-    "semver": "^6.3.0",
-    "uuid": "^3.3.3"
+  "release": {
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/npm",
+        {
+          "npmPublish": false
+        }
+      ],
+      "@semantic-release/github"
+    ],
+    "prepare": [
+      "@semantic-release/changelog",
+      "@semantic-release/npm",
+      {
+        "path": "@semantic-release/git",
+        "assets": [
+          "package.json",
+          "yarn.lock",
+          "CHANGELOG.md"
+        ],
+        "message": "chore(release): ${nextRelease.version} [skip ci]nn${nextRelease.notes}"
+      }
+    ]
   }
 }
