@@ -33,6 +33,11 @@
   "devDependencies": {
     "@commitlint/cli": "^8.1.0",
     "@commitlint/config-conventional": "^8.1.0",
+    "@semantic-release/changelog": "^3.0.4",
+    "@semantic-release/commit-analyzer": "^6.3.0",
+    "@semantic-release/github": "^5.5.4",
+    "@semantic-release/npm": "^5.2.0",
+    "@semantic-release/release-notes-generator": "^7.3.0",
     "@types/bluebird": "^3.5.25",
     "@types/chai": "^4.1.7",
     "@types/lodash": "^4.14.119",
