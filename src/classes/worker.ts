@@ -89,6 +89,10 @@ export class Worker extends QueueBase {
   private async run() {
     const client = await this.client;
 
+    if (this.closing) {
+      return;
+    }
+
     // IDEA, How to store metadata associated to a worker.
     // create a key from the worker ID associated to the given name.
     // We keep a hash table bull:myqueue:workers where every worker is a hash key workername:workerId with json holding
@@ -287,7 +291,6 @@ export class Worker extends QueueBase {
     //
     this.waiting && (await this.blockingConnection.disconnect());
 
-    // If we are disconnected, how are we going to update the completed/failed sets?
     if (this.processing) {
       await Promise.all(this.processing);
     }
@@ -296,22 +299,28 @@ export class Worker extends QueueBase {
   }
 
   async close(force = false) {
-    const client = await this.blockingConnection.client;
+    if (!this.closing) {
+      this.emit('closing', 'closing queue');
+      this.closing = new Promise(async (resolve, reject) => {
+        try {
+          const client = await this.blockingConnection.client;
 
-    this.emit('closing', 'closing queue');
-    await super.close();
-
-    try {
-      await this.resume();
-      if (!force) {
-        await this.whenCurrentJobsFinished(false);
-      } else {
-        await client.disconnect();
-      }
-      await this.disconnect();
-    } finally {
-      this.childPool && this.childPool.clean();
+          await this.resume();
+          if (!force) {
+            await this.whenCurrentJobsFinished(false);
+          } else {
+            await client.disconnect();
+          }
+          // await this.disconnect();
+          await super.close();
+        } catch (err) {
+          reject(err);
+        } finally {
+          this.childPool && this.childPool.clean();
+        }
+        this.emit('closed');
+        resolve();
+      });
     }
-    this.emit('closed');
   }
 }
