@@ -35,6 +35,7 @@
     "@commitlint/config-conventional": "^8.1.0",
     "@semantic-release/changelog": "^3.0.4",
     "@semantic-release/commit-analyzer": "^6.3.0",
+    "@semantic-release/git": "^7.0.16",
     "@semantic-release/github": "^5.5.4",
     "@semantic-release/npm": "^5.2.0",
     "@semantic-release/release-notes-generator": "^7.3.0",
