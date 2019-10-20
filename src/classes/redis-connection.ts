@@ -13,16 +13,14 @@ export class RedisConnection extends EventEmitter {
     super();
 
     if (!(opts instanceof IORedis)) {
-      this.opts = Object.assign(
-        {
-          port: 6379,
-          host: '127.0.0.1',
-          retryStrategy: function(times: number) {
-            return Math.min(Math.exp(times), 20000);
-          },
+      this.opts = {
+        port: 6379,
+        host: '127.0.0.1',
+        retryStrategy: function(times: number) {
+          return Math.min(Math.exp(times), 20000);
         },
-        opts,
-      );
+        ...opts,
+      };
     } else {
       this._client = opts;
     }
@@ -72,7 +70,7 @@ export class RedisConnection extends EventEmitter {
 
     await RedisConnection.waitUntilReady(this._client);
 
-    if (opts.skipVersionCheck !== true) {
+    if (opts && opts.skipVersionCheck !== true) {
       const version = await this.getRedisVersion();
       if (semver.lt(version, RedisConnection.minimumVersion)) {
         throw new Error(
@@ -111,7 +109,11 @@ export class RedisConnection extends EventEmitter {
     return client.connect();
   }
 
-  async close() {}
+  async close() {
+    if (this.opts) {
+      // return this._client.quit();
+    }
+  }
 
   private async getRedisVersion() {
     const doc = await this._client.info();

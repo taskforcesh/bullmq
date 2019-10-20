@@ -1,6 +1,6 @@
 import * as Bluebird from 'bluebird';
 import fs from 'fs';
-import { Redis } from 'ioredis';
+import IORedis from 'ioredis';
 import path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
@@ -44,7 +44,11 @@ export class Worker extends QueueBase {
       ...this.opts,
     };
 
-    this.blockingConnection = new RedisConnection(opts.connection);
+    this.blockingConnection = new RedisConnection(
+      opts instanceof IORedis
+        ? (<IORedis.Redis>opts.connection).duplicate()
+        : opts.connection,
+    );
     this.blockingConnection.on('error', this.emit.bind(this));
 
     if (typeof processor === 'function') {
