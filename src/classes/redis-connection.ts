@@ -8,6 +8,7 @@ export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   private _client: Redis;
   private initializing: Promise<Redis>;
+  private closing: boolean;
 
   constructor(private opts?: ConnectionOptions) {
     super();
@@ -70,7 +71,7 @@ export class RedisConnection extends EventEmitter {
 
     await RedisConnection.waitUntilReady(this._client);
 
-    if (opts && opts.skipVersionCheck !== true) {
+    if (opts && opts.skipVersionCheck !== true && !this.closing) {
       const version = await this.getRedisVersion();
       if (semver.lt(version, RedisConnection.minimumVersion)) {
         throw new Error(
@@ -110,8 +111,11 @@ export class RedisConnection extends EventEmitter {
   }
 
   async close() {
-    if (this.opts) {
-      // return this._client.quit();
+    if (!this.closing) {
+      this.closing = true;
+      if (this.opts != this._client) {
+        await this._client.quit();
+      }
     }
   }
 
