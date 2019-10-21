@@ -9,7 +9,7 @@ import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
-import { v4 } from 'node-uuid';
+import { v4 } from 'uuid';
 
 describe('Compat', function() {
   describe('jobs getters', function() {

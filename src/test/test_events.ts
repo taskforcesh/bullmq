@@ -4,7 +4,7 @@ import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'node-uuid';
+import { v4 } from 'uuid';
 
 describe('events', function() {
   this.timeout(4000);

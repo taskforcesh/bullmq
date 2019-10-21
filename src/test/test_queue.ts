@@ -3,7 +3,7 @@ import { Queue } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect, assert } from 'chai';
 import IORedis from 'ioredis';
-import { v4 } from 'node-uuid';
+import { v4 } from 'uuid';
 import { Worker } from '@src/classes/worker';
 import { after } from 'lodash';
 import { QueueEvents } from '@src/classes/queue-events';
