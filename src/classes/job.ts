@@ -460,6 +460,7 @@ export class Job {
     if (this.opts.stackTraceLimit) {
       this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit - 1);
     }
+    this.stacktrace.push(err.stack);
 
     const params = {
       attemptsMade: this.attemptsMade,
@@ -467,7 +468,6 @@ export class Job {
       failedReason: err.message,
     };
 
-    this.stacktrace.push(err.stack);
     multi.hmset(this.queue.toKey(this.id), params);
   }
 }
