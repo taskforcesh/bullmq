@@ -53,10 +53,10 @@ describe('Rate Limiter', function() {
     ]);
 
     await Promise.all([
-      worker.getNextJob(),
-      worker.getNextJob(),
-      worker.getNextJob(),
-      worker.getNextJob(),
+      worker.getNextJob('test-token'),
+      worker.getNextJob('test-token'),
+      worker.getNextJob('test-token'),
+      worker.getNextJob('test-token'),
     ]);
 
     const delayedCount = await queue.getDelayedCount();

@@ -8,6 +8,8 @@ export interface WorkerOptions extends QueueBaseOptions {
   limiter?: RateLimiterOptions;
   skipDelayCheck?: boolean;
   drainDelay?: number;
-  visibilityWindow?: number; // seconds,
-  settings?: AdvancedOptions;
+  lockDuration?: number;
+  lockRenewTime?: number;
+  visibilityWindow?: number; // seconds // FIXME not used?
+  settings?: AdvancedOptions; // FIXME not used?
 }
