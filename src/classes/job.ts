@@ -457,10 +457,10 @@ export class Job {
     this.attemptsMade++;
     this.stacktrace = this.stacktrace || [];
 
-    if (this.opts.stackTraceLimit) {
-      this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit - 1);
-    }
     this.stacktrace.push(err.stack);
+    if (this.opts.stackTraceLimit) {
+      this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+    }
 
     const params = {
       attemptsMade: this.attemptsMade,
