@@ -32,6 +32,7 @@ describe('Delayed jobs', function() {
   it('should process a delayed job only after delayed time', async function() {
     const delay = 1000;
     const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.waitUntilReady();
     const queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
 
@@ -41,7 +42,8 @@ describe('Delayed jobs', function() {
     let publishHappened = false;
 
     queueEvents.on('delayed', () => {
-      console.log('delayed!'), (publishHappened = true);
+      console.log('delayed!');
+      publishHappened = true;
     });
 
     const completed = new Promise((resolve, reject) => {
@@ -75,28 +77,27 @@ describe('Delayed jobs', function() {
 
   it('should process delayed jobs in correct order', async function() {
     let order = 0;
-    let processor;
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
     const processing = new Promise((resolve, reject) => {
-      processor = async (job: Job) => {
+      const processor = async (job: Job) => {
         order++;
         try {
           expect(order).to.be.equal(job.data.order);
           if (order === 10) {
-            resolve();
+            resolve(worker.close());
           }
         } catch (err) {
           reject(err);
         }
       };
-    });
 
-    const worker = new Worker(queueName, processor);
+      const worker = new Worker(queueName, processor);
 
-    worker.on('failed', function(job, err) {
-      err.job = job;
+      worker.on('failed', function(job, err) {
+        err.job = job;
+      });
     });
 
     await Promise.all([
@@ -115,7 +116,6 @@ describe('Delayed jobs', function() {
     await processing;
 
     await queueScheduler.close();
-    await worker.close();
   });
 
   /*
@@ -171,15 +171,13 @@ describe('Delayed jobs', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
-    let processor;
-
     const processing = new Promise((resolve, reject) => {
-      processor = async (job: Job) => {
+      const processor = async (job: Job) => {
         try {
           expect(order).to.be.equal(job.data.order);
 
           if (order === 12) {
-            resolve();
+            resolve(worker.close());
           }
         } catch (err) {
           reject(err);
@@ -187,6 +185,12 @@ describe('Delayed jobs', function() {
 
         order++;
       };
+
+      const worker = new Worker(queueName, processor);
+
+      worker.on('failed', function(job, err) {
+        err.job = job;
+      });
     });
 
     const now = Date.now();
@@ -205,17 +209,7 @@ describe('Delayed jobs', function() {
       );
     }
     await Promise.all(promises);
-
-    const worker = new Worker(queueName, processor);
-
-    worker.on('failed', function(job, err) {
-      err.job = job;
-    });
-
     await processing;
-
     await queueScheduler.close();
-
-    await worker.close();
   });
 });

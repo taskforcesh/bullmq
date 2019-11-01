@@ -208,8 +208,9 @@ export class Job {
    */
   async moveToCompleted(
     returnValue: any,
+    token: string,
     fetchNext = true,
-  ): Promise<[JobJson, string]> {
+  ): Promise<[JobJson, string] | []> {
     await this.queue.waitUntilReady();
 
     this.returnvalue = returnValue || 0;
@@ -226,6 +227,7 @@ export class Job {
       this,
       stringifiedReturnValue,
       this.opts.removeOnComplete,
+      token,
       fetchNext,
     );
   }
@@ -233,10 +235,11 @@ export class Job {
   /**
    * Moves a job to the failed queue.
    * @param err {Error} The jobs error message.
+   * @param token {string} Token to check job is locked by current worker
    * @param fetchNext {boolean} True when wanting to fetch the next job
    * @returns void
    */
-  async moveToFailed(err: Error, fetchNext = false) {
+  async moveToFailed(err: Error, token: string, fetchNext = false) {
     const client = await this.queue.client;
 
     const queue = this.queue;
@@ -249,7 +252,7 @@ export class Job {
     //
     // Check if an automatic retry should be performed
     //
-    var moveToFailed = false;
+    let moveToFailed = false;
     if (this.attemptsMade < this.opts.attempts && !this.discarded) {
       const opts = queue.opts as WorkerOptions;
 
@@ -287,6 +290,7 @@ export class Job {
         this,
         err.message,
         this.opts.removeOnFail,
+        token,
         fetchNext,
       );
       (<any>multi).moveToFinished(args);

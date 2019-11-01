@@ -126,7 +126,7 @@ describe('Job', function() {
       const job2 = await Job.create(queue, 'test', { baz: 'qux' });
       const isCompleted = await job2.isCompleted();
       expect(isCompleted).to.be.equal(false);
-      const job1Id = await job2.moveToCompleted('succeeded', true);
+      const job1Id = await job2.moveToCompleted('succeeded', '0', true);
       const isJob2Completed = await job2.isCompleted();
       expect(isJob2Completed).to.be.equal(true);
       expect(job2.returnvalue).to.be.equal('succeeded');
@@ -139,7 +139,7 @@ describe('Job', function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), true);
+      await job.moveToFailed(new Error('test error'), '0', true);
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
@@ -163,7 +163,7 @@ describe('Job', function() {
         queueEvents.on('waiting', resolve);
       });
 
-      await job.moveToFailed(new Error('test error'), true);
+      await job.moveToFailed(new Error('test error'), '0', true);
 
       await waiting;
 
@@ -186,7 +186,7 @@ describe('Job', function() {
       );
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), true);
+      await job.moveToFailed(new Error('test error'), '0', true);
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
@@ -202,7 +202,7 @@ describe('Job', function() {
       );
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), true);
+      await job.moveToFailed(new Error('test error'), '0', true);
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.equal(false);
       expect(job.stacktrace).not.be.equal(null);
@@ -221,7 +221,7 @@ describe('Job', function() {
       );
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), true);
+      await job.moveToFailed(new Error('test error'), '0', true);
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
@@ -231,7 +231,7 @@ describe('Job', function() {
     it('saves error stacktrace', async function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       const id = job.id;
-      await job.moveToFailed(new Error('test error'), false);
+      await job.moveToFailed(new Error('test error'), '0');
       const sameJob = await queue.getJob(id);
       expect(sameJob).to.be.ok;
       expect(sameJob.stacktrace).to.be.not.empty;

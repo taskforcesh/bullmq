@@ -91,6 +91,19 @@ export class Scripts {
     return (<any>client).removeJob(keys.concat([queue.keys.events, jobId]));
   }
 
+  static async extendLock(worker: Worker, jobId: string, token: string) {
+    const client = await worker.client;
+    const opts: WorkerOptions = worker.opts;
+    const args = [
+      worker.toKey(jobId) + ':lock',
+      worker.keys.stalled,
+      token,
+      opts.lockDuration,
+      jobId,
+    ];
+    return (<any>client).extendLock(args);
+  }
+
   static async updateProgress(
     queue: QueueBase,
     job: Job,
@@ -112,9 +125,11 @@ export class Scripts {
     propVal: string,
     shouldRemove: boolean | number,
     target: string,
+    token: string,
     fetchNext = true,
   ) {
     const queueKeys = queue.keys;
+    const opts: WorkerOptions = <WorkerOptions>queue.opts;
 
     const keys = [
       queueKeys.active,
@@ -141,10 +156,10 @@ export class Scripts {
       target,
       remove,
       JSON.stringify({ jobId: job.id, val: val }),
-      !fetchNext || queue.closing || (<WorkerOptions>queue.opts).limiter
-        ? 0
-        : 1,
+      !fetchNext || queue.closing || opts.limiter ? 0 : 1,
       queueKeys[''],
+      token,
+      opts.lockDuration,
     ];
 
     return keys.concat(args);
@@ -157,6 +172,7 @@ export class Scripts {
     propVal: string,
     shouldRemove: boolean | number,
     target: string,
+    token: string,
     fetchNext: boolean,
   ) {
     const client = await queue.client;
@@ -167,6 +183,7 @@ export class Scripts {
       propVal,
       shouldRemove,
       target,
+      token,
       fetchNext,
     );
 
@@ -174,7 +191,7 @@ export class Scripts {
     if (result < 0) {
       throw this.finishedErrors(result, job.id, 'finished');
     } else if (result) {
-      return <[JobJson, string]>raw2jobData(result);
+      return raw2jobData(result);
     }
   }
 
@@ -192,8 +209,9 @@ export class Scripts {
     job: Job,
     returnvalue: any,
     removeOnComplete: boolean | number,
+    token: string,
     fetchNext: boolean,
-  ): Promise<[JobJson, string]> {
+  ): Promise<[JobJson, string] | []> {
     return this.moveToFinished(
       queue,
       job,
@@ -201,6 +219,7 @@ export class Scripts {
       'returnvalue',
       removeOnComplete,
       'completed',
+      token,
       fetchNext,
     );
   }
@@ -210,6 +229,7 @@ export class Scripts {
     job: Job,
     failedReason: string,
     removeOnFailed: boolean | number,
+    token: string,
     fetchNext = false,
   ) {
     return this.moveToFinishedArgs(
@@ -219,6 +239,7 @@ export class Scripts {
       'failedReason',
       removeOnFailed,
       'failed',
+      token,
       fetchNext,
     );
   }
@@ -341,10 +362,11 @@ export class Scripts {
     return (<any>client).reprocessJob(keys.concat(args));
   }
 
-  static async moveToActive(queue: Worker, jobId: string) {
-    const client = await queue.client;
+  static async moveToActive(worker: Worker, token: string, jobId?: string) {
+    const client = await worker.client;
+    const opts = worker.opts;
 
-    const queueKeys = queue.keys;
+    const queueKeys = worker.keys;
     const keys = [queueKeys.wait, queueKeys.active, queueKeys.priority];
 
     keys[3] = queueKeys.events;
@@ -355,18 +377,19 @@ export class Scripts {
 
     const args: (string | number | boolean)[] = [
       queueKeys[''],
+      token,
+      opts.lockDuration,
       Date.now(),
       jobId,
     ];
 
-    const opts: WorkerOptions = <WorkerOptions>queue.opts;
-
     if (opts.limiter) {
       args.push(opts.limiter.max, opts.limiter.duration);
     }
-    return (<any>client)
-      .moveToActive((<(string | number | boolean)[]>keys).concat(args))
-      .then(raw2jobData);
+    const result = await (<any>client).moveToActive(
+      (<(string | number | boolean)[]>keys).concat(args),
+    );
+    return raw2jobData(result);
   }
 
   //
@@ -470,11 +493,11 @@ export class Scripts {
   */
 }
 
-function raw2jobData(raw: any[]) {
+function raw2jobData(raw: any[]): [JobJson, string] | [] {
   if (raw) {
     const jobData = raw[0];
     if (jobData.length) {
-      const job = array2obj(jobData);
+      const job: any = array2obj(jobData);
       return [job, raw[1]];
     }
   }

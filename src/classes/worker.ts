@@ -9,6 +9,8 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
+import uuid from 'uuid';
+import { TimerManager } from './timer-manager';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -26,10 +28,11 @@ export class Worker extends QueueBase {
   private paused: Promise<void>;
   private _repeat: Repeat;
   private childPool: ChildPool;
+  private timerManager: TimerManager;
 
   private blockingConnection: RedisConnection;
 
-  private processing: Set<Promise<Job | void>>; // { [index: number]: Promise<Job | void> } = {};
+  private processing: Map<Promise<Job | string>, string>; // { [index: number]: Promise<Job | void> } = {};
   constructor(
     name: string,
     processor: string | Processor,
@@ -41,8 +44,12 @@ export class Worker extends QueueBase {
       // settings: {},
       drainDelay: 5,
       concurrency: 1,
+      lockDuration: 30000,
       ...this.opts,
     };
+
+    this.opts.lockRenewTime =
+      this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
     this.blockingConnection = new RedisConnection(
       opts instanceof IORedis
@@ -68,9 +75,12 @@ export class Worker extends QueueBase {
       this.childPool = this.childPool || pool;
       this.processFn = sandbox(processor, this.childPool).bind(this);
     }
+    this.timerManager = new TimerManager();
 
     /* tslint:disable: no-floating-promises */
-    this.run();
+    this.run().catch(error => {
+      console.error(error);
+    });
   }
 
   get repeat() {
@@ -108,35 +118,45 @@ export class Worker extends QueueBase {
 
     const opts: WorkerOptions = <WorkerOptions>this.opts;
 
-    const processing = (this.processing = new Set());
+    const processing = (this.processing = new Map());
+
+    const tokens: string[] = Array.from({ length: opts.concurrency }, () =>
+      uuid.v4(),
+    );
 
     while (!this.closing) {
       if (processing.size < opts.concurrency) {
-        processing.add(this.getNextJob());
+        const token = tokens.pop();
+        processing.set(this.getNextJob(token), token);
       }
 
-      //
-      // Get the first promise that completes
-      //
+      /*
+       * Get the first promise that completes
+       * Explanation https://stackoverflow.com/a/42898229/1848640
+       */
       const [completed] = await Promise.race(
-        [...processing].map(p => p.then(() => [p])),
+        [...processing.keys()].map(p => p.then(() => [p])),
       );
 
+      const token = processing.get(completed);
       processing.delete(completed);
 
       const job = await completed;
-
       if (job) {
-        processing.add(this.processJob(job));
+        // reuse same token if next job is available to process
+        processing.set(this.processJob(job, token), token);
+      } else {
+        tokens.push(token);
       }
     }
     return Promise.all(processing);
   }
 
   /**
-    Returns a promise that resolves to the next job in queue.
-  */
-  async getNextJob() {
+   * Returns a promise that resolves to the next job in queue.
+   * @param token worker token to be assigned to retrieved job
+   */
+  async getNextJob(token: string): Promise<Job | void> {
     if (this.paused) {
       await this.paused;
     }
@@ -150,21 +170,24 @@ export class Worker extends QueueBase {
         const jobId = await this.waitForJob();
 
         if (jobId) {
-          return this.moveToActive(jobId);
+          return this.moveToActive(token, jobId);
         }
       } catch (err) {
-        // Swallow error
+        // Swallow error // TODO emit error
         if (err.message !== 'Connection is closed.') {
           console.error('BRPOPLPUSH', err);
         }
       }
     } else {
-      return this.moveToActive();
+      return this.moveToActive(token);
     }
   }
 
-  private async moveToActive(jobId?: string) {
-    const [jobData, id] = await Scripts.moveToActive(this, jobId);
+  private async moveToActive(
+    token: string,
+    jobId?: string,
+  ): Promise<Job | void> {
+    const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
 
@@ -187,7 +210,10 @@ export class Worker extends QueueBase {
     return jobId;
   }
 
-  private async nextJobFromJobData(jobData: any, jobId: string) {
+  private async nextJobFromJobData(
+    jobData?: any,
+    jobId?: string,
+  ): Promise<Job | void> {
     if (jobData) {
       this.drained = false;
       const job = Job.fromJSON(this, jobData, jobId);
@@ -202,13 +228,53 @@ export class Worker extends QueueBase {
     }
   }
 
-  async processJob(job: Job) {
+  async processJob(job: Job, token: string): Promise<Job | void> {
     if (!job || this.closing || this.paused) {
       return;
     }
-    const handleCompleted = async (result: any) => {
+
+    // code from Bull3..
+
+    //
+    // There are two cases to take into consideration regarding locks.
+    // 1) The lock renewer fails to renew a lock, this should make this job
+    // unable to complete, since some other worker is also working on it.
+    // 2) The lock renewer is called more seldom than the check for stalled
+    // jobs, so we can assume the job has been stalled and is already being processed
+    // by another worker. See https://github.com/OptimalBits/bull/issues/308
+    //
+    let lockRenewId: string;
+    let timerStopped = false;
+    const lockExtender = () => {
+      lockRenewId = this.timerManager.setTimer(
+        'lockExtender',
+        this.opts.lockRenewTime,
+        async () => {
+          try {
+            const result = await Scripts.extendLock(this, job.id, token);
+            if (result && !timerStopped) {
+              lockExtender();
+            }
+            // FIXME if result = 0 (missing lock), reject processFn promise to take next job?
+          } catch (error) {
+            console.error('Error extending lock ', error);
+            // Somehow tell the worker this job should stop processing...
+          }
+        },
+      );
+    };
+
+    const stopTimer = () => {
+      timerStopped = true;
+      this.timerManager.clearTimer(lockRenewId);
+    };
+
+    // end copy-paste from Bull3
+
+    const handleCompleted = async (result: any): Promise<Job | void> => {
       const jobData = await job.moveToCompleted(
         result,
+        token,
         !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
@@ -224,19 +290,21 @@ export class Worker extends QueueBase {
         error = (<any>error).cause; // Handle explicit rejection
       }
 
-      await job.moveToFailed(err);
+      await job.moveToFailed(err, token);
       this.emit('failed', job, error, 'active');
     };
 
     // TODO: how to cancel the processing? (null -> job.cancel() => throw CancelError()void)
     this.emit('active', job, null, 'waiting');
 
+    lockExtender();
     try {
       const result = await this.processFn(job);
-      const nextJob = await handleCompleted(result);
-      return nextJob;
+      return await handleCompleted(result);
     } catch (err) {
       return handleFailed(err);
+    } finally {
+      stopTimer();
     }
 
     /*
@@ -253,8 +321,8 @@ export class Worker extends QueueBase {
   }
 
   /**
-    Pauses the processing of this queue only for this worker.
-  */
+   * Pauses the processing of this queue only for this worker.
+   */
   async pause(doNotWaitActive?: boolean) {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
@@ -292,7 +360,7 @@ export class Worker extends QueueBase {
     this.waiting && (await this.blockingConnection.disconnect());
 
     if (this.processing) {
-      await Promise.all(this.processing);
+      await Promise.all(this.processing.keys());
     }
 
     this.waiting && reconnect && (await this.blockingConnection.reconnect());
@@ -316,6 +384,7 @@ export class Worker extends QueueBase {
         } catch (err) {
           reject(err);
         } finally {
+          this.timerManager.clearAllTimers();
           this.childPool && this.childPool.clean();
         }
         this.emit('closed');
