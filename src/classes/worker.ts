@@ -10,6 +10,7 @@ import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import uuid from 'uuid';
+import { TimerManager } from './timer-manager';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -27,6 +28,7 @@ export class Worker extends QueueBase {
   private paused: Promise<void>;
   private _repeat: Repeat;
   private childPool: ChildPool;
+  private timerManager: TimerManager;
 
   private blockingConnection: RedisConnection;
 
@@ -73,9 +75,12 @@ export class Worker extends QueueBase {
       this.childPool = this.childPool || pool;
       this.processFn = sandbox(processor, this.childPool).bind(this);
     }
+    this.timerManager = new TimerManager();
 
     /* tslint:disable: no-floating-promises */
-    this.run(); // TODO catch, emit error
+    this.run().catch(error => {
+      console.error(error);
+    });
   }
 
   get repeat() {
@@ -122,12 +127,7 @@ export class Worker extends QueueBase {
     while (!this.closing) {
       if (processing.size < opts.concurrency) {
         const token = tokens.pop();
-        processing.set(
-          this.getNextJob(token).catch(error => {
-            console.error('getNextJob failed', error); // TODO handle error properly
-          }),
-          token,
-        );
+        processing.set(this.getNextJob(token), token);
       }
 
       /*
@@ -144,12 +144,7 @@ export class Worker extends QueueBase {
       const job = await completed;
       if (job) {
         // reuse same token if next job is available to process
-        processing.set(
-          this.processJob(job, token).catch(error => {
-            console.error('processJob failed', error); // TODO handle error properly
-          }),
-          token,
-        );
+        processing.set(this.processJob(job, token), token);
       } else {
         tokens.push(token);
       }
@@ -251,7 +246,7 @@ export class Worker extends QueueBase {
     let lockRenewId: string;
     let timerStopped = false;
     const lockExtender = () => {
-      lockRenewId = this.setTimer(
+      lockRenewId = this.timerManager.setTimer(
         'lockExtender',
         this.opts.lockRenewTime,
         async () => {
@@ -260,7 +255,7 @@ export class Worker extends QueueBase {
             if (result && !timerStopped) {
               lockExtender();
             }
-            // FIXME if result = 0, reject processFn promise to take next job?
+            // FIXME if result = 0 (missing lock), reject processFn promise to take next job?
           } catch (error) {
             console.error('Error extending lock ', error);
             // Somehow tell the worker this job should stop processing...
@@ -268,9 +263,10 @@ export class Worker extends QueueBase {
         },
       );
     };
+
     const stopTimer = () => {
       timerStopped = true;
-      this.clearTimer(lockRenewId);
+      this.timerManager.clearTimer(lockRenewId);
     };
 
     // end copy-paste from Bull3
@@ -282,7 +278,6 @@ export class Worker extends QueueBase {
         !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
-      // FIXME should we call nextJobFromJobData here to emit drained event?
       return jobData ? this.nextJobFromJobData(jobData[0], jobData[1]) : null;
     };
 
@@ -297,7 +292,6 @@ export class Worker extends QueueBase {
 
       await job.moveToFailed(err, token);
       this.emit('failed', job, error, 'active');
-      // FIXME can we also fetch next job right away as in handleCompleted?
     };
 
     // TODO: how to cancel the processing? (null -> job.cancel() => throw CancelError()void)
@@ -306,7 +300,7 @@ export class Worker extends QueueBase {
     lockExtender();
     try {
       const result = await this.processFn(job);
-      return handleCompleted(result);
+      return await handleCompleted(result);
     } catch (err) {
       return handleFailed(err);
     } finally {
@@ -366,7 +360,7 @@ export class Worker extends QueueBase {
     this.waiting && (await this.blockingConnection.disconnect());
 
     if (this.processing) {
-      await Promise.all(this.processing);
+      await Promise.all(this.processing.keys());
     }
 
     this.waiting && reconnect && (await this.blockingConnection.reconnect());
@@ -390,57 +384,12 @@ export class Worker extends QueueBase {
         } catch (err) {
           reject(err);
         } finally {
-          this.clearAllTimers();
+          this.timerManager.clearAllTimers();
           this.childPool && this.childPool.clean();
         }
         this.emit('closed');
         resolve();
       });
     }
-  }
-
-  // code from former TimerManager
-  private timers: any = {};
-
-  private setTimer(name: string, delay: number, fn: Function) {
-    const id = uuid.v4();
-    const timer = setTimeout(
-      timeoutId => {
-        this.clearTimer(timeoutId);
-        try {
-          fn();
-        } catch (err) {
-          console.error(err);
-        }
-      },
-      delay,
-      id,
-    );
-
-    // XXX only the timer is used, but the
-    // other fields are useful for
-    // troubleshooting/debugging
-    this.timers[id] = {
-      name,
-      timer,
-    };
-
-    return id;
-  }
-
-  private clearTimer(id: string) {
-    const timers = this.timers;
-    const timer = timers[id];
-    if (!timer) {
-      return;
-    }
-    clearTimeout(timer.timer);
-    delete timers[id];
-  }
-
-  private clearAllTimers() {
-    Object.keys(this.timers).forEach(key => {
-      this.clearTimer(key);
-    });
   }
 }

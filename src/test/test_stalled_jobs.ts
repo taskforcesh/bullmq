@@ -40,9 +40,7 @@ describe('stalled jobs', function() {
         return delay(10000);
       },
       {
-        settings: {
-          stalledInterval: 1000,
-        },
+        lockDuration: 1000,
         concurrency,
       },
     );
@@ -66,6 +64,7 @@ describe('stalled jobs', function() {
       stalledInterval: 100,
     });
     await queueScheduler.waitUntilReady();
+    await worker.close(true);
 
     const allStalled = new Promise(resolve => {
       queueScheduler.on('stalled', after(concurrency, resolve));
@@ -78,8 +77,6 @@ describe('stalled jobs', function() {
     await allStalled;
     await allStalledGlobalEvent;
 
-    await worker.close(true);
-
     const worker2 = new Worker(queueName, async job => {}, { concurrency });
 
     const allCompleted = new Promise(resolve => {
@@ -91,6 +88,7 @@ describe('stalled jobs', function() {
     await queueEvents.close();
 
     await queueScheduler.close();
+
     await worker2.close();
   });
 
@@ -105,9 +103,7 @@ describe('stalled jobs', function() {
         return delay(10000);
       },
       {
-        settings: {
-          stalledInterval: 100,
-        },
+        lockDuration: 1000,
         concurrency,
       },
     );
@@ -133,13 +129,13 @@ describe('stalled jobs', function() {
     });
     await queueScheduler.waitUntilReady();
 
+    await worker.close(true);
+
     const allFailed = new Promise(resolve => {
       queueScheduler.on('failed', after(concurrency, resolve));
     });
 
     await allFailed;
-
-    await worker.close(true);
 
     await queueScheduler.close();
   });

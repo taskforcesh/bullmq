@@ -235,6 +235,7 @@ export class Job {
   /**
    * Moves a job to the failed queue.
    * @param err {Error} The jobs error message.
+   * @param token {string} Token to check job is locked by current worker
    * @param fetchNext {boolean} True when wanting to fetch the next job
    * @returns void
    */
@@ -252,7 +253,6 @@ export class Job {
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
-    // FIXME why don't we moveToFailed with fetchNext = true?
     if (this.attemptsMade < this.opts.attempts && !this.discarded) {
       const opts = queue.opts as WorkerOptions;
 

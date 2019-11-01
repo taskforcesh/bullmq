@@ -90,7 +90,9 @@ if rcall("EXISTS", KEYS[3]) == 1 then -- // Make sure job exists
             local lockKey = jobKey .. ':lock'
 
             -- get a lock
-            rcall("SET", lockKey, ARGV[10], "PX", ARGV[11])
+            if ARGV[10] ~= "0" then
+              rcall("SET", lockKey, ARGV[10], "PX", ARGV[11])
+            end
 
             rcall("ZREM", KEYS[5], jobId) -- remove from priority
             rcall("XADD", KEYS[6], "*", "event", "active", "jobId", jobId,
