@@ -231,7 +231,7 @@ describe('Job', function() {
     it('saves error stacktrace', async function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       const id = job.id;
-      await job.moveToFailed(new Error('test error'), false);
+      await job.moveToFailed(new Error('test error'), '0');
       const sameJob = await queue.getJob(id);
       expect(sameJob).to.be.ok;
       expect(sameJob.stacktrace).to.be.not.empty;
