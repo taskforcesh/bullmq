@@ -10,12 +10,12 @@ Some examples:
 import { Queue, Worker } from 'bullmq'
 
 // Create a new connection in every instance
-const myQueue = new Queue('myqueue', { redis: {
+const myQueue = new Queue('myqueue', { connection: {
   host: myredis.taskforce.run,
   port: 32856
 }});
   
-const myWorker = new Worker('myworker', { redis: {
+const myWorker = new Worker('myworker', { connection: {
   host: myredis.taskforce.run,
   port: 32856
 }});
@@ -25,11 +25,11 @@ const myWorker = new Worker('myworker', { redis: {
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 
-const redis = new IORedis();
+const connection = new IORedis();
 
 // Reuse the redis instance
-const myQueue = new Queue('myqueue', { redis });
-const myWorker = new Worker('myworker', { redis });
+const myQueue = new Queue('myqueue', { connection });
+const myWorker = new Worker('myworker', { connection });
 ```
 
 Note that in the second example, even though the redis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections.

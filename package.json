@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Queue for messages and jobs based on Redis",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -101,7 +101,7 @@
       [
         "@semantic-release/npm",
         {
-          "npmPublish": false
+          "npmPublish": true
         }
       ],
       "@semantic-release/github"
