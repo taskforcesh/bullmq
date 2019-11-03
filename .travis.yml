@@ -15,11 +15,13 @@ script:
   - yarn lint
   - yarn test
 
-after_script:
-  - npm run coveralls
-
 jobs:
   include:
+    - stage: coverage
+      node_js: lts/*
+      script:
+        - yarn coverage
+        - yarn coveralls
     # Define the release stage that runs semantic-release
     - stage: release
       node_js: lts/*
