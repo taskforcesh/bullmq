@@ -15,7 +15,7 @@ script:
   - yarn lint
   - yarn coverage
 
-after_script:
+after_success:
   - npm run coveralls
 
 jobs:
