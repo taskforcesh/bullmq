@@ -13,7 +13,7 @@ services:
 
 script:
   - yarn lint
-  - yarn test
+  - yarn coverage
 
 after_script:
   - npm run coveralls

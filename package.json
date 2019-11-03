@@ -14,7 +14,8 @@
     "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
     "test": "yarn lint && tsc && ts-mocha --paths 'src/**/test_*.ts' --exit",
     "test:watch": "yarn lint  && ts-mocha --paths 'src/**/test_*.ts' -w --watch-extensions ts",
-    "coveralls": "istanbul cover ./node_modules/mocha/bin/_mocha --report lcovonly -- -R spec && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js && rm -rf ./coverage",
+    "coverage": "nyc --reporter=text npm run test",
+    "coveralls": "nyc report --reporter=text-lcov | coveralls",
     "precommit": "yarn lint",
     "semantic-release": "semantic-release",
     "prettier": "prettier --config package.json src/**/*.ts",
@@ -27,14 +28,15 @@
     "cron-parser": "^2.7.3",
     "get-port": "^5.0.0",
     "ioredis": "^4.3.0",
-    "node-uuid": "^1.4.8",
     "lodash": "^4.17.11",
+    "node-uuid": "^1.4.8",
     "semver": "^6.3.0",
     "uuid": "^3.3.3"
   },
   "devDependencies": {
     "@commitlint/cli": "^8.1.0",
     "@commitlint/config-conventional": "^8.1.0",
+    "@istanbuljs/nyc-config-typescript": "^0.1.3",
     "@semantic-release/changelog": "^3.0.4",
     "@semantic-release/commit-analyzer": "^6.3.0",
     "@semantic-release/git": "^7.0.16",
@@ -68,6 +70,11 @@
     "tslint-plugin-prettier": "^2.0.1",
     "typedoc": "^0.15.0",
     "typescript": "^3.2.2"
+  },
+  "nyc": {
+    "extends": "@istanbuljs/nyc-config-typescript",
+    "all": true,
+    "check-coverage": true
   },
   "config": {
     "commitizen": {
