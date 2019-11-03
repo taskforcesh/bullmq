@@ -13,13 +13,15 @@ services:
 
 script:
   - yarn lint
-  - yarn coverage
-
-after_success:
-  - npm run coveralls
+  - yarn test
 
 jobs:
   include:
+    - stage: coverage
+      node_js: lts/*
+      script:
+        - yarn coverage
+        - yarn coveralls
     # Define the release stage that runs semantic-release
     - stage: release
       node_js: lts/*
