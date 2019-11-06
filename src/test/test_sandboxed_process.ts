@@ -205,8 +205,8 @@ describe('sandboxed process', () => {
 
     const progresses: any[] = [];
 
-    const completting = new Promise((resolve, reject) => {
-      worker.on('completed', (job, value) => {
+    const completing = new Promise((resolve, reject) => {
+      worker.on('completed', async (job, value) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(37);
@@ -214,6 +214,11 @@ describe('sandboxed process', () => {
           expect(progresses).to.be.eql([10, 27, 78, 100]);
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
           expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+          const logs = await queue.getJobLogs(job.id);
+          expect(logs).to.be.eql({
+            logs: ['10', '27', '78', '100'],
+            count: 4,
+          });
           resolve();
         } catch (err) {
           reject(err);
@@ -227,7 +232,7 @@ describe('sandboxed process', () => {
 
     await queue.add('test', { foo: 'bar' });
 
-    await completting;
+    await completing;
     await worker.close();
   });
 
