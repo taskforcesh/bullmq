@@ -92,17 +92,45 @@ process.on('uncaughtException', err => {
   throw err;
 });
 
+/**
+ * Enhance the given job argument with some functions
+ * that can be called from the sandboxed job processor.
+ *
+ * Note, the `job` argument is a JSON deserialized message
+ * from the main node process to this forked child process,
+ * the functions on the original job object are not in tact.
+ * The wrapped job adds back some of those original functions.
+ */
 function wrapJob(job: any) {
   job.data = JSON.parse(job.data || '{}');
   job.opts = JSON.parse(job.opts || '{}');
 
+  /*
+   * Emulate the real job `progress` function.
+   * If no argument is given, it behaves as a sync getter.
+   * If an argument is given, it behaves as an async setter.
+   */
+  let progressValue = job.progress;
   job.progress = function(progress: any) {
-    process.send({
-      cmd: 'progress',
-      value: progress,
-    });
-    return Promise.resolve();
+    if (progress) {
+      // Locally store reference to new progress value
+      // so that we can return it from this process synchronously.
+      progressValue = progress;
+      // Send message to update job progress.
+      process.send({
+        cmd: 'progress',
+        value: progress,
+      });
+      return Promise.resolve();
+    } else {
+      // Return the last known progress value.
+      return progressValue;
+    }
   };
+
+  /*
+   * Emulate the real job `log` function.
+   */
   job.log = function(row: any) {
     process.send({
       cmd: 'log',
