@@ -52,13 +52,13 @@ export class Queue extends QueueGetters {
       return (await this.repeat).addNextRepeatableJob(
         jobName,
         data,
-        { ...opts, ...this.jobsOpts },
+        { ...this.jobsOpts, ...opts },
         true,
       );
     } else {
       const job = await Job.create(this, jobName, data, {
-        ...opts,
         ...this.jobsOpts,
+        ...opts,
       });
       this.emit('waiting', job);
       return job;
@@ -77,7 +77,7 @@ export class Queue extends QueueGetters {
       jobs.map(job => ({
         name: job.name,
         data: job.data,
-        opts: { ...job.opts, ...this.jobsOpts },
+        opts: { ...this.jobsOpts, ...job.opts },
       })),
     );
   }
