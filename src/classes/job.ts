@@ -144,6 +144,11 @@ export class Job {
     }
   }
 
+  toJSON() {
+    const { queue, ...withoutQueue } = this;
+    return withoutQueue;
+  }
+
   asJSON(): JobJson {
     return {
       id: this.id,

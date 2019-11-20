@@ -67,14 +67,26 @@ describe('Job', function() {
     });
   });
 
-  describe('JSON.stringify', function() {
-    it("retains the data property's type", async function() {
+  describe('JSON.stringify', () => {
+    it('retains property types', async () => {
       const data = { foo: 'bar' };
       const job = await Job.create(queue, 'test', data);
-      expect(JSON.parse(JSON.stringify(job))).to.have.deep.property(
-        'data',
-        data,
-      );
+      job.returnvalue = 1;
+      job.progress = 20;
+      const json = JSON.stringify(job);
+      const parsed = JSON.parse(json);
+      expect(parsed).to.have.deep.property('data', data);
+      expect(parsed).to.have.property('name', 'test');
+      expect(parsed).to.have.property('returnvalue', 1);
+      expect(parsed).to.have.property('progress', 20);
+    });
+
+    it('omits the queue property to avoid a circular json error on node 8', async () => {
+      const data = { foo: 'bar' };
+      const job = await Job.create(queue, 'test', data);
+      const json = JSON.stringify(job);
+      const parsed = JSON.parse(json);
+      expect(parsed).not.to.have.property('queue');
     });
   });
 
