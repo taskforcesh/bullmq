@@ -67,6 +67,17 @@ describe('Job', function() {
     });
   });
 
+  describe('JSON.stringify', function() {
+    it("retains the data property's type", async function() {
+      const data = { foo: 'bar' };
+      const job = await Job.create(queue, 'test', data);
+      expect(JSON.parse(JSON.stringify(job))).to.have.deep.property(
+        'data',
+        data,
+      );
+    });
+  });
+
   describe('.update', function() {
     it('should allow updating job data', async function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });

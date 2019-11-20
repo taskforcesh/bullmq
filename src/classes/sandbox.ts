@@ -6,7 +6,7 @@ const sandbox = (processFile: any, childPool: any) => {
 
     child.send({
       cmd: 'start',
-      job: job.toJSON(),
+      job: job.asJSON(),
     });
 
     const done = new Promise((resolve, reject) => {
