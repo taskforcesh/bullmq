@@ -3,7 +3,7 @@ import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { delay } from 'bluebird';
+import delay from 'delay';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '@src/enums';
 import * as sinon from 'sinon';

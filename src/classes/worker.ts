@@ -1,4 +1,3 @@
-import * as Bluebird from 'bluebird';
 import fs from 'fs';
 import IORedis from 'ioredis';
 import path from 'path';
@@ -282,16 +281,8 @@ export class Worker extends QueueBase {
     };
 
     const handleFailed = async (err: Error) => {
-      let error = err;
-      if (
-        error instanceof Bluebird.OperationalError &&
-        (<any>error).cause instanceof Error
-      ) {
-        error = (<any>error).cause; // Handle explicit rejection
-      }
-
       await job.moveToFailed(err, token);
-      this.emit('failed', job, error, 'active');
+      this.emit('failed', job, err, 'active');
     };
 
     // TODO: how to cancel the processing? (null -> job.cancel() => throw CancelError()void)
