@@ -155,6 +155,17 @@ describe('Job', function() {
       expect(job2.returnvalue).to.be.equal('succeeded');
       expect(job1Id[1]).to.be.equal(job1.id);
     });
+
+    /**
+     * Verify moveToFinished use default value for opts.maxLenEvents
+     * if it does not exist in meta key (or entire meta key is missing).
+     */
+    it('should not fail if queue meta key is missing', async function() {
+      const job = await queue.add('test', { color: 'red' });
+      const client = await queue.client;
+      await client.del(queue.toKey('meta'));
+      await job.moveToCompleted('done', '0', false);
+    });
   });
 
   describe('.moveToFailed', function() {
