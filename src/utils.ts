@@ -26,3 +26,9 @@ export function array2obj(arr: string[]) {
   }
   return obj;
 }
+
+export function delay(ms: number): Promise<void> {
+  return new Promise(resolve => {
+    setTimeout(() => resolve(), ms);
+  });
+}
