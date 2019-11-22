@@ -5,7 +5,7 @@ import { Job, Queue, QueueScheduler } from '@src/classes';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Worker } from '@src/classes/worker';
 import { JobsOptions } from '@src/interfaces';
-import delay from 'delay';
+import { delay } from '@src/utils';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';

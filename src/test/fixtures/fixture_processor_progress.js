@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const delay = require('delay');
+const delay = require('./delay');
 
 module.exports = function(job) {
   return delay(50)

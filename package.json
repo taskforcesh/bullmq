@@ -52,7 +52,6 @@
     "chai": "^4.2.0",
     "copyfiles": "^2.1.1",
     "coveralls": "^3.0.7",
-    "delay": "^4.3.0",
     "husky": "^3.0.3",
     "istanbul": "^0.4.5",
     "mocha": "^6.1.4",

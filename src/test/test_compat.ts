@@ -4,7 +4,7 @@
 
 import { Job, Worker } from '@src/classes';
 import { Queue3 } from '@src/classes/compat';
-import delay from 'delay';
+import { delay } from '@src/utils';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';

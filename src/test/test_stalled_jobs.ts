@@ -1,5 +1,5 @@
 import { Queue, QueueScheduler, Worker, QueueEvents } from '@src/classes';
-import delay from 'delay';
+import { delay } from '@src/utils';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
