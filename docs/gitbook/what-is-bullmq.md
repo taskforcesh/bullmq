@@ -4,7 +4,7 @@ description: General description of BullMQ and its features
 
 # What is BullMQ
 
-BullMQ is a [NodeJS](https://nodejs.org) library that implements a fast and robust queue system based on [Redis](https://redis.io/).
+BullMQ is a [NodeJS](https://nodejs.org) library that implements a fast and robust queue system based on [Redis](https://redis.io/). 
 
 The library is designed so that it will fulfil the following goals:
 
@@ -12,6 +12,8 @@ The library is designed so that it will fulfil the following goals:
 * Easy to scale horizontally. Add more workers for processing jobs in parallel.
 * Consistent.
 * High performant. Try to get the highest possible throughput from Redis by combining efficient .lua scripts and pipelining.
+
+View the repository, see open issues, and contribute back [on GitHub](https://github.com/taskforcesh/bullmq)!
 
 ### **Features**
 
