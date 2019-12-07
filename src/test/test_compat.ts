@@ -369,16 +369,37 @@ describe('Compat', function() {
       });
     });
 
-    it('should listen to global events', async function() {
+    it('should listen to global events with .once', async function() {
       const events: string[] = [];
       queue.once('global:waiting', () => events.push('waiting'));
       queue.once('global:active', () => events.push('active'));
       queue.once('global:completed', () => events.push('completed'));
       await queue.queueEvents.waitUntilReady();
       await queue.add('test', {});
+      await queue.add('test', {});
       await queue.process(() => null);
       await delay(50);
       expect(events).to.eql(['waiting', 'active', 'completed']);
+    });
+
+    it('should listen to global events with .on', async function() {
+      const events: string[] = [];
+      queue.on('global:waiting', () => events.push('waiting'));
+      queue.on('global:active', () => events.push('active'));
+      queue.on('global:completed', () => events.push('completed'));
+      await queue.queueEvents.waitUntilReady();
+      await queue.add('test', {});
+      await queue.add('test', {});
+      await queue.process(() => null);
+      await delay(50);
+      expect(events).to.eql([
+        'waiting',
+        'waiting',
+        'active',
+        'completed',
+        'active',
+        'completed',
+      ]);
     });
   });
 
