@@ -17,7 +17,7 @@ import { TimerManager } from './timer-manager';
 
 export const clientCommandMessageReg = /ERR unknown command '\s*client\s*'/;
 
-export class Worker extends QueueBase {
+export class Worker<T = any> extends QueueBase {
   opts: WorkerOptions;
 
   private drained: boolean;
@@ -32,7 +32,7 @@ export class Worker extends QueueBase {
 
   private blockingConnection: RedisConnection;
 
-  private processing: Map<Promise<Job | string>, string>; // { [index: number]: Promise<Job | void> } = {};
+  private processing: Map<Promise<Job<T> | string>, string>; // { [index: number]: Promise<Job | void> } = {};
   constructor(
     name: string,
     processor: string | Processor,

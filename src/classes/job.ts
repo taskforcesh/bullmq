@@ -23,9 +23,9 @@ export interface JobJson {
   returnvalue: string;
 }
 
-export class Job {
+export class Job<T = any, R = any> {
   progress: number | object = 0;
-  returnvalue: any = null;
+  returnvalue: R = null;
   stacktrace: string[] = null;
   timestamp: number;
 
@@ -41,7 +41,7 @@ export class Job {
   constructor(
     private queue: QueueBase,
     public name: string,
-    public data: any,
+    public data: T,
     public opts: JobsOptions = {},
     public id?: string,
   ) {
@@ -60,33 +60,33 @@ export class Job {
     this.toKey = queue.toKey.bind(queue);
   }
 
-  static async create(
+  static async create<T = any, R = any>(
     queue: QueueBase,
     name: string,
-    data: any,
+    data: T,
     opts?: JobsOptions,
   ) {
     const client = await queue.client;
 
-    const job = new Job(queue, name, data, opts, opts && opts.jobId);
+    const job = new Job<T, R>(queue, name, data, opts, opts && opts.jobId);
 
     job.id = await job.addJob(client);
 
     return job;
   }
 
-  static async createBulk(
+  static async createBulke<T = any, R = any>(
     queue: QueueBase,
     jobs: {
       name: string;
-      data: any;
+      data: T;
       opts?: JobsOptions;
     }[],
   ) {
     const client = await queue.client;
 
     const jobInstances = jobs.map(
-      job => new Job(queue, job.name, job.data, job.opts),
+      job => new Job<T, R>(queue, job.name, job.data, job.opts),
     );
 
     const multi = client.multi();
@@ -161,14 +161,14 @@ export class Job {
     };
   }
 
-  async update(data: any) {
+  async update(data: T) {
     const client = await this.queue.client;
 
     this.data = data;
     await client.hset(this.queue.toKey(this.id), 'data', JSON.stringify(data));
   }
 
-  async updateProgress(progress: number | object) {
+  async updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
     return Scripts.updateProgress(this.queue, this, progress);
   }
@@ -207,13 +207,13 @@ export class Job {
    * @returns {Promise} Returns the jobData of the next job in the waiting queue.
    */
   async moveToCompleted(
-    returnValue: any,
+    returnValue: R,
     token: string,
     fetchNext = true,
   ): Promise<[JobJson, string] | []> {
     await this.queue.waitUntilReady();
 
-    this.returnvalue = returnValue || 0;
+    this.returnvalue = returnValue || void 0;
 
     const stringifiedReturnValue = tryCatch(JSON.stringify, JSON, [
       returnValue,
