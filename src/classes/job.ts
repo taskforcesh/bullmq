@@ -75,7 +75,7 @@ export class Job<T = any, R = any> {
     return job;
   }
 
-  static async createBulke<T = any, R = any>(
+  static async createBulk<T = any, R = any>(
     queue: QueueBase,
     jobs: {
       name: string;
