@@ -69,7 +69,11 @@ describe('Job', function() {
 
   describe('.update', function() {
     it('should allow updating job data', async function() {
-      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      const job = await Job.create<{ foo?: string; baz?: string }>(
+        queue,
+        'test',
+        { foo: 'bar' },
+      );
       await job.update({ baz: 'qux' });
 
       const updatedJob = await Job.fromId(queue, job.id);
