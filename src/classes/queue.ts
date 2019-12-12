@@ -9,7 +9,7 @@ import {
 import { Job, QueueGetters, Repeat } from './';
 import { Scripts } from './scripts';
 
-export class Queue extends QueueGetters {
+export class Queue<T = any> extends QueueGetters {
   token = v4();
   limiter: RateLimiterOptions = null;
   jobsOpts: JobsOptions;
@@ -47,7 +47,7 @@ export class Queue extends QueueGetters {
     });
   }
 
-  async add(jobName: string, data: any, opts?: JobsOptions) {
+  async add(jobName: string, data: T, opts?: JobsOptions) {
     if (opts && opts.repeat) {
       return (await this.repeat).addNextRepeatableJob(
         jobName,
