@@ -5,8 +5,7 @@ import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-
-const delay = require('delay');
+import { delay } from '@src/utils';
 
 describe('Pause', function() {
   let queue: Queue;

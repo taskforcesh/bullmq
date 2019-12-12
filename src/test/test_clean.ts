@@ -1,5 +1,5 @@
 import { Queue, QueueEvents, Worker } from '../classes';
-import { delay } from 'bluebird';
+import { delay } from '@src/utils';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';

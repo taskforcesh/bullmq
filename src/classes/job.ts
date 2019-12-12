@@ -144,7 +144,12 @@ export class Job<T = any, R = any> {
     }
   }
 
-  toJSON(): JobJson {
+  toJSON() {
+    const { queue, ...withoutQueue } = this;
+    return withoutQueue;
+  }
+
+  asJSON(): JobJson {
     return {
       id: this.id,
       name: this.name,
@@ -452,7 +457,7 @@ export class Job<T = any, R = any> {
   private addJob(client: IORedis.Redis): string {
     const queue = this.queue;
 
-    const jobData = this.toJSON();
+    const jobData = this.asJSON();
 
     return Scripts.addJob(client, queue, jobData, this.opts, this.id);
   }

@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Queue for messages and jobs based on Redis",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,7 +24,6 @@
   },
   "dependencies": {
     "@types/ioredis": "^4.0.13",
-    "bluebird": "^3.5.3",
     "cron-parser": "^2.7.3",
     "get-port": "^5.0.0",
     "ioredis": "^4.3.0",
@@ -43,7 +42,6 @@
     "@semantic-release/github": "^5.5.4",
     "@semantic-release/npm": "^5.2.0",
     "@semantic-release/release-notes-generator": "^7.3.0",
-    "@types/bluebird": "^3.5.25",
     "@types/chai": "^4.1.7",
     "@types/lodash": "^4.14.119",
     "@types/mocha": "^5.2.5",
@@ -54,7 +52,6 @@
     "chai": "^4.2.0",
     "copyfiles": "^2.1.1",
     "coveralls": "^3.0.7",
-    "delay": "^4.3.0",
     "husky": "^3.0.3",
     "istanbul": "^0.4.5",
     "mocha": "^6.1.4",

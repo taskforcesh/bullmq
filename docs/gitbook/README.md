@@ -44,7 +44,7 @@ import { Worker } from 'bullmq'
 const worker = new Worker(queueName, async job => {
     // Will print { foo: 'bar'} for the first job
     // and { qux: 'baz' } for the second.
-    console.log(job.data):
+    console.log(job.data);
 });
 
 ```
