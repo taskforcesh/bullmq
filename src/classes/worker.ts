@@ -1,5 +1,5 @@
 import fs from 'fs';
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 import path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
@@ -10,6 +10,7 @@ import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import uuid from 'uuid';
 import { TimerManager } from './timer-manager';
+import { isRedisInstance } from '../utils';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -51,8 +52,8 @@ export class Worker<T = any> extends QueueBase {
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
     this.blockingConnection = new RedisConnection(
-      opts instanceof IORedis
-        ? (<IORedis.Redis>opts.connection).duplicate()
+      isRedisInstance(opts.connection)
+        ? (<Redis>opts.connection).duplicate()
         : opts.connection,
     );
     this.blockingConnection.on('error', this.emit.bind(this));

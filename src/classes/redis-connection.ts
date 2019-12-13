@@ -3,6 +3,7 @@ import IORedis, { Redis } from 'ioredis';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
+import { isRedisInstance } from '../utils';
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -13,7 +14,7 @@ export class RedisConnection extends EventEmitter {
   constructor(private opts?: ConnectionOptions) {
     super();
 
-    if (!(opts instanceof IORedis)) {
+    if (!isRedisInstance(opts)) {
       this.opts = {
         port: 6379,
         host: '127.0.0.1',
@@ -23,7 +24,7 @@ export class RedisConnection extends EventEmitter {
         ...opts,
       };
     } else {
-      this._client = opts;
+      this._client = <Redis>opts;
     }
 
     this.initializing = this.init();
