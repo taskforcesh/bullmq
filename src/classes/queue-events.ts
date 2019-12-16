@@ -25,7 +25,7 @@ export class QueueEvents extends QueueBase {
     const opts: QueueEventsOptions = this.opts;
 
     const key = this.keys.events;
-    let id = opts.lastEventId || '0-0';
+    let id = opts.lastEventId || '$';
 
     while (!this.closing) {
       try {
