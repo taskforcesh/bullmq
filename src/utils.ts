@@ -32,3 +32,11 @@ export function delay(ms: number): Promise<void> {
     setTimeout(() => resolve(), ms);
   });
 }
+
+export function isRedisInstance(obj: any): boolean {
+  if (!obj) {
+    return false;
+  }
+  const redisApi = ['connect', 'disconnect', 'duplicate'];
+  return redisApi.every(name => typeof obj[name] === 'function');
+}
