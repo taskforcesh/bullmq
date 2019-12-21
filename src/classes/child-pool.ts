@@ -1,6 +1,6 @@
 import childProcess, { ChildProcess } from 'child_process';
 import path from 'path';
-import _ from 'lodash';
+import { forEach, values, flatten } from 'lodash';
 import getPort from 'get-port';
 import fs from 'fs';
 import { promisify } from 'util';
@@ -16,7 +16,7 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   const standard: string[] = [];
   const convertedArgs: string[] = [];
 
-  _.forEach(execArgv, async arg => {
+  forEach(execArgv, async arg => {
     if (arg.indexOf('--inspect') === -1) {
       standard.push(arg);
     } else {
@@ -96,7 +96,7 @@ export class ChildPool {
   }
 
   clean() {
-    const children = _.values(this.retained).concat(this.getAllFree());
+    const children = values(this.retained).concat(this.getAllFree());
 
     children.forEach(child => {
       // TODO: We may want to use SIGKILL if the process does not die after some time.
@@ -112,7 +112,7 @@ export class ChildPool {
   }
 
   getAllFree() {
-    return _.flatten(_.values(this.free));
+    return flatten(values(this.free));
   }
 }
 

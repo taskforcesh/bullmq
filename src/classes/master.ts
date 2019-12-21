@@ -4,7 +4,7 @@
  *
  */
 import { promisify } from 'util';
-import _ from 'lodash';
+import { toString } from 'lodash';
 
 let status: any;
 let processor: any;
@@ -83,7 +83,7 @@ process.on('message', async msg => {
 
 process.on('uncaughtException', err => {
   if (!err.message) {
-    err = new Error(_.toString(err));
+    err = new Error(toString(err));
   }
   process.send({
     cmd: 'failed',
