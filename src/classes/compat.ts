@@ -42,11 +42,10 @@ export class Queue3<T = any> extends EventEmitter {
    * The name of the queue
    */
   name: string;
+  queueEvents: QueueEvents;
 
   private opts: CommonOptions;
-
   private readonly queue: Queue;
-  private queueEvents: QueueEvents;
   private worker: Worker;
   private queueScheduler: QueueScheduler;
 

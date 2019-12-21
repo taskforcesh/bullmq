@@ -1,12 +1,11 @@
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
-import { Queue, QueueEvents, Worker } from '@src/classes';
+import { Queue, QueueEvents, Worker, pool } from '@src/classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
-const delay = require('delay');
+import { delay } from '@src/utils';
 const pReflect = require('p-reflect');
-const pool = require('../classes/child-pool').pool;
 
 describe('sandboxed process', () => {
   let queue: Queue;
