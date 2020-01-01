@@ -7,10 +7,10 @@ import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { defaults } from 'lodash';
 
 const sinon = require('sinon');
 const moment = require('moment');
-const _ = require('lodash');
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
@@ -522,10 +522,7 @@ describe('repeat', function() {
         repeatWorker.addNextRepeatableJob = async (...args) => {
           // In order to simulate race condition
           // Make removeRepeatables happen any time after a moveToX is called
-          await queue.removeRepeatable(
-            'test',
-            _.defaults({ jobId }, repeatOpts),
-          );
+          await queue.removeRepeatable('test', defaults({ jobId }, repeatOpts));
 
           // nextRepeatableJob will now re-add the removed repeatable
           const result = await nextRepeatableJob.apply(repeat, args);
