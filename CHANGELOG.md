@@ -1,3 +1,10 @@
+## [1.6.3](https://github.com/taskforcesh/bullmq/compare/v1.6.2...v1.6.3) (2020-01-01)
+
+
+### Bug Fixes
+
+* add tslib dependency fixes [#65](https://github.com/taskforcesh/bullmq/issues/65) ([7ad7995](https://github.com/taskforcesh/bullmq/commit/7ad799544a9c30b30aa96df8864119159c9a1185))
+
 ## [1.6.2](https://github.com/taskforcesh/bullmq/compare/v1.6.1...v1.6.2) (2019-12-16)
 
 
