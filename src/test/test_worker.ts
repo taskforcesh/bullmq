@@ -3,7 +3,7 @@ import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { delay } from 'bluebird';
+import { delay } from '@src/utils';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '@src/enums';
 import * as sinon from 'sinon';
@@ -685,7 +685,7 @@ describe('workers', function() {
       if (addedJob.id !== job.id) {
         err = new Error('Processed job id does not match that of added job');
       }
-      delay(500);
+      await delay(500);
     });
 
     await worker.waitUntilReady();

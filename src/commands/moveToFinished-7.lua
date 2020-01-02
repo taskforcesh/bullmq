@@ -80,10 +80,10 @@ if rcall("EXISTS", KEYS[3]) == 1 then -- // Make sure job exists
     rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", ARGV[1], ARGV[3],
           ARGV[4])
 
-    -- Try to get next job to avoid an extra roundtrip if the queue is not closing, 
+    -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[8] == "1") then
-        -- move from wait to active 
+        -- move from wait to active
         local jobId = rcall("RPOPLPUSH", KEYS[4], KEYS[1])
         if jobId then
             local jobKey = ARGV[9] .. jobId
@@ -104,6 +104,9 @@ if rcall("EXISTS", KEYS[3]) == 1 then -- // Make sure job exists
     end
 
     local maxEvents = rcall("HGET", KEYS[7], "opts.maxLenEvents")
+    if (maxEvents == false) then
+      maxEvents = 10000
+    end
     rcall("XTRIM", KEYS[6], "MAXLEN", "~", maxEvents)
 
     return 0

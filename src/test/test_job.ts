@@ -5,7 +5,7 @@ import { Job, Queue, QueueScheduler } from '@src/classes';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Worker } from '@src/classes/worker';
 import { JobsOptions } from '@src/interfaces';
-import { delay } from 'bluebird';
+import { delay } from '@src/utils';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
@@ -64,6 +64,29 @@ describe('Job', function() {
         jobId: customJobId,
       });
       expect(createdJob.id).to.be.equal(customJobId);
+    });
+  });
+
+  describe('JSON.stringify', () => {
+    it('retains property types', async () => {
+      const data = { foo: 'bar' };
+      const job = await Job.create(queue, 'test', data);
+      job.returnvalue = 1;
+      job.progress = 20;
+      const json = JSON.stringify(job);
+      const parsed = JSON.parse(json);
+      expect(parsed).to.have.deep.property('data', data);
+      expect(parsed).to.have.property('name', 'test');
+      expect(parsed).to.have.property('returnvalue', 1);
+      expect(parsed).to.have.property('progress', 20);
+    });
+
+    it('omits the queue property to avoid a circular json error on node 8', async () => {
+      const data = { foo: 'bar' };
+      const job = await Job.create(queue, 'test', data);
+      const json = JSON.stringify(job);
+      const parsed = JSON.parse(json);
+      expect(parsed).not.to.have.property('queue');
     });
   });
 
@@ -135,6 +158,17 @@ describe('Job', function() {
       expect(isJob2Completed).to.be.equal(true);
       expect(job2.returnvalue).to.be.equal('succeeded');
       expect(job1Id[1]).to.be.equal(job1.id);
+    });
+
+    /**
+     * Verify moveToFinished use default value for opts.maxLenEvents
+     * if it does not exist in meta key (or entire meta key is missing).
+     */
+    it('should not fail if queue meta key is missing', async function() {
+      const job = await queue.add('test', { color: 'red' });
+      const client = await queue.client;
+      await client.del(queue.toKey('meta'));
+      await job.moveToCompleted('done', '0', false);
     });
   });
 

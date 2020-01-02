@@ -4,7 +4,7 @@
 
 import { Job, Worker } from '@src/classes';
 import { Queue3 } from '@src/classes/compat';
-import { delay } from 'bluebird';
+import { delay } from '@src/utils';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
@@ -369,23 +369,37 @@ describe('Compat', function() {
       });
     });
 
-    it('should listen to global events', function(done) {
-      let state: string;
-      queue.on('global:waiting', function() {
-        expect(state).to.be.undefined;
-        state = 'waiting';
-      });
-      queue.once('global:active', function() {
-        expect(state).to.be.equal('waiting');
-        state = 'active';
-      });
-      queue.once('global:completed', async function() {
-        expect(state).to.be.equal('active');
-        done();
-      });
+    it('should listen to global events with .once', async function() {
+      const events: string[] = [];
+      queue.once('global:waiting', () => events.push('waiting'));
+      queue.once('global:active', () => events.push('active'));
+      queue.once('global:completed', () => events.push('completed'));
+      await queue.queueEvents.waitUntilReady();
+      await queue.add('test', {});
+      await queue.add('test', {});
+      await queue.process(() => null);
+      await delay(50);
+      expect(events).to.eql(['waiting', 'active', 'completed']);
+    });
 
-      queue.add('test', {});
-      queue.process(async () => {});
+    it('should listen to global events with .on', async function() {
+      const events: string[] = [];
+      queue.on('global:waiting', () => events.push('waiting'));
+      queue.on('global:active', () => events.push('active'));
+      queue.on('global:completed', () => events.push('completed'));
+      await queue.queueEvents.waitUntilReady();
+      await queue.add('test', {});
+      await queue.add('test', {});
+      await queue.process(() => null);
+      await delay(50);
+      expect(events).to.eql([
+        'waiting',
+        'waiting',
+        'active',
+        'completed',
+        'active',
+        'completed',
+      ]);
     });
   });
 
@@ -443,6 +457,17 @@ describe('Compat', function() {
         isResumed = true,
         first = true;
 
+      queue.on('global:paused', async () => {
+        isPaused = false;
+        await queue.resume();
+      });
+
+      queue.on('global:resumed', () => {
+        isResumed = true;
+      });
+
+      await queue.queueEvents.waitUntilReady();
+
       const processPromise = new Promise((resolve, reject) => {
         process = async (job: Job) => {
           try {
@@ -467,15 +492,6 @@ describe('Compat', function() {
 
       queue.add('test', { foo: 'paused' });
       queue.add('test', { foo: 'paused' });
-
-      queue.on('global:paused', async () => {
-        isPaused = false;
-        await queue.resume();
-      });
-
-      queue.on('global:resumed', () => {
-        isResumed = true;
-      });
 
       return processPromise;
     });
@@ -619,9 +635,7 @@ describe('Compat', function() {
     it('pauses fast when queue is drained', async function() {
       await queue.process(async () => {});
 
-      await queue.add('test', {});
-
-      return new Promise((resolve, reject) => {
+      const promise = new Promise((resolve, reject) => {
         queue.on('global:drained', async () => {
           try {
             const start = new Date().getTime();
@@ -635,6 +649,11 @@ describe('Compat', function() {
           }
         });
       });
+
+      await queue.queueEvents.waitUntilReady();
+
+      await queue.add('test', {});
+      return promise;
     });
   });
 });

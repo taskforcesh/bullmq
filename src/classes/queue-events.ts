@@ -1,6 +1,5 @@
-import { delay } from 'bluebird';
 import { QueueEventsOptions } from '../interfaces';
-import { array2obj } from '../utils';
+import { array2obj, delay } from '../utils';
 import { QueueBase } from './queue-base';
 
 export class QueueEvents extends QueueBase {
@@ -26,7 +25,7 @@ export class QueueEvents extends QueueBase {
     const opts: QueueEventsOptions = this.opts;
 
     const key = this.keys.events;
-    let id = opts.lastEventId || '0-0';
+    let id = opts.lastEventId || '$';
 
     while (!this.closing) {
       try {
