@@ -4,4 +4,4 @@ export type RedisOptions = IORedis.RedisOptions & {
   skipVersionCheck?: boolean;
 };
 
-export type ConnectionOptions = RedisOptions | IORedis.Redis;
+export type ConnectionOptions = RedisOptions | IORedis.Redis | string;
