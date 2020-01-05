@@ -3,7 +3,7 @@ import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { delay } from '@src/utils';
+import { delay, removeAllQueueData } from '@src/utils';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '@src/enums';
 import * as sinon from 'sinon';
@@ -14,25 +14,19 @@ describe('workers', function() {
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.waitUntilReady();
+    await queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should get all workers for this queue', async function() {

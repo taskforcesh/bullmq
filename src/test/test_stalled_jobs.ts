@@ -1,5 +1,5 @@
 import { Queue, QueueScheduler, Worker, QueueEvents } from '@src/classes';
-import { delay } from '@src/utils';
+import { delay, removeAllQueueData } from '@src/utils';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
@@ -9,12 +9,6 @@ import { expect } from 'chai';
 describe('stalled jobs', function() {
   let queue: Queue;
   let queueName: string;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
@@ -23,7 +17,7 @@ describe('stalled jobs', function() {
 
   afterEach(async function() {
     await queue.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('process stalled jobs when starting a queue', async function() {

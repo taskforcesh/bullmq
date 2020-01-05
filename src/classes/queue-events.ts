@@ -3,8 +3,6 @@ import { array2obj, delay } from '../utils';
 import { QueueBase } from './queue-base';
 
 export class QueueEvents extends QueueBase {
-  consuming: Promise<void>;
-
   constructor(name: string, opts?: QueueEventsOptions) {
     super(name, opts);
 
@@ -15,8 +13,7 @@ export class QueueEvents extends QueueBase {
       this.opts,
     );
 
-    // tslint:disable: no-floating-promises
-    this.consumeEvents().catch(err => this.emit('error'));
+    this.consumeEvents().catch(err => this.emit('error', err));
   }
 
   private async consumeEvents() {

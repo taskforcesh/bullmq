@@ -5,7 +5,7 @@ import { Job, Queue, QueueScheduler } from '@src/classes';
 import { QueueEvents } from '@src/classes/queue-events';
 import { Worker } from '@src/classes/worker';
 import { JobsOptions } from '@src/interfaces';
-import { delay } from '@src/utils';
+import { delay, removeAllQueueData } from '@src/utils';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
@@ -15,23 +15,15 @@ import { v4 } from 'uuid';
 describe('Job', function() {
   let queue: Queue;
   let queueName: string;
-  let client: IORedis.Redis;
 
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
-
-  beforeEach(function() {
+  beforeEach(async function() {
     queueName = 'test-' + v4();
-    queue = new Queue(queueName, {
-      connection: { port: 6379, host: '127.0.0.1' },
-    });
+    queue = new Queue(queueName);
   });
 
   afterEach(async () => {
     await queue.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   describe('.create', function() {
@@ -457,7 +449,7 @@ describe('Job', function() {
 
     beforeEach(async function() {
       queueEvents = new QueueEvents(queueName);
-      return queueEvents.waitUntilReady();
+      await queueEvents.waitUntilReady();
     });
 
     afterEach(async function() {

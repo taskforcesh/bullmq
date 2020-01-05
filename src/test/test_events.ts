@@ -5,30 +5,25 @@ import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { delay, removeAllQueueData } from '@src/utils';
 
 describe('events', function() {
   this.timeout(4000);
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.waitUntilReady();
+    await queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {
     await queue.close();
     await queueEvents.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should emit waiting when a job has been added', async function() {
@@ -112,6 +107,7 @@ describe('events', function() {
     const worker = new Worker(queueName, async job => {});
 
     let state: string;
+    await delay(50); // additional delay since XREAD from '$' is unstable
     queueEvents.on('waiting', function() {
       expect(state).to.be.undefined;
       state = 'waiting';
@@ -135,8 +131,10 @@ describe('events', function() {
   });
 
   it('should trim events automatically', async () => {
-    const worker = new Worker('test', async () => {});
-    const trimmedQueue = new Queue('test', {
+    const queueName = 'test-' + v4();
+
+    const worker = new Worker(queueName, async () => {});
+    const trimmedQueue = new Queue(queueName, {
       streams: {
         events: {
           maxLen: 0,
@@ -171,10 +169,12 @@ describe('events', function() {
     expect(eventsLength).to.be.equal(1);
 
     await trimmedQueue.close();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should trim events manually', async () => {
-    const trimmedQueue = new Queue('test-manual');
+    const queueName = 'test-manual-' + v4();
+    const trimmedQueue = new Queue(queueName);
 
     await trimmedQueue.add('test', {});
     await trimmedQueue.add('test', {});
@@ -194,5 +194,6 @@ describe('events', function() {
     expect(eventsLength).to.be.equal(0);
 
     await trimmedQueue.close();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 });

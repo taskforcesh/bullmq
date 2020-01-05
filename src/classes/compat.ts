@@ -70,6 +70,9 @@ export class Queue3<T = any> extends EventEmitter {
    */
   async isReady(): Promise<this> {
     await this.queue.client;
+    if (this.queueEvents) {
+      await this.queueEvents.client;
+    }
     return this;
   }
 

@@ -9,28 +9,21 @@ import IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { Worker } from '@src/classes/worker';
 import { after } from 'lodash';
+import { removeAllQueueData } from '@src/utils';
 
 describe('Jobs getters', function() {
   this.timeout(4000);
   let queue: Queue;
   let queueName: string;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
-    queue = new Queue(queueName, {
-      connection: { port: 6379, host: '127.0.0.1' },
-    });
+    queue = new Queue(queueName);
   });
 
   afterEach(async function() {
     await queue.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should get waiting jobs', async function() {

@@ -8,6 +8,7 @@ import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { defaults } from 'lodash';
+import { removeAllQueueData } from '@src/utils';
 
 const sinon = require('sinon');
 const moment = require('moment');
@@ -26,12 +27,9 @@ describe('repeat', function() {
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  let client: IORedis.Redis;
 
   beforeEach(function() {
     this.clock = sinon.useFakeTimers();
-    client = new IORedis();
-    return client.flushdb();
   });
 
   beforeEach(async function() {
@@ -39,7 +37,7 @@ describe('repeat', function() {
     queue = new Queue(queueName);
     repeat = new Repeat(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.waitUntilReady();
+    await queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {
@@ -47,7 +45,7 @@ describe('repeat', function() {
     await queue.close();
     await repeat.close();
     await queueEvents.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should create multiple jobs if they have the same cron pattern', async function() {

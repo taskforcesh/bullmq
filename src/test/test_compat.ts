@@ -4,7 +4,7 @@
 
 import { Job, Worker } from '@src/classes';
 import { Queue3 } from '@src/classes/compat';
-import { delay } from '@src/utils';
+import { delay, removeAllQueueData } from '@src/utils';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
@@ -16,12 +16,6 @@ describe('Compat', function() {
     this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
-    let client: IORedis.Redis;
-
-    beforeEach(function() {
-      client = new IORedis();
-      return client.flushdb();
-    });
 
     beforeEach(async function() {
       queueName = 'test-' + v4();
@@ -30,7 +24,7 @@ describe('Compat', function() {
 
     afterEach(async function() {
       await queue.close();
-      return client.quit();
+      await removeAllQueueData(new IORedis(), queueName);
     });
 
     it('should get waiting jobs', async function() {
@@ -292,12 +286,6 @@ describe('Compat', function() {
     this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
-    let client: IORedis.Redis;
-
-    beforeEach(function() {
-      client = new IORedis();
-      return client.flushdb();
-    });
 
     beforeEach(async function() {
       queueName = 'test-' + v4();
@@ -306,7 +294,7 @@ describe('Compat', function() {
 
     afterEach(async function() {
       await queue.close();
-      return client.quit();
+      await removeAllQueueData(new IORedis(), queueName);
     });
 
     it('should emit waiting when a job has been added', function(done) {
@@ -374,7 +362,7 @@ describe('Compat', function() {
       queue.once('global:waiting', () => events.push('waiting'));
       queue.once('global:active', () => events.push('active'));
       queue.once('global:completed', () => events.push('completed'));
-      await queue.queueEvents.waitUntilReady();
+      await queue.isReady();
       await queue.add('test', {});
       await queue.add('test', {});
       await queue.process(() => null);
@@ -387,7 +375,8 @@ describe('Compat', function() {
       queue.on('global:waiting', () => events.push('waiting'));
       queue.on('global:active', () => events.push('active'));
       queue.on('global:completed', () => events.push('completed'));
-      await queue.queueEvents.waitUntilReady();
+      await queue.isReady();
+      await delay(50); // additional delay since XREAD from '$' is unstable
       await queue.add('test', {});
       await queue.add('test', {});
       await queue.process(() => null);
@@ -406,12 +395,6 @@ describe('Compat', function() {
   describe('Pause', function() {
     let queue: Queue3;
     let queueName: string;
-    let client: IORedis.Redis;
-
-    beforeEach(function() {
-      client = new IORedis();
-      return client.flushdb();
-    });
 
     beforeEach(async function() {
       queueName = 'test-' + v4();
@@ -420,7 +403,7 @@ describe('Compat', function() {
 
     afterEach(async function() {
       await queue.close();
-      return client.quit();
+      await removeAllQueueData(new IORedis(), queueName);
     });
 
     // it('should pause a queue until resumed', async () => {
