@@ -13,11 +13,9 @@ describe('Queue', function() {
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
-  let client: IORedis.Redis;
 
   beforeEach(function() {
     client = new IORedis();
-    return client.flushdb();
   });
 
   beforeEach(async function() {
@@ -30,7 +28,7 @@ describe('Queue', function() {
   afterEach(async function() {
     await queue.close();
     await queueEvents.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('creates a queue with default job options', () => {

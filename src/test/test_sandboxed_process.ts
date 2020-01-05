@@ -4,33 +4,26 @@ import { after } from 'lodash';
 import { Queue, QueueEvents, Worker, pool } from '@src/classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
-import { delay } from '@src/utils';
+import { delay, removeAllQueueData } from '@src/utils';
 const pReflect = require('p-reflect');
 
 describe('sandboxed process', () => {
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  let client: IORedis.Redis;
 
-  beforeEach(() => {
-    client = new IORedis();
-    return client.flushdb();
-  });
-
-  beforeEach(async () => {
+  beforeEach(async function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.waitUntilReady();
+    await queueEvents.waitUntilReady();
   });
 
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    await client.flushall();
     pool.clean();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should process and complete', async () => {

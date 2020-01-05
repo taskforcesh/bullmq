@@ -5,18 +5,12 @@ import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { delay } from '@src/utils';
+import { delay, removeAllQueueData } from '@src/utils';
 
 describe('Pause', function() {
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
@@ -28,7 +22,7 @@ describe('Pause', function() {
   afterEach(async function() {
     await queue.close();
     await queueEvents.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   // Skipped since some side effect makes this test fail

@@ -7,17 +7,12 @@ import IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { removeAllQueueData } from '@src/utils';
 
 describe('Rate Limiter', function() {
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
@@ -29,7 +24,7 @@ describe('Rate Limiter', function() {
   afterEach(async function() {
     await queue.close();
     await queueEvents.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should put a job into the delayed queue when limit is hit', async () => {

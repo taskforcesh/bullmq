@@ -6,18 +6,13 @@ import { v4 } from 'uuid';
 import { Worker } from '@src/classes/worker';
 import { QueueEvents } from '@src/classes/queue-events';
 import { QueueScheduler } from '@src/classes/queue-scheduler';
+import { removeAllQueueData } from '@src/utils';
 
 describe('Delayed jobs', function() {
   this.timeout(15000);
 
   let queue: Queue;
   let queueName: string;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
@@ -26,7 +21,7 @@ describe('Delayed jobs', function() {
 
   afterEach(async function() {
     await queue.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should process a delayed job only after delayed time', async function() {

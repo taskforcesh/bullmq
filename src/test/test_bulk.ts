@@ -3,16 +3,11 @@ import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { removeAllQueueData } from '../utils';
 
 describe('bulk jobs', () => {
   let queue: Queue;
   let queueName: string;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
@@ -21,7 +16,7 @@ describe('bulk jobs', () => {
 
   afterEach(async function() {
     await queue.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should process jobs', async () => {
