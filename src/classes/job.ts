@@ -208,6 +208,7 @@ export class Job<T = any, R = any> {
    * Moves a job to the completed queue.
    * Returned job to be used with Queue.prototype.nextJobFromJobData.
    * @param returnValue {string} The jobs success message.
+   * @param token {string} worker token used to acquire completed job.
    * @param fetchNext {boolean} True when wanting to fetch the next job
    * @returns {Promise} Returns the jobData of the next job in the waiting queue.
    */

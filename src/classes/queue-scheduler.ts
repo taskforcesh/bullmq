@@ -29,8 +29,9 @@ export class QueueScheduler extends QueueBase {
   constructor(protected name: string, opts: QueueSchedulerOptions = {}) {
     super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
 
-    // tslint:disable: no-floating-promises
-    this.run();
+    this.run().catch(error => {
+      console.error(error);
+    });
   }
 
   private async run() {
@@ -163,7 +164,7 @@ export class QueueScheduler extends QueueBase {
     if (this.isBlocked) {
       this.closing = this.disconnect();
     } else {
-      super.close();
+      await super.close();
     }
     return this.closing;
   }

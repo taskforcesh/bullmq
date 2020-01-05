@@ -21,14 +21,17 @@ export class Queue<T = any> extends QueueGetters {
 
     this.jobsOpts = get(opts, 'defaultJobOptions');
 
-    // tslint:disable: no-floating-promises
-    this.waitUntilReady().then(client => {
-      client.hset(
-        this.keys.meta,
-        'opts.maxLenEvents',
-        get(opts, 'streams.events.maxLen', 10000),
-      );
-    });
+    this.waitUntilReady()
+      .then(client =>
+        client.hset(
+          this.keys.meta,
+          'opts.maxLenEvents',
+          get(opts, 'streams.events.maxLen', 10000),
+        ),
+      )
+      .catch(error => {
+        console.error(error);
+      });
   }
 
   get defaultJobOptions() {
@@ -66,11 +69,11 @@ export class Queue<T = any> extends QueueGetters {
   }
 
   /**
-  Adds an array of jobs to the queue.
-  @method add
-  @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3 
-  properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
-*/
+   Adds an array of jobs to the queue.
+   @method add
+   @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3
+   properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
+   */
   async addBulk(jobs: { name: string; data: any; opts?: JobsOptions }[]) {
     return Job.createBulk(
       this,
@@ -83,16 +86,16 @@ export class Queue<T = any> extends QueueGetters {
   }
 
   /**
-    Pauses the processing of this queue globally.
+   Pauses the processing of this queue globally.
 
-    We use an atomic RENAME operation on the wait queue. Since
-    we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue
-    is renamed to 'paused', no new jobs will be processed (the current ones
-    will run until finalized).
+   We use an atomic RENAME operation on the wait queue. Since
+   we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue
+   is renamed to 'paused', no new jobs will be processed (the current ones
+   will run until finalized).
 
-    Adding jobs requires a LUA script to check first if the paused list exist
-    and in that case it will add it there instead of the wait list.
-  */
+   Adding jobs requires a LUA script to check first if the paused list exist
+   and in that case it will add it there instead of the wait list.
+   */
   async pause() {
     await Scripts.pause(this, true);
     this.emit('paused');

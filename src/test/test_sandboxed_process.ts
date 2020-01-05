@@ -265,6 +265,7 @@ describe('sandboxed process', () => {
   });
 
   it('should error if processor file is missing', async () => {
+    await queue.waitUntilReady(); // queue can report error when closed (the test is too fast)
     let worker;
     let didThrow = false;
     try {

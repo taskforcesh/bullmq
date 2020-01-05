@@ -19,6 +19,7 @@ export const clientCommandMessageReg = /ERR unknown command '\s*client\s*'/;
 
 export class Worker<T = any> extends QueueBase {
   opts: WorkerOptions;
+  tokens: string[];
 
   private drained: boolean;
   private waiting = false;
@@ -32,7 +33,7 @@ export class Worker<T = any> extends QueueBase {
 
   private blockingConnection: RedisConnection;
 
-  private processing: Map<Promise<Job<T> | string>, string>; // { [index: number]: Promise<Job | void> } = {};
+  private processing: Map<Promise<Job<T> | void>, string> = new Map();
   constructor(
     name: string,
     processor: string | Processor,
@@ -50,6 +51,9 @@ export class Worker<T = any> extends QueueBase {
 
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
+    this.tokens = Array.from({ length: this.opts.concurrency }, () =>
+      uuid.v4(),
+    );
 
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
@@ -77,7 +81,6 @@ export class Worker<T = any> extends QueueBase {
     }
     this.timerManager = new TimerManager();
 
-    /* tslint:disable: no-floating-promises */
     this.run().catch(error => {
       console.error(error);
     });
@@ -116,13 +119,7 @@ export class Worker<T = any> extends QueueBase {
       }
     }
 
-    const opts: WorkerOptions = <WorkerOptions>this.opts;
-
-    const processing = (this.processing = new Map());
-
-    const tokens: string[] = Array.from({ length: opts.concurrency }, () =>
-      uuid.v4(),
-    );
+    const { opts, processing, tokens } = this;
 
     while (!this.closing) {
       if (processing.size < opts.concurrency) {
@@ -251,11 +248,13 @@ export class Worker<T = any> extends QueueBase {
         this.opts.lockRenewTime,
         async () => {
           try {
-            const result = await Scripts.extendLock(this, job.id, token);
-            if (result && !timerStopped) {
-              lockExtender();
+            if (!this.closing) {
+              const result = await Scripts.extendLock(this, job.id, token);
+              if (result && !timerStopped) {
+                lockExtender();
+              }
+              // FIXME if result = 0 (missing lock), reject processFn promise to take next job?
             }
-            // FIXME if result = 0 (missing lock), reject processFn promise to take next job?
           } catch (error) {
             console.error('Error extending lock ', error);
             // Somehow tell the worker this job should stop processing...

@@ -136,6 +136,8 @@ describe('connection', () => {
   */
 
   it('should fail if redis connection fails', async () => {
+    await queue.waitUntilReady(); // queue can report error when closed (the test is too fast)
+
     const queueFail = new Queue('connection fail port', {
       connection: { port: 1234, host: '127.0.0.1' },
     });
