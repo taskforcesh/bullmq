@@ -1,4 +1,5 @@
-'use strict';
+import IORedis from 'ioredis';
+
 export const errorObject: { [index: string]: any } = { value: null };
 
 export function tryCatch(fn: (...args: any) => any, ctx: any, args: any[]) {
@@ -39,4 +40,34 @@ export function isRedisInstance(obj: any): boolean {
   }
   const redisApi = ['connect', 'disconnect', 'duplicate'];
   return redisApi.every(name => typeof obj[name] === 'function');
+}
+
+export async function removeAllQueueData(
+  client: IORedis.Redis,
+  queueName: string,
+  prefix = 'bull',
+) {
+  const pattern = `${prefix}:${queueName}:*`;
+  return new Promise((resolve, reject) => {
+    const stream = client.scanStream({
+      match: pattern,
+    });
+    stream.on('data', (keys: string[]) => {
+      if (keys.length) {
+        const pipeline = client.pipeline();
+        keys.forEach(key => {
+          pipeline.del(key);
+        });
+        pipeline.exec().catch(error => {
+          reject(error);
+        });
+      }
+    });
+    stream.on('end', () => {
+      resolve();
+    });
+    stream.on('error', error => {
+      reject(error);
+    });
+  });
 }

@@ -3,27 +3,20 @@ import { Queue, QueueEvents, Job, Worker } from '@src/classes';
 
 import { v4 } from 'uuid';
 import { expect } from 'chai';
+import { removeAllQueueData } from '@src/utils';
 
 describe('connection', () => {
   let queue: Queue;
   let queueName: string;
-  let client: IORedis.Redis;
 
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
-
-  beforeEach(function() {
+  beforeEach(async function() {
     queueName = 'test-' + v4();
-    queue = new Queue(queueName, {
-      connection: { port: 6379, host: '127.0.0.1' },
-    });
+    queue = new Queue(queueName);
   });
 
   afterEach(async () => {
-    await client.quit();
     await queue.close();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should recover from a connection loss', async () => {

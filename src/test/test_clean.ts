@@ -1,5 +1,5 @@
 import { Queue, QueueEvents, Worker } from '../classes';
-import { delay } from '@src/utils';
+import { delay, removeAllQueueData } from '@src/utils';
 import { expect } from 'chai';
 import IORedis from 'ioredis';
 import { after } from 'lodash';
@@ -10,24 +10,18 @@ describe('Cleaner', () => {
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  let client: IORedis.Redis;
-
-  beforeEach(function() {
-    client = new IORedis();
-    return client.flushdb();
-  });
 
   beforeEach(async function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
-    return queueEvents.waitUntilReady();
+    await queueEvents.waitUntilReady();
   });
 
   afterEach(async function() {
     await queue.close();
     await queueEvents.close();
-    return client.quit();
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should clean an empty queue', async () => {
