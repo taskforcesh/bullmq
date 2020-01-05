@@ -27,7 +27,6 @@ export class QueueBase extends EventEmitter {
       'waiting',
       'paused',
       'resumed',
-      'active',
       'id',
       'delayed',
       'priority',
