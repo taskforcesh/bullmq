@@ -15,7 +15,7 @@ The library is designed so that it will fulfil the following goals:
 
 View the repository, see open issues, and contribute back [on GitHub](https://github.com/taskforcesh/bullmq)!
 
-### **Features**
+## **Features**
 
 If you are new to Message Queues, you may wonder why they are needed after all. Queues can solve many different problems in an elegant way, from smoothing out processing peaks to creating robust communication channels between micro-services or offloading heavy work from one server to many smaller workers, and many other cases. Check the [Patterns](patterns/producer-consumer.md) section for getting some inspiration and information about best practices.
 
@@ -29,8 +29,4 @@ If you are new to Message Queues, you may wonder why they are needed after all. 
 * [x] **Concurrency setting per worker**
 * [x] **Threaded \(sandboxed\) processing functions**
 * [x] **Automatic recovery from process crashes**
-
-
-
-
 
