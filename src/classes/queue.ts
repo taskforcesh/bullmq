@@ -29,9 +29,7 @@ export class Queue<T = any> extends QueueGetters {
           get(opts, 'streams.events.maxLen', 10000),
         ),
       )
-      .catch(error => {
-        console.error(error);
-      });
+      .catch(this.emit.bind(this));
   }
 
   get defaultJobOptions() {

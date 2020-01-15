@@ -29,9 +29,7 @@ export class QueueScheduler extends QueueBase {
   constructor(protected name: string, opts: QueueSchedulerOptions = {}) {
     super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
 
-    this.run().catch(error => {
-      console.error(error);
-    });
+    this.run().catch(this.emit.bind(this));
   }
 
   private async run() {

@@ -81,9 +81,7 @@ export class Worker<T = any> extends QueueBase {
     }
     this.timerManager = new TimerManager();
 
-    this.run().catch(error => {
-      console.error(error);
-    });
+    this.run().catch(this.emit.bind(this));
   }
 
   get repeat() {
@@ -256,7 +254,7 @@ export class Worker<T = any> extends QueueBase {
               // FIXME if result = 0 (missing lock), reject processFn promise to take next job?
             }
           } catch (error) {
-            console.error('Error extending lock ', error);
+            this.emit.bind(this)(error);
             // Somehow tell the worker this job should stop processing...
           }
         },
