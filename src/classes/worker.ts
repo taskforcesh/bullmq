@@ -282,8 +282,14 @@ export class Worker<T = any> extends QueueBase {
     };
 
     const handleFailed = async (err: Error) => {
-      await job.moveToFailed(err, token);
-      this.emit('failed', job, err, 'active');
+      try {
+        await job.moveToFailed(err, token);
+        this.emit('failed', job, err, 'active');
+      } catch (e) {
+        // It probably means that the job has lost the lock before completion
+        // The QueueScheduler will (or already has) move the job to the waiting list (as stalled)
+        this.emit('error', e);
+      }
     };
 
     // TODO: how to cancel the processing? (null -> job.cancel() => throw CancelError()void)

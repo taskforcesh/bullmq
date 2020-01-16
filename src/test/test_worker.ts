@@ -893,6 +893,43 @@ describe('workers', function() {
     expect(countAfterEmpty).to.be.eql(0);
   });
 
+  it('emit error if lock is lost', async function() {
+    this.timeout(10000);
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        return delay(2000);
+      },
+      {
+        lockDuration: 1000,
+        lockRenewTime: 3000, // The lock will not be updated
+      },
+    );
+    await worker.waitUntilReady();
+
+    const queueScheduler = new QueueScheduler(queueName, {
+      stalledInterval: 100,
+    });
+    await queueScheduler.waitUntilReady();
+
+    const job = await queue.add('test', { bar: 'baz' });
+
+    const workerError = new Promise(resolve => {
+      worker.on('error', resolve);
+    });
+
+    const error = await workerError;
+
+    expect(error).to.be.instanceOf(Error);
+    expect((error as Error).message).to.be.eql(
+      `Missing lock for job ${job.id} failed`,
+    );
+
+    await worker.close();
+    await queueScheduler.close();
+  });
+
   describe('Concurrency process', () => {
     it('should run job in sequence if I specify a concurrency of 1', async () => {
       let processing = false;
