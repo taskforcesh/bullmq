@@ -74,16 +74,36 @@ import { QueueEvents } from 'bullmq'
 
 const queueEvents = new QueueEvents();
 
-queueEvents.on('completed', (jobId) => {
-    console.log(`${jobId} has completed!`);
+queueEvents.on('waiting', ({ jobId }) => {
+    console.log(`A job with ID ${jobId} is waiting`);
 });
 
-queueEvents.on('failed', (jobId, err) => {
-    console.log(`${jobId} has failed with ${err.message}`);
+queueEvents.on('active', ({ jobId, prev }) => {
+    console.log(`Job ${jobId} is now active; previous status was ${prev}`);
+});
+
+queueEvents.on('completed', ({ jobId, returnvalue }) => {
+    console.log(`${jobId} has completed and returned ${returnvalue}`);
+});
+
+queueEvents.on('failed', ({ jobId, failedReason }) => {
+    console.log(`${jobId} has failed with reason ${failedReason}`);
+});
+```
+
+You may also access the timestamp of the event, which looks like "1580456039332-0".
+
+```typescript
+import { QueueEvents } from 'bullmq'
+
+const queueEvents = new QueueEvents();
+
+queueEvents.on('progress', ({ jobId, data }, timestamp) => {
+    console.log(`${jobId} reported progress ${data} at ${timestamp}`);
 });
 ```
 
 {% hint style="danger" %}
-Note that the global events listeners do only return the job Id, not the job instance. This is for performance reasons, if you need the complete job you can always use the`Queue##getJob method.`
+For performance reasons the events emited by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the `Queue##getJob` method if you need the `Job` instance.
 {% endhint %}
 
