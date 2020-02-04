@@ -13,7 +13,7 @@ $ yarn add bullmq
 ```
 
 {% hint style="info" %}
-Bull is written in typescript, and although it can be used in vanilla javascript, all examples in this guide will be written in typescript.
+Bull is written in TypeScript, and although it can be used in vanilla JavaScript, all examples in this guide will be written in TypeScript.
 {% endhint %}
 
 Import into your project and add some jobs:
@@ -32,10 +32,10 @@ addJobs();
 ```
 
 {% hint style="danger" %}
-You need to have a Redis service running in your local computer to run these examples successfully. You can read more about redis connections [here](guide/connections.md).
+You need to have a Redis service running in your local computer to run these examples successfully. You can read more about Redis connections [here](guide/connections.md).
 {% endhint %}
 
-Jobs are added to the queue and can be processed at any time, with at least one Nodejs process running a worker:
+Jobs are added to the queue and can be processed at any time, with at least one Node.js process running a worker:
 
 ```typescript
 import { Worker } from 'bullmq'
@@ -48,7 +48,7 @@ const worker = new Worker(queueName, async job => {
 ```
 
 {% hint style="info" %}
-You can have has many worker processes you want, BullMQ will distribute the jobs across your workers in a round robin fashion.
+You can have as many worker processes as you want, BullMQ will distribute the jobs across your workers in a round robin fashion.
 {% endhint %}
 
 You can listen to completed \(or failed\) jobs by attaching listeners to the workers:
@@ -64,10 +64,10 @@ worker.on('failed', (job, err) => {
 ```
 
 {% hint style="info" %}
-There are many other events available, check the [Guide ](guide/events.md)or the[ API reference](api-reference.md) for more information.
+There are many other events available, check the [Guide](guide/events.md) or the [API reference](api-reference.md) for more information.
 {% endhint %}
 
-Sometimes you need to listen to all the workers events in a given place, for this you need to use a special class`QueueEvents`:
+Sometimes you need to listen to all the workers events in a given place, for this you need to use a special class `QueueEvents`:
 
 ```typescript
 import { QueueEvents } from 'bullmq'
@@ -104,6 +104,5 @@ queueEvents.on('progress', ({ jobId, data }, timestamp) => {
 ```
 
 {% hint style="danger" %}
-For performance reasons the events emited by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the `Queue##getJob` method if you need the `Job` instance.
+For performance reasons the events emited by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the `Queue#getJob` method if you need the `Job` instance.
 {% endhint %}
-
