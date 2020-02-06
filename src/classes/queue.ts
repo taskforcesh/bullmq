@@ -47,16 +47,16 @@ export class Queue<T = any> extends QueueGetters {
     });
   }
 
-  async add(jobName: string, data: T, opts?: JobsOptions) {
+  async add(name: string, data: T, opts?: JobsOptions) {
     if (opts && opts.repeat) {
       return (await this.repeat).addNextRepeatableJob(
-        jobName,
+        name,
         data,
         { ...this.jobsOpts, ...opts },
         true,
       );
     } else {
-      const job = await Job.create(this, jobName, data, {
+      const job = await Job.create(this, name, data, {
         ...this.jobsOpts,
         ...opts,
       });
@@ -66,12 +66,12 @@ export class Queue<T = any> extends QueueGetters {
   }
 
   /**
-  Adds an array of jobs to the queue.
-  @method add
-  @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3 
-  properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
-*/
-  async addBulk(jobs: { name: string; data: any; opts?: JobsOptions }[]) {
+   * Adds an array of jobs to the queue.
+   * @method add
+   * @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3
+   * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
+   */
+  async addBulk(jobs: { name: string; data: T; opts?: JobsOptions }[]) {
     return Job.createBulk(
       this,
       jobs.map(job => ({
