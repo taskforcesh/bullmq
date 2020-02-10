@@ -135,7 +135,7 @@ export class Job<T = any, R = any> {
     return job;
   }
 
-  static async fromId(queue: QueueBase, jobId: string) {
+  static async fromId(queue: QueueBase, jobId: string): Promise<Job | null> {
     // jobId can be undefined if moveJob returns undefined
     if (jobId) {
       const client = await queue.client;
