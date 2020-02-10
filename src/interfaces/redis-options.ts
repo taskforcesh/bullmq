@@ -1,7 +1,7 @@
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 
-export type RedisOptions = IORedis.RedisOptions & {
+export type RedisOptions = Redis.RedisOptions & {
   skipVersionCheck?: boolean;
 };
 
-export type ConnectionOptions = RedisOptions | IORedis.Redis;
+export type ConnectionOptions = RedisOptions | Redis.Redis;

@@ -2,7 +2,7 @@ import { Job, Queue } from '@src/classes';
 import { QueueEvents, QueueScheduler } from '../classes';
 import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '@src/utils';
@@ -22,7 +22,7 @@ describe('Pause', function() {
   afterEach(async function() {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new Redis(), queueName);
   });
 
   // Skipped since some side effect makes this test fail

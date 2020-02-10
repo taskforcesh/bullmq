@@ -1,7 +1,7 @@
 import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '@src/utils';
 import { after, times, once } from 'lodash';
@@ -26,7 +26,7 @@ describe('workers', function() {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new Redis(), queueName);
   });
 
   it('should get all workers for this queue', async function() {

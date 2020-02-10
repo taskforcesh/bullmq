@@ -1,6 +1,6 @@
-import fs from 'fs';
-import { Redis } from 'ioredis';
-import path from 'path';
+import * as fs from 'fs';
+import * as Redis from 'ioredis';
+import * as path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
 import { ChildPool, pool } from './child-pool';
@@ -8,7 +8,7 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
-import uuid from 'uuid';
+import * as uuid from 'uuid';
 import { TimerManager } from './timer-manager';
 import { isRedisInstance } from '../utils';
 
@@ -53,7 +53,7 @@ export class Worker<T = any> extends QueueBase {
 
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
-        ? (<Redis>opts.connection).duplicate()
+        ? (<Redis.Redis>opts.connection).duplicate()
         : opts.connection,
     );
     this.blockingConnection.on('error', this.emit.bind(this));

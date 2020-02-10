@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 import { after } from 'lodash';
 import { Queue, QueueEvents, Worker, pool } from '@src/classes';
 import { beforeEach } from 'mocha';
@@ -23,7 +23,7 @@ describe('sandboxed process', () => {
     await queue.close();
     await queueEvents.close();
     pool.clean();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new Redis(), queueName);
   });
 
   it('should process and complete', async () => {

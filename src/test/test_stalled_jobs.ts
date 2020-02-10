@@ -1,6 +1,6 @@
 import { Queue, QueueScheduler, Worker, QueueEvents } from '@src/classes';
 import { delay, removeAllQueueData } from '@src/utils';
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
@@ -17,7 +17,7 @@ describe('stalled jobs', function() {
 
   afterEach(async function() {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new Redis(), queueName);
   });
 
   it('process stalled jobs when starting a queue', async function() {

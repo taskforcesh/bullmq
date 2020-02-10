@@ -7,7 +7,7 @@ import { Worker } from '@src/classes/worker';
 import { JobsOptions } from '@src/interfaces';
 import { delay, removeAllQueueData } from '@src/utils';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
@@ -23,7 +23,7 @@ describe('Job', function() {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new Redis(), queueName);
   });
 
   describe('.create', function() {

@@ -1,7 +1,7 @@
 import { Queue, Job } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 import { v4 } from 'uuid';
 import { Worker } from '@src/classes/worker';
 import { QueueEvents } from '@src/classes/queue-events';
@@ -21,7 +21,7 @@ describe('Delayed jobs', function() {
 
   afterEach(async function() {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new Redis(), queueName);
   });
 
   it('should process a delayed job only after delayed time', async function() {

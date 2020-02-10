@@ -4,7 +4,7 @@ import { QueueScheduler } from '@src/classes/queue-scheduler';
 import { Repeat } from '@src/classes/repeat';
 import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { defaults } from 'lodash';
@@ -45,7 +45,7 @@ describe('repeat', function() {
     await queue.close();
     await repeat.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new Redis(), queueName);
   });
 
   it('should create multiple jobs if they have the same cron pattern', async function() {

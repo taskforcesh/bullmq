@@ -1,7 +1,7 @@
 import { Queue, QueueEvents, Worker } from '../classes';
 import { delay, removeAllQueueData } from '@src/utils';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as Redis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
@@ -21,7 +21,7 @@ describe('Cleaner', () => {
   afterEach(async function() {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new Redis(), queueName);
   });
 
   it('should clean an empty queue', async () => {
@@ -127,7 +127,7 @@ describe('Cleaner', () => {
     });
     await worker.waitUntilReady();
 
-    const client = new IORedis();
+    const client = new Redis();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
