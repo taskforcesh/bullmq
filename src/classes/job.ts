@@ -135,12 +135,15 @@ export class Job<T = any, R = any> {
     return job;
   }
 
-  static async fromId(queue: QueueBase, jobId: string): Promise<Job | null> {
+  static async fromId(
+    queue: QueueBase,
+    jobId: string,
+  ): Promise<Job | undefined> {
     // jobId can be undefined if moveJob returns undefined
     if (jobId) {
       const client = await queue.client;
       const jobData = await client.hgetall(queue.toKey(jobId));
-      return isEmpty(jobData) ? null : Job.fromJSON(queue, jobData, jobId);
+      return isEmpty(jobData) ? undefined : Job.fromJSON(queue, jobData, jobId);
     }
   }
 
