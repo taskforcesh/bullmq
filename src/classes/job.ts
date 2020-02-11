@@ -1,4 +1,4 @@
-import * as Redis from 'ioredis';
+import { Redis, Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
@@ -92,7 +92,7 @@ export class Job<T = any, R = any> {
     const multi = client.multi();
 
     for (const job of jobInstances) {
-      job.addJob(<Redis.Redis>(multi as unknown));
+      job.addJob(<Redis>(multi as unknown));
     }
 
     const result = (await multi.exec()) as [null | Error, string][];
@@ -454,7 +454,7 @@ export class Job<T = any, R = any> {
     );
   }
 
-  private addJob(client: Redis.Redis): string {
+  private addJob(client: Redis): string {
     const queue = this.queue;
 
     const jobData = this.asJSON();
@@ -462,7 +462,7 @@ export class Job<T = any, R = any> {
     return Scripts.addJob(client, queue, jobData, this.opts, this.id);
   }
 
-  private saveAttempt(multi: Redis.Pipeline, err: Error) {
+  private saveAttempt(multi: Pipeline, err: Error) {
     this.attemptsMade++;
     this.stacktrace = this.stacktrace || [];
 

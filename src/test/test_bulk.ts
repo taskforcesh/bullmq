@@ -1,6 +1,6 @@
 import { Queue, Worker, Job } from '../classes';
 import { expect } from 'chai';
-import * as Redis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { removeAllQueueData } from '../utils';
@@ -16,7 +16,7 @@ describe('bulk jobs', () => {
 
   afterEach(async function() {
     await queue.close();
-    await removeAllQueueData(new Redis(), queueName);
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should process jobs', async () => {

@@ -1,4 +1,4 @@
-import * as Redis from 'ioredis';
+import { Redis } from 'ioredis';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -43,7 +43,7 @@ export function isRedisInstance(obj: any): boolean {
 }
 
 export async function removeAllQueueData(
-  client: Redis.Redis,
+  client: Redis,
   queueName: string,
   prefix = 'bull',
 ) {

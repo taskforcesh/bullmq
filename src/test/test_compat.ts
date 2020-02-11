@@ -6,7 +6,7 @@ import { Job, Worker } from '@src/classes';
 import { Queue3 } from '@src/classes/compat';
 import { delay, removeAllQueueData } from '@src/utils';
 import { expect } from 'chai';
-import * as Redis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
@@ -24,7 +24,7 @@ describe('Compat', function() {
 
     afterEach(async function() {
       await queue.close();
-      await removeAllQueueData(new Redis(), queueName);
+      await removeAllQueueData(new IORedis(), queueName);
     });
 
     it('should get waiting jobs', async function() {
@@ -294,7 +294,7 @@ describe('Compat', function() {
 
     afterEach(async function() {
       await queue.close();
-      await removeAllQueueData(new Redis(), queueName);
+      await removeAllQueueData(new IORedis(), queueName);
     });
 
     it('should emit waiting when a job has been added', function(done) {
@@ -403,7 +403,7 @@ describe('Compat', function() {
 
     afterEach(async function() {
       await queue.close();
-      await removeAllQueueData(new Redis(), queueName);
+      await removeAllQueueData(new IORedis(), queueName);
     });
 
     // it('should pause a queue until resumed', async () => {

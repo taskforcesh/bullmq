@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import * as Redis from 'ioredis';
+import * as IORedis from 'ioredis';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
@@ -7,8 +7,8 @@ import { isRedisInstance } from '../utils';
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
-  private _client: Redis.Redis;
-  private initializing: Promise<Redis.Redis>;
+  private _client: IORedis.Redis;
+  private initializing: Promise<IORedis.Redis>;
   private closing: boolean;
 
   constructor(private opts?: ConnectionOptions) {
@@ -24,7 +24,7 @@ export class RedisConnection extends EventEmitter {
         ...opts,
       };
     } else {
-      this._client = <Redis.Redis>opts;
+      this._client = <IORedis.Redis>opts;
     }
 
     this.initializing = this.init();
@@ -38,7 +38,7 @@ export class RedisConnection extends EventEmitter {
    * Waits for a redis client to be ready.
    * @param {Redis} redis client
    */
-  static async waitUntilReady(client: Redis.Redis) {
+  static async waitUntilReady(client: IORedis.Redis) {
     return new Promise(function(resolve, reject) {
       if (client.status === 'ready') {
         resolve();
@@ -60,14 +60,14 @@ export class RedisConnection extends EventEmitter {
     });
   }
 
-  get client(): Promise<Redis.Redis> {
+  get client(): Promise<IORedis.Redis> {
     return this.initializing;
   }
 
   private async init() {
     const opts = this.opts as RedisOptions;
     if (!this._client) {
-      this._client = new Redis(opts);
+      this._client = new IORedis(opts);
     }
 
     await RedisConnection.waitUntilReady(this._client);

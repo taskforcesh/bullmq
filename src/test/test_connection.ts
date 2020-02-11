@@ -1,4 +1,4 @@
-import * as Redis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { Queue, QueueEvents, Job, Worker } from '@src/classes';
 
 import { v4 } from 'uuid';
@@ -16,7 +16,7 @@ describe('connection', () => {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new Redis(), queueName);
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should recover from a connection loss', async () => {

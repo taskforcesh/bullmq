@@ -2,7 +2,7 @@
 import { Queue } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect, assert } from 'chai';
-import * as Redis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { Worker } from '@src/classes/worker';
 import { after } from 'lodash';
@@ -15,7 +15,7 @@ describe('Queue', function() {
   let queueEvents: QueueEvents;
 
   beforeEach(function() {
-    client = new Redis();
+    client = new IORedis();
   });
 
   beforeEach(async function() {
@@ -28,7 +28,7 @@ describe('Queue', function() {
   afterEach(async function() {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new Redis(), queueName);
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('creates a queue with default job options', () => {

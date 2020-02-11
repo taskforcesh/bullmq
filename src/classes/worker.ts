@@ -1,5 +1,5 @@
 import * as fs from 'fs';
-import * as Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import * as path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
@@ -53,7 +53,7 @@ export class Worker<T = any> extends QueueBase {
 
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
-        ? (<Redis.Redis>opts.connection).duplicate()
+        ? (<Redis>opts.connection).duplicate()
         : opts.connection,
     );
     this.blockingConnection.on('error', this.emit.bind(this));
