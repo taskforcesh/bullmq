@@ -69,18 +69,13 @@ describe('Jobs getters', function() {
     await worker.close();
   });
 
-  /*
-  it('should get a specific job', function(done) {
-    var data = { foo: 'sup!' };
-    queue.add(data).then(function(job) {
-      queue.getJob(job.id).then(function(returnedJob) {
-        expect(returnedJob.data).to.eql(data);
-        expect(returnedJob.id).to.be.eql(job.id);
-        done();
-      });
-    });
+  it('should get a specific job', async () => {
+    const data = { foo: 'sup!' };
+    const job = await queue.add('test', data);
+    const returnedJob = await queue.getJob(job.id);
+    expect(returnedJob.data).to.eql(data);
+    expect(returnedJob.id).to.be.eql(job.id);
   });
-  */
 
   it('should get completed jobs', async () => {
     const worker = new Worker(queueName, async job => {});
