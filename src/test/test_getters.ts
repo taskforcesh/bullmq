@@ -77,6 +77,11 @@ describe('Jobs getters', function() {
     expect(returnedJob.id).to.be.eql(job.id);
   });
 
+  it('should get undefined for nonexistent specific job', async () => {
+    const returnedJob = await queue.getJob('test');
+    expect(returnedJob).to.be.equal(undefined);
+  });
+
   it('should get completed jobs', async () => {
     const worker = new Worker(queueName, async job => {});
     let counter = 2;
