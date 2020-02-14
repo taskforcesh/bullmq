@@ -26,7 +26,7 @@ export class QueueScheduler extends QueueBase {
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
 
-  constructor(protected name: string, opts: QueueSchedulerOptions = {}) {
+  constructor(name: string, opts: QueueSchedulerOptions = {}) {
     super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
 
     // tslint:disable: no-floating-promises
