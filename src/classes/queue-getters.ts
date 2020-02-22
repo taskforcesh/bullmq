@@ -6,7 +6,7 @@ import { Job } from './job';
 import { clientCommandMessageReg } from './worker';
 
 export class QueueGetters extends QueueBase {
-  getJob(jobId: string) {
+  getJob(jobId: string): Promise<Job | undefined> {
     return Job.fromId(this, jobId);
   }
 
