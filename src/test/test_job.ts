@@ -101,7 +101,7 @@ describe('Job', function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.remove();
       const storedJob = await Job.fromId(queue, job.id);
-      expect(storedJob).to.be.equal(null);
+      expect(storedJob).to.be.equal(undefined);
     });
   });
 

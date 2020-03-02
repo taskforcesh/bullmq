@@ -1,3 +1,11 @@
+## [1.6.8](https://github.com/taskforcesh/bullmq/compare/v1.6.7...v1.6.8) (2020-02-22)
+
+
+### Bug Fixes
+
+* modified QueueGetters.getJob and Job.fromId to also return null to ([65183fc](https://github.com/taskforcesh/bullmq/commit/65183fcf542d0227ec1d4d6637b46b5381331787))
+* modified QueueGetters.getJob and Job.fromId to return undefined ([ede352b](https://github.com/taskforcesh/bullmq/commit/ede352be75ffe05bf633516db9eda88467c562bf))
+
 ## [1.6.7](https://github.com/taskforcesh/bullmq/compare/v1.6.6...v1.6.7) (2020-01-16)
 
 
