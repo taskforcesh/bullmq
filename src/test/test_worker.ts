@@ -57,7 +57,7 @@ describe('workers', function() {
         worker.on('completed', async (job: Job) => {
           try {
             const gotJob = await queue.getJob(job.id);
-            expect(gotJob).to.be.equal(null);
+            expect(gotJob).to.be.equal(undefined);
             const counts = await queue.getJobCounts('completed');
             expect(counts.completed).to.be.equal(0);
             await worker.close();
@@ -89,7 +89,7 @@ describe('workers', function() {
         worker.on('completed', async job => {
           try {
             const gotJob = await newQueue.getJob(job.id);
-            expect(gotJob).to.be.equal(null);
+            expect(gotJob).to.be.equal(undefined);
             const counts = await newQueue.getJobCounts('completed');
             expect(counts.completed).to.be.equal(0);
             await worker.close();
@@ -130,10 +130,10 @@ describe('workers', function() {
                 const job = await queue.getJob(jobId);
                 const logs = await queue.getJobLogs(jobId);
                 if (index >= datas.length - keepJobs) {
-                  expect(job).to.not.be.equal(null);
+                  expect(job).to.not.be.equal(undefined);
                   expect(logs.logs).to.not.be.empty;
                 } else {
-                  expect(job).to.be.equal(null);
+                  expect(job).to.be.equal(undefined);
                   expect(logs.logs).to.be.empty;
                 }
               }),
@@ -176,9 +176,9 @@ describe('workers', function() {
                 jobIds.map(async (jobId, index) => {
                   const job = await newQueue.getJob(jobId);
                   if (index >= datas.length - keepJobs) {
-                    expect(job).to.not.be.equal(null);
+                    expect(job).to.not.be.equal(undefined);
                   } else {
-                    expect(job).to.be.equal(null);
+                    expect(job).to.be.equal(undefined);
                   }
                 }),
               );
@@ -215,7 +215,7 @@ describe('workers', function() {
           await queue
             .getJob(jobId)
             .then(job => {
-              expect(job).to.be.equal(null);
+              expect(job).to.be.equal(undefined);
               return null;
             })
             .then(() => {
@@ -248,7 +248,7 @@ describe('workers', function() {
       return new Promise((resolve, reject) => {
         worker.on('failed', async jobId => {
           const job = await newQueue.getJob(jobId);
-          expect(job).to.be.equal(null);
+          expect(job).to.be.equal(undefined);
           const counts = await newQueue.getJobCounts('completed');
           expect(counts.completed).to.be.equal(0);
           await worker.close();
@@ -285,9 +285,9 @@ describe('workers', function() {
               jobIds.map(async (jobId, index) => {
                 const job = await queue.getJob(jobId);
                 if (index >= datas.length - keepJobs) {
-                  expect(job).to.not.be.equal(null);
+                  expect(job).to.not.be.equal(undefined);
                 } else {
-                  expect(job).to.be.equal(null);
+                  expect(job).to.be.equal(undefined);
                 }
               }),
             );
@@ -330,9 +330,9 @@ describe('workers', function() {
                 jobIds.map(async (jobId, index) => {
                   const job = await newQueue.getJob(jobId);
                   if (index >= datas.length - keepJobs) {
-                    expect(job).to.not.be.equal(null);
+                    expect(job).to.not.be.equal(undefined);
                   } else {
-                    expect(job).to.be.equal(null);
+                    expect(job).to.be.equal(undefined);
                   }
                 }),
               );
