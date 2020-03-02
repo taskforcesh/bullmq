@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { Queue, QueueEvents, Worker, pool } from '@src/classes';
 import { beforeEach } from 'mocha';

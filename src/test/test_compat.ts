@@ -6,7 +6,7 @@ import { Job, Worker } from '@src/classes';
 import { Queue3 } from '@src/classes/compat';
 import { delay, removeAllQueueData } from '@src/utils';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';

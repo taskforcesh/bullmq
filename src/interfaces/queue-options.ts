@@ -1,6 +1,6 @@
 import { JobsOptions } from '../interfaces';
 
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 import { ConnectionOptions } from './redis-options';
 
 export enum ClientType {
@@ -10,7 +10,7 @@ export enum ClientType {
 
 export interface QueueBaseOptions {
   connection?: ConnectionOptions;
-  client?: IORedis.Redis;
+  client?: Redis;
   prefix?: string; // prefix for all queue keys.
 }
 

@@ -4,7 +4,7 @@ import { QueueScheduler } from '@src/classes/queue-scheduler';
 import { Repeat } from '@src/classes/repeat';
 import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { defaults } from 'lodash';
