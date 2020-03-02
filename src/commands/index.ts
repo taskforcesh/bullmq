@@ -19,8 +19,8 @@ const util = require('util');
 
 const fs = require('fs');
 
-const readdir = util.promisify(fs.readdir);
-const readFile = util.promisify(fs.readFile);
+const readdir = fs.promises.readdir;
+const readFile = fs.promises.readFile;
 
 interface Command {
   name: string;
