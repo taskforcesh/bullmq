@@ -62,7 +62,7 @@ export class ChildPool {
       }
     }
 
-    child = fork(masterFile, execArgv);
+    child = fork(masterFile, [], { execArgv });
     child.processFile = processFile;
 
     _this.retained[child.pid] = child;
