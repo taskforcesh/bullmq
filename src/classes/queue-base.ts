@@ -8,7 +8,10 @@ export class QueueBase extends EventEmitter {
 
   protected connection: RedisConnection;
 
-  constructor(protected name: string, public opts: QueueBaseOptions = {}) {
+  constructor(
+    public readonly name: string,
+    public opts: QueueBaseOptions = {},
+  ) {
     super();
 
     this.opts = {
