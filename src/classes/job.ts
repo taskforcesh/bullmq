@@ -470,8 +470,8 @@ export class Job<T = any, R = any> {
     this.stacktrace = this.stacktrace || [];
 
     this.stacktrace.push(err.stack);
-    if (this.opts.stackTraceLimit) {
-      this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+    if (this.opts.stackTraceLimit && this.stacktrace.length > this.opts.stackTraceLimit) {
+      this.stacktrace = this.stacktrace.slice(-this.opts.stackTraceLimit);
     }
 
     const params = {
