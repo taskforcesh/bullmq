@@ -113,7 +113,7 @@ export class Job<T = any, R = any> {
     job.progress = JSON.parse(json.progress || 0);
 
     // job.delay = parseInt(json.delay);
-    // job.timestamp = parseInt(json.timestamp);
+    job.timestamp = parseInt(json.timestamp);
 
     if (json.finishedOn) {
       job.finishedOn = parseInt(json.finishedOn);
