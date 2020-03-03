@@ -389,5 +389,6 @@ export class Worker<T = any> extends QueueBase {
         resolve();
       });
     }
+    return this.closing;
   }
 }
