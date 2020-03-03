@@ -1,6 +1,6 @@
 import { Queue, Worker, Job } from '../classes';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { removeAllQueueData } from '../utils';

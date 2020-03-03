@@ -3,7 +3,7 @@ import { QueueEvents } from '@src/classes/queue-events';
 import { QueueScheduler } from '@src/classes/queue-scheduler';
 import { Worker } from '@src/classes/worker';
 import { assert, expect } from 'chai';
-import IORedis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';

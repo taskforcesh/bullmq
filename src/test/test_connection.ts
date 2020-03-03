@@ -1,4 +1,4 @@
-import IORedis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { Queue, QueueEvents, Job, Worker } from '@src/classes';
 
 import { v4 } from 'uuid';

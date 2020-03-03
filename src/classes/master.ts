@@ -5,6 +5,8 @@
  */
 import { promisify } from 'util';
 import { toString } from 'lodash';
+import { JobJson } from './job';
+import { SandboxedJob } from '../interfaces/sandboxed-job';
 
 let status: any;
 let processor: any;
@@ -101,41 +103,43 @@ process.on('uncaughtException', err => {
  * the functions on the original job object are not in tact.
  * The wrapped job adds back some of those original functions.
  */
-function wrapJob(job: any) {
-  job.data = JSON.parse(job.data || '{}');
-  job.opts = JSON.parse(job.opts || '{}');
-
-  /*
-   * Emulate the real job `progress` function.
-   * If no argument is given, it behaves as a sync getter.
-   * If an argument is given, it behaves as an async setter.
-   */
+function wrapJob(job: JobJson): SandboxedJob {
   let progressValue = job.progress;
-  job.progress = function(progress: any) {
-    if (progress) {
-      // Locally store reference to new progress value
-      // so that we can return it from this process synchronously.
-      progressValue = progress;
-      // Send message to update job progress.
-      process.send({
-        cmd: 'progress',
-        value: progress,
-      });
-      return Promise.resolve();
-    } else {
-      // Return the last known progress value.
-      return progressValue;
-    }
-  };
 
-  /*
-   * Emulate the real job `log` function.
-   */
-  job.log = function(row: any) {
-    process.send({
-      cmd: 'log',
-      value: row,
-    });
+  return {
+    ...job,
+    data: JSON.parse(job.data || '{}'),
+    opts: JSON.parse(job.opts || '{}'),
+    returnValue: JSON.parse(job.returnvalue || '{}'),
+    /*
+     * Emulate the real job `progress` function.
+     * If no argument is given, it behaves as a sync getter.
+     * If an argument is given, it behaves as an async setter.
+     */
+    progress: (progress?: any) => {
+      if (progress) {
+        // Locally store reference to new progress value
+        // so that we can return it from this process synchronously.
+        progressValue = progress;
+        // Send message to update job progress.
+        process.send({
+          cmd: 'progress',
+          value: progress,
+        });
+        return Promise.resolve();
+      } else {
+        // Return the last known progress value.
+        return progressValue;
+      }
+    },
+    /*
+     * Emulate the real job `log` function.
+     */
+    log: (row: any) => {
+      process.send({
+        cmd: 'log',
+        value: row,
+      });
+    },
   };
-  return job;
 }

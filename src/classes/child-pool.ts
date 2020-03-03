@@ -1,12 +1,11 @@
-import childProcess, { ChildProcess } from 'child_process';
-import path from 'path';
+import { ChildProcess, fork } from 'child_process';
+import * as path from 'path';
 import { forEach, values, flatten } from 'lodash';
-import getPort from 'get-port';
-import fs from 'fs';
+import * as getPort from 'get-port';
+import * as fs from 'fs';
 import { promisify } from 'util';
 
 const stat = promisify(fs.stat);
-const fork = childProcess.fork;
 
 export interface ChildProcessExt extends ChildProcess {
   processFile?: string;
@@ -63,7 +62,7 @@ export class ChildPool {
       }
     }
 
-    child = fork(masterFile, execArgv);
+    child = fork(masterFile, [], { execArgv });
     child.processFile = processFile;
 
     _this.retained[child.pid] = child;

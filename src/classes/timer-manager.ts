@@ -1,4 +1,4 @@
-import uuid from 'uuid';
+import * as uuid from 'uuid';
 
 /**
  * Keeps track on timers created with setTimeout to help clearTimeout

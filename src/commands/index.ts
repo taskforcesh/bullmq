@@ -12,7 +12,7 @@
  */
 'use strict';
 
-import IORedis from 'ioredis';
+import { Redis } from 'ioredis';
 
 const path = require('path');
 const util = require('util');
@@ -30,7 +30,7 @@ interface Command {
   };
 }
 
-export const load = async function(client: IORedis.Redis) {
+export const load = async function(client: Redis) {
   const scripts = await loadScripts(__dirname);
 
   scripts.forEach((command: Command) => {

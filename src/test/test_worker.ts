@@ -1,7 +1,7 @@
 import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '@src/utils';
 import { after, times, once } from 'lodash';

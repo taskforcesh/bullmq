@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import IORedis, { Redis } from 'ioredis';
+import * as IORedis from 'ioredis';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
@@ -7,8 +7,8 @@ import { isRedisInstance } from '../utils';
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
-  private _client: Redis;
-  private initializing: Promise<Redis>;
+  private _client: IORedis.Redis;
+  private initializing: Promise<IORedis.Redis>;
   private closing: boolean;
 
   constructor(private opts?: ConnectionOptions) {
@@ -24,7 +24,7 @@ export class RedisConnection extends EventEmitter {
         ...opts,
       };
     } else {
-      this._client = <Redis>opts;
+      this._client = <IORedis.Redis>opts;
     }
 
     this.initializing = this.init();
@@ -60,7 +60,7 @@ export class RedisConnection extends EventEmitter {
     });
   }
 
-  get client(): Promise<Redis> {
+  get client(): Promise<IORedis.Redis> {
     return this.initializing;
   }
 

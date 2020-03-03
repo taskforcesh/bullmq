@@ -1,7 +1,7 @@
 import { Queue, Job } from '@src/classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
-import IORedis from 'ioredis';
+import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { Worker } from '@src/classes/worker';
 import { QueueEvents } from '@src/classes/queue-events';
