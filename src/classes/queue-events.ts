@@ -68,6 +68,9 @@ export class QueueEvents extends QueueBase {
   }
 
   async close() {
-    return (this.closing = this.disconnect());
+    if (!this.closing) {
+      this.closing = this.disconnect();
+    }
+    return this.closing;
   }
 }
