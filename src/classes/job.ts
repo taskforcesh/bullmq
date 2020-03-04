@@ -15,8 +15,8 @@ export interface JobJson {
   opts: string;
   progress: number | object;
   attemptsMade: number;
-  finishedOn: number;
-  processedOn: number;
+  finishedOn?: number;
+  processedOn?: number;
   timestamp: number;
   failedReason: string;
   stacktrace: string;
@@ -31,8 +31,8 @@ export class Job<T = any, R = any> {
 
   attemptsMade = 0;
   failedReason: string;
-  finishedOn: number;
-  processedOn: number;
+  finishedOn?: number;
+  processedOn?: number;
 
   private toKey: (type: string) => string;
 
