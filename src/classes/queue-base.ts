@@ -72,7 +72,15 @@ export class QueueBase extends EventEmitter {
   }
 
   close() {
-    return (this.closing = this.connection.close());
+    if (!this.closing) {
+      this.emit('closing');
+
+      this.closing = this.connection.close().then(() => {
+        this.emit('closed');
+      });
+    }
+
+    return this.closing;
   }
 
   disconnect() {

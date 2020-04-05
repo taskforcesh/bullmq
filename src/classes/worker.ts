@@ -374,11 +374,9 @@ export class Worker<T = any> extends QueueBase {
           await this.resume();
           if (!force) {
             await this.whenCurrentJobsFinished(false);
-          } else {
-            await client.disconnect();
           }
-          // await this.disconnect();
-          await super.close();
+          await client.disconnect();
+          await this.connection.close();
         } catch (err) {
           reject(err);
         } finally {
@@ -389,5 +387,7 @@ export class Worker<T = any> extends QueueBase {
         resolve();
       });
     }
+
+    return this.closing;
   }
 }

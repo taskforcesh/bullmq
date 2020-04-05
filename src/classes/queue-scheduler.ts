@@ -160,11 +160,17 @@ export class QueueScheduler extends QueueBase {
   }
 
   async close() {
-    if (this.isBlocked) {
-      this.closing = this.disconnect();
-    } else {
-      super.close();
+    if (!this.closing) {
+      this.emit('closing');
+
+      this.closing = (this.isBlocked
+        ? this.disconnect()
+        : this.connection.close()
+      ).then(() => {
+        this.emit('closed');
+      });
     }
+
     return this.closing;
   }
 }
