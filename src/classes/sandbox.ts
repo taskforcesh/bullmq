@@ -48,7 +48,7 @@ const sandbox = (processFile: any, childPool: any) => {
       child.removeListener('message', msgHandler);
       child.removeListener('exit', exitHandler);
 
-      if (child.exitCode !== null) {
+      if (child.exitCode !== null || /SIG.*/.test(child.signalCode)) {
         childPool.remove(child);
       } else {
         childPool.release(child);
