@@ -372,13 +372,12 @@ export class Worker<T = any> extends QueueBase {
           const client = await this.blockingConnection.client;
 
           await this.resume();
+
           if (!force) {
             await this.whenCurrentJobsFinished(false);
           } else {
             await client.disconnect();
           }
-          // await this.disconnect();
-          await super.close();
         } catch (err) {
           reject(err);
         } finally {
