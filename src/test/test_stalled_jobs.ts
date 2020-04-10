@@ -135,17 +135,17 @@ describe('stalled jobs', function() {
   });
 
   it('jobs not stalled while lock is extended', async function() {
-    this.timeout(10000);
+    this.timeout(5000);
 
     const concurrency = 4;
 
     const worker = new Worker(
       queueName,
       async job => {
-        return delay(5000);
+        return delay(4000);
       },
       {
-        lockDuration: 1000, // lockRenewTime would be half of it i.e. 500
+        lockDuration: 100, // lockRenewTime would be half of it i.e. 500
         concurrency,
       },
     );
@@ -153,8 +153,6 @@ describe('stalled jobs', function() {
     const allActive = new Promise(resolve => {
       worker.on('active', after(concurrency, resolve));
     });
-
-    await worker.waitUntilReady();
 
     await Promise.all([
       queue.add('test', { bar: 'baz' }),
@@ -166,15 +164,14 @@ describe('stalled jobs', function() {
     await allActive;
 
     const queueScheduler = new QueueScheduler(queueName, {
-      stalledInterval: 100,
-    });
-    await queueScheduler.waitUntilReady();
-
-    const allStalled = new Promise(resolve => {
-      queueScheduler.on('stalled', after(concurrency, resolve));
+      stalledInterval: 50,
     });
 
-    await delay(2000); // let worker to extend lock for several times
+    const allStalled = new Promise(resolve =>
+      queueScheduler.on('stalled', after(concurrency, resolve)),
+    );
+
+    await delay(500); // Wait for jobs to become active
 
     const active = await queue.getActiveCount();
     expect(active).to.be.equal(4);
