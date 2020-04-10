@@ -135,14 +135,14 @@ describe('stalled jobs', function() {
   });
 
   it('jobs not stalled while lock is extended', async function() {
-    this.timeout(6000);
+    this.timeout(10000);
 
     const concurrency = 4;
 
     const worker = new Worker(
       queueName,
       async job => {
-        return delay(10000);
+        return delay(5000);
       },
       {
         lockDuration: 1000, // lockRenewTime would be half of it i.e. 500
