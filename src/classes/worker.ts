@@ -3,7 +3,7 @@ import { Redis } from 'ioredis';
 import * as path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
-import { ChildPool, pool } from './child-pool';
+import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
@@ -72,7 +72,7 @@ export class Worker<T = any> extends QueueBase {
         throw new Error(`File ${processorFile} does not exist`);
       }
 
-      this.childPool = this.childPool || pool;
+      this.childPool = this.childPool || new ChildPool();
       this.processFn = sandbox(processor, this.childPool).bind(this);
     }
     this.timerManager = new TimerManager();
