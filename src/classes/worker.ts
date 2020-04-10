@@ -8,7 +8,7 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
-import * as uuid from 'uuid';
+import { v4 } from 'uuid';
 import { TimerManager } from './timer-manager';
 import { isRedisInstance } from '../utils';
 
@@ -121,7 +121,7 @@ export class Worker<T = any> extends QueueBase {
     const processing = (this.processing = new Map());
 
     const tokens: string[] = Array.from({ length: opts.concurrency }, () =>
-      uuid.v4(),
+      v4(),
     );
 
     while (!this.closing) {

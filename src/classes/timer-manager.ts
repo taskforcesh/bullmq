@@ -1,4 +1,4 @@
-import * as uuid from 'uuid';
+import { v4 } from 'uuid';
 
 /**
  * Keeps track on timers created with setTimeout to help clearTimeout
@@ -8,7 +8,7 @@ export class TimerManager {
   private timers: any = {};
 
   public setTimer(name: string, delay: number, fn: Function) {
-    const id = uuid.v4();
+    const id = v4();
     const timer = setTimeout(
       timeoutId => {
         this.clearTimer(timeoutId);

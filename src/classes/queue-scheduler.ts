@@ -1,5 +1,5 @@
 import { QueueSchedulerOptions } from '../interfaces';
-import { array2obj } from '../utils';
+import { array2obj, isRedisInstance } from '../utils';
 import { QueueBase } from './';
 import { Scripts } from './scripts';
 import IORedis = require('ioredis');
@@ -26,8 +26,18 @@ export class QueueScheduler extends QueueBase {
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
 
-  constructor(name: string, opts: QueueSchedulerOptions = {}) {
-    super(name, { maxStalledCount: 1, stalledInterval: 30000, ...opts });
+  constructor(
+    name: string,
+    { connection, ...opts }: QueueSchedulerOptions = {},
+  ) {
+    super(name, {
+      maxStalledCount: 1,
+      stalledInterval: 30000,
+      ...opts,
+      connection: isRedisInstance(connection)
+        ? (<IORedis.Redis>connection).duplicate()
+        : connection,
+    });
 
     // tslint:disable: no-floating-promises
     this.run();
