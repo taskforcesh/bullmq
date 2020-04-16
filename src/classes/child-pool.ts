@@ -114,5 +114,3 @@ export class ChildPool {
     return flatten(values(this.free));
   }
 }
-
-export const pool = new ChildPool();

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
-import { Queue, QueueEvents, Worker, pool } from '@src/classes';
+import { Queue, QueueEvents, Worker } from '@src/classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '@src/utils';
@@ -22,7 +22,6 @@ describe('sandboxed process', () => {
   afterEach(async () => {
     await queue.close();
     await queueEvents.close();
-    pool.clean();
     await removeAllQueueData(new IORedis(), queueName);
   });
 
