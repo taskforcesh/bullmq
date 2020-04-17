@@ -56,7 +56,7 @@ export class Worker<T = any> extends QueueBase {
         ? (<Redis>opts.connection).duplicate()
         : opts.connection,
     );
-    this.blockingConnection.on('error', this.emit.bind(this));
+    this.blockingConnection.on('error', this.emit.bind(this, 'error'));
 
     if (typeof processor === 'function') {
       this.processFn = processor;
