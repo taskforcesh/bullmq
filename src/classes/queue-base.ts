@@ -20,7 +20,7 @@ export class QueueBase extends EventEmitter {
     };
 
     this.connection = new RedisConnection(opts.connection);
-    this.connection.on('error', this.emit.bind(this));
+    this.connection.on('error', this.emit.bind(this, 'error'));
 
     const keys: { [index: string]: string } = {};
     [
