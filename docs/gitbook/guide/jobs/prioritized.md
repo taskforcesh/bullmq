@@ -1,4 +1,4 @@
-# Proritized
+# Prioritized
 
 Jobs can also include a priority option. Using priorities, job's processing order will be affected by the specified priority instead of following a FIFO or LIFO pattern.
 
