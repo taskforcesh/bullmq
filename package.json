@@ -6,7 +6,7 @@
   "types": "./dist/cjs/index.d.ts",
   "type":"module",
   "exports":{
-    "import": "./ist/esm/index.js",
+    "import": "./dist/esm/index.js",
     "require": "./dist/cjs/index.js"
   },
   "source": "src/index.ts",
