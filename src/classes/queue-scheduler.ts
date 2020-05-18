@@ -2,7 +2,7 @@ import { QueueSchedulerOptions } from '../interfaces';
 import { array2obj, isRedisInstance } from '../utils';
 import { QueueBase } from './';
 import { Scripts } from './scripts';
-import IORedis = require('ioredis');
+import { Redis } from 'ioredis';
 
 const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
 
@@ -35,7 +35,7 @@ export class QueueScheduler extends QueueBase {
       stalledInterval: 30000,
       ...opts,
       connection: isRedisInstance(connection)
-        ? (<IORedis.Redis>connection).duplicate()
+        ? (<Redis>connection).duplicate()
         : connection,
     });
 
@@ -114,7 +114,7 @@ export class QueueScheduler extends QueueBase {
   }
 
   private async readDelayedData(
-    client: IORedis.Redis,
+    client: Redis,
     key: string,
     streamLastId: string,
     blockTime: number,

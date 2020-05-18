@@ -2,14 +2,19 @@
   "name": "bullmq",
   "version": "1.8.7",
   "description": "Queue for messages and jobs based on Redis",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/cjs/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "type":"module",
+  "exports":{
+    "import": "./ist/esm/index.js",
+    "require": "./dist/cjs/index.js"
+  },
   "source": "src/index.ts",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
   "scripts": {
     "docs": "typedoc --out docs src",
-    "build": "tsc && yarn copylua",
+    "build": "tsc && tsc --build tsconfig.esm.json && yarn copylua",
     "copylua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
     "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
     "test": "yarn lint && tsc && ts-mocha --paths 'src/**/test_*.ts' --exit",

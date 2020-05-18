@@ -30,7 +30,6 @@ import {
   WorkerOptions,
   Processor,
 } from '../interfaces';
-import IORedis = require('ioredis');
 
 type CommonOptions = QueueSchedulerOptions &
   QueueOptions &
