@@ -7,7 +7,8 @@
   "type":"module",
   "exports":{
     "import": "./dist/esm/index.js",
-    "require": "./dist/cjs/index.js"
+    "require": "./dist/cjs/index.js",
+    "./": "./"
   },
   "source": "src/index.ts",
   "author": "Taskforce.sh Inc.",
