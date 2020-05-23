@@ -56,7 +56,7 @@ export class ChildPool {
       await stat(masterFile); // would throw if file not exists
     } catch (_) {
       try {
-        masterFile = path.join(process.cwd(), 'dist/classes/master.js');
+        masterFile = path.join(process.cwd(), 'dist/cjs/classes/master.js'); //TODO esm or cjs ?
         await stat(masterFile);
       } finally {
       }
