@@ -29,7 +29,7 @@ const connection = new IORedis();
 
 // Reuse the ioredis instance
 const myQueue = new Queue('myqueue', { connection });
-const myWorker = new Worker('myworker', { connection });
+const myWorker = new Worker('myworker', async (job)=>{}, { connection });
 ```
 
 Note that in the second example, even though the ioredis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections.
