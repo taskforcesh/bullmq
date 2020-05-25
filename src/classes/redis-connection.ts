@@ -30,7 +30,7 @@ export class RedisConnection extends EventEmitter {
     this.initializing = this.init();
 
     this.initializing
-      .then(client => client.on('error', this.emit.bind(this, 'error')))
+      .then(client => client.on('error', err => this.emit('error', err)))
       .catch(err => this.emit('error', err));
   }
 
