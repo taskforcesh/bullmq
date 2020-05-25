@@ -21,9 +21,6 @@ describe('connection', () => {
 
   it('should recover from a connection loss', async () => {
     let processor;
-    queue.on('error', () => {
-      // error event has to be observed or the exception will bubble up
-    });
 
     const processing = new Promise(resolve => {
       processor = async (job: Job) => {
@@ -33,6 +30,14 @@ describe('connection', () => {
     });
 
     const worker = new Worker(queueName, processor);
+
+    worker.on('error', err => {
+      // error event has to be observed or the exception will bubble up
+    });
+
+    queue.on('error', err => {
+      // error event has to be observed or the exception will bubble up
+    });
 
     const workerClient = await worker.client;
     const queueClient = await queue.client;
@@ -71,6 +76,15 @@ describe('connection', () => {
     });
 
     const worker = new Worker(queueName, processor);
+
+    worker.on('error', err => {
+      // error event has to be observed or the exception will bubble up
+    });
+
+    queue.on('error', err => {
+      // error event has to be observed or the exception will bubble up
+    });
+
     await worker.waitUntilReady();
 
     worker.on('completed', async () => {
