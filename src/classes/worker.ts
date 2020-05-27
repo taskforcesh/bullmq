@@ -3,12 +3,12 @@ import { Redis } from 'ioredis';
 import * as path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
-import { ChildPool, pool } from './child-pool';
+import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
-import * as uuid from 'uuid';
+import { v4 } from 'uuid';
 import { TimerManager } from './timer-manager';
 import { isRedisInstance } from '../utils';
 
@@ -56,7 +56,7 @@ export class Worker<T = any> extends QueueBase {
         ? (<Redis>opts.connection).duplicate()
         : opts.connection,
     );
-    this.blockingConnection.on('error', this.emit.bind(this));
+    this.blockingConnection.on('error', this.emit.bind(this, 'error'));
 
     if (typeof processor === 'function') {
       this.processFn = processor;
@@ -72,7 +72,7 @@ export class Worker<T = any> extends QueueBase {
         throw new Error(`File ${processorFile} does not exist`);
       }
 
-      this.childPool = this.childPool || pool;
+      this.childPool = this.childPool || new ChildPool();
       this.processFn = sandbox(processor, this.childPool).bind(this);
     }
     this.timerManager = new TimerManager();
@@ -121,7 +121,7 @@ export class Worker<T = any> extends QueueBase {
     const processing = (this.processing = new Map());
 
     const tokens: string[] = Array.from({ length: opts.concurrency }, () =>
-      uuid.v4(),
+      v4(),
     );
 
     while (!this.closing) {
@@ -372,13 +372,12 @@ export class Worker<T = any> extends QueueBase {
           const client = await this.blockingConnection.client;
 
           await this.resume();
+
           if (!force) {
             await this.whenCurrentJobsFinished(false);
           } else {
             await client.disconnect();
           }
-          // await this.disconnect();
-          await super.close();
         } catch (err) {
           reject(err);
         } finally {
@@ -389,5 +388,6 @@ export class Worker<T = any> extends QueueBase {
         resolve();
       });
     }
+    return this.closing;
   }
 }

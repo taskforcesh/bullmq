@@ -20,7 +20,7 @@ export class QueueBase extends EventEmitter {
     };
 
     this.connection = new RedisConnection(opts.connection);
-    this.connection.on('error', this.emit.bind(this));
+    this.connection.on('error', this.emit.bind(this, 'error'));
 
     const keys: { [index: string]: string } = {};
     [
@@ -72,7 +72,10 @@ export class QueueBase extends EventEmitter {
   }
 
   close() {
-    return (this.closing = this.connection.close());
+    if (!this.closing) {
+      this.closing = this.connection.close();
+    }
+    return this.closing;
   }
 
   disconnect() {
