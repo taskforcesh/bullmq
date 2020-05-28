@@ -48,10 +48,11 @@ export class QueueScheduler extends QueueBase {
 
     const key = this.keys.delay;
     const opts = this.opts as QueueSchedulerOptions;
-    const delaySet = await this.updateDelaySet(Date.now());
 
-    const [nextTimestamp] = delaySet;
-    let streamLastId = delaySet[1] || '0-0';
+    const [nextTimestamp, streamId = '0-0'] = await this.updateDelaySet(
+      Date.now(),
+    );
+    let streamLastId = streamId;
 
     if (nextTimestamp) {
       this.nextTimestamp = nextTimestamp / 4096;
@@ -64,6 +65,7 @@ export class QueueScheduler extends QueueBase {
       // Listen to the delay event stream from lastDelayStreamTimestamp
       // Can we use XGROUPS to reduce redundancy?
       const nextDelay = this.nextTimestamp - Date.now();
+
       const blockTime = Math.round(
         Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
       );
@@ -104,7 +106,7 @@ export class QueueScheduler extends QueueBase {
       if (delay <= 0) {
         const [nextTimestamp, id] = await this.updateDelaySet(now);
         if (nextTimestamp) {
-          this.nextTimestamp = nextTimestamp / 4096;
+          this.nextTimestamp = nextTimestamp;
           streamLastId = id;
         } else {
           this.nextTimestamp = Number.MAX_VALUE;
