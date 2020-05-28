@@ -37,7 +37,6 @@ describe('Delayed jobs', function() {
     let publishHappened = false;
 
     queueEvents.on('delayed', () => {
-      console.log('delayed!');
       publishHappened = true;
     });
 
@@ -71,6 +70,7 @@ describe('Delayed jobs', function() {
   });
 
   it('should process delayed jobs in correct order', async function() {
+    this.timeout(20000);
     let order = 0;
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
@@ -113,52 +113,53 @@ describe('Delayed jobs', function() {
     await queueScheduler.close();
   });
 
-  /*
-  it('should process delayed jobs in correct order even in case of restart', function(done) {
-    this.timeout(15000);
+  it('should process delayed jobs in correct order even in case of restart', async function() {
+    this.timeout(5000);
 
-    var QUEUE_NAME = 'delayed queue multiple' + uuid();
-    var order = 1;
+    let worker: Worker;
+    const queueName = 'delayed queue multiple' + v4();
+    let order = 1;
 
-    queue = new Queue(QUEUE_NAME);
+    let secondQueueScheduler: QueueScheduler;
+    const firstQueueScheduler = new QueueScheduler(queueName);
+    await firstQueueScheduler.waitUntilReady();
 
-    var fn = function(job, jobDone) {
-      expect(order).to.be.equal(job.data.order);
-      jobDone();
+    queue = new Queue(queueName);
 
-      if (order === 4) {
-        queue.close().then(done, done);
-      }
+    const processing = new Promise((resolve, reject) => {
+      worker = new Worker(queueName, async (job: Job) => {
+        try {
+          expect(order).to.be.equal(job.data.order);
 
-      order++;
-    };
+          if (order === 1) {
+            await firstQueueScheduler.close();
+            secondQueueScheduler = new QueueScheduler(queueName);
+            await secondQueueScheduler.waitUntilReady();
+          }
 
-    Bluebird.join(
-      queue.add({ order: 2 }, { delay: 300 }),
-      queue.add({ order: 4 }, { delay: 500 }),
-      queue.add({ order: 1 }, { delay: 200 }),
-      queue.add({ order: 3 }, { delay: 400 }),
-    )
-      .then(function() {
-        //
-        // Start processing so that jobs get into the delay set.
-        //
-        queue.process(fn);
-        return Bluebird.delay(20);
-      })
-      .then(function() {
-        //We simulate a restart
-        // console.log('RESTART');
-        // return queue.close().then(function () {
-        //   console.log('CLOSED');
-        //   return Promise.delay(100).then(function () {
-        //     queue = new Queue(QUEUE_NAME);
-        //     queue.process(fn);
-        //   });
-        // });
+          if (order === 4) {
+            resolve();
+          }
+          order++;
+        } catch (err) {
+          reject(err);
+        }
       });
+    });
+
+    await Promise.all([
+      queue.add('test', { order: 2 }, { delay: 500 }),
+      queue.add('test', { order: 4 }, { delay: 1500 }),
+      queue.add('test', { order: 1 }, { delay: 200 }),
+      queue.add('test', { order: 3 }, { delay: 800 }),
+    ]);
+
+    await processing;
+
+    await queue.close();
+    worker && (await worker.close());
+    secondQueueScheduler && (await secondQueueScheduler.close());
   });
-*/
 
   it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function() {
     let order = 1;
