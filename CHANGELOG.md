@@ -1,3 +1,10 @@
+## [1.8.11](https://github.com/taskforcesh/bullmq/compare/v1.8.10...v1.8.11) (2020-05-29)
+
+
+### Bug Fixes
+
+* **scheduler:** remove unnecessary division by 4096 ([4d25e95](https://github.com/taskforcesh/bullmq/commit/4d25e95f9522388bd85e932e04b6668e3da57686))
+
 ## [1.8.10](https://github.com/taskforcesh/bullmq/compare/v1.8.9...v1.8.10) (2020-05-28)
 
 
