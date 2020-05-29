@@ -55,7 +55,7 @@ export class QueueScheduler extends QueueBase {
     let streamLastId = streamId;
 
     if (nextTimestamp) {
-      this.nextTimestamp = nextTimestamp / 4096;
+      this.nextTimestamp = nextTimestamp;
     }
 
     while (!this.closing) {
