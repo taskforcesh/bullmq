@@ -31,7 +31,6 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -64,7 +63,6 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -107,7 +105,6 @@ describe('sandboxed process', () => {
       concurrency: 4,
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -146,7 +143,6 @@ describe('sandboxed process', () => {
       concurrency: 1,
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -189,7 +185,6 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -233,7 +228,6 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -286,7 +280,6 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -305,7 +298,6 @@ describe('sandboxed process', () => {
     new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -326,7 +318,6 @@ describe('sandboxed process', () => {
     new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
@@ -347,7 +338,6 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
       settings: {
-        guardInterval: 300000,
         stalledInterval: 300000,
       },
     });
