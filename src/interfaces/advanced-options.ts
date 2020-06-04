@@ -1,24 +1,8 @@
 export interface AdvancedOptions {
-  // How often check for stalled jobs (use 0 for never checking).
-  stalledInterval?: number;
-
-  // Max amount of times a stalled job will be re-processed.
-  maxStalledCount?: number;
-
-  // delay before processing next job in case of internal error.
-  retryProcessDelay?: number;
-
   // A set of custom backoff strategies keyed by name.
   backoffStrategies?: {};
-
-  // A timeout for when the queue is in drained state (empty waiting for jobs).
-  drainDelay?: number;
 }
 
 export const AdvancedOptionsDefaults: AdvancedOptions = {
-  stalledInterval: 30000,
-  maxStalledCount: 1,
-  retryProcessDelay: 5000,
   backoffStrategies: {},
-  drainDelay: 5,
 };
