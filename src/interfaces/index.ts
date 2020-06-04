@@ -1,3 +1,4 @@
+export * from './advanced-options';
 export * from './backoff-options';
 export * from './jobs-options';
 export * from './queue-options';
