@@ -5,9 +5,6 @@ export interface AdvancedOptions {
   // Max amount of times a stalled job will be re-processed.
   maxStalledCount?: number;
 
-  // Poll interval for delayed jobs and added jobs.
-  guardInterval?: number;
-
   // delay before processing next job in case of internal error.
   retryProcessDelay?: number;
 
