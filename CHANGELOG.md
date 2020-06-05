@@ -1,3 +1,10 @@
+## [1.8.13](https://github.com/taskforcesh/bullmq/compare/v1.8.12...v1.8.13) (2020-06-05)
+
+
+### Bug Fixes
+
+* **redis-connection:** run the load command for reused redis client ([fab9bba](https://github.com/taskforcesh/bullmq/commit/fab9bba4caee8fd44523febb3bde588b151e8514))
+
 ## [1.8.12](https://github.com/taskforcesh/bullmq/compare/v1.8.11...v1.8.12) (2020-06-04)
 
 
