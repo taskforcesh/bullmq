@@ -89,7 +89,7 @@ export class ChildPool {
     }
   }
 
-  kill(child: ChildProcess, signal?: string) {
+  kill(child: ChildProcess, signal?: NodeJS.Signals) {
     child.kill(signal || 'SIGKILL');
     this.remove(child);
   }

@@ -447,10 +447,10 @@
     "@types/minimatch" "*"
     "@types/node" "*"
 
-"@types/ioredis@^4.0.13":
-  version "4.0.18"
-  resolved "https://registry.yarnpkg.com/@types/ioredis/-/ioredis-4.0.18.tgz#6c48f43cb03992960d724ab9e549d581d12e3a76"
-  integrity sha512-iDIRGPGP4LwoeiKNxQcI38ZA5T8SC+MbGCiiNFJ+LNy9tdegj6f9PAZ7se4tiWJhUHbf25kEJt7k3YfmYjWKZg==
+"@types/ioredis@^4.16.3":
+  version "4.16.4"
+  resolved "https://registry.yarnpkg.com/@types/ioredis/-/ioredis-4.16.4.tgz#e68ca1635fa03bd51de26fed98d0eac09ccc96ba"
+  integrity sha512-kQsBNrNWlk93CJ0RawjMt2RK+jee1o6SYKmPvpYoMu9ofW9ell/tOblnObf5cx5DtoDWjlaOn+jgF+bA+U78Lw==
   dependencies:
     "@types/node" "*"
 
@@ -2502,10 +2502,10 @@ invert-kv@^2.0.0:
   resolved "https://registry.yarnpkg.com/invert-kv/-/invert-kv-2.0.0.tgz#7393f5afa59ec9ff5f67a27620d11c226e3eec02"
   integrity sha512-wPVv/y/QQ/Uiirj/vh3oP+1Ww+AWehmi1g5fFWGPF6IpCBCDVrhgHRMvrLfdYcwDh3QJbGXDW4JAuzxElLSqKA==
 
-ioredis@^4.3.0:
-  version "4.14.1"
-  resolved "https://registry.yarnpkg.com/ioredis/-/ioredis-4.14.1.tgz#b73ded95fcf220f106d33125a92ef6213aa31318"
-  integrity sha512-94W+X//GHM+1GJvDk6JPc+8qlM7Dul+9K+lg3/aHixPN7ZGkW6qlvX0DG6At9hWtH2v3B32myfZqWoANUJYGJA==
+ioredis@^4.17.3:
+  version "4.17.3"
+  resolved "https://registry.yarnpkg.com/ioredis/-/ioredis-4.17.3.tgz#9938c60e4ca685f75326337177bdc2e73ae9c9dc"
+  integrity sha512-iRvq4BOYzNFkDnSyhx7cmJNOi1x/HWYe+A4VXHBu4qpwJaGT1Mp+D2bVGJntH9K/Z/GeOM/Nprb8gB3bmitz1Q==
   dependencies:
     cluster-key-slot "^1.1.0"
     debug "^4.1.1"

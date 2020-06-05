@@ -166,8 +166,8 @@ export class Queue3<T = any> extends EventEmitter {
   /**
    * Empties a queue deleting all the input lists and associated jobs.
    */
-  empty(): Promise<void> {
-    return this.queue.drain();
+  async empty(): Promise<void> {
+    await this.queue.drain();
   }
 
   /**
