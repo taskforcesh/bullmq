@@ -34,7 +34,10 @@ export const load = async function(client: Redis) {
   const scripts = await loadScripts(__dirname);
 
   scripts.forEach((command: Command) => {
-    client.defineCommand(command.name, command.options);
+    // Only define the command if not already defined
+    if (!(client as any)[command.name]) {
+      client.defineCommand(command.name, command.options);
+    }
   });
 };
 
