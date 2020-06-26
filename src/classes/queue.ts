@@ -157,7 +157,7 @@ export class Queue<T = any> extends QueueGetters {
 
   /*@function clean
    *
-   * Cleans jobs from a queue. Similar to remove but keeps jobs within a certain
+   * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
    *
    * @param {number} grace - The grace period

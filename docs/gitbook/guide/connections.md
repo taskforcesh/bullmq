@@ -15,7 +15,7 @@ const myQueue = new Queue('myqueue', { connection: {
   port: 32856
 }});
 
-const myWorker = new Worker('myworker', { connection: {
+const myWorker = new Worker('myworker', async (job)=>{}, { connection: {
   host: myredis.taskforce.run,
   port: 32856
 }});

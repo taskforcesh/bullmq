@@ -45,7 +45,6 @@ export class RedisConnection extends EventEmitter {
       } else {
         async function handleReady() {
           client.removeListener('error', handleError);
-          await load(client);
           resolve();
         }
 
@@ -71,6 +70,7 @@ export class RedisConnection extends EventEmitter {
     }
 
     await RedisConnection.waitUntilReady(this._client);
+    await load(this._client);
 
     if (opts && opts.skipVersionCheck !== true && !this.closing) {
       const version = await this.getRedisVersion();

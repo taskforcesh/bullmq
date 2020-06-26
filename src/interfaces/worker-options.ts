@@ -10,6 +10,5 @@ export interface WorkerOptions extends QueueBaseOptions {
   drainDelay?: number;
   lockDuration?: number;
   lockRenewTime?: number;
-  visibilityWindow?: number; // seconds // FIXME not used?
-  settings?: AdvancedOptions; // FIXME not used?
+  settings?: AdvancedOptions; // FIXME only backoffStrategies is used
 }
