@@ -122,6 +122,7 @@ describe('Jobs getters', function() {
         if (counter === 0) {
           const jobs = await queue.getFailed();
           expect(jobs).to.be.a('array');
+          expect(jobs).to.have.length(2);
           await worker.close();
           resolve();
         }

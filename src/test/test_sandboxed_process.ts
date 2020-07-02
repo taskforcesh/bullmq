@@ -30,10 +30,6 @@ describe('sandboxed process', () => {
 
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const completting = new Promise((resolve, reject) => {
@@ -63,10 +59,6 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor.js';
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const completting = new Promise((resolve, reject) => {
@@ -106,10 +98,6 @@ describe('sandboxed process', () => {
     worker = new Worker(queueName, processFile, {
       concurrency: 4,
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const completing = new Promise((resolve, reject) => {
@@ -145,10 +133,6 @@ describe('sandboxed process', () => {
     worker = new Worker(queueName, processFile, {
       concurrency: 1,
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     await Promise.all([
@@ -188,10 +172,6 @@ describe('sandboxed process', () => {
 
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const progresses: any[] = [];
@@ -232,10 +212,6 @@ describe('sandboxed process', () => {
 
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const failing = new Promise((resolve, reject) => {
@@ -285,10 +261,6 @@ describe('sandboxed process', () => {
 
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const job = await queue.add('test', {});
@@ -304,10 +276,6 @@ describe('sandboxed process', () => {
 
     new Worker(queueName, processFile, {
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const job = await queue.add('test', { exitCode: 0 });
@@ -325,10 +293,6 @@ describe('sandboxed process', () => {
 
     new Worker(queueName, processFile, {
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const job = await queue.add('test', { exitCode: 1 });
@@ -346,10 +310,6 @@ describe('sandboxed process', () => {
 
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
-      settings: {
-        guardInterval: 300000,
-        stalledInterval: 300000,
-      },
     });
 
     const completting = new Promise((resolve, reject) => {

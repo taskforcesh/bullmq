@@ -30,7 +30,7 @@ export class RedisConnection extends EventEmitter {
     this.initializing = this.init();
 
     this.initializing
-      .then(client => client.on('error', this.emit.bind(this, 'error')))
+      .then(client => client.on('error', err => this.emit('error', err)))
       .catch(err => this.emit('error', err));
   }
 
@@ -45,7 +45,6 @@ export class RedisConnection extends EventEmitter {
       } else {
         async function handleReady() {
           client.removeListener('error', handleError);
-          await load(client);
           resolve();
         }
 
@@ -71,6 +70,7 @@ export class RedisConnection extends EventEmitter {
     }
 
     await RedisConnection.waitUntilReady(this._client);
+    await load(this._client);
 
     if (opts && opts.skipVersionCheck !== true && !this.closing) {
       const version = await this.getRedisVersion();

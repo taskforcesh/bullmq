@@ -65,7 +65,8 @@ end
 local nextTimestamp = rcall("ZRANGE", KEYS[1], 0, 0, "WITHSCORES")[2]
 local id
 if (nextTimestamp ~= nil) then
-    id = rcall("XADD", KEYS[7], "*", "nextTimestamp", nextTimestamp / 0x1000)
+    nextTimestamp = nextTimestamp / 0x1000
+    id = rcall("XADD", KEYS[7], "*", "nextTimestamp", nextTimestamp)
 end
 
 return {nextTimestamp, id}

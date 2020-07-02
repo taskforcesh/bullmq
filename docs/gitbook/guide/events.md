@@ -17,7 +17,7 @@ myQueue.on('waiting', (job: Job) => {
 ```typescript
 import { Worker } from 'bullmq'
 
-const myWorker = new Queue('Paint');
+const myWorker = new Worker('Paint');
 
 myWorker.on('drained', (job: Job) => {
   // Queue is drained, no more jobs left
@@ -36,6 +36,8 @@ The events above are local for the workers that actually completed the jobs, how
 
 ```typescript
 import { QueueEvents } from 'bullmq'
+
+const queueEvents = new QueueEvents('Paint')
 
 queueEvents.on('completed', (jobId: string) => {
     // Called every time a job is completed in any worker.
