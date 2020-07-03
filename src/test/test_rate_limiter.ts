@@ -137,7 +137,7 @@ describe('Rate Limiter', function() {
         try {
           const timeDiff = Date.now() - startTime;
           expect(timeDiff).to.be.above(numGroups * 1000);
-          expect(timeDiff).to.be.below((numGroups + 1) * 1000);
+          expect(timeDiff).to.be.below((numGroups + 1) * 1100);
 
           for (const group in completed) {
             let prevTime = completed[group][0];
