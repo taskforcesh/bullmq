@@ -1,6 +1,7 @@
 import { QueueEventsOptions } from '../interfaces';
 import { array2obj, delay } from '../utils';
 import { QueueBase } from './queue-base';
+import { StreamReadRaw } from '../interfaces/redis-streams';
 
 export class QueueEvents extends QueueBase {
   constructor(name: string, opts?: QueueEventsOptions) {
@@ -26,13 +27,14 @@ export class QueueEvents extends QueueBase {
 
     while (!this.closing) {
       try {
-        const data = await client.xread(
+        // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
+        const data: StreamReadRaw = (await client.xread(
           'BLOCK',
           opts.blockingTimeout,
           'STREAMS',
           key,
           id,
-        );
+        )) as any;
 
         if (data) {
           const stream = data[0];

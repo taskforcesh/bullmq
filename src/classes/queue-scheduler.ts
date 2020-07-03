@@ -2,6 +2,7 @@ import { QueueSchedulerOptions } from '../interfaces';
 import { array2obj, isRedisInstance } from '../utils';
 import { QueueBase } from './';
 import { Scripts } from './scripts';
+import { StreamReadRaw } from '../interfaces/redis-streams';
 import IORedis = require('ioredis');
 
 const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
@@ -120,7 +121,7 @@ export class QueueScheduler extends QueueBase {
     key: string,
     streamLastId: string,
     blockTime: number,
-  ) {
+  ): Promise<StreamReadRaw> {
     if (!this.closing) {
       let data;
       if (blockTime) {
@@ -144,7 +145,9 @@ export class QueueScheduler extends QueueBase {
       } else {
         data = await client.xread('STREAMS', key, streamLastId);
       }
-      return data;
+
+      // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
+      return data as any;
     }
   }
 
