@@ -83,7 +83,7 @@ describe('Rate Limiter', function() {
 
           try {
             const timeDiff = new Date().getTime() - startTime;
-            expect(timeDiff).to.be.above((numJobs - 1) * 1000);
+            expect(timeDiff).to.be.gte((numJobs - 1) * 1000);
             resolve();
           } catch (err) {
             reject(err);
@@ -136,7 +136,7 @@ describe('Rate Limiter', function() {
       const afterJobs = after(numJobs, () => {
         try {
           const timeDiff = Date.now() - startTime;
-          expect(timeDiff).to.be.above(numGroups * 1000);
+          expect(timeDiff).to.be.gte(numGroups * 1000);
           expect(timeDiff).to.be.below((numGroups + 1) * 1100);
 
           for (const group in completed) {
@@ -144,7 +144,7 @@ describe('Rate Limiter', function() {
             for (let i = 1; i < completed[group].length; i++) {
               const diff = completed[group][i] - prevTime;
               expect(diff).to.be.below(2000);
-              expect(diff).to.be.above(1000);
+              expect(diff).to.be.gte(1000);
               prevTime = completed[group][i];
             }
           }
