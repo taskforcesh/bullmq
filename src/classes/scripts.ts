@@ -385,7 +385,9 @@ export class Scripts {
 
     if (opts.limiter) {
       args.push(opts.limiter.max, opts.limiter.duration);
+      opts.limiter.groupKey && args.push(true);
     }
+
     const result = await (<any>client).moveToActive(
       (<(string | number | boolean)[]>keys).concat(args),
     );

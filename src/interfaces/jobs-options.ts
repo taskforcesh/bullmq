@@ -21,6 +21,9 @@ export interface JobsOptions {
   // Repeat job according to a cron specification.
   repeat?: RepeatOptions;
 
+  // Rate limiter key to use if rate limiter enabled.
+  rateLimiterKey?: string;
+
   // Backoff setting for automatic retries if the job fails
   backoff?: number | BackoffOptions;
 

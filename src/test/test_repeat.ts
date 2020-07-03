@@ -730,7 +730,7 @@ describe('repeat', function() {
     const worker = new Worker(queueName, async job => {});
 
     const waiting = new Promise((resolve, reject) => {
-      queueEvents.on('waiting', function({ event, jobId, prev }) {
+      queueEvents.on('waiting', function({ jobId }) {
         try {
           expect(jobId).to.be.equal(
             'repeat:test:16db7a9b166154f5c636abf3c8fe3364:' +
