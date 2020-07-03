@@ -178,7 +178,7 @@ describe('Rate Limiter', function() {
     await queueScheduler.close();
   });
 
-  it.only('should obey priority', async function() {
+  it.skip('should obey priority', async function() {
     this.timeout(20000);
 
     const numJobs = 10;
