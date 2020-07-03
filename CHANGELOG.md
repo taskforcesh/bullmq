@@ -1,3 +1,11 @@
+## [1.8.14](https://github.com/taskforcesh/bullmq/compare/v1.8.13...v1.8.14) (2020-07-03)
+
+
+### Bug Fixes
+
+* **typescript:** fix typings, upgrade ioredis dependencies ([#220](https://github.com/taskforcesh/bullmq/issues/220)) ([7059f20](https://github.com/taskforcesh/bullmq/commit/7059f2089553a206ab3937f7fd0d0b9de96aa7b7))
+* **worker:** return this.closing when calling close ([b68c845](https://github.com/taskforcesh/bullmq/commit/b68c845c77de6b2973ec31d2f22958ab60ad87aa))
+
 ## [1.8.13](https://github.com/taskforcesh/bullmq/compare/v1.8.12...v1.8.13) (2020-06-05)
 
 
