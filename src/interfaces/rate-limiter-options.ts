@@ -4,4 +4,7 @@ export interface RateLimiterOptions {
 
   // per duration in milliseconds
   duration: number;
+
+  // grouping path key in job data
+  groupKey?: string;
 }

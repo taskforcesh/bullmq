@@ -2,6 +2,18 @@ import { QueueEventsOptions } from '../interfaces';
 import { array2obj, delay } from '../utils';
 import { QueueBase } from './queue-base';
 
+export declare interface QueueEvents {
+  on(
+    event: 'completed',
+    listener: (args: { jobId: string; returnvalue: any }, id: string) => void,
+  ): this;
+  on(
+    event: 'failed',
+    listener: (args: { jobId: string; failedReason: any }, id: string) => void,
+  ): this;
+  on(event: string, listener: Function): this;
+}
+
 export class QueueEvents extends QueueBase {
   constructor(name: string, opts?: QueueEventsOptions) {
     super(name, opts);

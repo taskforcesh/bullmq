@@ -17,6 +17,10 @@ export interface QueueBaseOptions {
 export interface QueueOptions extends QueueBaseOptions {
   defaultJobOptions?: JobsOptions;
 
+  limiter?: {
+    groupKey: string;
+  };
+
   streams?: {
     events: {
       maxLen: number; // Max aproximated length for streams

@@ -29,6 +29,7 @@
 
       ARGV[6] optional jobs per time unit (rate limiter)
       ARGV[7] optional time unit (rate limiter)
+      ARGV[8] optional rate limit by key
 ]]
 
 local jobId
@@ -50,6 +51,14 @@ if jobId then
 
   if(maxJobs) then
     local rateLimiterKey = KEYS[6];
+
+    if(ARGV[8]) then
+      local groupKey = string.match(jobId, "[^:]+$")
+      if groupKey ~= nil then
+        rateLimiterKey = rateLimiterKey .. ":" .. groupKey
+      end
+    end
+
     local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
     -- check if rate limit hit
     if jobCounter > maxJobs then
