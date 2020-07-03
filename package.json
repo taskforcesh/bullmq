@@ -23,10 +23,10 @@
     "prepublish": "yarn build"
   },
   "dependencies": {
-    "@types/ioredis": "^4.0.13",
+    "@types/ioredis": "^4.16.3",
     "cron-parser": "^2.7.3",
     "get-port": "^5.0.0",
-    "ioredis": "^4.3.0",
+    "ioredis": "^4.17.3",
     "lodash": "^4.17.11",
     "semver": "^6.3.0",
     "tslib": "^1.10.0",
