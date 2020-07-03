@@ -36,8 +36,8 @@ describe('Rate Limiter', function() {
     });
     await worker.waitUntilReady();
 
-    queueEvents.on('failed', err => {
-      assert.fail(err);
+    queueEvents.on('failed', ({ failedReason }) => {
+      assert.fail(failedReason);
     });
 
     await Promise.all([
