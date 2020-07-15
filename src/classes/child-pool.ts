@@ -4,8 +4,11 @@ import { forEach, values, flatten } from 'lodash';
 import * as getPort from 'get-port';
 import * as fs from 'fs';
 import { promisify } from 'util';
+import { killAsync } from './process-utils';
 
 const stat = promisify(fs.stat);
+
+const CHILD_KILL_TIMEOUT = 30_000;
 
 export interface ChildProcessExt extends ChildProcess {
   processFile?: string;
@@ -28,11 +31,21 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   return standard.concat(convertedArgs);
 };
 
-const initChild = function(child: ChildProcess, processFile: string) {
-  return new Promise(resolve => {
-    child.send({ cmd: 'init', value: processFile }, resolve);
+async function initChild(child: ChildProcess, processFile: string) {
+  const onComplete = new Promise(resolve => {
+    const onMessageHandler = (msg: any) => {
+      if (msg.cmd === 'init-complete') {
+        resolve();
+        child.off('message', onMessageHandler);
+      }
+    };
+    child.on('message', onMessageHandler);
   });
-};
+  await new Promise(resolve =>
+    child.send({ cmd: 'init', value: processFile }, resolve),
+  );
+  await onComplete;
+}
 
 export class ChildPool {
   retained: { [key: number]: ChildProcessExt } = {};
@@ -89,21 +102,17 @@ export class ChildPool {
     }
   }
 
-  kill(child: ChildProcess, signal?: NodeJS.Signals) {
-    child.kill(signal || 'SIGKILL');
+  async kill(child: ChildProcess, signal: 'SIGTERM' | 'SIGKILL' = 'SIGKILL') {
     this.remove(child);
+    await killAsync(child, signal, CHILD_KILL_TIMEOUT);
   }
 
-  clean() {
+  async clean() {
     const children = values(this.retained).concat(this.getAllFree());
-
-    children.forEach(child => {
-      // TODO: We may want to use SIGKILL if the process does not die after some time.
-      this.kill(child, 'SIGTERM');
-    });
-
     this.retained = {};
     this.free = {};
+
+    await Promise.all(children.map(c => this.kill(c, 'SIGTERM')));
   }
 
   getFree(id: string): ChildProcessExt[] {

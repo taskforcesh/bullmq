@@ -10,6 +10,15 @@ import { SandboxedJob } from '../interfaces/sandboxed-job';
 
 let status: any;
 let processor: any;
+let currentJobPromise: Promise<unknown> | undefined;
+
+// same as process.send but waits until the send is complete
+// the async version is used below because otherwise
+// the termination handler may exit before the parent
+// process has received the messages it requires
+const processSendAsync = promisify(process.send.bind(process)) as (
+  msg: any,
+) => Promise<void>;
 
 // https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
 if (!('toJSON' in Error.prototype)) {
@@ -29,7 +38,19 @@ if (!('toJSON' in Error.prototype)) {
   });
 }
 
-process.on('message', async msg => {
+async function waitForCurrentJobAndExit() {
+  status = 'TERMINATING';
+  try {
+    await currentJobPromise;
+  } finally {
+    process.exit(process.exitCode || 0);
+  }
+}
+
+process.on('SIGTERM', waitForCurrentJobAndExit);
+process.on('SIGINT', waitForCurrentJobAndExit);
+
+process.on('message', msg => {
   switch (msg.cmd) {
     case 'init':
       processor = require(msg.value);
@@ -50,6 +71,9 @@ process.on('message', async msg => {
         };
       }
       status = 'IDLE';
+      process.send({
+        cmd: 'init-complete',
+      });
       break;
 
     case 'start':
@@ -60,23 +84,26 @@ process.on('message', async msg => {
         });
       }
       status = 'STARTED';
-      try {
-        const result = await Promise.resolve(processor(wrapJob(msg.job)) || {});
-        process.send({
-          cmd: 'completed',
-          value: result,
-        });
-      } catch (err) {
-        if (!err.message) {
-          err = new Error(err);
+      currentJobPromise = (async () => {
+        try {
+          const result = (await processor(wrapJob(msg.job))) || {};
+          await processSendAsync({
+            cmd: 'completed',
+            value: result,
+          });
+        } catch (err) {
+          if (!err.message) {
+            err = new Error(err);
+          }
+          await processSendAsync({
+            cmd: 'failed',
+            value: err,
+          });
+        } finally {
+          status = 'IDLE';
+          currentJobPromise = undefined;
         }
-        process.send({
-          cmd: 'failed',
-          value: err,
-        });
-      } finally {
-        status = 'IDLE';
-      }
+      })();
       break;
     case 'stop':
       break;

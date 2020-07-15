@@ -333,4 +333,44 @@ describe('sandboxed process', () => {
 
     await worker.close();
   });
+
+  it('should allow the job to complete and then exit on worker close', async function() {
+    this.timeout(1500000);
+    const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
+    const worker = new Worker(queueName, processFile);
+
+    // aquire and release a child here so we know it has it's full termination handler setup
+    const initalizedChild = await worker['childPool'].retain(processFile);
+    await worker['childPool'].release(initalizedChild);
+
+    // await this After we've added the job
+    const onJobActive = new Promise<void>(resolve => {
+      worker.on('active', resolve);
+    });
+
+    const jobAdd = queue.add('foo', {});
+    await onJobActive;
+
+    expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(1);
+    expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+    const child = Object.values(worker['childPool'].retained)[0];
+
+    expect(child).to.equal(initalizedChild);
+    expect(child.exitCode).to.equal(null);
+    expect(child.killed).to.equal(false);
+
+    // at this point the job should be active and running on the child
+    // trigger a close while we know it's doing work
+    await worker.close();
+
+    // ensure the child did get cleaned up
+    expect(!!child.killed).to.eql(true);
+    expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+    expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+
+    const job = await jobAdd;
+    // check that the job did finish successfully
+    const jobResult = await job.waitUntilFinished(queueEvents);
+    expect(jobResult).to.equal(42);
+  });
 });

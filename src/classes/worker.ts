@@ -364,30 +364,37 @@ export class Worker<T = any> extends QueueBase {
     this.waiting && reconnect && (await this.blockingConnection.reconnect());
   }
 
-  async close(force = false) {
-    if (!this.closing) {
-      this.emit('closing', 'closing queue');
-      this.closing = new Promise(async (resolve, reject) => {
-        try {
-          const client = await this.blockingConnection.client;
-
-          await this.resume();
-
-          if (!force) {
-            await this.whenCurrentJobsFinished(false);
-          } else {
-            await client.disconnect();
-          }
-        } catch (err) {
-          reject(err);
-        } finally {
-          this.timerManager.clearAllTimers();
-          this.childPool && this.childPool.clean();
-        }
-        this.emit('closed');
-        resolve();
-      });
+  close(force = false) {
+    if (this.closing) {
+      return this.closing;
     }
+    this.closing = (async () => {
+      this.emit('closing', 'closing queue');
+
+      const client = await this.blockingConnection.client;
+
+      this.resume();
+      await Promise.resolve()
+        .finally(() => {
+          return force || this.whenCurrentJobsFinished(false);
+        })
+        .finally(() => {
+          const closePoolPromise = this.childPool?.clean();
+
+          if (force) {
+            // since we're not waiting for the job to end attach
+            // an error handler to avoid crashing the whole process
+            closePoolPromise?.catch(err => {
+              console.error(err);
+            });
+            return;
+          }
+          return closePoolPromise;
+        })
+        .finally(() => client.disconnect())
+        .finally(() => this.timerManager.clearAllTimers())
+        .finally(() => this.emit('closed'));
+    })();
     return this.closing;
   }
 }
