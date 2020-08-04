@@ -1,5 +1,5 @@
 {
-  "name": "bullmq",
+  "name": "@flipp/bullmq",
   "version": "1.9.0",
   "description": "Queue for messages and jobs based on Redis",
   "main": "dist/index.js",
@@ -14,7 +14,7 @@
     "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
     "test": "yarn lint && tsc && ts-mocha --paths 'src/**/test_*.ts' --exit",
     "test:watch": "yarn lint  && ts-mocha --paths 'src/**/test_*.ts' -w --watch-extensions ts",
-    "coverage": "nyc --reporter=text npm run test",
+    "coverage": "nyc --reporter=lcov npm run test",
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
     "precommit": "yarn lint",
     "semantic-release": "semantic-release",
