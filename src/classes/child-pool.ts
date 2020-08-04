@@ -15,7 +15,8 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   const standard: string[] = [];
   const convertedArgs: string[] = [];
 
-  forEach(execArgv, async arg => {
+  for (let i = 0; i < execArgv.length; i++) {
+    const arg = execArgv[i];
     if (arg.indexOf('--inspect') === -1) {
       standard.push(arg);
     } else {
@@ -23,7 +24,7 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
       const port = await getPort();
       convertedArgs.push(`${argName}=${port}`);
     }
-  });
+  }
 
   return standard.concat(convertedArgs);
 };
