@@ -1,6 +1,46 @@
 import { QueueEventsOptions } from '../interfaces';
 import { array2obj, delay } from '../utils';
 import { QueueBase } from './queue-base';
+import { StreamReadRaw } from '../interfaces/redis-streams';
+
+export declare interface QueueEvents {
+  on(
+    event: 'waiting',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+  on(
+    event: 'delayed',
+    listener: (args: { jobId: string; delay: number }, id: string) => void,
+  ): this;
+  on(
+    event: 'progress',
+    listener: (args: { jobId: string; data: string }, id: string) => void,
+  ): this;
+  on(
+    event: 'stalled',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+  on(
+    event: 'completed',
+    listener: (
+      args: { jobId: string; returnvalue: string; prev?: string },
+      id: string,
+    ) => void,
+  ): this;
+  on(
+    event: 'failed',
+    listener: (
+      args: { jobId: string; failedReason: string; prev?: string },
+      id: string,
+    ) => void,
+  ): this;
+  on(
+    event: 'removed',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+  on(event: 'drained', listener: (id: string) => void): this;
+  on(event: string, listener: Function): this;
+}
 
 export class QueueEvents extends QueueBase {
   constructor(name: string, opts?: QueueEventsOptions) {
@@ -26,13 +66,14 @@ export class QueueEvents extends QueueBase {
 
     while (!this.closing) {
       try {
-        const data = await client.xread(
+        // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
+        const data: StreamReadRaw = (await client.xread(
           'BLOCK',
           opts.blockingTimeout,
           'STREAMS',
           key,
           id,
-        );
+        )) as any;
 
         if (data) {
           const stream = data[0];

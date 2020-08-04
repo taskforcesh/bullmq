@@ -1,25 +1,22 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
-import {
-  JobsOptions,
-  QueueOptions,
-  RateLimiterOptions,
-  RepeatOptions,
-} from '../interfaces';
+import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
 import { Job, QueueGetters, Repeat } from './';
 import { Scripts } from './scripts';
 
 export class Queue<T = any> extends QueueGetters {
   token = v4();
-  limiter: RateLimiterOptions = null;
   jobsOpts: JobsOptions;
-
+  limiter: {
+    groupKey: string;
+  } = null;
   private _repeat: Repeat;
 
   constructor(name: string, opts?: QueueOptions) {
     super(name, opts);
 
     this.jobsOpts = get(opts, 'defaultJobOptions');
+    this.limiter = get(opts, 'limiter');
 
     // tslint:disable: no-floating-promises
     this.waitUntilReady().then(client => {
@@ -56,13 +53,25 @@ export class Queue<T = any> extends QueueGetters {
         true,
       );
     } else {
+      const jobId = this.jobIdForGroup(opts, data);
+
       const job = await Job.create(this, name, data, {
         ...this.jobsOpts,
         ...opts,
+        jobId,
       });
       this.emit('waiting', job);
       return job;
     }
+  }
+
+  private jobIdForGroup(opts: JobsOptions, data: T) {
+    const jobId = opts && opts.jobId;
+    const groupKey = get(this, 'limiter.groupKey');
+    if (groupKey) {
+      return `${jobId || v4()}:${get(data, groupKey)}`;
+    }
+    return jobId;
   }
 
   /**
@@ -77,7 +86,11 @@ export class Queue<T = any> extends QueueGetters {
       jobs.map(job => ({
         name: job.name,
         data: job.data,
-        opts: { ...this.jobsOpts, ...job.opts },
+        opts: {
+          ...this.jobsOpts,
+          ...job.opts,
+          jobId: this.jobIdForGroup(job.opts, job.data),
+        },
       })),
     );
   }

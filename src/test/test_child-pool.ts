@@ -8,9 +8,7 @@ describe('Child pool', () => {
     pool = new ChildPool();
   });
 
-  afterEach(() => {
-    pool.clean();
-  });
+  afterEach(() => pool.clean());
 
   it('should return same child if free', async () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
@@ -48,7 +46,7 @@ describe('Child pool', () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
     const child = await pool.retain(processor);
     expect(child).to.be.ok;
-    pool.kill(child);
+    await pool.kill(child);
     expect(pool.retained).to.be.empty;
     const newChild = await pool.retain(processor);
     expect(child).to.not.be.eql(newChild);
