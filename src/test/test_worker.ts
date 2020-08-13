@@ -930,6 +930,19 @@ describe('workers', function() {
     await queueScheduler.close();
   });
 
+  it('should not work on jobs if disableAutoRun is set to true', async () => {
+    const worker = new Worker(queueName, async job => undefined, {
+      settings: { disableAutoRun: true },
+    });
+
+    const job = await queue.add('test', { foo: 'bar' });
+    await worker.waitUntilReady();
+
+    const waitCount = await queue.getWaitingCount();
+    expect(waitCount).to.equal(1);
+    await worker.close();
+  });
+
   describe('Concurrency process', () => {
     it('should run job in sequence if I specify a concurrency of 1', async () => {
       let processing = false;

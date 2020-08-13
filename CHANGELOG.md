@@ -1,3 +1,11 @@
+# [1.9.1](https://github.com/wishabi/bullmq/compare/master...wishabi:bullmq_for_bullwhip) (2020-08-12)
+
+
+### Features
+
+* add disableAutoRun on the worker
+
+
 # [1.9.0](https://github.com/taskforcesh/bullmq/compare/v1.8.14...v1.9.0) (2020-07-19)
 
 
