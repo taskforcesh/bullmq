@@ -3,7 +3,7 @@
 
 ### Features
 
-* add disableAutoRun on the worker
+* add disableAutoRun on the worker ([df24af5](https://github.com/wishabi/bullmq/commit/df24af55e8b3d85f778ccc7be11b5bc45789ebae))
 
 
 # [1.9.0](https://github.com/taskforcesh/bullmq/compare/v1.8.14...v1.9.0) (2020-07-19)
