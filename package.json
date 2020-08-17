@@ -8,19 +8,19 @@
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
   "scripts": {
-    "docs": "typedoc --out docs src",
     "build": "tsc && yarn copylua",
     "copylua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
-    "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
-    "test": "yarn lint && tsc && ts-mocha --paths 'src/**/test_*.ts' --exit",
-    "test:watch": "yarn lint  && ts-mocha --paths 'src/**/test_*.ts' -w --watch-extensions ts",
     "coverage": "nyc --reporter=text npm run test",
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
+    "docs": "typedoc --out docs src",
+    "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
     "precommit": "yarn lint",
-    "semantic-release": "semantic-release",
+    "prepare": "yarn build",
     "prettier": "prettier --config package.json src/**/*.ts",
+    "semantic-release": "semantic-release",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
-    "prepublish": "yarn build"
+    "test": "yarn lint && tsc && ts-mocha --paths 'src/**/test_*.ts' --exit",
+    "test:watch": "yarn lint  && ts-mocha --paths 'src/**/test_*.ts' -w --watch-extensions ts"
   },
   "dependencies": {
     "@types/ioredis": "^4.16.3",
