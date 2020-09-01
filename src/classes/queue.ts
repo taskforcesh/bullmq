@@ -1,15 +1,18 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
-import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
+import {
+  JobsOptions,
+  QueueOptions,
+  RateLimiterOptions,
+  RepeatOptions,
+} from '../interfaces';
 import { Job, QueueGetters, Repeat } from './';
 import { Scripts } from './scripts';
 
 export class Queue<T = any> extends QueueGetters {
   token = v4();
   jobsOpts: JobsOptions;
-  limiter: {
-    groupKey: string;
-  } = null;
+  limiter: RateLimiterOptions;
   private _repeat: Repeat;
 
   constructor(name: string, opts?: QueueOptions) {

@@ -48,6 +48,7 @@ end
 if jobId then
   -- Check if we need to perform rate limiting.
   local maxJobs = tonumber(ARGV[6])
+  local duration = tonumber(ARGV[7])
 
   if(maxJobs) then
     local rateLimiterKey = KEYS[6];
@@ -56,6 +57,15 @@ if jobId then
       local groupKey = string.match(jobId, "[^:]+$")
       if groupKey ~= nil then
         rateLimiterKey = rateLimiterKey .. ":" .. groupKey
+
+        -- Retrieve and use group-specific rate limits if they exist
+        local groupRateLimitKey = ARGV[1] .. "group-limiter-config" .. ":" .. groupKey .. ":"
+        local groupMaxJobs = tonumber(rcall("GET", groupRateLimitKey .. "max"))
+        local groupDuration = tonumber(rcall("GET", groupRateLimitKey .. "duration"))
+        if groupMaxJobs ~= nil and groupDuration ~= nil then
+          maxJobs = groupMaxJobs
+          duration = groupDuration
+        end
       end
     end
 
@@ -63,7 +73,7 @@ if jobId then
     -- check if rate limit hit
     if jobCounter > maxJobs then
       local exceedingJobs = jobCounter - maxJobs
-      local delay = tonumber(rcall("PTTL", rateLimiterKey)) + ((exceedingJobs - 1) * ARGV[7]) / maxJobs;
+      local delay = tonumber(rcall("PTTL", rateLimiterKey)) + ((exceedingJobs - 1) * duration) / maxJobs;
       local timestamp = delay + tonumber(ARGV[4])
       
       -- put job into delayed queue
@@ -75,7 +85,7 @@ if jobId then
       return
     else
       if jobCounter == 1 then
-        rcall("PEXPIRE", rateLimiterKey, ARGV[7])
+        rcall("PEXPIRE", rateLimiterKey, duration)
       end
     end
   end

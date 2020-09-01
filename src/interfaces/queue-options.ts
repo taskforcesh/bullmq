@@ -1,4 +1,4 @@
-import { JobsOptions } from '../interfaces';
+import { JobsOptions, RateLimiterOptions } from '../interfaces';
 
 import { Redis } from 'ioredis';
 import { ConnectionOptions } from './redis-options';
@@ -17,9 +17,7 @@ export interface QueueBaseOptions {
 export interface QueueOptions extends QueueBaseOptions {
   defaultJobOptions?: JobsOptions;
 
-  limiter?: {
-    groupKey: string;
-  };
+  limiter?: RateLimiterOptions;
 
   streams?: {
     events: {

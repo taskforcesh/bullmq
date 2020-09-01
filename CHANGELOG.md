@@ -1,7 +1,12 @@
+# 1.9.2-beta (2020-08-27)
+
+### Flipp-added Features
+* add groupRate config: Allows for seperate grouping of jobs in a single queue to have seperate rate limits (see [changes](https://github.com/wishabi/bullmq/pull/5))
+
 # [1.9.1](https://github.com/wishabi/bullmq/compare/master...wishabi:bullmq_for_bullwhip) (2020-08-12)
 
 
-### Features
+### Flipp-added Features
 
 * add disableAutoRun on the worker ([df24af5](https://github.com/wishabi/bullmq/commit/df24af55e8b3d85f778ccc7be11b5bc45789ebae))
 

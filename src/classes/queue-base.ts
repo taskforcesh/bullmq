@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions } from '../interfaces';
+import { QueueOptions } from '../interfaces';
 import { RedisConnection } from './redis-connection';
 
 export class QueueBase extends EventEmitter {
@@ -8,10 +8,7 @@ export class QueueBase extends EventEmitter {
 
   protected connection: RedisConnection;
 
-  constructor(
-    public readonly name: string,
-    public opts: QueueBaseOptions = {},
-  ) {
+  constructor(public readonly name: string, public opts: QueueOptions = {}) {
     super();
 
     this.opts = {

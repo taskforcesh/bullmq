@@ -1,3 +1,15 @@
+# Flipp Modifications (see [diff](https://github.com/taskforcesh/bullmq/compare/master...wishabi:master))
+
+* Circle CI config + Flipp Artifactory integration
+* Added `disableAutoRun` setting to Worker
+  * This prevents the Worker object from automatically pulling jobs off the queue as soon as the object is instantiated
+  * Allows us to only pull jobs when necessary (e.g. in flipp-bullwhip, when the /pull_job route is hit)
+* Added `groupRates` rate limiting feature
+  * Allows for seperate grouping of jobs in a single queue to have seperate rate limits
+  * See [here](./docs/gitbook/guide/rate-limiting.md) for more usage info
+
+# Original Repo's README below
+
 <div align="center">
   <br/>
   <img src="https://user-images.githubusercontent.com/95200/64285204-99c04900-cf5b-11e9-925c-4743006ce420.png" width="300" />

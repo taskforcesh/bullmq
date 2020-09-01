@@ -53,6 +53,23 @@ export class Scripts {
       opts.lifo ? 'RPUSH' : 'LPUSH',
     ];
 
+    // If groupKey-specific limiter is defined, pass in the rate limiter options
+    // so the script can store them in Redis. Then moveToActive can look for these
+    // rate values if they exist
+    if (
+      queue.opts &&
+      queue.opts.limiter &&
+      queue.opts.limiter.groupKey &&
+      queue.opts.limiter.groupRates
+    ) {
+      const jobData = JSON.parse(job.data);
+      const groupKey = queue.opts.limiter.groupKey;
+      const groupIdentifier = jobData[groupKey];
+      const rates = queue.opts.limiter.groupRates[groupIdentifier];
+
+      if (rates) args.push(rates.max, rates.duration);
+    }
+
     keys = keys.concat(<string[]>args);
     return (<any>client).addJob(keys);
   }
