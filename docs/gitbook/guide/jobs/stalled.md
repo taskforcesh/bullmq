@@ -21,7 +21,6 @@ Another way to reduce the chance for stalled jobs is using so called "sandboxed"
 import { Worker } from 'bullmq';
 
 const worker = new Worker('Paint', painter);
-
 ```
 {% endcode %}
 
@@ -32,3 +31,4 @@ export default = (job) => {
 }
 ```
 {% endcode %}
+

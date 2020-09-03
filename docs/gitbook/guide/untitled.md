@@ -7,9 +7,7 @@ Queues are controlled with the Queue class. As all classes in BullMQ this is a l
 The most important method is probably the _**add**_ method. This method allows you to add jobs to the queue in different fashions:
 
 ```typescript
-
 await queue.add('paint', { colour: 'red' });
-
 ```
 
 The code above will add a job named _paint_ to the queue, with payload `{ color: 'red' }`. This job will now be stored in Redis in a list waiting for some worker to pick it up and process it. Workers may not be running when you add the job, however as soon as one worker is connected to the queue it will pick the job and process it.
@@ -21,3 +19,4 @@ await queue.add('paint', { colour: 'blue' }, { delay: 5000 });
 ```
 
 The job will now wait **at** **least** 5 seconds before it is processed. There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remaining of this guide for more information regarding these options.
+

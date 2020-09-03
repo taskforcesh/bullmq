@@ -29,3 +29,4 @@ If you are new to Message Queues, you may wonder why they are needed after all. 
 * [x] **Concurrency setting per worker**
 * [x] **Threaded \(sandboxed\) processing functions**
 * [x] **Automatic recovery from process crashes**
+
