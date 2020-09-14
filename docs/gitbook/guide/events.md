@@ -5,7 +5,7 @@ All classes in BullMQ emit useful events that inform on the lifecycles of the jo
 Some examples:
 
 ```typescript
-import { Queue } from 'bullmq'
+import { Queue } from 'bullmq'
 
 const myQueue = new Queue('Paint');
 
@@ -15,7 +15,7 @@ myQueue.on('waiting', (job: Job) => {
 ```
 
 ```typescript
-import { Worker } from 'bullmq'
+import { Worker } from 'bullmq'
 
 const myWorker = new Worker('Paint');
 
@@ -35,7 +35,7 @@ myWorker.on('failed', (job: Job) => {
 The events above are local for the workers that actually completed the jobs, however, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the QueueEvents class:
 
 ```typescript
-import { QueueEvents } from 'bullmq'
+import { QueueEvents } from 'bullmq'
 
 const queueEvents = new QueueEvents('Paint')
 

@@ -106,3 +106,4 @@ queueEvents.on('progress', ({ jobId, data }, timestamp) => {
 {% hint style="danger" %}
 For performance reasons the events emited by a `QueueEvents` instance do not contain the `Job` instance, only the `jobId`. Use the `Job#fromId` method if you need the `Job` instance.
 {% endhint %}
+
