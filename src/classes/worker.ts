@@ -77,12 +77,10 @@ export class Worker<T = any> extends QueueBase {
     }
     this.timerManager = new TimerManager();
 
-    if (!this.opts.settings || !this.opts.settings.disableAutoRun) {
-      /* tslint:disable: no-floating-promises */
-      this.run().catch(error => {
-        console.error(error);
-      });
-    }
+    /* tslint:disable: no-floating-promises */
+    this.run().catch(error => {
+      console.error(error);
+    });
   }
 
   get repeat() {
