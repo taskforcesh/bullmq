@@ -460,9 +460,7 @@ export class Job<T = any, R = any> {
   private addJob(client: Redis): string {
     const queue = this.queue;
 
-    const jobData = this.asJSON();
-
-    return Scripts.addJob(client, queue, jobData, this.opts, this.id);
+    return Scripts.addJob(client, queue, this);
   }
 
   private saveAttempt(multi: Pipeline, err: Error) {

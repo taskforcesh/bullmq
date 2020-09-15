@@ -21,13 +21,8 @@ export class Scripts {
     return result === 1;
   }
 
-  static addJob(
-    client: Redis,
-    queue: QueueBase,
-    job: JobJson,
-    opts: JobsOptions,
-    jobId: string,
-  ) {
+  static addJob(client: Redis, queue: QueueBase, jobObj: Job) {
+    const job = jobObj.asJSON();
     const queueKeys = queue.keys;
     let keys = [
       queueKeys.wait,
@@ -42,24 +37,23 @@ export class Scripts {
 
     const args = [
       queueKeys[''],
-      typeof jobId !== 'undefined' ? jobId : '',
+      typeof job.id !== 'undefined' ? job.id : '',
       job.name,
       job.data,
       job.opts,
       job.timestamp,
-      opts.delay,
-      opts.delay ? job.timestamp + opts.delay : 0,
-      opts.priority || 0,
-      opts.lifo ? 'RPUSH' : 'LPUSH',
+      jobObj.opts.delay,
+      jobObj.opts.delay ? jobObj.timestamp + jobObj.opts.delay : 0,
+      jobObj.opts.priority || 0,
+      jobObj.opts.lifo ? 'RPUSH' : 'LPUSH',
     ];
 
     // If groupKey-specific limiter is defined, pass in the rate limiter options
     // so the script can store them in Redis. Then moveToActive can look for these
     // rate values if they exist
     if (queue.opts?.limiter?.groupKey && queue.opts?.limiter?.groupRates) {
-      const jobData = JSON.parse(job.data);
       const groupKey = queue.opts.limiter.groupKey;
-      const groupIdentifier = jobData[groupKey];
+      const groupIdentifier = jobObj.data[groupKey];
       const rates = queue.opts.limiter.groupRates[groupIdentifier];
 
       if (rates) args.push(rates.max, rates.duration);
