@@ -48,10 +48,10 @@ end
 if jobId then
   -- Check if we need to perform rate limiting.
   local maxJobs = tonumber(ARGV[6])
-  local duration = tonumber(ARGV[7])
 
   if(maxJobs) then
     local rateLimiterKey = KEYS[6];
+    local duration = tonumber(ARGV[7])
 
     if(ARGV[8]) then
       local groupKey = string.match(jobId, "[^:]+$")

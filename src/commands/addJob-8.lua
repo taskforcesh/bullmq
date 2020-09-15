@@ -59,14 +59,16 @@ rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
       "timestamp", ARGV[6], "delay", ARGV[7], "priority", ARGV[9])
 
 -- Store the group rate limits if they exist
-local groupKey = string.match(jobId, "[^:]+$")
 local groupMaxJobs = ARGV[11]
 local groupDuration = ARGV[12]
-
-if (groupKey ~= nil and groupMaxJobs and groupDuration) then
-    local limiterKey = ARGV[1] .. "group-limiter-config" .. ":" .. groupKey .. ":"
-    rcall("SET", limiterKey .. "max", groupMaxJobs)
-    rcall("SET", limiterKey .. "duration", groupDuration)
+if (groupMaxJobs and groupDuration) then
+    -- String match is expensive, so only perform if we're using group rate limits
+    local groupKey = string.match(jobId, "[^:]+$")
+    if (groupKey ~= nil) then
+        local limiterKey = ARGV[1] .. "group-limiter-config" .. ":" .. groupKey .. ":"
+        rcall("SET", limiterKey .. "max", groupMaxJobs)
+        rcall("SET", limiterKey .. "duration", groupDuration)
+    end
 end
 
 -- Check if job is delayed
