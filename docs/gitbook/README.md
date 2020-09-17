@@ -28,7 +28,7 @@ async function addJobs(){
     await myQueue.add('myJobName', { qux: 'baz' });    
 }
 
-addJobs();
+await addJobs();
 ```
 
 {% hint style="danger" %}
