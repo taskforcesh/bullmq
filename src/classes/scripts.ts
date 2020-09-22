@@ -307,7 +307,7 @@ export class Scripts {
     return [queue.toKey(idPattern), cursor, count];
   }
 
-  static async getJobByIdPattern<T>(
+  static async getJobByIdPattern(
     queue: QueueBase,
     idPattern: string,
     cursor: number,
@@ -318,7 +318,7 @@ export class Scripts {
     const args = this.getJobByIdPatternArgs(queue, idPattern, cursor, count);
     const response = await (client as any).getJobsByIdPattern(args);
 
-    const newCursor = Number(response[0]);
+    const newCursor = response[0] === '0' ? null : Number(response[0]);
 
     const jobJSONs: Record<string, any> = {};
 
