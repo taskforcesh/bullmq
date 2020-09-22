@@ -29,6 +29,13 @@
   </p>
 </div>
 
+# Sponsored
+
+[<img src="http://taskforce.sh/assets/logo_square.png" width="100" alt="Taskforce.sh, Inc" style="padding: 100px"/>](https://taskforce.sh)
+
+&nbsp; [Taskforce.sh](https://taskforce.sh) sponsors BullMQ development, please consider using it for your front end and/or hosting needs.
+
+
 # The gist
 
 Install:
