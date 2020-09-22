@@ -54,6 +54,15 @@ export class QueueBase extends EventEmitter {
     return `${this.opts.prefix}:${this.name}:${type}`;
   }
 
+  /**
+   * If passed `bull:myQueueName:job1`,
+   * it will return `job1`.
+   */
+  fromKey(key: string) {
+    const prefixLength = this.toKey('').length;
+    return key.slice(prefixLength);
+  }
+
   get client() {
     return this.connection.client;
   }

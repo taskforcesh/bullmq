@@ -560,4 +560,44 @@ describe('Job', function() {
       await worker.close();
     });
   });
+
+  describe('.fromIdPattern', () => {
+    it('should return all matching jobs', async function() {
+      await queue.add(
+        'test',
+        { c: 1, j: 1 },
+        {
+          delay: 5000,
+          jobId: 'customer1:job1',
+        },
+      );
+
+      await queue.add(
+        'test',
+        { c: 1, j: 2 },
+        {
+          delay: 5000,
+          jobId: 'customer1:job2',
+        },
+      );
+
+      await queue.add(
+        'test',
+        { c: 2, j: 1 },
+        {
+          delay: 5000,
+          jobId: 'customer2:job1',
+        },
+      );
+
+      await delay(500);
+
+      const { jobs, newCursor } = await Job.fromIdPattern(queue, 'customer1:*');
+      expect(jobs).to.have.length(2);
+
+      const jobIds = jobs.map(j => j.id);
+      expect(jobIds).to.have.members(['customer1:job1', 'customer1:job2']);
+      expect(newCursor).to.equal(0);
+    });
+  });
 });

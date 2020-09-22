@@ -298,6 +298,50 @@ export class Scripts {
     }
   }
 
+  private static getJobByIdPatternArgs(
+    queue: QueueBase,
+    idPattern: string,
+    cursor: number,
+    count: number,
+  ) {
+    return [queue.toKey(idPattern), cursor, count];
+  }
+
+  static async getJobByIdPattern<T>(
+    queue: QueueBase,
+    idPattern: string,
+    cursor: number,
+    count: number,
+  ) {
+    const client = await queue.client;
+
+    const args = this.getJobByIdPatternArgs(queue, idPattern, cursor, count);
+    const response = await (client as any).getJobsByIdPattern(args);
+
+    const newCursor = Number(response[0]);
+
+    const jobJSONs: Record<string, any> = {};
+
+    let currentJobJSON: Record<string, string>;
+    for (let i = 1; i < response.length; i += 2) {
+      const key = response[i];
+      const value = response[i + 1];
+
+      if (key === 'id') {
+        currentJobJSON = {};
+        jobJSONs[value] = currentJobJSON;
+      } else {
+        currentJobJSON[key] = value;
+      }
+    }
+
+    return {
+      newCursor,
+      jobJSONs,
+      response,
+    };
+  }
+
   static async cleanJobsInSet(
     queue: QueueBase,
     set: string,

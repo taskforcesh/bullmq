@@ -10,6 +10,10 @@ export class QueueGetters extends QueueBase {
     return Job.fromId(this, jobId);
   }
 
+  getJobFromIdPattern(jobId: string, cursor = 0, count = 100) {
+    return Job.fromIdPattern(this, jobId, cursor, count);
+  }
+
   private commandByType(
     types: string[],
     count: boolean,
