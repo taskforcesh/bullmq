@@ -18,7 +18,9 @@ export interface QueueOptions extends QueueBaseOptions {
   defaultJobOptions?: JobsOptions;
 
   limiter?: {
-    groupKey: string;
+    duration: number,
+    groupKey?: string;
+    max: number,
   };
 
   streams?: {
