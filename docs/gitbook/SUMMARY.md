@@ -27,7 +27,7 @@
 ## Patterns
 
 * [Producer - Consumer](patterns/producer-consumer.md)
-* [Workflows](patterns/chaining-jobs.md)
+* [Flows](patterns/flows.md)
 * [Real time updates](patterns/real-time-updates.md)
 * [Sender - Receiver](patterns/sender-receiver.md)
 * [Working with batches](patterns/working-with-batches.md)
