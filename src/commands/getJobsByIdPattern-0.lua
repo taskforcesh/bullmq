@@ -13,11 +13,11 @@ local scannedJobIds = scanResult[2]
 
 local result = { newCursor }
 
-for index, jobId in pairs(scannedJobIds) do
-  table.insert(result, "id")
-  table.insert(result, jobId)
+for index, jobIdKey in pairs(scannedJobIds) do
+  table.insert(result, "jobIdKey")
+  table.insert(result, jobIdKey)
 
-  local jobHash = redis.call("HGETALL", jobId)
+  local jobHash = redis.call("HGETALL", jobIdKey)
 
   for key, value in pairs(jobHash) do
     table.insert(result, value)
