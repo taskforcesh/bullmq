@@ -147,6 +147,29 @@ export class Job<T = any, R = any> {
     }
   }
 
+  static async fromName(
+    queue: QueueBase,
+    name: string,
+    cursor = 0,
+    count = 100,
+  ) {
+    const { jobJSONs, newCursor } = await Scripts.getJobsByName(
+      queue,
+      name,
+      cursor,
+      count,
+    );
+
+    const jobs = Object.entries(jobJSONs).map(([key, json]) =>
+      Job.fromJSON(queue, json, queue.fromKey(key)),
+    );
+
+    return {
+      jobs,
+      newCursor,
+    };
+  }
+
   static async fromIdPattern(
     queue: QueueBase,
     idPattern: string,

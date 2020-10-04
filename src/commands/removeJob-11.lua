@@ -13,6 +13,7 @@
       KEYS[8] jobId
       KEYS[9] job logs
       KEYS[10] events stream
+      KEYS[11] queue prefix
 
       ARGV[1]  jobId
 
@@ -22,6 +23,11 @@
 
 local rcall = redis.call
 local jobId = ARGV[1]
+
+local jobName = rcall("HGET", KEYS[8], "name")
+
+local queueNameSet = KEYS[11] .. jobName
+
 rcall("LREM", KEYS[1], 0, jobId)
 rcall("LREM", KEYS[2], 0, jobId)
 rcall("ZREM", KEYS[3], jobId)
@@ -31,6 +37,7 @@ rcall("ZREM", KEYS[6], jobId)
 rcall("ZREM", KEYS[7], jobId)
 rcall("DEL", KEYS[8])
 rcall("DEL", KEYS[9])
+rcall("SREM", KEYS[11], queueNameSet)
 
 rcall("XADD", KEYS[10], "*", "event", "removed", "jobId", jobId, "prev", "TBD");
 

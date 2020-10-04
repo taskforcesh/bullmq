@@ -592,12 +592,65 @@ describe('Job', function() {
 
       await delay(500);
 
-      const { jobs, newCursor } = await Job.fromIdPattern(queue, 'customer1:*');
-      expect(jobs).to.have.length(2);
+      const { jobs, newCursor } = await Job.fromIdPattern(
+        queue,
+        'customer1:*',
+        0,
+        1000,
+      );
+      expect(newCursor).to.equal(null);
 
       const jobIds = jobs.map(j => j.id);
       expect(jobIds).to.have.members(['customer1:job1', 'customer1:job2']);
-      expect(newCursor).to.equal(0);
+      expect(jobIds).to.have.length(2);
+    });
+  });
+
+  describe('.fromName', () => {
+    it('should return all jobs with name', async function() {
+      await queue.add(
+        'foo',
+        { c: 1, j: 1 },
+        {
+          delay: 5000,
+          jobId: '1',
+        },
+      );
+
+      await queue.add(
+        'foo',
+        { c: 1, j: 2 },
+        {
+          delay: 5000,
+          jobId: '2',
+        },
+      );
+
+      await queue.add(
+        'bar',
+        { c: 2, j: 1 },
+        {
+          delay: 5000,
+          jobId: '3',
+        },
+      );
+
+      await delay(500);
+
+      const { jobs: fooJobs, newCursor } = await Job.fromName(
+        queue,
+        'foo',
+        0,
+        1000,
+      );
+      expect(newCursor).to.equal(null);
+
+      const fooJobIds = fooJobs.map(j => j.id);
+      expect(fooJobIds).to.have.members(['1', '2']);
+      expect(fooJobIds).to.have.length(2);
+
+      const { jobs: barJobs } = await Job.fromName(queue, 'bar');
+      expect(barJobs).to.have.length(1);
     });
   });
 });

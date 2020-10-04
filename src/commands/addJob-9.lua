@@ -23,6 +23,7 @@
       KEYS[6] 'priority'
       KEYS[7] events stream key
       KEYS[8] delay stream key
+      KEYS[9] by name set key
 
       ARGV[1]  key prefix,
       ARGV[2]  custom id (will not generate one automatically)
@@ -55,6 +56,9 @@ end
 -- Store the job.
 rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
       "timestamp", ARGV[6], "delay", ARGV[7], "priority", ARGV[9])
+
+-- Add to queue/name set
+rcall("SADD", KEYS[9], jobId)
 
 -- Check if job is delayed
 local delayedTimestamp = tonumber(ARGV[8])

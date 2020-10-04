@@ -44,6 +44,7 @@ export class QueueBase extends EventEmitter {
       'meta',
       'events',
       'delay',
+      'by-name',
     ].forEach(key => {
       keys[key] = this.toKey(key);
     });
@@ -52,6 +53,10 @@ export class QueueBase extends EventEmitter {
 
   toKey(type: string) {
     return `${this.opts.prefix}:${this.name}:${type}`;
+  }
+
+  byNameKey(name: string) {
+    return `${this.keys['by-name']}:${name}`;
   }
 
   /**

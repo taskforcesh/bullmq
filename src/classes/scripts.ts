@@ -38,6 +38,7 @@ export class Scripts {
       queueKeys.priority,
       queueKeys.events,
       queueKeys.delay,
+      queue.byNameKey(job.name),
     ];
 
     const args = [
@@ -88,7 +89,9 @@ export class Scripts {
       jobId,
       `${jobId}:logs`,
     ].map(name => queue.toKey(name));
-    return (<any>client).removeJob(keys.concat([queue.keys.events, jobId]));
+    return (<any>client).removeJob(
+      keys.concat([queue.keys.events, queue.byNameKey(''), jobId]),
+    );
   }
 
   static async extendLock(worker: Worker, jobId: string, token: string) {
@@ -329,6 +332,50 @@ export class Scripts {
 
       if (key === 'id') {
         currentJobJSON = {};
+        jobJSONs[value] = currentJobJSON;
+      } else {
+        currentJobJSON[key] = value;
+      }
+    }
+
+    return {
+      newCursor: newCursor,
+      jobJSONs,
+      response,
+    };
+  }
+
+  private static getJobsByNameArgs(
+    queue: QueueBase,
+    name: string,
+    cursor: number,
+    count: number,
+  ) {
+    return [queue.byNameKey(name), queue.toKey(''), cursor, count];
+  }
+
+  static async getJobsByName(
+    queue: QueueBase,
+    name: string,
+    cursor: number,
+    count: number,
+  ) {
+    const client = await queue.client;
+
+    const args = this.getJobsByNameArgs(queue, name, cursor, count);
+    const response = await (client as any).getJobsByName(args);
+
+    const newCursor = response[0] === '0' ? null : Number(response[0]);
+
+    const jobJSONs: Record<string, any> = {};
+
+    let currentJobJSON: Record<string, string>;
+    for (let i = 1; i < response.length; i += 2) {
+      const key = response[i];
+      const value = response[i + 1];
+
+      if (key === 'id') {
+        currentJobJSON = { id: value };
         jobJSONs[value] = currentJobJSON;
       } else {
         currentJobJSON[key] = value;
