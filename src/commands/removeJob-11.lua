@@ -35,7 +35,7 @@ rcall("ZREM", KEYS[6], jobId)
 rcall("ZREM", KEYS[7], jobId)
 rcall("DEL", KEYS[8])
 rcall("DEL", KEYS[9])
-rcall("SREM", KEYS[11], jobId)
+rcall("SREM", KEYS[11] .. ":" .. jobName, jobId)
 
 rcall("XADD", KEYS[10], "*", "event", "removed", "jobId", jobId, "prev", "TBD");
 

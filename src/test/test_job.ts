@@ -632,6 +632,7 @@ describe('Job', function() {
         {
           delay: 5000,
           jobId: '3',
+          removeOnComplete: true,
         },
       );
 
@@ -651,6 +652,11 @@ describe('Job', function() {
 
       const { jobs: barJobs } = await Job.fromName(queue, 'bar');
       expect(barJobs).to.have.length(1);
+
+      await barJobs[0].remove();
+
+      const { jobs: emptyBarJobs } = await Job.fromName(queue, 'bar');
+      expect(emptyBarJobs).to.eql([]);
     });
   });
 });
