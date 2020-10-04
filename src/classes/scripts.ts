@@ -142,6 +142,7 @@ export class Scripts {
       queueKeys.priority,
       queueKeys.events,
       queueKeys.meta,
+      queue.byNameKey(job.name),
     ];
 
     let remove;

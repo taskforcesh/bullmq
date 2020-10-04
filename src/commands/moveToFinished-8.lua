@@ -13,6 +13,7 @@
       KEYS[5] priority key
       KEYS[6] event stream key
       KEYS[7] meta key
+      KEYS[8] queue/name set key
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
@@ -75,6 +76,7 @@ if rcall("EXISTS", KEYS[3]) == 1 then -- // Make sure job exists
     else
         local jobLogKey = KEYS[3] .. ':logs'
         rcall("DEL", KEYS[3], jobLogKey)
+        rcall("SREM", KEYS[8], ARGV[1])
     end
 
     rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", ARGV[1], ARGV[3],
