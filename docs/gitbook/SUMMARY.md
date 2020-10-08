@@ -15,7 +15,7 @@
   * [LIFO](guide/jobs/lifo.md)
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
-  * [Proritized](guide/jobs/proritized.md)
+  * [Prioritized](guide/jobs/proritized.md)
   * [Stalled](guide/jobs/stalled.md)
 * [Rate limiting](guide/rate-limiting.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
