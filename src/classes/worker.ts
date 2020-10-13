@@ -132,11 +132,13 @@ export class Worker<T = any> extends QueueBase {
 
       /*
        * Get the first promise that completes
-       * Explanation https://stackoverflow.com/a/42898229/1848640
        */
-      const [completed] = await Promise.race(
-        [...processing.keys()].map(p => p.then(() => [p])),
+      const promises = [...processing.keys()];
+      const completedIdx = await Promise.race(
+        promises.map((p, idx) => p.then(() => idx)),
       );
+
+      const completed = promises[completedIdx];
 
       const token = processing.get(completed);
       processing.delete(completed);
