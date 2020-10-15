@@ -29,11 +29,17 @@
   </p>
 </div>
 
-# Sponsor
+# Official FrontEnd
 
 [<img src="http://taskforce.sh/assets/logo_square.png" width="100" alt="Taskforce.sh, Inc" style="padding: 100px"/>](https://taskforce.sh)
 
-&nbsp; [Taskforce.sh](https://taskforce.sh) sponsors BullMQ development, please consider using it for your front end and/or hosting needs.
+&nbsp; [Taskforce.sh](https://taskforce.sh)
+
+Super charge your queues with a profesional front end and optional Redis hosting:
+- Get a complete overview of all your queues.
+- Inspect jobs, search, retry, or promote delayed jobs.
+- Metrics and statistics.
+- and many more features.
 
 
 # The gist
