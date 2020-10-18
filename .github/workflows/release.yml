@@ -18,10 +18,9 @@ jobs:
           node-version: 12
       - name: Install dependencies
         run: npm ci
+      - run: yarn install --frozen-lockfile --non-interactive
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - run: yarn install --frozen-lockfile --non-interactive
-      - run: npx semantic-release
-
+        run: npx semantic-release
