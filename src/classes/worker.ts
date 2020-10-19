@@ -83,6 +83,11 @@ export class Worker<T = any> extends QueueBase {
     });
   }
 
+  async waitUntilReady() {
+    await super.waitUntilReady();
+    return this.blockingConnection.client;
+  }
+
   get repeat() {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
