@@ -81,6 +81,8 @@ export class Worker<T = any> extends QueueBase {
     this.run().catch(error => {
       console.error(error);
     });
+
+    this.on('error', err => console.error(err));
   }
 
   get repeat() {
@@ -290,7 +292,7 @@ export class Worker<T = any> extends QueueBase {
         await job.moveToFailed(err, token);
         this.emit('failed', job, err, 'active');
       } catch (err) {
-        console.error(err);
+        this.emit('error', err);
         // It probably means that the job has lost the lock before completion
         // The QueueScheduler will (or already has) moved the job back
         // to the waiting list (as stalled)
