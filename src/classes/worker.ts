@@ -85,6 +85,11 @@ export class Worker<T = any> extends QueueBase {
     this.on('error', err => console.error(err));
   }
 
+  async waitUntilReady() {
+    await super.waitUntilReady();
+    return this.blockingConnection.client;
+  }
+
   get repeat() {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
@@ -99,7 +104,7 @@ export class Worker<T = any> extends QueueBase {
   }
 
   private async run() {
-    const client = await this.client;
+    const client = await this.blockingConnection.client;
 
     if (this.closing) {
       return;
