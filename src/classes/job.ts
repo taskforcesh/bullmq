@@ -367,13 +367,13 @@ export class Job<T = any, R = any> {
         }
 
         function onCompleted(args: any) {
-          resolve(args.returnvalue);
           removeListeners();
+          resolve(args.returnvalue);
         }
 
         function onFailed(args: any) {
-          reject(new Error(args.failedReason || args));
           removeListeners();
+          reject(new Error(args.failedReason || args));
         }
 
         const completedEvent = `completed:${jobId}`;
