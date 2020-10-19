@@ -97,7 +97,7 @@ export class Worker<T = any> extends QueueBase {
   }
 
   private async run() {
-    const client = await this.client;
+    const client = await this.blockingConnection.client;
 
     if (this.closing) {
       return;
