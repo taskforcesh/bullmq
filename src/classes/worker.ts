@@ -81,6 +81,8 @@ export class Worker<T = any> extends QueueBase {
     this.run().catch(error => {
       console.error(error);
     });
+
+    this.on('error', err => console.error(err));
   }
 
   get repeat() {
@@ -245,6 +247,8 @@ export class Worker<T = any> extends QueueBase {
     // jobs, so we can assume the job has been stalled and is already being processed
     // by another worker. See https://github.com/OptimalBits/bull/issues/308
     //
+    // TODO: Have only 1 timer that extends all the locks instead of one timer
+    // per concurrency setting.
     let lockRenewId: string;
     let timerStopped = false;
     const lockExtender = () => {
@@ -287,10 +291,11 @@ export class Worker<T = any> extends QueueBase {
       try {
         await job.moveToFailed(err, token);
         this.emit('failed', job, err, 'active');
-      } catch (e) {
+      } catch (err) {
+        this.emit('error', err);
         // It probably means that the job has lost the lock before completion
-        // The QueueScheduler will (or already has) move the job to the waiting list (as stalled)
-        this.emit('error', e);
+        // The QueueScheduler will (or already has) moved the job back
+        // to the waiting list (as stalled)
       }
     };
 
