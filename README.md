@@ -31,7 +31,7 @@
 
 # Poll
 
-Which other languages would you like to see BullMQ ported to? 
+Which other languages would you like to see BullMQ ported to, Python, PHP, Java or C#? 
 
 Please vote here: https://twitter.com/manast/status/1318168684049977345
 
