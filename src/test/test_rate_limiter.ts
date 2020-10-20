@@ -145,7 +145,7 @@ describe('Rate Limiter', function() {
             for (let i = 1; i < completed[group].length; i++) {
               const diff = completed[group][i] - prevTime;
               expect(diff).to.be.below(2000);
-              expect(diff).to.be.gte(1000);
+              expect(diff).to.be.gte(990);
               prevTime = completed[group][i];
             }
           }
