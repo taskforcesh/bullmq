@@ -136,7 +136,8 @@ describe('Rate Limiter', function() {
       const afterJobs = after(numJobs, () => {
         try {
           const timeDiff = Date.now() - startTime;
-          expect(timeDiff).to.be.gte(numGroups * 1000);
+          // In some test envs, these timestamps can drift.
+          expect(timeDiff).to.be.gte(numGroups * 990);
           expect(timeDiff).to.be.below((numGroups + 1) * 1100);
 
           for (const group in completed) {
