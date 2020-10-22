@@ -24,10 +24,10 @@ import { Job, QueueEvents } from 'bullmq'
 
 const queueEvents = new QueueEvents('AsyncProc')
 
-queueEvents.on('completed', (jobId: string) => {
+queueEvents.on('completed', async (jobId: string) => {
     const job = await Job.fromId(jobId);
     
-    console.log(ob.returnvalue);
+    console.log(job.returnvalue);
 });
 
 ```
