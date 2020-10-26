@@ -930,6 +930,57 @@ describe('workers', function() {
     await queueScheduler.close();
   });
 
+  it('continue processing after a worker has stalled', async function() {
+    let first = true;
+    this.timeout(10000);
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        if (first) {
+          first = false;
+          return delay(2000);
+        }
+      },
+      {
+        lockDuration: 1000,
+        lockRenewTime: 3000, // The lock will not be updated
+      },
+    );
+    await worker.waitUntilReady();
+
+    const queueScheduler = new QueueScheduler(queueName, {
+      stalledInterval: 100,
+    });
+    await queueScheduler.waitUntilReady();
+
+    const job = await queue.add('test', { bar: 'baz' });
+
+    const completed = new Promise(resolve => {
+      worker.on('completed', resolve);
+    });
+
+    await completed;
+
+    await worker.close();
+    await queueScheduler.close();
+  });
+
+  it('stalled interval cannot be zero', function(done) {
+    this.timeout(10000);
+    let queueScheduler;
+
+    try {
+      queueScheduler = new QueueScheduler(queueName, {
+        stalledInterval: 0,
+      });
+      // Fail test if we reach here.
+      done(new Error('Should throw an exception'));
+    } catch (err) {
+      done();
+    }
+  });
+
   describe('Concurrency process', () => {
     it('should run job in sequence if I specify a concurrency of 1', async () => {
       let processing = false;

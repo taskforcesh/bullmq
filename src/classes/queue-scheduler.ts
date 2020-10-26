@@ -40,6 +40,10 @@ export class QueueScheduler extends QueueBase {
         : connection,
     });
 
+    if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
+      throw new Error('Stalled interval cannot be zero or undefined');
+    }
+
     // tslint:disable: no-floating-promises
     this.run();
   }

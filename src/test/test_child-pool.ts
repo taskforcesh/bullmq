@@ -65,7 +65,7 @@ describe('Child pool', () => {
     expect(children).to.have.length(6);
     const child = await pool.retain(processor);
     expect(children).not.to.include(child);
-  });
+  }).timeout(10000);
 
   it('should return an old child if many retained and one free', async () => {
     const processor = __dirname + '/fixtures/fixture_processor_bar.js';
@@ -82,5 +82,5 @@ describe('Child pool', () => {
     pool.release(children[0]);
     const child = await pool.retain(processor);
     expect(children).to.include(child);
-  });
+  }).timeout(10000);
 });
