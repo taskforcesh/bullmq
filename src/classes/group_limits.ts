@@ -4,38 +4,31 @@ import { ConnectionOptions } from '../interfaces';
 import { Queue } from '../classes/queue';
 
 /**
- * TODO: just put this all in an sync method instead of a class?
+ * Facilitates adding queue group-specific rate limits.
  */
 export class GroupLimits {
   protected connection: RedisConnection;
 
-  constructor(
-    public queue: Queue,
-    public groupRates: GroupRates,
-    redis_opts?: ConnectionOptions,
-  ) {
-    console.log('GroupLimits');
+  constructor(redis_opts?: ConnectionOptions) {
     this.connection = new RedisConnection(redis_opts);
   }
 
-  async writeToRedis() {
-    console.log('writeToRedis');
+  /**
+   * Add the groupRates specificed for a specific queue to Redis
+   * @param queue the queue to add groupRates for
+   * @param groupRates the defined group rate limits
+   * @param redis_opts optional redis connection info
+   */
+  async addQueueLimits(queue: Queue, groupRates: GroupRates) {
     const client = await this.connection.client;
-    console.log(`got client: ${client}`);
-    for (const groupKey in this.groupRates) {
-      console.log(`${groupKey}: ${JSON.stringify(this.groupRates[groupKey])}`);
-      const max = this.groupRates[groupKey].max;
-      const duration = this.groupRates[groupKey].duration;
-      const groupLimitsKey = `${this.queue.keyPrefix()}:group-limits`;
-      console.log(`generated groupLimitsKey: ${groupLimitsKey}`);
+    for (const groupKey in groupRates) {
       const bruh = await client.hmset(
-        groupLimitsKey,
+        `${queue.keyPrefix()}:group-limits`,
         `${groupKey}:max`,
-        max,
+        groupRates[groupKey].max,
         `${groupKey}:duration`,
-        duration,
+        groupRates[groupKey].duration,
       );
-      console.log(`bruh: ${JSON.stringify(bruh)}`);
     }
   }
 }

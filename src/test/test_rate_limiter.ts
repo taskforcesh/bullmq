@@ -216,8 +216,8 @@ describe('Rate Limiter', function() {
       },
     });
 
-    const groupLimit = new GroupLimits(rateLimitedQueue, groupRates);
-    await groupLimit.writeToRedis();
+    const gl = new GroupLimits();
+    await gl.addQueueLimits(rateLimitedQueue, groupRates);
 
     const worker = new Worker(queueName, async job => {}, {
       limiter: limiterConfig,
