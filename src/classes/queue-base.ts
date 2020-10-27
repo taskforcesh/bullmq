@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { QueueOptions } from '../interfaces';
+import { QueueBaseOptions } from '../interfaces';
 import { RedisConnection } from './redis-connection';
 
 export class QueueBase extends EventEmitter {
@@ -8,7 +8,10 @@ export class QueueBase extends EventEmitter {
 
   protected connection: RedisConnection;
 
-  constructor(public readonly name: string, public opts: QueueOptions = {}) {
+  constructor(
+    public readonly name: string,
+    public opts: QueueBaseOptions = {},
+  ) {
     super();
 
     this.opts = {
@@ -41,14 +44,19 @@ export class QueueBase extends EventEmitter {
       'meta',
       'events',
       'delay',
+      'group-limits',
     ].forEach(key => {
       keys[key] = this.toKey(key);
     });
     this.keys = keys;
   }
 
+  keyPrefix() {
+    return `${this.opts.prefix}:${this.name}`;
+  }
+
   toKey(type: string) {
-    return `${this.opts.prefix}:${this.name}:${type}`;
+    return `${this.keyPrefix()}:${type}`;
   }
 
   get client() {

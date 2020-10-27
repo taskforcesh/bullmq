@@ -9,6 +9,7 @@ import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { removeAllQueueData } from '@src/utils';
 import { RateLimiterOptions } from '@src/interfaces';
+import { GroupLimits } from '../classes/group_limits';
 
 describe('Rate Limiter', function() {
   let queue: Queue;
@@ -123,9 +124,7 @@ describe('Rate Limiter', function() {
       groupKey: 'accountId',
     };
 
-    const rateLimitedQueue = new Queue(queueName, {
-      limiter: limiterConfig,
-    });
+    const rateLimitedQueue = new Queue(queueName);
 
     const worker = new Worker(queueName, async job => {}, {
       limiter: limiterConfig,
@@ -204,19 +203,23 @@ describe('Rate Limiter', function() {
       max: 1,
       duration: 3000, // This default should apply for 'group3' jobs
       groupKey: 'accountId',
-      groupRates: {
-        group1: {
-          max: 1,
-          duration: 1000,
-        },
-        group2: {
-          max: 1,
-          duration: 2000,
-        },
+    };
+
+    const groupRates = {
+      group1: {
+        max: 1,
+        duration: 1000,
+      },
+      group2: {
+        max: 1,
+        duration: 2000,
       },
     };
 
-    const rateLimitedQueue = new Queue(queueName, { limiter: limiterConfig });
+    const rateLimitedQueue = new Queue(queueName);
+
+    const groupLimit = new GroupLimits(rateLimitedQueue, groupRates);
+    await groupLimit.writeToRedis();
 
     const worker = new Worker(queueName, async job => {}, {
       limiter: limiterConfig,
