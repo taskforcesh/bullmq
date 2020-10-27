@@ -66,13 +66,9 @@ export class Queue<T = any> extends QueueGetters {
   }
 
   private jobIdForGroup(opts: JobsOptions, data: T) {
-    console.log('jobIdForGroup');
-    console.log(`opts: ${JSON.stringify(opts)}`);
-    console.log(`data: ${JSON.stringify(data)}`);
     const jobId = opts && opts.jobId;
     const groupKey = get(this, 'limiter.groupKey');
     if (groupKey) {
-      console.log(`got groupKey: ${groupKey}`);
       return `${jobId || v4()}:${get(data, groupKey)}`;
     }
     return jobId;

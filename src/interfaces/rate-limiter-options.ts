@@ -16,7 +16,4 @@ export interface RateLimiterOptions {
 
   // grouping path key in job data
   groupKey?: string;
-
-  // TODO: remove all of this old stuff
-  groupRates?: GroupRates;
 }
