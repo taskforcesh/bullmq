@@ -44,7 +44,6 @@ export class QueueBase extends EventEmitter {
       'meta',
       'events',
       'delay',
-      'group-limits',
     ].forEach(key => {
       keys[key] = this.toKey(key);
     });
