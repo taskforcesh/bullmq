@@ -54,10 +54,10 @@ await queue.add('rate limited paint', { customerId: 'my-customer-id' });
 
 ## 3. Rate limiting in groups, each group with a separately defined limit
 
-The following will configure the rate limits so that jobs are grouped by an attribute `customerId`. Each grouping of those jobs will be rate limited separately. If a particular group has rate defined in `groupRates`, then that will be used. Otherwise, the group will use non-group-specific
-rate limit (set here to 5 per second).
+The following will configure the rate limits so that jobs are grouped by an attribute `customerId`. Each grouping of those jobs will be rate limited separately. If a particular group has rate defined in `groupRates`, then that will be used. Otherwise, the group will use the non-group-specific
+rate limit (set here to 5 jobs per second).
 
-In this example, jobs with a `customerGroup` attribute value of `walkin` will be limited at 2 jobs/second, where as ones with the value `vip` will be limited to 10/second. Jobs with a `customerGroup` attribute value of anything else, e.g. `regular` or `referral` will use the non-group-specific rate limit of 5 jobs per second per group.
+In this example, jobs with a `customerGroup` attribute value of `walkin` will be limited at 2 jobs/second, and the ones with the value `vip` will be limited to 10/second. Jobs with a `customerGroup` attribute value of anything else, e.g. `regular` or `referral` will use the non-group-specific rate limit of 5 jobs per second per group.
 
 ```typescript
 import { Queue, Worker, QueueScheduler, RateLimiterOptions } from "bullmq";
