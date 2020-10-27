@@ -124,7 +124,11 @@ describe('Rate Limiter', function() {
       groupKey: 'accountId',
     };
 
-    const rateLimitedQueue = new Queue(queueName);
+    const rateLimitedQueue = new Queue(queueName, {
+      limiter: {
+        groupKey: 'accountId',
+      },
+    });
 
     const worker = new Worker(queueName, async job => {}, {
       limiter: limiterConfig,
@@ -189,16 +193,6 @@ describe('Rate Limiter', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
-    // NOTE:
-    // The groupRates feature is a little weird because Queue and Worker require the same
-    // rate limiter options for it to work.
-    // Its because Queue is used for addJob, which adds the group-specific rate limits
-    // for whatever job we're adding.
-    // However, Worker is used for moveToActive, which technically doesn't need the
-    // separate group rate limits defined because those will have already been in Redis,
-    // but it does need groupKey defined to enable group rate limiting logic, and also
-    // the default max/duration so it can fallback to that if group rate limits aren't
-    // found.
     const limiterConfig: RateLimiterOptions = {
       max: 1,
       duration: 3000, // This default should apply for 'group3' jobs
@@ -216,7 +210,11 @@ describe('Rate Limiter', function() {
       },
     };
 
-    const rateLimitedQueue = new Queue(queueName);
+    const rateLimitedQueue = new Queue(queueName, {
+      limiter: {
+        groupKey: 'accountId',
+      },
+    });
 
     const groupLimit = new GroupLimits(rateLimitedQueue, groupRates);
     await groupLimit.writeToRedis();

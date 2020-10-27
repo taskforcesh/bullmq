@@ -46,7 +46,6 @@ else
 end
 
 if jobId then
-  redis.log(redis.LOG_WARNING, "jobId:" .. jobId)
   -- Check if we need to perform rate limiting.
   local maxJobs = tonumber(ARGV[6])
 
@@ -63,17 +62,7 @@ if jobId then
         local groupLimitsKey = ARGV[1] .. "group-limits"
         local groupMaxJobs = tonumber(rcall("HGET", groupLimitsKey, groupKey .. ":max"))
         local groupDuration = tonumber(rcall("HGET", groupLimitsKey, groupKey .. ":duration"))
-        redis.log(redis.LOG_WARNING, "this is a test")
-        redis.log(redis.LOG_WARNING, "groupLimitsKey:")
-        redis.log(redis.LOG_WARNING, groupLimitsKey)
-        redis.log(redis.LOG_WARNING, "groupKey .. max")
-        redis.log(redis.LOG_WARNING, groupKey .. ":max")
-        redis.log(redis.LOG_WARNING, "groupMaxJobs")
-        redis.log(redis.LOG_WARNING, groupMaxJobs)
-        redis.log(redis.LOG_WARNING, "groupDuration")
-        redis.log(redis.LOG_WARNING, groupDuration)
         if groupMaxJobs ~= nil and groupDuration ~= nil then
-          redis.log(redis.LOG_WARNING, "### WE IN BOI")
           maxJobs = groupMaxJobs
           duration = groupDuration
         end

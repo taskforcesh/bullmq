@@ -4,7 +4,7 @@ import { ConnectionOptions } from '../interfaces';
 import { Queue } from '../classes/queue';
 
 /**
- * TODO: docs
+ * TODO: just put this all in an sync method instead of a class?
  */
 export class GroupLimits {
   protected connection: RedisConnection;
@@ -21,18 +21,21 @@ export class GroupLimits {
   async writeToRedis() {
     console.log('writeToRedis');
     const client = await this.connection.client;
-    console.log('got client');
+    console.log(`got client: ${client}`);
     for (const groupKey in this.groupRates) {
       console.log(`${groupKey}: ${JSON.stringify(this.groupRates[groupKey])}`);
       const max = this.groupRates[groupKey].max;
       const duration = this.groupRates[groupKey].duration;
-      await client.hmset(
-        `${this.queue.keyPrefix()}:group-limits`,
+      const groupLimitsKey = `${this.queue.keyPrefix()}:group-limits`;
+      console.log(`generated groupLimitsKey: ${groupLimitsKey}`);
+      const bruh = await client.hmset(
+        groupLimitsKey,
         `${groupKey}:max`,
         max,
         `${groupKey}:duration`,
         duration,
       );
+      console.log(`bruh: ${JSON.stringify(bruh)}`);
     }
   }
 }
