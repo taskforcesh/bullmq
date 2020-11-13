@@ -1,7 +1,7 @@
 import { Job } from '../classes';
 import { AdvancedOptions, QueueBaseOptions, RateLimiterOptions } from './';
 
-export type Processor = (job: Job) => Promise<any>;
+export type Processor<T> = (job: Job<T>) => Promise<any>;
 
 export interface WorkerOptions extends QueueBaseOptions {
   concurrency?: number;
