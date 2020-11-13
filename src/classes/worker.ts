@@ -22,7 +22,7 @@ export class Worker<T = any> extends QueueBase {
 
   private drained: boolean;
   private waiting = false;
-  private processFn: Processor;
+  private processFn: Processor<T>;
 
   private resumeWorker: () => void;
   private paused: Promise<void>;
@@ -35,7 +35,7 @@ export class Worker<T = any> extends QueueBase {
   private processing: Map<Promise<Job<T> | string>, string>; // { [index: number]: Promise<Job | void> } = {};
   constructor(
     name: string,
-    processor: string | Processor,
+    processor: string | Processor<T>,
     opts: WorkerOptions = {},
   ) {
     super(name, opts);
