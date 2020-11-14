@@ -4,7 +4,11 @@ import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
 import { Job, QueueGetters, Repeat } from './';
 import { Scripts } from './scripts';
 
-export class Queue<T = any> extends QueueGetters {
+export class Queue<
+  T = any,
+  R = any,
+  N extends string = string
+> extends QueueGetters {
   token = v4();
   jobsOpts: JobsOptions;
   limiter: {
@@ -44,7 +48,7 @@ export class Queue<T = any> extends QueueGetters {
     });
   }
 
-  async add(name: string, data: T, opts?: JobsOptions) {
+  async add(name: N, data: T, opts?: JobsOptions) {
     if (opts && opts.repeat) {
       return (await this.repeat).addNextRepeatableJob(
         name,
@@ -55,7 +59,7 @@ export class Queue<T = any> extends QueueGetters {
     } else {
       const jobId = this.jobIdForGroup(opts, data);
 
-      const job = await Job.create(this, name, data, {
+      const job = await Job.create<T, R, N>(this, name, data, {
         ...this.jobsOpts,
         ...opts,
         jobId,
@@ -80,7 +84,7 @@ export class Queue<T = any> extends QueueGetters {
    * @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
    */
-  async addBulk(jobs: { name: string; data: T; opts?: JobsOptions }[]) {
+  async addBulk(jobs: { name: N; data: T; opts?: JobsOptions }[]) {
     return Job.createBulk(
       this,
       jobs.map(job => ({
@@ -120,11 +124,7 @@ export class Queue<T = any> extends QueueGetters {
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
 
-  async removeRepeatable(
-    name: string,
-    repeatOpts: RepeatOptions,
-    jobId?: string,
-  ) {
+  async removeRepeatable(name: N, repeatOpts: RepeatOptions, jobId?: string) {
     return (await this.repeat).removeRepeatable(name, repeatOpts, jobId);
   }
 

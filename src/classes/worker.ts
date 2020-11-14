@@ -17,12 +17,16 @@ import { isRedisInstance } from '../utils';
 
 export const clientCommandMessageReg = /ERR unknown command '\s*client\s*'/;
 
-export class Worker<T = any> extends QueueBase {
+export class Worker<
+  T = any,
+  R = any,
+  N extends string = string
+> extends QueueBase {
   opts: WorkerOptions;
 
   private drained: boolean;
   private waiting = false;
-  private processFn: Processor<T>;
+  private processFn: Processor<T, R, N>;
 
   private resumeWorker: () => void;
   private paused: Promise<void>;
@@ -32,10 +36,10 @@ export class Worker<T = any> extends QueueBase {
 
   private blockingConnection: RedisConnection;
 
-  private processing: Map<Promise<Job<T> | string>, string>; // { [index: number]: Promise<Job | void> } = {};
+  private processing: Map<Promise<Job<T, R, N> | string>, string>; // { [index: number]: Promise<Job | void> } = {};
   constructor(
     name: string,
-    processor: string | Processor<T>,
+    processor: string | Processor<T, R, N>,
     opts: WorkerOptions = {},
   ) {
     super(name, opts);
@@ -73,7 +77,7 @@ export class Worker<T = any> extends QueueBase {
       }
 
       this.childPool = this.childPool || new ChildPool();
-      this.processFn = sandbox(processor, this.childPool).bind(this);
+      this.processFn = sandbox<T, R, N>(processor, this.childPool).bind(this);
     }
     this.timerManager = new TimerManager();
 
@@ -165,7 +169,7 @@ export class Worker<T = any> extends QueueBase {
    * Returns a promise that resolves to the next job in queue.
    * @param token worker token to be assigned to retrieved job
    */
-  async getNextJob(token: string): Promise<Job | void> {
+  async getNextJob(token: string): Promise<Job<T, R, N> | void> {
     if (this.paused) {
       await this.paused;
     }
@@ -195,7 +199,7 @@ export class Worker<T = any> extends QueueBase {
   private async moveToActive(
     token: string,
     jobId?: string,
-  ): Promise<Job | void> {
+  ): Promise<Job<T, R, N> | void> {
     const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
@@ -222,7 +226,7 @@ export class Worker<T = any> extends QueueBase {
   private async nextJobFromJobData(
     jobData?: any,
     jobId?: string,
-  ): Promise<Job | void> {
+  ): Promise<Job<T, R, N> | void> {
     if (jobData) {
       this.drained = false;
       const job = Job.fromJSON(this, jobData, jobId);
@@ -237,7 +241,10 @@ export class Worker<T = any> extends QueueBase {
     }
   }
 
-  async processJob(job: Job, token: string): Promise<Job | void> {
+  async processJob(
+    job: Job<T, R, N>,
+    token: string,
+  ): Promise<Job<T, R, N> | void> {
     if (!job || this.closing || this.paused) {
       return;
     }
@@ -282,7 +289,7 @@ export class Worker<T = any> extends QueueBase {
 
     // end copy-paste from Bull3
 
-    const handleCompleted = async (result: any): Promise<Job | void> => {
+    const handleCompleted = async (result: R): Promise<Job<T, R, N> | void> => {
       const jobData = await job.moveToCompleted(
         result,
         token,

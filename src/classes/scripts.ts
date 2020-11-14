@@ -91,7 +91,11 @@ export class Scripts {
     return (<any>client).removeJob(keys.concat([queue.keys.events, jobId]));
   }
 
-  static async extendLock(worker: Worker, jobId: string, token: string) {
+  static async extendLock<T, R, N extends string>(
+    worker: Worker<T, R, N>,
+    jobId: string,
+    token: string,
+  ) {
     const client = await worker.client;
     const opts: WorkerOptions = worker.opts;
     const args = [
@@ -362,7 +366,11 @@ export class Scripts {
     return (<any>client).reprocessJob(keys.concat(args));
   }
 
-  static async moveToActive(worker: Worker, token: string, jobId?: string) {
+  static async moveToActive<T, R, N extends string>(
+    worker: Worker<T, R, N>,
+    token: string,
+    jobId?: string,
+  ) {
     const client = await worker.client;
     const opts = worker.opts;
 

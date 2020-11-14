@@ -1,5 +1,7 @@
-const sandbox = (processFile: any, childPool: any) => {
-  return async function process(job: any) {
+import { Job } from './job';
+
+const sandbox = <T, R, N extends string>(processFile: any, childPool: any) => {
+  return async function process(job: Job<T, R, N>): Promise<R> {
     const child = await childPool.retain(processFile);
     let msgHandler: any;
     let exitHandler: any;
@@ -9,8 +11,8 @@ const sandbox = (processFile: any, childPool: any) => {
       job: job.asJSON(),
     });
 
-    const done = new Promise((resolve, reject) => {
-      msgHandler = (msg: any) => {
+    const done: Promise<R> = new Promise((resolve, reject) => {
+      msgHandler = async (msg: any) => {
         switch (msg.cmd) {
           case 'completed':
             resolve(msg.value);
@@ -23,10 +25,10 @@ const sandbox = (processFile: any, childPool: any) => {
             break;
           }
           case 'progress':
-            job.updateProgress(msg.value);
+            await job.updateProgress(msg.value);
             break;
           case 'log':
-            job.log(msg.value);
+            await job.log(msg.value);
             break;
         }
       };
