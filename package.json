@@ -70,6 +70,9 @@
     "typedoc": "^0.15.0",
     "typescript": "^3.2.2"
   },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
     "all": true,
