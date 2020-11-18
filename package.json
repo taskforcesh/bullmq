@@ -59,7 +59,7 @@
     "nyc": "^14.1.1",
     "p-reflect": "^2.1.0",
     "prettier": "^1.18.2",
-    "semantic-release": "^15.13.2",
+    "semantic-release": "^17.2.3",
     "sinon": "^7.2.2",
     "ts-mocha": "^6.0.0",
     "ts-node": "^8.4.1",
