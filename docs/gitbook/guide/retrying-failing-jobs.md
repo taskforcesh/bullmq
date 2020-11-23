@@ -4,6 +4,8 @@ When a processor throws an exception, the worker will catch it and move the job 
 
 BullMQ support retries of failed jobs using backoff functions. It is possible to use the built in backoff functions or provide custom ones.
 
+For BullMQ to reschedule failed jobs, make sure you create a `QueueScheduler` for your queue.
+
 The code below shows how to specify a "exponential" backoff function with a 1 second delay as seed value, so it will retry at most 3 times spaced after 1 second, 2 seconds and 4 seconds:
 
 ```typescript
