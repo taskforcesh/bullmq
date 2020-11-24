@@ -23,7 +23,6 @@
     "test:watch": "yarn lint  && ts-mocha --paths 'src/**/test_*.ts' -w --watch-extensions ts"
   },
   "dependencies": {
-    "@types/ioredis": "^4.16.3",
     "cron-parser": "^2.7.3",
     "get-port": "^5.0.0",
     "ioredis": "^4.17.3",
