@@ -12,7 +12,7 @@ The code below shows how to specify a "exponential" backoff function with a 1 se
 import { Queue } from 'bullmq';
 
 const myQueue = new Queue('foo');
- 
+
 await queue.add(
   'test-retry',
   { foo: 'bar' },
@@ -54,7 +54,7 @@ You can then use your "custom" strategy when adding jobs:
 import { Queue } from 'bullmq';
 
 const myQueue = new Queue('foo');
- 
+
 await queue.add(
   'test-retry',
   { foo: 'bar' },

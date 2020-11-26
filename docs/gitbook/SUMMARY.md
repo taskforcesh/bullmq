@@ -10,6 +10,7 @@
 * [Introduction](guide/introduction.md)
 * [Connections](guide/connections.md)
 * [Queues](guide/untitled.md)
+* [Workers](guide/workers.md)
 * [Jobs](guide/jobs/README.md)
   * [FIFO](guide/jobs/fifo.md)
   * [LIFO](guide/jobs/lifo.md)
