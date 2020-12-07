@@ -96,7 +96,7 @@ module.exports = async (job: Job) {
 and refer to it in the worker constructor:
 
 ```typescript
- const processorFile = path.join(__dirname, 'my_procesor.js';
+ const processorFile = path.join(__dirname, 'my_procesor.js');
  worker = new Worker(queueName, processorFile);
 ```
 
