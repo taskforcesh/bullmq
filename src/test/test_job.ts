@@ -338,6 +338,25 @@ describe('Job', function() {
         throw new Error('Job should not be promoted!');
       } catch (err) {}
     });
+
+    it('should promote delayed job to the right queue if queue is paused', async () => {
+      const normalJob = await Job.create(queue, 'normal', { foo: 'bar' });
+      const delayedJob = await Job.create(
+        queue,
+        'delayed',
+        { foo: 'bar' },
+        { delay: 1 },
+      );
+
+      await queue.pause();
+      await delayedJob.promote();
+      await queue.resume();
+
+      const waitingJobsCount = await queue.getWaitingCount();
+      expect(waitingJobsCount).to.be.equal(2);
+      const delayedJobsNewState = await delayedJob.getState();
+      expect(delayedJobsNewState).to.be.equal('waiting');
+    });
   });
 
   // TODO:

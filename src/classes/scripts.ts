@@ -430,6 +430,7 @@ export class Scripts {
     const keys = [
       queue.keys.delayed,
       queue.keys.wait,
+      queue.keys.paused,
       queue.keys.priority,
       queue.keys.events,
     ];
