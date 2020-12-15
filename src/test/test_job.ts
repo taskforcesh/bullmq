@@ -340,9 +340,8 @@ describe('Job', function() {
     });
 
     it('should promote delayed job to the right queue if queue is paused', async () => {
-      const normalJob = await Job.create(queue, 'normal', { foo: 'bar' });
-      const delayedJob = await Job.create(
-        queue,
+      const normalJob = await queue.add('normal', { foo: 'bar' });
+      const delayedJob = await queue.add(
         'delayed',
         { foo: 'bar' },
         { delay: 1 },
