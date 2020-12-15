@@ -120,6 +120,12 @@ export class Queue<
     this.emit('resumed');
   }
 
+  async isPaused() {
+    const client = await this.client;
+    const pausedKeyExists = await client.hexists(this.keys.meta, 'paused');
+    return pausedKeyExists === 1;
+  }
+
   async getRepeatableJobs(start?: number, end?: number, asc?: boolean) {
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
