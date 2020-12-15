@@ -1,3 +1,10 @@
+## [1.11.1](https://github.com/taskforcesh/bullmq/compare/v1.11.0...v1.11.1) (2020-12-15)
+
+
+### Bug Fixes
+
+* clientCommandMessageReg to support GCP memorystore v5 ([8408dda](https://github.com/taskforcesh/bullmq/commit/8408dda9fa64fc0b968e88fb2726e0a30f717ed7))
+
 # [1.11.0](https://github.com/taskforcesh/bullmq/compare/v1.10.0...v1.11.0) (2020-11-24)
 
 
