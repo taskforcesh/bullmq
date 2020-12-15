@@ -15,7 +15,7 @@ import { isRedisInstance } from '../utils';
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-export const clientCommandMessageReg = /ERR unknown command '\s*client\s*'/;
+export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
 
 export class Worker<
   T = any,
