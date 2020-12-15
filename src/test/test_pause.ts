@@ -302,4 +302,14 @@ describe('Pause', function() {
       });
     });
   });
+
+  it('gets the right response from isPaused', async () => {
+    await queue.pause();
+    const isPausedQueuePaused = await queue.isPaused();
+    expect(isPausedQueuePaused).to.be.true;
+
+    await queue.resume();
+    const isResumedQueuePaused = await queue.isPaused();
+    expect(isResumedQueuePaused).to.be.false;
+  });
 });
