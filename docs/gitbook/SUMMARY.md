@@ -11,6 +11,7 @@
 * [Connections](guide/connections.md)
 * [Queues](guide/untitled.md)
 * [Workers](guide/workers/README.md)
+  * [Concurrency](guide/workers/concurrency.md)
   * [Stalled Jobs](guide/workers/stalled-jobs.md)
   * [Sandboxed processors](guide/workers/sandboxed-processors.md)
 * [Jobs](guide/jobs/README.md)
