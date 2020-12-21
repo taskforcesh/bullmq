@@ -80,6 +80,35 @@ describe('Job', function() {
       const parsed = JSON.parse(json);
       expect(parsed).not.to.have.property('queue');
     });
+
+    it('should correctly handle zero passed as data', async () => {
+      const data = 0;
+      const job = await Job.create(queue, 'test', data);
+      const json = JSON.stringify(job);
+      const parsed = JSON.parse(json);
+      expect(parsed).to.have.deep.property('data', data);
+
+      const newQueue = new Queue(queueName);
+      let worker: Worker;
+      const promise = new Promise<void>(async (resolve, reject) => {
+        worker = new Worker(queueName, async job => {
+          try {
+            expect(job.data).to.be.equal(0);
+          } catch (err) {
+            reject(err);
+          }
+          resolve();
+        });
+        const testJob = await newQueue.add('test', 0);
+      });
+
+      try {
+        await promise;
+      } finally {
+        await newQueue.close();
+        worker && (await worker.close());
+      }
+    });
   });
 
   describe('.update', function() {
@@ -298,7 +327,7 @@ describe('Job', function() {
 
       const completed: string[] = [];
 
-      const done = new Promise(resolve => {
+      const done = new Promise<void>(resolve => {
         worker.on('completed', job => {
           completed.push(job.id);
           if (completed.length > 3) {
