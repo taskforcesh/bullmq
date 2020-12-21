@@ -156,7 +156,7 @@ export class Job<T = any, R = any, N extends string = string> {
     return {
       id: this.id,
       name: this.name,
-      data: JSON.stringify(this.data || {}),
+      data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
       opts: JSON.stringify(this.opts),
       progress: this.progress,
       attemptsMade: this.attemptsMade,
