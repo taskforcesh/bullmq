@@ -1,3 +1,36 @@
+# [1.12.0](https://github.com/taskforcesh/bullmq/compare/v1.11.2...v1.12.0) (2020-12-16)
+
+
+### Features
+
+* add ability to get if queue is paused or not ([e98b7d8](https://github.com/taskforcesh/bullmq/commit/e98b7d8973df830cc29e0afc5d86e82c9a7ce76f))
+
+## [1.11.2](https://github.com/taskforcesh/bullmq/compare/v1.11.1...v1.11.2) (2020-12-15)
+
+
+### Bug Fixes
+
+* promote jobs to the right "list" when paused ([d3df615](https://github.com/taskforcesh/bullmq/commit/d3df615d37b1114c02eacb45f23643ee2f05374d))
+
+## [1.11.1](https://github.com/taskforcesh/bullmq/compare/v1.11.0...v1.11.1) (2020-12-15)
+
+
+### Bug Fixes
+
+* clientCommandMessageReg to support GCP memorystore v5 ([8408dda](https://github.com/taskforcesh/bullmq/commit/8408dda9fa64fc0b968e88fb2726e0a30f717ed7))
+
+# [1.11.0](https://github.com/taskforcesh/bullmq/compare/v1.10.0...v1.11.0) (2020-11-24)
+
+
+### Bug Fixes
+
+* add generic type to processor ([d4f6501](https://github.com/taskforcesh/bullmq/commit/d4f650120804bd6161f0eeda5162ad5a96811a05))
+
+
+### Features
+
+* add name and return types to queue, worker and processor ([4879715](https://github.com/taskforcesh/bullmq/commit/4879715ec7c917f11e3a0ac3c5f5126029340ed3))
+
 # [1.10.0](https://github.com/taskforcesh/bullmq/compare/v1.9.0...v1.10.0) (2020-10-20)
 
 

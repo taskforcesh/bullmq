@@ -23,7 +23,7 @@ export interface JobJson {
   returnvalue: string;
 }
 
-export class Job<T = any, R = any> {
+export class Job<T = any, R = any, N extends string = string> {
   progress: number | object = 0;
   returnvalue: R = null;
   stacktrace: string[] = null;
@@ -40,7 +40,7 @@ export class Job<T = any, R = any> {
 
   constructor(
     private queue: QueueBase,
-    public name: string,
+    public name: N,
     public data: T,
     public opts: JobsOptions = {},
     public id?: string,
@@ -60,25 +60,25 @@ export class Job<T = any, R = any> {
     this.toKey = queue.toKey.bind(queue);
   }
 
-  static async create<T = any, R = any>(
+  static async create<T = any, R = any, N extends string = string>(
     queue: QueueBase,
-    name: string,
+    name: N,
     data: T,
     opts?: JobsOptions,
   ) {
     const client = await queue.client;
 
-    const job = new Job<T, R>(queue, name, data, opts, opts && opts.jobId);
+    const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
     job.id = await job.addJob(client);
 
     return job;
   }
 
-  static async createBulk<T = any, R = any>(
+  static async createBulk<T = any, R = any, N extends string = string>(
     queue: QueueBase,
     jobs: {
-      name: string;
+      name: N;
       data: T;
       opts?: JobsOptions;
     }[],
@@ -86,7 +86,7 @@ export class Job<T = any, R = any> {
     const client = await queue.client;
 
     const jobInstances = jobs.map(
-      job => new Job<T, R>(queue, job.name, job.data, job.opts),
+      job => new Job<T, R, N>(queue, job.name, job.data, job.opts),
     );
 
     const multi = client.multi();
