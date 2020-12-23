@@ -22,7 +22,7 @@ When you add jobs to the queue there are several options that you can use. For e
 await myQueue.add(
   'wall',
   { color: 'pink' },
-  { removeOnComplete: true, removeOnFailed: 1000 },
+  { removeOnComplete: true, removeOnFail: 1000 },
 );
 
 ```
