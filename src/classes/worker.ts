@@ -102,6 +102,7 @@ export class Worker<
           ...this.opts,
           connection,
         });
+        this._repeat.on('error', e => this.emit.bind(this, e));
       }
       resolve(this._repeat);
     });

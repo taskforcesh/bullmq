@@ -43,6 +43,7 @@ export class Queue<
           ...this.opts,
           connection: await this.client,
         });
+        this._repeat.on('error', e => this.emit.bind(this, e));
       }
       resolve(this._repeat);
     });
