@@ -35,7 +35,7 @@ Quite often you will want to provide the same job options to all the jobs that y
 
 ```typescript
 const queue = new Queue('Paint', { defaultJobOptions: {
-  removeOnComplete: true, removeOnFailed: 1000
+  removeOnComplete: true, removeOnFail: 1000
 });
 ```
 
