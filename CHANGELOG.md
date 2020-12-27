@@ -1,3 +1,17 @@
+## [1.12.2](https://github.com/taskforcesh/bullmq/compare/v1.12.1...v1.12.2) (2020-12-23)
+
+
+### Bug Fixes
+
+* catch errors from Repeat ([#348](https://github.com/taskforcesh/bullmq/issues/348)) ([09a1a98](https://github.com/taskforcesh/bullmq/commit/09a1a98fc42dc1a9ae98bfb29c0cca3fac02013f))
+
+## [1.12.1](https://github.com/taskforcesh/bullmq/compare/v1.12.0...v1.12.1) (2020-12-21)
+
+
+### Bug Fixes
+
+* correctly handle "falsy" data values fixes [#264](https://github.com/taskforcesh/bullmq/issues/264) ([cf1dbaf](https://github.com/taskforcesh/bullmq/commit/cf1dbaf7e60d74fc8443a5f8a537455f28a8dba3))
+
 # [1.12.0](https://github.com/taskforcesh/bullmq/compare/v1.11.2...v1.12.0) (2020-12-16)
 
 

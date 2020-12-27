@@ -22,10 +22,22 @@ When you add jobs to the queue there are several options that you can use. For e
 await myQueue.add(
   'wall',
   { color: 'pink' },
-  { removeOnComplete: true, removeOnFailed: 1000 },
+  { removeOnComplete: true, removeOnFail: 1000 },
 );
 
 ```
 
 In the example above all completed jobs will be removed automatically and the last 1000 failed will be kept in the queue.
+
+### Default job options
+
+Quite often you will want to provide the same job options to all the jobs that you add to the Queue. In this case you can use the "defaultJobOptions" option when instantiating the Queue class:
+
+```typescript
+const queue = new Queue('Paint', { defaultJobOptions: {
+  removeOnComplete: true, removeOnFail: 1000
+});
+```
+
+
 
