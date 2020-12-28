@@ -6,4 +6,3 @@ structure:
 
 redirects:
   changelog: ./CHANGELOG.md
-  api: ./api/bullmq.md
