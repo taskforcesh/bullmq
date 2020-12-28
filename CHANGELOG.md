@@ -1,3 +1,11 @@
+## [1.12.3](https://github.com/taskforcesh/bullmq/compare/v1.12.2...v1.12.3) (2020-12-28)
+
+
+### Bug Fixes
+
+* correctly handle "falsy" data values fixes [#264](https://github.com/taskforcesh/bullmq/issues/264) ([becad91](https://github.com/taskforcesh/bullmq/commit/becad91350fd4ac01037e5b0d4a8a93724dd8dbd))
+* **worker:** setname on worker blocking connection ([645b633](https://github.com/taskforcesh/bullmq/commit/645b6338f5883b0c21ae78007777d86b45422615))
+
 ## [1.12.2](https://github.com/taskforcesh/bullmq/compare/v1.12.1...v1.12.2) (2020-12-23)
 
 
