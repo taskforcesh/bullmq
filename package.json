@@ -12,7 +12,7 @@
     "copylua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
     "coverage": "nyc --reporter=text npm run test",
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
-    "docs": "typedoc --out docs src",
+    "docs": "api-extractor run && api-documenter markdown -i ./temp -o docs/gitbook/api",
     "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
     "precommit": "yarn lint",
     "prepare": "yarn build",
