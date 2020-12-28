@@ -5,5 +5,5 @@ structure:
   summary: SUMMARY.md
 
 redirects:
-  changelog: ../../CHANGELOG.md
-  api: ../api/bullmq.md
+  changelog: ./CHANGELOG.md
+  api: ./api/bullmq.md
