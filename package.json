@@ -12,7 +12,7 @@
     "copylua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
     "coverage": "nyc --reporter=text npm run test",
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
-    "docs": "typedoc --out docs src",
+    "docs": "(api-extractor run || true) && api-documenter markdown -i ./temp -o docs/gitbook/api",
     "lint": "tslint --project tsconfig.json -c tslint.json 'src/**/*.ts'",
     "precommit": "yarn lint",
     "prepare": "yarn build",
@@ -36,8 +36,11 @@
     "@commitlint/cli": "^8.1.0",
     "@commitlint/config-conventional": "^8.1.0",
     "@istanbuljs/nyc-config-typescript": "^0.1.3",
+    "@microsoft/api-documenter": "^7.12.1",
+    "@microsoft/api-extractor": "^7.12.1",
     "@semantic-release/changelog": "^3.0.4",
     "@semantic-release/commit-analyzer": "^6.3.0",
+    "@semantic-release/exec": "^5.0.0",
     "@semantic-release/git": "^7.0.16",
     "@semantic-release/github": "^5.5.4",
     "@semantic-release/npm": "^5.2.0",
@@ -67,7 +70,6 @@
     "tslint-config-prettier": "^1.18.0",
     "tslint-eslint-rules": "^5.4.0",
     "tslint-plugin-prettier": "^2.0.1",
-    "typedoc": "^0.15.0",
     "typescript": "^3.2.2"
   },
   "nyc": {
@@ -110,17 +112,29 @@
           "npmPublish": true
         }
       ],
+      [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "yarn docs"
+        }
+      ],
       "@semantic-release/github"
     ],
     "prepare": [
-      "@semantic-release/changelog",
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "docs/gitbook/CHANGELOG.md"
+        }
+      ],
       "@semantic-release/npm",
       {
         "path": "@semantic-release/git",
         "assets": [
           "package.json",
           "yarn.lock",
-          "docs/gitbook/CHANGELOG.md"
+          "docs/gitbook/CHANGELOG.md",
+          "docs/gitbook/api/**"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]nn${nextRelease.notes}"
       }
