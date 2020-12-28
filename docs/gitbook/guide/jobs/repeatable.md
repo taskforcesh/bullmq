@@ -8,7 +8,7 @@ Every time a repeatable job is picked up for processing, the next repeatable job
 Repeatable jobs are just delayed jobs, therefore you also need a QueueScheduler instance to schedule the jobs accordingly.
 {% endhint %}
 
-There are two ways to specify a repeatable's job repetition pattern, either with a [cron expression](https://www.freeformatter.com/cron-expression-generator-quartz.html), or specifying a fix amount of milliseconds between repetitions.
+There are two ways to specify a repeatable's job repetition pattern, either with a cron expression (using [cron-parser](https://www.npmjs.com/package/cron-parser)'s "unix cron w/ optional seconds" format), or specifying a fix amount of milliseconds between repetitions.
 
 ```typescript
 import { Queue, QueueScheduler } from 'bullmq'
