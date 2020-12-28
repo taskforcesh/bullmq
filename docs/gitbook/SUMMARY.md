@@ -29,6 +29,7 @@
 
 ## Patterns
 
+* [Manually fetching jobs](patterns/manually-fetching-jobs.md)
 * [Producer - Consumer](patterns/producer-consumer.md)
 * [Flows](patterns/flows.md)
 * [Real time updates](patterns/real-time-updates.md)
