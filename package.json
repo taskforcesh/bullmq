@@ -120,7 +120,7 @@
         "assets": [
           "package.json",
           "yarn.lock",
-          "CHANGELOG.md"
+          "docs/gitbook/CHANGELOG.md"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]nn${nextRelease.notes}"
       }
