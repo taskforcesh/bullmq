@@ -1630,4 +1630,48 @@ describe('workers', function() {
     });
     */
   });
+
+  describe('Manually process jobs', () => {
+    it('should allow to complete jobs manually', async () => {
+      const worker = new Worker(queueName);
+      const token = 'my-token';
+
+      await queue.add('test', { foo: 'bar' });
+
+      const job = (await worker.getNextJob(token)) as Job;
+
+      const isActive = await job.isActive();
+      expect(isActive).to.be.equal(true);
+
+      await job.moveToCompleted('return value', token);
+
+      const isCompleted = await job.isCompleted();
+
+      expect(isCompleted).to.be.equal(true);
+
+      await worker.close();
+    });
+
+    it('should allow to fail jobs manually', async () => {
+      const worker = new Worker(queueName);
+      const token = 'my-token';
+
+      await queue.add('test', { foo: 'bar' });
+
+      const job = (await worker.getNextJob(token)) as Job;
+
+      const isActive = await job.isActive();
+      expect(isActive).to.be.equal(true);
+
+      await job.moveToFailed(new Error('job failed for some reason'), token);
+
+      const isCompleted = await job.isCompleted();
+      const isFailed = await job.isFailed();
+
+      expect(isCompleted).to.be.equal(false);
+      expect(isFailed).to.be.equal(true);
+
+      await worker.close();
+    });
+  });
 });
