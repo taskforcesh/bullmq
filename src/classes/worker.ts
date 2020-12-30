@@ -39,7 +39,7 @@ export class Worker<
   private processing: Map<Promise<Job<T, R, N> | string>, string>; // { [index: number]: Promise<Job | void> } = {};
   constructor(
     name: string,
-    processor: string | Processor<T, R, N>,
+    processor?: string | Processor<T, R, N>,
     opts: WorkerOptions = {},
   ) {
     super(name, opts);
@@ -62,29 +62,31 @@ export class Worker<
     );
     this.blockingConnection.on('error', this.emit.bind(this, 'error'));
 
-    if (typeof processor === 'function') {
-      this.processFn = processor;
-    } else {
-      // SANDBOXED
-      const supportedFileTypes = ['.js', '.ts', '.flow'];
-      const processorFile =
-        processor +
-        (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
+    if (processor) {
+      if (typeof processor === 'function') {
+        this.processFn = processor;
+      } else {
+        // SANDBOXED
+        const supportedFileTypes = ['.js', '.ts', '.flow'];
+        const processorFile =
+          processor +
+          (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
 
-      if (!fs.existsSync(processorFile)) {
-        // TODO are we forced to use sync api here?
-        throw new Error(`File ${processorFile} does not exist`);
+        if (!fs.existsSync(processorFile)) {
+          // TODO are we forced to use sync api here?
+          throw new Error(`File ${processorFile} does not exist`);
+        }
+
+        this.childPool = this.childPool || new ChildPool();
+        this.processFn = sandbox<T, R, N>(processor, this.childPool).bind(this);
       }
+      this.timerManager = new TimerManager();
 
-      this.childPool = this.childPool || new ChildPool();
-      this.processFn = sandbox<T, R, N>(processor, this.childPool).bind(this);
+      /* tslint:disable: no-floating-promises */
+      this.run().catch(error => {
+        console.error(error);
+      });
     }
-    this.timerManager = new TimerManager();
-
-    /* tslint:disable: no-floating-promises */
-    this.run().catch(error => {
-      console.error(error);
-    });
 
     this.on('error', err => console.error(err));
   }
@@ -412,7 +414,7 @@ export class Worker<
           return closePoolPromise;
         })
         .finally(() => client.disconnect())
-        .finally(() => this.timerManager.clearAllTimers())
+        .finally(() => this.timerManager && this.timerManager.clearAllTimers())
         .finally(() => this.emit('closed'));
     })();
     return this.closing;
