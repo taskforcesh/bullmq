@@ -1,3 +1,32 @@
+# [1.13.0](https://github.com/taskforcesh/bullmq/compare/v1.12.3...v1.13.0) (2020-12-30)
+
+
+### Features
+
+* add support for manually processing jobs fixes [#327](https://github.com/taskforcesh/bullmq/issues/327) ([e42bfd2](https://github.com/taskforcesh/bullmq/commit/e42bfd2814fc5136b175470c3085355090cc2e01))
+
+
+
+
+
+yarn run v1.22.5
+$ (api-extractor run || true) && api-documenter markdown -i ./temp -o docs/gitbook/api
+
+api-extractor 7.12.1  - https://api-extractor.com/
+
+Using configuration from ./config/api-extractor.json
+Analysis will use the bundled TypeScript version 4.0.5
+
+API Extractor completed with warnings
+
+api-documenter 7.12.1  - https://api-extractor.com/
+
+Reading bullmq.api.json
+
+Deleting old output from docs/gitbook/api
+Writing bullmq package
+Done in 4.57s.
+
 ## [1.12.3](https://github.com/taskforcesh/bullmq/compare/v1.12.2...v1.12.3) (2020-12-28)
 
 
