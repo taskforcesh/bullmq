@@ -3,7 +3,7 @@
 * [Quick Start](README.md)
 * [What is BullMQ](what-is-bullmq.md)
 * [API Reference](api-reference.md)
-* [Changelog](CHANGELOG.md)
+* [Changelog](changelog.md)
 
 ## Guide
 
@@ -30,7 +30,7 @@
 
 ## Patterns
 
-* [Manually fetching jobs](patterns/manually-fetching-jobs.md)
+* [Manually processing jobs](patterns/manually-fetching-jobs.md)
 * [Producer - Consumer](patterns/producer-consumer.md)
 * [Flows](patterns/flows.md)
 * [Real time updates](patterns/real-time-updates.md)
