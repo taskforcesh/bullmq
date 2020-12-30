@@ -10,6 +10,10 @@
 * [Introduction](guide/introduction.md)
 * [Connections](guide/connections.md)
 * [Queues](guide/untitled.md)
+* [Workers](guide/workers/README.md)
+  * [Concurrency](guide/workers/concurrency.md)
+  * [Stalled Jobs](guide/workers/stalled-jobs.md)
+  * [Sandboxed processors](guide/workers/sandboxed-processors.md)
 * [Jobs](guide/jobs/README.md)
   * [FIFO](guide/jobs/fifo.md)
   * [LIFO](guide/jobs/lifo.md)
@@ -26,6 +30,7 @@
 
 ## Patterns
 
+* [Manually processing jobs](patterns/manually-fetching-jobs.md)
 * [Producer - Consumer](patterns/producer-consumer.md)
 * [Flows](patterns/flows.md)
 * [Real time updates](patterns/real-time-updates.md)

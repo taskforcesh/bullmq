@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events';
 import { QueueBaseOptions } from '../interfaces';
 import { RedisConnection } from './redis-connection';
+import * as IORedis from 'ioredis';
 
 export class QueueBase extends EventEmitter {
   keys: { [index: string]: string };
@@ -54,11 +55,10 @@ export class QueueBase extends EventEmitter {
     return `${this.opts.prefix}:${this.name}:${type}`;
   }
 
-  get client() {
+  get client(): Promise<IORedis.Redis> {
     return this.connection.client;
   }
 
-  // TO BE DEPRECATED
   async waitUntilReady() {
     return this.client;
   }

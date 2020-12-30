@@ -18,4 +18,5 @@ yarn-error.log*
 *.njsproj
 *.sln
 *.sw*
-docs/api
+temp
+docs/gitbook/api

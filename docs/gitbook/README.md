@@ -6,6 +6,12 @@ description: This is a basic guide to get your first queue working.
 
 ## Install
 
+Install using npm:
+
+```text
+$ npm install bullmq
+```
+
 Install using yarn:
 
 ```text
