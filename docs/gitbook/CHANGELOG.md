@@ -1,3 +1,31 @@
+# [1.14.0](https://github.com/taskforcesh/bullmq/compare/v1.13.0...v1.14.0) (2021-01-06)
+
+
+### Features
+
+* **job:** expose extendLock as a public method ([17e8431](https://github.com/taskforcesh/bullmq/commit/17e8431af8bba58612bf9913c63ab5d38afecbb9))
+
+
+
+
+
+yarn run v1.22.5
+$ (api-extractor run || true) && api-documenter markdown -i ./temp -o docs/gitbook/api
+
+api-extractor 7.12.1  - https://api-extractor.com/
+
+Using configuration from ./config/api-extractor.json
+Analysis will use the bundled TypeScript version 4.0.5
+
+API Extractor completed with warnings
+
+api-documenter 7.12.1  - https://api-extractor.com/
+
+Reading bullmq.api.json
+
+Deleting old output from docs/gitbook/api
+Writing bullmq package
+Done in 5.00s.
 
 # [1.13.0](https://github.com/taskforcesh/bullmq/compare/v1.12.3...v1.13.0) (2020-12-30)
 
