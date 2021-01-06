@@ -41,6 +41,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [create(queue, name, data, opts)](./bullmq.job.create.md) | <code>static</code> |  |
 |  [createBulk(queue, jobs)](./bullmq.job.createbulk.md) | <code>static</code> |  |
 |  [discard()](./bullmq.job.discard.md) |  |  |
+|  [extendLock(token, duration)](./bullmq.job.extendlock.md) |  | Extend the lock for this job. |
 |  [fromId(queue, jobId)](./bullmq.job.fromid.md) | <code>static</code> |  |
 |  [fromJSON(queue, json, jobId)](./bullmq.job.fromjson.md) | <code>static</code> |  |
 |  [getState()](./bullmq.job.getstate.md) |  |  |

@@ -7,16 +7,17 @@
 <b>Signature:</b>
 
 ```typescript
-static extendLock<T, R, N extends string>(worker: Worker<T, R, N>, jobId: string, token: string): Promise<any>;
+static extendLock(queue: QueueBase, jobId: string, token: string, duration: number): Promise<any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  worker | [Worker](./bullmq.worker.md)<!-- -->&lt;T, R, N&gt; |  |
+|  queue | [QueueBase](./bullmq.queuebase.md) |  |
 |  jobId | string |  |
 |  token | string |  |
+|  duration | number |  |
 
 <b>Returns:</b>
 
