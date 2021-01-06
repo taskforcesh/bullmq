@@ -2,8 +2,8 @@
 
 * [Quick Start](README.md)
 * [What is BullMQ](what-is-bullmq.md)
-* [API Reference](api/index.md)
-* [Changelog](CHANGELOG.md)
+* [API Reference](index.md)
+* [Changelog](changelog.md)
 
 ## Guide
 

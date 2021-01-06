@@ -36,5 +36,12 @@ Normally a job gets locked as soon as it is fetched from the queue with a max du
 const worker = new Worker('my-queue', null, { lockDuration: 60000 });
 ```
 
-When using standard worker processors the lock is renewed automatically after half lock duration time has passed, however this mechanism does not exist when processing jobs manually, so you need to make sure to process the job faster than the lockDuration to avoid the "QueueScheduler" to move the job back to the waiting list of the queue.
+When using standard worker processors the lock is renewed automatically after half lock duration time has passed, however this mechanism does not exist when processing jobs manually, so you need to make sure to process the job faster than the lockDuration to avoid the "QueueScheduler" to move the job back to the waiting list of the queue or you can extend the lock for the job manually:
+
+```typescript
+const job = (await worker.getNextJob(token)) as Job;
+
+// Extend the lock 30 more seconds
+await job.extendLock(token, 30000);
+```
 
