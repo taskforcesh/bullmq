@@ -6,3 +6,5 @@ structure:
 
 redirects:
   changelog: ./CHANGELOG.md
+  api-reference: ./api/index.md 
+
