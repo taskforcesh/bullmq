@@ -272,7 +272,7 @@ export class Worker<
         this.opts.lockRenewTime,
         async () => {
           try {
-            const result = await Scripts.extendLock(this, job.id, token);
+            const result = await job.extendLock(token, this.opts.lockDuration);
             if (result && !timerStopped) {
               lockExtender();
             }

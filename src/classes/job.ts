@@ -208,6 +208,16 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * Extend the lock for this job.
+   *
+   * @param token unique token for the lock
+   * @param duration lock duration in milliseconds
+   */
+  async extendLock(token: string, duration: number) {
+    return Scripts.extendLock(this.queue, this.id, token, duration);
+  }
+
+  /**
    * Moves a job to the completed queue.
    * Returned job to be used with Queue.prototype.nextJobFromJobData.
    * @param returnValue {string} The jobs success message.

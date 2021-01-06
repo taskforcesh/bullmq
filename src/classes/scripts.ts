@@ -91,18 +91,18 @@ export class Scripts {
     return (<any>client).removeJob(keys.concat([queue.keys.events, jobId]));
   }
 
-  static async extendLock<T, R, N extends string>(
-    worker: Worker<T, R, N>,
+  static async extendLock(
+    queue: QueueBase,
     jobId: string,
     token: string,
+    duration: number,
   ) {
-    const client = await worker.client;
-    const opts: WorkerOptions = worker.opts;
+    const client = await queue.client;
     const args = [
-      worker.toKey(jobId) + ':lock',
-      worker.keys.stalled,
+      queue.toKey(jobId) + ':lock',
+      queue.keys.stalled,
       token,
-      opts.lockDuration,
+      duration,
       jobId,
     ];
     return (<any>client).extendLock(args);
