@@ -121,7 +121,7 @@
       [
         "@semantic-release/exec",
         {
-          "generateNotesCmd": "yarn docs"
+          "prepareCmd": "yarn docs"
         }
       ],
       "@semantic-release/github",
