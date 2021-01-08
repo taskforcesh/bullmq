@@ -17,6 +17,8 @@ module.exports = async (job: Job) {
 and refer to it in the worker constructor:
 
 ```typescript
+import { Worker } from 'bullmq'
+
 const processorFile = path.join(__dirname, 'my_procesor.js');
 worker = new Worker(queueName, processorFile);
 ```
