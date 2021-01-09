@@ -20,12 +20,13 @@ Note, in the example above we could just return directly doSomeAsyncProcessing, 
 We can now listen to the completed event in order to get the result value:
 
 ```typescript
-import { Job, QueueEvents } from 'bullmq'
+import { Job, QueueEvents, Queue } from 'bullmq'
 
-const queueEvents = new QueueEvents('AsyncProc')
+const queue = new Queue('AsyncProc');
+const queueEvents = new QueueEvents('AsyncProc');
 
 queueEvents.on('completed', async (jobId: string) => {
-    const job = await Job.fromId(jobId);
+    const job = await Job.fromId(queue, jobId);
     
     console.log(job.returnvalue);
 });
