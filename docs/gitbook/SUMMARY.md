@@ -9,7 +9,7 @@
 
 * [Introduction](guide/introduction.md)
 * [Connections](guide/connections.md)
-* [Queue](guide/queue.md)
+* [Queues](guide/queues.md)
 * [Workers](guide/workers/README.md)
   * [Concurrency](guide/workers/concurrency.md)
   * [Stalled Jobs](guide/workers/stalled-jobs.md)
