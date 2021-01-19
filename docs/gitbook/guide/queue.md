@@ -1,4 +1,4 @@
-# Queues
+# Queue
 
 A Queue is nothing more than a list of jobs waiting to be processed. The jobs can be small, message like, so that the queue can be used as a message broker, or they can be larger long running jobs.
 
