@@ -39,7 +39,7 @@ export class RedisConnection extends EventEmitter {
    * @param {Redis} redis client
    */
   static async waitUntilReady(client: IORedis.Redis) {
-    return new Promise(function(resolve, reject) {
+    return new Promise<void>(function(resolve, reject) {
       if (client.status === 'ready') {
         resolve();
       } else {
