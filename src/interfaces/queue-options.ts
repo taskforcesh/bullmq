@@ -11,7 +11,10 @@ export enum ClientType {
 export interface QueueBaseOptions {
   connection?: ConnectionOptions;
   client?: Redis;
-  prefix?: string; // prefix for all queue keys.
+  /**
+   * Prefix for all queue keys.
+   */
+  prefix?: string;
 }
 
 export interface QueueOptions extends QueueBaseOptions {
@@ -23,7 +26,10 @@ export interface QueueOptions extends QueueBaseOptions {
 
   streams?: {
     events: {
-      maxLen: number; // Max aproximated length for streams
+      /**
+       * Max aproximated length for streams
+       */
+      maxLen: number;
     };
   };
 }
