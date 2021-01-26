@@ -1,18 +1,38 @@
+/**
+ * Settings for repeatable jobs
+ *
+ * @see {@link https://docs.bullmq.io/guide/jobs/repeatable}
+ */
 export interface RepeatOptions {
-  // Cron string
+  /**
+   * A cron pattern
+   */
   cron?: string;
-  // Timezone
+  /**
+   * Timezone
+   */
   tz?: string;
-  // Start date when the repeat job should start repeating (only with cron).
+  /**
+   * Start date when the repeat job should start repeating (only with `cron`).
+   */
   startDate?: Date | string | number;
-  // End date when the repeat job should stop repeating.
+  /**
+   * End date when the repeat job should stop repeating.
+   */
   endDate?: Date | string | number;
-  // Number of times the job should repeat at max.
+  /**
+   * Number of times the job should repeat at max.
+   */
   limit?: number;
-  // Repeat every millis (cron setting cannot be used together with this setting.)
+  /**
+   * Repeat after this amount of milliseconds
+   * (`cron` setting cannot be used together with this setting.)
+   */
   every?: number;
 
-  // The start value for the repeat iteration count.
+  /**
+   * The start value for the repeat iteration count.
+   */
   count?: number;
   prevMillis?: number;
   jobId?: string;
