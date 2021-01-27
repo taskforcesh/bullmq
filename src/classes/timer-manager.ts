@@ -5,7 +5,13 @@ import { v4 } from 'uuid';
  * for all timers when no more delayed actions needed
  */
 export class TimerManager {
-  private timers: any = {};
+  private readonly timers = new Map<
+    string,
+    {
+      name: string;
+      timer: NodeJS.Timeout;
+    }
+  >();
 
   public setTimer(name: string, delay: number, fn: Function) {
     const id = v4();
@@ -22,30 +28,25 @@ export class TimerManager {
       id,
     );
 
-    // XXX only the timer is used, but the
-    // other fields are useful for
-    // troubleshooting/debugging
-    this.timers[id] = {
+    this.timers.set(id, {
       name,
       timer,
-    };
+    });
 
     return id;
   }
 
   public clearTimer(id: string) {
-    const timers = this.timers;
-    const timer = timers[id];
-    if (!timer) {
-      return;
+    const timer = this.timers.get(id);
+    if (timer) {
+      clearTimeout(timer.timer);
+      this.timers.delete(id);
     }
-    clearTimeout(timer.timer);
-    delete timers[id];
   }
 
   public clearAllTimers() {
-    Object.keys(this.timers).forEach(key => {
-      this.clearTimer(key);
-    });
+    for (const id of this.timers.keys()) {
+      this.clearTimer(id);
+    }
   }
 }
