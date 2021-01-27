@@ -13,6 +13,13 @@ export class TimerManager {
     }
   >();
 
+  /**
+   * Creates a new timer and returns its ID.
+   *
+   * @param name Readable name for the timer
+   * @param delay Delay in milliseconds
+   * @param fn callback function that is executed after the timer expires
+   */
   public setTimer(name: string, delay: number, fn: Function) {
     const id = v4();
     const timer = setTimeout(
