@@ -37,6 +37,7 @@
 * [Sender - Receiver](patterns/sender-receiver.md)
 * [Working with batches](patterns/working-with-batches.md)
 * [Idempotent jobs](patterns/idempotent-jobs.md)
+* [Debounce jobs](patterns/debounce-jobs.md)
 
 ## Bull 3.x Migration
 
