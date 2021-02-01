@@ -392,7 +392,9 @@ export class Job<T = any, R = any, N extends string = string> {
 
       // Poll once right now to see if the job has already finished. The job may have been completed before we were able
       // to register the event handlers on the QueueEvents, so we check here to make sure we're not waiting for an event
-      // that has already happened.
+      // that has already happened. We block checking the job until the queue events object is actually listening to
+      // Redis so there's no chance that it will miss events.
+      await queueEvents.waitUntilReady();
       const status = await Scripts.isFinished(this.queue, jobId);
       const finished = status > 0;
       if (finished) {
