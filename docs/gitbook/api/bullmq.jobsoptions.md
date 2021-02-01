@@ -14,17 +14,17 @@ export interface JobsOptions
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [attempts?](./bullmq.jobsoptions.attempts.md) | number | <i>(Optional)</i> |
-|  [backoff?](./bullmq.jobsoptions.backoff.md) | number \| [BackoffOptions](./bullmq.backoffoptions.md) | <i>(Optional)</i> |
-|  [delay?](./bullmq.jobsoptions.delay.md) | number | <i>(Optional)</i> |
-|  [jobId?](./bullmq.jobsoptions.jobid.md) | string | <i>(Optional)</i> |
-|  [lifo?](./bullmq.jobsoptions.lifo.md) | boolean | <i>(Optional)</i> |
-|  [priority?](./bullmq.jobsoptions.priority.md) | number | <i>(Optional)</i> |
-|  [rateLimiterKey?](./bullmq.jobsoptions.ratelimiterkey.md) | string | <i>(Optional)</i> |
-|  [removeOnComplete?](./bullmq.jobsoptions.removeoncomplete.md) | boolean \| number | <i>(Optional)</i> |
-|  [removeOnFail?](./bullmq.jobsoptions.removeonfail.md) | boolean \| number | <i>(Optional)</i> |
-|  [repeat?](./bullmq.jobsoptions.repeat.md) | [RepeatOptions](./bullmq.repeatoptions.md) | <i>(Optional)</i> |
-|  [stackTraceLimit?](./bullmq.jobsoptions.stacktracelimit.md) | number | <i>(Optional)</i> |
-|  [timeout?](./bullmq.jobsoptions.timeout.md) | number | <i>(Optional)</i> |
-|  [timestamp?](./bullmq.jobsoptions.timestamp.md) | number | <i>(Optional)</i> |
+|  [attempts?](./bullmq.jobsoptions.attempts.md) | number | <i>(Optional)</i> The total number of attempts to try the job until it completes. |
+|  [backoff?](./bullmq.jobsoptions.backoff.md) | number \| [BackoffOptions](./bullmq.backoffoptions.md) | <i>(Optional)</i> Backoff setting for automatic retries if the job fails |
+|  [delay?](./bullmq.jobsoptions.delay.md) | number | <i>(Optional)</i> An amount of miliseconds to wait until this job can be processed. Note that for accurate delays, worker and producers should have their clocks synchronized. |
+|  [jobId?](./bullmq.jobsoptions.jobid.md) | string | <i>(Optional)</i> Override the job ID - by default, the job ID is a unique integer, but you can use this setting to override it. If you use this option, it is up to you to ensure the jobId is unique. If you attempt to add a job with an id that already exists, it will not be added. |
+|  [lifo?](./bullmq.jobsoptions.lifo.md) | boolean | <i>(Optional)</i> If true, adds the job to the right of the queue instead of the left (default false) |
+|  [priority?](./bullmq.jobsoptions.priority.md) | number | <i>(Optional)</i> Ranges from 1 (highest priority) to MAX\_INT (lowest priority). Note that using priorities has a slight impact on performance, so do not use it if not required. |
+|  [rateLimiterKey?](./bullmq.jobsoptions.ratelimiterkey.md) | string | <i>(Optional)</i> Rate limiter key to use if rate limiter enabled. |
+|  [removeOnComplete?](./bullmq.jobsoptions.removeoncomplete.md) | boolean \| number | <i>(Optional)</i> If true, removes the job when it successfully completes When given an number, it specifies the maximum amount of jobs to keep. Default behavior is to keep the job in the completed set. |
+|  [removeOnFail?](./bullmq.jobsoptions.removeonfail.md) | boolean \| number | <i>(Optional)</i> If true, removes the job when it fails after all attempts. When given an number, it specifies the maximum amount of jobs to keep. |
+|  [repeat?](./bullmq.jobsoptions.repeat.md) | [RepeatOptions](./bullmq.repeatoptions.md) | <i>(Optional)</i> Repeat this job, for example based on a <code>cron</code> schedule. |
+|  [stackTraceLimit?](./bullmq.jobsoptions.stacktracelimit.md) | number | <i>(Optional)</i> Limits the amount of stack trace lines that will be recorded in the stacktrace. |
+|  [timeout?](./bullmq.jobsoptions.timeout.md) | number | <i>(Optional)</i> The number of milliseconds after which the job should be fail with a timeout error. |
+|  [timestamp?](./bullmq.jobsoptions.timestamp.md) | number | <i>(Optional)</i> Defaults to <code>Date.now()</code> |
 

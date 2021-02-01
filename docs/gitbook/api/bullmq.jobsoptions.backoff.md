@@ -4,6 +4,8 @@
 
 ## JobsOptions.backoff property
 
+Backoff setting for automatic retries if the job fails
+
 <b>Signature:</b>
 
 ```typescript

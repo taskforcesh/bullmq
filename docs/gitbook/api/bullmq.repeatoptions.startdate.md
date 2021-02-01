@@ -4,6 +4,8 @@
 
 ## RepeatOptions.startDate property
 
+Start date when the repeat job should start repeating (only with `cron`<!-- -->).
+
 <b>Signature:</b>
 
 ```typescript

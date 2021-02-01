@@ -4,6 +4,8 @@
 
 ## JobsOptions.timestamp property
 
+Defaults to `Date.now()`
+
 <b>Signature:</b>
 
 ```typescript

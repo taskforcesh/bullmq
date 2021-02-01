@@ -4,6 +4,8 @@
 
 ## JobsOptions.jobId property
 
+Override the job ID - by default, the job ID is a unique integer, but you can use this setting to override it. If you use this option, it is up to you to ensure the jobId is unique. If you attempt to add a job with an id that already exists, it will not be added.
+
 <b>Signature:</b>
 
 ```typescript

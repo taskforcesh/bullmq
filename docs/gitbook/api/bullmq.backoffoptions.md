@@ -4,6 +4,8 @@
 
 ## BackoffOptions interface
 
+Settings for backing off failed jobs.
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,6 +16,6 @@ export interface BackoffOptions
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [delay?](./bullmq.backoffoptions.delay.md) | number | <i>(Optional)</i> |
-|  [type](./bullmq.backoffoptions.type.md) | string |  |
+|  [delay?](./bullmq.backoffoptions.delay.md) | number | <i>(Optional)</i> Delay in milliseconds. |
+|  [type](./bullmq.backoffoptions.type.md) | string | Name of the backoff strategy. |
 

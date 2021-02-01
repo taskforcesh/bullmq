@@ -4,6 +4,8 @@
 
 ## BackoffOptions.delay property
 
+Delay in milliseconds.
+
 <b>Signature:</b>
 
 ```typescript

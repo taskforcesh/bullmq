@@ -4,6 +4,8 @@
 
 ## JobsOptions.timeout property
 
+The number of milliseconds after which the job should be fail with a timeout error.
+
 <b>Signature:</b>
 
 ```typescript

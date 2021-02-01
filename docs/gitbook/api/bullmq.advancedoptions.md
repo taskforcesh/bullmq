@@ -14,5 +14,5 @@ export interface AdvancedOptions
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [backoffStrategies?](./bullmq.advancedoptions.backoffstrategies.md) | {} | <i>(Optional)</i> |
+|  [backoffStrategies?](./bullmq.advancedoptions.backoffstrategies.md) | {} | <i>(Optional)</i> A set of custom backoff strategies keyed by name. |
 

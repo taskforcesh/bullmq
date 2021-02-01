@@ -4,6 +4,8 @@
 
 ## JobsOptions.attempts property
 
+The total number of attempts to try the job until it completes.
+
 <b>Signature:</b>
 
 ```typescript

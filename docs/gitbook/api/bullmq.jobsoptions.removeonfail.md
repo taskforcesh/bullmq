@@ -4,6 +4,8 @@
 
 ## JobsOptions.removeOnFail property
 
+If true, removes the job when it fails after all attempts. When given an number, it specifies the maximum amount of jobs to keep.
+
 <b>Signature:</b>
 
 ```typescript

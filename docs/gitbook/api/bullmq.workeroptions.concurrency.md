@@ -4,6 +4,8 @@
 
 ## WorkerOptions.concurrency property
 
+Amount of jobs that a single worker is allowed to work on in parallel.
+
 <b>Signature:</b>
 
 ```typescript

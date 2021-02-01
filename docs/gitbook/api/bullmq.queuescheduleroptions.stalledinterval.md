@@ -4,6 +4,8 @@
 
 ## QueueSchedulerOptions.stalledInterval property
 
+Number of milliseconds between stallness checks.
+
 <b>Signature:</b>
 
 ```typescript

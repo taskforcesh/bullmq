@@ -4,6 +4,8 @@
 
 ## AdvancedOptions.backoffStrategies property
 
+A set of custom backoff strategies keyed by name.
+
 <b>Signature:</b>
 
 ```typescript

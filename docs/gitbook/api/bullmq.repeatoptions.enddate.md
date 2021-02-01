@@ -4,6 +4,8 @@
 
 ## RepeatOptions.endDate property
 
+End date when the repeat job should stop repeating.
+
 <b>Signature:</b>
 
 ```typescript

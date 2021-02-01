@@ -4,6 +4,8 @@
 
 ## RepeatOptions.cron property
 
+A cron pattern
+
 <b>Signature:</b>
 
 ```typescript

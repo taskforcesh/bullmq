@@ -15,7 +15,7 @@ export interface WorkerOptions extends QueueBaseOptions
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [concurrency?](./bullmq.workeroptions.concurrency.md) | number | <i>(Optional)</i> |
+|  [concurrency?](./bullmq.workeroptions.concurrency.md) | number | <i>(Optional)</i> Amount of jobs that a single worker is allowed to work on in parallel. |
 |  [drainDelay?](./bullmq.workeroptions.draindelay.md) | number | <i>(Optional)</i> |
 |  [limiter?](./bullmq.workeroptions.limiter.md) | [RateLimiterOptions](./bullmq.ratelimiteroptions.md) | <i>(Optional)</i> |
 |  [lockDuration?](./bullmq.workeroptions.lockduration.md) | number | <i>(Optional)</i> |

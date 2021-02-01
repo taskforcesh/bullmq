@@ -4,6 +4,8 @@
 
 ## RateLimiterOptions.max property
 
+Max number of jobs to process in the time period specified in `duration`<!-- -->.
+
 <b>Signature:</b>
 
 ```typescript

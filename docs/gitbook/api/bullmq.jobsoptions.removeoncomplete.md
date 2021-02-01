@@ -4,6 +4,8 @@
 
 ## JobsOptions.removeOnComplete property
 
+If true, removes the job when it successfully completes When given an number, it specifies the maximum amount of jobs to keep. Default behavior is to keep the job in the completed set.
+
 <b>Signature:</b>
 
 ```typescript

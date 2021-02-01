@@ -4,6 +4,8 @@
 
 ## JobsOptions.repeat property
 
+Repeat this job, for example based on a `cron` schedule.
+
 <b>Signature:</b>
 
 ```typescript

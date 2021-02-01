@@ -4,6 +4,8 @@
 
 ## JobsOptions.rateLimiterKey property
 
+Rate limiter key to use if rate limiter enabled.
+
 <b>Signature:</b>
 
 ```typescript

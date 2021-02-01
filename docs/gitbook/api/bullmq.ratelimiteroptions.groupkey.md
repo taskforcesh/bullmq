@@ -4,6 +4,8 @@
 
 ## RateLimiterOptions.groupKey property
 
+It is possible to define a rate limiter based on group keys, for example you may want to have a rate limiter per customer instead of a global rate limiter for all customers
+
 <b>Signature:</b>
 
 ```typescript

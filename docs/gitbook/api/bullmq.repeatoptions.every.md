@@ -4,6 +4,8 @@
 
 ## RepeatOptions.every property
 
+Repeat after this amount of milliseconds (`cron` setting cannot be used together with this setting.)
+
 <b>Signature:</b>
 
 ```typescript

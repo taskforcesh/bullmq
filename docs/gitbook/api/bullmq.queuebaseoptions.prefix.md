@@ -4,6 +4,8 @@
 
 ## QueueBaseOptions.prefix property
 
+Prefix for all queue keys.
+
 <b>Signature:</b>
 
 ```typescript

@@ -16,5 +16,5 @@ export interface QueueBaseOptions
 |  --- | --- | --- |
 |  [client?](./bullmq.queuebaseoptions.client.md) | Redis | <i>(Optional)</i> |
 |  [connection?](./bullmq.queuebaseoptions.connection.md) | [ConnectionOptions](./bullmq.connectionoptions.md) | <i>(Optional)</i> |
-|  [prefix?](./bullmq.queuebaseoptions.prefix.md) | string | <i>(Optional)</i> |
+|  [prefix?](./bullmq.queuebaseoptions.prefix.md) | string | <i>(Optional)</i> Prefix for all queue keys. |
 

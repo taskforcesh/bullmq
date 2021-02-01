@@ -4,6 +4,8 @@
 
 ## RateLimiterOptions.duration property
 
+Time in milliseconds. During this time, a maximum of `max` jobs will be processed.
+
 <b>Signature:</b>
 
 ```typescript

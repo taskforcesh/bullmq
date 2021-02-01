@@ -4,6 +4,8 @@
 
 ## RepeatOptions.tz property
 
+Timezone
+
 <b>Signature:</b>
 
 ```typescript

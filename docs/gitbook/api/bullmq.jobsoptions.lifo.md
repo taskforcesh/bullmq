@@ -4,6 +4,8 @@
 
 ## JobsOptions.lifo property
 
+If true, adds the job to the right of the queue instead of the left (default false)
+
 <b>Signature:</b>
 
 ```typescript

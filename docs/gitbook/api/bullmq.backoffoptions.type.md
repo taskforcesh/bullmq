@@ -4,6 +4,8 @@
 
 ## BackoffOptions.type property
 
+Name of the backoff strategy.
+
 <b>Signature:</b>
 
 ```typescript

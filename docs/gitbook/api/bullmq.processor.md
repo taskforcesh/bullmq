@@ -4,6 +4,8 @@
 
 ## Processor type
 
+An async function that receives `Job`<!-- -->s and handles them.
+
 <b>Signature:</b>
 
 ```typescript

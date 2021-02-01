@@ -33,7 +33,7 @@
 |  Interface | Description |
 |  --- | --- |
 |  [AdvancedOptions](./bullmq.advancedoptions.md) |  |
-|  [BackoffOptions](./bullmq.backoffoptions.md) |  |
+|  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
@@ -41,9 +41,9 @@
 |  [QueueEvents](./bullmq.queueevents.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |
 |  [QueueOptions](./bullmq.queueoptions.md) |  |
-|  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) |  |
+|  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
 |  [RateLimiterOptions](./bullmq.ratelimiteroptions.md) |  |
-|  [RepeatOptions](./bullmq.repeatoptions.md) |  |
+|  [RepeatOptions](./bullmq.repeatoptions.md) | Settings for repeatable jobs |
 |  [SandboxedJob](./bullmq.sandboxedjob.md) |  |
 |  [Strategies](./bullmq.strategies.md) |  |
 |  [WorkerOptions](./bullmq.workeroptions.md) |  |
@@ -62,7 +62,7 @@
 |  --- | --- |
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
-|  [Processor](./bullmq.processor.md) |  |
+|  [Processor](./bullmq.processor.md) | An async function that receives <code>Job</code>s and handles them. |
 |  [RedisOptions](./bullmq.redisoptions.md) |  |
 |  [SandboxedJobProcessor](./bullmq.sandboxedjobprocessor.md) |  |
 

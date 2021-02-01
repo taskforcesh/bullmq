@@ -9,7 +9,7 @@ Waits for a redis client to be ready.
 <b>Signature:</b>
 
 ```typescript
-static waitUntilReady(client: IORedis.Redis): Promise<unknown>;
+static waitUntilReady(client: IORedis.Redis): Promise<void>;
 ```
 
 ## Parameters
@@ -20,5 +20,5 @@ static waitUntilReady(client: IORedis.Redis): Promise<unknown>;
 
 <b>Returns:</b>
 
-Promise&lt;unknown&gt;
+Promise&lt;void&gt;
 

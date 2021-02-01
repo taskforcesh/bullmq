@@ -4,6 +4,8 @@
 
 ## JobsOptions.stackTraceLimit property
 
+Limits the amount of stack trace lines that will be recorded in the stacktrace.
+
 <b>Signature:</b>
 
 ```typescript

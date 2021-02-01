@@ -14,7 +14,7 @@ export interface RateLimiterOptions
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [duration](./bullmq.ratelimiteroptions.duration.md) | number |  |
-|  [groupKey?](./bullmq.ratelimiteroptions.groupkey.md) | string | <i>(Optional)</i> |
-|  [max](./bullmq.ratelimiteroptions.max.md) | number |  |
+|  [duration](./bullmq.ratelimiteroptions.duration.md) | number | Time in milliseconds. During this time, a maximum of <code>max</code> jobs will be processed. |
+|  [groupKey?](./bullmq.ratelimiteroptions.groupkey.md) | string | <i>(Optional)</i> It is possible to define a rate limiter based on group keys, for example you may want to have a rate limiter per customer instead of a global rate limiter for all customers |
+|  [max](./bullmq.ratelimiteroptions.max.md) | number | Max number of jobs to process in the time period specified in <code>duration</code>. |
 

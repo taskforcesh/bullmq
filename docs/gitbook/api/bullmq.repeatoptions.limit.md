@@ -4,6 +4,8 @@
 
 ## RepeatOptions.limit property
 
+Number of times the job should repeat at max.
+
 <b>Signature:</b>
 
 ```typescript

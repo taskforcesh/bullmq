@@ -4,6 +4,8 @@
 
 ## RepeatOptions.count property
 
+The start value for the repeat iteration count.
+
 <b>Signature:</b>
 
 ```typescript
