@@ -61,3 +61,13 @@ queueEvents.on('progress', (jobId: string, progress: number | object) => {
 });
 ```
 
+### Typescript typings
+
+It is also possible to specify the data types for the Job data and return value using generics:
+
+```typescript
+const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {
+
+});
+```
+

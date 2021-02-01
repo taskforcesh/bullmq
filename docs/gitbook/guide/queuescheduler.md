@@ -4,12 +4,11 @@ The QueueScheduler is a helper class used to manage stalled and delayed jobs for
 
 ```typescript
 import { QueueScheduler } from 'bullmq'
-  
+
 const queueScheduler = new QueueScheduler('test');
 
 // Later when shuting down gracefulle
 await queueScheduler.close();
-
 ```
 
 This class automatically moves delayed jobs back to the waiting queue when it is the right time to process them. It also automatically checks for stalled jobs, i.e., detects jobs that are active but where the worker has either crashed or stopped working properly. [Stalled jobs](jobs/stalled.md) are moved back or failed depending on the settings selected when instantiating the class.
