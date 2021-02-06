@@ -363,7 +363,13 @@ export class Job<T = any, R = any, N extends string = string> {
     return new Promise<any>(async (resolve, reject) => {
       let timeout: NodeJS.Timeout;
       if (ttl) {
-        timeout = setTimeout(() => onFailed(`Job wait ${this.name} timed out before finishing, no finish notification arrived after ${ttl}ms (id=${jobId})`), ttl);
+        timeout = setTimeout(
+          () =>
+            onFailed(
+              `Job wait ${this.name} timed out before finishing, no finish notification arrived after ${ttl}ms (id=${jobId})`,
+            ),
+          ttl,
+        );
       }
 
       function onCompleted(args: any) {

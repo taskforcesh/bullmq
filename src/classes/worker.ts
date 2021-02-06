@@ -189,9 +189,14 @@ export class Worker<
           return this.moveToActive(token, jobId);
         }
       } catch (err) {
-        // Swallow error // TODO emit error
-        if (err.message !== 'Connection is closed.') {
-          console.error('BRPOPLPUSH', err);
+        // Swallow error if locally paused or closing since we did force a disconnection
+        if (
+          !(
+            (this.paused || this.closing) &&
+            err.message === 'Connection is closed.'
+          )
+        ) {
+          throw err;
         }
       }
     } else {
