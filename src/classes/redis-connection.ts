@@ -48,9 +48,11 @@ export class RedisConnection extends EventEmitter {
           resolve();
         }
 
-        function handleError(err: Error) {
-          client.removeListener('ready', handleReady);
-          reject(err);
+        function handleError(err: NodeJS.ErrnoException) {
+          if (err['code'] !== 'ECONNREFUSED') {
+            client.removeListener('ready', handleReady);
+            reject(err);
+          }
         }
 
         client.once('ready', handleReady);
