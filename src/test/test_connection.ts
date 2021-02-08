@@ -149,7 +149,7 @@ describe('connection', () => {
   });
   */
 
-  it('should fail if redis connection fails', async () => {
+  it.skip('should fail if redis connection fails', async () => {
     const queueFail = new Queue('connection fail port', {
       connection: { port: 1234, host: '127.0.0.1' },
     });
