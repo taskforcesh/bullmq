@@ -67,7 +67,7 @@ if (delayedTimestamp ~= 0) then
 else
     local target
 
-    -- Whe check for the meta.paused key to decide if we are paused or not
+    -- We check for the meta.paused key to decide if we are paused or not
     -- (since an empty list and !EXISTS are not really the same)
     local paused
     if rcall("HEXISTS", KEYS[3], "paused") ~= 1 then
