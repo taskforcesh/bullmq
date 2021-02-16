@@ -38,7 +38,48 @@ There are some important considerations regarding repeatable jobs:
 
 * Bull is smart enough not to add the same repeatable job if the repeat options are the same.
 * If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
-* repeatable jobs can be removed using the [removeRepeatable](https://github.com/OptimalBits/bull/blob/master/REFERENCE.md#queueremoverepeatable) method.
+* repeatable jobs can be removed using the [removeRepeatable](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.removerepeatable.md) method or [removeRepeatableByKey](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.removerepeatablebykey.md).
+
+All repeatable jobs have a repeatable job key that holds some metadata of the repeatable job itself. It is possible to retrieve all the current repeatable jobs in the queue calling [getRepeatableJobs](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.getrepeatablejobs.md):
+
+```typescript
+import { Queue } from 'bullmq'
+
+const myQueue = new Queue('Paint');
+
+const repeatableJobs = await myQueue.getRepeatableJobs();
+
+```
+
+Since repeatable jobs are delayed jobs, and the repetition is achieved by generating a new delayed job precisely before the current job starts processing. The jobs require unique ids which avoid duplicates, which implies that the standard jobId option does not work the same as with regular jobs. With repeatable jobs the jobId is used to generate the unique ids, for instance if you have 2 repeatable jobs with the same name and options you could use the jobId to have 2 different repeatable jobs:
+
+```typescript
+import { Queue, QueueScheduler } from 'bullmq'
+
+const myQueueScheduler = new QueueScheduler('Paint');
+const myQueue = new Queue('Paint');
+
+// Repeat job every 10 seconds but no more than 100 times
+await myQueue.add('bird', { color: 'bird' }, 
+  {
+    repeat: {
+      every: 10000,
+      limit: 100
+    },
+    jobId: "colibri"
+  });
+
+await myQueue.add('bird', { color: 'bird' }, 
+  {
+    repeat: {
+      every: 10000,
+      limit: 100
+    },
+    jobId: "pingeon"
+  });
+  
+  
+```
 
 ## Slow repeatable jobs
 
