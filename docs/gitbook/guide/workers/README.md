@@ -12,6 +12,13 @@ A worker is instantiated with the Worker class, and the work itself will be perf
 import { Worker, Job } from 'bullmq'
 
 const worker = new Worker(queueName, async (job: Job) => {
+
+    // Optionally report some progress
+    job.updateProgress(42);
+    
+    // Optionally sending an object as progress
+    job.updateProgress({ foo: 'bar' });
+
     // Do something with job
     return 'some value';
 });
