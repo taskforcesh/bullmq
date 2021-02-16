@@ -84,4 +84,9 @@ export interface JobsOptions {
    * Limits the amount of stack trace lines that will be recorded in the stacktrace.
    */
   stackTraceLimit?: number;
+
+  /**
+   * Internal property used by repeatable jobs.
+   */
+  prevMillis?: number;
 }
