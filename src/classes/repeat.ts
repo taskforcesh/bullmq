@@ -12,7 +12,7 @@ export class Repeat extends QueueBase {
     skipCheckExists?: boolean,
   ) {
     const repeatOpts = { ...opts.repeat };
-    const prevMillis = repeatOpts.prevMillis || 0;
+    const prevMillis = opts.prevMillis || 0;
     const currentCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
 
     if (
@@ -28,6 +28,11 @@ export class Repeat extends QueueBase {
     const nextMillis = getNextMillis(now, repeatOpts);
 
     if (nextMillis) {
+      // We store the undecorated opts.jobId into the repeat options
+      if (!prevMillis && opts.jobId) {
+        repeatOpts.jobId = opts.jobId;
+      }
+
       const repeatJobKey = getRepeatKey(name, repeatOpts);
 
       let repeatableExists = true;
@@ -69,7 +74,12 @@ export class Repeat extends QueueBase {
     //
     // Generate unique job id for this iteration.
     //
-    const jobId = getRepeatJobId(name, nextMillis, md5(repeatJobKey));
+    const jobId = getRepeatJobId(
+      name,
+      nextMillis,
+      md5(repeatJobKey),
+      opts.repeat.jobId,
+    );
     const now = Date.now();
     const delay = nextMillis - now;
 
@@ -91,8 +101,14 @@ export class Repeat extends QueueBase {
   async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {
     const client = await this.client;
 
-    const repeatJobKey = getRepeatKey(name, repeat);
-    const repeatJobId = getRepeatJobId(name, '', md5(repeatJobKey));
+    const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
+    const repeatJobId = getRepeatJobId(
+      name,
+      '',
+      md5(repeatJobKey),
+      jobId || repeat.jobId,
+    );
+
     const queueKey = this.keys[''];
 
     return (<any>client).removeRepeatable(
@@ -166,16 +182,21 @@ function getRepeatJobId(
   name: string,
   nextMillis: number | string,
   namespace: string,
+  jobId?: string,
 ) {
-  return `repeat:${name}:${namespace}:${nextMillis}`;
+  const checksum = md5(`${name}${jobId || ''}${namespace}`);
+  return `repeat:${checksum}:${nextMillis}`;
+  // return `repeat:${jobId || ''}:${name}:${namespace}:${nextMillis}`;
+  //return `repeat:${name}:${namespace}:${nextMillis}`;
 }
 
 function getRepeatKey(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
   const suffix = (repeat.cron ? repeat.cron : String(repeat.every)) || '';
+  const jobId = repeat.jobId ? repeat.jobId : '';
 
-  return `${name}::${endDate}:${tz}:${suffix}`;
+  return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
 
 function getNextMillis(millis: number, opts: RepeatOptions) {

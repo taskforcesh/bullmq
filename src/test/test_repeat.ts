@@ -7,7 +7,6 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { defaults } from 'lodash';
 import { removeAllQueueData } from '@src/utils';
 
 const sinon = require('sinon');
@@ -158,7 +157,7 @@ describe('repeat', function() {
     let prev: any;
     var counter = 0;
 
-    const completting = new Promise(resolve => {
+    const completting = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -206,7 +205,7 @@ describe('repeat', function() {
     let prev: Job;
     let counter = 0;
 
-    const completting = new Promise((resolve, reject) => {
+    const completting = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -255,7 +254,7 @@ describe('repeat', function() {
     let prev: Job;
     let counter = 0;
 
-    const completting = new Promise((resolve, reject) => {
+    const completting = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -300,7 +299,7 @@ describe('repeat', function() {
 
     let prev: Job;
     let counter = 0;
-    const completting = new Promise((resolve, reject) => {
+    const completting = new Promise<void>((resolve, reject) => {
       queue.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -400,7 +399,7 @@ describe('repeat', function() {
     const repeat = { cron: '*/1 * * * * *' };
     let processor;
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         counter++;
         if (counter == numJobs) {
@@ -410,7 +409,7 @@ describe('repeat', function() {
           expect(delayed).to.be.empty;
           resolve();
         } else if (counter > numJobs) {
-          reject(Error('should not repeat more than 7 times'));
+          reject(Error(`should not repeat more than ${numJobs} times`));
         }
       };
     });
@@ -449,6 +448,7 @@ describe('repeat', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
+    const numJobs = 4;
     const date = new Date('2017-02-07 9:24:00');
     let prev: Job;
     let counter = 0;
@@ -464,10 +464,10 @@ describe('repeat', function() {
 
     this.clock.tick(nextTick);
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         counter++;
-        if (counter == 4) {
+        if (counter == numJobs) {
           try {
             await queue.removeRepeatable('test', repeat, jobId);
             this.clock.tick(nextTick);
@@ -477,8 +477,8 @@ describe('repeat', function() {
           } catch (err) {
             reject(err);
           }
-        } else if (counter > 4) {
-          reject(Error('should not repeat more than 4 times'));
+        } else if (counter > numJobs) {
+          reject(Error(`should not repeat more than ${numJobs} times`));
         }
       };
     });
@@ -509,21 +509,21 @@ describe('repeat', function() {
     const jobId = 'xxxx';
     const date = new Date('2017-02-07 9:24:00');
     const nextTick = 2 * ONE_SECOND + 100;
-    const nextRepeatableJob = repeat.addNextRepeatableJob;
-    this.clock.tick(date.getTime());
+    const addNextRepeatableJob = repeat.addNextRepeatableJob;
+    this.clock.setSystemTime(date);
 
     const repeatOpts = { cron: '*/2 * * * * *' };
 
-    const afterRemoved = new Promise(async resolve => {
+    const afterRemoved = new Promise<void>(async resolve => {
       worker = new Worker(queueName, async job => {
         const repeatWorker = await worker.repeat;
         repeatWorker.addNextRepeatableJob = async (...args) => {
           // In order to simulate race condition
           // Make removeRepeatables happen any time after a moveToX is called
-          await queue.removeRepeatable('test', defaults({ jobId }, repeatOpts));
+          await queue.removeRepeatable('test', repeatOpts, jobId);
 
-          // nextRepeatableJob will now re-add the removed repeatable
-          const result = await nextRepeatableJob.apply(repeat, args);
+          // addNextRepeatableJob will now re-add the removed repeatable
+          const result = await addNextRepeatableJob.apply(repeat, args);
           resolve();
           return result;
         };
@@ -604,7 +604,7 @@ describe('repeat', function() {
 
     var counter = 0;
 
-    const completting = new Promise((resolve, reject) => {
+    const completting = new Promise<void>((resolve, reject) => {
       worker.on('completed', () => {
         this.clock.tick(nextTick);
         counter++;
@@ -630,7 +630,7 @@ describe('repeat', function() {
 
     let processor;
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         try {
           expect(job.id).to.be.ok;
@@ -685,7 +685,7 @@ describe('repeat', function() {
     let prevType: string;
     let counter = 0;
 
-    const completting = new Promise(resolve => {
+    const completting = new Promise<void>(resolve => {
       worker.on('completed', job => {
         this.clock.tick(nextTick);
         if (prevType) {
@@ -729,12 +729,12 @@ describe('repeat', function() {
 
     const worker = new Worker(queueName, async job => {});
 
-    const waiting = new Promise((resolve, reject) => {
+    const waiting = new Promise<void>((resolve, reject) => {
       queueEvents.on('waiting', function({ jobId }) {
         try {
           expect(jobId).to.be.equal(
-            'repeat:test:16db7a9b166154f5c636abf3c8fe3364:' +
-              (date.getTime() + 1 * ONE_SECOND),
+            `repeat:c602b9b36e4beddd9e7db39a3ef2ea4c:${date.getTime() +
+              1 * ONE_SECOND}`,
           );
           resolve();
         } catch (err) {
@@ -763,7 +763,7 @@ describe('repeat', function() {
     this.clock.tick(ONE_SECOND + 100);
 
     let processor;
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         if (job.opts.repeat.count === 1) {
           resolve();
