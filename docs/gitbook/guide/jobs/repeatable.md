@@ -20,7 +20,7 @@ const myQueue = new Queue('Paint');
 await myQueue.add('submarine', { color: 'yellow' }, 
   {
     repeat: {
-      cron: '15 3 * * *'
+      cron: '* 15 3 * * *'
     }
   });
 
