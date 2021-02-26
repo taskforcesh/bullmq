@@ -33,12 +33,6 @@
 
 You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
-# Poll
-
-Which other languages would you like to see BullMQ ported to, Python, PHP, Java or C#? 
-
-Please vote here: https://twitter.com/manast/status/1318168684049977345
-
 # Official FrontEnd
 
 [<img src="http://taskforce.sh/assets/logo_square.png" width="100" alt="Taskforce.sh, Inc" style="padding: 100px"/>](https://taskforce.sh)
