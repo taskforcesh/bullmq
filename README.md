@@ -29,6 +29,10 @@
   </p>
 </div>
 
+# NEW! Tutorials
+
+You can find tutorials and news in this blog: https://blog.taskforce.sh/
+
 # Poll
 
 Which other languages would you like to see BullMQ ported to, Python, PHP, Java or C#? 
