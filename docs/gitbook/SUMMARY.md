@@ -21,6 +21,7 @@
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/proritized.md)
   * [Stalled](guide/jobs/stalled.md)
+  * [Getters](guide/jobs/getters.md)
 * [Rate limiting](guide/rate-limiting.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
 * [Returning job data](guide/returning-job-data.md)
