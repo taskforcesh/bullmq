@@ -33,7 +33,7 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
 };
 
 async function initChild(child: ChildProcess, processFile: string) {
-  const onComplete = new Promise(resolve => {
+  const onComplete = new Promise<void>(resolve => {
     const onMessageHandler = (msg: any) => {
       if (msg.cmd === 'init-complete') {
         resolve();
