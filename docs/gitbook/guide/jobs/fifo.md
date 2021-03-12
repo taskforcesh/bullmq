@@ -11,7 +11,7 @@ import { Queue } from 'bullmq'
 
 const myQueue = new Queue('Paint');
 
-// Add a job that will be processed before all others
+// Add a job that will be processed after all others
 await myQueue.add('wall', { color: 'pink' });
 ```
 
