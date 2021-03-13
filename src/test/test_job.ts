@@ -168,6 +168,30 @@ describe('Job', function() {
     });
   });
 
+  describe('.addChild', () => {
+    it('can log two rows of children as text', async () => {
+      const firstChildJob = await Job.create(queue, 'test1', { foo: 'first' });
+      const secondChildJob = await Job.create(queue, 'test2', {
+        foo: 'second',
+      });
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await job.addChild(firstChildJob);
+      await job.addChild(secondChildJob);
+      const children = await queue.getChildren(job.id);
+      const firstKey = queue.keys[''] + firstChildJob.id;
+      const secondKey = queue.keys[''] + secondChildJob.id;
+
+      expect(children).to.be.eql({ children: [firstKey, secondKey], count: 2 });
+
+      await job.remove();
+      const childrenRemoved = await queue.getChildren(job.id);
+
+      expect(childrenRemoved).to.be.eql({ children: [], count: 0 });
+    });
+  });
+
   describe('.moveToCompleted', function() {
     it('marks the job as completed and returns new job', async function() {
       const job1 = await Job.create(queue, 'test', { foo: 'bar' });

@@ -87,7 +87,9 @@ export class Scripts {
       'priority',
       jobId,
       `${jobId}:logs`,
+      `${jobId}:children`,
     ].map(name => queue.toKey(name));
+
     return (<any>client).removeJob(keys.concat([queue.keys.events, jobId]));
   }
 

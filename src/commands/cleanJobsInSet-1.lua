@@ -40,6 +40,7 @@ for _, job in ipairs(jobs) do
       end
       redis.call("DEL", jobKey)
       redis.call("DEL", jobKey .. ":logs")
+      redis.call("DEL", jobKey .. ":children")
       deletedCount = deletedCount + 1
       table.insert(deleted, job)
     end

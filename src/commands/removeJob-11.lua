@@ -12,7 +12,8 @@
       KEYS[7] 'priority',
       KEYS[8] jobId
       KEYS[9] job logs
-      KEYS[10] events stream
+      KEYS[10] job children
+      KEYS[11] events stream
 
       ARGV[1]  jobId
 
@@ -31,7 +32,8 @@ rcall("ZREM", KEYS[6], jobId)
 rcall("ZREM", KEYS[7], jobId)
 rcall("DEL", KEYS[8])
 rcall("DEL", KEYS[9])
+rcall("DEL", KEYS[10])
 
-rcall("XADD", KEYS[10], "*", "event", "removed", "jobId", jobId, "prev", "TBD");
+rcall("XADD", KEYS[11], "*", "event", "removed", "jobId", jobId, "prev", "TBD");
 
 return 1

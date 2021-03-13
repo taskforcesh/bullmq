@@ -193,6 +193,19 @@ export class Job<T = any, R = any, N extends string = string> {
     return client.rpush(logsKey, logRow);
   }
 
+  /**
+   * Logs child dependency.
+   *
+   * @params job: job instance that will be related as a child.
+   *
+   */
+  async addChild(job: Job) {
+    const client = await this.queue.client;
+    const childrenKey = this.toKey(this.id) + ':children';
+
+    return client.rpush(childrenKey, job.queue.keys[''] + job.id);
+  }
+
   async remove() {
     await this.queue.waitUntilReady();
 

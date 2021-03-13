@@ -176,6 +176,19 @@ export class QueueGetters extends QueueBase {
     }));
   }
 
+  async getChildren(jobId: string, start = 0, end = -1) {
+    const client = await this.client;
+    const multi = client.multi();
+    const childrenLogsKey = this.toKey(jobId + ':children');
+    multi.lrange(childrenLogsKey, -(end + 1), -(start + 1));
+    multi.llen(childrenLogsKey);
+
+    return multi.exec().then(result => ({
+      children: result[0][1],
+      count: result[1][1],
+    }));
+  }
+
   async getWorkers() {
     const client = await this.client;
     const clients = await client.client('list');
