@@ -1,7 +1,12 @@
 import { Redis, Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
-import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
+import {
+  BackoffOptions,
+  JobsOptions,
+  ParentOptions,
+  WorkerOptions,
+} from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
 import { Backoffs, QueueBase, QueueEvents } from './';
 import { Scripts } from './scripts';
@@ -28,6 +33,7 @@ export class Job<T = any, R = any, N extends string = string> {
   returnvalue: R = null;
   stacktrace: string[] = null;
   timestamp: number;
+  parent: ParentOptions;
 
   attemptsMade = 0;
   failedReason: string;
@@ -53,9 +59,24 @@ export class Job<T = any, R = any, N extends string = string> {
       opts,
     );
 
+    const defaultParentValues = {
+      queueName: queue.name,
+      queuePrefix: queue.opts.prefix,
+    };
+
     this.timestamp = opts.timestamp ? opts.timestamp : Date.now();
 
     this.opts.backoff = Backoffs.normalize(opts.backoff);
+
+    if (this.opts.parent) {
+      if (typeof this.opts.parent === 'string') {
+        this.parent = Object.assign(defaultParentValues, {
+          id: this.opts.parent,
+        });
+      } else {
+        this.parent = Object.assign(defaultParentValues, this.opts.parent);
+      }
+    }
 
     this.toKey = queue.toKey.bind(queue);
   }

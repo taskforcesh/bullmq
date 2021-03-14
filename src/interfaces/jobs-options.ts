@@ -1,5 +1,6 @@
 import { RepeatOptions } from './repeat-options';
 import { BackoffOptions } from './backoff-options';
+import { ParentOptions } from './parent-options';
 
 export interface JobsOptions {
   /**
@@ -55,6 +56,11 @@ export interface JobsOptions {
    * fail with a timeout error.
    */
   timeout?: number;
+
+  /**
+   * Parent setting for tracking parent job reference.
+   */
+  parent?: string | ParentOptions;
 
   /**
    * Override the job ID - by default, the job ID is a unique

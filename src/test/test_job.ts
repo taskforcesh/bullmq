@@ -57,6 +57,20 @@ describe('Job', function() {
       });
       expect(createdJob.id).to.be.equal(customJobId);
     });
+
+    it('adds parent reference', async () => {
+      const data = { foo: 'bar' };
+      const parent = await Job.create(queue, 'testParent', data);
+      const job = await Job.create(queue, 'testChild', data, {
+        parent: { id: parent.id },
+      });
+
+      expect(job).to.have.deep.property('parent', {
+        id: parent.id,
+        queueName,
+        queuePrefix: 'bull',
+      });
+    });
   });
 
   describe('JSON.stringify', () => {
