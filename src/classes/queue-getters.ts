@@ -183,10 +183,20 @@ export class QueueGetters extends QueueBase {
     multi.lrange(childrenLogsKey, -(end + 1), -(start + 1));
     multi.llen(childrenLogsKey);
 
-    return multi.exec().then(result => ({
-      children: result[0][1],
-      count: result[1][1],
-    }));
+    return multi.exec().then(result => {
+      const children = result[0][1].map((child: string) => {
+        const [queuePrefix, queueName, id] = child.split(':');
+        return {
+          id,
+          queueName,
+          queuePrefix,
+        };
+      });
+      return {
+        children,
+        count: result[1][1],
+      };
+    });
   }
 
   async getWorkers() {

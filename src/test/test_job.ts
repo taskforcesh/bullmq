@@ -194,10 +194,14 @@ describe('Job', function() {
       await job.addChild(firstChildJob);
       await job.addChild(secondChildJob);
       const children = await queue.getChildren(job.id);
-      const firstKey = queue.keys[''] + firstChildJob.id;
-      const secondKey = queue.keys[''] + secondChildJob.id;
 
-      expect(children).to.be.eql({ children: [firstKey, secondKey], count: 2 });
+      expect(children).to.be.eql({
+        children: [
+          { id: firstChildJob.id, queueName, queuePrefix: 'bull' },
+          { id: secondChildJob.id, queueName, queuePrefix: 'bull' },
+        ],
+        count: 2,
+      });
 
       await job.remove();
       const childrenRemoved = await queue.getChildren(job.id);
