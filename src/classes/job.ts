@@ -220,11 +220,31 @@ export class Job<T = any, R = any, N extends string = string> {
    * @params job: job instance that will be related as a child.
    *
    */
-  async addChild(job: Job) {
+  async addChild(job: Job | ParentOptions | string) {
     const client = await this.queue.client;
     const childrenKey = this.toKey(this.id) + ':children';
 
-    return client.rpush(childrenKey, job.queue.keys[''] + job.id);
+    if (job instanceof Job) {
+      return client.rpush(childrenKey, job.queue.keys[''] + job.id);
+    } else if (typeof job === 'string') {
+      return client.rpush(childrenKey, this.queue.keys[''] + job);
+    }
+
+    const defaultParentValues = {
+      queueName: this.queue.name,
+      queuePrefix: this.queue.opts.prefix,
+    };
+
+    const finalValues = Object.assign(defaultParentValues, job);
+
+    return client.rpush(
+      childrenKey,
+      finalValues.queuePrefix +
+        ':' +
+        finalValues.queueName +
+        ':' +
+        finalValues.id,
+    );
   }
 
   async remove() {

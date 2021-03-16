@@ -184,23 +184,37 @@ describe('Job', function() {
 
   describe('.addChild', () => {
     it('can log two rows of children as text', async () => {
+      const anotherQueueName = 'test-' + v4();
+      const anotherQueue = new Queue(anotherQueueName);
       const firstChildJob = await Job.create(queue, 'test1', { foo: 'first' });
       const secondChildJob = await Job.create(queue, 'test2', {
         foo: 'second',
+      });
+      const thirdChildJob = await Job.create(anotherQueue, 'test3', {
+        foo: 'third',
       });
 
       const job = await Job.create(queue, 'test', { foo: 'bar' });
 
       await job.addChild(firstChildJob);
-      await job.addChild(secondChildJob);
+      await job.addChild(secondChildJob.id);
+      await job.addChild({
+        id: thirdChildJob.id,
+        queueName: anotherQueueName,
+      });
       const children = await queue.getChildren(job.id);
 
       expect(children).to.be.eql({
         children: [
           { id: firstChildJob.id, queueName, queuePrefix: 'bull' },
           { id: secondChildJob.id, queueName, queuePrefix: 'bull' },
+          {
+            id: thirdChildJob.id,
+            queueName: anotherQueueName,
+            queuePrefix: 'bull',
+          },
         ],
-        count: 2,
+        count: 3,
       });
 
       await job.remove();
