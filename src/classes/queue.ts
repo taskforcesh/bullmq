@@ -175,7 +175,7 @@ export class Queue<
     }
   }
 
-  /*@function clean
+  /* @method clean
    *
    * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
@@ -205,6 +205,32 @@ export class Queue<
 
     this.emit('cleaned', jobs, type);
     return jobs;
+  }
+
+  /* @method obliterate
+   *
+   * Completely destroys the queue and all of its contents irreversibly.
+   * This method will the *pause* the queue and requires that there are no
+   * active jobs. It is possible to bypass this requirement, i.e. not
+   * having active jobs using the "force" option.
+   *
+   * Note: This operation requires to iterate on all the jobs stored in the queue
+   * and can be slow for very large queues.
+   *
+   * @param { { force: boolean }} opts. Use force = true to force obliteration even
+   * with active jobs in the queue.
+   */
+  async obliterate(opts?: { force: boolean }) {
+    await this.pause();
+
+    let cursor = 0;
+    do {
+      cursor = await Scripts.obliterate(this, cursor, {
+        force: false,
+        count: 5000,
+        ...opts,
+      });
+    } while (cursor);
   }
 
   async trimEvents(maxLength: number) {
