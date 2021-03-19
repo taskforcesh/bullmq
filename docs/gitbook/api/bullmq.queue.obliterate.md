@@ -8,7 +8,8 @@
 
 ```typescript
 obliterate(opts?: {
-        force: boolean;
+        force?: boolean;
+        count?: number;
     }): Promise<void>;
 ```
 
@@ -16,7 +17,7 @@ obliterate(opts?: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  opts | { force: boolean; } |  |
+|  opts | { force?: boolean; count?: number; } |  |
 
 <b>Returns:</b>
 

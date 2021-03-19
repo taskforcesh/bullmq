@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static obliterate(queue: Queue, cursor: number, opts: {
+static obliterate(queue: Queue, opts: {
         force: boolean;
         count: number;
     }): Promise<any>;
@@ -18,7 +18,6 @@ static obliterate(queue: Queue, cursor: number, opts: {
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [Queue](./bullmq.queue.md) |  |
-|  cursor | number |  |
 |  opts | { force: boolean; count: number; } |  |
 
 <b>Returns:</b>
