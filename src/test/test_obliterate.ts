@@ -29,7 +29,7 @@ describe('Obliterate', () => {
     await queue.obliterate();
 
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}*`);
+    const keys = await client.keys(`bull:${queue.name}:*`);
 
     expect(keys.length).to.be.eql(0);
   });
@@ -56,7 +56,7 @@ describe('Obliterate', () => {
 
     await queue.obliterate();
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}*`);
+    const keys = await client.keys(`bull:${queue.name}:*`);
     expect(keys.length).to.be.eql(0);
 
     await worker.close();
@@ -87,7 +87,7 @@ describe('Obliterate', () => {
       await queue.obliterate();
     } catch (err) {
       const client = await queue.client;
-      const keys = await client.keys(`bull:${queue.name}*`);
+      const keys = await client.keys(`bull:${queue.name}:*`);
       expect(keys.length).to.be.not.eql(0);
 
       await worker.close();
@@ -119,7 +119,7 @@ describe('Obliterate', () => {
     await job.waitUntilFinished(queueEvents);
     await queue.obliterate({ force: true });
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}*`);
+    const keys = await client.keys(`bull:${queue.name}:*`);
     expect(keys.length).to.be.eql(0);
 
     await worker.close();
