@@ -217,17 +217,18 @@ export class Queue<
    * Note: This operation requires to iterate on all the jobs stored in the queue
    * and can be slow for very large queues.
    *
-   * @param { { force: boolean }} opts. Use force = true to force obliteration even
-   * with active jobs in the queue.
+   * @param { { force: boolean, count: number }} opts. Use force = true to force obliteration even
+   * with active jobs in the queue. Use count with the maximun number of deleted keys per iteration,
+   * 1000 is the default.
    */
-  async obliterate(opts?: { force: boolean }) {
+  async obliterate(opts?: { force?: boolean; count?: number }) {
     await this.pause();
 
     let cursor = 0;
     do {
-      cursor = await Scripts.obliterate(this, cursor, {
+      cursor = await Scripts.obliterate(this, {
         force: false,
-        count: 5000,
+        count: 1000,
         ...opts,
       });
     } while (cursor);

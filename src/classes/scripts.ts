@@ -474,15 +474,12 @@ export class Scripts {
 
   static async obliterate(
     queue: Queue,
-    cursor: number,
     opts: { force: boolean; count: number },
   ) {
     const client = await queue.client;
 
-    const pattern = `${queue.opts.prefix}:${queue.name}:*`;
-
-    const keys: (string | number)[] = [queue.keys.meta, queue.keys.active];
-    const args = [cursor, pattern, opts.count, opts.force ? 'force' : null];
+    const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];
+    const args = [opts.count, opts.force ? 'force' : null];
 
     const result = await (<any>client).obliterate(keys.concat(args));
     if (result < 0) {
