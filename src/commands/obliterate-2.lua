@@ -117,13 +117,3 @@ rcall("DEL", baseKey .. 'id')
 rcall("DEL", baseKey .. 'meta')
 
 return 0
-
-
---[[
-local result = rcall("scan", ARGV[1], "MATCH", ARGV[2], "COUNT", ARGV[3])
-local cursor = result[1]
-local keys = result[2]
-for i, key in ipairs(keys) do
-    rcall("DEL", key)
-end
-]]

@@ -9,7 +9,7 @@ In order to use a sandboxed processor just define the processor in a separate fi
 ```typescript
 import { Job } from 'bullmq';
 
-module.exports = async (job: Job) {
+module.exports = async (job: Job) => {
     // Do something with job
 };
 ```

@@ -126,10 +126,17 @@ export class Repeat extends QueueBase {
     const data = this._keyToData(repeatJobKey);
     const queueKey = this.keys[''];
 
+    const repeatJobId = getRepeatJobId(
+      data.name,
+      '',
+      md5(repeatJobKey),
+      data.id,
+    );
+
     return (<any>client).removeRepeatable(
       this.keys.repeat,
       this.keys.delayed,
-      data.id,
+      repeatJobId,
       repeatJobKey,
       queueKey,
     );
