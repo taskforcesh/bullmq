@@ -14,13 +14,11 @@ It is also possible to pause a given worker instance, this is what we call pause
 await myWorker.pause();
 ```
 
-The call above will be executed almost immediately, but note it is an async method, this is because it can also be called with an extra parameter so that the call waits for all the jobs in that given worker to complete:
+The call above will wait for all the jobs currently being processed by this worker, if you do not want to wait for current jobs to complete before the call completes you can pass "true" to just pause the worker ignoring any running jobs:
 
-```typescript
+```
 await myWorker.pause(true);
 ```
-
-The call is useful if for some reason you want to know exactly when the jobs in the worker have all finalized.
 
 
 
