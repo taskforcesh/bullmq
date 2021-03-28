@@ -60,11 +60,6 @@ export interface JobsOptions {
   timeout?: number;
 
   /**
-   * Dependents setting for tracking dependents job reference.
-   */
-  dependents?: Depend[];
-
-  /**
    * Dependencies setting for tracking dependencies job reference.
    */
   dependencies?: Depend[];
