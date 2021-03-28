@@ -208,21 +208,15 @@ export class Job<T = any, R = any, N extends string = string> {
    */
   async addDependency(job: Job | DependOptions | string) {
     const client = await this.queue.client;
-    const dependencyKey = this.toKey(this.id) + ':dependencies';
-    const dependentRef = this.queue.keys[''] + this.id;
+    const dependentRef = this.toKey(this.id);
+    const dependencyKey = dependentRef + ':dependencies';
 
     if (job instanceof Job) {
       await client.sadd(dependencyKey, job.queue.keys[''] + job.id);
-      return client.sadd(
-        job.queue.keys[''] + job.id + ':dependents',
-        dependentRef,
-      );
+      return client.sadd(job.toKey(job.id) + ':dependents', dependentRef);
     } else if (typeof job === 'string') {
-      await client.sadd(dependencyKey, this.queue.keys[''] + job);
-      return client.sadd(
-        this.queue.keys[''] + job + ':dependents',
-        dependentRef,
-      );
+      await client.sadd(dependencyKey, this.toKey('') + job);
+      return client.sadd(this.toKey('') + job + ':dependents', dependentRef);
     }
 
     const defaultParentValues = {
@@ -241,6 +235,51 @@ export class Job<T = any, R = any, N extends string = string> {
         finalValues.id,
     );
     return client.sadd(
+      finalValues.queuePrefix +
+        ':' +
+        finalValues.queueName +
+        ':' +
+        finalValues.id +
+        ':dependents',
+      dependentRef,
+    );
+  }
+
+  /**
+   * Remove dependency relationship.
+   *
+   * @params job: job instance that will be removed as a dependency.
+   *
+   */
+  async removeDependency(job: Job | DependOptions | string) {
+    const client = await this.queue.client;
+    const dependentRef = this.toKey(this.id);
+    const dependencyKey = dependentRef + ':dependencies';
+
+    if (job instanceof Job) {
+      await client.srem(dependencyKey, job.queue.keys[''] + job.id);
+      return client.srem(job.toKey(job.id) + ':dependents', dependentRef);
+    } else if (typeof job === 'string') {
+      await client.srem(dependencyKey, this.toKey('') + job);
+      return client.srem(this.toKey('') + job + ':dependents', dependentRef);
+    }
+
+    const defaultParentValues = {
+      queueName: this.queue.name,
+      queuePrefix: this.queue.opts.prefix,
+    };
+
+    const finalValues = Object.assign(defaultParentValues, job);
+
+    await client.srem(
+      dependencyKey,
+      finalValues.queuePrefix +
+        ':' +
+        finalValues.queueName +
+        ':' +
+        finalValues.id,
+    );
+    return client.srem(
       finalValues.queuePrefix +
         ':' +
         finalValues.queueName +

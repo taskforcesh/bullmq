@@ -75,7 +75,7 @@ export class Scripts {
       opts.delay ? job.timestamp + opts.delay : 0,
       opts.priority || 0,
       opts.lifo ? 'RPUSH' : 'LPUSH',
-      typeof dependencies !== 'undefined' ? dependencies.join(' ') : '',
+      typeof dependencies !== 'undefined' ? dependencies.join(';') : '',
     ];
 
     keys = keys.concat(<string[]>args);

@@ -106,7 +106,7 @@ if (maxEvents) then rcall("XTRIM", KEYS[7], "MAXLEN", "~", maxEvents) end
 
 local dependencies={}
 if (ARGV[11]~="") then
-    ARGV[11]:gsub("([^".." ".."]*)",function(c) table.insert(dependencies,c) end)
+    ARGV[11]:gsub("([^"..";".."]*)",function(c) table.insert(dependencies,c) end)
     for i, m in pairs(dependencies) do
         if (m~="") then
             rcall("SADD", jobIdKey..":dependencies", m)

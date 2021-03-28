@@ -183,7 +183,7 @@ describe('Job', function() {
   });
 
   describe('.addDependency', () => {
-    it('can add dependencies', async () => {
+    it('can add a dependency', async () => {
       const anotherQueueName = 'test-' + v4();
       const anotherQueue = new Queue(anotherQueueName);
       const firstDependencyJob = await Job.create(queue, 'test1', {
@@ -232,6 +232,55 @@ describe('Job', function() {
       });
 
       expect(dependenciesRemoved).to.have.members([]);
+    });
+  });
+
+  describe('.removeDependency', () => {
+    it('can remove a dependency', async () => {
+      const anotherQueueName = 'test-' + v4();
+      const anotherQueue = new Queue(anotherQueueName);
+      const firstDependencyJob = await Job.create(queue, 'test1', {
+        foo: 'first',
+      });
+      const secondDependencyJob = await Job.create(queue, 'test2', {
+        foo: 'second',
+      });
+      const thirdDependencyJob = await Job.create(anotherQueue, 'test3', {
+        foo: 'third',
+      });
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await job.addDependency(firstDependencyJob);
+      await job.addDependency(secondDependencyJob.id);
+      await job.addDependency({
+        id: thirdDependencyJob.id,
+        queueName: anotherQueueName,
+      });
+
+      const dependencies = await job.getDependencies({
+        anotherQueue: anotherQueue,
+      });
+      const dependencyIds = dependencies.map(dependency => dependency.id);
+
+      expect(dependencyIds).to.have.members([
+        firstDependencyJob.id,
+        secondDependencyJob.id,
+        thirdDependencyJob.id,
+      ]);
+
+      await job.removeDependency(secondDependencyJob.id);
+      const remainingDependencies = await job.getDependencies({
+        anotherQueue: anotherQueue,
+      });
+      const remainingDependencyIds = remainingDependencies.map(
+        dependency => dependency.id,
+      );
+
+      expect(remainingDependencyIds).to.have.members([
+        firstDependencyJob.id,
+        thirdDependencyJob.id,
+      ]);
     });
   });
 
