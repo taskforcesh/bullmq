@@ -58,18 +58,18 @@ describe('Job', function() {
       expect(createdJob.id).to.be.equal(customJobId);
     });
 
-    it('adds parent reference', async () => {
+    it('adds dependency reference', async () => {
       const data = { foo: 'bar' };
-      const parent = await Job.create(queue, 'testParent', data);
-      const job = await Job.create(queue, 'testChild', data, {
-        parent: { id: parent.id },
-      });
+      const dependency = await Job.create(queue, 'testParent', data);
 
-      expect(job).to.have.deep.property('parent', {
-        id: parent.id,
-        queueName,
-        queuePrefix: 'bull',
+      const job = await Job.create(queue, 'testChild', data, {
+        dependencies: [{ id: dependency.id }],
       });
+      const dependencies = await job.getDependencies();
+      const dependents = await dependency.getDependents();
+
+      expect(dependencies[0].id).to.be.eql(dependency.id);
+      expect(dependents[0].id).to.be.eql(job.id);
     });
   });
 
@@ -182,45 +182,56 @@ describe('Job', function() {
     });
   });
 
-  describe('.addChild', () => {
-    it('can log two rows of children as text', async () => {
+  describe('.addDependency', () => {
+    it('can add dependencies', async () => {
       const anotherQueueName = 'test-' + v4();
       const anotherQueue = new Queue(anotherQueueName);
-      const firstChildJob = await Job.create(queue, 'test1', { foo: 'first' });
-      const secondChildJob = await Job.create(queue, 'test2', {
+      const firstDependencyJob = await Job.create(queue, 'test1', {
+        foo: 'first',
+      });
+      const secondDependencyJob = await Job.create(queue, 'test2', {
         foo: 'second',
       });
-      const thirdChildJob = await Job.create(anotherQueue, 'test3', {
+      const thirdDependencyJob = await Job.create(anotherQueue, 'test3', {
         foo: 'third',
       });
 
       const job = await Job.create(queue, 'test', { foo: 'bar' });
 
-      await job.addChild(firstChildJob);
-      await job.addChild(secondChildJob.id);
-      await job.addChild({
-        id: thirdChildJob.id,
+      await job.addDependency(firstDependencyJob);
+      await job.addDependency(secondDependencyJob.id);
+      await job.addDependency({
+        id: thirdDependencyJob.id,
         queueName: anotherQueueName,
       });
-      const children = await queue.getChildren(job.id);
 
-      expect(children).to.be.eql({
-        children: [
-          { id: firstChildJob.id, queueName, queuePrefix: 'bull' },
-          { id: secondChildJob.id, queueName, queuePrefix: 'bull' },
-          {
-            id: thirdChildJob.id,
-            queueName: anotherQueueName,
-            queuePrefix: 'bull',
-          },
-        ],
-        count: 3,
+      const firstDependent = await firstDependencyJob.getDependents();
+      const secondDependent = await secondDependencyJob.getDependents();
+      const thirdDependent = await thirdDependencyJob.getDependents({
+        [queue.name]: queue,
       });
 
-      await job.remove();
-      const childrenRemoved = await queue.getChildren(job.id);
+      expect(firstDependent[0].id).to.be.eql(job.id);
+      expect(secondDependent[0].id).to.be.eql(job.id);
+      expect(thirdDependent[0].id).to.be.eql(job.id);
 
-      expect(childrenRemoved).to.be.eql({ children: [], count: 0 });
+      const dependencies = await job.getDependencies({
+        anotherQueue: anotherQueue,
+      });
+      const dependencyIds = dependencies.map(dependency => dependency.id);
+
+      expect(dependencyIds).to.have.members([
+        firstDependencyJob.id,
+        secondDependencyJob.id,
+        thirdDependencyJob.id,
+      ]);
+
+      await job.remove();
+      const dependenciesRemoved = await job.getDependencies({
+        anotherQueue: anotherQueue,
+      });
+
+      expect(dependenciesRemoved).to.have.members([]);
     });
   });
 

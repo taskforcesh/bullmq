@@ -176,6 +176,7 @@ export class QueueGetters extends QueueBase {
     }));
   }
 
+  /*
   async getChildren(jobId: string, start = 0, end = -1) {
     const client = await this.client;
     const multi = client.multi();
@@ -197,7 +198,7 @@ export class QueueGetters extends QueueBase {
         count: result[1][1],
       };
     });
-  }
+  }*/
 
   async getWorkers() {
     const client = await this.client;

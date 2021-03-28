@@ -1,9 +1,9 @@
 /**
- * Settings for parent jobs.
+ * Settings for depend jobs.
  */
-export interface ParentOptions {
+export interface DependOptions {
   /**
-   * Id of the parent job.
+   * Id of the depend job.
    */
   id: string;
 

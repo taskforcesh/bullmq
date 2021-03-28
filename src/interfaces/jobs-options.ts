@@ -1,6 +1,8 @@
 import { RepeatOptions } from './repeat-options';
 import { BackoffOptions } from './backoff-options';
-import { ParentOptions } from './parent-options';
+import { DependOptions } from './depend-options';
+
+type Depend = string | DependOptions;
 
 export interface JobsOptions {
   /**
@@ -58,9 +60,14 @@ export interface JobsOptions {
   timeout?: number;
 
   /**
-   * Parent setting for tracking parent job reference.
+   * Dependents setting for tracking dependents job reference.
    */
-  parent?: string | ParentOptions;
+  dependents?: Depend[];
+
+  /**
+   * Dependencies setting for tracking dependencies job reference.
+   */
+  dependencies?: Depend[];
 
   /**
    * Override the job ID - by default, the job ID is a unique

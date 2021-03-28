@@ -40,6 +40,30 @@ export class Scripts {
       queueKeys.delay,
     ];
 
+    const defaultParentValues = {
+      queueName: queue.name,
+      queuePrefix: queue.opts.prefix,
+    };
+
+    let dependencies;
+    if (Array.isArray(opts.dependencies)) {
+      dependencies = opts.dependencies.map(dependency => {
+        if (typeof dependency === 'string') {
+          return queue.keys[''] + dependency;
+        }
+
+        const finalValues = Object.assign(defaultParentValues, dependency);
+
+        return (
+          finalValues.queuePrefix +
+          ':' +
+          finalValues.queueName +
+          ':' +
+          finalValues.id
+        );
+      });
+    }
+
     const args = [
       queueKeys[''],
       typeof jobId !== 'undefined' ? jobId : '',
@@ -51,6 +75,7 @@ export class Scripts {
       opts.delay ? job.timestamp + opts.delay : 0,
       opts.priority || 0,
       opts.lifo ? 'RPUSH' : 'LPUSH',
+      typeof dependencies !== 'undefined' ? dependencies.join(' ') : '',
     ];
 
     keys = keys.concat(<string[]>args);
@@ -87,7 +112,8 @@ export class Scripts {
       'priority',
       jobId,
       `${jobId}:logs`,
-      `${jobId}:children`,
+      `${jobId}:dependents`,
+      `${jobId}:dependencies`,
     ].map(name => queue.toKey(name));
 
     return (<any>client).removeJob(keys.concat([queue.keys.events, jobId]));

@@ -34,6 +34,7 @@
       ARGV[8]  delayedTimestamp
       ARGV[9]  priority
       ARGV[10] LIFO
+      ARGV[11] dependencies (array of strings)
 ]]
 local jobId
 local jobIdKey
@@ -102,5 +103,16 @@ end
 
 local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents")
 if (maxEvents) then rcall("XTRIM", KEYS[7], "MAXLEN", "~", maxEvents) end
+
+local dependencies={}
+if (ARGV[11]~="") then
+    ARGV[11]:gsub("([^".." ".."]*)",function(c) table.insert(dependencies,c) end)
+    for i, m in pairs(dependencies) do
+        if (m~="") then
+            rcall("SADD", jobIdKey..":dependencies", m)
+            rcall("SADD", m..":dependents", jobIdKey)
+        end
+    end
+end
 
 return jobId .. "" -- convert to string

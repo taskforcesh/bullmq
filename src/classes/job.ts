@@ -4,7 +4,7 @@ import { RetryErrors } from '../enums';
 import {
   BackoffOptions,
   JobsOptions,
-  ParentOptions,
+  DependOptions,
   WorkerOptions,
 } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
@@ -28,12 +28,13 @@ export interface JobJson {
   returnvalue: string;
 }
 
+export type QueueBaseMap = Record<string, QueueBase>;
+
 export class Job<T = any, R = any, N extends string = string> {
   progress: number | object = 0;
   returnvalue: R = null;
   stacktrace: string[] = null;
   timestamp: number;
-  parent: ParentOptions;
 
   attemptsMade = 0;
   failedReason: string;
@@ -59,24 +60,9 @@ export class Job<T = any, R = any, N extends string = string> {
       opts,
     );
 
-    const defaultParentValues = {
-      queueName: queue.name,
-      queuePrefix: queue.opts.prefix,
-    };
-
     this.timestamp = opts.timestamp ? opts.timestamp : Date.now();
 
     this.opts.backoff = Backoffs.normalize(opts.backoff);
-
-    if (this.opts.parent) {
-      if (typeof this.opts.parent === 'string') {
-        this.parent = Object.assign(defaultParentValues, {
-          id: this.opts.parent,
-        });
-      } else {
-        this.parent = Object.assign(defaultParentValues, this.opts.parent);
-      }
-    }
 
     this.toKey = queue.toKey.bind(queue);
   }
@@ -215,19 +201,28 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * Logs child dependency.
+   * Add dependency relationship.
    *
-   * @params job: job instance that will be related as a child.
+   * @params job: job instance that will be related as a dependency.
    *
    */
-  async addChild(job: Job | ParentOptions | string) {
+  async addDependency(job: Job | DependOptions | string) {
     const client = await this.queue.client;
-    const childrenKey = this.toKey(this.id) + ':children';
+    const dependencyKey = this.toKey(this.id) + ':dependencies';
+    const dependentRef = this.queue.keys[''] + this.id;
 
     if (job instanceof Job) {
-      return client.rpush(childrenKey, job.queue.keys[''] + job.id);
+      await client.sadd(dependencyKey, job.queue.keys[''] + job.id);
+      return client.sadd(
+        job.queue.keys[''] + job.id + ':dependents',
+        dependentRef,
+      );
     } else if (typeof job === 'string') {
-      return client.rpush(childrenKey, this.queue.keys[''] + job);
+      await client.sadd(dependencyKey, this.queue.keys[''] + job);
+      return client.sadd(
+        this.queue.keys[''] + job + ':dependents',
+        dependentRef,
+      );
     }
 
     const defaultParentValues = {
@@ -237,13 +232,66 @@ export class Job<T = any, R = any, N extends string = string> {
 
     const finalValues = Object.assign(defaultParentValues, job);
 
-    return client.rpush(
-      childrenKey,
+    await client.sadd(
+      dependencyKey,
       finalValues.queuePrefix +
         ':' +
         finalValues.queueName +
         ':' +
         finalValues.id,
+    );
+    return client.sadd(
+      finalValues.queuePrefix +
+        ':' +
+        finalValues.queueName +
+        ':' +
+        finalValues.id +
+        ':dependents',
+      dependentRef,
+    );
+  }
+
+  /**
+   * Get dependents.
+   *
+   * @params queues: queues map, this is useful when dependents belongs to different queues.
+   *
+   */
+  async getDependents(queues: QueueBaseMap = {}) {
+    const client = await this.queue.client;
+    const dependentKey = this.toKey(this.id) + ':dependents';
+
+    const dependents: string[] = await client.smembers(dependentKey);
+
+    return Promise.all(
+      dependents.map((jobKey: string) => {
+        const [prefix, queueName, jobId] = jobKey.split(':');
+        const queue = queues[queueName] ? queues[queueName] : this.queue;
+
+        return Job.fromId(queue, jobId);
+      }),
+    );
+  }
+
+  /**
+   * Get dependencies.
+   *
+   * @params queues: queues map, this is useful when dependencies belongs to different queues.
+   *
+   */
+  async getDependencies(queues: QueueBaseMap = {}) {
+    const client = await this.queue.client;
+    const dependencyKey = this.toKey(this.id) + ':dependencies';
+
+    const dependencies: string[] = await client.smembers(dependencyKey);
+
+    return Promise.all(
+      dependencies.map((jobKey: string) => {
+        const [prefix, queueName, jobId] = jobKey.split(':');
+        const queue = queues[queueName] ? queues[queueName] : this.queue;
+
+        return Job.fromId(queue, jobId);
+      }),
     );
   }
 
