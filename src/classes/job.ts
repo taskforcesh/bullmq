@@ -295,6 +295,28 @@ export class Job<T = any, R = any, N extends string = string> {
     );
   }
 
+  /**
+   * Wait for dependencies.
+   *
+   * @params queues: queues map, this is useful when dependencies belongs to different queues.
+   *
+   */
+  async waitForDependencies(queues: QueueBaseMap = {}) {
+    const dependencyInstances = await this.getDependencies();
+
+    const completeStatuses = await Promise.all(
+      dependencyInstances.map((job: Job) => {
+        if (job) {
+          return job.isCompleted();
+        }
+
+        return true;
+      }),
+    );
+
+    return !completeStatuses.every(status => status);
+  }
+
   async remove() {
     await this.queue.waitUntilReady();
 

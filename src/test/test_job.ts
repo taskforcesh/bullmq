@@ -235,6 +235,52 @@ describe('Job', function() {
     });
   });
 
+  describe('.waitForDependencies', () => {
+    it('check job should wait for dependencies to be completed', async () => {
+      const anotherQueueName = 'test-' + v4();
+      const anotherQueue = new Queue(anotherQueueName);
+      const firstDependencyJob = await Job.create(queue, 'test1', {
+        foo: 'first',
+      });
+      const secondDependencyJob = await Job.create(queue, 'test2', {
+        foo: 'second',
+      });
+      const thirdDependencyJob = await Job.create(anotherQueue, 'test3', {
+        foo: 'third',
+      });
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await job.addDependency(firstDependencyJob);
+      await job.addDependency(secondDependencyJob.id);
+      await job.addDependency({
+        id: thirdDependencyJob.id,
+        queueName: anotherQueueName,
+      });
+
+      let waitForDependencies = await job.waitForDependencies({
+        [anotherQueueName]: anotherQueue,
+      });
+
+      expect(waitForDependencies).to.be.eql(true);
+
+      await firstDependencyJob.moveToCompleted('succeeded', '0', true);
+      waitForDependencies = await job.waitForDependencies({
+        [anotherQueueName]: anotherQueue,
+      });
+
+      expect(waitForDependencies).to.be.eql(true);
+
+      await secondDependencyJob.moveToCompleted('succeeded', '0', true);
+      await thirdDependencyJob.moveToCompleted('succeeded', '0', true);
+      waitForDependencies = await job.waitForDependencies({
+        [anotherQueueName]: anotherQueue,
+      });
+
+      expect(waitForDependencies).to.be.eql(false);
+    });
+  });
+
   describe('.moveToCompleted', function() {
     it('marks the job as completed and returns new job', async function() {
       const job1 = await Job.create(queue, 'test', { foo: 'bar' });
