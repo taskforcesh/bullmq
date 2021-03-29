@@ -335,13 +335,13 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * Wait for dependencies.
+   * Check for dependencies to be completed.
    *
    * @params queues: queues map, this is useful when dependencies belongs to different queues.
    *
    */
-  async waitForDependencies(queues: QueueBaseMap = {}) {
-    const dependencyInstances = await this.getDependencies();
+  async dependenciesReady(queues: QueueBaseMap = {}) {
+    const dependencyInstances = await this.getDependencies(queues);
 
     const completeStatuses = await Promise.all(
       dependencyInstances.map((job: Job) => {
@@ -353,7 +353,7 @@ export class Job<T = any, R = any, N extends string = string> {
       }),
     );
 
-    return !completeStatuses.every(status => status);
+    return completeStatuses.every(status => status);
   }
 
   async remove() {
