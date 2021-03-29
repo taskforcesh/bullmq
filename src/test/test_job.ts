@@ -58,18 +58,26 @@ describe('Job', function() {
       expect(createdJob.id).to.be.equal(customJobId);
     });
 
-    it('adds dependency reference', async () => {
+    it('adds dependency and dependent references', async () => {
       const data = { foo: 'bar' };
-      const dependency = await Job.create(queue, 'testParent', data);
+      const dependency = await Job.create(queue, 'testDependency', data);
+      const dependent = await Job.create(queue, 'testDepend', data);
 
-      const job = await Job.create(queue, 'testChild', data, {
+      const job = await Job.create(queue, 'testJob', data, {
+        dependents: [{ id: dependent.id }],
         dependencies: [{ id: dependency.id }],
       });
-      const dependencies = await job.getDependencies();
-      const dependents = await dependency.getDependents();
+      const jobDependencies = await job.getDependencies();
+      const dependencyDependents = await dependency.getDependents();
 
-      expect(dependencies[0].id).to.be.eql(dependency.id);
-      expect(dependents[0].id).to.be.eql(job.id);
+      expect(jobDependencies[0].id).to.be.eql(dependency.id);
+      expect(dependencyDependents[0].id).to.be.eql(job.id);
+
+      const jobDependents = await job.getDependents();
+      const dependentDependencies = await dependent.getDependencies();
+
+      expect(jobDependents[0].id).to.be.eql(dependent.id);
+      expect(dependentDependencies[0].id).to.be.eql(job.id);
     });
   });
 

@@ -2,7 +2,7 @@ import { RepeatOptions } from './repeat-options';
 import { BackoffOptions } from './backoff-options';
 import { DependOptions } from './depend-options';
 
-type Depend = string | DependOptions;
+export type Depend = string | DependOptions;
 
 export interface JobsOptions {
   /**
@@ -60,9 +60,14 @@ export interface JobsOptions {
   timeout?: number;
 
   /**
-   * Dependencies setting for tracking dependencies job reference.
+   * Dependencies setting for tracking dependency job references.
    */
   dependencies?: Depend[];
+
+  /**
+   * Dependents setting for tracking dependent job references.
+   */
+  dependents?: Depend[];
 
   /**
    * Override the job ID - by default, the job ID is a unique

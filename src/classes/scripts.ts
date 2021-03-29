@@ -7,6 +7,7 @@
 
 import { Redis } from 'ioredis';
 import {
+  Depend,
   JobsOptions,
   QueueSchedulerOptions,
   WorkerOptions,
@@ -40,28 +41,35 @@ export class Scripts {
       queueKeys.delay,
     ];
 
-    const defaultParentValues = {
+    const defaultDependValues = {
       queueName: queue.name,
       queuePrefix: queue.opts.prefix,
     };
 
+    const generateDependKey = (depend: Depend) => {
+      if (typeof depend === 'string') {
+        return queue.keys[''] + depend;
+      }
+
+      const finalValues = Object.assign(defaultDependValues, depend);
+
+      return (
+        finalValues.queuePrefix +
+        ':' +
+        finalValues.queueName +
+        ':' +
+        finalValues.id
+      );
+    };
+
     let dependencies;
     if (Array.isArray(opts.dependencies)) {
-      dependencies = opts.dependencies.map(dependency => {
-        if (typeof dependency === 'string') {
-          return queue.keys[''] + dependency;
-        }
+      dependencies = opts.dependencies.map(generateDependKey);
+    }
 
-        const finalValues = Object.assign(defaultParentValues, dependency);
-
-        return (
-          finalValues.queuePrefix +
-          ':' +
-          finalValues.queueName +
-          ':' +
-          finalValues.id
-        );
-      });
+    let dependents;
+    if (Array.isArray(opts.dependents)) {
+      dependents = opts.dependents.map(generateDependKey);
     }
 
     const args = [
@@ -75,6 +83,7 @@ export class Scripts {
       opts.delay ? job.timestamp + opts.delay : 0,
       opts.priority || 0,
       opts.lifo ? 'RPUSH' : 'LPUSH',
+      typeof dependents !== 'undefined' ? dependents.join(';') : '',
       typeof dependencies !== 'undefined' ? dependencies.join(';') : '',
     ];
 
