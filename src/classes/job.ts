@@ -3,6 +3,7 @@ import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import {
   BackoffOptions,
+  Depend,
   JobsOptions,
   DependOptions,
   WorkerOptions,
@@ -26,6 +27,11 @@ export interface JobJson {
   failedReason: string;
   stacktrace: string;
   returnvalue: string;
+}
+
+export interface BulkOptions {
+  dependencies?: Depend[];
+  dependents?: Depend[];
 }
 
 export type QueueBaseMap = Record<string, QueueBase>;
@@ -89,12 +95,15 @@ export class Job<T = any, R = any, N extends string = string> {
       data: T;
       opts?: JobsOptions;
     }[],
+    options: BulkOptions = {},
   ) {
     const client = await queue.client;
 
-    const jobInstances = jobs.map(
-      job => new Job<T, R, N>(queue, job.name, job.data, job.opts),
-    );
+    const jobInstances = jobs.map(job => {
+      const finalOptions = Object.assign(options, job.opts);
+
+      return new Job<T, R, N>(queue, job.name, job.data, finalOptions);
+    });
 
     const multi = client.multi();
 

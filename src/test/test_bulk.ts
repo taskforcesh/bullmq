@@ -51,4 +51,65 @@ describe('bulk jobs', () => {
 
     await worker.close();
   });
+
+  it('should add dependents and dependencies', async () => {
+    const name = 'test';
+    let processor;
+    const processing = new Promise(resolve => [
+      (processor = async (job: Job) => {
+        if (job.data.idx === 0) {
+          expect(job.data.foo).to.be.equal('bar');
+        } else {
+          expect(job.data.idx).to.be.equal(1);
+          expect(job.data.foo).to.be.equal('baz');
+          resolve();
+        }
+      }),
+    ]);
+    const worker = new Worker(queueName, processor);
+    await worker.waitUntilReady();
+
+    const data = { foo: 'bar' };
+    const dependency = await Job.create(queue, 'testDependency', data);
+    const dependent = await Job.create(queue, 'testDepend', data);
+    const jobs = await queue.addBulk(
+      [
+        { name, data: { idx: 0, foo: 'bar' } },
+        { name, data: { idx: 1, foo: 'baz' } },
+      ],
+      {
+        dependents: [dependent.id],
+        dependencies: [dependency.id],
+      },
+    );
+
+    expect(jobs).to.have.length(2);
+
+    expect(jobs[0].id).to.be.ok;
+    expect(jobs[0].data.foo).to.be.eql('bar');
+    expect(jobs[1].id).to.be.ok;
+    expect(jobs[1].data.foo).to.be.eql('baz');
+
+    const [firstJob, secondJob] = jobs;
+
+    const firstDependents = await firstJob.getDependents();
+    const firstDependencies = await firstJob.getDependencies();
+
+    expect(firstDependents).to.have.length(1);
+    expect(firstDependents[0].id).to.be.eql(dependent.id);
+    expect(firstDependencies).to.have.length(1);
+    expect(firstDependencies[0].id).to.be.eql(dependency.id);
+
+    const secondDependents = await secondJob.getDependents();
+    const secondDependencies = await secondJob.getDependencies();
+
+    expect(secondDependents).to.have.length(1);
+    expect(secondDependents[0].id).to.be.eql(dependent.id);
+    expect(secondDependencies).to.have.length(1);
+    expect(secondDependencies[0].id).to.be.eql(dependency.id);
+
+    await processing;
+
+    await worker.close();
+  });
 });
