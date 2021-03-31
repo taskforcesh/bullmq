@@ -387,6 +387,32 @@ describe('Job', function() {
     });
   });
 
+  describe('.getState', () => {
+    it('should get job actual state', async () => {
+      const job = await queue.add('job', { foo: 'bar' }, { delay: 1 });
+      const delayedState = await job.getState();
+
+      expect(delayedState).to.be.equal('delayed');
+
+      await queue.pause();
+      await job.promote();
+      await queue.resume();
+      const waitingState = await job.getState();
+
+      expect(waitingState).to.be.equal('waiting');
+
+      await job.moveToFailed(new Error('test error'), '0', true);
+      const failedState = await job.getState();
+
+      expect(failedState).to.be.equal('failed');
+
+      await job.moveToCompleted('succeeded', '0', true);
+      const completedState = await job.getState();
+
+      expect(completedState).to.be.equal('completed');
+    });
+  });
+
   // TODO:
   // Divide into several tests
   //
