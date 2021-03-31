@@ -345,12 +345,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   async getState() {
-    if (await this.isCompleted()) return 'completed';
-    if (await this.isFailed()) return 'failed';
-    if (await this.isDelayed()) return 'delayed';
-    if (await this.isActive()) return 'active';
-    if (await this.isWaiting()) return 'waiting';
-    return 'unknown';
+    return Scripts.getState(this.queue, this.id);
   }
 
   /**
