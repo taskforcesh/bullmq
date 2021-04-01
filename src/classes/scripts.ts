@@ -6,6 +6,7 @@
 'use strict';
 
 import { Redis } from 'ioredis';
+import * as semver from 'semver';
 import {
   JobsOptions,
   QueueSchedulerOptions,
@@ -301,6 +302,8 @@ export class Scripts {
       return queue.toKey(key);
     });
 
+    if (semver.lt(queue.redisVersion, '6.0.6'))
+      return (<any>client).getStateV2(keys.concat([jobId]));
     return (<any>client).getState(keys.concat([jobId]));
   }
 

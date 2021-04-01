@@ -10,6 +10,7 @@ export class RedisConnection extends EventEmitter {
   private _client: IORedis.Redis;
   private initializing: Promise<IORedis.Redis>;
   private closing: boolean;
+  private version: string;
 
   constructor(private opts?: ConnectionOptions) {
     super();
@@ -75,10 +76,10 @@ export class RedisConnection extends EventEmitter {
     await load(this._client);
 
     if (opts && opts.skipVersionCheck !== true && !this.closing) {
-      const version = await this.getRedisVersion();
-      if (semver.lt(version, RedisConnection.minimumVersion)) {
+      this.version = await this.getRedisVersion();
+      if (semver.lt(this.version, RedisConnection.minimumVersion)) {
         throw new Error(
-          `Redis version needs to be greater than ${RedisConnection.minimumVersion} Current: ${version}`,
+          `Redis version needs to be greater than ${RedisConnection.minimumVersion} Current: ${this.version}`,
         );
       }
     }
@@ -132,5 +133,9 @@ export class RedisConnection extends EventEmitter {
         return lines[i].substr(prefix.length);
       }
     }
+  }
+
+  get redisVersion(): string {
+    return this.version;
   }
 }

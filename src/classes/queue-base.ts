@@ -34,6 +34,10 @@ export class QueueBase extends EventEmitter {
     return this.connection.client;
   }
 
+  get redisVersion(): string {
+    return this.connection.redisVersion;
+  }
+
   async waitUntilReady() {
     return this.client;
   }
