@@ -30,15 +30,15 @@ if redis.call("ZSCORE", KEYS[3], ARGV[1]) ~= false then
   return "delayed"
 end
 
-if redis.call("LPOS", KEYS[4] , ARGV[1]) ~= nil then
+if redis.call("LPOS", KEYS[4] , ARGV[1]) ~= false then
   return "active"
 end
 
-if redis.call("LPOS", KEYS[5] , ARGV[1]) ~= nil then
+if redis.call("LPOS", KEYS[5] , ARGV[1]) ~= false then
   return "waiting"
 end
 
-if redis.call("LPOS", KEYS[6] , ARGV[1]) ~= nil then
+if redis.call("LPOS", KEYS[6] , ARGV[1]) ~= false then
   return "waiting"
 end
 
