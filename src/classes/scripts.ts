@@ -303,8 +303,8 @@ export class Scripts {
     });
 
     if (semver.lt(queue.redisVersion, '6.0.6'))
-      return (<any>client).getStateV2(keys.concat([jobId]));
-    return (<any>client).getState(keys.concat([jobId]));
+      return (<any>client).getState(keys.concat([jobId]));
+    return (<any>client).getStateV2(keys.concat([jobId]));
   }
 
   // Note: We have an issue here with jobs using custom job ids
