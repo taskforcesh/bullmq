@@ -35,8 +35,13 @@ export type ParentOpts = {
 };
 
 export class Scripts {
-  static async isJobInList(client: Redis, listKey: string, jobId: string) {
-    const result = await (<any>client).isJobInList([listKey, jobId]);
+  static async isJobInList(queue: QueueBase, listKey: string, jobId: string) {
+    const client = await queue.client;
+    if (semver.lt(queue.redisVersion, '6.0.6')) {
+      const result = await (<any>client).isJobInList([listKey, jobId]);
+      return result === 1;
+    }
+    const result = await (<any>client).isJobInListV2([listKey, jobId]);
     return result === 1;
   }
 
