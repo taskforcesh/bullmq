@@ -466,11 +466,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   private async isInList(list: string) {
-    return Scripts.isJobInList(
-      await this.queue.client,
-      this.queue.toKey(list),
-      this.id,
-    );
+    return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
   }
 
   private addJob(client: Redis): string {
