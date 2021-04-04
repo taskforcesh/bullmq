@@ -295,6 +295,19 @@ export class Scripts {
     return (<any>client).isFinished(keys.concat([jobId]));
   }
 
+  static async dependenciesReady(queue: QueueBase, dependenciesKey: string) {
+    const client = await queue.client;
+
+    const key = queue.toKey('completed');
+
+    const result = await (<any>client).dependenciesReady([
+      key,
+      dependenciesKey,
+    ]);
+
+    return result;
+  }
+
   // Note: We have an issue here with jobs using custom job ids
   static moveToDelayedArgs(queue: QueueBase, jobId: string, timestamp: number) {
     //

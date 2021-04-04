@@ -350,19 +350,14 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    */
   async dependenciesReady(queues: QueueBaseMap = {}) {
-    const dependencyInstances = await this.getDependencies(queues);
+    const queue = this.queue;
 
-    const completeStatuses = await Promise.all(
-      dependencyInstances.map((job: Job) => {
-        if (job) {
-          return job.isCompleted();
-        }
-
-        return true;
-      }),
+    const ready = await Scripts.dependenciesReady(
+      queue,
+      this.toKey(this.id) + ':dependencies',
     );
 
-    return completeStatuses.every(status => status);
+    return ready === 1;
   }
 
   async remove() {
