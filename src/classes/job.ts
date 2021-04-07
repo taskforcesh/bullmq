@@ -413,6 +413,20 @@ export class Job<T = any, R = any, N extends string = string> {
     return 'unknown';
   }
 
+  async getChildrenValues() {
+    const client = await this.queue.client;
+
+    const result = (await client.hgetall(
+      this.toKey(`${this.id}:processed`),
+    )) as Object;
+
+    if (result) {
+      return Object.fromEntries(
+        Object.entries(result).map(([k, v]) => [k, JSON.parse(v)]),
+      );
+    }
+  }
+
   /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */

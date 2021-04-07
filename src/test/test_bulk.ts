@@ -55,6 +55,11 @@ describe('bulk jobs', () => {
 
   it('should process children before the parent', async () => {
     const name = 'child-job';
+    const values = [
+      { bar: 'something' },
+      { baz: 'something' },
+      { qux: 'something' },
+    ];
 
     const parentQueue = 'parent-queue';
 
@@ -64,24 +69,30 @@ describe('bulk jobs', () => {
     const processingChildren = new Promise<void>(resolve => [
       (childrenProcessor = async (job: Job) => {
         processedChildren++;
-        switch (job.data.idx) {
-          case 0:
-            expect(job.data.foo).to.be.equal('bar');
-            return;
-          case 1:
-            expect(job.data.foo).to.be.equal('baz');
-            return;
-          case 2:
-            expect(job.data.foo).to.be.equal('qux');
-            resolve();
+
+        if (processedChildren == values.length) {
+          resolve();
         }
+        return values[job.data.idx];
       }),
     ]);
 
     const processingParent = new Promise<void>(resolve => [
       (parentProcessor = async (job: Job) => {
         expect(processedChildren).to.be.equal(3);
-        resolve();
+
+        const childrenValues = await job.getChildrenValues();
+
+        try {
+          for (let i = 0; i < values.length; i++) {
+            const jobKey = queue.toKey(jobs[i].id);
+            expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+          }
+          resolve();
+        } catch (err) {
+          console.error(err);
+          reject(err);
+        }
       }),
     ]);
 
