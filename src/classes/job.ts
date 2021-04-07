@@ -1,10 +1,13 @@
+import { Parent } from '../interfaces/parent';
 import { Redis, Pipeline } from 'ioredis';
 import { debuglog } from 'util';
+import uuid = require('uuid');
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
 import { Backoffs, QueueBase, QueueEvents } from './';
-import { Scripts } from './scripts';
+import { QueueKeys } from './queue-keys';
+import { BasicQueue, ParentOpts, Scripts } from './scripts';
 
 const logger = debuglog('bull');
 
@@ -39,7 +42,7 @@ export class Job<T = any, R = any, N extends string = string> {
   private discarded: boolean;
 
   constructor(
-    private queue: QueueBase,
+    private queue: BasicQueue,
     public name: N,
     public data: T,
     public opts: JobsOptions = {},
@@ -61,7 +64,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   static async create<T = any, R = any, N extends string = string>(
-    queue: QueueBase,
+    queue: BasicQueue,
     name: N,
     data: T,
     opts?: JobsOptions,
@@ -75,27 +78,84 @@ export class Job<T = any, R = any, N extends string = string> {
     return job;
   }
 
-  static async createBulk<T = any, R = any, N extends string = string>(
-    queue: QueueBase,
+  static async createBulk<
+    T = any,
+    R = any,
+    N extends string = string,
+    PT = any,
+    PR = any
+  >(
+    queue: BasicQueue,
     jobs: {
       name: N;
       data: T;
       opts?: JobsOptions;
     }[],
+    opts?: { parent?: Parent<PT> },
   ) {
     const client = await queue.client;
-
-    const jobInstances = jobs.map(
-      job => new Job<T, R, N>(queue, job.name, job.data, job.opts),
-    );
+    const parent = opts?.parent;
 
     const multi = client.multi();
 
+    let parentId,
+      parentDependenciesKey,
+      parentJobOpts: { id: string; queue: string };
+
+    if (parent) {
+      parentId = uuid.v4();
+
+      // Create parent job, will be a job in status "parent" i.e. redis set.
+      // Key where to place the parent as status. TODO: Best name for this "parents"?, "dependents"? other?
+
+      // Add parent current data, opts, etc.
+      const queueKeysParent = new QueueKeys(parent.queue, parent.prefix);
+      const parentsKey = queueKeysParent.toKey('parents');
+      parentDependenciesKey = `${queueKeysParent.toKey(parentId)}:dependencies`;
+
+      const parentQueue = {
+        client: queue.client,
+        name: parent.queue,
+        keys: queueKeysParent.cached,
+        toKey: queueKeysParent.toKey,
+        opts: {},
+        closing: queue.closing,
+        waitUntilReady: queue.waitUntilReady.bind(queue),
+        removeListener: queue.removeListener.bind(queue),
+        emit: queue.emit.bind(queue),
+        on: queue.on.bind(queue),
+      };
+
+      const parentJob = new Job<PT, PR, string>(
+        parentQueue,
+        parent.name,
+        parent.data,
+        parent.opts,
+        parentId,
+      );
+      parentJob.addJob(<Redis>(multi as unknown), { parentsKey });
+
+      parentJobOpts = {
+        id: parentId,
+        queue: queueKeysParent.prefixedQueueName,
+      };
+    }
+    const jobInstances = jobs.map(
+      job =>
+        new Job<T, R, N>(queue, job.name, job.data, {
+          ...job.opts,
+          parent: parentJobOpts,
+        }),
+    );
+
     for (const job of jobInstances) {
-      job.addJob(<Redis>(multi as unknown));
+      job.addJob(<Redis>(multi as unknown), { parentDependenciesKey });
     }
 
-    const result = (await multi.exec()) as [null | Error, string][];
+    const [parentResult, ...result] = (await multi.exec()) as [
+      null | Error,
+      string,
+    ][];
     result.forEach((res, index: number) => {
       const [err, id] = res;
       jobInstances[index].id = id;
@@ -104,7 +164,7 @@ export class Job<T = any, R = any, N extends string = string> {
     return jobInstances;
   }
 
-  static fromJSON(queue: QueueBase, json: any, jobId?: string) {
+  static fromJSON(queue: BasicQueue, json: any, jobId?: string) {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
@@ -136,7 +196,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   static async fromId(
-    queue: QueueBase,
+    queue: BasicQueue,
     jobId: string,
   ): Promise<Job | undefined> {
     // jobId can be undefined if moveJob returns undefined
@@ -478,12 +538,19 @@ export class Job<T = any, R = any, N extends string = string> {
     );
   }
 
-  private addJob(client: Redis): string {
+  private addJob(client: Redis, parentOpts?: ParentOpts): string {
     const queue = this.queue;
 
     const jobData = this.asJSON();
 
-    return Scripts.addJob(client, queue, jobData, this.opts, this.id);
+    return Scripts.addJob(
+      client,
+      queue,
+      jobData,
+      this.opts,
+      this.id,
+      parentOpts,
+    );
   }
 
   private saveAttempt(multi: Pipeline, err: Error) {
