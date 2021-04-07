@@ -152,10 +152,13 @@ export class Job<T = any, R = any, N extends string = string> {
       job.addJob(<Redis>(multi as unknown), { parentDependenciesKey });
     }
 
-    const [parentResult, ...result] = (await multi.exec()) as [
-      null | Error,
-      string,
-    ][];
+    let result = (await multi.exec()) as [null | Error, string][];
+
+    if (parent) {
+      let parentResult;
+      [parentResult, ...result] = result;
+    }
+
     result.forEach((res, index: number) => {
       const [err, id] = res;
       jobInstances[index].id = id;
