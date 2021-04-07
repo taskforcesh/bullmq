@@ -144,7 +144,7 @@ export class Scripts {
     const progressJson = JSON.stringify(progress);
 
     await (<any>client).updateProgress(keys, [job.id, progressJson]);
-    // queue.emit('progress', job, progress);
+    queue.emit('progress', job, progress);
   }
 
   static moveToFinishedArgs(
