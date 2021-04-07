@@ -32,6 +32,7 @@
       0 OK
       -1 Missing key.
       -2 Missing lock.
+      -3 Job not in active set
 
      Events:
       'completed/failed'
@@ -54,19 +55,18 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     -- Remove from active list (if not active we shall return error)
     local numRemovedElements = rcall("LREM", KEYS[1], -1, jobId)
 
-    -- What if we just ignore this? I think it is good to know regardless.
-    --[[   if(numRemovedElements < 1) then
-    return -2
-  end
- ]]
-     -- If job has a parent we need to 
+    if(numRemovedElements < 1) then
+        return -3
+    end
+    
+    -- If job has a parent we need to 
     -- 1) remove this job id from parents dependencies
     -- 2) move the job Id to parent "processed" set
     -- 3) push the results into parent "results" list
     -- 4) if parent's dependencies is empty, then move parent to "wait/paused". Note it may be a different queue!.
     -- NOTE: Priorities not supported yet for parent jobs.
     local parentId = ARGV[12]
-    if parentId ~= "" then 
+    if parentId ~= "" and ARGV[5] == "completed" then 
         local parentQueue = ARGV[13]
         local parentKey =  parentQueue .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"

@@ -229,9 +229,11 @@ export class Scripts {
   static finishedErrors(code: number, jobId: string, command: string) {
     switch (code) {
       case -1:
-        return new Error('Missing key for job ' + jobId + ' ' + command);
+        return new Error(`Missing key for job ${jobId} ${command}`);
       case -2:
-        return new Error('Missing lock for job ' + jobId + ' ' + command);
+        return new Error(`Missing lock for job ${jobId} ${command}`);
+      case -3:
+        return new Error(`Job is not in the active list ${jobId} ${command}`);
     }
   }
 

@@ -4,6 +4,7 @@ import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { removeAllQueueData } from '../utils';
+import { reject } from 'lodash';
 
 describe('bulk jobs', () => {
   let queue: Queue;
@@ -114,5 +115,39 @@ describe('bulk jobs', () => {
 
     await processingParent;
     await parentWorker.close();
+  });
+
+  it('should not process parent if child fails', async () => {
+    const name = 'child-job';
+
+    const parentQueueName = 'parent-queue';
+
+    let childrenProcessor;
+    const processingChildren = new Promise<void>(resolve => [
+      (childrenProcessor = async (job: Job) => {
+        resolve();
+        throw new Error('failed job');
+      }),
+    ]);
+
+    const childrenWorker = new Worker(queueName, childrenProcessor);
+
+    const jobs = await queue.addBulk([{ name, data: { idx: 0, foo: 'bar' } }], {
+      parent: {
+        name: 'parent-job',
+        queue: parentQueueName,
+      },
+    });
+    expect(jobs).to.have.length(1);
+
+    expect(jobs[0].id).to.be.ok;
+    expect(jobs[0].data.foo).to.be.eql('bar');
+
+    await processingChildren;
+    await childrenWorker.close();
+
+    const parentQueue = new Queue(parentQueueName);
+    const numJobs = await parentQueue.getWaitingCount();
+    expect(numJobs).to.be.equal(0);
   });
 });
