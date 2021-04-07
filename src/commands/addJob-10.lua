@@ -23,7 +23,7 @@
       KEYS[6] 'priority'
       KEYS[7] events stream key
       KEYS[8] delay stream key
-      KEYS[9] parents key.
+      KEYS[9] waitChildrenKey key.
       KEYS[10] parent dependencies key.
 
       ARGV[1]  key prefix,
@@ -62,9 +62,9 @@ rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
 local delayedTimestamp = tonumber(ARGV[8])
 
 -- Check if job is a parent, if so add to the parents set
-local parentsKey = KEYS[9]
-if parentsKey ~= "" then
-    rcall("SADD", parentsKey, jobId)
+local waitChildrenKey = KEYS[9]
+if waitChildrenKey ~= "" then
+    rcall("SADD", waitChildrenKey, jobId)
 
 elseif (delayedTimestamp ~= 0) then
     local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
@@ -109,7 +109,7 @@ else
 end
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
--- TODO: Should not be possible to add a child job to a parent that is not in the "parents" status.
+-- TODO: Should not be possible to add a child job to a parent that is not in the "wait-children" status.
 -- fail in this case.
 local parentDependenciesKey = KEYS[10]
 if parentDependenciesKey ~= "" then

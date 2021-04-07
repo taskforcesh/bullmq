@@ -75,13 +75,13 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
             local processedSet = parentKey .. ":processed"
             rcall("SADD", processedSet, jobIdKey)
             if rcall("SCARD", dependenciesSet) == 0 then 
-                rcall("SREM", parentQueue .. ":parents", parentId)
+                rcall("SREM", parentQueue .. ":wait-children", parentId)
                 -- TODO: Handle paused queues.
                 rcall("RPUSH", parentQueue .. ":wait", parentId)
 
                 local parentEventStream = parentKey .. ":events"
 
-                rcall("XADD", parentEventStream, "*", "event", "active", "jobId", jobId, "prev", "parents")
+                rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "wait-children")
             end
         end
     end

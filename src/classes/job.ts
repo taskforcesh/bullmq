@@ -7,7 +7,7 @@ import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
 import { Backoffs, QueueBase, QueueEvents } from './';
 import { QueueKeys } from './queue-keys';
-import { BasicQueue, ParentOpts, Scripts } from './scripts';
+import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 
 const logger = debuglog('bull');
 
@@ -42,7 +42,7 @@ export class Job<T = any, R = any, N extends string = string> {
   private discarded: boolean;
 
   constructor(
-    private queue: BasicQueue,
+    private queue: MinimalQueue,
     public name: N,
     public data: T,
     public opts: JobsOptions = {},
@@ -64,7 +64,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   static async create<T = any, R = any, N extends string = string>(
-    queue: BasicQueue,
+    queue: MinimalQueue,
     name: N,
     data: T,
     opts?: JobsOptions,
@@ -85,7 +85,7 @@ export class Job<T = any, R = any, N extends string = string> {
     PT = any,
     PR = any
   >(
-    queue: BasicQueue,
+    queue: MinimalQueue,
     jobs: {
       name: N;
       data: T;
@@ -105,12 +105,9 @@ export class Job<T = any, R = any, N extends string = string> {
     if (parent) {
       parentId = uuid.v4();
 
-      // Create parent job, will be a job in status "parent" i.e. redis set.
-      // Key where to place the parent as status. TODO: Best name for this "parents"?, "dependents"? other?
-
-      // Add parent current data, opts, etc.
+      // Create parent job, will be a job in status "wait-children" i.e. redis set.
       const queueKeysParent = new QueueKeys(parent.queue, parent.prefix);
-      const parentsKey = queueKeysParent.toKey('parents');
+      const waitChildrenKey = queueKeysParent.toKey('wait-children');
       parentDependenciesKey = `${queueKeysParent.toKey(parentId)}:dependencies`;
 
       const parentQueue = {
@@ -133,7 +130,7 @@ export class Job<T = any, R = any, N extends string = string> {
         parent.opts,
         parentId,
       );
-      parentJob.addJob(<Redis>(multi as unknown), { parentsKey });
+      parentJob.addJob(<Redis>(multi as unknown), { waitChildrenKey });
 
       parentJobOpts = {
         id: parentId,
@@ -167,7 +164,7 @@ export class Job<T = any, R = any, N extends string = string> {
     return jobInstances;
   }
 
-  static fromJSON(queue: BasicQueue, json: any, jobId?: string) {
+  static fromJSON(queue: MinimalQueue, json: any, jobId?: string) {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
@@ -199,7 +196,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   static async fromId(
-    queue: BasicQueue,
+    queue: MinimalQueue,
     jobId: string,
   ): Promise<Job | undefined> {
     // jobId can be undefined if moveJob returns undefined
