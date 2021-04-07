@@ -1,3 +1,4 @@
+import { Parent } from '../interfaces/parent';
 import { get } from 'lodash';
 import { v4 } from 'uuid';
 import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
@@ -84,8 +85,14 @@ export class Queue<
    * @method add
    * @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
+   * @param opts:parent: optional parent for these jobs. If defined, a parent job will be added
+   * to the queue with all the results from the children jobs and the data specified in the
+   * Parent structure.
    */
-  async addBulk(jobs: { name: N; data: T; opts?: JobsOptions }[]) {
+  async addBulk<ParentDataType>(
+    jobs: { name: N; data: T; opts?: JobsOptions }[],
+    opts?: { parent?: Parent<ParentDataType> },
+  ) {
     return Job.createBulk(
       this,
       jobs.map(job => ({
@@ -97,6 +104,7 @@ export class Queue<
           jobId: this.jobIdForGroup(job.opts, job.data),
         },
       })),
+      opts,
     );
   }
 
