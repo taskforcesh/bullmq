@@ -142,7 +142,7 @@ describe('repeat', function() {
     const worker = new Worker(queueName, async job => {});
 
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.tick(date.getTime());
+    this.clock.setSystemTime(date);
 
     const nextTick = 2 * ONE_SECOND + 100;
 
@@ -157,7 +157,7 @@ describe('repeat', function() {
     let prev: any;
     var counter = 0;
 
-    const completting = new Promise<void>(resolve => {
+    const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -172,7 +172,7 @@ describe('repeat', function() {
       });
     });
 
-    await completting;
+    await completing;
     await worker.close();
     await queueScheduler.close();
   });
@@ -183,7 +183,7 @@ describe('repeat', function() {
     await queueScheduler.waitUntilReady();
 
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.tick(date.getTime());
+    this.clock.setSystemTime(date);
     const nextTick = 2 * ONE_SECOND + 500;
     const delay = 5 * ONE_SECOND + 500;
 
@@ -205,7 +205,7 @@ describe('repeat', function() {
     let prev: Job;
     let counter = 0;
 
-    const completting = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -220,7 +220,7 @@ describe('repeat', function() {
       });
     });
 
-    await completting;
+    await completing;
 
     await queueScheduler.close();
     await worker.close();
@@ -232,7 +232,7 @@ describe('repeat', function() {
     await queueScheduler.waitUntilReady();
 
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.tick(date.getTime());
+    this.clock.setSystemTime(date);
     const nextTick = 2 * ONE_SECOND + 500;
     const delay = 5 * ONE_SECOND + 500;
 
@@ -254,7 +254,7 @@ describe('repeat', function() {
     let prev: Job;
     let counter = 0;
 
-    const completting = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -269,7 +269,7 @@ describe('repeat', function() {
       });
     });
 
-    await completting;
+    await completing;
     await queueScheduler.close();
     await worker.close();
   });
@@ -299,7 +299,7 @@ describe('repeat', function() {
 
     let prev: Job;
     let counter = 0;
-    const completting = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       queue.on('completed', async job => {
         this.clock.tick(nextTick);
         if (prev) {
@@ -319,7 +319,7 @@ describe('repeat', function() {
       });
     });
 
-    await completting;
+    await completing;
     await queueScheduler.close();
     await worker.close();
   });
@@ -393,7 +393,7 @@ describe('repeat', function() {
     let prev: Job;
     let counter = 0;
 
-    this.clock.tick(date.getTime());
+    this.clock.setSystemTime(date);
 
     const nextTick = ONE_SECOND + 1;
     const repeat = { cron: '*/1 * * * * *' };
@@ -455,7 +455,7 @@ describe('repeat', function() {
     let processor;
     const jobId = 'xxxx';
 
-    this.clock.tick(date.getTime());
+    this.clock.setSystemTime(date);
 
     const nextTick = 2 * ONE_SECOND + 10;
     const repeat = { cron: '*/2 * * * * *' };
@@ -590,7 +590,7 @@ describe('repeat', function() {
     await queueScheduler.waitUntilReady();
 
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.tick(date.getTime());
+    this.clock.setSystemTime(date);
     const nextTick = ONE_SECOND + 500;
 
     const worker = new Worker(queueName, NoopProc);
@@ -604,7 +604,7 @@ describe('repeat', function() {
 
     var counter = 0;
 
-    const completting = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', () => {
         this.clock.tick(nextTick);
         counter++;
@@ -616,7 +616,7 @@ describe('repeat', function() {
       });
     });
 
-    await completting;
+    await completing;
     await worker.close();
     await queueScheduler.close();
   });
@@ -669,9 +669,7 @@ describe('repeat', function() {
     const interval = ONE_SECOND * 2;
     const date = new Date('2017-02-07 9:24:00');
 
-    // Quantize time
-    const time = Math.floor(date.getTime() / interval) * interval;
-    this.clock.tick(time);
+    this.clock.setSystemTime(date);
 
     const nextTick = ONE_SECOND * 2 + 500;
 
@@ -685,7 +683,7 @@ describe('repeat', function() {
     let prevType: string;
     let counter = 0;
 
-    const completting = new Promise<void>(resolve => {
+    const completing = new Promise<void>(resolve => {
       worker.on('completed', job => {
         this.clock.tick(nextTick);
         if (prevType) {
@@ -699,7 +697,7 @@ describe('repeat', function() {
       });
     });
 
-    await completting;
+    await completing;
     await worker.close();
     await queueScheduler.close();
   });
@@ -724,7 +722,7 @@ describe('repeat', function() {
     await queueScheduler.waitUntilReady();
 
     const date = new Date('2017-02-07 9:24:00');
-    this.clock.tick(date.getTime());
+    this.clock.setSystemTime(date);
     const nextTick = 1 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {});

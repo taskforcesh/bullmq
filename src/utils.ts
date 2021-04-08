@@ -48,7 +48,7 @@ export async function removeAllQueueData(
   prefix = 'bull',
 ) {
   const pattern = `${prefix}:${queueName}:*`;
-  return new Promise((resolve, reject) => {
+  return new Promise<void>((resolve, reject) => {
     const stream = client.scanStream({
       match: pattern,
     });

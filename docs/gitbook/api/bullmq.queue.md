@@ -37,6 +37,7 @@ export declare class Queue<T = any, R = any, N extends string = string> extends 
 |  [drain(delayed)](./bullmq.queue.drain.md) |  | Drains the queue, i.e., removes all jobs that are waiting or delayed, but not active, completed or failed.<!-- -->TODO: Convert to an atomic LUA script. |
 |  [getRepeatableJobs(start, end, asc)](./bullmq.queue.getrepeatablejobs.md) |  |  |
 |  [isPaused()](./bullmq.queue.ispaused.md) |  |  |
+|  [obliterate(opts)](./bullmq.queue.obliterate.md) |  |  |
 |  [pause()](./bullmq.queue.pause.md) |  | Pauses the processing of this queue globally.<!-- -->We use an atomic RENAME operation on the wait queue. Since we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue is renamed to 'paused', no new jobs will be processed (the current ones will run until finalized).<!-- -->Adding jobs requires a LUA script to check first if the paused list exist and in that case it will add it there instead of the wait list. |
 |  [removeRepeatable(name, repeatOpts, jobId)](./bullmq.queue.removerepeatable.md) |  |  |
 |  [removeRepeatableByKey(key)](./bullmq.queue.removerepeatablebykey.md) |  |  |

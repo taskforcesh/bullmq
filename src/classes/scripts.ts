@@ -497,6 +497,27 @@ export class Scripts {
     return (<any>client).moveStalledJobsToWait(keys.concat(args));
   }
 
+  static async obliterate(
+    queue: Queue,
+    opts: { force: boolean; count: number },
+  ) {
+    const client = await queue.client;
+
+    const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];
+    const args = [opts.count, opts.force ? 'force' : null];
+
+    const result = await (<any>client).obliterate(keys.concat(args));
+    if (result < 0) {
+      switch (result) {
+        case -1:
+          throw new Error('Cannot obliterate non-paused queue');
+        case -2:
+          throw new Error('Cannot obliterate queue with active jobs');
+      }
+    }
+    return result;
+  }
+
   /*
 //   *
 //    * Attempts to reprocess a job
