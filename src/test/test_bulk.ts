@@ -161,4 +161,55 @@ describe('bulk jobs', () => {
     const numJobs = await parentQueue.getWaitingCount();
     expect(numJobs).to.be.equal(0);
   });
+
+  it('should not process parent until queue is unpaused', async () => {
+    const name = 'child-job';
+
+    const parentQueueName = 'parent-queue';
+
+    let childrenProcessor, parentProcessor;
+    const processingChildren = new Promise<void>(resolve => [
+      (childrenProcessor = async (job: Job) => {
+        resolve();
+      }),
+    ]);
+
+    const childrenWorker = new Worker(queueName, childrenProcessor);
+
+    const processingParent = new Promise<void>(resolve => [
+      (parentProcessor = async (job: Job) => {
+        resolve();
+      }),
+    ]);
+
+    const parentWorker = new Worker(parentQueueName, parentProcessor);
+
+    const parentQueue = new Queue(parentQueueName);
+    await parentQueue.pause();
+
+    const jobs = await queue.addBulk([{ name, data: { idx: 0, foo: 'bar' } }], {
+      parent: {
+        name: 'parent-job',
+        queue: parentQueueName,
+      },
+    });
+    expect(jobs).to.have.length(1);
+
+    expect(jobs[0].id).to.be.ok;
+    expect(jobs[0].data.foo).to.be.eql('bar');
+
+    await processingChildren;
+    await childrenWorker.close();
+
+    let numJobs = await parentQueue.getWaitingCount();
+    expect(numJobs).to.be.equal(1);
+
+    await parentQueue.resume();
+
+    await processingParent;
+    await parentWorker.close();
+
+    numJobs = await parentQueue.getWaitingCount();
+    expect(numJobs).to.be.equal(0);
+  });
 });
