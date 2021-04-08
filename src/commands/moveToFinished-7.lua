@@ -80,7 +80,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
             if rcall("SCARD", dependenciesSet) == 0 then 
                 rcall("SREM", parentQueue .. ":wait-children", parentId)
 
-                if rcall("HEXISTS", KEYS[7], "paused") ~= 1 then
+                if rcall("HEXISTS", parentQueue .. ":meta", "paused") ~= 1 then
                     rcall("RPUSH", parentQueue .. ":wait", parentId)
                 else
                     rcall("RPUSH", parentQueue .. ":paused", parentId)

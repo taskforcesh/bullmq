@@ -3,8 +3,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { removeAllQueueData } from '../utils';
-import { reject } from 'lodash';
+import { removeAllQueueData, delay } from '../utils';
 
 describe('bulk jobs', () => {
   let queue: Queue;
@@ -49,7 +48,6 @@ describe('bulk jobs', () => {
     expect(jobs[1].data.foo).to.be.eql('baz');
 
     await processing;
-
     await worker.close();
   });
 
@@ -61,7 +59,7 @@ describe('bulk jobs', () => {
       { qux: 'something' },
     ];
 
-    const parentQueue = 'parent-queue';
+    const parentQueueName = 'parent-queue';
 
     let childrenProcessor,
       parentProcessor,
@@ -77,7 +75,7 @@ describe('bulk jobs', () => {
       }),
     ]);
 
-    const processingParent = new Promise<void>(resolve => [
+    const processingParent = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
         expect(processedChildren).to.be.equal(3);
 
@@ -96,7 +94,7 @@ describe('bulk jobs', () => {
       }),
     ]);
 
-    const parentWorker = new Worker(parentQueue, parentProcessor);
+    const parentWorker = new Worker(parentQueueName, parentProcessor);
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
     const jobs = await queue.addBulk(
@@ -108,7 +106,7 @@ describe('bulk jobs', () => {
       {
         parent: {
           name: 'parent-job',
-          queue: parentQueue,
+          queue: parentQueueName,
         },
       },
     );
@@ -126,6 +124,8 @@ describe('bulk jobs', () => {
 
     await processingParent;
     await parentWorker.close();
+
+    await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
   it('should not process parent if child fails', async () => {
@@ -160,11 +160,12 @@ describe('bulk jobs', () => {
     const parentQueue = new Queue(parentQueueName);
     const numJobs = await parentQueue.getWaitingCount();
     expect(numJobs).to.be.equal(0);
+
+    await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
   it('should not process parent until queue is unpaused', async () => {
     const name = 'child-job';
-
     const parentQueueName = 'parent-queue';
 
     let childrenProcessor, parentProcessor;
@@ -201,6 +202,8 @@ describe('bulk jobs', () => {
     await processingChildren;
     await childrenWorker.close();
 
+    await delay(500);
+
     let numJobs = await parentQueue.getWaitingCount();
     expect(numJobs).to.be.equal(1);
 
@@ -211,5 +214,7 @@ describe('bulk jobs', () => {
 
     numJobs = await parentQueue.getWaitingCount();
     expect(numJobs).to.be.equal(0);
+
+    await removeAllQueueData(new IORedis(), parentQueueName);
   });
 });
