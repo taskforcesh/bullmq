@@ -41,8 +41,8 @@ export class Scripts {
       const result = await (<any>client).isJobInList([listKey, jobId]);
       return result === 1;
     }
-    const result = await (<any>client).isJobInListV2([listKey, jobId]);
-    return result === 1;
+    const result = await (<any>client).lpos(listKey, jobId);
+    return result !== null;
   }
 
   static addJob(
