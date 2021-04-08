@@ -37,12 +37,13 @@ export type ParentOpts = {
 export class Scripts {
   static async isJobInList(queue: QueueBase, listKey: string, jobId: string) {
     const client = await queue.client;
+    let result;
     if (semver.lt(queue.redisVersion, '6.0.6')) {
-      const result = await (<any>client).isJobInList([listKey, jobId]);
-      return result === 1;
+      result = await (<any>client).isJobInList([listKey, jobId]);
+    } else {
+      result = await (<any>client).lpos(listKey, jobId);
     }
-    const result = await (<any>client).lpos(listKey, jobId);
-    return result !== null;
+    return !!result;
   }
 
   static addJob(
@@ -307,8 +308,9 @@ export class Scripts {
       return queue.toKey(key);
     });
 
-    if (semver.lt(queue.redisVersion, '6.0.6'))
+    if (semver.lt(queue.redisVersion, '6.0.6')) {
       return (<any>client).getState(keys.concat([jobId]));
+    }
     return (<any>client).getStateV2(keys.concat([jobId]));
   }
 
