@@ -25,7 +25,7 @@ export class Scripts {
     } else {
       result = await (<any>client).lpos(listKey, jobId);
     }
-    return !!result;
+    return Number.isInteger(result);
   }
 
   static addJob(
