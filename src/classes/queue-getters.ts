@@ -25,6 +25,7 @@ export class QueueGetters extends QueueBase {
         case 'failed':
         case 'delayed':
         case 'repeat':
+        case 'waiting-children':
           return callback(key, count ? 'zcard' : 'zrange');
         case 'active':
         case 'wait':
@@ -91,8 +92,16 @@ export class QueueGetters extends QueueBase {
     return this.getJobCountByTypes('waiting', 'paused');
   }
 
+  getWaitingChildrenCount() {
+    return this.getJobCountByTypes('waiting-children', 'paused');
+  }
+
   getWaiting(start = 0, end = 1) {
     return this.getJobs(['waiting'], start, end, true);
+  }
+
+  getWaitingChildren(start = 0, end = 1) {
+    return this.getJobs(['waiting-children'], start, end, true);
   }
 
   getActive(start = 0, end = 1) {
