@@ -5,6 +5,7 @@ import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
 import { Backoffs, QueueEvents } from './';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
+import { fromPairs } from 'lodash';
 
 const logger = debuglog('bull');
 
@@ -367,7 +368,7 @@ export class Job<T = any, R = any, N extends string = string> {
     )) as Object;
 
     if (result) {
-      return Object.fromEntries(
+      return fromPairs(
         Object.entries(result).map(([k, v]) => [k, JSON.parse(v)]),
       );
     }
