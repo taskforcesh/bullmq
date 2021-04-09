@@ -1,12 +1,9 @@
-import { Parent } from '../interfaces/parent';
 import { Redis, Pipeline } from 'ioredis';
 import { debuglog } from 'util';
-import uuid = require('uuid');
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
-import { Backoffs, QueueBase, QueueEvents } from './';
-import { QueueKeys } from './queue-keys';
+import { Backoffs, QueueEvents } from './';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 
 const logger = debuglog('bull');
@@ -78,84 +75,28 @@ export class Job<T = any, R = any, N extends string = string> {
     return job;
   }
 
-  static async createBulk<
-    T = any,
-    R = any,
-    N extends string = string,
-    PT = any,
-    PR = any
-  >(
+  static async createBulk<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     jobs: {
       name: N;
       data: T;
       opts?: JobsOptions;
     }[],
-    opts?: { parent?: Parent<PT> },
   ) {
     const client = await queue.client;
-    const parent = opts?.parent;
+
+    const jobInstances = jobs.map(
+      job =>
+        new Job<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
+    );
 
     const multi = client.multi();
 
-    let parentId,
-      parentDependenciesKey,
-      parentJobOpts: { id: string; queue: string };
-
-    if (parent) {
-      parentId = uuid.v4();
-
-      // Create parent job, will be a job in status "wait-children" i.e. redis set.
-      const queueKeysParent = new QueueKeys(parent.queue, parent.prefix);
-      const waitChildrenKey = queueKeysParent.toKey('wait-children');
-      parentDependenciesKey = `${queueKeysParent.toKey(parentId)}:dependencies`;
-
-      const parentQueue = {
-        client: queue.client,
-        name: parent.queue,
-        keys: queueKeysParent.cached,
-        toKey: queueKeysParent.toKey,
-        opts: {},
-        closing: queue.closing,
-        waitUntilReady: queue.waitUntilReady.bind(queue),
-        removeListener: queue.removeListener.bind(queue),
-        emit: queue.emit.bind(queue),
-        on: queue.on.bind(queue),
-      };
-
-      const parentJob = new Job<PT, PR, string>(
-        parentQueue,
-        parent.name,
-        parent.data,
-        parent.opts,
-        parentId,
-      );
-      parentJob.addJob(<Redis>(multi as unknown), { waitChildrenKey });
-
-      parentJobOpts = {
-        id: parentId,
-        queue: queueKeysParent.prefixedQueueName,
-      };
-    }
-    const jobInstances = jobs.map(
-      job =>
-        new Job<T, R, N>(queue, job.name, job.data, {
-          ...job.opts,
-          parent: parentJobOpts,
-        }),
-    );
-
     for (const job of jobInstances) {
-      job.addJob(<Redis>(multi as unknown), { parentDependenciesKey });
+      job.addJob(<Redis>(multi as unknown));
     }
 
-    let result = (await multi.exec()) as [null | Error, string][];
-
-    if (parent) {
-      let parentResult;
-      [parentResult, ...result] = result;
-    }
-
+    const result = (await multi.exec()) as [null | Error, string][];
     result.forEach((res, index: number) => {
       const [err, id] = res;
       jobInstances[index].id = id;
@@ -413,6 +354,11 @@ export class Job<T = any, R = any, N extends string = string> {
     return 'unknown';
   }
 
+  /**
+   * Get this jobs children result values if any.
+   *
+   * @returns Object mapping children job keys with their values.
+   */
   async getChildrenValues() {
     const client = await this.queue.client;
 
@@ -425,6 +371,27 @@ export class Job<T = any, R = any, N extends string = string> {
         Object.entries(result).map(([k, v]) => [k, JSON.parse(v)]),
       );
     }
+  }
+
+  /**
+   * Get children job keys if this job is a parent and has children.
+   *
+   * @returns dependencies separated by processed and unprocessed.
+   */
+  async getDependencies() {
+    const client = await this.queue.client;
+
+    const multi = client.multi();
+
+    await multi.smembers(this.toKey(`${this.id}:`));
+    await multi.hgetall(this.toKey(`${this.id}:`));
+
+    const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
+      [null | Error, string[]],
+      [null | Error, object],
+    ];
+
+    return { processed, unprocessed: Object(unprocessed).keys() };
   }
 
   /**
@@ -552,7 +519,7 @@ export class Job<T = any, R = any, N extends string = string> {
     );
   }
 
-  private addJob(client: Redis, parentOpts?: ParentOpts): string {
+  addJob(client: Redis, parentOpts?: ParentOpts): string {
     const queue = this.queue;
 
     const jobData = this.asJSON();

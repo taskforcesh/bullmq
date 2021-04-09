@@ -78,7 +78,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
             local processedSet = parentKey .. ":processed"
             rcall("HSET", processedSet, jobIdKey, ARGV[4])
             if rcall("SCARD", dependenciesSet) == 0 then 
-                rcall("SREM", parentQueue .. ":wait-children", parentId)
+                rcall("ZREM", parentQueue .. ":wait-children", parentId)
 
                 if rcall("HEXISTS", parentQueue .. ":meta", "paused") ~= 1 then
                     rcall("RPUSH", parentQueue .. ":wait", parentId)

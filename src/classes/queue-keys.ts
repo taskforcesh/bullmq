@@ -1,12 +1,9 @@
 export type KeysMap = { [index in string]: string };
 
 export class QueueKeys {
-  cached: KeysMap;
+  constructor(public readonly prefix: string = 'bull') {}
 
-  constructor(
-    public readonly name: string,
-    public readonly prefix: string = 'bull',
-  ) {
+  getKeys(name: string): KeysMap {
     const keys: { [index: string]: string } = {};
     [
       '',
@@ -30,17 +27,17 @@ export class QueueKeys {
       'events',
       'delay',
     ].forEach(key => {
-      keys[key] = this.toKey(key);
+      keys[key] = this.toKey(name, key);
     });
 
-    this.cached = keys as KeysMap;
+    return keys;
   }
 
-  toKey(type: string) {
-    return `${this.prefixedQueueName}:${type}`;
+  toKey(name: string, type: string) {
+    return `${this.getPrefixedQueueName(name)}:${type}`;
   }
 
-  get prefixedQueueName() {
-    return `${this.prefix}:${this.name}`;
+  getPrefixedQueueName(name: string) {
+    return `${this.prefix}:${name}`;
   }
 }

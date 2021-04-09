@@ -64,8 +64,7 @@ local delayedTimestamp = tonumber(ARGV[8])
 -- Check if job is a parent, if so add to the parents set
 local waitChildrenKey = KEYS[9]
 if waitChildrenKey ~= "" then
-    rcall("SADD", waitChildrenKey, jobId)
-
+    rcall("ZADD", waitChildrenKey, ARGV[6], jobId)
 elseif (delayedTimestamp ~= 0) then
     local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
     rcall("ZADD", KEYS[5], timestamp, jobId)

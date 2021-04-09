@@ -25,9 +25,9 @@ export class QueueBase extends EventEmitter {
     this.connection = new RedisConnection(opts.connection);
     this.connection.on('error', this.emit.bind(this, 'error'));
 
-    const queueKeys = new QueueKeys(name, opts.prefix);
-    this.keys = queueKeys.cached;
-    this.toKey = queueKeys.toKey.bind(queueKeys);
+    const queueKeys = new QueueKeys(opts.prefix);
+    this.keys = queueKeys.getKeys(name);
+    this.toKey = (type: string) => queueKeys.toKey(name, type);
   }
 
   get client(): Promise<IORedis.Redis> {
