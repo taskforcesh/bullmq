@@ -86,6 +86,14 @@ export interface JobsOptions {
   stackTraceLimit?: number;
 
   /**
+   *
+   */
+  parent?: {
+    id: string;
+    queue: string; // Queue name including prefix
+  };
+
+  /**
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;

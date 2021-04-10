@@ -2,9 +2,11 @@ import { EventEmitter } from 'events';
 import { QueueBaseOptions } from '../interfaces';
 import { RedisConnection } from './redis-connection';
 import * as IORedis from 'ioredis';
+import { KeysMap, QueueKeys } from './queue-keys';
 
 export class QueueBase extends EventEmitter {
-  keys: { [index: string]: string };
+  toKey: (type: string) => string;
+  keys: KeysMap;
   closing: Promise<void>;
 
   protected connection: RedisConnection;
@@ -23,36 +25,9 @@ export class QueueBase extends EventEmitter {
     this.connection = new RedisConnection(opts.connection);
     this.connection.on('error', this.emit.bind(this, 'error'));
 
-    const keys: { [index: string]: string } = {};
-    [
-      '',
-      'active',
-      'wait',
-      'waiting',
-      'paused',
-      'resumed',
-      'id',
-      'delayed',
-      'priority',
-      'stalled-check',
-      'completed',
-      'failed',
-      'stalled',
-      'repeat',
-      'limiter',
-      'drained',
-      'progress',
-      'meta',
-      'events',
-      'delay',
-    ].forEach(key => {
-      keys[key] = this.toKey(key);
-    });
-    this.keys = keys;
-  }
-
-  toKey(type: string) {
-    return `${this.opts.prefix}:${this.name}:${type}`;
+    const queueKeys = new QueueKeys(opts.prefix);
+    this.keys = queueKeys.getKeys(name);
+    this.toKey = (type: string) => queueKeys.toKey(name, type);
   }
 
   get client(): Promise<IORedis.Redis> {

@@ -3,8 +3,9 @@ import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
-import { Backoffs, QueueBase, QueueEvents } from './';
-import { Scripts } from './scripts';
+import { Backoffs, QueueEvents } from './';
+import { MinimalQueue, ParentOpts, Scripts } from './scripts';
+import { fromPairs } from 'lodash';
 
 const logger = debuglog('bull');
 
@@ -39,7 +40,7 @@ export class Job<T = any, R = any, N extends string = string> {
   private discarded: boolean;
 
   constructor(
-    private queue: QueueBase,
+    private queue: MinimalQueue,
     public name: N,
     public data: T,
     public opts: JobsOptions = {},
@@ -61,7 +62,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   static async create<T = any, R = any, N extends string = string>(
-    queue: QueueBase,
+    queue: MinimalQueue,
     name: N,
     data: T,
     opts?: JobsOptions,
@@ -76,7 +77,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   static async createBulk<T = any, R = any, N extends string = string>(
-    queue: QueueBase,
+    queue: MinimalQueue,
     jobs: {
       name: N;
       data: T;
@@ -86,7 +87,8 @@ export class Job<T = any, R = any, N extends string = string> {
     const client = await queue.client;
 
     const jobInstances = jobs.map(
-      job => new Job<T, R, N>(queue, job.name, job.data, job.opts),
+      job =>
+        new Job<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
     const multi = client.multi();
@@ -104,7 +106,7 @@ export class Job<T = any, R = any, N extends string = string> {
     return jobInstances;
   }
 
-  static fromJSON(queue: QueueBase, json: any, jobId?: string) {
+  static fromJSON(queue: MinimalQueue, json: any, jobId?: string) {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
@@ -136,7 +138,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   static async fromId(
-    queue: QueueBase,
+    queue: MinimalQueue,
     jobId: string,
   ): Promise<Job | undefined> {
     // jobId can be undefined if moveJob returns undefined
@@ -354,6 +356,46 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * Get this jobs children result values if any.
+   *
+   * @returns Object mapping children job keys with their values.
+   */
+  async getChildrenValues() {
+    const client = await this.queue.client;
+
+    const result = (await client.hgetall(
+      this.toKey(`${this.id}:processed`),
+    )) as Object;
+
+    if (result) {
+      return fromPairs(
+        Object.entries(result).map(([k, v]) => [k, JSON.parse(v)]),
+      );
+    }
+  }
+
+  /**
+   * Get children job keys if this job is a parent and has children.
+   *
+   * @returns dependencies separated by processed and unprocessed.
+   */
+  async getDependencies() {
+    const client = await this.queue.client;
+
+    const multi = client.multi();
+
+    await multi.smembers(this.toKey(`${this.id}:`));
+    await multi.hgetall(this.toKey(`${this.id}:`));
+
+    const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
+      [null | Error, string[]],
+      [null | Error, object],
+    ];
+
+    return { processed, unprocessed: Object(unprocessed).keys() };
+  }
+
+  /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */
   async waitUntilFinished(queueEvents: QueueEvents, ttl?: number) {
@@ -478,12 +520,19 @@ export class Job<T = any, R = any, N extends string = string> {
     );
   }
 
-  private addJob(client: Redis): string {
+  addJob(client: Redis, parentOpts?: ParentOpts): string {
     const queue = this.queue;
 
     const jobData = this.asJSON();
 
-    return Scripts.addJob(client, queue, jobData, this.opts, this.id);
+    return Scripts.addJob(
+      client,
+      queue,
+      jobData,
+      this.opts,
+      this.id,
+      parentOpts,
+    );
   }
 
   private saveAttempt(multi: Pipeline, err: Error) {

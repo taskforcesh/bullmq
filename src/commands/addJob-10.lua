@@ -23,6 +23,8 @@
       KEYS[6] 'priority'
       KEYS[7] events stream key
       KEYS[8] delay stream key
+      KEYS[9] waitChildrenKey key.
+      KEYS[10] parent dependencies key.
 
       ARGV[1]  key prefix,
       ARGV[2]  custom id (will not generate one automatically)
@@ -58,7 +60,12 @@ rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
 
 -- Check if job is delayed
 local delayedTimestamp = tonumber(ARGV[8])
-if (delayedTimestamp ~= 0) then
+
+-- Check if job is a parent, if so add to the parents set
+local waitChildrenKey = KEYS[9]
+if waitChildrenKey ~= "" then
+    rcall("ZADD", waitChildrenKey, ARGV[6], jobId)
+elseif (delayedTimestamp ~= 0) then
     local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
     rcall("ZADD", KEYS[5], timestamp, jobId)
     rcall("XADD", KEYS[7], "*", "event", "delayed", "jobId", jobId, "delay",
@@ -98,6 +105,14 @@ else
     end
     -- Emit waiting event
     rcall("XADD", KEYS[7], "*", "event", "waiting", "jobId", jobId)
+end
+
+-- Check if this job is a child of another job, if so add it to the parents dependencies
+-- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
+-- fail in this case.
+local parentDependenciesKey = KEYS[10]
+if parentDependenciesKey ~= "" then
+    rcall("SADD", KEYS[10], jobIdKey)
 end
 
 local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents")
