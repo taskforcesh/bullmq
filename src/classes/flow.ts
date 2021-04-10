@@ -8,13 +8,17 @@ import { RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '@src/interfaces/flow-job';
 import { Job } from './job';
-import { update } from 'lodash';
 
 interface JobNode {
   job: Job;
   children?: JobNode[];
 }
 
+/**
+ * This class allows to add jobs into one or several queues
+ * with dependencies between them in such a way that it is possible
+ * to build complex flows.
+ */
 export class Flow extends EventEmitter {
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
@@ -48,6 +52,8 @@ export class Flow extends EventEmitter {
    * however this call would be atomic, either it fails and no jobs will
    * be added to the queues, or it succeeds and all jobs will be added.
    *
+   * @param flow An object with a tree-like structure where children jobs
+   * will be processed before their parents.
    */
   async add(flow: FlowJob) {
     if (this.closing) {
@@ -81,6 +87,17 @@ export class Flow extends EventEmitter {
     return jobsTree;
   }
 
+  /**
+   * Add a node (job) of a flow to the queue. This method will recursivelly
+   * add all its children as well. Note that a given job can potentially be
+   * a parent and a child job at the same time depending on where it is located
+   * in the tree hierarchy.
+   *
+   * @param multi ioredis pipeline
+   * @param node the node representing a job to be added to some queue
+   * @param parent Parent data sent to children to create the "links" to their parent
+   * @returns
+   */
   private addNode(
     multi: Pipeline,
     node: FlowJob,
@@ -92,26 +109,50 @@ export class Flow extends EventEmitter {
       parentDependenciesKey: string;
     },
   ): JobNode {
+    const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
+    const parentId = node.children && uuid.v4();
+
+    const job = new Job(
+      queue,
+      node.name,
+      node.data,
+      {
+        ...node.opts,
+        parent: parent?.parentOpts,
+      },
+      node.opts?.jobId || parentId,
+    );
+
     if (node.children) {
-      return this.addParent(multi, node, parent);
-    } else {
-      const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
-
-      const { parentOpts, parentDependenciesKey } = parent ?? {};
-
-      const job = new Job(
-        queue,
-        node.name,
-        node.data,
-        {
-          ...node.opts,
-          parent: parentOpts,
-        },
-        node.opts?.jobId,
+      // Create parent job, will be a job in status "waiting-children".
+      const queueKeysParent = new QueueKeys(node.prefix);
+      const waitChildrenKey = queueKeysParent.toKey(
+        node.queueName,
+        'waiting-children',
       );
 
       job.addJob(<Redis>(multi as unknown), {
+        parentDependenciesKey: parent?.parentDependenciesKey,
+        waitChildrenKey,
+      });
+
+      const parentDependenciesKey = `${queueKeysParent.toKey(
+        node.queueName,
+        parentId,
+      )}:dependencies`;
+
+      const children = this.addChildren(multi, node.children, {
+        parentOpts: {
+          id: parentId,
+          queue: queueKeysParent.getPrefixedQueueName(node.queueName),
+        },
         parentDependenciesKey,
+      });
+
+      return { job, children };
+    } else {
+      job.addJob(<Redis>(multi as unknown), {
+        parentDependenciesKey: parent?.parentDependenciesKey,
       });
 
       return { job };
@@ -132,59 +173,14 @@ export class Flow extends EventEmitter {
     return nodes.map(node => this.addNode(multi, node, parent));
   }
 
-  private addParent(
-    multi: Pipeline,
-    node: FlowJob,
-    parent?: {
-      parentOpts: {
-        id: string;
-        queue: string;
-      };
-      parentDependenciesKey: string;
-    },
-  ) {
-    const parentId = uuid.v4();
-
-    // Create parent job, will be a job in status "wait-children".
-    const queueKeysParent = new QueueKeys(node.prefix);
-    const waitChildrenKey = queueKeysParent.toKey(
-      node.queueName,
-      'wait-children',
-    );
-    const parentDependenciesKey = `${queueKeysParent.toKey(
-      node.queueName,
-      parentId,
-    )}:dependencies`;
-
-    const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
-
-    const parentJob = new Job(
-      queue,
-      node.name,
-      node.data,
-      {
-        ...node.opts,
-        parent: parent?.parentOpts,
-      },
-      parentId,
-    );
-
-    parentJob.addJob(<Redis>(multi as unknown), {
-      parentDependenciesKey: parent?.parentDependenciesKey,
-      waitChildrenKey,
-    });
-
-    const children = this.addChildren(multi, node.children, {
-      parentOpts: {
-        id: parentId,
-        queue: queueKeysParent.getPrefixedQueueName(node.queueName),
-      },
-      parentDependenciesKey,
-    });
-
-    return { job: parentJob, children };
-  }
-
+  /**
+   * Helper factory method that creates a queue-like object
+   * required to create jobs in any queue.
+   *
+   * @param node
+   * @param queueKeys
+   * @returns
+   */
   private queueFromNode(node: FlowJob, queueKeys: QueueKeys) {
     return {
       client: this.connection.client,

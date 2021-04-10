@@ -108,7 +108,7 @@ else
 end
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
--- TODO: Should not be possible to add a child job to a parent that is not in the "wait-children" status.
+-- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
 -- fail in this case.
 local parentDependenciesKey = KEYS[10]
 if parentDependenciesKey ~= "" then
