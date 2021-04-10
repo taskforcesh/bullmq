@@ -51,8 +51,12 @@ export class QueueBase extends EventEmitter {
     this.keys = keys;
   }
 
+  keyPrefix() {
+    return `${this.opts.prefix}:${this.name}`;
+  }
+
   toKey(type: string) {
-    return `${this.opts.prefix}:${this.name}:${type}`;
+    return `${this.keyPrefix()}:${type}`;
   }
 
   get client(): Promise<IORedis.Redis> {

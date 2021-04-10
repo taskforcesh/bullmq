@@ -1,3 +1,12 @@
+interface Rate {
+  max: number;
+  duration: number;
+}
+
+export interface GroupRates {
+  [key: string]: Rate;
+}
+
 export interface RateLimiterOptions {
   /**
    * Max number of jobs to process in the time period
