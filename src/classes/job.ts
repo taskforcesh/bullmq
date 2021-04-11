@@ -347,12 +347,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   async getState() {
-    if (await this.isCompleted()) return 'completed';
-    if (await this.isFailed()) return 'failed';
-    if (await this.isDelayed()) return 'delayed';
-    if (await this.isActive()) return 'active';
-    if (await this.isWaiting()) return 'waiting';
-    return 'unknown';
+    return Scripts.getState(this.queue, this.id);
   }
 
   /**
@@ -513,11 +508,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   private async isInList(list: string) {
-    return Scripts.isJobInList(
-      await this.queue.client,
-      this.queue.toKey(list),
-      this.id,
-    );
+    return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
   }
 
   addJob(client: Redis, parentOpts?: ParentOpts): string {

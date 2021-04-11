@@ -6,6 +6,7 @@
 'use strict';
 
 import { Redis } from 'ioredis';
+import * as semver from 'semver';
 import {
   JobsOptions,
   QueueSchedulerOptions,
@@ -26,6 +27,7 @@ export type MinimalQueue = Pick<
   | 'removeListener'
   | 'emit'
   | 'on'
+  | 'redisVersion'
 >;
 
 export type ParentOpts = {
@@ -34,9 +36,19 @@ export type ParentOpts = {
 };
 
 export class Scripts {
-  static async isJobInList(client: Redis, listKey: string, jobId: string) {
-    const result = await (<any>client).isJobInList([listKey, jobId]);
-    return result === 1;
+  static async isJobInList(
+    queue: MinimalQueue,
+    listKey: string,
+    jobId: string,
+  ) {
+    const client = await queue.client;
+    let result;
+    if (semver.lt(queue.redisVersion, '6.0.6')) {
+      result = await (<any>client).isJobInList([listKey, jobId]);
+    } else {
+      result = await (<any>client).lpos(listKey, jobId);
+    }
+    return Number.isInteger(result);
   }
 
   static addJob(
@@ -285,6 +297,26 @@ export class Scripts {
     });
 
     return (<any>client).isFinished(keys.concat([jobId]));
+  }
+
+  static async getState(queue: MinimalQueue, jobId: string) {
+    const client = await queue.client;
+
+    const keys = [
+      'completed',
+      'failed',
+      'delayed',
+      'active',
+      'wait',
+      'paused',
+    ].map(function(key: string) {
+      return queue.toKey(key);
+    });
+
+    if (semver.lt(queue.redisVersion, '6.0.6')) {
+      return (<any>client).getState(keys.concat([jobId]));
+    }
+    return (<any>client).getStateV2(keys.concat([jobId]));
   }
 
   // Note: We have an issue here with jobs using custom job ids

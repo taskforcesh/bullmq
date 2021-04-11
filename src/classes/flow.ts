@@ -193,6 +193,7 @@ export class Flow extends EventEmitter {
       removeListener: this.removeListener.bind(this) as any,
       emit: this.emit.bind(this) as any,
       on: this.on.bind(this) as any,
+      redisVersion: this.connection.redisVersion,
     };
   }
 
