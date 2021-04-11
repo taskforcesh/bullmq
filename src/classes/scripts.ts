@@ -27,6 +27,7 @@ export type MinimalQueue = Pick<
   | 'removeListener'
   | 'emit'
   | 'on'
+  | 'redisVersion'
 >;
 
 export type ParentOpts = {
@@ -35,7 +36,11 @@ export type ParentOpts = {
 };
 
 export class Scripts {
-  static async isJobInList(queue: QueueBase, listKey: string, jobId: string) {
+  static async isJobInList(
+    queue: MinimalQueue,
+    listKey: string,
+    jobId: string,
+  ) {
     const client = await queue.client;
     let result;
     if (semver.lt(queue.redisVersion, '6.0.6')) {
@@ -294,7 +299,7 @@ export class Scripts {
     return (<any>client).isFinished(keys.concat([jobId]));
   }
 
-  static async getState(queue: QueueBase, jobId: string) {
+  static async getState(queue: MinimalQueue, jobId: string) {
     const client = await queue.client;
 
     const keys = [
