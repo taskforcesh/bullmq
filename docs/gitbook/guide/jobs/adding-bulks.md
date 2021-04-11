@@ -16,7 +16,7 @@ const jobs = await queue.addBulk(
 );
 ```
 
-This call can only succeed or fail, and all the or none of the jobs will be added.
+This call can only succeed or fail, and all or none of the jobs will be added.
 
 
 

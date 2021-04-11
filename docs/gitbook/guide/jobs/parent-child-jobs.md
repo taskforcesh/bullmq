@@ -1,33 +1,45 @@
-# Parent - Child Jobs
+# Flows
 
-BullMQ supports Parent - Child relationships between jobs. The basic idea is that a parent job will only start to be processed when all its child jobs have been processed successfully. A part from that, a parent or a child job are no different from regular jobs.
+BullMQ supports parent - child relationships between jobs. The basic idea is that a parent job will only start to be processed when all its child jobs have been processed successfully. Apart from that, a parent or a child job are no different from regular jobs.
+
+This functionality allows to create flows where jobs the node of trees of arbitrary depth.
 
 {% hint style="warning" %}
-Currently, parent jobs can only be created using the "addBulk" method. But new methods for managing parents will be added soon.
+Flows are added to a queue using the "Flow" class.
 {% endhint %}
 
-A parent job can be created implicitly using the "addBulk" method. This method will atomically create all the children and the parent jobs. After this call, as soon as all the children are completed, the parent job will be moved to the wait status and processed as a regular job:
+In order to create "flows" you must use the Flow class. The method "add" accepts an object with the following interface:
 
 ```typescript
-import { Queue } from 'bullmq'
-
-const queue = new Queue('steps')
-
-const jobs = await queue.addBulk(
-  [
-    { name, data: { paint: 'ceiling' } },
-    { name, data: { paint: 'walls' } },
-    { name, data: { fix: 'floor' } },
-  ],
-  {
-    parent: {
-      name: 'renovate-interior',
-      queue: 'renovate-queue',
-      data: { billingInfo: 'foobar' },
-    },
-  },
-);
+interface FlowJob {
+  name: string;
+  queueName: string;
+  data?: any;
+  prefix?: string;
+  opts?: Omit<JobsOptions, 'parent'>;
+  children?: FlowJob[];
+}
 ```
+
+So we can add a flow like this one:
+
+```typescript
+import { Flow } from 'bullmq';
+
+const flow = new Flow();
+
+const tree = await flow.add({
+      name: 'renovate-interior',
+      queueName: 'renovate',
+      children: [
+        { name: 'paint', data: { place: 'ceiling' }, queueName: 'steps' },
+        { name: 'paint', data: { place: 'walls' }, queueName: 'steps' },
+        { name: 'fix', data: { place: 'floor' }, queueName: 'steps' },
+      ],
+    });
+```
+
+The above code will add atomically 4 jobs, one to the 'renovate' queue and 3 to the 'steps' queue. When the 3 jobs in the 'activities" queue are completed, the parent job in the 'renovate' queue will be processed as a regular job.
 
 The above call will return instances for all the jobs added to the queue. Note that the parent queue does not need to be the same queue as the one used for the children.
 
@@ -39,23 +51,21 @@ import { Worker } from "bullmq"
 const stepsQueue = new Worker('steps', async (job) => {
   await performStep(job.data);
   
-  if(job.data.paint) {
+  if(job.name === 'paint') {
     return 2500;
-  } else if( job.data.fix ) {
+  } else if( job.name === 'fix' ) {
     return 1750;
   }
 });
 ```
 
-we can implement a parent worker that sums the costs of the children's jobs using the "getChildrenValues" method:
+we can implement a parent worker that sums the costs of the children's jobs using the "getChildrenValues" method. This method returns an object with job keys as keys and the result of that given job as a value:
 
 ```typescript
 import { Worker } from "bullmq"
 
-const stepsQueue = new Worker('renovate-interior', async job => {
+const stepsQueue = new Worker('renovate', async job => {
   const childrenValues = job.getChildrenValues();
-
-  // childrenValues is an object mapping job keys with their values
 
   const totalCosts = Object(childrenValues)
     .values()
@@ -65,9 +75,26 @@ const stepsQueue = new Worker('renovate-interior', async job => {
 });
 ```
 
-{% hint style="info" %}
-Parent-child jobs is a pretty new feature so expect more functionality landing in BullMQ on the following months.
-{% endhint %}
+It is possible to add as deep job hierarchies as needed, see the following example where jobs are depending on each other, this allows serial execution of jobs:
+
+```typescript
+const queueName = 'assembly-line';
+const chain = await flow.add({
+  name: 'car',
+  data: { step: 'engine' },
+  queueName,
+  children: [
+    {
+      name: 'car',
+      data: { step: 'wheels' },
+      queueName,
+      children: [{ name: 'car', data: { step: 'chassis' }, queueName }],
+    },
+  ],
+});
+```
+
+In this case one job will be processed after the previous one has been completed. Note that the order of processing would be: 'chassis', 'wheels' and finally 'engine'.
 
 
 
