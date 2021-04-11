@@ -422,6 +422,9 @@ describe('Job', function() {
 
     describe('when redisVersion is greater or equal than 6.0.6', () => {
       it('should get job actual state', async () => {
+        const redisVersionStub = sinon
+          .stub(queue, 'redisVersion')
+          .get(() => '6.0.6');
         const job = await queue.add('job', { foo: 'bar' }, { delay: 1 });
         const delayedState = await job.getState();
 
@@ -443,6 +446,7 @@ describe('Job', function() {
         const completedState = await job.getState();
 
         expect(completedState).to.be.equal('completed');
+        redisVersionStub.restore();
       });
     });
   });
