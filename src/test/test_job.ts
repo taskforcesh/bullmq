@@ -12,6 +12,8 @@ import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 
+const sinon = require('sinon');
+
 describe('Job', function() {
   let queue: Queue;
   let queueName: string;
@@ -388,28 +390,60 @@ describe('Job', function() {
   });
 
   describe('.getState', () => {
-    it('should get job actual state', async () => {
-      const job = await queue.add('job', { foo: 'bar' }, { delay: 1 });
-      const delayedState = await job.getState();
+    describe('when redisVersion is less than 6.0.6', () => {
+      it('should get job actual state', async () => {
+        const redisVersionStub = sinon
+          .stub(queue, 'redisVersion')
+          .get(() => '6.0.5');
+        const job = await queue.add('job', { foo: 'bar' }, { delay: 1 });
+        const delayedState = await job.getState();
 
-      expect(delayedState).to.be.equal('delayed');
+        expect(delayedState).to.be.equal('delayed');
 
-      await queue.pause();
-      await job.promote();
-      await queue.resume();
-      const waitingState = await job.getState();
+        await queue.pause();
+        await job.promote();
+        await queue.resume();
+        const waitingState = await job.getState();
 
-      expect(waitingState).to.be.equal('waiting');
+        expect(waitingState).to.be.equal('waiting');
 
-      await job.moveToFailed(new Error('test error'), '0', true);
-      const failedState = await job.getState();
+        await job.moveToFailed(new Error('test error'), '0', true);
+        const failedState = await job.getState();
 
-      expect(failedState).to.be.equal('failed');
+        expect(failedState).to.be.equal('failed');
 
-      await job.moveToCompleted('succeeded', '0', true);
-      const completedState = await job.getState();
+        await job.moveToCompleted('succeeded', '0', true);
+        const completedState = await job.getState();
 
-      expect(completedState).to.be.equal('completed');
+        expect(completedState).to.be.equal('completed');
+        redisVersionStub.restore();
+      });
+    });
+
+    describe('when redisVersion is greater or equal than 6.0.6', () => {
+      it('should get job actual state', async () => {
+        const job = await queue.add('job', { foo: 'bar' }, { delay: 1 });
+        const delayedState = await job.getState();
+
+        expect(delayedState).to.be.equal('delayed');
+
+        await queue.pause();
+        await job.promote();
+        await queue.resume();
+        const waitingState = await job.getState();
+
+        expect(waitingState).to.be.equal('waiting');
+
+        await job.moveToFailed(new Error('test error'), '0', true);
+        const failedState = await job.getState();
+
+        expect(failedState).to.be.equal('failed');
+
+        await job.moveToCompleted('succeeded', '0', true);
+        const completedState = await job.getState();
+
+        expect(completedState).to.be.equal('completed');
+      });
     });
   });
 
