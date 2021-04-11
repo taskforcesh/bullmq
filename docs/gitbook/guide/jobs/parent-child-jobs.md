@@ -2,7 +2,7 @@
 
 BullMQ supports parent - child relationships between jobs. The basic idea is that a parent job will only start to be processed when all its child jobs have been processed successfully. Apart from that, a parent or a child job are no different from regular jobs.
 
-This functionality allows to create flows where jobs the node of trees of arbitrary depth.
+This functionality allows to create flows where jobs are the node of trees of arbitrary depth.
 
 {% hint style="warning" %}
 Flows are added to a queue using the "Flow" class.
