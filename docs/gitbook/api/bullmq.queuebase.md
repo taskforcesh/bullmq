@@ -24,9 +24,11 @@ export declare class QueueBase extends EventEmitter
 |  [client](./bullmq.queuebase.client.md) |  | Promise&lt;IORedis.Redis&gt; |  |
 |  [closing](./bullmq.queuebase.closing.md) |  | Promise&lt;void&gt; |  |
 |  [connection](./bullmq.queuebase.connection.md) |  | [RedisConnection](./bullmq.redisconnection.md) |  |
-|  [keys](./bullmq.queuebase.keys.md) |  | { \[index: string\]: string; } |  |
+|  [keys](./bullmq.queuebase.keys.md) |  | KeysMap |  |
 |  [name](./bullmq.queuebase.name.md) |  | string |  |
 |  [opts](./bullmq.queuebase.opts.md) |  | [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
+|  [redisVersion](./bullmq.queuebase.redisversion.md) |  | string |  |
+|  [toKey](./bullmq.queuebase.tokey.md) |  | (type: string) =&gt; string |  |
 
 ## Methods
 
@@ -36,6 +38,5 @@ export declare class QueueBase extends EventEmitter
 |  [clientName()](./bullmq.queuebase.clientname.md) |  |  |
 |  [close()](./bullmq.queuebase.close.md) |  |  |
 |  [disconnect()](./bullmq.queuebase.disconnect.md) |  |  |
-|  [toKey(type)](./bullmq.queuebase.tokey.md) |  |  |
 |  [waitUntilReady()](./bullmq.queuebase.waituntilready.md) |  |  |
 

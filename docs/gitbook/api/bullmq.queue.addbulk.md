@@ -9,7 +9,7 @@ Adds an array of jobs to the queue.  add
 <b>Signature:</b>
 
 ```typescript
-addBulk(jobs: {
+addBulk<ParentDataType>(jobs: {
         name: N;
         data: T;
         opts?: JobsOptions;

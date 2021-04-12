@@ -37,6 +37,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
+|  [addJob(client, parentOpts)](./bullmq.job.addjob.md) |  |  |
 |  [asJSON()](./bullmq.job.asjson.md) |  |  |
 |  [create(queue, name, data, opts)](./bullmq.job.create.md) | <code>static</code> |  |
 |  [createBulk(queue, jobs)](./bullmq.job.createbulk.md) | <code>static</code> |  |
@@ -44,6 +45,8 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [extendLock(token, duration)](./bullmq.job.extendlock.md) |  | Extend the lock for this job. |
 |  [fromId(queue, jobId)](./bullmq.job.fromid.md) | <code>static</code> |  |
 |  [fromJSON(queue, json, jobId)](./bullmq.job.fromjson.md) | <code>static</code> |  |
+|  [getChildrenValues()](./bullmq.job.getchildrenvalues.md) |  | Get this jobs children result values if any. |
+|  [getDependencies()](./bullmq.job.getdependencies.md) |  | Get children job keys if this job is a parent and has children. |
 |  [getState()](./bullmq.job.getstate.md) |  |  |
 |  [isActive()](./bullmq.job.isactive.md) |  |  |
 |  [isCompleted()](./bullmq.job.iscompleted.md) |  |  |

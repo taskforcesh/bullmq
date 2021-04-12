@@ -7,9 +7,9 @@
 <b>Signature:</b>
 
 ```typescript
-getState(): Promise<"active" | "delayed" | "completed" | "failed" | "waiting" | "unknown">;
+getState(): Promise<any>;
 ```
 <b>Returns:</b>
 
-Promise&lt;"active" \| "delayed" \| "completed" \| "failed" \| "waiting" \| "unknown"&gt;
+Promise&lt;any&gt;
 

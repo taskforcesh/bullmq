@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static pause(queue: Queue, pause: boolean): Promise<any>;
+static pause(queue: MinimalQueue, pause: boolean): Promise<any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [Queue](./bullmq.queue.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  pause | boolean |  |
 
 <b>Returns:</b>

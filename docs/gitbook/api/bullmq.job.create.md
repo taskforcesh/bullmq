@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static create<T = any, R = any, N extends string = string>(queue: QueueBase, name: N, data: T, opts?: JobsOptions): Promise<Job<T, R, N>>;
+static create<T = any, R = any, N extends string = string>(queue: MinimalQueue, name: N, data: T, opts?: JobsOptions): Promise<Job<T, R, N>>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  name | N |  |
 |  data | T |  |
 |  opts | [JobsOptions](./bullmq.jobsoptions.md) |  |

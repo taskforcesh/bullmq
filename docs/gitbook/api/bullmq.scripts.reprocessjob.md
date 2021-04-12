@@ -9,14 +9,14 @@ Attempts to reprocess a job
 <b>Signature:</b>
 
 ```typescript
-static reprocessJob(queue: QueueBase, job: Job, state: 'failed' | 'completed'): Promise<any>;
+static reprocessJob(queue: MinimalQueue, job: Job, state: 'failed' | 'completed'): Promise<any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  job | [Job](./bullmq.job.md) |  |
 |  state | 'failed' \| 'completed' |  |
 

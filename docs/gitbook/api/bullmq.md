@@ -10,6 +10,7 @@
 |  --- | --- |
 |  [Backoffs](./bullmq.backoffs.md) |  |
 |  [ChildPool](./bullmq.childpool.md) |  |
+|  [Flow](./bullmq.flow.md) | This class allows to add jobs into one or several queues with dependencies between them in such a way that it is possible to build complex flows. |
 |  [Job](./bullmq.job.md) |  |
 |  [Queue](./bullmq.queue.md) |  |
 |  [QueueBase](./bullmq.queuebase.md) |  |
@@ -62,6 +63,8 @@
 |  --- | --- |
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
+|  [MinimalQueue](./bullmq.minimalqueue.md) |  |
+|  [ParentOpts](./bullmq.parentopts.md) |  |
 |  [Processor](./bullmq.processor.md) | An async function that receives <code>Job</code>s and handles them. |
 |  [RedisOptions](./bullmq.redisoptions.md) |  |
 |  [SandboxedJobProcessor](./bullmq.sandboxedjobprocessor.md) |  |

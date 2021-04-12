@@ -9,14 +9,14 @@ Constructs a new instance of the `Job` class
 <b>Signature:</b>
 
 ```typescript
-constructor(queue: QueueBase, name: N, data: T, opts?: JobsOptions, id?: string);
+constructor(queue: MinimalQueue, name: N, data: T, opts?: JobsOptions, id?: string);
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  name | N |  |
 |  data | T |  |
 |  opts | [JobsOptions](./bullmq.jobsoptions.md) |  |

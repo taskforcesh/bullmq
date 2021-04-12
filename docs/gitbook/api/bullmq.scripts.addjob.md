@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static addJob(client: Redis, queue: QueueBase, job: JobJson, opts: JobsOptions, jobId: string): any;
+static addJob(client: Redis, queue: MinimalQueue, job: JobJson, opts: JobsOptions, jobId: string, parentOpts?: ParentOpts): any;
 ```
 
 ## Parameters
@@ -15,10 +15,11 @@ static addJob(client: Redis, queue: QueueBase, job: JobJson, opts: JobsOptions, 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  client | Redis |  |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  job | [JobJson](./bullmq.jobjson.md) |  |
 |  opts | [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  jobId | string |  |
+|  parentOpts | [ParentOpts](./bullmq.parentopts.md) |  |
 
 <b>Returns:</b>
 

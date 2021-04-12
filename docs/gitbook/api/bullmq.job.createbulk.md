@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static createBulk<T = any, R = any, N extends string = string>(queue: QueueBase, jobs: {
+static createBulk<T = any, R = any, N extends string = string>(queue: MinimalQueue, jobs: {
         name: N;
         data: T;
         opts?: JobsOptions;
@@ -18,7 +18,7 @@ static createBulk<T = any, R = any, N extends string = string>(queue: QueueBase,
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  jobs | { name: N; data: T; opts?: [JobsOptions](./bullmq.jobsoptions.md)<!-- -->; }\[\] |  |
 
 <b>Returns:</b>

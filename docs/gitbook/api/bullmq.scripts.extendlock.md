@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static extendLock(queue: QueueBase, jobId: string, token: string, duration: number): Promise<any>;
+static extendLock(queue: MinimalQueue, jobId: string, token: string, duration: number): Promise<any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  jobId | string |  |
 |  token | string |  |
 |  duration | number |  |

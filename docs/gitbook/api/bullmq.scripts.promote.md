@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static promote(queue: QueueBase, jobId: string): Promise<any>;
+static promote(queue: MinimalQueue, jobId: string): Promise<any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  jobId | string |  |
 
 <b>Returns:</b>

@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static fromId(queue: QueueBase, jobId: string): Promise<Job | undefined>;
+static fromId(queue: MinimalQueue, jobId: string): Promise<Job | undefined>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  jobId | string |  |
 
 <b>Returns:</b>

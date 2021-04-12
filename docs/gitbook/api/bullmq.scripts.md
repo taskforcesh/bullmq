@@ -14,12 +14,13 @@ export declare class Scripts
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
-|  [addJob(client, queue, job, opts, jobId)](./bullmq.scripts.addjob.md) | <code>static</code> |  |
+|  [addJob(client, queue, job, opts, jobId, parentOpts)](./bullmq.scripts.addjob.md) | <code>static</code> |  |
 |  [cleanJobsInSet(queue, set, timestamp, limit)](./bullmq.scripts.cleanjobsinset.md) | <code>static</code> |  |
 |  [extendLock(queue, jobId, token, duration)](./bullmq.scripts.extendlock.md) | <code>static</code> |  |
 |  [finishedErrors(code, jobId, command)](./bullmq.scripts.finishederrors.md) | <code>static</code> |  |
+|  [getState(queue, jobId)](./bullmq.scripts.getstate.md) | <code>static</code> |  |
 |  [isFinished(queue, jobId)](./bullmq.scripts.isfinished.md) | <code>static</code> |  |
-|  [isJobInList(client, listKey, jobId)](./bullmq.scripts.isjobinlist.md) | <code>static</code> |  |
+|  [isJobInList(queue, listKey, jobId)](./bullmq.scripts.isjobinlist.md) | <code>static</code> |  |
 |  [moveStalledJobsToWait(queue)](./bullmq.scripts.movestalledjobstowait.md) | <code>static</code> |  |
 |  [moveToActive(worker, token, jobId)](./bullmq.scripts.movetoactive.md) | <code>static</code> |  |
 |  [moveToCompleted(queue, job, returnvalue, removeOnComplete, token, fetchNext)](./bullmq.scripts.movetocompleted.md) | <code>static</code> |  |

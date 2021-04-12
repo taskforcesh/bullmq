@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static cleanJobsInSet(queue: QueueBase, set: string, timestamp: number, limit?: number): Promise<any>;
+static cleanJobsInSet(queue: MinimalQueue, set: string, timestamp: number, limit?: number): Promise<any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  set | string |  |
 |  timestamp | number |  |
 |  limit | number |  |

@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static moveToDelayed(queue: QueueBase, jobId: string, timestamp: number): Promise<void>;
+static moveToDelayed(queue: MinimalQueue, jobId: string, timestamp: number): Promise<void>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  jobId | string |  |
 |  timestamp | number |  |
 

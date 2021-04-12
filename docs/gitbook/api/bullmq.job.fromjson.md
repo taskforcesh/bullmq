@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static fromJSON(queue: QueueBase, json: any, jobId?: string): Job<any, any, any>;
+static fromJSON(queue: MinimalQueue, json: any, jobId?: string): Job<any, any, any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  json | any |  |
 |  jobId | string |  |
 

@@ -7,7 +7,5 @@
 <b>Signature:</b>
 
 ```typescript
-keys: {
-        [index: string]: string;
-    };
+keys: KeysMap;
 ```

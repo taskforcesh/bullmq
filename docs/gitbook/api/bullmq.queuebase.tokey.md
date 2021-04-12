@@ -2,21 +2,10 @@
 
 [Home](./index.md) &gt; [bullmq](./bullmq.md) &gt; [QueueBase](./bullmq.queuebase.md) &gt; [toKey](./bullmq.queuebase.tokey.md)
 
-## QueueBase.toKey() method
+## QueueBase.toKey property
 
 <b>Signature:</b>
 
 ```typescript
-toKey(type: string): string;
+toKey: (type: string) => string;
 ```
-
-## Parameters
-
-|  Parameter | Type | Description |
-|  --- | --- | --- |
-|  type | string |  |
-
-<b>Returns:</b>
-
-string
-

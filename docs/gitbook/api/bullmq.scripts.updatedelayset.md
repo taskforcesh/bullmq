@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static updateDelaySet(queue: QueueBase, delayedTimestamp: number): Promise<any>;
+static updateDelaySet(queue: MinimalQueue, delayedTimestamp: number): Promise<any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  delayedTimestamp | number |  |
 
 <b>Returns:</b>

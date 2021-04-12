@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static retryJobArgs(queue: QueueBase, job: Job): string[];
+static retryJobArgs(queue: MinimalQueue, job: Job): string[];
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  job | [Job](./bullmq.job.md) |  |
 
 <b>Returns:</b>

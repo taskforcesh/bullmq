@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static updateProgress(queue: QueueBase, job: Job, progress: number | object): Promise<void>;
+static updateProgress(queue: MinimalQueue, job: Job, progress: number | object): Promise<void>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  job | [Job](./bullmq.job.md) |  |
 |  progress | number \| object |  |
 

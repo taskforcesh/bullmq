@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-static moveToFinished(queue: QueueBase, job: Job, val: any, propVal: string, shouldRemove: boolean | number, target: string, token: string, fetchNext: boolean): Promise<[] | [JobJson, string]>;
+static moveToFinished(queue: MinimalQueue, job: Job, val: any, propVal: string, shouldRemove: boolean | number, target: string, token: string, fetchNext: boolean): Promise<[] | [JobJson, string]>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [QueueBase](./bullmq.queuebase.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  job | [Job](./bullmq.job.md) |  |
 |  val | any |  |
 |  propVal | string |  |

@@ -31,6 +31,8 @@ export declare class QueueGetters extends QueueBase
 |  [getJobs(types, start, end, asc)](./bullmq.queuegetters.getjobs.md) |  |  |
 |  [getRanges(types, start, end, asc)](./bullmq.queuegetters.getranges.md) |  |  |
 |  [getWaiting(start, end)](./bullmq.queuegetters.getwaiting.md) |  |  |
+|  [getWaitingChildren(start, end)](./bullmq.queuegetters.getwaitingchildren.md) |  |  |
+|  [getWaitingChildrenCount()](./bullmq.queuegetters.getwaitingchildrencount.md) |  |  |
 |  [getWaitingCount()](./bullmq.queuegetters.getwaitingcount.md) |  |  |
 |  [getWorkers()](./bullmq.queuegetters.getworkers.md) |  |  |
 
