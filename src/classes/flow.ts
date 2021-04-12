@@ -6,7 +6,7 @@ import { EventEmitter } from 'events';
 import { QueueBaseOptions } from '../interfaces';
 import { RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
-import { FlowJob } from '@src/interfaces/flow-job';
+import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
 
 interface JobNode {
