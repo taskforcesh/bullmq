@@ -355,7 +355,7 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @returns Object mapping children job keys with their values.
    */
-  async getChildrenValues() {
+  async getChildrenValues(): Promise<{ [jobKey: string]: string }> {
     const client = await this.queue.client;
 
     const result = (await client.hgetall(
