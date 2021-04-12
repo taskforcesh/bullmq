@@ -29,14 +29,14 @@ import { Flow } from 'bullmq';
 const flow = new Flow();
 
 const tree = await flow.add({
-      name: 'renovate-interior',
-      queueName: 'renovate',
-      children: [
-        { name: 'paint', data: { place: 'ceiling' }, queueName: 'steps' },
-        { name: 'paint', data: { place: 'walls' }, queueName: 'steps' },
-        { name: 'fix', data: { place: 'floor' }, queueName: 'steps' },
-      ],
-    });
+  name: 'renovate-interior',
+  queueName: 'renovate',
+  children: [
+    { name: 'paint', data: { place: 'ceiling' }, queueName: 'steps' },
+    { name: 'paint', data: { place: 'walls' }, queueName: 'steps' },
+    { name: 'fix', data: { place: 'floor' }, queueName: 'steps' },
+  ],
+});
 ```
 
 The above code will add atomically 4 jobs, one to the 'renovate' queue and 3 to the 'steps' queue. When the 3 jobs in the 'activities" queue are completed, the parent job in the 'renovate' queue will be processed as a regular job.
@@ -65,7 +65,7 @@ we can implement a parent worker that sums the costs of the children's jobs usin
 import { Worker } from "bullmq"
 
 const stepsQueue = new Worker('renovate', async job => {
-  const childrenValues = job.getChildrenValues();
+  const childrenValues = await job.getChildrenValues();
 
   const totalCosts = Object(childrenValues)
     .values()
