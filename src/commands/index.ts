@@ -43,23 +43,23 @@ export const load = async function(client: Redis) {
 
 async function loadScripts(dir: string): Promise<Command[]> {
   const files = await readdir(dir);
+  const commands = [];
 
-  const commands = await Promise.all<Command>(
-    files
-      .filter((file: string) => path.extname(file) === '.lua')
-      .map(async (file: string) => {
-        const longName = path.basename(file, '.lua');
-        const name = longName.split('-')[0];
-        const numberOfKeys = parseInt(longName.split('-')[1]);
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i];
+    if (path.extname(file) === '.lua') {
+      const longName = path.basename(file, '.lua');
+      const name = longName.split('-')[0];
+      const numberOfKeys = parseInt(longName.split('-')[1]);
 
-        const lua = await readFile(path.join(dir, file));
+      const lua = await readFile(path.join(dir, file));
 
-        return {
-          name,
-          options: { numberOfKeys, lua: lua.toString() },
-        };
-      }),
-  );
+      commands.push({
+        name,
+        options: { numberOfKeys, lua: lua.toString() },
+      });
+    }
+  }
 
   return commands;
 }
