@@ -88,7 +88,7 @@ export class Flow extends EventEmitter {
   }
 
   /**
-   * Add a node (job) of a flow to the queue. This method will recursivelly
+   * Add a node (job) of a flow to the queue. This method will recursively
    * add all its children as well. Note that a given job can potentially be
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
