@@ -8,7 +8,6 @@ import { RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
-import { ParentOpts } from './scripts';
 
 export interface JobNode {
   job: Job;
@@ -20,7 +19,7 @@ export interface JobNode {
  * with dependencies between them in such a way that it is possible
  * to build complex flows.
  */
-export class Flow extends EventEmitter {
+export class FlowProducer extends EventEmitter {
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
   closing: Promise<void>;

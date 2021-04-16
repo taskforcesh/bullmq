@@ -11,4 +11,4 @@ export * from './scripts';
 export * from './worker';
 export * from './child-pool';
 export * from './sandbox';
-export * from './flow';
+export * from './flow-producer';
