@@ -35,6 +35,11 @@ export class Job<T = any, R = any, N extends string = string> {
   finishedOn?: number;
   processedOn?: number;
 
+  /**
+   * Fully qualified key pointing to the parent of this job.
+   */
+  parentKey?: string;
+
   private toKey: (type: string) => string;
 
   private discarded: boolean;
@@ -132,6 +137,10 @@ export class Job<T = any, R = any, N extends string = string> {
 
     if (typeof json.returnvalue === 'string') {
       job.returnvalue = getReturnValue(json.returnvalue);
+    }
+
+    if (json.parentKey) {
+      job.parentKey = json.parentKey;
     }
 
     return job;
