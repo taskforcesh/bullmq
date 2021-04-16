@@ -8,6 +8,7 @@
     KEYS[4] 'active' key
     KEYS[5] 'wait' key
     KEYS[6] 'paused' key
+    KEYS[7] waitChildrenKey key
 
     ARGV[1] job id
   Output:
@@ -30,28 +31,20 @@ if redis.call("ZSCORE", KEYS[3], ARGV[1]) ~= false then
   return "delayed"
 end
 
-local function item_in_list (list, item)
-  for _, v in pairs(list) do
-    if v == item then
-      return 1
-    end
-  end
-  return nil
-end
-
-local active_items = redis.call("LRANGE", KEYS[4] , 0, -1)
-if item_in_list(active_items, ARGV[1]) ~= nil then
+if redis.call("LPOS", KEYS[4] , ARGV[1]) ~= false then
   return "active"
 end
 
-local wait_items = redis.call("LRANGE", KEYS[5] , 0, -1)
-if item_in_list(wait_items, ARGV[1]) ~= nil then
+if redis.call("LPOS", KEYS[5] , ARGV[1]) ~= false then
   return "waiting"
 end
 
-local paused_items = redis.call("LRANGE", KEYS[6] , 0, -1)
-if item_in_list(paused_items, ARGV[1]) ~= nil then
+if redis.call("LPOS", KEYS[6] , ARGV[1]) ~= false then
   return "waiting"
+end
+
+if redis.call("ZSCORE", KEYS[7] , ARGV[1]) ~= false then
+  return "waiting-children"
 end
 
 return "unknown"

@@ -309,6 +309,7 @@ export class Scripts {
       'active',
       'wait',
       'paused',
+      'waiting-children',
     ].map(function(key: string) {
       return queue.toKey(key);
     });

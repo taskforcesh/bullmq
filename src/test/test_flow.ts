@@ -80,8 +80,10 @@ describe('flows', () => {
     expect(tree).to.have.property('job');
     expect(tree).to.have.property('children');
 
-    const { children } = tree;
+    const { children, job } = tree;
+    const parentState = await job.getState();
 
+    expect(parentState).to.be.eql('waiting-children');
     expect(children).to.have.length(3);
 
     expect(children[0].job.id).to.be.ok;
@@ -195,8 +197,10 @@ describe('flows', () => {
     expect(tree).to.have.property('job');
     expect(tree).to.have.property('children');
 
-    const { children } = tree;
+    const { children, job } = tree;
+    const isWaitingChildren = await job.isWaitingChildren();
 
+    expect(isWaitingChildren).to.be.true;
     expect(children).to.have.length(1);
 
     expect(children[0].job.id).to.be.ok;

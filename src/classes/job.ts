@@ -338,6 +338,10 @@ export class Job<T = any, R = any, N extends string = string> {
     return this.isInZSet('delayed');
   }
 
+  isWaitingChildren() {
+    return this.isInZSet('waiting-children');
+  }
+
   isActive() {
     return this.isInList('active');
   }
@@ -379,15 +383,15 @@ export class Job<T = any, R = any, N extends string = string> {
 
     const multi = client.multi();
 
-    await multi.smembers(this.toKey(`${this.id}:`));
-    await multi.hgetall(this.toKey(`${this.id}:`));
+    await multi.hgetall(this.toKey(`${this.id}:processed`));
+    await multi.smembers(this.toKey(`${this.id}:dependencies`));
 
     const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
       [null | Error, string[]],
       [null | Error, object],
     ];
 
-    return { processed, unprocessed: Object(unprocessed).keys() };
+    return { processed, unprocessed };
   }
 
   /**
