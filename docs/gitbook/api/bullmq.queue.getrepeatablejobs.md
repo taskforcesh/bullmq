@@ -11,7 +11,12 @@ getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<{
         key: string;
         name: string;
         id: string;
-        endDate: number;
+        endDate: number; /**
+         * Drains the queue, i.e., removes all jobs that are waiting
+         * or delayed, but not active, completed or failed.
+         *
+         * TODO: Convert to an atomic LUA script.
+         */
         tz: string;
         cron: string;
         next: number;
@@ -28,5 +33,5 @@ getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<{
 
 <b>Returns:</b>
 
-Promise&lt;{ key: string; name: string; id: string; endDate: number; tz: string; cron: string; next: number; }\[\]&gt;
+Promise&lt;{ key: string; name: string; id: string; endDate: number; /\*\* \* Drains the queue, i.e., removes all jobs that are waiting \* or delayed, but not active, completed or failed. \* \* TODO: Convert to an atomic LUA script. \*/ tz: string; cron: string; next: number; }\[\]&gt;
 

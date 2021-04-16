@@ -24,5 +24,5 @@ add(flow: FlowJob): Promise<JobNode>;
 
 <b>Returns:</b>
 
-Promise&lt;JobNode&gt;
+Promise&lt;[JobNode](./bullmq.jobnode.md)<!-- -->&gt;
 

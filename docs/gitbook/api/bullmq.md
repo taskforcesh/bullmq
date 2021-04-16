@@ -37,6 +37,7 @@
 |  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
+|  [JobNode](./bullmq.jobnode.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
 |  [QueueEvents](./bullmq.queueevents.md) |  |

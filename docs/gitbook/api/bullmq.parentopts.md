@@ -10,5 +10,6 @@
 export declare type ParentOpts = {
     waitChildrenKey?: string;
     parentDependenciesKey?: string;
+    parentKey?: string;
 };
 ```
