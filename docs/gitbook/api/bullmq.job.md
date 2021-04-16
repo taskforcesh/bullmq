@@ -53,6 +53,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [isDelayed()](./bullmq.job.isdelayed.md) |  |  |
 |  [isFailed()](./bullmq.job.isfailed.md) |  |  |
 |  [isWaiting()](./bullmq.job.iswaiting.md) |  |  |
+|  [isWaitingChildren()](./bullmq.job.iswaitingchildren.md) |  |  |
 |  [log(logRow)](./bullmq.job.log.md) |  | Logs one row of log data. logRow: string String with log data to be logged. |
 |  [moveToCompleted(returnValue, token, fetchNext)](./bullmq.job.movetocompleted.md) |  | Moves a job to the completed queue. Returned job to be used with Queue.prototype.nextJobFromJobData. |
 |  [moveToDelayed(timestamp)](./bullmq.job.movetodelayed.md) |  |  |
