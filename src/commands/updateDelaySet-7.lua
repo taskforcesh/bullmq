@@ -17,7 +17,8 @@
 
      Events:
       'waiting'
-]] local rcall = redis.call
+]]
+local rcall = redis.call
 
 -- Try to get as much as 1000 jobs at once
 local jobs = rcall("ZRANGEBYSCORE", KEYS[1], 0, tonumber(ARGV[2]) * 0x1000,

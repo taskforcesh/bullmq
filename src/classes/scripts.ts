@@ -33,6 +33,7 @@ export type MinimalQueue = Pick<
 export type ParentOpts = {
   waitChildrenKey?: string;
   parentDependenciesKey?: string;
+  parentKey?: string;
 };
 
 export class Scripts {
@@ -60,6 +61,7 @@ export class Scripts {
     parentOpts: ParentOpts = {
       waitChildrenKey: null,
       parentDependenciesKey: null,
+      parentKey: null,
     },
   ) {
     const queueKeys = queue.keys;
@@ -87,6 +89,7 @@ export class Scripts {
       opts.delay ? job.timestamp + opts.delay : 0,
       opts.priority || 0,
       opts.lifo ? 'RPUSH' : 'LPUSH',
+      parentOpts.parentKey,
     ];
 
     keys = keys.concat(<string[]>args);
@@ -114,18 +117,8 @@ export class Scripts {
   static async remove(queue: MinimalQueue, jobId: string) {
     const client = await queue.client;
 
-    const keys = [
-      'active',
-      'wait',
-      'delayed',
-      'paused',
-      'completed',
-      'failed',
-      'priority',
-      jobId,
-      `${jobId}:logs`,
-    ].map(name => queue.toKey(name));
-    return (<any>client).removeJob(keys.concat([queue.keys.events, jobId]));
+    const keys = [jobId].map(name => queue.toKey(name));
+    return (<any>client).removeJob(keys.concat([jobId]));
   }
 
   static async extendLock(

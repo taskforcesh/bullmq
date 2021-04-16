@@ -14,6 +14,7 @@
 ]]
 local rcall = redis.call
 if rcall("GET", KEYS[1]) == ARGV[1] then
+  --   if rcall("SET", KEYS[1], ARGV[1], "PX", ARGV[2], "XX") then
   if rcall("SET", KEYS[1], ARGV[1], "PX", ARGV[2]) then
     rcall("SREM", KEYS[2], ARGV[3])
     return 1
