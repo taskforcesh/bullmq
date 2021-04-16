@@ -27,6 +27,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [id?](./bullmq.job.id.md) |  | string | <i>(Optional)</i> |
 |  [name](./bullmq.job.name.md) |  | N |  |
 |  [opts](./bullmq.job.opts.md) |  | [JobsOptions](./bullmq.jobsoptions.md) |  |
+|  [parentKey?](./bullmq.job.parentkey.md) |  | string | <i>(Optional)</i> Fully qualified key pointing to the parent of this job. |
 |  [processedOn?](./bullmq.job.processedon.md) |  | number | <i>(Optional)</i> |
 |  [progress](./bullmq.job.progress.md) |  | number \| object |  |
 |  [returnvalue](./bullmq.job.returnvalue.md) |  | R |  |
