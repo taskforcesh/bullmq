@@ -1,4 +1,4 @@
-import { Queue, Worker, Job, Flow } from '../classes';
+import { Queue, Worker, Job, Flow, JobNode } from '../classes';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
@@ -326,5 +326,173 @@ describe('flows', () => {
     expect(numJobs).to.be.equal(0);
 
     await removeAllQueueData(new IORedis(), parentQueueName);
+  });
+
+  describe('remove', () => {
+    it('should remove all children when removing a parent', async () => {
+      const parentQueueName = 'parent-queue';
+      const name = 'child-job';
+
+      const flow = new Flow();
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          { name, data: { idx: 0, foo: 'bar' }, queueName },
+          {
+            name,
+            data: { idx: 0, foo: 'baz' },
+            queueName,
+            children: [{ name, data: { idx: 0, foo: 'qux' }, queueName }],
+          },
+        ],
+      });
+
+      expect(await tree.job.getState()).to.be.equal('waiting-children');
+
+      expect(await tree.children[0].job.getState()).to.be.equal('waiting');
+      expect(await tree.children[1].job.getState()).to.be.equal(
+        'waiting-children',
+      );
+
+      expect(await tree.children[1].children[0].job.getState()).to.be.equal(
+        'waiting',
+      );
+
+      await tree.job.remove();
+
+      const parentQueue = new Queue(parentQueueName);
+      const parentJob = await Job.fromId(parentQueue, tree.job.id);
+      expect(parentJob).to.be.undefined;
+
+      for (let i = 0; i < tree.children.length; i++) {
+        const child = tree.children[i];
+        const childJob = await Job.fromId(queue, child.job.id);
+        expect(childJob).to.be.undefined;
+      }
+
+      expect(await tree.children[0].job.getState()).to.be.equal('unknown');
+      expect(await tree.children[1].job.getState()).to.be.equal('unknown');
+      expect(await tree.job.getState()).to.be.equal('unknown');
+
+      await flow.close();
+
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+
+    it('should not remove anything if there is a locked job in the tree', async () => {
+      const parentQueueName = 'parent-queue';
+      const name = 'child-job';
+
+      const worker = new Worker(queueName);
+
+      const flow = new Flow();
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          { name, data: { idx: 0, foo: 'bar' }, queueName },
+          { name, data: { idx: 0, foo: 'baz' }, queueName },
+        ],
+      });
+
+      // Get job so that it gets locked.
+      const nextJob = await worker.getNextJob('1234');
+
+      expect(nextJob).to.not.be.undefined;
+      expect(await (nextJob as Job).getState()).to.be.equal('active');
+
+      try {
+        await tree.job.remove();
+      } catch (err) {}
+
+      expect(await tree.job.getState()).to.be.equal('waiting-children');
+      expect(await tree.children[0].job.getState()).to.be.equal('active');
+      expect(await tree.children[1].job.getState()).to.be.equal('waiting');
+
+      await flow.close();
+
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+
+    it('should remove from parent dependencies and move parent to wait', async () => {
+      const parentQueueName = 'parent-queue';
+      const name = 'child-job';
+
+      const flow = new Flow();
+      const tree = await flow.add({
+        name: 'root-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          {
+            name,
+            data: { idx: 0, foo: 'bar' },
+            queueName,
+            children: [
+              {
+                name,
+                data: { idx: 1, foo: 'baz' },
+                queueName,
+                children: [{ name, data: { idx: 2, foo: 'qux' }, queueName }],
+              },
+            ],
+          },
+        ],
+      });
+
+      // We remove from deepest child and upwards to check if jobs
+      // are moved to the wait status correctly
+      const parentQueue = new Queue(parentQueueName);
+
+      await removeChildJob(tree.children[0].children[0]);
+      await removeChildJob(tree.children[0]);
+      await removeChildJob(tree);
+
+      async function removeChildJob(node: JobNode) {
+        expect(await node.job.getState()).to.be.equal('waiting-children');
+
+        await node.children[0].job.remove();
+
+        expect(await node.job.getState()).to.be.equal('waiting');
+      }
+
+      await flow.close();
+      await parentQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+
+    it(`should only move parent to wait when all children have been removed`, async () => {
+      const parentQueueName = 'parent-queue';
+      const name = 'child-job';
+
+      const flow = new Flow();
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          { name, data: { idx: 0, foo: 'bar' }, queueName },
+          { name, data: { idx: 0, foo: 'baz' }, queueName },
+        ],
+      });
+
+      expect(await tree.job.getState()).to.be.equal('waiting-children');
+      expect(await tree.children[0].job.getState()).to.be.equal('waiting');
+
+      await tree.children[0].job.remove();
+
+      expect(await tree.children[0].job.getState()).to.be.equal('unknown');
+      expect(await tree.job.getState()).to.be.equal('waiting-children');
+
+      await tree.children[1].job.remove();
+      expect(await tree.children[1].job.getState()).to.be.equal('unknown');
+      expect(await tree.job.getState()).to.be.equal('waiting');
+
+      await flow.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
   });
 });

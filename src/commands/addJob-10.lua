@@ -36,6 +36,7 @@
       ARGV[8]  delayedTimestamp
       ARGV[9]  priority
       ARGV[10] LIFO
+      ARGV[11] parentKey?
 ]]
 local jobId
 local jobIdKey
@@ -56,7 +57,7 @@ end
 
 -- Store the job.
 rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
-      "timestamp", ARGV[6], "delay", ARGV[7], "priority", ARGV[9])
+      "timestamp", ARGV[6], "delay", ARGV[7], "priority", ARGV[9], "parentKey", ARGV[11])
 
 -- Check if job is delayed
 local delayedTimestamp = tonumber(ARGV[8])

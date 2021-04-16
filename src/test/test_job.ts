@@ -136,6 +136,8 @@ describe('Job', function() {
     });
   });
 
+  // TODO: Add more remove tests
+
   describe('.progress', function() {
     it('can set and get progress as number', async function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });

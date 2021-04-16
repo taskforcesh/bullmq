@@ -8,8 +8,9 @@ import { RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
+import { ParentOpts } from './scripts';
 
-interface JobNode {
+export interface JobNode {
   job: Job;
   children?: JobNode[];
 }
@@ -123,6 +124,8 @@ export class Flow extends EventEmitter {
       node.opts?.jobId || parentId,
     );
 
+    const parentKey = getParentKey(parent?.parentOpts);
+
     if (node.children) {
       // Create parent job, will be a job in status "waiting-children".
       const queueKeysParent = new QueueKeys(node.prefix);
@@ -134,6 +137,7 @@ export class Flow extends EventEmitter {
       job.addJob(<Redis>(multi as unknown), {
         parentDependenciesKey: parent?.parentDependenciesKey,
         waitChildrenKey,
+        parentKey,
       });
 
       const parentDependenciesKey = `${queueKeysParent.toKey(
@@ -153,6 +157,7 @@ export class Flow extends EventEmitter {
     } else {
       job.addJob(<Redis>(multi as unknown), {
         parentDependenciesKey: parent?.parentDependenciesKey,
+        parentKey,
       });
 
       return { job };
@@ -206,5 +211,11 @@ export class Flow extends EventEmitter {
 
   disconnect() {
     return this.connection.disconnect();
+  }
+}
+
+function getParentKey(opts: { id: string; queue: string }) {
+  if (opts) {
+    return `${opts.queue}:${opts.id}`;
   }
 }
