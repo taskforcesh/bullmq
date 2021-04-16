@@ -1,5 +1,9 @@
 # Flows
 
+{% hint style="warning" %}
+The following pattern, although still useful, has been mostly super-seeded by the new [Flows](../guide/jobs/flows.md) functionality
+{% endhint %}
+
 In some situations you need to execute a flow of actions that each and one of them could fail, it could be database updates, calls to external services, or any other kind of asynchronous call.
 
 Sometimes it may not be possible to create an [idempotent job](idempotent-jobs.md) that can execute all these actions again in the case one of them failed for any reason, instead we want to be able to only re-execute the action that failed and continue executing the rest of the actions that have not yet been executed.
