@@ -12,7 +12,7 @@ This functionality enables the creation of flows where jobs are the node of tree
 Flows are added to a queue using the "FlowProducer" class.
 {% endhint %}
 
-In order to create "flows" you must use the Flow class. The method "add" accepts an object with the following interface:
+In order to create "flows" you must use the FlowProducer class. The method "_add_" accepts an object with the following interface:
 
 ```typescript
 interface FlowJob {
