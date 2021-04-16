@@ -10,7 +10,7 @@
 |  --- | --- |
 |  [Backoffs](./bullmq.backoffs.md) |  |
 |  [ChildPool](./bullmq.childpool.md) |  |
-|  [Flow](./bullmq.flow.md) | This class allows to add jobs into one or several queues with dependencies between them in such a way that it is possible to build complex flows. |
+|  [FlowProducer](./bullmq.flowproducer.md) | This class allows to add jobs into one or several queues with dependencies between them in such a way that it is possible to build complex flows. |
 |  [Job](./bullmq.job.md) |  |
 |  [Queue](./bullmq.queue.md) |  |
 |  [QueueBase](./bullmq.queuebase.md) |  |
