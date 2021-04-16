@@ -23,7 +23,7 @@
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/proritized.md)
   * [Adding bulks](guide/jobs/adding-bulks.md)
-  * [Flows](guide/jobs/parent-child-jobs.md)
+  * [Flows](guide/jobs/flows.md)
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
 * [Rate limiting](guide/rate-limiting.md)
