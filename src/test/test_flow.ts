@@ -1,4 +1,4 @@
-import { Queue, Worker, Job, Flow, JobNode } from '../classes';
+import { Queue, Worker, Job, FlowProducer, JobNode } from '../classes';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
@@ -65,7 +65,7 @@ describe('flows', () => {
     const parentWorker = new Worker(parentQueueName, parentProcessor);
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
-    const flow = new Flow();
+    const flow = new FlowProducer();
     const tree = await flow.add({
       name: 'parent-job',
       queueName: parentQueueName,
@@ -172,7 +172,7 @@ describe('flows', () => {
     const parentWorker = new Worker(topQueueName, parentProcessor);
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
-    const flow = new Flow();
+    const flow = new FlowProducer();
     const tree = await flow.add({
       name: 'root-job',
       queueName: topQueueName,
@@ -239,7 +239,7 @@ describe('flows', () => {
 
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
-    const flow = new Flow();
+    const flow = new FlowProducer();
     const tree = await flow.add({
       name: 'parent-job',
       queueName: parentQueueName,
@@ -291,7 +291,7 @@ describe('flows', () => {
     const parentQueue = new Queue(parentQueueName);
     await parentQueue.pause();
 
-    const flow = new Flow();
+    const flow = new FlowProducer();
     const tree = await flow.add({
       name: 'parent-job',
       queueName: parentQueueName,
@@ -333,7 +333,7 @@ describe('flows', () => {
       const parentQueueName = 'parent-queue';
       const name = 'child-job';
 
-      const flow = new Flow();
+      const flow = new FlowProducer();
       const tree = await flow.add({
         name: 'parent-job',
         queueName: parentQueueName,
@@ -387,7 +387,7 @@ describe('flows', () => {
 
       const worker = new Worker(queueName);
 
-      const flow = new Flow();
+      const flow = new FlowProducer();
       const tree = await flow.add({
         name: 'parent-job',
         queueName: parentQueueName,
@@ -421,7 +421,7 @@ describe('flows', () => {
       const parentQueueName = 'parent-queue';
       const name = 'child-job';
 
-      const flow = new Flow();
+      const flow = new FlowProducer();
       const tree = await flow.add({
         name: 'root-job',
         queueName: parentQueueName,
@@ -468,7 +468,7 @@ describe('flows', () => {
       const parentQueueName = 'parent-queue';
       const name = 'child-job';
 
-      const flow = new Flow();
+      const flow = new FlowProducer();
       const tree = await flow.add({
         name: 'parent-job',
         queueName: parentQueueName,
