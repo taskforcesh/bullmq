@@ -85,7 +85,7 @@ describe('Job', function() {
     const processingParent = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
         try {
-          const movedToWaitingChildren = await job.moveToWaitingChildren();
+          const movedToWaitingChildren = await job.moveToWaitingChildren('0');
 
           if (processedChildren !== 3) {
             expect(movedToWaitingChildren).to.be.true;

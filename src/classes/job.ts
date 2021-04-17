@@ -469,8 +469,8 @@ export class Job<T = any, R = any, N extends string = string> {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
   }
 
-  moveToWaitingChildren(timestamp?: number) {
-    return Scripts.moveToWaitingChildren(this.queue, this.id, timestamp);
+  moveToWaitingChildren(token: string, timestamp?: number) {
+    return Scripts.moveToWaitingChildren(this.queue, this.id, token, timestamp);
   }
 
   async promote() {

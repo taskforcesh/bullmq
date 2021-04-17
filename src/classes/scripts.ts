@@ -345,6 +345,7 @@ export class Scripts {
   static moveToWaitingChildrenArgs(
     queue: MinimalQueue,
     jobId: string,
+    token: string,
     timestamp?: number,
   ) {
     timestamp = Math.max(0, timestamp ?? 0);
@@ -353,11 +354,13 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['active', 'waiting-children', jobId].map(function(name) {
-      return queue.toKey(name);
-    });
+    const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
+      function(name) {
+        return queue.toKey(name);
+      },
+    );
 
-    return keys.concat([JSON.stringify(timestamp), jobId]);
+    return keys.concat([token, JSON.stringify(timestamp), jobId]);
   }
 
   static async moveToDelayed(
@@ -382,11 +385,12 @@ export class Scripts {
   static async moveToWaitingChildren(
     queue: MinimalQueue,
     jobId: string,
+    token: string,
     timestamp?: number,
   ) {
     const client = await queue.client;
 
-    const args = this.moveToWaitingChildrenArgs(queue, jobId, timestamp);
+    const args = this.moveToWaitingChildrenArgs(queue, jobId, token, timestamp);
     const result = await (<any>client).moveToWaitingChildren(args);
     switch (result) {
       case 0:
@@ -399,6 +403,8 @@ export class Scripts {
             jobId +
             ' when trying to move from active to waiting-children',
         );
+      case -2:
+        throw new Error('Job ' + jobId + ' is not in using the same token');
     }
   }
 
