@@ -7,7 +7,6 @@ import { getParentKey } from './flow-producer';
 import { Backoffs, QueueEvents } from './';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 import { fromPairs } from 'lodash';
-import { KeysMap, QueueKeys } from './queue-keys';
 
 const logger = debuglog('bull');
 

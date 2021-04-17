@@ -1788,8 +1788,10 @@ describe('workers', function() {
       expect(isWaitingChildren2).to.be.false;
 
       await childrenWorker.close();
-
       await parentWorker.close();
+
+      await parentQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
     it('should allow to fail jobs manually', async () => {

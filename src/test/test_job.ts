@@ -86,8 +86,9 @@ describe('Job', function() {
       (parentProcessor = async (job: Job) => {
         try {
           const movedToWaitingChildren = await job.moveToWaitingChildren('0');
+          const { processed } = await job.getDependencies();
 
-          if (processedChildren !== 3) {
+          if (Object.keys(processed).length !== 3) {
             expect(movedToWaitingChildren).to.be.true;
           } else {
             expect(movedToWaitingChildren).to.be.false;
@@ -135,6 +136,7 @@ describe('Job', function() {
     await parentWorker.close();
 
     await parentQueue.close();
+    await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
   describe('JSON.stringify', () => {
