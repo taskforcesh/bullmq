@@ -15,25 +15,28 @@
     0 - OK
     1 - There are not pending dependencies.
    -1 - Missing job.
-   -2 - Not being processed by same worker
+   -2 - Missing lock
 ]]
 local rcall = redis.call
 
-if ARGV[1] == "0" or rcall("GET", KEYS[1]) == ARGV[1] then
-  if rcall("EXISTS", KEYS[4]) == 1 then
-    if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
-      local jobId = ARGV[3]
-      local score = tonumber(ARGV[2])
-  
-      rcall("ZADD", KEYS[3], score, jobId)
-      rcall("LREM", KEYS[2], 0, jobId)
-  
-      return 0
-    end
-  
-    return 1
-  else
-    return -1
-  end  
+if ARGV[1] ~= "0" then
+  if rcall("GET", KEYS[1]) ~= ARGV[1] then
+      return -2
+  end
 end
-return -2
+
+if rcall("EXISTS", KEYS[4]) == 1 then
+  if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
+    local jobId = ARGV[3]
+    local score = tonumber(ARGV[2])
+  
+    rcall("ZADD", KEYS[3], score, jobId)
+    rcall("LREM", KEYS[2], 0, jobId)
+  
+    return 0
+  end
+  
+  return 1    
+end
+
+return -1

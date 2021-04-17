@@ -1684,7 +1684,7 @@ describe('workers', function() {
       });
     });
 
-    it('should move parent job to waiting-children', async () => {
+    it('should allow to move parent job to waiting-children', async () => {
       const values = [
         { idx: 0, bar: 'something' },
         { idx: 1, baz: 'something' },
