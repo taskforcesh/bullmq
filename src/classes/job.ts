@@ -3,6 +3,7 @@ import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
+import { getParentKey } from './flow-producer';
 import { Backoffs, QueueEvents } from './';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 import { fromPairs } from 'lodash';
@@ -64,6 +65,8 @@ export class Job<T = any, R = any, N extends string = string> {
 
     this.opts.backoff = Backoffs.normalize(opts.backoff);
 
+    this.parentKey = getParentKey(opts.parent);
+
     this.toKey = queue.toKey.bind(queue);
   }
 
@@ -77,7 +80,12 @@ export class Job<T = any, R = any, N extends string = string> {
 
     const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
-    job.id = await job.addJob(client);
+    job.id = await job.addJob(client, {
+      parentKey: job.parentKey,
+      parentDependenciesKey: job.parentKey
+        ? `${job.parentKey}:dependencies`
+        : '',
+    });
 
     return job;
   }
@@ -533,9 +541,6 @@ export class Job<T = any, R = any, N extends string = string> {
     const queue = this.queue;
 
     const jobData = this.asJSON();
-    const parentDependenciesKey = this.opts.parent
-      ? `${this.opts.parent.queue}:${this.opts.parent.id}:dependencies`
-      : '';
 
     return Scripts.addJob(
       client,
@@ -543,12 +548,7 @@ export class Job<T = any, R = any, N extends string = string> {
       jobData,
       this.opts,
       this.id,
-      Object.assign(
-        {
-          parentDependenciesKey,
-        },
-        parentOpts,
-      ),
+      parentOpts,
     );
   }
 

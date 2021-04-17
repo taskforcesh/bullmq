@@ -133,6 +133,8 @@ describe('Job', function() {
 
     await processingParent;
     await parentWorker.close();
+
+    await parentQueue.close();
   });
 
   describe('JSON.stringify', () => {

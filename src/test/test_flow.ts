@@ -46,7 +46,8 @@ describe('flows', () => {
     const processingParent = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
         try {
-          expect(processedChildren).to.be.equal(3);
+          const { processed } = await job.getDependencies();
+          expect(Object.keys(processed)).to.have.length(3);
 
           const childrenValues = await job.getChildrenValues();
 
@@ -64,6 +65,8 @@ describe('flows', () => {
 
     const parentWorker = new Worker(parentQueueName, parentProcessor);
     const childrenWorker = new Worker(queueName, childrenProcessor);
+    await parentWorker.waitUntilReady();
+    await childrenWorker.waitUntilReady();
 
     const flow = new FlowProducer();
     const tree = await flow.add({
@@ -100,7 +103,6 @@ describe('flows', () => {
     await parentWorker.close();
 
     await flow.close();
-
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
@@ -154,7 +156,8 @@ describe('flows', () => {
     const processingTop = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
         try {
-          expect(processedChildren).to.be.equal(3);
+          const { processed } = await job.getDependencies();
+          expect(Object.keys(processed)).to.have.length(1);
 
           const childrenValues = await job.getChildrenValues();
 
@@ -220,7 +223,6 @@ describe('flows', () => {
     await parentWorker.close();
 
     await flow.close();
-
     await removeAllQueueData(new IORedis(), topQueueName);
   });
 
@@ -264,6 +266,8 @@ describe('flows', () => {
     const numJobs = await parentQueue.getWaitingCount();
     expect(numJobs).to.be.equal(0);
 
+    await flow.close();
+    await parentQueue.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
@@ -325,6 +329,8 @@ describe('flows', () => {
     numJobs = await parentQueue.getWaitingCount();
     expect(numJobs).to.be.equal(0);
 
+    await flow.close();
+    await parentQueue.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
@@ -377,7 +383,7 @@ describe('flows', () => {
       expect(await tree.job.getState()).to.be.equal('unknown');
 
       await flow.close();
-
+      await parentQueue.close();
       await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
@@ -413,7 +419,6 @@ describe('flows', () => {
       expect(await tree.children[1].job.getState()).to.be.equal('waiting');
 
       await flow.close();
-
       await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
