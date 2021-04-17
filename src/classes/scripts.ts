@@ -347,10 +347,8 @@ export class Scripts {
     jobId: string,
     timestamp?: number,
   ) {
-    timestamp = typeof timestamp === 'undefined' ? 0 : timestamp;
+    timestamp = Math.max(0, timestamp ?? 0);
 
-    timestamp = +timestamp || 0;
-    timestamp = timestamp < 0 ? 0 : timestamp;
     if (timestamp > 0) {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
