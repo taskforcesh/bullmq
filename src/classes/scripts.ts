@@ -342,6 +342,26 @@ export class Scripts {
     return keys.concat([JSON.stringify(timestamp), jobId]);
   }
 
+  static moveToWaitingChildrenArgs(
+    queue: MinimalQueue,
+    jobId: string,
+    timestamp?: number,
+  ) {
+    timestamp = typeof timestamp === 'undefined' ? 0 : timestamp;
+
+    timestamp = +timestamp || 0;
+    timestamp = timestamp < 0 ? 0 : timestamp;
+    if (timestamp > 0) {
+      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
+    }
+
+    const keys = ['active', 'waiting-children', jobId].map(function(name) {
+      return queue.toKey(name);
+    });
+
+    return keys.concat([JSON.stringify(timestamp), jobId]);
+  }
+
   static async moveToDelayed(
     queue: MinimalQueue,
     jobId: string,
@@ -357,6 +377,29 @@ export class Scripts {
           'Missing Job ' +
             jobId +
             ' when trying to move from active to delayed',
+        );
+    }
+  }
+
+  static async moveToWaitingChildren(
+    queue: MinimalQueue,
+    jobId: string,
+    timestamp?: number,
+  ) {
+    const client = await queue.client;
+
+    const args = this.moveToWaitingChildrenArgs(queue, jobId, timestamp);
+    const result = await (<any>client).moveToWaitingChildren(args);
+    switch (result) {
+      case 0:
+        return true;
+      case 1:
+        return false;
+      case -1:
+        throw new Error(
+          'Missing Job ' +
+            jobId +
+            ' when trying to move from active to waiting-children',
         );
     }
   }

@@ -6,6 +6,7 @@ import { errorObject, isEmpty, tryCatch } from '../utils';
 import { Backoffs, QueueEvents } from './';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 import { fromPairs } from 'lodash';
+import { KeysMap, QueueKeys } from './queue-keys';
 
 const logger = debuglog('bull');
 
@@ -468,6 +469,10 @@ export class Job<T = any, R = any, N extends string = string> {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
   }
 
+  moveToWaitingChildren(timestamp?: number) {
+    return Scripts.moveToWaitingChildren(this.queue, this.id, timestamp);
+  }
+
   async promote() {
     const queue = this.queue;
     const jobId = this.id;
@@ -528,6 +533,9 @@ export class Job<T = any, R = any, N extends string = string> {
     const queue = this.queue;
 
     const jobData = this.asJSON();
+    const parentDependenciesKey = this.opts.parent
+      ? `${this.opts.parent.queue}:${this.opts.parent.id}:dependencies`
+      : '';
 
     return Scripts.addJob(
       client,
@@ -535,7 +543,12 @@ export class Job<T = any, R = any, N extends string = string> {
       jobData,
       this.opts,
       this.id,
-      parentOpts,
+      Object.assign(
+        {
+          parentDependenciesKey,
+        },
+        parentOpts,
+      ),
     );
   }
 

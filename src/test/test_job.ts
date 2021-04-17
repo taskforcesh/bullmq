@@ -61,6 +61,109 @@ describe('Job', function() {
     });
   });
 
+  it.only('adds dependency and dependent references', async () => {
+    const name = 'child-job';
+    const values = [{ bar: 'something' }];
+
+    const parentQueueName = 'parent-queue';
+    let run = 1;
+
+    let childrenProcessor,
+      parentProcessor,
+      processedChildren = 0;
+    const processingChildren = new Promise<void>((resolve, reject) => [
+      (childrenProcessor = async (job: Job) => {
+        // processedChildren++;
+        console.log('CHILDREN');
+
+        await job.moveToDelayed(500);
+        const state = await job.getState();
+        console.log('state del children', state);
+        setTimeout(() => {
+          processedChildren++;
+          resolve();
+        }, 1000);
+
+        if (processedChildren == values.length) {
+          // resolve();
+        }
+        return values[job.data.idx];
+      }),
+    ]);
+
+    const processingParent = new Promise<void>((resolve, reject) => [
+      (parentProcessor = async (job: Job) => {
+        try {
+          console.log('PARENT');
+          const movedToWaitingChildren = await job.moveToWaitingChildren();
+
+          if (run === 1) {
+            console.log('moved', processedChildren);
+            expect(movedToWaitingChildren).to.be.true;
+            run++;
+          } else {
+            expect(movedToWaitingChildren).to.be.false;
+          }
+          const isActive = await job.isActive();
+          console.log('isActive', isActive, movedToWaitingChildren);
+          const state = await job.getState();
+          console.log('parentState in process', state);
+          // expect(processedChildren).to.be.equal(3);
+          setTimeout(() => {
+            resolve();
+          }, 500);
+
+          const childrenValues = await job.getChildrenValues();
+          const dependencies = await job.getDependencies();
+          console.log('childrenValues', childrenValues);
+          console.log('dependencies', dependencies);
+        } catch (err) {
+          console.error(err);
+          reject(err);
+        }
+      }),
+    ]);
+    const parentQueue = new Queue(parentQueueName);
+
+    const parentWorker = new Worker(parentQueueName, parentProcessor);
+    const childrenWorker = new Worker(queueName, childrenProcessor);
+    await parentWorker.waitUntilReady();
+    await childrenWorker.waitUntilReady();
+
+    const data = { foo: 'bar' };
+    const parent = await Job.create(parentQueue, 'testDepend', data);
+    const parentState = await parent.getState();
+
+    expect(parentState).to.be.equal('active');
+
+    const child = await Job.create(queue, 'testJob', data, {
+      parent: {
+        id: parent.id,
+        queue: 'bull:' + parentQueueName,
+      },
+    });
+    const gg2 = await child.getState();
+    console.log('gg2', gg2);
+
+    const state = await parent.getState();
+    const state3 = await child.getState();
+    console.log('state', state, state3);
+
+    const jobDependencies = await parent.getDependencies();
+    console.log(jobDependencies);
+
+    await processingChildren;
+    await childrenWorker.close();
+
+    await processingParent;
+    await parentWorker.close();
+
+    const state2 = await parent.getState();
+    console.log('state2', state2);
+
+    expect(1).to.be.eql(1);
+  });
+
   describe('JSON.stringify', () => {
     it('retains property types', async () => {
       const data = { foo: 'bar' };
@@ -401,6 +504,11 @@ describe('Job', function() {
         const delayedState = await job.getState();
 
         expect(delayedState).to.be.equal('delayed');
+
+        const activeJob = await queue.add('job', { foo: 'bar' });
+        const activeState = await activeJob.getState();
+
+        expect(activeState).to.be.equal('active');
 
         await queue.pause();
         await job.promote();
