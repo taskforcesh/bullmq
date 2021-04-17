@@ -476,11 +476,6 @@ describe('Job', function() {
 
         expect(delayedState).to.be.equal('delayed');
 
-        const activeJob = await queue.add('job', { foo: 'bar' });
-        const activeState = await activeJob.getState();
-
-        expect(activeState).to.be.equal('active');
-
         await queue.pause();
         await job.promote();
         await queue.resume();
