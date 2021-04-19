@@ -42,6 +42,14 @@ export interface JobJsonRaw {
   parentKey?: string;
 }
 
+export interface MoveToChildrenOpts {
+  timestamp?: number;
+  child?: {
+    id: string;
+    queue: string;
+  };
+}
+
 export class Job<T = any, R = any, N extends string = string> {
   progress: number | object = 0;
   returnvalue: R = null;
@@ -495,8 +503,8 @@ export class Job<T = any, R = any, N extends string = string> {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
   }
 
-  moveToWaitingChildren(token: string, timestamp?: number) {
-    return Scripts.moveToWaitingChildren(this.queue, this.id, token, timestamp);
+  moveToWaitingChildren(token: string, opts?: MoveToChildrenOpts) {
+    return Scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
   }
 
   async promote() {

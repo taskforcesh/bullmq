@@ -14,7 +14,8 @@ import {
 } from '../interfaces';
 import { array2obj } from '../utils';
 import { QueueBase, QueueScheduler, Worker } from './';
-import { Job, JobJson, JobJsonRaw } from './job';
+import { Job, JobJson, JobJsonRaw, MoveToChildrenOpts } from './job';
+import { getParentKey } from './flow-producer';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -348,9 +349,11 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     token: string,
-    timestamp?: number,
+    opts?: MoveToChildrenOpts,
   ) {
-    timestamp = Math.max(0, timestamp ?? 0);
+    let timestamp = Math.max(0, opts.timestamp ?? 0);
+
+    const childKey = getParentKey(opts.child);
 
     if (timestamp > 0) {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
@@ -362,7 +365,12 @@ export class Scripts {
       },
     );
 
-    return keys.concat([token, JSON.stringify(timestamp), jobId]);
+    return keys.concat([
+      token,
+      childKey ?? '',
+      JSON.stringify(timestamp),
+      jobId,
+    ]);
   }
 
   static async moveToDelayed(
@@ -388,11 +396,11 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     token: string,
-    timestamp?: number,
+    opts: MoveToChildrenOpts = {},
   ) {
     const client = await queue.client;
 
-    const args = this.moveToWaitingChildrenArgs(queue, jobId, token, timestamp);
+    const args = this.moveToWaitingChildrenArgs(queue, jobId, token, opts);
     const result = await (<any>client).moveToWaitingChildren(args);
     switch (result) {
       case 0:
