@@ -21,6 +21,7 @@ export interface JobJson
 |  [id](./bullmq.jobjson.id.md) | string |  |
 |  [name](./bullmq.jobjson.name.md) | string |  |
 |  [opts](./bullmq.jobjson.opts.md) | string |  |
+|  [parentKey?](./bullmq.jobjson.parentkey.md) | string | <i>(Optional)</i> |
 |  [processedOn?](./bullmq.jobjson.processedon.md) | number | <i>(Optional)</i> |
 |  [progress](./bullmq.jobjson.progress.md) | number \| object |  |
 |  [returnvalue](./bullmq.jobjson.returnvalue.md) | string |  |

@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static fromJSON(queue: MinimalQueue, json: any, jobId?: string): Job<any, any, any>;
+static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string): Job<any, any, string>;
 ```
 
 ## Parameters
@@ -15,10 +15,10 @@ static fromJSON(queue: MinimalQueue, json: any, jobId?: string): Job<any, any, a
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  json | any |  |
+|  json | [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  jobId | string |  |
 
 <b>Returns:</b>
 
-[Job](./bullmq.job.md)<!-- -->&lt;any, any, any&gt;
+[Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;
 

@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static moveToCompleted(queue: MinimalQueue, job: Job, returnvalue: any, removeOnComplete: boolean | number, token: string, fetchNext: boolean): Promise<[JobJson, string] | []>;
+static moveToCompleted(queue: MinimalQueue, job: Job, returnvalue: any, removeOnComplete: boolean | number, token: string, fetchNext: boolean): Promise<[] | [JobJsonRaw, string]>;
 ```
 
 ## Parameters
@@ -23,5 +23,5 @@ static moveToCompleted(queue: MinimalQueue, job: Job, returnvalue: any, removeOn
 
 <b>Returns:</b>
 
-Promise&lt;\[[JobJson](./bullmq.jobjson.md)<!-- -->, string\] \| \[\]&gt;
+Promise&lt;\[\] \| \[[JobJsonRaw](./bullmq.jobjsonraw.md)<!-- -->, string\]&gt;
 
