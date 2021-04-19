@@ -331,7 +331,7 @@ export class Worker<
 
     lockExtender();
     try {
-      const result = await this.processFn(job);
+      const result = await this.processFn(job, token);
       return await handleCompleted(result);
     } catch (err) {
       return handleFailed(err);
