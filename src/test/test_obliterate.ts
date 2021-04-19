@@ -124,4 +124,26 @@ describe('Obliterate', () => {
 
     await worker.close();
   });
+
+  it('should remove repeatable jobs', async () => {
+    await queue.waitUntilReady();
+
+    await queue.add(
+      'test',
+      { foo: 'bar' },
+      {
+        repeat: {
+          every: 1000,
+        },
+      },
+    );
+
+    const repeatableJobs = await queue.getRepeatableJobs();
+    expect(repeatableJobs).to.have.length(1);
+
+    await queue.obliterate();
+    const client = await queue.client;
+    const keys = await client.keys(`bull:${queue.name}:*`);
+    expect(keys.length).to.be.eql(0);
+  });
 });
