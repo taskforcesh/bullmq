@@ -115,5 +115,6 @@ rcall("DEL", baseKey .. 'stalled-check')
 rcall("DEL", baseKey .. 'stalled')
 rcall("DEL", baseKey .. 'id')
 rcall("DEL", baseKey .. 'meta')
+rcall("DEL", baseKey .. 'repeat')
 
 return 0
