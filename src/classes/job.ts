@@ -22,6 +22,23 @@ export interface JobJson {
   failedReason: string;
   stacktrace: string;
   returnvalue: string;
+  parentKey?: string;
+}
+
+export interface JobJsonRaw {
+  id: string;
+  name: string;
+  data: string;
+  opts: string;
+  progress: string;
+  attemptsMade: string;
+  finishedOn?: string;
+  processedOn?: string;
+  timestamp: string;
+  failedReason: string;
+  stacktrace: string[];
+  returnvalue: string;
+  parentKey?: string;
 }
 
 export class Job<T = any, R = any, N extends string = string> {
@@ -111,13 +128,13 @@ export class Job<T = any, R = any, N extends string = string> {
     return jobInstances;
   }
 
-  static fromJSON(queue: MinimalQueue, json: any, jobId?: string) {
+  static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string) {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
     const job = new Job(queue, json.name, data, opts, json.id || jobId);
 
-    job.progress = JSON.parse(json.progress || 0);
+    job.progress = JSON.parse(json.progress || '0');
 
     // job.delay = parseInt(json.delay);
     job.timestamp = parseInt(json.timestamp);
@@ -131,7 +148,7 @@ export class Job<T = any, R = any, N extends string = string> {
     }
 
     job.failedReason = json.failedReason;
-    job.attemptsMade = parseInt(json.attemptsMade || 0);
+    job.attemptsMade = parseInt(json.attemptsMade || '0');
 
     job.stacktrace = getTraces(json.stacktrace);
 
@@ -154,7 +171,9 @@ export class Job<T = any, R = any, N extends string = string> {
     if (jobId) {
       const client = await queue.client;
       const jobData = await client.hgetall(queue.toKey(jobId));
-      return isEmpty(jobData) ? undefined : Job.fromJSON(queue, jobData, jobId);
+      return isEmpty(jobData)
+        ? undefined
+        : Job.fromJSON(queue, (<unknown>jobData) as JobJsonRaw, jobId);
     }
   }
 
@@ -239,7 +258,7 @@ export class Job<T = any, R = any, N extends string = string> {
     returnValue: R,
     token: string,
     fetchNext = true,
-  ): Promise<[JobJson, string] | []> {
+  ): Promise<[JobJsonRaw, string] | []> {
     await this.queue.waitUntilReady();
 
     this.returnvalue = returnValue || void 0;
@@ -558,7 +577,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 }
 
-function getTraces(stacktrace: any[]) {
+function getTraces(stacktrace: string[]) {
   const traces = tryCatch(JSON.parse, JSON, [stacktrace]);
 
   if (traces === errorObject || !(traces instanceof Array)) {

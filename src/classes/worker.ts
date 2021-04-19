@@ -4,13 +4,13 @@ import * as path from 'path';
 import { Processor, WorkerOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
 import { ChildPool } from './child-pool';
-import { Job } from './job';
+import { Job, JobJsonRaw } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import { v4 } from 'uuid';
 import { TimerManager } from './timer-manager';
-import { isRedisInstance } from '../utils';
+import { isRedisInstance, delay } from '../utils';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -171,8 +171,9 @@ export class Worker<
   /**
    * Returns a promise that resolves to the next job in queue.
    * @param token worker token to be assigned to retrieved job
+   * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(token: string): Promise<Job<T, R, N> | void> {
+  async getNextJob(token: string) {
     if (this.paused) {
       await this.paused;
     }
@@ -204,10 +205,7 @@ export class Worker<
     }
   }
 
-  private async moveToActive(
-    token: string,
-    jobId?: string,
-  ): Promise<Job<T, R, N> | void> {
+  private async moveToActive(token: string, jobId?: string) {
     const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
@@ -232,27 +230,36 @@ export class Worker<
   }
 
   private async nextJobFromJobData(
-    jobData?: any,
+    jobData?: JobJsonRaw | number,
     jobId?: string,
-  ): Promise<Job<T, R, N> | void> {
+  ) {
     if (jobData) {
       this.drained = false;
-      const job = Job.fromJSON(this, jobData, jobId);
-      if (job.opts.repeat) {
-        const repeat = await this.repeat;
-        await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
+
+      //
+      // Check if the queue is rate limited. jobData will be the amount
+      // of rate limited jobs.
+      //
+      if (typeof jobData === 'number') {
+        if (this.opts.limiter.workerDelay) {
+          const rateKeyExpirationTime = jobData;
+          await delay(rateKeyExpirationTime);
+        }
+      } else {
+        const job = Job.fromJSON(this, jobData, jobId);
+        if (job.opts.repeat) {
+          const repeat = await this.repeat;
+          await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
+        }
+        return job;
       }
-      return job;
     } else if (!this.drained) {
       this.emit('drained');
       this.drained = true;
     }
   }
 
-  async processJob(
-    job: Job<T, R, N>,
-    token: string,
-  ): Promise<Job<T, R, N> | void> {
+  async processJob(job: Job<T, R, N>, token: string) {
     if (!job || this.closing || this.paused) {
       return;
     }
@@ -297,7 +304,7 @@ export class Worker<
 
     // end copy-paste from Bull3
 
-    const handleCompleted = async (result: R): Promise<Job<T, R, N> | void> => {
+    const handleCompleted = async (result: R) => {
       const jobData = await job.moveToCompleted(
         result,
         token,
