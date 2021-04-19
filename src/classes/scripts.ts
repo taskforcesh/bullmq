@@ -14,7 +14,7 @@ import {
 } from '../interfaces';
 import { array2obj } from '../utils';
 import { QueueBase, QueueScheduler, Worker } from './';
-import { Job, JobJson } from './job';
+import { Job, JobJson, JobJsonRaw } from './job';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -249,7 +249,7 @@ export class Scripts {
     removeOnComplete: boolean | number,
     token: string,
     fetchNext: boolean,
-  ): Promise<[JobJson, string] | []> {
+  ) {
     return this.moveToFinished(
       queue,
       job,
@@ -458,6 +458,10 @@ export class Scripts {
     const result = await (<any>client).moveToActive(
       (<(string | number | boolean)[]>keys).concat(args),
     );
+
+    if (typeof result === 'number') {
+      return [result, void 0] as [number, undefined];
+    }
     return raw2jobData(result);
   }
 
@@ -584,7 +588,7 @@ export class Scripts {
   */
 }
 
-function raw2jobData(raw: any[]): [JobJson, string] | [] {
+function raw2jobData(raw: any[]): [JobJsonRaw, string] | [] {
   if (raw) {
     const jobData = raw[0];
     if (jobData.length) {

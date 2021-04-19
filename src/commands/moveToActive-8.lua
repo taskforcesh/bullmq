@@ -63,7 +63,8 @@ if jobId then
     -- check if rate limit hit
     if jobCounter > maxJobs then
       local exceedingJobs = jobCounter - maxJobs
-      local delay = tonumber(rcall("PTTL", rateLimiterKey)) + ((exceedingJobs - 1) * ARGV[7]) / maxJobs;
+      local expireTime = tonumber(rcall("PTTL", rateLimiterKey))
+      local delay = expireTime + ((exceedingJobs - 1) * ARGV[7]) / maxJobs;
       local timestamp = delay + tonumber(ARGV[4])
       
       -- put job into delayed queue
@@ -72,7 +73,9 @@ if jobId then
       rcall("XADD", KEYS[8], "*", "nextTimestamp", timestamp);
       -- remove from active queue
       rcall("LREM", KEYS[2], 1, jobId)
-      return
+
+      -- Return when we can process more jobs
+      return expireTime
     else
       if jobCounter == 1 then
         rcall("PEXPIRE", rateLimiterKey, ARGV[7])
