@@ -1684,7 +1684,7 @@ describe('workers', function() {
       });
     });
 
-    it('should allow to move parent job to waiting-children', async () => {
+    it.only('should allow to move parent job to waiting-children', async () => {
       const values = [
         { idx: 0, bar: 'something' },
         { idx: 1, baz: 'something' },
@@ -1742,6 +1742,12 @@ describe('workers', function() {
       } = await parent.getDependencies();
       const movedToWaitingChildren = await parent.moveToWaitingChildren(
         parentToken,
+        {
+          child: {
+            id: child3.id,
+            queue: 'bull:' + queueName,
+          },
+        },
       );
 
       expect(processed2).to.deep.equal({

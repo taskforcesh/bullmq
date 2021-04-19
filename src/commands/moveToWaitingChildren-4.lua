@@ -35,7 +35,7 @@ end
 
 if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
-    if rcall(" SISMEMBER", ARGV[4] .. ":dependencies", ARGV[2]) ~= 0 then
+    if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
       move_to_waiting_children(KEYS[2], KEYS[3], ARGV[4], ARGV[3])
   
       return 0
