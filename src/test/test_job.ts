@@ -84,19 +84,15 @@ describe('Job', function() {
 
     const processingParent = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
-        try {
-          const movedToWaitingChildren = await job.moveToWaitingChildren('0');
-          const { processed } = await job.getDependencies();
+        const movedToWaitingChildren = await job.moveToWaitingChildren('0');
+        const { processed } = await job.getDependencies();
 
-          if (Object.keys(processed).length !== 3) {
-            expect(movedToWaitingChildren).to.be.true;
-          } else {
-            expect(movedToWaitingChildren).to.be.false;
-            resolve();
-          }
-        } catch (err) {
-          console.error(err);
-          reject(err);
+        if (Object.keys(processed).length !== 3) {
+          expect(movedToWaitingChildren).to.be.true;
+          throw new Error('Not yet!');
+        } else {
+          expect(movedToWaitingChildren).to.be.false;
+          resolve();
         }
       }),
     ]);
