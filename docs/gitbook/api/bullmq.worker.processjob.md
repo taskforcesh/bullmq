@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-processJob(job: Job<T, R, N>, token: string): Promise<Job<T, R, N> | void>;
+processJob(job: Job<T, R, N>, token: string): Promise<void | Job<any, any, string>>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ processJob(job: Job<T, R, N>, token: string): Promise<Job<T, R, N> | void>;
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; \| void&gt;
+Promise&lt;void \| [Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;&gt;
 
