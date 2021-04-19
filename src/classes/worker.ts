@@ -427,6 +427,7 @@ export class Worker<
         })
         .finally(() => client.disconnect())
         .finally(() => this.timerManager && this.timerManager.clearAllTimers())
+        .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
     })();
     return this.closing;
