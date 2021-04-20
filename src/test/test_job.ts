@@ -174,15 +174,21 @@ describe('Job', function() {
 
   describe('.moveToCompleted', function() {
     it('marks the job as completed and returns new job', async function() {
-      const job1 = await Job.create(queue, 'test', { foo: 'bar' });
+      const worker = new Worker(queueName);
+      const token = 'my-token';
+      await Job.create(queue, 'test', { foo: 'bar' });
       const job2 = await Job.create(queue, 'test', { baz: 'qux' });
-      const isCompleted = await job2.isCompleted();
+      const job1 = (await worker.getNextJob(token)) as Job;
+      const isCompleted = await job1.isCompleted();
       expect(isCompleted).to.be.equal(false);
-      const job1Id = await job2.moveToCompleted('succeeded', '0', true);
-      const isJob2Completed = await job2.isCompleted();
-      expect(isJob2Completed).to.be.equal(true);
-      expect(job2.returnvalue).to.be.equal('succeeded');
-      expect(job1Id[1]).to.be.equal(job1.id);
+      const state = await job1.getState();
+      expect(state).to.be.equal('active');
+      const job1Id = await job1.moveToCompleted('succeeded', token, true);
+      const isJob1Completed = await job1.isCompleted();
+      expect(isJob1Completed).to.be.equal(true);
+      expect(job1.returnvalue).to.be.equal('succeeded');
+      expect(job1Id[1]).to.be.equal(job2.id);
+      await worker.close();
     });
 
     /**
@@ -190,16 +196,25 @@ describe('Job', function() {
      * if it does not exist in meta key (or entire meta key is missing).
      */
     it('should not fail if queue meta key is missing', async function() {
-      const job = await queue.add('test', { color: 'red' });
+      const worker = new Worker(queueName);
+      const token = 'my-token';
+      await Job.create(queue, 'test', { color: 'red' });
+      const job = (await worker.getNextJob(token)) as Job;
       const client = await queue.client;
       await client.del(queue.toKey('meta'));
       await job.moveToCompleted('done', '0', false);
+      const state = await job.getState();
+      expect(state).to.be.equal('completed');
+      await worker.close();
     });
   });
 
   describe('.moveToFailed', function() {
     it('marks the job as failed', async function() {
-      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      const worker = new Worker(queueName);
+      const token = 'my-token';
+      await Job.create(queue, 'test', { foo: 'bar' });
+      const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
       await job.moveToFailed(new Error('test error'), '0', true);
@@ -207,6 +222,7 @@ describe('Job', function() {
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(1);
+      await worker.close();
     });
 
     it('moves the job to wait for retry if attempts are given', async function() {
@@ -241,12 +257,10 @@ describe('Job', function() {
     });
 
     it('marks the job as failed when attempts made equal to attempts given', async function() {
-      const job = await Job.create(
-        queue,
-        'test',
-        { foo: 'bar' },
-        { attempts: 1 },
-      );
+      const worker = new Worker(queueName);
+      const token = 'my-token';
+      await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
+      const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
       await job.moveToFailed(new Error('test error'), '0', true);
@@ -254,6 +268,7 @@ describe('Job', function() {
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(1);
+      await worker.close();
     });
 
     it('moves the job to delayed for retry if attempts are given and backoff is non zero', async function() {
@@ -275,13 +290,16 @@ describe('Job', function() {
     });
 
     it('applies stacktrace limit on failure', async function() {
+      const worker = new Worker(queueName);
+      const token = 'my-token';
       const stackTraceLimit = 1;
-      const job = await Job.create(
+      await Job.create(
         queue,
         'test',
         { foo: 'bar' },
         { stackTraceLimit: stackTraceLimit },
       );
+      const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
       await job.moveToFailed(new Error('test error'), '0', true);
@@ -289,15 +307,20 @@ describe('Job', function() {
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+      await worker.close();
     });
 
     it('saves error stacktrace', async function() {
-      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      const worker = new Worker(queueName);
+      const token = 'my-token';
+      await Job.create(queue, 'test', { foo: 'bar' });
+      const job = (await worker.getNextJob(token)) as Job;
       const id = job.id;
       await job.moveToFailed(new Error('test error'), '0');
       const sameJob = await queue.getJob(id);
       expect(sameJob).to.be.ok;
       expect(sameJob.stacktrace).to.be.not.empty;
+      await worker.close();
     });
   });
 
@@ -397,7 +420,9 @@ describe('Job', function() {
         const redisVersionStub = sinon
           .stub(queue, 'redisVersion')
           .get(() => '6.0.5');
-        const job = await queue.add('job', { foo: 'bar' }, { delay: 1 });
+        const worker = new Worker(queueName);
+        const token = 'my-token';
+        const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
         const delayedState = await job.getState();
 
         expect(delayedState).to.be.equal('delayed');
@@ -409,15 +434,20 @@ describe('Job', function() {
 
         expect(waitingState).to.be.equal('waiting');
 
-        await job.moveToFailed(new Error('test error'), '0', true);
-        const failedState = await job.getState();
+        const currentJob1 = (await worker.getNextJob(token)) as Job;
+
+        await currentJob1.moveToFailed(new Error('test error'), token, true);
+        const failedState = await currentJob1.getState();
+        await queue.add('job2', { foo: 'foo' });
+        const job2 = (await worker.getNextJob(token)) as Job;
 
         expect(failedState).to.be.equal('failed');
 
-        await job.moveToCompleted('succeeded', '0', true);
-        const completedState = await job.getState();
+        await job2.moveToCompleted('succeeded', token, true);
+        const completedState = await job2.getState();
 
         expect(completedState).to.be.equal('completed');
+        await worker.close();
         redisVersionStub.restore();
       });
     });
@@ -427,7 +457,9 @@ describe('Job', function() {
         const redisVersionStub = sinon
           .stub(queue, 'redisVersion')
           .get(() => '6.0.6');
-        const job = await queue.add('job', { foo: 'bar' }, { delay: 1 });
+        const worker = new Worker(queueName);
+        const token = 'my-token';
+        const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
         const delayedState = await job.getState();
 
         expect(delayedState).to.be.equal('delayed');
@@ -439,15 +471,20 @@ describe('Job', function() {
 
         expect(waitingState).to.be.equal('waiting');
 
-        await job.moveToFailed(new Error('test error'), '0', true);
-        const failedState = await job.getState();
+        const currentJob1 = (await worker.getNextJob(token)) as Job;
+
+        await currentJob1.moveToFailed(new Error('test error'), token, true);
+        const failedState = await currentJob1.getState();
+        await queue.add('job2', { foo: 'foo' });
+        const job2 = (await worker.getNextJob(token)) as Job;
 
         expect(failedState).to.be.equal('failed');
 
-        await job.moveToCompleted('succeeded', '0', true);
-        const completedState = await job.getState();
+        await job2.moveToCompleted('succeeded', token, true);
+        const completedState = await job2.getState();
 
         expect(completedState).to.be.equal('completed');
+        await worker.close();
         redisVersionStub.restore();
       });
     });
