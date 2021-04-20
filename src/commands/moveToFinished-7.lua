@@ -36,7 +36,8 @@
 
      Events:
       'completed/failed'
-]] local rcall = redis.call
+]]
+local rcall = redis.call
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
@@ -55,12 +56,9 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     -- Remove from active list (if not active we shall return error)
     local numRemovedElements = rcall("LREM", KEYS[1], -1, jobId)
 
-    --[[ 
-    -- Currently it breaks some tests but this should be a sensible error.
     if(numRemovedElements < 1) then
-        return -3
+      return -3
     end
-    ]]
     
     -- If job has a parent we need to 
     -- 1) remove this job id from parents dependencies
