@@ -7,7 +7,11 @@
   "source": "src/index.ts",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "dry-run": "npm publish --dry-run",
     "build": "tsc && yarn copylua",
     "copylua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
     "coverage": "nyc --reporter=text npm run test",

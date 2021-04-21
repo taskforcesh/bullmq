@@ -1,11 +1,11 @@
 /*eslint-env node */
 'use strict';
 
-import { Job, Queue, QueueScheduler } from '@src/classes';
-import { QueueEvents } from '@src/classes/queue-events';
-import { Worker } from '@src/classes/worker';
-import { JobsOptions } from '@src/interfaces';
-import { delay, removeAllQueueData } from '@src/utils';
+import { Job, Queue, QueueScheduler } from '../classes';
+import { QueueEvents } from '../classes/queue-events';
+import { Worker } from '../classes/worker';
+import { JobsOptions } from '../interfaces';
+import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
