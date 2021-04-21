@@ -9,7 +9,7 @@ An async function that receives `Job`<!-- -->s and handles them.
 <b>Signature:</b>
 
 ```typescript
-export declare type Processor<T = any, R = any, N extends string = string> = (job: Job<T, R, N>) => Promise<R>;
+export declare type Processor<T = any, R = any, N extends string = string> = (job: Job<T, R, N>, token: string) => Promise<R>;
 ```
 <b>References:</b> [Job](./bullmq.job.md)
 
