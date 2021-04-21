@@ -40,7 +40,8 @@ describe('workers', function() {
 
   describe('auto job removal', () => {
     it('should remove job after completed if removeOnComplete', async () => {
-      const worker = new Worker(queueName, async job => {
+      const worker = new Worker(queueName, async (job, token) => {
+        expect(token).to.be.string;
         expect(job.data.foo).to.be.equal('bar');
       });
       await worker.waitUntilReady();

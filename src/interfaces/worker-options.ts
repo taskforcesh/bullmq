@@ -6,6 +6,7 @@ import { AdvancedOptions, QueueBaseOptions, RateLimiterOptions } from './';
  */
 export type Processor<T = any, R = any, N extends string = string> = (
   job: Job<T, R, N>,
+  token: string,
 ) => Promise<R>;
 
 export interface WorkerOptions extends QueueBaseOptions {
