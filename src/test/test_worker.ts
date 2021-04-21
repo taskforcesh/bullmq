@@ -1,11 +1,11 @@
-import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '@src/classes';
+import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { delay, removeAllQueueData } from '@src/utils';
+import { delay, removeAllQueueData } from '../utils';
 import { after, times, once } from 'lodash';
-import { RetryErrors } from '@src/enums';
+import { RetryErrors } from '../enums';
 import * as sinon from 'sinon';
 
 describe('workers', function() {

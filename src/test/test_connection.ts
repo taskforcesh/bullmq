@@ -1,9 +1,9 @@
 import * as IORedis from 'ioredis';
-import { Queue, QueueEvents, Job, Worker } from '@src/classes';
+import { Queue, QueueEvents, Job, Worker } from '../classes';
 
 import { v4 } from 'uuid';
 import { expect } from 'chai';
-import { removeAllQueueData } from '@src/utils';
+import { removeAllQueueData } from '../utils';
 
 describe('connection', () => {
   let queue: Queue;
