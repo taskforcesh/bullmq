@@ -1,13 +1,17 @@
 {
   "name": "bullmq",
-  "version": "1.19.3",
+  "version": "1.20.0",
   "description": "Queue for messages and jobs based on Redis",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "source": "src/index.ts",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "scripts": {
+    "dry-run": "npm publish --dry-run",
     "build": "tsc && yarn copylua",
     "copylua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
     "coverage": "nyc --reporter=text npm run test",

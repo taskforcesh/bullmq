@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
-import { Queue, QueueEvents, Worker } from '@src/classes';
+import { Queue, QueueEvents, Worker } from '../classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
-import { delay, removeAllQueueData } from '@src/utils';
+import { delay, removeAllQueueData } from '../utils';
 const pReflect = require('p-reflect');
 
 describe('sandboxed process', () => {

@@ -17,6 +17,7 @@
     'delayed'
     'active'
     'waiting'
+    'waiting-children'
     'unknown'
 ]]
 if redis.call("ZSCORE", KEYS[1], ARGV[1]) ~= false then
