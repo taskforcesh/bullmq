@@ -409,12 +409,12 @@ export class Scripts {
         return false;
       case -1:
         throw new Error(
-          'Missing Job ' +
-            jobId +
-            ' when trying to move from active to waiting-children',
+          `Missing Job ${jobId} when trying to move from active to waiting-children`,
         );
       case -2:
         throw new Error(`Missing lock for job ${jobId}`);
+      case -3:
+        throw new Error(`Job is not in the active list ${jobId}`);
     }
   }
 
