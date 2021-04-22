@@ -16,7 +16,7 @@ export interface JobsOptions
 |  --- | --- | --- |
 |  [attempts?](./bullmq.jobsoptions.attempts.md) | number | <i>(Optional)</i> The total number of attempts to try the job until it completes. |
 |  [backoff?](./bullmq.jobsoptions.backoff.md) | number \| [BackoffOptions](./bullmq.backoffoptions.md) | <i>(Optional)</i> Backoff setting for automatic retries if the job fails |
-|  [delay?](./bullmq.jobsoptions.delay.md) | number | <i>(Optional)</i> An amount of miliseconds to wait until this job can be processed. Note that for accurate delays, worker and producers should have their clocks synchronized. |
+|  [delay?](./bullmq.jobsoptions.delay.md) | number | <i>(Optional)</i> An amount of milliseconds to wait until this job can be processed. Note that for accurate delays, worker and producers should have their clocks synchronized. |
 |  [jobId?](./bullmq.jobsoptions.jobid.md) | string | <i>(Optional)</i> Override the job ID - by default, the job ID is a unique integer, but you can use this setting to override it. If you use this option, it is up to you to ensure the jobId is unique. If you attempt to add a job with an id that already exists, it will not be added. |
 |  [lifo?](./bullmq.jobsoptions.lifo.md) | boolean | <i>(Optional)</i> If true, adds the job to the right of the queue instead of the left (default false) |
 |  [parent?](./bullmq.jobsoptions.parent.md) | { id: string; queue: string; } | <i>(Optional)</i> |

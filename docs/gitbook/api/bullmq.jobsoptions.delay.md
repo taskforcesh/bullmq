@@ -4,7 +4,7 @@
 
 ## JobsOptions.delay property
 
-An amount of miliseconds to wait until this job can be processed. Note that for accurate delays, worker and producers should have their clocks synchronized.
+An amount of milliseconds to wait until this job can be processed. Note that for accurate delays, worker and producers should have their clocks synchronized.
 
 <b>Signature:</b>
 
