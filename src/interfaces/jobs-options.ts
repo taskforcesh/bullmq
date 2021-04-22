@@ -15,7 +15,7 @@ export interface JobsOptions {
   priority?: number;
 
   /**
-   * An amount of miliseconds to wait until this job can be processed.
+   * An amount of milliseconds to wait until this job can be processed.
    * Note that for accurate delays, worker and producers
    * should have their clocks synchronized.
    */

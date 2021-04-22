@@ -1,13 +1,13 @@
-import { Queue } from '@src/classes';
-import { QueueEvents } from '@src/classes/queue-events';
-import { QueueScheduler } from '@src/classes/queue-scheduler';
-import { Worker } from '@src/classes/worker';
+import { Queue } from '../classes';
+import { QueueEvents } from '../classes/queue-events';
+import { QueueScheduler } from '../classes/queue-scheduler';
+import { Worker } from '../classes/worker';
 import { assert, expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after, every, last } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { removeAllQueueData } from '@src/utils';
+import { removeAllQueueData } from '../utils';
 
 describe('Rate Limiter', function() {
   let queue: Queue;
@@ -56,6 +56,7 @@ describe('Rate Limiter', function() {
 
     const delayedCount = await queue.getDelayedCount();
     expect(delayedCount).to.eq(3);
+    await worker.close();
   });
 
   it('should obey the rate limit', async function() {
@@ -205,7 +206,7 @@ describe('Rate Limiter', function() {
       });
 
       queueEvents.on('completed', ({ jobId }) => {
-        const group = last(jobId.split(':'));
+        const group: string = last(jobId.split(':'));
         completed[group] = completed[group] || [];
         completed[group].push(Date.now());
 

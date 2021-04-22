@@ -272,21 +272,25 @@ describe('Job', function() {
     });
 
     it('moves the job to delayed for retry if attempts are given and backoff is non zero', async function() {
-      const job = await Job.create(
+      const worker = new Worker(queueName);
+      const token = 'my-token';
+      await Job.create(
         queue,
         'test',
         { foo: 'bar' },
         { attempts: 3, backoff: 300 },
       );
+      const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), '0', true);
+      await job.moveToFailed(new Error('test error'), token, true);
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.equal(false);
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(1);
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
+      await worker.close();
     });
 
     it('applies stacktrace limit on failure', async function() {

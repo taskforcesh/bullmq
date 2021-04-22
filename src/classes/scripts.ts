@@ -351,13 +351,8 @@ export class Scripts {
 
     const args = this.moveToDelayedArgs(queue, jobId, timestamp);
     const result = await (<any>client).moveToDelayed(args);
-    switch (result) {
-      case -1:
-        throw new Error(
-          'Missing Job ' +
-            jobId +
-            ' when trying to move from active to delayed',
-        );
+    if (result < 0) {
+      throw this.finishedErrors(result, jobId, 'moveToDelayed');
     }
   }
 
