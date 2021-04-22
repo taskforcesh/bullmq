@@ -15,6 +15,7 @@
   Output:
     0 - OK
    -1 - Missing job.
+   -3 - Job not in active set.
 
   Events:
     - delayed key.
@@ -27,8 +28,13 @@ if rcall("EXISTS", KEYS[3]) == 1 then
   local score = tonumber(ARGV[1])
   local delayedTimestamp = (score / 0x1000)
   
+  local numRemovedElements = rcall("LREM", KEYS[1], -1, jobId)
+
+  if(numRemovedElements < 1) then
+    return -3
+  end
+
   rcall("ZADD", KEYS[2], score, jobId)
-  rcall("LREM", KEYS[1], 0, jobId)
 
   rcall("XADD", KEYS[4], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp);
   rcall("XADD", KEYS[5], "*", "nextTimestamp", delayedTimestamp);

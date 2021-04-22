@@ -358,6 +358,8 @@ export class Scripts {
             jobId +
             ' when trying to move from active to delayed',
         );
+      case -3:
+        return new Error(`Job is not in the active list ${jobId}`);
     }
   }
 
