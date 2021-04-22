@@ -332,6 +332,7 @@ describe('flows', () => {
 
     await flow.close();
     await parentQueue.close();
+    await parentWorker.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
@@ -420,6 +421,7 @@ describe('flows', () => {
       expect(await tree.children[1].job.getState()).to.be.equal('waiting');
 
       await flow.close();
+      await worker.close();
       await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
