@@ -4,7 +4,8 @@ import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
 import { getParentKey } from './flow-producer';
-import { Backoffs, QueueEvents } from './';
+import { QueueEvents } from './queue-events';
+import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 import { fromPairs } from 'lodash';
 
@@ -403,7 +404,7 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @returns Object mapping children job keys with their values.
    */
-  async getChildrenValues(): Promise<{ [jobKey: string]: string }> {
+  async getChildrenValues<CT = any>(): Promise<{ [jobKey: string]: CT }> {
     const client = await this.queue.client;
 
     const result = (await client.hgetall(
@@ -431,8 +432,8 @@ export class Job<T = any, R = any, N extends string = string> {
     await multi.smembers(this.toKey(`${this.id}:dependencies`));
 
     const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
+      [null | Error, { [jobKey: string]: string }],
       [null | Error, string[]],
-      [null | Error, object],
     ];
 
     return { processed, unprocessed };

@@ -1,6 +1,7 @@
 import { createHash } from 'crypto';
 import { JobsOptions, RepeatOptions } from '../interfaces';
-import { Job, QueueBase } from './';
+import { QueueBase } from './queue-base';
+import { Job } from './job';
 
 const parser = require('cron-parser');
 

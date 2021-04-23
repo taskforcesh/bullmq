@@ -10,13 +10,15 @@ Get children job keys if this job is a parent and has children.
 
 ```typescript
 getDependencies(): Promise<{
-        processed: string[];
-        unprocessed: object;
+        processed: {
+            [jobKey: string]: string;
+        };
+        unprocessed: string[];
     }>;
 ```
 <b>Returns:</b>
 
-Promise&lt;{ processed: string\[\]; unprocessed: object; }&gt;
+Promise&lt;{ processed: { \[jobKey: string\]: string; }; unprocessed: string\[\]; }&gt;
 
 dependencies separated by processed and unprocessed.
 
