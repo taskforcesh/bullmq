@@ -9,13 +9,13 @@ Get this jobs children result values if any.
 <b>Signature:</b>
 
 ```typescript
-getChildrenValues(): Promise<{
-        [jobKey: string]: string;
+getChildrenValues<CT = any>(): Promise<{
+        [jobKey: string]: CT;
     }>;
 ```
 <b>Returns:</b>
 
-Promise&lt;{ \[jobKey: string\]: string; }&gt;
+Promise&lt;{ \[jobKey: string\]: CT; }&gt;
 
 Object mapping children job keys with their values.
 
