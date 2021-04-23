@@ -1,8 +1,9 @@
-import { Parent } from '../interfaces/parent';
 import { get } from 'lodash';
 import { v4 } from 'uuid';
 import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
-import { Job, QueueGetters, Repeat } from './';
+import { Repeat } from './repeat';
+import { QueueGetters } from './queue-getters';
+import { Job } from './job';
 import { Scripts } from './scripts';
 
 export class Queue<

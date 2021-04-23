@@ -1,6 +1,6 @@
 import { QueueSchedulerOptions } from '../interfaces';
 import { array2obj, isRedisInstance } from '../utils';
-import { QueueBase } from './';
+import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
 import { StreamReadRaw } from '../interfaces/redis-streams';
 import IORedis = require('ioredis');

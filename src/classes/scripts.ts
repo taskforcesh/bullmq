@@ -13,7 +13,9 @@ import {
   WorkerOptions,
 } from '../interfaces';
 import { array2obj } from '../utils';
-import { QueueBase, QueueScheduler, Worker } from './';
+import { Worker } from './worker';
+import { QueueScheduler } from './queue-scheduler';
+import { QueueBase } from './queue-base';
 import { Job, JobJson, JobJsonRaw } from './job';
 
 export type MinimalQueue = Pick<
