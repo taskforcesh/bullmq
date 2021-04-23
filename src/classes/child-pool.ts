@@ -1,6 +1,6 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
-import { forEach, values, flatten } from 'lodash';
+import { values, flatten } from 'lodash';
 import * as getPort from 'get-port';
 import * as fs from 'fs';
 import { promisify } from 'util';

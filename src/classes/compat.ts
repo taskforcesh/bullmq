@@ -20,7 +20,11 @@
 // TypeScript Version: 2.8
 
 import { EventEmitter } from 'events';
-import { QueueEvents, Worker, Queue, QueueScheduler, Job } from './';
+import { Job } from './job';
+import { QueueScheduler } from './queue-scheduler';
+import { Queue } from './queue';
+import { Worker } from './worker';
+import { QueueEvents } from './queue-events';
 import {
   JobsOptions,
   QueueOptions,
@@ -30,7 +34,6 @@ import {
   WorkerOptions,
   Processor,
 } from '../interfaces';
-import IORedis = require('ioredis');
 
 type CommonOptions = QueueSchedulerOptions &
   QueueOptions &
