@@ -61,59 +61,6 @@ describe('Job', function() {
       });
       expect(createdJob.id).to.be.equal(customJobId);
     });
-
-    it('should not complete a parent job before its children', async () => {
-      const values = [
-        { idx: 0, bar: 'something' },
-      ];
-      const token = 'my-token';
-  
-      const parentQueueName = 'parent-queue';
-      
-      const parentQueue = new Queue(parentQueueName);
-  
-      const parentWorker = new Worker(parentQueueName);
-      const childrenWorker = new Worker(queueName);
-      await parentWorker.waitUntilReady();
-      await childrenWorker.waitUntilReady();
-  
-      const data = { foo: 'bar' };
-      const parent = await Job.create(parentQueue, 'testParent', data);
-      const parentKey = getParentKey({
-        id: parent.id,
-        queue: 'bull:' + parentQueueName
-      });
-      const client = await queue.client;
-      const child1 = new Job(queue, 'testJob1', values[0]);
-      await child1.addJob(client, {
-        parentKey,
-        parentDependenciesKey: `${parentKey}:dependencies`,
-      })
-
-      const job = (await parentWorker.getNextJob(token)) as Job;
-      const { unprocessed } = await parent.getDependencies();
-
-      expect(unprocessed).to.have.length(1);
-
-      const isActive = await job.isActive();
-      expect(isActive).to.be.equal(true);
-
-      const inspection = await pReflect(
-        Promise.resolve(job.moveToCompleted('return value', token)),
-      );
-
-      expect(inspection.isRejected).to.be.eql(true);
-      expect(inspection.reason.message).to.be.eql(`Job ${job.id} has pending dependencies finished`);
-
-      const isCompleted = await job.isCompleted();
-
-      expect(isCompleted).to.be.false;
-  
-      await childrenWorker.close();
-      await parentWorker.close();
-      await parentQueue.close();
-      await removeAllQueueData(new IORedis(), parentQueueName);
-    });
   });
 
   describe('JSON.stringify', () => {
@@ -261,6 +208,59 @@ describe('Job', function() {
       const state = await job.getState();
       expect(state).to.be.equal('completed');
       await worker.close();
+    });
+
+    it('should not complete a parent job before its children', async () => {
+      const values = [
+        { idx: 0, bar: 'something' },
+      ];
+      const token = 'my-token';
+  
+      const parentQueueName = 'parent-queue';
+      
+      const parentQueue = new Queue(parentQueueName);
+  
+      const parentWorker = new Worker(parentQueueName);
+      const childrenWorker = new Worker(queueName);
+      await parentWorker.waitUntilReady();
+      await childrenWorker.waitUntilReady();
+  
+      const data = { foo: 'bar' };
+      const parent = await Job.create(parentQueue, 'testParent', data);
+      const parentKey = getParentKey({
+        id: parent.id,
+        queue: 'bull:' + parentQueueName
+      });
+      const client = await queue.client;
+      const child1 = new Job(queue, 'testJob1', values[0]);
+      await child1.addJob(client, {
+        parentKey,
+        parentDependenciesKey: `${parentKey}:dependencies`,
+      })
+
+      const job = (await parentWorker.getNextJob(token)) as Job;
+      const { unprocessed } = await parent.getDependencies();
+
+      expect(unprocessed).to.have.length(1);
+
+      const isActive = await job.isActive();
+      expect(isActive).to.be.equal(true);
+
+      const inspection = await pReflect(
+        Promise.resolve(job.moveToCompleted('return value', token)),
+      );
+
+      expect(inspection.isRejected).to.be.eql(true);
+      expect(inspection.reason.message).to.be.eql(`Job ${job.id} has pending dependencies finished`);
+
+      const isCompleted = await job.isCompleted();
+
+      expect(isCompleted).to.be.false;
+  
+      await childrenWorker.close();
+      await parentWorker.close();
+      await parentQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
     });
   });
 
