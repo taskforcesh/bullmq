@@ -213,7 +213,7 @@ export class FlowProducer extends EventEmitter {
   }
 }
 
-function getParentKey(opts: { id: string; queue: string }) {
+export function getParentKey(opts: { id: string; queue: string }) {
   if (opts) {
     return `${opts.queue}:${opts.id}`;
   }
