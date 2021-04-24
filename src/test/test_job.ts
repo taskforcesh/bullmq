@@ -91,6 +91,9 @@ describe('Job', function() {
       })
 
       const job = (await parentWorker.getNextJob(token)) as Job;
+      const { unprocessed } = await parent.getDependencies();
+
+      expect(unprocessed).to.have.length(1);
 
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
