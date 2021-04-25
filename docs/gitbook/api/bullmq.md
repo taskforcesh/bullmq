@@ -29,6 +29,12 @@
 |  [ClientType](./bullmq.clienttype.md) |  |
 |  [RetryErrors](./bullmq.retryerrors.md) |  |
 
+## Functions
+
+|  Function | Description |
+|  --- | --- |
+|  [getParentKey(opts)](./bullmq.getparentkey.md) |  |
+
 ## Interfaces
 
 |  Interface | Description |
