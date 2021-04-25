@@ -264,6 +264,8 @@ describe('flows', () => {
     const numJobs = await parentQueue.getWaitingCount();
     expect(numJobs).to.be.equal(0);
 
+    await flow.close();
+    await parentQueue.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
@@ -326,6 +328,7 @@ describe('flows', () => {
     expect(numJobs).to.be.equal(0);
 
     await flow.close();
+    await parentQueue.close();
     await parentWorker.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
   });

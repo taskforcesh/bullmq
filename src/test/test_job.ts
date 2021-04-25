@@ -236,12 +236,18 @@ describe('Job', function() {
       await child1.addJob(client, {
         parentKey,
         parentDependenciesKey: `${parentKey}:dependencies`,
-      })
+      });
+      await Job.create(queue, 'testJob2', values[0], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
 
       const job = (await parentWorker.getNextJob(token)) as Job;
       const { unprocessed } = await parent.getDependencies();
 
-      expect(unprocessed).to.have.length(1);
+      expect(unprocessed).to.have.length(2);
 
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);

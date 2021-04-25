@@ -3,6 +3,7 @@ import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import { errorObject, isEmpty, tryCatch } from '../utils';
+import { getParentKey } from './flow-producer';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
@@ -81,6 +82,8 @@ export class Job<T = any, R = any, N extends string = string> {
 
     this.opts.backoff = Backoffs.normalize(opts.backoff);
 
+    this.parentKey = getParentKey(opts.parent);
+
     this.toKey = queue.toKey.bind(queue);
   }
 
@@ -94,7 +97,12 @@ export class Job<T = any, R = any, N extends string = string> {
 
     const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
-    job.id = await job.addJob(client);
+    job.id = await job.addJob(client, {
+      parentKey: job.parentKey,
+      parentDependenciesKey: job.parentKey
+        ? `${job.parentKey}:dependencies`
+        : '',
+    });
 
     return job;
   }
