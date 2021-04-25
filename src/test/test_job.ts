@@ -213,6 +213,7 @@ describe('Job', function() {
     it('should not complete a parent job before its children', async () => {
       const values = [
         { idx: 0, bar: 'something' },
+        { idx: 1, baz: 'something' },
       ];
       const token = 'my-token';
   
@@ -237,7 +238,7 @@ describe('Job', function() {
         parentKey,
         parentDependenciesKey: `${parentKey}:dependencies`,
       });
-      await Job.create(queue, 'testJob2', values[0], {
+      await Job.create(queue, 'testJob2', values[1], {
         parent: {
           id: parent.id,
           queue: 'bull:' + parentQueueName,
