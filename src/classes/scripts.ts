@@ -241,6 +241,8 @@ export class Scripts {
         return new Error(`Missing lock for job ${jobId} ${command}`);
       case -3:
         return new Error(`Job is not in the active list ${jobId} ${command}`);
+      case -4:
+        return new Error(`Job ${jobId} has pending dependencies ${command}`);
     }
   }
 

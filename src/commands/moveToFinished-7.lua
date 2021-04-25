@@ -33,6 +33,7 @@
       -1 Missing key.
       -2 Missing lock.
       -3 Job not in active set
+      -4 Job has pending dependencies
 
      Events:
       'completed/failed'
@@ -41,6 +42,10 @@ local rcall = redis.call
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
+
+    if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
+      return -4
+    end
 
     if ARGV[10] ~= "0" then
       local lockKey = jobIdKey .. ':lock'

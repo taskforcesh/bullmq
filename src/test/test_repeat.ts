@@ -1,13 +1,13 @@
-import { Job, Queue } from '@src/classes';
-import { QueueEvents } from '@src/classes/queue-events';
-import { QueueScheduler } from '@src/classes/queue-scheduler';
-import { Repeat } from '@src/classes/repeat';
-import { Worker } from '@src/classes/worker';
+import { Job, Queue } from '../classes';
+import { QueueEvents } from '../classes/queue-events';
+import { QueueScheduler } from '../classes/queue-scheduler';
+import { Repeat } from '../classes/repeat';
+import { Worker } from '../classes/worker';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { removeAllQueueData } from '@src/utils';
+import { removeAllQueueData } from '../utils';
 
 const sinon = require('sinon');
 const moment = require('moment');
