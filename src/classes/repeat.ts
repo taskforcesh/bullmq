@@ -6,9 +6,9 @@ import { Job } from './job';
 const parser = require('cron-parser');
 
 export class Repeat extends QueueBase {
-  async addNextRepeatableJob(
-    name: string,
-    data: any,
+  async addNextRepeatableJob<T = any, R = any, N extends string = string>(
+    name: N,
+    data: T,
     opts: JobsOptions,
     skipCheckExists?: boolean,
   ) {
@@ -50,7 +50,7 @@ export class Repeat extends QueueBase {
 
       // The job could have been deleted since this check
       if (repeatableExists) {
-        return this.createNextJob(
+        return this.createNextJob<T, R, N>(
           name,
           nextMillis,
           repeatJobKey,
@@ -62,12 +62,12 @@ export class Repeat extends QueueBase {
     }
   }
 
-  private async createNextJob(
-    name: string,
+  private async createNextJob<T = any, R = any, N extends string = string>(
+    name: N,
     nextMillis: number,
     repeatJobKey: string,
     opts: JobsOptions,
-    data: any,
+    data: T,
     currentCount: number,
   ) {
     const client = await this.client;
@@ -96,7 +96,7 @@ export class Repeat extends QueueBase {
 
     await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 
-    return Job.create(this, name, data, mergedOpts);
+    return Job.create<T, R, N>(this, name, data, mergedOpts);
   }
 
   async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {

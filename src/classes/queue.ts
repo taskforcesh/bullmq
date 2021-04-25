@@ -53,7 +53,7 @@ export class Queue<
 
   async add(name: N, data: T, opts?: JobsOptions) {
     if (opts && opts.repeat) {
-      return (await this.repeat).addNextRepeatableJob(
+      return (await this.repeat).addNextRepeatableJob<T, R, N>(
         name,
         data,
         { ...this.jobsOpts, ...opts },
