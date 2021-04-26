@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-add(name: N, data: T, opts?: JobsOptions): Promise<Job<any, any, string>>;
+add(name: N, data: T, opts?: JobsOptions): Promise<Job<T, R, N>>;
 ```
 
 ## Parameters
@@ -20,5 +20,5 @@ add(name: N, data: T, opts?: JobsOptions): Promise<Job<any, any, string>>;
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt;&gt;
 
