@@ -397,9 +397,12 @@ export class Scripts {
     opts: MoveToChildrenOpts = {},
   ) {
     const client = await queue.client;
+    const multi = client.multi();
 
     const args = this.moveToWaitingChildrenArgs(queue, jobId, token, opts);
-    const result = await (<any>client).moveToWaitingChildren(args);
+    (<any>multi).moveToWaitingChildren(args);
+    const [[err, result]] = (await multi.exec()) as [[null | Error, number]];
+
     switch (result) {
       case 0:
         return true;
