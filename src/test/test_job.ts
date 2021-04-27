@@ -7,14 +7,17 @@ import { Worker } from '../classes/worker';
 import { getParentKey } from '../classes/flow-producer';
 import { JobsOptions } from '../interfaces';
 import { delay, removeAllQueueData } from '../utils';
-import { expect } from 'chai';
+import * as chai from 'chai';
+import * as chaiAsPromised from 'chai-as-promised';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-const pReflect = require('p-reflect');
 
 const sinon = require('sinon');
+
+chai.use(chaiAsPromised);
+const expect = chai.expect;
 
 describe('Job', function() {
   let queue: Queue;
@@ -246,12 +249,7 @@ describe('Job', function() {
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
 
-      const inspection = await pReflect(
-        Promise.resolve(job.moveToCompleted('return value', token)),
-      );
-
-      expect(inspection.isRejected).to.be.eql(true);
-      expect(inspection.reason.message).to.be.eql(`Job ${job.id} has pending dependencies finished`);
+      await expect(job.moveToCompleted('return value', token)).to.be.rejectedWith(`Job ${job.id} has pending dependencies finished`);
 
       const isCompleted = await job.isCompleted();
 
