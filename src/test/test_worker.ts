@@ -1,12 +1,16 @@
 import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
 import { describe, beforeEach, it } from 'mocha';
-import { expect } from 'chai';
+import * as chai from 'chai';
+import * as chaiAsPromised from 'chai-as-promised';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../utils';
 import { after, times, once } from 'lodash';
 import { RetryErrors } from '../enums';
 import * as sinon from 'sinon';
+
+chai.use(chaiAsPromised);
+const expect = chai.expect;
 
 describe('workers', function() {
   const sandbox = sinon.createSandbox();
