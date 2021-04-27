@@ -1,11 +1,14 @@
-import { expect } from 'chai';
+import * as chai from 'chai';
+import * as chaiAsPromised from 'chai-as-promised';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { Queue, QueueEvents, Worker } from '../classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../utils';
-const pReflect = require('p-reflect');
+
+chai.use(chaiAsPromised);
+const expect = chai.expect;
 
 describe('sandboxed process', () => {
   let queue: Queue;
@@ -264,11 +267,8 @@ describe('sandboxed process', () => {
     });
 
     const job = await queue.add('test', {});
-    const inspection = await pReflect(
-      Promise.resolve(job.waitUntilFinished(queueEvents)),
-    );
-    expect(inspection.isRejected).to.be.eql(true);
-    expect(inspection.reason.message).to.be.eql('boom!');
+
+    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith('boom!');
   });
 
   it('should fail if the process exits 0', async () => {
@@ -279,13 +279,8 @@ describe('sandboxed process', () => {
     });
 
     const job = await queue.add('test', { exitCode: 0 });
-    const inspection = await pReflect(
-      Promise.resolve(job.waitUntilFinished(queueEvents)),
-    );
-    expect(inspection.isRejected).to.be.eql(true);
-    expect(inspection.reason.message).to.be.eql(
-      'Unexpected exit code: 0 signal: null',
-    );
+
+    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith('Unexpected exit code: 0 signal: null');
   });
 
   it('should fail if the process exits non-0', async () => {
@@ -296,13 +291,8 @@ describe('sandboxed process', () => {
     });
 
     const job = await queue.add('test', { exitCode: 1 });
-    const inspection = await pReflect(
-      Promise.resolve(job.waitUntilFinished(queueEvents)),
-    );
-    expect(inspection.isRejected).to.be.eql(true);
-    expect(inspection.reason.message).to.be.eql(
-      'Unexpected exit code: 1 signal: null',
-    );
+
+    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith('Unexpected exit code: 1 signal: null');
   });
 
   it('should remove exited process', async () => {
