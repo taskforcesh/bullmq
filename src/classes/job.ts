@@ -379,7 +379,13 @@ export class Job<T = any, R = any, N extends string = string> {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
-  async getState() {
+  /**
+   * Get current state.
+   * @method
+   * @returns {string} Returns one of these values:
+   * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
+   */
+  getState() {
     return Scripts.getState(this.queue, this.id);
   }
 

@@ -330,10 +330,8 @@ export class Scripts {
     //
     // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
     //
-    timestamp = typeof timestamp === 'undefined' ? 0 : timestamp;
+    timestamp = Math.max(0, timestamp ?? 0);
 
-    timestamp = +timestamp || 0;
-    timestamp = timestamp < 0 ? 0 : timestamp;
     if (timestamp > 0) {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
