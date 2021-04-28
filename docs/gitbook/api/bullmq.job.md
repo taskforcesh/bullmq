@@ -48,7 +48,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [fromJSON(queue, json, jobId)](./bullmq.job.fromjson.md) | <code>static</code> |  |
 |  [getChildrenValues()](./bullmq.job.getchildrenvalues.md) |  | Get this jobs children result values if any. |
 |  [getDependencies()](./bullmq.job.getdependencies.md) |  | Get children job keys if this job is a parent and has children. |
-|  [getState()](./bullmq.job.getstate.md) |  |  |
+|  [getState()](./bullmq.job.getstate.md) |  | Get current state.  |
 |  [isActive()](./bullmq.job.isactive.md) |  |  |
 |  [isCompleted()](./bullmq.job.iscompleted.md) |  |  |
 |  [isDelayed()](./bullmq.job.isdelayed.md) |  |  |

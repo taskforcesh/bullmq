@@ -332,7 +332,6 @@ describe('flows', () => {
 
     await flow.close();
     await parentQueue.close();
-    await parentWorker.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
