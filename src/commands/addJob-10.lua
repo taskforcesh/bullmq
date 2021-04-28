@@ -44,6 +44,10 @@ local rcall = redis.call
 
 local jobCounter = rcall("INCR", KEYS[4])
 
+local function ends_with(str, ending)
+   return ending == "" or str:sub(-#ending) == ending
+end
+
 if ARGV[2] == "" then
     jobId = jobCounter
     jobIdKey = ARGV[1] .. jobId
@@ -64,7 +68,7 @@ local delayedTimestamp = tonumber(ARGV[8])
 
 -- Check if job is a parent, if so add to the parents set
 local waitChildrenKey = KEYS[9]
-if waitChildrenKey ~= "" then
+if waitChildrenKey ~= "" and not ends_with(waitChildrenKey, "__NULL__") then
     rcall("ZADD", waitChildrenKey, ARGV[6], jobId)
 elseif (delayedTimestamp ~= 0) then
     local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
@@ -112,7 +116,7 @@ end
 -- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
 -- fail in this case.
 local parentDependenciesKey = KEYS[10]
-if parentDependenciesKey ~= "" then
+if parentDependenciesKey ~= "" and not ends_with(parentDependenciesKey, "__NULL__") then
     rcall("SADD", KEYS[10], jobIdKey)
 end
 

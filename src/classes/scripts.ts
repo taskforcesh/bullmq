@@ -67,6 +67,8 @@ export class Scripts {
     },
   ) {
     const queueKeys = queue.keys;
+    // Send the prefix to redis cluster, to preventing CROSSSLOT errors with empty keys
+    const nullValue = queue.opts.prefix ? queue.opts.prefix + '__NULL__' : null;
     let keys = [
       queueKeys.wait,
       queueKeys.paused,
@@ -76,8 +78,8 @@ export class Scripts {
       queueKeys.priority,
       queueKeys.events,
       queueKeys.delay,
-      parentOpts.waitChildrenKey,
-      parentOpts.parentDependenciesKey,
+      parentOpts.waitChildrenKey || nullValue,
+      parentOpts.parentDependenciesKey || nullValue,
     ];
 
     const args = [
