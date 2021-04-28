@@ -23,8 +23,6 @@
       KEYS[6] 'priority'
       KEYS[7] events stream key
       KEYS[8] delay stream key
-      KEYS[9] waitChildrenKey key.
-      KEYS[10] parent dependencies key.
 
       ARGV[1]  key prefix,
       ARGV[2]  custom id (will not generate one automatically)
@@ -37,16 +35,14 @@
       ARGV[9]  priority
       ARGV[10] LIFO
       ARGV[11] parentKey?
+      ARGV[12] waitChildrenKey key.
+      ARGV[13] parent dependencies key.
 ]]
 local jobId
 local jobIdKey
 local rcall = redis.call
 
 local jobCounter = rcall("INCR", KEYS[4])
-
-local function ends_with(str, ending)
-   return ending == "" or str:sub(-#ending) == ending
-end
 
 if ARGV[2] == "" then
     jobId = jobCounter
@@ -67,8 +63,8 @@ rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
 local delayedTimestamp = tonumber(ARGV[8])
 
 -- Check if job is a parent, if so add to the parents set
-local waitChildrenKey = KEYS[9]
-if waitChildrenKey ~= "" and not ends_with(waitChildrenKey, "__NULL__") then
+local waitChildrenKey = ARGV[12]
+if waitChildrenKey ~= "" then
     rcall("ZADD", waitChildrenKey, ARGV[6], jobId)
 elseif (delayedTimestamp ~= 0) then
     local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
@@ -115,9 +111,9 @@ end
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 -- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
 -- fail in this case.
-local parentDependenciesKey = KEYS[10]
-if parentDependenciesKey ~= "" and not ends_with(parentDependenciesKey, "__NULL__") then
-    rcall("SADD", KEYS[10], jobIdKey)
+local parentDependenciesKey = ARGV[13]
+if parentDependenciesKey ~= "" then
+    rcall("SADD", parentDependenciesKey, jobIdKey)
 end
 
 local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents")

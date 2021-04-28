@@ -67,8 +67,6 @@ export class Scripts {
     },
   ) {
     const queueKeys = queue.keys;
-    // Send the prefix to redis cluster, to preventing CROSSSLOT errors with empty keys
-    const nullValue = queue.opts.prefix ? queue.opts.prefix + '__NULL__' : null;
     let keys = [
       queueKeys.wait,
       queueKeys.paused,
@@ -78,8 +76,6 @@ export class Scripts {
       queueKeys.priority,
       queueKeys.events,
       queueKeys.delay,
-      parentOpts.waitChildrenKey || nullValue,
-      parentOpts.parentDependenciesKey || nullValue,
     ];
 
     const args = [
@@ -94,6 +90,8 @@ export class Scripts {
       opts.priority || 0,
       opts.lifo ? 'RPUSH' : 'LPUSH',
       parentOpts.parentKey,
+      parentOpts.waitChildrenKey,
+      parentOpts.parentDependenciesKey,
     ];
 
     keys = keys.concat(<string[]>args);
@@ -569,7 +567,7 @@ export class Scripts {
 //    * 0 means the job does not exist
 //    * -1 means the job is currently locked and can't be retried.
 //    * -2 means the job was not found in the expected set
-  
+
   static reprocessJob(job: Jov, state: string) {
     var queue = job.queue;
 
