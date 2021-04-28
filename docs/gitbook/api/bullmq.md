@@ -42,6 +42,7 @@
 |  [AdvancedOptions](./bullmq.advancedoptions.md) |  |
 |  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
+|  [FlowJob](./bullmq.flowjob.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  [JobNode](./bullmq.jobnode.md) |  |
