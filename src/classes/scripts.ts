@@ -76,8 +76,6 @@ export class Scripts {
       queueKeys.priority,
       queueKeys.events,
       queueKeys.delay,
-      parentOpts.waitChildrenKey,
-      parentOpts.parentDependenciesKey,
     ];
 
     const args = [
@@ -92,6 +90,8 @@ export class Scripts {
       opts.priority || 0,
       opts.lifo ? 'RPUSH' : 'LPUSH',
       parentOpts.parentKey,
+      parentOpts.waitChildrenKey,
+      parentOpts.parentDependenciesKey,
     ];
 
     keys = keys.concat(<string[]>args);
@@ -567,7 +567,7 @@ export class Scripts {
 //    * 0 means the job does not exist
 //    * -1 means the job is currently locked and can't be retried.
 //    * -2 means the job was not found in the expected set
-  
+
   static reprocessJob(job: Jov, state: string) {
     var queue = job.queue;
 
