@@ -216,6 +216,7 @@ describe('Job', function() {
     it('should not complete a parent job before its children', async () => {
       const values = [
         { idx: 0, bar: 'something' },
+        { idx: 1, baz: 'something' },
       ];
       const token = 'my-token';
   
@@ -239,12 +240,18 @@ describe('Job', function() {
       await child1.addJob(client, {
         parentKey,
         parentDependenciesKey: `${parentKey}:dependencies`,
-      })
+      });
+      await Job.create(queue, 'testJob2', values[1], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
 
       const job = (await parentWorker.getNextJob(token)) as Job;
       const { unprocessed } = await parent.getDependencies();
 
-      expect(unprocessed).to.have.length(1);
+      expect(unprocessed).to.have.length(2);
 
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
