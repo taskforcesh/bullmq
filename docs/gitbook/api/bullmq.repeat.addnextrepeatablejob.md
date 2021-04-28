@@ -7,19 +7,19 @@
 <b>Signature:</b>
 
 ```typescript
-addNextRepeatableJob(name: string, data: any, opts: JobsOptions, skipCheckExists?: boolean): Promise<Job<any, any, string>>;
+addNextRepeatableJob<T = any, R = any, N extends string = string>(name: N, data: T, opts: JobsOptions, skipCheckExists?: boolean): Promise<Job<T, R, N>>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  name | string |  |
-|  data | any |  |
+|  name | N |  |
+|  data | T |  |
 |  opts | [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  skipCheckExists | boolean |  |
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt;&gt;
 
