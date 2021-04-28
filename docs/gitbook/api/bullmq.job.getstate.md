@@ -4,6 +4,8 @@
 
 ## Job.getState() method
 
+Get current state. 
+
 <b>Signature:</b>
 
 ```typescript
@@ -12,4 +14,6 @@ getState(): Promise<any>;
 <b>Returns:</b>
 
 Promise&lt;any&gt;
+
+{<!-- -->string<!-- -->} Returns one of these values: 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
 
