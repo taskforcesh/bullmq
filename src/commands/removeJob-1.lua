@@ -83,6 +83,7 @@ local function removeJob( prefix, jobId)
     rcall("ZREM", prefix .. "waiting-children", jobId)
     rcall("DEL", jobKey)
     rcall("DEL", jobKey .. ":logs")
+    rcall("DEL", jobKey .. ":processed")
 
     -- Check if this job has children
     -- If so, we are going to try to remove the children recursively in deep first way because
