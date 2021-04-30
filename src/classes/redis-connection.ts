@@ -4,8 +4,26 @@ import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 import { isRedisInstance } from '../utils';
+import { ClusterNode, ClusterOptions } from 'ioredis';
 
 export type RedisClient = IORedis.Redis | IORedis.Cluster;
+export type RedisGlobalConfig =
+  | { single: RedisOptions }
+  | { cluster: { nodes: ClusterNode[]; options?: ClusterOptions } };
+
+let redisGlobalConfig: RedisGlobalConfig = {
+  single: {
+    port: 6379,
+    host: '127.0.0.1',
+    retryStrategy: function(times: number) {
+      return Math.min(Math.exp(times), 20000);
+    },
+  },
+};
+
+export function setRedisGlobalConfig(value: RedisGlobalConfig) {
+  redisGlobalConfig = value;
+}
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -14,18 +32,18 @@ export class RedisConnection extends EventEmitter {
   private closing: boolean;
   private version: string;
 
-  constructor(private opts?: ConnectionOptions) {
+  constructor(private readonly opts?: ConnectionOptions) {
     super();
 
     if (!isRedisInstance(opts)) {
-      this.opts = {
-        port: 6379,
-        host: '127.0.0.1',
-        retryStrategy: function(times: number) {
-          return Math.min(Math.exp(times), 20000);
-        },
-        ...opts,
-      };
+      if ('cluster' in redisGlobalConfig) {
+        this._client = new IORedis.Cluster(redisGlobalConfig.cluster.nodes, {
+          ...redisGlobalConfig.cluster.options,
+          ...opts,
+        });
+      } else {
+        this._client = new IORedis(redisGlobalConfig.single);
+      }
     } else {
       this._client = <RedisClient>opts;
     }
@@ -70,10 +88,6 @@ export class RedisConnection extends EventEmitter {
 
   private async init() {
     const opts = this.opts as RedisOptions;
-    if (!this._client) {
-      this._client = new IORedis(opts);
-    }
-
     await RedisConnection.waitUntilReady(this._client);
     await load(this._client);
 

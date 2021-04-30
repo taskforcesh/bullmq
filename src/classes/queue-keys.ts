@@ -1,7 +1,7 @@
 export type KeysMap = { [index in string]: string };
 
 export class QueueKeys {
-  constructor(public readonly prefix: string = 'bull') {}
+  constructor(public readonly prefix: string = '{bull}') {}
 
   getKeys(name: string): KeysMap {
     const keys: { [index: string]: string } = {};

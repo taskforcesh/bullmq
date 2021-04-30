@@ -17,7 +17,7 @@ export class QueueBase extends EventEmitter {
     super();
 
     this.opts = {
-      prefix: 'bull',
+      prefix: '{bull}',
       ...opts,
     };
 

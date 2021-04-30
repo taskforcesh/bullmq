@@ -46,7 +46,7 @@ export function isRedisInstance(obj: any): boolean {
 export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
-  prefix = 'bull',
+  prefix = '{bull}',
 ) {
   const pattern = `${prefix}:${queueName}:*`;
   return new Promise<void>((resolve, reject) => {

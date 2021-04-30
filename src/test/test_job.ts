@@ -1,7 +1,7 @@
 /*eslint-env node */
 'use strict';
 
-import { Job, Queue, QueueScheduler } from '../classes';
+import { Job, Queue, QueueScheduler, setRedisGlobalConfig } from '../classes';
 import { QueueEvents } from '../classes/queue-events';
 import { Worker } from '../classes/worker';
 import { getParentKey } from '../classes/flow-producer';
@@ -19,6 +19,18 @@ const sinon = require('sinon');
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
+setRedisGlobalConfig({
+  cluster: {
+    nodes: [
+      { host: 'localhost', port: 7000 },
+      { host: 'localhost', port: 7001 },
+      { host: 'localhost', port: 7002 },
+      { host: 'localhost', port: 7003 },
+      { host: 'localhost', port: 7004 },
+    ],
+  },
+});
+
 describe('Job', function() {
   let queue: Queue;
   let queueName: string;
@@ -30,7 +42,16 @@ describe('Job', function() {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(
+      new IORedis.Cluster([
+        { host: 'localhost', port: 7000 },
+        { host: 'localhost', port: 7001 },
+        { host: 'localhost', port: 7002 },
+        { host: 'localhost', port: 7003 },
+        { host: 'localhost', port: 7004 },
+      ]),
+      queueName,
+    );
   });
 
   describe('.create', function() {
@@ -219,21 +240,21 @@ describe('Job', function() {
         { idx: 1, baz: 'something' },
       ];
       const token = 'my-token';
-  
+
       const parentQueueName = 'parent-queue';
-      
+
       const parentQueue = new Queue(parentQueueName);
-  
+
       const parentWorker = new Worker(parentQueueName);
       const childrenWorker = new Worker(queueName);
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
-  
+
       const data = { foo: 'bar' };
       const parent = await Job.create(parentQueue, 'testParent', data);
       const parentKey = getParentKey({
         id: parent.id,
-        queue: 'bull:' + parentQueueName
+        queue: 'bull:' + parentQueueName,
       });
       const client = await queue.client;
       const child1 = new Job(queue, 'testJob1', values[0]);
@@ -256,12 +277,14 @@ describe('Job', function() {
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
 
-      await expect(job.moveToCompleted('return value', token)).to.be.rejectedWith(`Job ${job.id} has pending dependencies finished`);
+      await expect(
+        job.moveToCompleted('return value', token),
+      ).to.be.rejectedWith(`Job ${job.id} has pending dependencies finished`);
 
       const isCompleted = await job.isCompleted();
 
       expect(isCompleted).to.be.false;
-  
+
       await childrenWorker.close();
       await parentWorker.close();
       await parentQueue.close();
