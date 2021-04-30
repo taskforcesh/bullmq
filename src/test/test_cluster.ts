@@ -15,29 +15,32 @@ describe('Cluster', function() {
   this.timeout(15000);
 
   let queue: Queue;
-  let queueOptions: () => QueueBaseOptions;
   let queueName: string;
+  const queueOptions: () => QueueBaseOptions = () => {
+    return {
+      connection: new IORedis.Cluster([
+        { host: 'localhost', port: 7000 },
+        { host: 'localhost', port: 7001 },
+        { host: 'localhost', port: 7002 },
+        { host: 'localhost', port: 7003 },
+        { host: 'localhost', port: 7004 },
+      ]),
+      prefix: '{bmq}',
+    };
+  };
 
   beforeEach(async function() {
-    queueOptions = () => {
-      return {
-        connection: new IORedis.Cluster([
-          { host: 'localhost', port: 7000 },
-          { host: 'localhost', port: 7001 },
-          { host: 'localhost', port: 7002 },
-          { host: 'localhost', port: 7003 },
-          { host: 'localhost', port: 7004 },
-        ]),
-        prefix: '{bmq}',
-      };
-    };
     queueName = 'test-' + v4();
     queue = new Queue(queueName, queueOptions());
   });
 
   afterEach(async function() {
     await queue.close();
-    await removeAllQueueData(queueOptions().connection as any, queueName, queue.opts.prefix);
+    await removeAllQueueData(
+      queueOptions().connection as any,
+      queueName,
+      queue.opts.prefix,
+    );
   });
 
   describe('.create', function() {
@@ -59,9 +62,9 @@ describe('Cluster', function() {
       expect(storedJob).to.have.property('id');
       expect(storedJob).to.have.property('data');
 
-      expect(storedJob.data.foo).to.be.equal('bar');
+      expect(storedJob.data.foo).to.eq('bar');
       expect(storedJob.opts).to.be.an('object');
-      expect(storedJob.opts.timestamp).to.be.equal(timestamp);
+      expect(storedJob.opts.timestamp).to.eq(timestamp);
     });
 
     it('should use the custom jobId if one is provided', async function() {
@@ -69,7 +72,7 @@ describe('Cluster', function() {
       const createdJob = await Job.create(queue, 'test', data, {
         jobId: customJobId,
       });
-      expect(createdJob.id).to.be.equal(customJobId);
+      expect(createdJob.id).to.eq(customJobId);
     });
   });
 
@@ -102,14 +105,14 @@ describe('Cluster', function() {
       const parsed = JSON.parse(json);
       expect(parsed).to.have.deep.property('data', data);
 
-      const newQueue = new Queue(queueName, queue.opts);
+      const newQueue = new Queue(queueName, queueOptions());
       let worker: Worker;
       const promise = new Promise<void>(async (resolve, reject) => {
         worker = new Worker(
           queueName,
           async job => {
             try {
-              expect(job.data).to.be.equal(0);
+              expect(job.data).to.eq(0);
             } catch (err) {
               reject(err);
             }
@@ -148,7 +151,7 @@ describe('Cluster', function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.remove();
       const storedJob = await Job.fromId(queue, job.id);
-      expect(storedJob).to.be.equal(undefined);
+      expect(storedJob).to.eq(undefined);
     });
   });
 
@@ -159,7 +162,7 @@ describe('Cluster', function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(42);
       const storedJob = await Job.fromId(queue, job.id);
-      expect(storedJob.progress).to.be.equal(42);
+      expect(storedJob.progress).to.eq(42);
     });
 
     it('can set and get progress as object', async function() {
@@ -190,7 +193,7 @@ describe('Cluster', function() {
 
   describe('.moveToCompleted', function() {
     it('marks the job as completed and returns new job', async function() {
-      const worker = new Worker(queueName, undefined, queue.opts);
+      const worker = new Worker(queueName, undefined, queueOptions());
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job2 = await Job.create(queue, 'test', { baz: 'qux' });
@@ -198,12 +201,12 @@ describe('Cluster', function() {
       const isCompleted = await job1.isCompleted();
       expect(isCompleted).to.be.false;
       const state = await job1.getState();
-      expect(state).to.be.equal('active');
+      expect(state).to.eq('active');
       const job1Id = await job1.moveToCompleted('succeeded', token, true);
       const isJob1Completed = await job1.isCompleted();
       expect(isJob1Completed).to.be.true;
-      expect(job1.returnvalue).to.be.equal('succeeded');
-      expect(job1Id[1]).to.be.equal(job2.id);
+      expect(job1.returnvalue).to.eq('succeeded');
+      expect(job1Id[1]).to.eq(job2.id);
       await worker.close();
     });
 
@@ -212,7 +215,7 @@ describe('Cluster', function() {
      * if it does not exist in meta key (or entire meta key is missing).
      */
     it('should not fail if queue meta key is missing', async function() {
-      const worker = new Worker(queueName, undefined, queue.opts);
+      const worker = new Worker(queueName, undefined, queueOptions());
       const token = 'my-token';
       await Job.create(queue, 'test', { color: 'red' });
       const job = (await worker.getNextJob(token)) as Job;
@@ -220,7 +223,7 @@ describe('Cluster', function() {
       await client.del(queue.toKey('meta'));
       await job.moveToCompleted('done', '0', false);
       const state = await job.getState();
-      expect(state).to.be.equal('completed');
+      expect(state).to.eq('completed');
       await worker.close();
     });
 
@@ -232,9 +235,13 @@ describe('Cluster', function() {
       const token = 'my-token';
 
       const parentQueueName = 'parent-queue';
-      const parentQueue = new Queue(parentQueueName, queue.opts);
-      const parentWorker = new Worker(parentQueueName, undefined, queue.opts);
-      const childrenWorker = new Worker(queueName, undefined, queue.opts);
+      const parentQueue = new Queue(parentQueueName, queueOptions());
+      const parentWorker = new Worker(
+        parentQueueName,
+        undefined,
+        queueOptions(),
+      );
+      const childrenWorker = new Worker(queueName, undefined, queueOptions());
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
@@ -283,7 +290,7 @@ describe('Cluster', function() {
 
   describe('.moveToFailed', function() {
     it('marks the job as failed', async function() {
-      const worker = new Worker(queueName, undefined, queue.opts);
+      const worker = new Worker(queueName, undefined, queueOptions());
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job = (await worker.getNextJob(token)) as Job;
@@ -293,11 +300,14 @@ describe('Cluster', function() {
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.true;
       expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(1);
+      expect(job.stacktrace.length).to.eq(1);
       await worker.close();
     });
 
     it('moves the job to wait for retry if attempts are given', async function() {
+      const queueEvents = new QueueEvents(queueName, queueOptions());
+      await queueEvents.waitUntilReady();
+
       const job = await Job.create(
         queue,
         'test',
@@ -308,18 +318,26 @@ describe('Cluster', function() {
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.false;
 
+      const waiting = new Promise(resolve => {
+        queueEvents.on('waiting', resolve);
+      });
+
       await job.moveToFailed(new Error('test error'), '0', true);
+
+      await waiting;
 
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.false;
       expect(job.stacktrace).not.be.null;
-      expect(job.stacktrace.length).to.be.equal(1);
+      expect(job.stacktrace.length).to.eq(1);
       const isWaiting = await job.isWaiting();
       expect(isWaiting).to.be.true;
+
+      await queueEvents.close();
     });
 
     it('marks the job as failed when attempts made equal to attempts given', async function() {
-      const worker = new Worker(queueName, undefined, queue.opts);
+      const worker = new Worker(queueName, undefined, queueOptions());
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
       const job = (await worker.getNextJob(token)) as Job;
@@ -329,12 +347,12 @@ describe('Cluster', function() {
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.true;
       expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(1);
+      expect(job.stacktrace.length).to.eq(1);
       await worker.close();
     });
 
     it('moves the job to delayed for retry if attempts are given and backoff is non zero', async function() {
-      const worker = new Worker(queueName, undefined, queue.opts);
+      const worker = new Worker(queueName, undefined, queueOptions());
       const token = 'my-token';
       await Job.create(
         queue,
@@ -349,14 +367,14 @@ describe('Cluster', function() {
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.false;
       expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(1);
+      expect(job.stacktrace.length).to.eq(1);
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.true;
       await worker.close();
     });
 
     it('applies stacktrace limit on failure', async function() {
-      const worker = new Worker(queueName, undefined, queue.opts);
+      const worker = new Worker(queueName, undefined, queueOptions());
       const token = 'my-token';
       const stackTraceLimit = 1;
       await Job.create(
@@ -372,12 +390,12 @@ describe('Cluster', function() {
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.true;
       expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+      expect(job.stacktrace.length).to.eq(stackTraceLimit);
       await worker.close();
     });
 
     it('saves error stacktrace', async function() {
-      const worker = new Worker(queueName, undefined, queue.opts);
+      const worker = new Worker(queueName, undefined, queueOptions());
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job = (await worker.getNextJob(token)) as Job;
@@ -409,7 +427,7 @@ describe('Cluster', function() {
     });
 
     it('should process a promoted job according to its priority', async function() {
-      const queueScheduler = new QueueScheduler(queueName, queue.opts);
+      const queueScheduler = new QueueScheduler(queueName, queueOptions());
       await queueScheduler.waitUntilReady();
 
       this.timeout(10000);
@@ -478,9 +496,9 @@ describe('Cluster', function() {
       await queue.resume();
 
       const waitingJobsCount = await queue.getWaitingCount();
-      expect(waitingJobsCount).to.be.equal(2);
+      expect(waitingJobsCount).to.eq(2);
       const delayedJobsNewState = await delayedJob.getState();
-      expect(delayedJobsNewState).to.be.equal('waiting');
+      expect(delayedJobsNewState).to.eq('waiting');
     });
   });
 
@@ -490,19 +508,19 @@ describe('Cluster', function() {
         const redisVersionStub = sinon
           .stub(queue, 'redisVersion')
           .get(() => '6.0.5');
-        const worker = new Worker(queueName, undefined, queue.opts);
+        const worker = new Worker(queueName, undefined, queueOptions());
         const token = 'my-token';
         const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
         const delayedState = await job.getState();
 
-        expect(delayedState).to.be.equal('delayed');
+        expect(delayedState).to.eq('delayed');
 
         await queue.pause();
         await job.promote();
         await queue.resume();
         const waitingState = await job.getState();
 
-        expect(waitingState).to.be.equal('waiting');
+        expect(waitingState).to.eq('waiting');
 
         const currentJob1 = (await worker.getNextJob(token)) as Job;
 
@@ -511,12 +529,12 @@ describe('Cluster', function() {
         await queue.add('job2', { foo: 'foo' });
         const job2 = (await worker.getNextJob(token)) as Job;
 
-        expect(failedState).to.be.equal('failed');
+        expect(failedState).to.eq('failed');
 
         await job2.moveToCompleted('succeeded', token, true);
         const completedState = await job2.getState();
 
-        expect(completedState).to.be.equal('completed');
+        expect(completedState).to.eq('completed');
         await worker.close();
         redisVersionStub.restore();
       });
@@ -527,19 +545,19 @@ describe('Cluster', function() {
         const redisVersionStub = sinon
           .stub(queue, 'redisVersion')
           .get(() => '6.0.6');
-        const worker = new Worker(queueName, undefined, queue.opts);
+        const worker = new Worker(queueName, undefined, queueOptions());
         const token = 'my-token';
         const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
         const delayedState = await job.getState();
 
-        expect(delayedState).to.be.equal('delayed');
+        expect(delayedState).to.eq('delayed');
 
         await queue.pause();
         await job.promote();
         await queue.resume();
         const waitingState = await job.getState();
 
-        expect(waitingState).to.be.equal('waiting');
+        expect(waitingState).to.eq('waiting');
 
         const currentJob1 = (await worker.getNextJob(token)) as Job;
 
@@ -548,12 +566,12 @@ describe('Cluster', function() {
         await queue.add('job2', { foo: 'foo' });
         const job2 = (await worker.getNextJob(token)) as Job;
 
-        expect(failedState).to.be.equal('failed');
+        expect(failedState).to.eq('failed');
 
         await job2.moveToCompleted('succeeded', token, true);
         const completedState = await job2.getState();
 
-        expect(completedState).to.be.equal('completed');
+        expect(completedState).to.eq('completed');
         await worker.close();
         redisVersionStub.restore();
       });
@@ -579,7 +597,7 @@ describe('Cluster', function() {
 
       const result = await job.waitUntilFinished(queueEvents);
 
-      expect(result).to.be.equal('qux');
+      expect(result).to.eq('qux');
 
       await worker.close();
     });
@@ -622,7 +640,11 @@ describe('Cluster', function() {
     });
 
     it('should resolve when the job has been completed and return string', async function() {
-      const worker = new Worker(queueName, async () => 'a string', queueOptions());
+      const worker = new Worker(
+        queueName,
+        async () => 'a string',
+        queueOptions(),
+      );
 
       const job = await queue.add('test', { foo: 'bar' });
 
