@@ -49,6 +49,7 @@ export class Worker<
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
+      block: true,
       ...this.opts,
     };
 
@@ -175,7 +176,11 @@ export class Worker<
    */
   async getNextJob(token: string) {
     if (this.paused) {
-      await this.paused;
+      if (this.opts.block) {
+        await this.paused;
+      } else {
+        return;
+      }
     }
 
     if (this.closing) {
@@ -218,11 +223,15 @@ export class Worker<
 
     try {
       this.waiting = true;
-      jobId = await client.brpoplpush(
-        this.keys.wait,
-        this.keys.active,
-        opts.drainDelay,
-      );
+      if (opts.block) {
+        jobId = await client.brpoplpush(
+          this.keys.wait,
+          this.keys.active,
+          opts.drainDelay,
+        );
+      } else {
+        jobId = await client.rpoplpush(this.keys.wait, this.keys.active);
+      }
     } finally {
       this.waiting = false;
     }
