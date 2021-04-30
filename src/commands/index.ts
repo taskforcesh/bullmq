@@ -12,7 +12,7 @@
  */
 'use strict';
 
-import { RedisClient } from '@src/classes';
+import { RedisClient } from '../classes';
 
 const path = require('path');
 const util = require('util');

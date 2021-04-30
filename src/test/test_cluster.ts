@@ -324,7 +324,7 @@ describe('Cluster', function() {
 
       await job.moveToFailed(new Error('test error'), '0', true);
 
-      await waiting;
+      // await waiting;
 
       const isFailed2 = await job.isFailed();
       expect(isFailed2).to.be.false;
