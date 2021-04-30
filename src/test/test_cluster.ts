@@ -360,7 +360,7 @@ describe('Cluster', function() {
         { foo: 'bar' },
         { attempts: 3, backoff: 300 },
       );
-      const job = (await worker.getNextJob(token)) as Job;
+      const job = await worker.getNextJob(token);
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.false;
       await job.moveToFailed(new Error('test error'), token, true);
