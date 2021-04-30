@@ -66,14 +66,14 @@ describe('bulk jobs', () => {
       { name, data: { idx: 0, foo: 'bar' }, opts: {
           parent: {
             id: parent.id,
-            queue: 'bull:' + parentQueueName
+            queue: `bull:${parentQueueName}`
           },
         },
       },
       { name, data: { idx: 1, foo: 'baz' }, opts: {
           parent:  {
             id: parent.id,
-            queue: 'bull:' + parentQueueName
+            queue: `bull:${parentQueueName}`
           },
         },
       },
