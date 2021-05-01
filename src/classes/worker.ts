@@ -186,9 +186,9 @@ export class Worker<
       return;
     }
 
-    if (this.drained) {
+    if (this.drained && block) {
       try {
-        const jobId = await this.waitForJob(block);
+        const jobId = await this.waitForJob();
 
         if (jobId) {
           return this.moveToActive(token, jobId);
@@ -214,7 +214,7 @@ export class Worker<
     return this.nextJobFromJobData(jobData, id);
   }
 
-  private async waitForJob(block = true) {
+  private async waitForJob() {
     const client = await this.blockingConnection.client;
 
     let jobId;
@@ -222,15 +222,11 @@ export class Worker<
 
     try {
       this.waiting = true;
-      if (block) {
-        jobId = await client.brpoplpush(
-          this.keys.wait,
-          this.keys.active,
-          opts.drainDelay,
-        );
-      } else {
-        jobId = await client.rpoplpush(this.keys.wait, this.keys.active);
-      }
+      jobId = await client.brpoplpush(
+        this.keys.wait,
+        this.keys.active,
+        opts.drainDelay,
+      );
     } finally {
       this.waiting = false;
     }
