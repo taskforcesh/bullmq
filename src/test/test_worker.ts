@@ -1708,7 +1708,7 @@ describe('workers', function() {
     });
   });
 
-  describe.only('non-blocking', async () => {
+  describe('non-blocking', async () => {
     it('should block by default', async () => {
       const worker = new Worker(queueName);
       const token = 'my-token';
