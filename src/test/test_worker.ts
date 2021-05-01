@@ -1728,45 +1728,45 @@ describe('workers', function() {
     });
 
     it('shouldn\'t block when disabled', async () => {
-      const worker = new Worker(queueName, undefined, { block: false });
+      const worker = new Worker(queueName);
       const token = 'my-token';
 
       // make sure worker is in drained state
-      await worker.getNextJob(token);
+      await worker.getNextJob(token, { block: false });
 
       let [
         job
       ] = await Promise.all([
-        worker.getNextJob(token) as Promise<Job>,
+        worker.getNextJob(token, { block: false }) as Promise<Job>,
         delay(100).then(() => queue.add('test', { foo: 'bar' }))
       ]);
       expect(job).to.be.equal(undefined);
 
-      job = (await worker.getNextJob(token)) as Job;
+      job = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
     });
 
     it('shouldn\'t block when disabled and paused', async () => {
-      const worker = new Worker(queueName, undefined, { block: false });
+      const worker = new Worker(queueName);
       const token = 'my-token';
 
       // make sure worker is in drained state
-      await worker.getNextJob(token);
+      await worker.getNextJob(token, { block: false });
 
       worker.pause();
 
       let [
         job
       ] = await Promise.all([
-        worker.getNextJob(token) as Promise<Job>,
+        worker.getNextJob(token, { block: false }) as Promise<Job>,
         delay(100).then(() => queue.add('test', { foo: 'bar' }))
       ]);
       expect(job).to.be.equal(undefined);
 
       worker.resume();
 
-      job = (await worker.getNextJob(token)) as Job;
+      job = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
     });

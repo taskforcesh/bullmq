@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
-import { Processor, WorkerOptions } from '../interfaces';
+import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
 import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
@@ -49,7 +49,6 @@ export class Worker<
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
-      block: true,
       ...this.opts,
     };
 
@@ -174,9 +173,9 @@ export class Worker<
    * @param token worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(token: string) {
+  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
     if (this.paused) {
-      if (this.opts.block) {
+      if (block) {
         await this.paused;
       } else {
         return;
@@ -189,7 +188,7 @@ export class Worker<
 
     if (this.drained) {
       try {
-        const jobId = await this.waitForJob();
+        const jobId = await this.waitForJob(block);
 
         if (jobId) {
           return this.moveToActive(token, jobId);
@@ -215,7 +214,7 @@ export class Worker<
     return this.nextJobFromJobData(jobData, id);
   }
 
-  private async waitForJob() {
+  private async waitForJob(block = true) {
     const client = await this.blockingConnection.client;
 
     let jobId;
@@ -223,7 +222,7 @@ export class Worker<
 
     try {
       this.waiting = true;
-      if (opts.block) {
+      if (block) {
         jobId = await client.brpoplpush(
           this.keys.wait,
           this.keys.active,

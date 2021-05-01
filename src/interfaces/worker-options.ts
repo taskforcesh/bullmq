@@ -26,5 +26,8 @@ export interface WorkerOptions extends QueueBaseOptions {
   lockDuration?: number;
   lockRenewTime?: number;
   settings?: AdvancedOptions; // FIXME only backoffStrategies is used
+}
+
+export interface GetNextJobOptions {
   block?: boolean;
 }
