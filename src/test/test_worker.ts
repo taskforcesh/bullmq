@@ -1708,7 +1708,7 @@ describe('workers', function() {
     });
   });
 
-  describe('non-blocking', async () => {
+  describe.only('non-blocking', async () => {
     it('should block by default', async () => {
       const worker = new Worker(queueName);
       const token = 'my-token';
@@ -1753,15 +1753,11 @@ describe('workers', function() {
 
       // make sure worker is in drained state
       await worker.getNextJob(token, { block: false });
+      await queue.add('test', { foo: 'bar' })
 
       worker.pause();
 
-      let [
-        job
-      ] = await Promise.all([
-        worker.getNextJob(token, { block: false }) as Promise<Job>,
-        delay(100).then(() => queue.add('test', { foo: 'bar' }))
-      ]);
+      let job = (await worker.getNextJob(token, { block: false })) as Job;
       expect(job).to.be.equal(undefined);
 
       worker.resume();
