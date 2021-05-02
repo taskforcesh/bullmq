@@ -125,7 +125,12 @@ export class Job<T = any, R = any, N extends string = string> {
     const multi = client.multi();
 
     for (const job of jobInstances) {
-      job.addJob(<Redis>(multi as unknown));
+      job.addJob(<Redis>(multi as unknown), {
+        parentKey: job.parentKey,
+        parentDependenciesKey: job.parentKey
+          ? `${job.parentKey}:dependencies`
+          : '',
+      });
     }
 
     const result = (await multi.exec()) as [null | Error, string][];
