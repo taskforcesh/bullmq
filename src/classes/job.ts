@@ -244,6 +244,7 @@ export class Job<T = any, R = any, N extends string = string> {
     const job = this;
 
     const removed = await Scripts.remove(queue, job.id);
+    console.log('removed', removed);
     if (removed) {
       queue.emit('removed', job);
     } else {
@@ -559,6 +560,19 @@ export class Job<T = any, R = any, N extends string = string> {
     return score !== null;
   }
 
+  private assignParentOpts(parentOpts: ParentOpts = {}) {
+    if (!this.parentKey && parentOpts.parentKey) {
+      const [prefix, queueName, id] = parentOpts.parentKey.split(':');
+
+      this.opts = Object.assign(this.opts, {
+        parent: {
+          id,
+          queue: `${prefix}:${queueName}`,
+        },
+      });
+    }
+  }
+
   private async isInList(list: string) {
     return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
   }
@@ -566,6 +580,7 @@ export class Job<T = any, R = any, N extends string = string> {
   addJob(client: Redis, parentOpts?: ParentOpts): string {
     const queue = this.queue;
 
+    this.assignParentOpts(parentOpts);
     const jobData = this.asJSON();
 
     return Scripts.addJob(
