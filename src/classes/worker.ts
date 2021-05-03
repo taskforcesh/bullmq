@@ -327,7 +327,7 @@ export class Worker<
     };
 
     const handleWaitingChildren = async () => {
-      await job.moveToWaitingChildren(token);
+      job.waitChildren = false;
       this.emit('waiting-children', job, 'active');
     };
 
@@ -337,7 +337,7 @@ export class Worker<
     lockExtender();
     try {
       const result = await this.processFn(job, token);
-      if (typeof result === 'string' && result === 'waiting-children') {
+      if (job.waitChildren) {
         return await handleWaitingChildren();
       }
       return await handleCompleted(result);
