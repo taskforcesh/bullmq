@@ -326,6 +326,11 @@ export class Worker<
       }
     };
 
+    const handleWaitingChildren = async () => {
+      await job.moveToWaitingChildren(token);
+      this.emit('waiting-children', job, 'active');
+    };
+
     // TODO: how to cancel the processing? (null -> job.cancel() => throw CancelError()void)
     this.emit('active', job, null, 'waiting');
 
@@ -333,7 +338,7 @@ export class Worker<
     try {
       const result = await this.processFn(job, token);
       if (typeof result === 'string' && result === 'waiting-children') {
-        return;
+        return await handleWaitingChildren();
       }
       return await handleCompleted(result);
     } catch (err) {

@@ -88,15 +88,12 @@ describe('Job', function() {
     ]);
 
     const processingParent = new Promise<void>((resolve, reject) => [
-      (parentProcessor = async (job: Job, token: string) => {
-        const movedToWaitingChildren = await job.moveToWaitingChildren(token);
+      (parentProcessor = async (job: Job) => {
         const { processed } = await job.getDependencies();
 
         if (Object.keys(processed).length !== 3) {
-          expect(movedToWaitingChildren).to.be.true;
           return 'waiting-children';
         } else {
-          expect(movedToWaitingChildren).to.be.false;
           resolve();
         }
       }),
