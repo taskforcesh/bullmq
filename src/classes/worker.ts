@@ -332,10 +332,10 @@ export class Worker<
     lockExtender();
     try {
       const result = await this.processFn(job, token);
-      const state = await job.getState();
-      if (state !== 'waiting-children') {
-        return await handleCompleted(result);
+      if (typeof result === 'string' && result === 'waiting-children') {
+        return;
       }
+      return await handleCompleted(result);
     } catch (err) {
       return handleFailed(err);
     } finally {

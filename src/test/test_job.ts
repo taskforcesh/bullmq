@@ -94,7 +94,7 @@ describe('Job', function() {
 
         if (Object.keys(processed).length !== 3) {
           expect(movedToWaitingChildren).to.be.true;
-          return;
+          return 'waiting-children';
         } else {
           expect(movedToWaitingChildren).to.be.false;
           resolve();
