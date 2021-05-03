@@ -1716,7 +1716,7 @@ describe('workers', function() {
       // make sure worker is in drained state
       await worker.getNextJob(token);
 
-      let [
+      const [
         job
       ] = await Promise.all([
         worker.getNextJob(token) as Promise<Job>,
@@ -1734,16 +1734,16 @@ describe('workers', function() {
       // make sure worker is in drained state
       await worker.getNextJob(token, { block: false });
 
-      let [
-        job
+      const [
+        job1
       ] = await Promise.all([
         worker.getNextJob(token, { block: false }) as Promise<Job>,
         delay(100).then(() => queue.add('test', { foo: 'bar' }))
       ]);
-      expect(job).to.be.equal(undefined);
+      expect(job1).to.be.equal(undefined);
 
-      job = (await worker.getNextJob(token, { block: false })) as Job;
-      const isActive = await job.isActive();
+      const job2 = (await worker.getNextJob(token, { block: false })) as Job;
+      const isActive = await job2.isActive();
       expect(isActive).to.be.equal(true);
     });
 
@@ -1757,13 +1757,13 @@ describe('workers', function() {
 
       worker.pause();
 
-      let job = (await worker.getNextJob(token, { block: false })) as Job;
-      expect(job).to.be.equal(undefined);
+      const job1 = (await worker.getNextJob(token, { block: false })) as Job;
+      expect(job1).to.be.equal(undefined);
 
       worker.resume();
 
-      job = (await worker.getNextJob(token, { block: false })) as Job;
-      const isActive = await job.isActive();
+      const job2 = (await worker.getNextJob(token, { block: false })) as Job;
+      const isActive = await job2.isActive();
       expect(isActive).to.be.equal(true);
     });
   });
