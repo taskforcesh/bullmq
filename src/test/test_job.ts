@@ -94,7 +94,7 @@ describe('Job', function() {
 
         if (Object.keys(processed).length !== 3) {
           expect(movedToWaitingChildren).to.be.true;
-          throw new Error('Not yet!');
+          return;
         } else {
           expect(movedToWaitingChildren).to.be.false;
           resolve();
