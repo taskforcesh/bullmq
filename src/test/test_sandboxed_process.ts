@@ -88,8 +88,6 @@ describe('sandboxed process', () => {
   it('should process with concurrent processors', async function() {
     this.timeout(10000);
 
-    let worker: Worker;
-
     await Promise.all([
       queue.add('test', { foo: 'bar1' }),
       queue.add('test', { foo: 'bar2' }),
@@ -98,7 +96,7 @@ describe('sandboxed process', () => {
     ]);
 
     const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
-    worker = new Worker(queueName, processFile, {
+    const worker = new Worker(queueName, processFile, {
       concurrency: 4,
       drainDelay: 1,
     });
@@ -131,9 +129,8 @@ describe('sandboxed process', () => {
   it('should reuse process with single processors', async function() {
     this.timeout(30000);
 
-    let worker: Worker;
     const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
-    worker = new Worker(queueName, processFile, {
+    const worker = new Worker(queueName, processFile, {
       concurrency: 1,
       drainDelay: 1,
     });
@@ -262,13 +259,15 @@ describe('sandboxed process', () => {
   it('should fail if the process crashes', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-    const worker = new Worker(queueName, processFile, {
+    new Worker(queueName, processFile, {
       drainDelay: 1,
     });
 
     const job = await queue.add('test', {});
 
-    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith('boom!');
+    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+      'boom!',
+    );
   });
 
   it('should fail if the process exits 0', async () => {
@@ -280,7 +279,9 @@ describe('sandboxed process', () => {
 
     const job = await queue.add('test', { exitCode: 0 });
 
-    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith('Unexpected exit code: 0 signal: null');
+    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+      'Unexpected exit code: 0 signal: null',
+    );
   });
 
   it('should fail if the process exits non-0', async () => {
@@ -292,7 +293,9 @@ describe('sandboxed process', () => {
 
     const job = await queue.add('test', { exitCode: 1 });
 
-    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith('Unexpected exit code: 1 signal: null');
+    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+      'Unexpected exit code: 1 signal: null',
+    );
   });
 
   it('should remove exited process', async () => {

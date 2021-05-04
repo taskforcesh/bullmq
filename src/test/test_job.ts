@@ -458,7 +458,9 @@ describe('Job', function() {
       try {
         await job.promote();
         throw new Error('Job should not be promoted!');
-      } catch (err) {}
+      } catch (err) {
+        return;
+      }
     });
 
     it('should promote delayed job to the right queue if queue is paused', async () => {

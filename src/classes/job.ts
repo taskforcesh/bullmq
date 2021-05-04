@@ -126,7 +126,12 @@ export class Job<T = any, R = any, N extends string = string> {
     const multi = client.multi();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(multi as unknown));
+      job.addJob(<RedisClient>(multi as unknown), {
+        parentKey: job.parentKey,
+        parentDependenciesKey: job.parentKey
+          ? `${job.parentKey}:dependencies`
+          : '',
+      });
     }
 
     const result = (await multi.exec()) as [null | Error, string][];
@@ -441,7 +446,7 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */
-  async waitUntilFinished(queueEvents: QueueEvents, ttl?: number) {
+  async waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<R> {
     await this.queue.waitUntilReady();
 
     const jobId = this.id;

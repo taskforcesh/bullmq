@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { removeAllQueueData, delay } from '../utils';
+import { removeAllQueueData } from '../utils';
 
 describe('bulk jobs', () => {
   let queue: Queue;
@@ -50,6 +50,50 @@ describe('bulk jobs', () => {
     await processing;
     await worker.close();
   });
+
+  it('should allow to pass parent option', async () => {
+    const name = 'test';
+    const parentQueueName = 'parent-queue';
+    const parentQueue = new Queue(parentQueueName);
+
+    const parentWorker = new Worker(parentQueueName);
+    const childrenWorker = new Worker(queueName);      
+    await parentWorker.waitUntilReady();
+    await childrenWorker.waitUntilReady();
+
+    const parent = await parentQueue.add('parent', { some: 'data' });
+    const jobs = await queue.addBulk([
+      { name, data: { idx: 0, foo: 'bar' }, opts: {
+          parent: {
+            id: parent.id,
+            queue: `bull:${parentQueueName}`
+          },
+        },
+      },
+      { name, data: { idx: 1, foo: 'baz' }, opts: {
+          parent:  {
+            id: parent.id,
+            queue: `bull:${parentQueueName}`
+          },
+        },
+      },
+    ]);
+    expect(jobs).to.have.length(2);
+
+    expect(jobs[0].id).to.be.ok;
+    expect(jobs[0].data.foo).to.be.eql('bar');
+    expect(jobs[1].id).to.be.ok;
+    expect(jobs[1].data.foo).to.be.eql('baz');
+
+    const { unprocessed } = await parent.getDependencies();
+
+    expect(unprocessed).to.have.length(2);
+
+    await childrenWorker.close();
+    await parentWorker.close();
+    await parentQueue.close();
+    await removeAllQueueData(new IORedis(), parentQueueName);
+});
 
   it('should process jobs with custom ids', async () => {
     const name = 'test';

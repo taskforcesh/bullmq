@@ -102,7 +102,7 @@ export class Scripts {
   static async pause(queue: MinimalQueue, pause: boolean) {
     const client = await queue.client;
 
-    var src = 'wait',
+    let src = 'wait',
       dst = 'paused';
     if (!pause) {
       src = 'paused';

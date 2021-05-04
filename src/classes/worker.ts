@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
-import { Processor, WorkerOptions } from '../interfaces';
+import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
 import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
@@ -173,16 +173,20 @@ export class Worker<
    * @param token worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(token: string) {
+  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
     if (this.paused) {
-      await this.paused;
+      if (block) {
+        await this.paused;
+      } else {
+        return;
+      }
     }
 
     if (this.closing) {
       return;
     }
 
-    if (this.drained) {
+    if (this.drained && block) {
       try {
         const jobId = await this.waitForJob();
 
