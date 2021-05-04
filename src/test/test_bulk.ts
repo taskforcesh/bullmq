@@ -57,23 +57,29 @@ describe('bulk jobs', () => {
     const parentQueue = new Queue(parentQueueName);
 
     const parentWorker = new Worker(parentQueueName);
-    const childrenWorker = new Worker(queueName);      
+    const childrenWorker = new Worker(queueName);
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
     const parent = await parentQueue.add('parent', { some: 'data' });
     const jobs = await queue.addBulk([
-      { name, data: { idx: 0, foo: 'bar' }, opts: {
+      {
+        name,
+        data: { idx: 0, foo: 'bar' },
+        opts: {
           parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`
+            queue: `{bull}:${parentQueueName}`,
           },
         },
       },
-      { name, data: { idx: 1, foo: 'baz' }, opts: {
-          parent:  {
+      {
+        name,
+        data: { idx: 1, foo: 'baz' },
+        opts: {
+          parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`
+            queue: `{bull}:${parentQueueName}`,
           },
         },
       },
@@ -93,7 +99,7 @@ describe('bulk jobs', () => {
     await parentWorker.close();
     await parentQueue.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
-});
+  });
 
   it('should process jobs with custom ids', async () => {
     const name = 'test';

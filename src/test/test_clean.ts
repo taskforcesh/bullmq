@@ -133,7 +133,7 @@ describe('Cleaner', () => {
     await queue.add('test', { some: 'data' });
 
     await delay(100);
-    await client.hdel(`bull:${queueName}:1`, 'timestamp');
+    await client.hdel(`{bull}:${queueName}:1`, 'timestamp');
     const jobs = await queue.clean(0, 0, 'failed');
     expect(jobs.length).to.be.eql(2);
     const failed = await queue.getFailed();

@@ -119,7 +119,8 @@ export class Worker<
 
     // IDEA, How to store metadata associated to a worker.
     // create a key from the worker ID associated to the given name.
-    // We keep a hash table bull:myqueue:workers where every worker is a hash key workername:workerId with json holding
+    // We keep a hash table {bull}:myqueue:workers where
+    // every worker is a hash key workername:workerId with json holding
     // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
     //
     try {
