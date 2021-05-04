@@ -244,7 +244,6 @@ export class Job<T = any, R = any, N extends string = string> {
     const job = this;
 
     const removed = await Scripts.remove(queue, job.id);
-    console.log('removed', removed);
     if (removed) {
       queue.emit('removed', job);
     } else {
