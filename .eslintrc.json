@@ -1,0 +1,57 @@
+{
+  "parser": "@typescript-eslint/parser",
+  "env": { "es6": true, "node": true, "mocha": true },
+  "globals": { "Atomics": "readonly", "SharedArrayBuffer": "readonly" },
+  "plugins": ["promise", "prettier", "@typescript-eslint/eslint-plugin"],
+  "extends": [
+    "prettier",
+    "eslint:recommended",
+    "plugin:@typescript-eslint/eslint-recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "rules": {
+    "@typescript-eslint/no-empty-interface": [
+      "error",
+      {
+        "allowSingleExtends": false
+      }
+    ],
+    "@typescript-eslint/no-explicit-any": "off",
+
+    "@typescript-eslint/ban-types": [
+      "error",
+      {
+        "extendDefaults": true,
+        "types": {
+          "object": false,
+          "Object": false,
+          "Function": false
+        }
+      }
+    ],
+    "@typescript-eslint/no-var-requires": 0,
+    "@typescript-eslint/no-empty-function": 1,
+    "@typescript-eslint/no-this-alias": 0,
+    "space-before-function-paren": [
+      "error",
+      {
+        "anonymous": "never",
+        "named": "never",
+        "asyncArrow": "always"
+      }
+    ],
+    "arrow-parens": [2, "as-needed", { "requireForBlockBody": false }],
+    "no-async-promise-executor": 0,
+    "no-extraneous-class": 0,
+    "@typescript-eslint/no-inferrable-types": 2,
+    "semi": 2,
+    "no-bitwise": 0,
+    "eol-last": 2,
+    "prefer-const": 1,
+    "forin": 0,
+    "max-len": [
+      "error",
+      { "code": 120, "ignorePattern": "^import\\s.+\\sfrom\\s.+;$" }
+    ]
+  }
+}
