@@ -1,12 +1,12 @@
-import { Queue, Job } from '@src/classes';
+import { Queue, Job } from '../classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { Worker } from '@src/classes/worker';
-import { QueueEvents } from '@src/classes/queue-events';
-import { QueueScheduler } from '@src/classes/queue-scheduler';
-import { removeAllQueueData } from '@src/utils';
+import { Worker } from '../classes/worker';
+import { QueueEvents } from '../classes/queue-events';
+import { QueueScheduler } from '../classes/queue-scheduler';
+import { removeAllQueueData } from '../utils';
 
 describe('Delayed jobs', function() {
   this.timeout(15000);
