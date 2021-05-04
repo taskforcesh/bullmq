@@ -9,7 +9,7 @@ Returns a promise that resolves to the next job in queue.
 <b>Signature:</b>
 
 ```typescript
-getNextJob(token: string): Promise<Job<any, any, string>>;
+getNextJob(token: string, { block }?: GetNextJobOptions): Promise<Job<any, any, string>>;
 ```
 
 ## Parameters
@@ -17,6 +17,7 @@ getNextJob(token: string): Promise<Job<any, any, string>>;
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  token | string | worker token to be assigned to retrieved job |
+|  { block } | [GetNextJobOptions](./bullmq.getnextjoboptions.md) |  |
 
 <b>Returns:</b>
 
