@@ -233,7 +233,7 @@ describe('Job', function() {
       const parent = await Job.create(parentQueue, 'testParent', data);
       const parentKey = getParentKey({
         id: parent.id,
-        queue: 'bull:' + parentQueueName,
+        queue: '{bull}:' + parentQueueName,
       });
       const client = await queue.client;
       const child1 = new Job(queue, 'testJob1', values[0]);
@@ -244,7 +244,7 @@ describe('Job', function() {
       await Job.create(queue, 'testJob2', values[1], {
         parent: {
           id: parent.id,
-          queue: 'bull:' + parentQueueName,
+          queue: '{bull}:' + parentQueueName,
         },
       });
 
