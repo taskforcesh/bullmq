@@ -1,4 +1,4 @@
-import { RedisClient } from '@src/classes';
+import { RedisClient } from './classes';
 import { Cluster } from 'ioredis';
 
 export const errorObject: { [index: string]: any } = { value: null };
@@ -48,29 +48,28 @@ export async function removeAllQueueData(
   queueName: string,
   prefix = '{bull}',
 ) {
+  if (client instanceof Cluster) {
+    // todo compat with cluster ?
+    // @see https://github.com/luin/ioredis/issues/175
+    return Promise.resolve(false);
+  }
   const pattern = `${prefix}:${queueName}:*`;
   return new Promise<void>((resolve, reject) => {
-    if (client instanceof Cluster) {
-      // todo compat with cluster ?
-      // @see https://github.com/luin/ioredis/issues/175
-      resolve();
-    } else {
-      const stream = client.scanStream({
-        match: pattern,
-      });
-      stream.on('data', (keys: string[]) => {
-        if (keys.length) {
-          const pipeline = client.pipeline();
-          keys.forEach(key => {
-            pipeline.del(key);
-          });
-          pipeline.exec().catch(error => {
-            reject(error);
-          });
-        }
-      });
-      stream.on('end', () => resolve());
-      stream.on('error', error => reject(error));
-    }
+    const stream = client.scanStream({
+      match: pattern,
+    });
+    stream.on('data', (keys: string[]) => {
+      if (keys.length) {
+        const pipeline = client.pipeline();
+        keys.forEach(key => {
+          pipeline.del(key);
+        });
+        pipeline.exec().catch(error => {
+          reject(error);
+        });
+      }
+    });
+    stream.on('end', () => resolve());
+    stream.on('error', error => reject(error));
   });
 }
