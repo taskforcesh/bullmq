@@ -24,7 +24,6 @@
     "semantic-release": "semantic-release",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "yarn lint && tsc && ts-mocha --paths 'src/**/test_*.ts' --exit",
-    "test:jobs": "yarn lint && tsc && ts-mocha --paths src/test/test_job.ts --exit",
     "test:watch": "yarn lint  && ts-mocha --paths 'src/**/test_*.ts' -w --watch-extensions ts"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 /*eslint-env node */
 'use strict';
 
-import { Job, Queue, QueueScheduler, setRedisGlobalConfig } from '../classes';
+import { Job, Queue, QueueScheduler } from '../classes';
 import { QueueEvents } from '../classes/queue-events';
 import { Worker } from '../classes/worker';
 import { getParentKey } from '../classes/flow-producer';
@@ -19,18 +19,6 @@ const sinon = require('sinon');
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
-setRedisGlobalConfig({
-  cluster: {
-    nodes: [
-      { host: 'localhost', port: 7000 },
-      { host: 'localhost', port: 7001 },
-      { host: 'localhost', port: 7002 },
-      { host: 'localhost', port: 7003 },
-      { host: 'localhost', port: 7004 },
-    ],
-  },
-});
-
 describe('Job', function() {
   let queue: Queue;
   let queueName: string;
@@ -42,16 +30,7 @@ describe('Job', function() {
 
   afterEach(async () => {
     await queue.close();
-    await removeAllQueueData(
-      new IORedis.Cluster([
-        { host: 'localhost', port: 7000 },
-        { host: 'localhost', port: 7001 },
-        { host: 'localhost', port: 7002 },
-        { host: 'localhost', port: 7003 },
-        { host: 'localhost', port: 7004 },
-      ]),
-      queueName,
-    );
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   describe('.create', function() {
