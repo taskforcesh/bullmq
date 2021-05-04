@@ -4,7 +4,6 @@ import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 import { isRedisInstance } from '../utils';
-import { ClusterNode, ClusterOptions } from 'ioredis';
 
 export type RedisClient = IORedis.Redis | IORedis.Cluster;
 
@@ -22,7 +21,7 @@ export class RedisConnection extends EventEmitter {
       this.opts = {
         port: 6379,
         host: '127.0.0.1',
-        retryStrategy: function(times: number) {
+        retryStrategy: function (times: number) {
           return Math.min(Math.exp(times), 20000);
         },
         ...opts,
@@ -43,7 +42,7 @@ export class RedisConnection extends EventEmitter {
    * @param {Redis} redis client
    */
   static async waitUntilReady(client: RedisClient) {
-    return new Promise<void>(function(resolve, reject) {
+    return new Promise<void>(function (resolve, reject) {
       if (client.status === 'ready') {
         resolve();
       } else {
