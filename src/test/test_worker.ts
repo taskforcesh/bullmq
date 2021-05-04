@@ -211,7 +211,7 @@ describe('workers', function() {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
 
-      return new Promise((resolve, reject) => {
+      return new Promise(resolve => {
         worker.on('failed', async jobId => {
           await queue
             .getJob(jobId)
@@ -246,7 +246,7 @@ describe('workers', function() {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
 
-      return new Promise((resolve, reject) => {
+      return new Promise(resolve => {
         worker.on('failed', async jobId => {
           const job = await newQueue.getJob(jobId);
           expect(job).to.be.equal(undefined);
@@ -544,7 +544,7 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise(async (resolve, reject) => {
+    await new Promise((resolve, reject) => {
       worker.on('completed', async (job, data) => {
         try {
           expect(job).to.be.ok;
@@ -570,8 +570,8 @@ describe('workers', function() {
     });
     await worker.waitUntilReady();
 
-    const waiting = new Promise(async (resolve, reject) => {
-      queueEvents.on('completed', async (data /*, data*/) => {
+    const waiting = new Promise((resolve, reject) => {
+      queueEvents.on('completed', async data => {
         try {
           expect(data).to.be.ok;
           expect(data.returnvalue).to.be.equal(testString);
@@ -603,7 +603,7 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise(async (resolve, reject) => {
+    await new Promise((resolve, reject) => {
       worker.on('completed', async (job, data) => {
         try {
           expect(job).to.be.ok;
@@ -638,7 +638,7 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise(async resolve => {
+    await new Promise(resolve => {
       worker.on('completed', (job, data) => {
         expect(job).to.be.ok;
         expect(data).to.be.eql('my data');
@@ -1716,29 +1716,25 @@ describe('workers', function() {
       // make sure worker is in drained state
       await worker.getNextJob(token);
 
-      const [
-        job
-      ] = await Promise.all([
+      const [job] = await Promise.all([
         worker.getNextJob(token) as Promise<Job>,
-        delay(100).then(() => queue.add('test', { foo: 'bar' }))
+        delay(100).then(() => queue.add('test', { foo: 'bar' })),
       ]);
       expect(job).not.to.be.equal(undefined);
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
     });
 
-    it('shouldn\'t block when disabled', async () => {
+    it("shouldn't block when disabled", async () => {
       const worker = new Worker(queueName);
       const token = 'my-token';
 
       // make sure worker is in drained state
       await worker.getNextJob(token, { block: false });
 
-      const [
-        job1
-      ] = await Promise.all([
+      const [job1] = await Promise.all([
         worker.getNextJob(token, { block: false }) as Promise<Job>,
-        delay(100).then(() => queue.add('test', { foo: 'bar' }))
+        delay(100).then(() => queue.add('test', { foo: 'bar' })),
       ]);
       expect(job1).to.be.equal(undefined);
 
@@ -1747,13 +1743,13 @@ describe('workers', function() {
       expect(isActive).to.be.equal(true);
     });
 
-    it('shouldn\'t block when disabled and paused', async () => {
+    it("shouldn't block when disabled and paused", async () => {
       const worker = new Worker(queueName);
       const token = 'my-token';
 
       // make sure worker is in drained state
       await worker.getNextJob(token, { block: false });
-      await queue.add('test', { foo: 'bar' })
+      await queue.add('test', { foo: 'bar' });
 
       worker.pause();
 
