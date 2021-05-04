@@ -229,6 +229,7 @@ describe('flows', () => {
 
     const parentQueueName = 'parent-queue';
 
+    // val
     let childrenProcessor;
     const processingChildren = new Promise<void>(resolve => [
       (childrenProcessor = async (job: Job) => {
@@ -410,7 +411,9 @@ describe('flows', () => {
 
       try {
         await tree.job.remove();
-      } catch (err) {}
+      } catch (err) {
+        return;
+      }
 
       expect(await tree.job.getState()).to.be.equal('waiting-children');
       expect(await tree.children[0].job.getState()).to.be.equal('active');

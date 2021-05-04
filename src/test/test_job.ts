@@ -219,21 +219,21 @@ describe('Job', function() {
         { idx: 1, baz: 'something' },
       ];
       const token = 'my-token';
-  
+
       const parentQueueName = 'parent-queue';
-      
+
       const parentQueue = new Queue(parentQueueName);
-  
+
       const parentWorker = new Worker(parentQueueName);
       const childrenWorker = new Worker(queueName);
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
-  
+
       const data = { foo: 'bar' };
       const parent = await Job.create(parentQueue, 'testParent', data);
       const parentKey = getParentKey({
         id: parent.id,
-        queue: 'bull:' + parentQueueName
+        queue: 'bull:' + parentQueueName,
       });
       const client = await queue.client;
       const child1 = new Job(queue, 'testJob1', values[0]);
@@ -256,12 +256,14 @@ describe('Job', function() {
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
 
-      await expect(job.moveToCompleted('return value', token)).to.be.rejectedWith(`Job ${job.id} has pending dependencies finished`);
+      await expect(
+        job.moveToCompleted('return value', token),
+      ).to.be.rejectedWith(`Job ${job.id} has pending dependencies finished`);
 
       const isCompleted = await job.isCompleted();
 
       expect(isCompleted).to.be.false;
-  
+
       await childrenWorker.close();
       await parentWorker.close();
       await parentQueue.close();
@@ -456,7 +458,9 @@ describe('Job', function() {
       try {
         await job.promote();
         throw new Error('Job should not be promoted!');
-      } catch (err) {}
+      } catch (err) {
+        return;
+      }
     });
 
     it('should promote delayed job to the right queue if queue is paused', async () => {
