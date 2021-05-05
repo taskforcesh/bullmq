@@ -7,15 +7,17 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: 'drained', listener: (id: string) => void): this;
+on(event: 'removed', listener: (args: {
+        jobId: string;
+    }, id: string) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'drained' |  |
-|  listener | (id: string) =&gt; void |  |
+|  event | 'removed' |  |
+|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

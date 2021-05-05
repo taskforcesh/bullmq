@@ -7,10 +7,8 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: 'completed', listener: (args: {
+on(event: 'stalled', listener: (args: {
         jobId: string;
-        returnvalue: string;
-        prev?: string;
     }, id: string) => void): this;
 ```
 
@@ -18,8 +16,8 @@ on(event: 'completed', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'completed' |  |
-|  listener | (args: { jobId: string; returnvalue: string; prev?: string; }, id: string) =&gt; void |  |
+|  event | 'stalled' |  |
+|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 
