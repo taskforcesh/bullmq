@@ -32,8 +32,23 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   return standard.concat(convertedArgs);
 };
 
+const exitCodesErrors: { [index: number]: string } = {
+  1: 'Uncaught Fatal Exception',
+  2: 'Unused',
+  3: 'Internal JavaScript Parse Error',
+  4: 'Internal JavaScript Evaluation Failure',
+  5: 'Fatal Error',
+  6: 'Non-function Internal Exception Handler',
+  7: 'Internal Exception Handler Run-Time Failure',
+  8: 'Unused',
+  9: 'Invalid Argument',
+  10: 'Internal JavaScript Run-Time Failure',
+  12: 'Invalid Debug Argument',
+  13: 'Unfinished Top-Level Await',
+};
+
 async function initChild(child: ChildProcess, processFile: string) {
-  const onComplete = new Promise<void>(resolve => {
+  const onComplete = new Promise<void>((resolve, reject) => {
     const onMessageHandler = (msg: any) => {
       if (msg.cmd === 'init-complete') {
         resolve();
@@ -41,6 +56,15 @@ async function initChild(child: ChildProcess, processFile: string) {
       }
     };
     child.on('message', onMessageHandler);
+    child.on('close', (code, signal) => {
+      if (code > 128) {
+        code -= 128;
+      }
+      const msg = exitCodesErrors[code] || `Unknown exit code ${code}`;
+      reject(
+        new Error(`Error initializing child: ${msg} and signal ${signal}`),
+      );
+    });
   });
   await new Promise(resolve =>
     child.send({ cmd: 'init', value: processFile }, resolve),
@@ -51,8 +75,6 @@ async function initChild(child: ChildProcess, processFile: string) {
 export class ChildPool {
   retained: { [key: number]: ChildProcessExt } = {};
   free: { [key: string]: ChildProcessExt[] } = {};
-
-  constructor() {}
 
   async retain(processFile: string): Promise<ChildProcessExt> {
     const _this = this;
@@ -69,11 +91,8 @@ export class ChildPool {
     try {
       await stat(masterFile); // would throw if file not exists
     } catch (_) {
-      try {
-        masterFile = path.join(process.cwd(), 'dist/classes/master.js');
-        await stat(masterFile);
-      } finally {
-      }
+      masterFile = path.join(process.cwd(), 'dist/classes/master.js');
+      await stat(masterFile);
     }
 
     child = fork(masterFile, [], { execArgv });
