@@ -95,12 +95,16 @@ export class ChildPool {
       await stat(masterFile);
     }
 
-    child = fork(masterFile, [], { execArgv });
+    child = fork(masterFile, [], { execArgv, stdio: 'pipe' });
     child.processFile = processFile;
 
     _this.retained[child.pid] = child;
 
     child.on('exit', _this.remove.bind(_this, child));
+
+    child.stdout.on('data', function(data) {
+      console.log(data.toString());
+    });
 
     await initChild(child, child.processFile);
     return child;
