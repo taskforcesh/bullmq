@@ -5,6 +5,10 @@ import { StreamReadRaw } from '../interfaces/redis-streams';
 
 export declare interface QueueEvents {
   on(
+    event: 'active',
+    listener: (args: { jobId: string }, prev?: string) => void,
+  ): this;
+  on(
     event: 'waiting',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
