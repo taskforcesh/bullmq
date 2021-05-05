@@ -298,7 +298,7 @@ describe('sandboxed process', () => {
     );
   });
 
-  it.only('should fail if the process file is broken', async () => {
+  it('should fail if the process file is broken', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_broken.js';
 
     new Worker(queueName, processFile, {
