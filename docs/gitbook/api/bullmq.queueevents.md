@@ -15,6 +15,7 @@ export declare interface QueueEvents
 |  Method | Description |
 |  --- | --- |
 |  [on(event, listener)](./bullmq.queueevents.on.md) |  |
+|  [on(event, listener)](./bullmq.queueevents.on_9.md) |  |
 |  [on(event, listener)](./bullmq.queueevents.on_1.md) |  |
 |  [on(event, listener)](./bullmq.queueevents.on_2.md) |  |
 |  [on(event, listener)](./bullmq.queueevents.on_3.md) |  |
