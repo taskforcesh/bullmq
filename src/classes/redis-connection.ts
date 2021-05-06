@@ -5,27 +5,29 @@ import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 import { isRedisInstance } from '../utils';
 
+export type RedisClient = IORedis.Redis | IORedis.Cluster;
+
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
-  private _client: IORedis.Redis;
-  private initializing: Promise<IORedis.Redis>;
+  private _client: RedisClient;
+  private initializing: Promise<RedisClient>;
   private closing: boolean;
   private version: string;
 
-  constructor(private opts?: ConnectionOptions) {
+  constructor(private readonly opts?: ConnectionOptions) {
     super();
 
     if (!isRedisInstance(opts)) {
       this.opts = {
         port: 6379,
         host: '127.0.0.1',
-        retryStrategy: function(times: number) {
+        retryStrategy: function (times: number) {
           return Math.min(Math.exp(times), 20000);
         },
         ...opts,
       };
     } else {
-      this._client = <IORedis.Redis>opts;
+      this._client = <RedisClient>opts;
     }
 
     this.initializing = this.init();
@@ -39,8 +41,8 @@ export class RedisConnection extends EventEmitter {
    * Waits for a redis client to be ready.
    * @param {Redis} redis client
    */
-  static async waitUntilReady(client: IORedis.Redis) {
-    return new Promise<void>(function(resolve, reject) {
+  static async waitUntilReady(client: RedisClient) {
+    return new Promise<void>(function (resolve, reject) {
       if (client.status === 'ready') {
         resolve();
       } else {
@@ -62,7 +64,7 @@ export class RedisConnection extends EventEmitter {
     });
   }
 
-  get client(): Promise<IORedis.Redis> {
+  get client(): Promise<RedisClient> {
     return this.initializing;
   }
 

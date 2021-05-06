@@ -1,4 +1,4 @@
-import { Redis, Pipeline } from 'ioredis';
+import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
@@ -8,6 +8,7 @@ import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 import { fromPairs } from 'lodash';
+import { RedisClient } from './redis-connection';
 
 const logger = debuglog('bull');
 
@@ -125,7 +126,7 @@ export class Job<T = any, R = any, N extends string = string> {
     const multi = client.multi();
 
     for (const job of jobInstances) {
-      job.addJob(<Redis>(multi as unknown), {
+      job.addJob(<RedisClient>(multi as unknown), {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -563,7 +564,7 @@ export class Job<T = any, R = any, N extends string = string> {
     return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
   }
 
-  addJob(client: Redis, parentOpts?: ParentOpts): string {
+  addJob(client: RedisClient, parentOpts?: ParentOpts): string {
     const queue = this.queue;
 
     const jobData = this.asJSON();

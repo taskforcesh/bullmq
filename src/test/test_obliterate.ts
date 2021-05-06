@@ -10,14 +10,14 @@ describe('Obliterate', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  beforeEach(async function() {
+  beforeEach(async function () {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function() {
+  afterEach(async function () {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);

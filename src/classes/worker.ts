@@ -119,7 +119,8 @@ export class Worker<
 
     // IDEA, How to store metadata associated to a worker.
     // create a key from the worker ID associated to the given name.
-    // We keep a hash table bull:myqueue:workers where every worker is a hash key workername:workerId with json holding
+    // We keep a hash table bull:myqueue:workers where
+    // every worker is a hash key workername:workerId with json holding
     // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
     //
     try {
@@ -362,7 +363,7 @@ export class Worker<
   async pause(doNotWaitActive?: boolean) {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
-        this.resumeWorker = function() {
+        this.resumeWorker = function () {
           resolve();
           this.paused = null; // Allow pause to be checked externally for paused state.
           this.resumeWorker = null;

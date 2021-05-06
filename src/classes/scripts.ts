@@ -5,7 +5,6 @@
 /*eslint-env node */
 'use strict';
 
-import { Redis } from 'ioredis';
 import * as semver from 'semver';
 import {
   JobsOptions,
@@ -17,6 +16,7 @@ import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
 import { Job, JobJson, JobJsonRaw } from './job';
+import { RedisClient } from './redis-connection';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -55,7 +55,7 @@ export class Scripts {
   }
 
   static addJob(
-    client: Redis,
+    client: RedisClient,
     queue: MinimalQueue,
     job: JobJson,
     opts: JobsOptions,
