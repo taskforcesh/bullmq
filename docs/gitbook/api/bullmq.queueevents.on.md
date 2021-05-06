@@ -7,17 +7,17 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: 'waiting', listener: (args: {
+on(event: 'active', listener: (args: {
         jobId: string;
-    }, id: string) => void): this;
+    }, prev?: string) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'waiting' |  |
-|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
+|  event | 'active' |  |
+|  listener | (args: { jobId: string; }, prev?: string) =&gt; void |  |
 
 <b>Returns:</b>
 

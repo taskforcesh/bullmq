@@ -108,17 +108,22 @@ describe('events', function() {
 
     let state: string;
     await delay(50); // additional delay since XREAD from '$' is unstable
-    queueEvents.on('waiting', function() {
+    queueEvents.on('waiting', function({ jobId }) {
+      expect(jobId).to.be.equal('1');
       expect(state).to.be.undefined;
       state = 'waiting';
     });
-    queueEvents.once('active', function() {
+    queueEvents.once('active', function({ jobId, prev }) {
+      expect(jobId).to.be.equal('1');
+      expect(prev).to.be.equal('waiting');
       expect(state).to.be.equal('waiting');
       state = 'active';
     });
 
     const completed = new Promise(resolve => {
-      queueEvents.once('completed', async function() {
+      queueEvents.once('completed', async function({ jobId, returnvalue }) {
+        expect(jobId).to.be.equal('1');
+        expect(returnvalue).to.be.null;
         expect(state).to.be.equal('active');
         resolve();
       });

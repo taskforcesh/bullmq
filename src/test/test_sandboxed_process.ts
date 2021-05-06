@@ -298,6 +298,20 @@ describe('sandboxed process', () => {
     );
   });
 
+  it('should fail if the process file is broken', async () => {
+    const processFile = __dirname + '/fixtures/fixture_processor_broken.js';
+
+    new Worker(queueName, processFile, {
+      drainDelay: 1,
+    });
+
+    const job = await queue.add('test', { exitCode: 1 });
+
+    await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+      'Error initializing child: Internal Exception Handler Run-Time Failure',
+    );
+  });
+
   it('should remove exited process', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_exit.js';
 
