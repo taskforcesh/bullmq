@@ -1,11 +1,12 @@
 import { EventEmitter } from 'events';
 import * as IORedis from 'ioredis';
+import { Cluster, Redis } from 'ioredis';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 import { isRedisInstance } from '../utils';
 
-export type RedisClient = IORedis.Redis | IORedis.Cluster;
+export type RedisClient = Redis | Cluster;
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -21,7 +22,7 @@ export class RedisConnection extends EventEmitter {
       this.opts = {
         port: 6379,
         host: '127.0.0.1',
-        retryStrategy: function (times: number) {
+        retryStrategy: function(times: number) {
           return Math.min(Math.exp(times), 20000);
         },
         ...opts,
@@ -42,21 +43,21 @@ export class RedisConnection extends EventEmitter {
    * @param {Redis} redis client
    */
   static async waitUntilReady(client: RedisClient) {
-    return new Promise<void>(function (resolve, reject) {
+    return new Promise<void>(function(resolve, reject) {
       if (client.status === 'ready') {
         resolve();
       } else {
-        async function handleReady() {
-          client.removeListener('error', handleError);
-          resolve();
-        }
-
-        function handleError(err: NodeJS.ErrnoException) {
+        const handleError = function(err: NodeJS.ErrnoException) {
           if (err['code'] !== 'ECONNREFUSED') {
             client.removeListener('ready', handleReady);
             reject(err);
           }
-        }
+        };
+
+        const handleReady = async function() {
+          client.removeListener('error', handleError);
+          resolve();
+        };
 
         client.once('ready', handleReady);
         client.once('error', handleError);
