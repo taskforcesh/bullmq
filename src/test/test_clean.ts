@@ -11,14 +11,14 @@ describe('Cleaner', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  beforeEach(async function() {
+  beforeEach(async function () {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function() {
+  afterEach(async function () {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
@@ -133,7 +133,7 @@ describe('Cleaner', () => {
     await queue.add('test', { some: 'data' });
 
     await delay(100);
-    await client.hdel(`{bull}:${queueName}:1`, 'timestamp');
+    await client.hdel(`bull:${queueName}:1`, 'timestamp');
     const jobs = await queue.clean(0, 0, 'failed');
     expect(jobs.length).to.be.eql(2);
     const failed = await queue.getFailed();

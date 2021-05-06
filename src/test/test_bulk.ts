@@ -9,12 +9,12 @@ describe('bulk jobs', () => {
   let queue: Queue;
   let queueName: string;
 
-  beforeEach(async function() {
+  beforeEach(async function () {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
   });
 
-  afterEach(async function() {
+  afterEach(async function () {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
   });
@@ -69,7 +69,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id,
-            queue: `{bull}:${parentQueueName}`,
+            queue: `bull:${parentQueueName}`,
           },
         },
       },
@@ -79,7 +79,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id,
-            queue: `{bull}:${parentQueueName}`,
+            queue: `bull:${parentQueueName}`,
           },
         },
       },

@@ -537,7 +537,7 @@ export class Queue3<T = any> extends EventEmitter {
   }
 
   /**
-   * Returns Queue name with keyPrefix (default: '{bull}')
+   * Returns Queue name with keyPrefix (default: 'bull')
    */
   clientName(): string {
     return (this.queue as any).clientName();

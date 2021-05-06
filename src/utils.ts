@@ -46,7 +46,7 @@ export function isRedisInstance(obj: any): boolean {
 export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
-  prefix = '{bull}',
+  prefix = 'bull',
 ) {
   if (client instanceof Cluster) {
     // todo compat with cluster ?
