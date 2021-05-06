@@ -456,7 +456,9 @@ export class Job<T = any, R = any, N extends string = string> {
         timeout = setTimeout(
           () =>
             onFailed(
+              /* eslint-disable max-len */
               `Job wait ${this.name} timed out before finishing, no finish notification arrived after ${ttl}ms (id=${jobId})`,
+              /* eslint-enable max-len */
             ),
           ttl,
         );

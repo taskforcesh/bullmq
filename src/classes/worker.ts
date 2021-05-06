@@ -5,7 +5,7 @@ import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
 import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
-import { RedisConnection } from './redis-connection';
+import { RedisConnection, RedisClient } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import { v4 } from 'uuid';
@@ -91,7 +91,7 @@ export class Worker<
     this.on('error', err => console.error(err));
   }
 
-  async waitUntilReady() {
+  async waitUntilReady(): Promise<RedisClient> {
     await super.waitUntilReady();
     return this.blockingConnection.client;
   }
@@ -363,7 +363,7 @@ export class Worker<
   async pause(doNotWaitActive?: boolean) {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
-        this.resumeWorker = function () {
+        this.resumeWorker = function() {
           resolve();
           this.paused = null; // Allow pause to be checked externally for paused state.
           this.resumeWorker = null;
