@@ -21,7 +21,7 @@ export declare class QueueBase extends EventEmitter
 
 |  Property | Modifiers | Type | Description |
 |  --- | --- | --- | --- |
-|  [client](./bullmq.queuebase.client.md) |  | Promise&lt;IORedis.Redis&gt; |  |
+|  [client](./bullmq.queuebase.client.md) |  | Promise&lt;[RedisClient](./bullmq.redisclient.md)<!-- -->&gt; |  |
 |  [closing](./bullmq.queuebase.closing.md) |  | Promise&lt;void&gt; |  |
 |  [connection](./bullmq.queuebase.connection.md) |  | [RedisConnection](./bullmq.redisconnection.md) |  |
 |  [keys](./bullmq.queuebase.keys.md) |  | KeysMap |  |

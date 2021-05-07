@@ -21,7 +21,7 @@ export declare class RedisConnection extends EventEmitter
 
 |  Property | Modifiers | Type | Description |
 |  --- | --- | --- | --- |
-|  [client](./bullmq.redisconnection.client.md) |  | Promise&lt;IORedis.Redis&gt; |  |
+|  [client](./bullmq.redisconnection.client.md) |  | Promise&lt;[RedisClient](./bullmq.redisclient.md)<!-- -->&gt; |  |
 |  [minimumVersion](./bullmq.redisconnection.minimumversion.md) | <code>static</code> | string |  |
 |  [redisVersion](./bullmq.redisconnection.redisversion.md) |  | string |  |
 
