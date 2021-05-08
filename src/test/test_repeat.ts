@@ -274,7 +274,7 @@ describe.only('repeat', function() {
     await worker.close();
   });
 
-  it.only('should repeat every 2 seconds and start immediately', async function() {
+  it('should repeat every 2 seconds and start immediately', async function() {
     this.timeout(2000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();

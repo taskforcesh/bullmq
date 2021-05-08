@@ -47,6 +47,7 @@ export class Repeat extends QueueBase {
           repeatJobKey,
         ));
       }
+      const { immediately, ...filteredRepeatOpts } = repeatOpts;
 
       // The job could have been deleted since this check
       if (repeatableExists) {
@@ -54,7 +55,7 @@ export class Repeat extends QueueBase {
           name,
           nextMillis,
           repeatJobKey,
-          { ...opts, repeat: { ...repeatOpts, immediately: false } },
+          { ...opts, repeat: { ...filteredRepeatOpts } },
           data,
           currentCount,
         );
@@ -215,7 +216,6 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
   }
 
   if (opts.every) {
-    console.log('immediately', opts.immediately);
     return (
       Math.floor(millis / opts.every) * opts.every +
       (opts.immediately ? 0 : opts.every)
