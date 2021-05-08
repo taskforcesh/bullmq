@@ -1,7 +1,6 @@
 import { EventEmitter } from 'events';
 import { QueueBaseOptions } from '../interfaces';
-import { RedisConnection } from './redis-connection';
-import * as IORedis from 'ioredis';
+import { RedisClient, RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 
 export class QueueBase extends EventEmitter {
@@ -30,7 +29,7 @@ export class QueueBase extends EventEmitter {
     this.toKey = (type: string) => queueKeys.toKey(name, type);
   }
 
-  get client(): Promise<IORedis.Redis> {
+  get client(): Promise<RedisClient> {
     return this.connection.client;
   }
 

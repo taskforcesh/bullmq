@@ -9,14 +9,14 @@ Waits for a redis client to be ready.
 <b>Signature:</b>
 
 ```typescript
-static waitUntilReady(client: IORedis.Redis): Promise<void>;
+static waitUntilReady(client: RedisClient): Promise<void>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  client | IORedis.Redis |  |
+|  client | [RedisClient](./bullmq.redisclient.md) |  |
 
 <b>Returns:</b>
 

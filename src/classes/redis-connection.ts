@@ -1,18 +1,21 @@
 import { EventEmitter } from 'events';
 import * as IORedis from 'ioredis';
+import { Cluster, Redis } from 'ioredis';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 import { isRedisInstance } from '../utils';
 
+export type RedisClient = Redis | Cluster;
+
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
-  private _client: IORedis.Redis;
-  private initializing: Promise<IORedis.Redis>;
+  private _client: RedisClient;
+  private initializing: Promise<RedisClient>;
   private closing: boolean;
   private version: string;
 
-  constructor(private opts?: ConnectionOptions) {
+  constructor(private readonly opts?: ConnectionOptions) {
     super();
 
     if (!isRedisInstance(opts)) {
@@ -25,7 +28,7 @@ export class RedisConnection extends EventEmitter {
         ...opts,
       };
     } else {
-      this._client = <IORedis.Redis>opts;
+      this._client = <RedisClient>opts;
     }
 
     this.initializing = this.init();
@@ -39,22 +42,22 @@ export class RedisConnection extends EventEmitter {
    * Waits for a redis client to be ready.
    * @param {Redis} redis client
    */
-  static async waitUntilReady(client: IORedis.Redis) {
+  static async waitUntilReady(client: RedisClient) {
     return new Promise<void>(function(resolve, reject) {
       if (client.status === 'ready') {
         resolve();
       } else {
-        async function handleReady() {
-          client.removeListener('error', handleError);
-          resolve();
-        }
-
-        function handleError(err: NodeJS.ErrnoException) {
+        const handleError = function(err: NodeJS.ErrnoException) {
           if (err['code'] !== 'ECONNREFUSED') {
             client.removeListener('ready', handleReady);
             reject(err);
           }
-        }
+        };
+
+        const handleReady = async function() {
+          client.removeListener('error', handleError);
+          resolve();
+        };
 
         client.once('ready', handleReady);
         client.once('error', handleError);
@@ -62,7 +65,7 @@ export class RedisConnection extends EventEmitter {
     });
   }
 
-  get client(): Promise<IORedis.Redis> {
+  get client(): Promise<RedisClient> {
     return this.initializing;
   }
 

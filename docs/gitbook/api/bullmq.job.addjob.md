@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-addJob(client: Redis, parentOpts?: ParentOpts): string;
+addJob(client: RedisClient, parentOpts?: ParentOpts): string;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  client | Redis |  |
+|  client | [RedisClient](./bullmq.redisclient.md) |  |
 |  parentOpts | [ParentOpts](./bullmq.parentopts.md) |  |
 
 <b>Returns:</b>
