@@ -45,18 +45,48 @@ export interface JobJsonRaw {
 }
 
 export class Job<T = any, R = any, N extends string = string> {
+  /**
+   * The progress a job has performed so far.
+   */
   progress: number | object = 0;
+
+  /**
+   * The value returned by the processor when processing this job.
+   */
   returnvalue: R = null;
+
+  /**
+   * Stacktrace for the error (for failed jobs).
+   */
   stacktrace: string[] = null;
+
+  /**
+   * Timestamp when the job was created (unless overrided with job options).
+   */
   timestamp: number;
 
+  /**
+   * Number of attempts after the job has failed.
+   */
   attemptsMade = 0;
+
+  /**
+   * Reason for failing.
+   */
   failedReason: string;
+
+  /**
+   * Timestamp for when the job finished (completed or failed).
+   */
   finishedOn?: number;
+
+  /**
+   * Timestamp for when the job was processed.
+   */
   processedOn?: number;
 
   /**
-   * Fully qualified key pointing to the parent of this job.
+   * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
   parentKey?: string;
 
