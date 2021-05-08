@@ -54,7 +54,7 @@ export class Repeat extends QueueBase {
           name,
           nextMillis,
           repeatJobKey,
-          { ...opts, repeat: repeatOpts },
+          { ...opts, repeat: { ...repeatOpts, immediately: false } },
           data,
           currentCount,
         );
@@ -215,7 +215,11 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
   }
 
   if (opts.every) {
-    return Math.floor(millis / opts.every) * opts.every + opts.every;
+    console.log('immediately', opts.immediately);
+    return (
+      Math.floor(millis / opts.every) * opts.every +
+      (opts.immediately ? 0 : opts.every)
+    );
   }
 
   const currentDate =
@@ -235,7 +239,5 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
 }
 
 function md5(str: string) {
-  return createHash('md5')
-    .update(str)
-    .digest('hex');
+  return createHash('md5').update(str).digest('hex');
 }

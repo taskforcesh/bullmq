@@ -29,7 +29,11 @@ export interface RepeatOptions {
    * (`cron` setting cannot be used together with this setting.)
    */
   every?: number;
-
+  /**
+   * Repeated job should start right now
+   * ( work only with every settings)
+   */
+  immediately?: boolean;
   /**
    * The start value for the repeat iteration count.
    */

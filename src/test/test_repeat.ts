@@ -20,7 +20,7 @@ const MAX_INT = 2147483647;
 
 const NoopProc = async (job: Job) => {};
 
-describe('repeat', function() {
+describe.only('repeat', function() {
   this.timeout(10000);
   let repeat: Repeat;
   let queue: Queue;
@@ -264,6 +264,56 @@ describe('repeat', function() {
         prev = job;
         counter++;
         if (counter == 5) {
+          resolve();
+        }
+      });
+    });
+
+    await completing;
+    await queueScheduler.close();
+    await worker.close();
+  });
+
+  it.only('should repeat every 2 seconds and start immediately', async function() {
+    this.timeout(2000);
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.waitUntilReady();
+
+    const date = new Date('2017-02-07 9:24:00');
+    this.clock.setSystemTime(date);
+    const nextTick = 2 * ONE_SECOND;
+
+    const worker = new Worker(queueName, async () => {});
+
+    await queue.add(
+      'repeat',
+      { foo: 'bar' },
+      {
+        repeat: {
+          every: 2000,
+          immediately: true,
+        },
+      },
+    );
+
+    this.clock.tick(500);
+
+    let prev: Job;
+    let counter = 0;
+
+    const completing = new Promise<void>(resolve => {
+      worker.on('completed', async job => {
+        this.clock.tick(nextTick);
+        if (prev && counter === 1) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(500);
+        } else if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+        }
+        prev = job;
+        counter++;
+        if (counter === 5) {
           resolve();
         }
       });
