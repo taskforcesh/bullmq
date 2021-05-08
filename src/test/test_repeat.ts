@@ -20,7 +20,7 @@ const MAX_INT = 2147483647;
 
 const NoopProc = async (job: Job) => {};
 
-describe.only('repeat', function() {
+describe('repeat', function() {
   this.timeout(10000);
   let repeat: Repeat;
   let queue: Queue;
