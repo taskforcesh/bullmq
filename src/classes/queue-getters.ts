@@ -177,7 +177,7 @@ export class QueueGetters extends QueueBase {
     const multi = client.multi();
 
     const logsKey = this.toKey(jobId + ':logs');
-    multi.lrange(logsKey, -(end + 1), -(start + 1));
+    multi.lrange(logsKey, start, end);
     multi.llen(logsKey);
     return multi.exec().then(result => ({
       logs: result[0][1],
