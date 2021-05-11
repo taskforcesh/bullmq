@@ -112,27 +112,22 @@ export class FlowProducer extends EventEmitter {
 
     const result = await multi.exec();
 
-    const updateJobIds = (
-      jobsTree: JobNode,
-      result: [Error, string][],
-      index: number,
-    ) => {
+    let index = 0;
+    const updateJobIds = (jobTree: JobNode) => {
       // TODO: Can we safely ignore result errors? how could they happen in the
       // first place?
-      jobsTree.job.id = result[index][1];
-      const children = jobsTree.children;
+      jobTree.job.id = result[index][1];
+      index++;
+      const children = jobTree.children;
       if (children) {
         for (let i = 0; i < children.length; i++) {
-          updateJobIds(children[i], result, index + i + 1);
+          updateJobIds(children[i]);
         }
-        return index + children.length + 1;
       }
-      return index + 1;
     };
 
-    let index = 0;
     for (const jobTree of jobsTrees) {
-      index += updateJobIds(jobTree, result, index);
+      updateJobIds(jobTree);
     }
 
     return jobsTrees;
