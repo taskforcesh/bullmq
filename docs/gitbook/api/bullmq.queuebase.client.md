@@ -7,5 +7,5 @@
 <b>Signature:</b>
 
 ```typescript
-get client(): Promise<IORedis.Redis>;
+get client(): Promise<RedisClient>;
 ```

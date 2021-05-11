@@ -43,6 +43,7 @@
 |  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
 |  [FlowJob](./bullmq.flowjob.md) |  |
+|  [GetNextJobOptions](./bullmq.getnextjoboptions.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  [JobNode](./bullmq.jobnode.md) |  |
@@ -75,6 +76,7 @@
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  [ParentOpts](./bullmq.parentopts.md) |  |
 |  [Processor](./bullmq.processor.md) | An async function that receives <code>Job</code>s and handles them. |
+|  [RedisClient](./bullmq.redisclient.md) |  |
 |  [RedisOptions](./bullmq.redisoptions.md) |  |
 |  [SandboxedJobProcessor](./bullmq.sandboxedjobprocessor.md) |  |
 

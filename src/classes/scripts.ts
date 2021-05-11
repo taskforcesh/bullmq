@@ -5,7 +5,6 @@
 /*eslint-env node */
 'use strict';
 
-import { Redis } from 'ioredis';
 import * as semver from 'semver';
 import {
   JobsOptions,
@@ -19,6 +18,7 @@ import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
 import { Job, JobJson, JobJsonRaw } from './job';
 import { getParentKey } from './flow-producer';
+import { RedisClient } from './redis-connection';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -57,7 +57,7 @@ export class Scripts {
   }
 
   static addJob(
-    client: Redis,
+    client: RedisClient,
     queue: MinimalQueue,
     job: JobJson,
     opts: JobsOptions,
@@ -104,7 +104,7 @@ export class Scripts {
   static async pause(queue: MinimalQueue, pause: boolean) {
     const client = await queue.client;
 
-    var src = 'wait',
+    let src = 'wait',
       dst = 'paused';
     if (!pause) {
       src = 'paused';

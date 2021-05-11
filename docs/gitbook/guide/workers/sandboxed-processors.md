@@ -7,9 +7,9 @@ Since these workers run the processor in a different process, they will not resu
 In order to use a sandboxed processor just define the processor in a separate file:
 
 ```typescript
-import { Job } from 'bullmq';
+import { SandboxedJob } from 'bullmq';
 
-module.exports = async (job: Job) => {
+module.exports = async (job: SandboxedJob) => {
     // Do something with job
 };
 ```

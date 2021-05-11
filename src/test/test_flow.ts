@@ -234,7 +234,7 @@ describe('flows', () => {
 
     let childrenProcessor;
     const processingChildren = new Promise<void>(resolve => [
-      (childrenProcessor = async (job: Job) => {
+      (childrenProcessor = async () => {
         resolve();
         throw new Error('failed job');
       }),
@@ -278,7 +278,7 @@ describe('flows', () => {
 
     let childrenProcessor, parentProcessor;
     const processingChildren = new Promise<void>(resolve => [
-      (childrenProcessor = async (job: Job) => {
+      (childrenProcessor = async () => {
         resolve();
       }),
     ]);
@@ -286,7 +286,7 @@ describe('flows', () => {
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
     const processingParent = new Promise<void>(resolve => [
-      (parentProcessor = async (job: Job) => {
+      (parentProcessor = async () => {
         resolve();
       }),
     ]);
@@ -413,7 +413,9 @@ describe('flows', () => {
 
       try {
         await tree.job.remove();
-      } catch (err) {}
+      } catch (err) {
+        return;
+      }
 
       expect(await tree.job.getState()).to.be.equal('waiting-children');
       expect(await tree.children[0].job.getState()).to.be.equal('active');

@@ -1,4 +1,5 @@
-import { Redis } from 'ioredis';
+import { RedisClient } from './classes';
+import { Cluster } from 'ioredis';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -43,10 +44,15 @@ export function isRedisInstance(obj: any): boolean {
 }
 
 export async function removeAllQueueData(
-  client: Redis,
+  client: RedisClient,
   queueName: string,
   prefix = 'bull',
 ) {
+  if (client instanceof Cluster) {
+    // todo compat with cluster ?
+    // @see https://github.com/luin/ioredis/issues/175
+    return Promise.resolve(false);
+  }
   const pattern = `${prefix}:${queueName}:*`;
   return new Promise<void>((resolve, reject) => {
     const stream = client.scanStream({
@@ -63,11 +69,7 @@ export async function removeAllQueueData(
         });
       }
     });
-    stream.on('end', () => {
-      resolve();
-    });
-    stream.on('error', error => {
-      reject(error);
-    });
+    stream.on('end', () => resolve());
+    stream.on('error', error => reject(error));
   });
 }

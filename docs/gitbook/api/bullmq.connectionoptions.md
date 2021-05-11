@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-export declare type ConnectionOptions = RedisOptions | Redis;
+export declare type ConnectionOptions = RedisOptions | Redis | Cluster;
 ```
 <b>References:</b> [RedisOptions](./bullmq.redisoptions.md)
 
