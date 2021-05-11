@@ -97,4 +97,6 @@ export interface JobsOptions {
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;
+
+  sizeLimit?: number;
 }
