@@ -4,6 +4,8 @@
 
 ## Job.failedReason property
 
+Reason for failing.
+
 <b>Signature:</b>
 
 ```typescript

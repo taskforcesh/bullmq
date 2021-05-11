@@ -4,7 +4,7 @@
 
 ## Job.parentKey property
 
-Fully qualified key pointing to the parent of this job.
+Fully qualified key (including the queue prefix) pointing to the parent of this job.
 
 <b>Signature:</b>
 
