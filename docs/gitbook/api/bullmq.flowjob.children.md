@@ -7,5 +7,5 @@
 <b>Signature:</b>
 
 ```typescript
-children?: FlowJob[];
+children?: FlowChildJob[];
 ```

@@ -4,6 +4,8 @@
 
 ## Job.timestamp property
 
+Timestamp when the job was created (unless overrided with job options).
+
 <b>Signature:</b>
 
 ```typescript

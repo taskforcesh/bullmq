@@ -28,5 +28,5 @@ export interface JobsOptions
 |  [repeat?](./bullmq.jobsoptions.repeat.md) | [RepeatOptions](./bullmq.repeatoptions.md) | <i>(Optional)</i> Repeat this job, for example based on a <code>cron</code> schedule. |
 |  [stackTraceLimit?](./bullmq.jobsoptions.stacktracelimit.md) | number | <i>(Optional)</i> Limits the amount of stack trace lines that will be recorded in the stacktrace. |
 |  [timeout?](./bullmq.jobsoptions.timeout.md) | number | <i>(Optional)</i> The number of milliseconds after which the job should be fail with a timeout error. |
-|  [timestamp?](./bullmq.jobsoptions.timestamp.md) | number | <i>(Optional)</i> Defaults to <code>Date.now()</code> |
+|  [timestamp?](./bullmq.jobsoptions.timestamp.md) | number | <i>(Optional)</i> Timestamp when the job was created. Defaults to <code>Date.now()</code>. |
 
