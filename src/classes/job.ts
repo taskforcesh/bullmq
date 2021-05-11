@@ -2,7 +2,7 @@ import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
-import { errorObject, isEmpty, tryCatch } from '../utils';
+import { errorObject, isEmpty, lengthInUtf8Bytes, tryCatch } from '../utils';
 import { getParentKey } from './flow-producer';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
@@ -600,6 +600,16 @@ export class Job<T = any, R = any, N extends string = string> {
     const queue = this.queue;
 
     const jobData = this.asJSON();
+
+    const exceedLimit =
+      this.opts.sizeLimit &&
+      lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
+
+    if (exceedLimit) {
+      throw new Error(
+        `The size of job ${this.name} exceeds the limit ${this.opts.sizeLimit} bytes`,
+      );
+    }
 
     return Scripts.addJob(
       client,
