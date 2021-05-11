@@ -98,5 +98,8 @@ export interface JobsOptions {
    */
   prevMillis?: number;
 
+  /**
+   * Limits the size in bytes of the job's data payload (as a JSON serialized string).
+   */
   sizeLimit?: number;
 }
