@@ -98,7 +98,7 @@ export class FlowProducer extends EventEmitter {
    * however this call would be atomic, either it fails and no jobs will
    * be added to the queues, or it succeeds and all jobs will be added.
    *
-   * @param flows An object with a tree-like structure where children jobs
+   * @param flows An array of objects with a tree-like structure where children jobs
    * will be processed before their parents.
    */
   async addBulk(flows: FlowJob[]) {
