@@ -88,6 +88,57 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
+   * Adds multiple flows.
+   *
+   * A flow is a tree-like structure of jobs that depend on each other.
+   * Whenever the children of a given parent are completed, the parent
+   * will be processed, being able to access the children's result data.
+   *
+   * All Jobs can be in different queues, either children or parents,
+   * however this call would be atomic, either it fails and no jobs will
+   * be added to the queues, or it succeeds and all jobs will be added.
+   *
+   * @param flows An object with a tree-like structure where children jobs
+   * will be processed before their parents.
+   */
+  async addBulk(flows: FlowJob[]) {
+    if (this.closing) {
+      return;
+    }
+    const client = await this.connection.client;
+    const multi = client.multi();
+
+    const jobsTrees = this.addNodes(multi, flows);
+
+    const result = await multi.exec();
+
+    const updateJobIds = (
+      jobsTree: JobNode,
+      result: [Error, string][],
+      index: number,
+    ) => {
+      // TODO: Can we safely ignore result errors? how could they happen in the
+      // first place?
+      jobsTree.job.id = result[index][1];
+      const children = jobsTree.children;
+      if (children) {
+        for (let i = 0; i < children.length; i++) {
+          updateJobIds(children[i], result, index + i + 1);
+        }
+        return index + children.length + 1;
+      }
+      return index + 1;
+    };
+
+    let index = 0;
+    for (const jobTree of jobsTrees) {
+      index += updateJobIds(jobTree, result, index);
+    }
+
+    return jobsTrees;
+  }
+
+  /**
    * Add a node (job) of a flow to the queue. This method will recursively
    * add all its children as well. Note that a given job can potentially be
    * a parent and a child job at the same time depending on where it is located
@@ -118,12 +169,16 @@ export class FlowProducer extends EventEmitter {
       node.data,
       {
         ...node.opts,
-        parent: parent?.parentOpts,
+        parent: parent?.parentOpts ?? node.opts?.parent,
       },
       node.opts?.jobId || parentId,
     );
 
-    const parentKey = getParentKey(parent?.parentOpts);
+    const parentKey = getParentKey(parent?.parentOpts ?? node.opts?.parent);
+    const parentDependenciesKey =
+      parent?.parentDependenciesKey ?? parentKey
+        ? `${parentKey}:dependencies`
+        : undefined;
 
     if (node.children) {
       // Create parent job, will be a job in status "waiting-children".
@@ -134,12 +189,12 @@ export class FlowProducer extends EventEmitter {
       );
 
       job.addJob(<Redis>(multi as unknown), {
-        parentDependenciesKey: parent?.parentDependenciesKey,
+        parentDependenciesKey,
         waitChildrenKey,
         parentKey,
       });
 
-      const parentDependenciesKey = `${queueKeysParent.toKey(
+      const childrenParentDependenciesKey = `${queueKeysParent.toKey(
         node.queueName,
         parentId,
       )}:dependencies`;
@@ -149,18 +204,32 @@ export class FlowProducer extends EventEmitter {
           id: parentId,
           queue: queueKeysParent.getPrefixedQueueName(node.queueName),
         },
-        parentDependenciesKey,
+        parentDependenciesKey: childrenParentDependenciesKey,
       });
 
       return { job, children };
     } else {
       job.addJob(<Redis>(multi as unknown), {
-        parentDependenciesKey: parent?.parentDependenciesKey,
+        parentDependenciesKey,
         parentKey,
       });
 
       return { job };
     }
+  }
+
+  /**
+   * Adds nodes (jobs) of multiple flows to the queue. This method will recursively
+   * add all its children as well. Note that a given job can potentially be
+   * a parent and a child job at the same time depending on where it is located
+   * in the tree hierarchy.
+   *
+   * @param multi ioredis pipeline
+   * @param nodes the nodes representing jobs to be added to some queue
+   * @returns
+   */
+  private addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
+    return nodes.map(node => this.addNode(multi, node));
   }
 
   private addChildren(
