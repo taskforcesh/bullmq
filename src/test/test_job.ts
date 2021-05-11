@@ -64,6 +64,39 @@ describe('Job', function() {
       });
       expect(createdJob.id).to.be.equal(customJobId);
     });
+
+    it('should set default size limit and succeed in creating job', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 20 };
+      const createdJob = await Job.create(queue, 'test', data, opts);
+      expect(createdJob).to.not.be.null;
+      expect(createdJob).to.have.property('opts');
+      expect(createdJob.opts.sizeLimit).to.be.equal(20);
+    });
+
+    it('should set default size limit and fail due to size limit exception', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 12 };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
+    });
+
+    it('should set default size limit with non-ascii data and fail due to size limit exception', async () => {
+      const data = { foo: 'βÅ®' }; // 16 bytes
+      const opts = { sizeLimit: 15 };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
+    });
+
+    it('should set custom job id and default size limit and fail due to size limit exception', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 12, jobId: 'customJobId' };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
+    });
   });
 
   describe('JSON.stringify', () => {

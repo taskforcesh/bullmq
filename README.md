@@ -37,7 +37,7 @@ You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
 [<img src="http://taskforce.sh/assets/logo_square.png" width="200" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
 
-Supercharge your queues with a profesional front end and optional Redis hosting:
+Supercharge your queues with a profesional front end:
 - Get a complete overview of all your queues.
 - Inspect jobs, search, retry, or promote delayed jobs.
 - Metrics and statistics.
