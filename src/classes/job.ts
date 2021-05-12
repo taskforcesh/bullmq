@@ -98,8 +98,6 @@ export class Job<T = any, R = any, N extends string = string> {
    */
   parentKey?: string;
 
-  waitChildren?: boolean;
-
   private toKey: (type: string) => string;
 
   private discarded: boolean;
