@@ -50,7 +50,6 @@ export interface MoveToChildrenOpts {
     id: string;
     queue: string;
   };
-  waitChildren?: boolean;
 }
 
 export class Job<T = any, R = any, N extends string = string> {
@@ -551,20 +550,8 @@ export class Job<T = any, R = any, N extends string = string> {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
   }
 
-  moveToWaitingChildren(
-    token: string,
-    opts: MoveToChildrenOpts = { waitChildren: false },
-  ) {
-    const result = Scripts.moveToWaitingChildren(
-      this.queue,
-      this.id,
-      token,
-      opts,
-    );
-    if (opts.waitChildren) {
-      this.waitChildren = true;
-    }
-    return result;
+  moveToWaitingChildren(token: string, opts: MoveToChildrenOpts) {
+    return Scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
   }
 
   async promote() {

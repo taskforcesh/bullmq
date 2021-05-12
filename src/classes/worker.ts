@@ -331,20 +331,12 @@ export class Worker<
       }
     };
 
-    const handleWaitingChildren = async () => {
-      job.waitChildren = false;
-      this.emit('waiting-children', job, 'active');
-    };
-
     // TODO: how to cancel the processing? (null -> job.cancel() => throw CancelError()void)
     this.emit('active', job, null, 'waiting');
 
     lockExtender();
     try {
       const result = await this.processFn(job, token);
-      if (job.waitChildren) {
-        return await handleWaitingChildren();
-      }
       return await handleCompleted(result);
     } catch (err) {
       return handleFailed(err);
