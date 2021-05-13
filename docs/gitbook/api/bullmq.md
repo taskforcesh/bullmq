@@ -72,6 +72,7 @@
 |  Type Alias | Description |
 |  --- | --- |
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
+|  [BulkJobOptions](./bullmq.bulkjoboptions.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  [ParentOpts](./bullmq.parentopts.md) |  |

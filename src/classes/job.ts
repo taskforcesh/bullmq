@@ -12,6 +12,8 @@ import { RedisClient } from './redis-connection';
 
 const logger = debuglog('bull');
 
+export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
+
 export interface JobJson {
   id: string;
   name: string;
@@ -143,7 +145,7 @@ export class Job<T = any, R = any, N extends string = string> {
     jobs: {
       name: N;
       data: T;
-      opts?: JobsOptions;
+      opts?: BulkJobOptions;
     }[],
   ) {
     const client = await queue.client;
