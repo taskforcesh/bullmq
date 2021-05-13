@@ -10,7 +10,7 @@
 static createBulk<T = any, R = any, N extends string = string>(queue: MinimalQueue, jobs: {
         name: N;
         data: T;
-        opts?: JobsOptions;
+        opts?: BulkJobOptions;
     }[]): Promise<Job<T, R, N>[]>;
 ```
 
@@ -19,7 +19,7 @@ static createBulk<T = any, R = any, N extends string = string>(queue: MinimalQue
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  jobs | { name: N; data: T; opts?: [JobsOptions](./bullmq.jobsoptions.md)<!-- -->; }\[\] |  |
+|  jobs | { name: N; data: T; opts?: [BulkJobOptions](./bullmq.bulkjoboptions.md)<!-- -->; }\[\] |  |
 
 <b>Returns:</b>
 
