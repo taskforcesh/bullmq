@@ -344,6 +344,35 @@ export class Scripts {
     return keys.concat([JSON.stringify(timestamp), jobId]);
   }
 
+  // Note: We have an issue here with jobs using custom job ids
+  static changeDelayArgs(
+    queue: MinimalQueue,
+    jobId: string,
+    timestamp: number,
+  ) {
+    //
+    // Bake in the job id first 12 bits into the timestamp
+    // to guarantee correct execution order of delayed jobs
+    // (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
+    //
+    // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
+    //
+    timestamp = typeof timestamp === 'undefined' ? 0 : timestamp;
+
+    timestamp = +timestamp || 0;
+    timestamp = timestamp < 0 ? 0 : timestamp;
+    if (timestamp > 0) {
+      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
+    }
+
+    const keys = [jobId].map(function(name) {
+      return queue.toKey(name);
+    });
+    keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
+
+    return keys.concat([JSON.stringify(timestamp), jobId]);
+  }
+
   static async moveToDelayed(
     queue: MinimalQueue,
     jobId: string,

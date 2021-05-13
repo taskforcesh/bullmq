@@ -401,6 +401,27 @@ export class Job<T = any, R = any, N extends string = string> {
     }
   }
 
+  async changeDelay(delay: number) {
+    const client = await this.queue.client;
+
+    const queue = this.queue;
+
+    let command: string;
+    const multi = client.multi();
+
+    const args = Scripts.changeDelayArgs(queue, this.id, Date.now() + delay);
+
+    (<any>multi).moveToDelayed(args);
+
+    if (!this.queue.closing) {
+      const results = await multi.exec();
+      const code = results[results.length - 1][1];
+      if (code < 0) {
+        throw Scripts.finishedErrors(code, this.id, command);
+      }
+    }
+  }
+
   isCompleted() {
     return this.isInZSet('completed');
   }
