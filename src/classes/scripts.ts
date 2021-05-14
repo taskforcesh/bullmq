@@ -365,7 +365,7 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = [jobId].map(function(name) {
+    const keys = ['delayed', jobId].map(function(name) {
       return queue.toKey(name);
     });
     keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
