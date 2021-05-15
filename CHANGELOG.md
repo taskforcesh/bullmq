@@ -1,1 +1,1 @@
-docs/gitbook/CHANGELOG.md
+docs/gitbook/changelog.md
