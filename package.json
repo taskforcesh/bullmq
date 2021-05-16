@@ -118,7 +118,7 @@
       [
         "@semantic-release/changelog",
         {
-          "changelogFile": "docs/gitbook/CHANGELOG.md"
+          "changelogFile": "docs/gitbook/changelog.md"
         }
       ],
       [
