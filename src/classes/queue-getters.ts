@@ -128,8 +128,8 @@ export class QueueGetters extends QueueBase {
     this.commandByType(types, false, (key, command) => {
       switch (command) {
         case 'lrange':
+          multiCommands.push('lrange');
           if (asc) {
-            multiCommands.push('lrange');
             multi.lrange(key, -(end + 1), -(start + 1));
           } else {
             multi.lrange(key, start, end);
@@ -172,12 +172,16 @@ export class QueueGetters extends QueueBase {
     return Promise.all(jobIds.map(jobId => Job.fromId(this, jobId)));
   }
 
-  async getJobLogs(jobId: string, start = 0, end = -1) {
+  async getJobLogs(jobId: string, start = 0, end = -1, asc = false) {
     const client = await this.client;
     const multi = client.multi();
 
     const logsKey = this.toKey(jobId + ':logs');
-    multi.lrange(logsKey, start, end);
+    if (asc) {
+      multi.lrange(logsKey, -(end + 1), -(start + 1));
+    } else {
+      multi.lrange(logsKey, start, end);
+    }
     multi.llen(logsKey);
     return multi.exec().then(result => ({
       logs: result[0][1],
