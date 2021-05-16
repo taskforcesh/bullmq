@@ -104,6 +104,48 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
+  it('should process parent when children is an empty array', async () => {
+    const parentQueueName = 'parent-queue';
+
+    let parentProcessor;
+
+    const processingParent = new Promise<void>((resolve, reject) => [
+      (parentProcessor = async () => {
+        try {
+          resolve();
+        } catch (err) {
+          console.error(err);
+          reject(err);
+        }
+      }),
+    ]);
+
+    const parentWorker = new Worker(parentQueueName, parentProcessor);
+
+    const flow = new FlowProducer();
+    const tree = await flow.add({
+      name: 'parent-job',
+      queueName: parentQueueName,
+      data: {},
+      children: [],
+    });
+
+    expect(tree).to.have.property('job');
+    expect(tree).to.not.have.property('children');
+
+    const { job } = tree;
+    const parentState = await job.getState();
+
+    expect(parentState).to.be.eql('active');
+
+    await processingParent;
+    await parentWorker.close();
+
+    await flow.close();
+
+    await removeAllQueueData(new IORedis(), parentQueueName);
+  });
+
   it('should process a chain of jobs', async () => {
     const name = 'child-job';
     const values = [
