@@ -32,16 +32,17 @@ describe('flows', () => {
     let childrenProcessor,
       parentProcessor,
       processedChildren = 0;
-    const processingChildren = new Promise<void>(resolve => [
-      (childrenProcessor = async (job: Job) => {
-        processedChildren++;
+    const processingChildren = new Promise<void>(
+      resolve =>
+        (childrenProcessor = async (job: Job) => {
+          processedChildren++;
 
-        if (processedChildren == values.length) {
-          resolve();
-        }
-        return values[job.data.idx];
-      }),
-    ]);
+          if (processedChildren == values.length) {
+            resolve();
+          }
+          return values[job.data.idx];
+        }),
+    );
 
     const processingParent = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
@@ -109,16 +110,12 @@ describe('flows', () => {
 
     let parentProcessor;
 
-    const processingParent = new Promise<void>((resolve, reject) => [
-      (parentProcessor = async () => {
-        try {
+    const processingParent = new Promise<void>(
+      resolve =>
+        (parentProcessor = () => {
           resolve();
-        } catch (err) {
-          console.error(err);
-          reject(err);
-        }
-      }),
-    ]);
+        }),
+    );
 
     const parentWorker = new Worker(parentQueueName, parentProcessor);
 
@@ -267,12 +264,13 @@ describe('flows', () => {
     const parentQueueName = `parent-queue-${v4()}`;
 
     let childrenProcessor;
-    const processingChildren = new Promise<void>(resolve => [
-      (childrenProcessor = async () => {
-        resolve();
-        throw new Error('failed job');
-      }),
-    ]);
+    const processingChildren = new Promise<void>(
+      resolve =>
+        (childrenProcessor = async () => {
+          resolve();
+          throw new Error('failed job');
+        }),
+    );
 
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
@@ -311,19 +309,21 @@ describe('flows', () => {
     const parentQueueName = `parent-queue-${v4()}`;
 
     let childrenProcessor, parentProcessor;
-    const processingChildren = new Promise<void>(resolve => [
-      (childrenProcessor = async () => {
-        resolve();
-      }),
-    ]);
+    const processingChildren = new Promise<void>(
+      resolve =>
+        (childrenProcessor = async () => {
+          resolve();
+        }),
+    );
 
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
-    const processingParent = new Promise<void>(resolve => [
-      (parentProcessor = async () => {
-        resolve();
-      }),
-    ]);
+    const processingParent = new Promise<void>(
+      resolve =>
+        (parentProcessor = async () => {
+          resolve();
+        }),
+    );
 
     const parentWorker = new Worker(parentQueueName, parentProcessor);
 
