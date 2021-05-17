@@ -20,6 +20,6 @@ export declare class Backoffs
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
-|  [calculate(backoff, attemptsMade, customStrategies, err)](./bullmq.backoffs.calculate.md) | <code>static</code> |  |
+|  [calculate(backoff, attemptsMade, customStrategies, err, job)](./bullmq.backoffs.calculate.md) | <code>static</code> |  |
 |  [normalize(backoff)](./bullmq.backoffs.normalize.md) | <code>static</code> |  |
 
