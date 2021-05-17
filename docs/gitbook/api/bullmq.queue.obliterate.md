@@ -4,6 +4,12 @@
 
 ## Queue.obliterate() method
 
+ obliterate
+
+Completely destroys the queue and all of its contents irreversibly. This method will the \*pause\* the queue and requires that there are no active jobs. It is possible to bypass this requirement, i.e. not having active jobs using the "force" option.
+
+Note: This operation requires to iterate on all the jobs stored in the queue and can be slow for very large queues.
+
 <b>Signature:</b>
 
 ```typescript
