@@ -2,7 +2,7 @@ import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
-import { errorObject, isEmpty, tryCatch } from '../utils';
+import { errorObject, isEmpty, lengthInUtf8Bytes, tryCatch } from '../utils';
 import { getParentKey } from './flow-producer';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
@@ -11,6 +11,8 @@ import { fromPairs } from 'lodash';
 import { RedisClient } from './redis-connection';
 
 const logger = debuglog('bull');
+
+export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
 export interface JobJson {
   id: string;
@@ -45,18 +47,48 @@ export interface JobJsonRaw {
 }
 
 export class Job<T = any, R = any, N extends string = string> {
+  /**
+   * The progress a job has performed so far.
+   */
   progress: number | object = 0;
+
+  /**
+   * The value returned by the processor when processing this job.
+   */
   returnvalue: R = null;
+
+  /**
+   * Stacktrace for the error (for failed jobs).
+   */
   stacktrace: string[] = null;
+
+  /**
+   * Timestamp when the job was created (unless overrided with job options).
+   */
   timestamp: number;
 
+  /**
+   * Number of attempts after the job has failed.
+   */
   attemptsMade = 0;
+
+  /**
+   * Reason for failing.
+   */
   failedReason: string;
+
+  /**
+   * Timestamp for when the job finished (completed or failed).
+   */
   finishedOn?: number;
+
+  /**
+   * Timestamp for when the job was processed.
+   */
   processedOn?: number;
 
   /**
-   * Fully qualified key pointing to the parent of this job.
+   * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
   parentKey?: string;
 
@@ -113,7 +145,7 @@ export class Job<T = any, R = any, N extends string = string> {
     jobs: {
       name: N;
       data: T;
-      opts?: JobsOptions;
+      opts?: BulkJobOptions;
     }[],
   ) {
     const client = await queue.client;
@@ -571,6 +603,16 @@ export class Job<T = any, R = any, N extends string = string> {
     const queue = this.queue;
 
     const jobData = this.asJSON();
+
+    const exceedLimit =
+      this.opts.sizeLimit &&
+      lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
+
+    if (exceedLimit) {
+      throw new Error(
+        `The size of job ${this.name} exceeds the limit ${this.opts.sizeLimit} bytes`,
+      );
+    }
 
     return Scripts.addJob(
       client,

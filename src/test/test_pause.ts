@@ -1,11 +1,10 @@
-import { Job, Queue } from '@src/classes';
-import { QueueEvents, QueueScheduler } from '../classes';
-import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { delay, removeAllQueueData } from '@src/utils';
+import { Job, Queue, QueueEvents, QueueScheduler } from '../classes';
+import { Worker } from '../classes/worker';
+import { delay, removeAllQueueData } from '../utils';
 
 describe('Pause', function() {
   let queue: Queue;

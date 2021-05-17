@@ -3,7 +3,7 @@ import { BackoffOptions } from './backoff-options';
 
 export interface JobsOptions {
   /**
-   * Defaults to `Date.now()`
+   * Timestamp when the job was created. Defaults to `Date.now()`.
    */
   timestamp?: number;
 
@@ -97,4 +97,9 @@ export interface JobsOptions {
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;
+
+  /**
+   * Limits the size in bytes of the job's data payload (as a JSON serialized string).
+   */
+  sizeLimit?: number;
 }

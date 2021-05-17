@@ -27,21 +27,22 @@ describe('flows', () => {
       { qux: 'something' },
     ];
 
-    const parentQueueName = 'parent-queue';
+    const parentQueueName = `parent-queue-${v4()}`;
 
     let childrenProcessor,
       parentProcessor,
       processedChildren = 0;
-    const processingChildren = new Promise<void>(resolve => [
-      (childrenProcessor = async (job: Job) => {
-        processedChildren++;
+    const processingChildren = new Promise<void>(
+      resolve =>
+        (childrenProcessor = async (job: Job) => {
+          processedChildren++;
 
-        if (processedChildren == values.length) {
-          resolve();
-        }
-        return values[job.data.idx];
-      }),
-    ]);
+          if (processedChildren == values.length) {
+            resolve();
+          }
+          return values[job.data.idx];
+        }),
+    );
 
     const processingParent = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
@@ -95,6 +96,39 @@ describe('flows', () => {
 
     await processingChildren;
     await childrenWorker.close();
+
+    await processingParent;
+    await parentWorker.close();
+
+    await flow.close();
+
+    await removeAllQueueData(new IORedis(), parentQueueName);
+  });
+
+  it('should process parent when children is an empty array', async () => {
+    const parentQueueName = `parent-queue-${v4()}`;
+
+    let parentProcessor;
+
+    const processingParent = new Promise<void>(
+      resolve =>
+        (parentProcessor = () => {
+          resolve();
+        }),
+    );
+
+    const parentWorker = new Worker(parentQueueName, parentProcessor);
+
+    const flow = new FlowProducer();
+    const tree = await flow.add({
+      name: 'parent-job',
+      queueName: parentQueueName,
+      data: {},
+      children: [],
+    });
+
+    expect(tree).to.have.property('job');
+    expect(tree).to.not.have.property('children');
 
     await processingParent;
     await parentWorker.close();
@@ -227,15 +261,16 @@ describe('flows', () => {
   it('should not process parent if child fails', async () => {
     const name = 'child-job';
 
-    const parentQueueName = 'parent-queue';
+    const parentQueueName = `parent-queue-${v4()}`;
 
     let childrenProcessor;
-    const processingChildren = new Promise<void>(resolve => [
-      (childrenProcessor = async () => {
-        resolve();
-        throw new Error('failed job');
-      }),
-    ]);
+    const processingChildren = new Promise<void>(
+      resolve =>
+        (childrenProcessor = async () => {
+          resolve();
+          throw new Error('failed job');
+        }),
+    );
 
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
@@ -271,22 +306,24 @@ describe('flows', () => {
 
   it('should not process parent until queue is unpaused', async () => {
     const name = 'child-job';
-    const parentQueueName = 'parent-queue';
+    const parentQueueName = `parent-queue-${v4()}`;
 
     let childrenProcessor, parentProcessor;
-    const processingChildren = new Promise<void>(resolve => [
-      (childrenProcessor = async () => {
-        resolve();
-      }),
-    ]);
+    const processingChildren = new Promise<void>(
+      resolve =>
+        (childrenProcessor = async () => {
+          resolve();
+        }),
+    );
 
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
-    const processingParent = new Promise<void>(resolve => [
-      (parentProcessor = async () => {
-        resolve();
-      }),
-    ]);
+    const processingParent = new Promise<void>(
+      resolve =>
+        (parentProcessor = async () => {
+          resolve();
+        }),
+    );
 
     const parentWorker = new Worker(parentQueueName, parentProcessor);
 
@@ -334,7 +371,7 @@ describe('flows', () => {
 
   describe('remove', () => {
     it('should remove all children when removing a parent', async () => {
-      const parentQueueName = 'parent-queue';
+      const parentQueueName = `parent-queue-${v4()}`;
       const name = 'child-job';
 
       const flow = new FlowProducer();
@@ -386,7 +423,7 @@ describe('flows', () => {
     });
 
     it('should not remove anything if there is a locked job in the tree', async () => {
-      const parentQueueName = 'parent-queue';
+      const parentQueueName = `parent-queue-${v4()}`;
       const name = 'child-job';
 
       const worker = new Worker(queueName);
@@ -424,7 +461,7 @@ describe('flows', () => {
     });
 
     it('should remove from parent dependencies and move parent to wait', async () => {
-      const parentQueueName = 'parent-queue';
+      const parentQueueName = `parent-queue-${v4()}`;
       const name = 'child-job';
 
       const flow = new FlowProducer();
@@ -471,7 +508,7 @@ describe('flows', () => {
     });
 
     it(`should only move parent to wait when all children have been removed`, async () => {
-      const parentQueueName = 'parent-queue';
+      const parentQueueName = `parent-queue-${v4()}`;
       const name = 'child-job';
 
       const flow = new FlowProducer();

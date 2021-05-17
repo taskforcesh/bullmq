@@ -4,7 +4,7 @@
 
 ## JobsOptions.timestamp property
 
-Defaults to `Date.now()`
+Timestamp when the job was created. Defaults to `Date.now()`<!-- -->.
 
 <b>Signature:</b>
 

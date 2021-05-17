@@ -4,6 +4,8 @@
 
 ## Job.finishedOn property
 
+Timestamp for when the job finished (completed or failed).
+
 <b>Signature:</b>
 
 ```typescript

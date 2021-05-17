@@ -4,7 +4,7 @@
 Stalled jobs checks will only work if there is at least one [`QueueScheduler`](../queuescheduler.md) instance configured in the Queue.
 {% endhint %}
 
-When a job is an active state, i.e., it is being processed by a worker, it needs to continuously update the queue to notify that the worker is still working on the job. This mechanism prevents that a worker that crashes or enters an endless loop will keep a job in active state for ever.
+When a job is in an active state, i.e., it is being processed by a worker, it needs to continuously update the queue to notify that the worker is still working on the job. This mechanism prevents a worker that crashes or enters an endless loop from keeping a job in an active state for ever.
 
 When a worker is not able to notify the queue that it is still working on a given job, that job is moved back to the waiting list, or to the failed set. We then say that the job has stalled and the queue will emit the 'stalled' event.
 
