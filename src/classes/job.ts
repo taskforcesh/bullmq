@@ -2,7 +2,7 @@ import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
-import { errorObject, isEmpty, tryCatch } from '../utils';
+import { errorObject, isEmpty, lengthInUtf8Bytes, tryCatch } from '../utils';
 import { getParentKey } from './flow-producer';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
@@ -11,6 +11,8 @@ import { fromPairs } from 'lodash';
 import { RedisClient } from './redis-connection';
 
 const logger = debuglog('bull');
+
+export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
 export interface JobJson {
   id: string;
@@ -143,7 +145,7 @@ export class Job<T = any, R = any, N extends string = string> {
     jobs: {
       name: N;
       data: T;
-      opts?: JobsOptions;
+      opts?: BulkJobOptions;
     }[],
   ) {
     const client = await queue.client;
@@ -355,6 +357,7 @@ export class Job<T = any, R = any, N extends string = string> {
         this.attemptsMade,
         opts.settings && opts.settings.backoffStrategies,
         err,
+        this,
       );
 
       if (delay === -1) {
@@ -600,6 +603,16 @@ export class Job<T = any, R = any, N extends string = string> {
     const queue = this.queue;
 
     const jobData = this.asJSON();
+
+    const exceedLimit =
+      this.opts.sizeLimit &&
+      lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
+
+    if (exceedLimit) {
+      throw new Error(
+        `The size of job ${this.name} exceeds the limit ${this.opts.sizeLimit} bytes`,
+      );
+    }
 
     return Scripts.addJob(
       client,

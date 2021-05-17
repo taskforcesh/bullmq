@@ -4,6 +4,8 @@
 
 ## Job.progress property
 
+The progress a job has performed so far.
+
 <b>Signature:</b>
 
 ```typescript

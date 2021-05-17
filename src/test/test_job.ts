@@ -19,11 +19,11 @@ const sinon = require('sinon');
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
-describe('Job', function () {
+describe('Job', function() {
   let queue: Queue;
   let queueName: string;
 
-  beforeEach(async function () {
+  beforeEach(async function() {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
   });
@@ -33,13 +33,13 @@ describe('Job', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  describe('.create', function () {
+  describe('.create', function() {
     const timestamp = 1234567890;
     let job: Job;
     let data: any;
     let opts: JobsOptions;
 
-    beforeEach(async function () {
+    beforeEach(async function() {
       data = { foo: 'bar' };
       opts = { timestamp };
 
@@ -47,7 +47,7 @@ describe('Job', function () {
       job = createdJob;
     });
 
-    it('saves the job in redis', async function () {
+    it('saves the job in redis', async function() {
       const storedJob = await Job.fromId(queue, job.id);
       expect(storedJob).to.have.property('id');
       expect(storedJob).to.have.property('data');
@@ -57,12 +57,45 @@ describe('Job', function () {
       expect(storedJob.opts.timestamp).to.be.equal(timestamp);
     });
 
-    it('should use the custom jobId if one is provided', async function () {
+    it('should use the custom jobId if one is provided', async function() {
       const customJobId = 'customjob';
       const createdJob = await Job.create(queue, 'test', data, {
         jobId: customJobId,
       });
       expect(createdJob.id).to.be.equal(customJobId);
+    });
+
+    it('should set default size limit and succeed in creating job', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 20 };
+      const createdJob = await Job.create(queue, 'test', data, opts);
+      expect(createdJob).to.not.be.null;
+      expect(createdJob).to.have.property('opts');
+      expect(createdJob.opts.sizeLimit).to.be.equal(20);
+    });
+
+    it('should set default size limit and fail due to size limit exception', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 12 };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
+    });
+
+    it('should set default size limit with non-ascii data and fail due to size limit exception', async () => {
+      const data = { foo: 'βÅ®' }; // 16 bytes
+      const opts = { sizeLimit: 15 };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
+    });
+
+    it('should set custom job id and default size limit and fail due to size limit exception', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 12, jobId: 'customJobId' };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
     });
   });
 
@@ -118,8 +151,8 @@ describe('Job', function () {
     });
   });
 
-  describe('.update', function () {
-    it('should allow updating job data', async function () {
+  describe('.update', function() {
+    it('should allow updating job data', async function() {
       const job = await Job.create<{ foo?: string; baz?: string }>(
         queue,
         'test',
@@ -132,8 +165,8 @@ describe('Job', function () {
     });
   });
 
-  describe('.remove', function () {
-    it('removes the job from redis', async function () {
+  describe('.remove', function() {
+    it('removes the job from redis', async function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.remove();
       const storedJob = await Job.fromId(queue, job.id);
@@ -143,15 +176,15 @@ describe('Job', function () {
 
   // TODO: Add more remove tests
 
-  describe('.progress', function () {
-    it('can set and get progress as number', async function () {
+  describe('.progress', function() {
+    it('can set and get progress as number', async function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(42);
       const storedJob = await Job.fromId(queue, job.id);
       expect(storedJob.progress).to.be.equal(42);
     });
 
-    it('can set and get progress as object', async function () {
+    it('can set and get progress as object', async function() {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress({ total: 120, completed: 40 });
       const storedJob = await Job.fromId(queue, job.id);
@@ -177,8 +210,8 @@ describe('Job', function () {
     });
   });
 
-  describe('.moveToCompleted', function () {
-    it('marks the job as completed and returns new job', async function () {
+  describe('.moveToCompleted', function() {
+    it('marks the job as completed and returns new job', async function() {
       const worker = new Worker(queueName);
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
@@ -200,7 +233,7 @@ describe('Job', function () {
      * Verify moveToFinished use default value for opts.maxLenEvents
      * if it does not exist in meta key (or entire meta key is missing).
      */
-    it('should not fail if queue meta key is missing', async function () {
+    it('should not fail if queue meta key is missing', async function() {
       const worker = new Worker(queueName);
       const token = 'my-token';
       await Job.create(queue, 'test', { color: 'red' });
@@ -271,8 +304,8 @@ describe('Job', function () {
     });
   });
 
-  describe('.moveToFailed', function () {
-    it('marks the job as failed', async function () {
+  describe('.moveToFailed', function() {
+    it('marks the job as failed', async function() {
       const worker = new Worker(queueName);
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
@@ -287,7 +320,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('moves the job to wait for retry if attempts are given', async function () {
+    it('moves the job to wait for retry if attempts are given', async function() {
       const queueEvents = new QueueEvents(queueName);
       await queueEvents.waitUntilReady();
 
@@ -318,7 +351,7 @@ describe('Job', function () {
       await queueEvents.close();
     });
 
-    it('marks the job as failed when attempts made equal to attempts given', async function () {
+    it('marks the job as failed when attempts made equal to attempts given', async function() {
       const worker = new Worker(queueName);
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
@@ -333,7 +366,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('moves the job to delayed for retry if attempts are given and backoff is non zero', async function () {
+    it('moves the job to delayed for retry if attempts are given and backoff is non zero', async function() {
       const worker = new Worker(queueName);
       const token = 'my-token';
       await Job.create(
@@ -355,7 +388,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('applies stacktrace limit on failure', async function () {
+    it('applies stacktrace limit on failure', async function() {
       const worker = new Worker(queueName);
       const token = 'my-token';
       const stackTraceLimit = 1;
@@ -376,7 +409,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('saves error stacktrace', async function () {
+    it('saves error stacktrace', async function() {
       const worker = new Worker(queueName);
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
@@ -408,7 +441,7 @@ describe('Job', function () {
       expect(isWaiting).to.be.equal(true);
     });
 
-    it('should process a promoted job according to its priority', async function () {
+    it('should process a promoted job according to its priority', async function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
@@ -662,19 +695,19 @@ describe('Job', function () {
   });
   */
 
-  describe('.finished', function () {
+  describe('.finished', function() {
     let queueEvents: QueueEvents;
 
-    beforeEach(async function () {
+    beforeEach(async function() {
       queueEvents = new QueueEvents(queueName);
       await queueEvents.waitUntilReady();
     });
 
-    afterEach(async function () {
+    afterEach(async function() {
       await queueEvents.close();
     });
 
-    it('should resolve when the job has been completed', async function () {
+    it('should resolve when the job has been completed', async function() {
       const worker = new Worker(queueName, async job => 'qux');
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -686,7 +719,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('should resolve when the job has been completed and return object', async function () {
+    it('should resolve when the job has been completed and return object', async function() {
       const worker = new Worker(queueName, async job => ({ resultFoo: 'bar' }));
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -699,7 +732,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('should resolve when the job has been delayed and completed and return object', async function () {
+    it('should resolve when the job has been delayed and completed and return object', async function() {
       const worker = new Worker(queueName, async job => {
         await delay(300);
         return { resultFoo: 'bar' };
@@ -715,7 +748,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('should resolve when the job has been completed and return string', async function () {
+    it('should resolve when the job has been completed and return string', async function() {
       const worker = new Worker(queueName, async job => 'a string');
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -728,7 +761,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('should reject when the job has been failed', async function () {
+    it('should reject when the job has been failed', async function() {
       const worker = new Worker(queueName, async job => {
         await delay(500);
         throw new Error('test error');
@@ -746,7 +779,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('should resolve directly if already processed', async function () {
+    it('should resolve directly if already processed', async function() {
       const worker = new Worker(queueName, async job => ({ resultFoo: 'bar' }));
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -760,7 +793,7 @@ describe('Job', function () {
       await worker.close();
     });
 
-    it('should reject directly if already processed', async function () {
+    it('should reject directly if already processed', async function() {
       const worker = new Worker(queueName, async job => {
         throw new Error('test error');
       });

@@ -7,5 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-export declare type BackoffFunction = (attemptsMade?: number, err?: Error) => number;
+export declare type BackoffFunction = (attemptsMade?: number, err?: Error, job?: Job) => number;
 ```
+<b>References:</b> [Job](./bullmq.job.md)
+
