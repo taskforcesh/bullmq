@@ -110,7 +110,6 @@ export class Job<T = any, R = any, N extends string = string> {
       },
       opts,
     );
-    // this.id = opts?.jobId || id;
 
     this.timestamp = opts.timestamp ? opts.timestamp : Date.now();
 
