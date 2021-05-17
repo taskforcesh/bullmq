@@ -172,21 +172,27 @@ export class QueueGetters extends QueueBase {
     return Promise.all(jobIds.map(jobId => Job.fromId(this, jobId)));
   }
 
-  async getJobLogs(jobId: string, start = 0, end = -1, asc = false) {
+  async getJobLogs(jobId: string, start = 0, end = -1, asc = true) {
     const client = await this.client;
     const multi = client.multi();
 
     const logsKey = this.toKey(jobId + ':logs');
     if (asc) {
-      multi.lrange(logsKey, -(end + 1), -(start + 1));
-    } else {
       multi.lrange(logsKey, start, end);
+    } else {
+      multi.lrange(logsKey, -(end + 1), -(start + 1));
     }
     multi.llen(logsKey);
-    return multi.exec().then(result => ({
-      logs: result[0][1],
-      count: result[1][1],
-    }));
+    return multi.exec().then(result => {
+      if (!asc) {
+        result[0][1].reverse();
+      }
+
+      return {
+        logs: result[0][1],
+        count: result[1][1],
+      };
+    });
   }
 
   async getWorkers() {

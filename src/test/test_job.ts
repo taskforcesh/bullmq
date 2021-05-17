@@ -193,7 +193,7 @@ describe('Job', function() {
   });
 
   describe('.log', () => {
-    it('can log two rows with text in desc order by default', async () => {
+    it('can log two rows with text in asc order', async () => {
       const firstLog = 'some log text 1';
       const secondLog = 'some log text 2';
 
@@ -203,9 +203,9 @@ describe('Job', function() {
       await job.log(secondLog);
       const logs = await queue.getJobLogs(job.id);
       expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
-      const firstSavedLog = await queue.getJobLogs(job.id, -2, -2);
+      const firstSavedLog = await queue.getJobLogs(job.id, 0, 0, true);
       expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
-      const secondSavedLog = await queue.getJobLogs(job.id, -1, -1);
+      const secondSavedLog = await queue.getJobLogs(job.id, 1, 1);
       expect(secondSavedLog).to.be.eql({ logs: [secondLog], count: 2 });
       await job.remove();
 
@@ -213,7 +213,7 @@ describe('Job', function() {
       expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
     });
 
-    it('can log two rows with text in asc order', async () => {
+    it('can log two rows with text in desc order', async () => {
       const firstLog = 'some log text 1';
       const secondLog = 'some log text 2';
 
@@ -221,12 +221,12 @@ describe('Job', function() {
 
       await job.log(firstLog);
       await job.log(secondLog);
-      const logs = await queue.getJobLogs(job.id, 0, -1, true);
-      expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
-      const firstSavedLog = await queue.getJobLogs(job.id, 0, 0);
-      expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
-      const secondSavedLog = await queue.getJobLogs(job.id, 1, 1);
+      const logs = await queue.getJobLogs(job.id, 0, -1, false);
+      expect(logs).to.be.eql({ logs: [secondLog, firstLog], count: 2 });
+      const secondSavedLog = await queue.getJobLogs(job.id, 0, 0, false);
       expect(secondSavedLog).to.be.eql({ logs: [secondLog], count: 2 });
+      const firstSavedLog = await queue.getJobLogs(job.id, 1, 1, false);
+      expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
       await job.remove();
 
       const logsRemoved = await queue.getJobLogs(job.id);
