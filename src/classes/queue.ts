@@ -189,7 +189,8 @@ export class Queue<
     }
   }
 
-  /* @method clean
+  /**
+   * @method clean
    *
    * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
@@ -221,7 +222,8 @@ export class Queue<
     return jobs;
   }
 
-  /* @method obliterate
+  /**
+   * @method obliterate
    *
    * Completely destroys the queue and all of its contents irreversibly.
    * This method will the *pause* the queue and requires that there are no
