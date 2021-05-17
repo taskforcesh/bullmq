@@ -357,6 +357,7 @@ export class Job<T = any, R = any, N extends string = string> {
         this.attemptsMade,
         opts.settings && opts.settings.backoffStrategies,
         err,
+        this,
       );
 
       if (delay === -1) {

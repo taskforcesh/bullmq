@@ -1,3 +1,4 @@
+import { Job } from '../classes/job';
 import { BackoffOptions } from '../interfaces/backoff-options';
 
 interface BuiltInStrategies {
@@ -8,7 +9,11 @@ export interface Strategies {
   [index: string]: BackoffFunction;
 }
 
-export type BackoffFunction = (attemptsMade?: number, err?: Error) => number;
+export type BackoffFunction = (
+  attemptsMade?: number,
+  err?: Error,
+  job?: Job,
+) => number;
 
 export class Backoffs {
   static builtinStrategies: BuiltInStrategies = {
@@ -41,11 +46,12 @@ export class Backoffs {
     attemptsMade: number,
     customStrategies: Strategies,
     err: Error,
+    job: Job,
   ) {
     if (backoff) {
       const strategy = lookupStrategy(backoff, customStrategies);
 
-      return strategy(attemptsMade, err);
+      return strategy(attemptsMade, err, job);
     }
   }
 }
