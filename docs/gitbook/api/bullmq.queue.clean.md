@@ -4,6 +4,10 @@
 
 ## Queue.clean() method
 
+ clean
+
+Cleans jobs from a queue. Similar to drain but keeps jobs within a certain grace period.
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,9 +18,9 @@ clean(grace: number, limit: number, type?: 'completed' | 'wait' | 'active' | 'pa
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  grace | number |  |
+|  grace | number | The grace period |
 |  limit | number |  |
-|  type | 'completed' \| 'wait' \| 'active' \| 'paused' \| 'delayed' \| 'failed' |  |
+|  type | 'completed' \| 'wait' \| 'active' \| 'paused' \| 'delayed' \| 'failed' | The type of job to clean Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed. |
 
 <b>Returns:</b>
 
