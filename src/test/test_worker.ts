@@ -1282,8 +1282,6 @@ describe('workers', function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
-      let start: number;
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -1304,7 +1302,7 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      start = Date.now();
+      const start = Date.now();
       await queue.add(
         'test',
         { foo: 'bar' },
@@ -1420,6 +1418,67 @@ describe('workers', function() {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
           expect(elapse).to.be.greaterThan(3000);
+          resolve();
+        });
+      });
+
+      await worker.close();
+
+      await queueScheduler.close();
+    });
+
+    it('should retry a job after a delay if a custom backoff is given based on the job data', async function() {
+      class CustomError extends Error {
+        failedIds: number[];
+      }
+
+      this.timeout(5000);
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.waitUntilReady();
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (job.data.ids.length > 2) {
+            const error = new CustomError('Hey, custom error!');
+            error.failedIds = [1, 2];
+
+            throw error;
+          }
+        },
+        {
+          settings: {
+            backoffStrategies: {
+              async custom(attemptsMade: number, err: Error, job: Job) {
+                if (err instanceof CustomError) {
+                  const data = job.data;
+                  data.ids = err.failedIds;
+                  await job.update(data);
+                  return 2500;
+                }
+                return 500;
+              },
+            },
+          },
+        },
+      );
+
+      const start = Date.now();
+      await queue.add(
+        'test',
+        { ids: [1, 2, 3] },
+        {
+          attempts: 3,
+          backoff: {
+            type: 'custom',
+          },
+        },
+      );
+
+      await new Promise(resolve => {
+        worker.on('completed', () => {
+          const elapse = Date.now() - start;
+          expect(elapse).to.be.greaterThan(2500);
           resolve();
         });
       });

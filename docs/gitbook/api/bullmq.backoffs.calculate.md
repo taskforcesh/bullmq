@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static calculate(backoff: BackoffOptions, attemptsMade: number, customStrategies: Strategies, err: Error): number;
+static calculate(backoff: BackoffOptions, attemptsMade: number, customStrategies: Strategies, err: Error, job: Job): number;
 ```
 
 ## Parameters
@@ -18,6 +18,7 @@ static calculate(backoff: BackoffOptions, attemptsMade: number, customStrategies
 |  attemptsMade | number |  |
 |  customStrategies | [Strategies](./bullmq.strategies.md) |  |
 |  err | Error |  |
+|  job | [Job](./bullmq.job.md) |  |
 
 <b>Returns:</b>
 

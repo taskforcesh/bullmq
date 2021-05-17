@@ -125,7 +125,7 @@ export class FlowProducer extends EventEmitter {
 
     const parentKey = getParentKey(parent?.parentOpts);
 
-    if (node.children) {
+    if (node.children && node.children.length > 0) {
       // Create parent job, will be a job in status "waiting-children".
       const queueKeysParent = new QueueKeys(node.prefix);
       const waitChildrenKey = queueKeysParent.toKey(

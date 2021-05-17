@@ -1,5 +1,5 @@
-import { Queue, QueueEvents, QueueScheduler, Worker } from '../classes';
-import { delay, removeAllQueueData } from '@src/utils';
+import { Queue, QueueEvents, Worker } from '../classes';
+import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
@@ -10,14 +10,14 @@ describe('Obliterate', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
