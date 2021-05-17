@@ -110,8 +110,8 @@ export class FlowProducer extends EventEmitter {
     },
   ): JobNode {
     const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
-    const parentId = node.children && uuid.v4();
 
+    const jobId = node.opts?.jobId || uuid.v4();
     const job = new Job(
       queue,
       node.name,
@@ -120,13 +120,14 @@ export class FlowProducer extends EventEmitter {
         ...node.opts,
         parent: parent?.parentOpts,
       },
-      node.opts?.jobId || parentId,
+      jobId,
     );
 
     const parentKey = getParentKey(parent?.parentOpts);
 
     if (node.children && node.children.length > 0) {
       // Create parent job, will be a job in status "waiting-children".
+      const parentId = jobId;
       const queueKeysParent = new QueueKeys(node.prefix);
       const waitChildrenKey = queueKeysParent.toKey(
         node.queueName,

@@ -138,6 +138,97 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
+  it('should allow passing custom jobId in options', async () => {
+    const name = 'child-job';
+    const values = [
+      { bar: 'something' },
+      { baz: 'something' },
+      { qux: 'something' },
+    ];
+
+    const parentQueueName = `parent-queue-${v4()}`;
+
+    let childrenProcessor,
+      parentProcessor,
+      processedChildren = 0;
+    const processingChildren = new Promise<void>(
+      resolve =>
+        (childrenProcessor = async (job: Job) => {
+          processedChildren++;
+
+          if (processedChildren == values.length) {
+            resolve();
+          }
+          return values[job.data.idx];
+        }),
+    );
+
+    const processingParent = new Promise<void>(
+      (resolve, reject) =>
+        (parentProcessor = async (job: Job) => {
+          try {
+            expect(processedChildren).to.be.equal(3);
+
+            const childrenValues = await job.getChildrenValues();
+
+            for (let i = 0; i < values.length; i++) {
+              const jobKey = queue.toKey(tree.children[i].job.id);
+              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+            }
+            resolve();
+          } catch (err) {
+            console.error(err);
+            reject(err);
+          }
+        }),
+    );
+
+    const parentWorker = new Worker(parentQueueName, parentProcessor);
+    const childrenWorker = new Worker(queueName, childrenProcessor);
+
+    const flow = new FlowProducer();
+    const tree = await flow.add({
+      name: 'parent-job',
+      queueName: parentQueueName,
+      data: {},
+      opts: { jobId: 'my-parent-job-id' },
+      children: [
+        { name, data: { idx: 0, foo: 'bar' }, queueName },
+        { name, data: { idx: 1, foo: 'baz' }, queueName },
+        { name, data: { idx: 2, foo: 'qux' }, queueName },
+      ],
+    });
+
+    expect(tree).to.have.property('job');
+    expect(tree).to.have.property('children');
+
+    const { children, job } = tree;
+    const parentState = await job.getState();
+
+    expect(parentState).to.be.eql('waiting-children');
+    expect(children).to.have.length(3);
+
+    const { unprocessed } = await job.getDependencies();
+
+    expect(unprocessed.length).to.be.greaterThan(0);
+    expect(children[0].job.id).to.be.ok;
+    expect(children[0].job.data.foo).to.be.eql('bar');
+    expect(children[1].job.id).to.be.ok;
+    expect(children[1].job.data.foo).to.be.eql('baz');
+    expect(children[2].job.id).to.be.ok;
+    expect(children[2].job.data.foo).to.be.eql('qux');
+
+    await processingChildren;
+    await childrenWorker.close();
+
+    await processingParent;
+    await parentWorker.close();
+
+    await flow.close();
+
+    await removeAllQueueData(new IORedis(), parentQueueName);
+  });
+
   it('should process a chain of jobs', async () => {
     const name = 'child-job';
     const values = [
