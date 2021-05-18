@@ -193,7 +193,7 @@ describe('Job', function() {
   });
 
   describe('.log', () => {
-    it('can log two rows with text', async () => {
+    it('can log two rows with text in asc order', async () => {
       const firstLog = 'some log text 1';
       const secondLog = 'some log text 2';
 
@@ -203,6 +203,30 @@ describe('Job', function() {
       await job.log(secondLog);
       const logs = await queue.getJobLogs(job.id);
       expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
+      const firstSavedLog = await queue.getJobLogs(job.id, 0, 0, true);
+      expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
+      const secondSavedLog = await queue.getJobLogs(job.id, 1, 1);
+      expect(secondSavedLog).to.be.eql({ logs: [secondLog], count: 2 });
+      await job.remove();
+
+      const logsRemoved = await queue.getJobLogs(job.id);
+      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
+    });
+
+    it('can log two rows with text in desc order', async () => {
+      const firstLog = 'some log text 1';
+      const secondLog = 'some log text 2';
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await job.log(firstLog);
+      await job.log(secondLog);
+      const logs = await queue.getJobLogs(job.id, 0, -1, false);
+      expect(logs).to.be.eql({ logs: [secondLog, firstLog], count: 2 });
+      const secondSavedLog = await queue.getJobLogs(job.id, 0, 0, false);
+      expect(secondSavedLog).to.be.eql({ logs: [secondLog], count: 2 });
+      const firstSavedLog = await queue.getJobLogs(job.id, 1, 1, false);
+      expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
       await job.remove();
 
       const logsRemoved = await queue.getJobLogs(job.id);
@@ -497,7 +521,7 @@ describe('Job', function() {
     });
 
     it('should promote delayed job to the right queue if queue is paused', async () => {
-      const normalJob = await queue.add('normal', { foo: 'bar' });
+      await queue.add('normal', { foo: 'bar' });
       const delayedJob = await queue.add(
         'delayed',
         { foo: 'bar' },
