@@ -7,6 +7,24 @@
 
 # Changelog
 
+## [1.26.1](https://github.com/taskforcesh/bullmq/compare/v1.26.0...v1.26.1) (2021-05-17)
+
+### Bug Fixes
+
+- **flow-producer:** use custom jobId as parentId for children fixes [#552](https://github.com/taskforcesh/bullmq/issues/552) ([645b576](https://github.com/taskforcesh/bullmq/commit/645b576c1aabd8426ab77a68c199a594867cd729))
+
+# [1.26.0](https://github.com/taskforcesh/bullmq/compare/v1.25.1...v1.26.0) (2021-05-16)
+
+### Features
+
+- **custombackoff:** provide job as third parameter ([ddaf8dc](https://github.com/taskforcesh/bullmq/commit/ddaf8dc2f95ca336cb117a540edd4640d5d579e4))
+
+## [1.25.2](https://github.com/taskforcesh/bullmq/compare/v1.25.1...v1.25.2) (2021-05-16)
+
+### Bug Fixes
+
+- **flow-producer:** process parent with children as empty array fixes [#547](https://github.com/taskforcesh/bullmq/issues/547) ([48168f0](https://github.com/taskforcesh/bullmq/commit/48168f07cbaed7ed522c68d127a0c7d5e4cb380e))
+
 ## [1.25.1](https://github.com/taskforcesh/bullmq/compare/v1.25.0...v1.25.1) (2021-05-13)
 
 ### Bug Fixes
