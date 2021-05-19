@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-getJobLogs(jobId: string, start?: number, end?: number): Promise<{
+getJobLogs(jobId: string, start?: number, end?: number, asc?: boolean): Promise<{
         logs: any;
         count: any;
     }>;
@@ -20,6 +20,7 @@ getJobLogs(jobId: string, start?: number, end?: number): Promise<{
 |  jobId | string |  |
 |  start | number |  |
 |  end | number |  |
+|  asc | boolean |  |
 
 <b>Returns:</b>
 

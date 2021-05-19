@@ -1,4 +1,29 @@
+## [1.26.2](https://github.com/taskforcesh/bullmq/compare/v1.26.1...v1.26.2) (2021-05-18)
+
+
+### Bug Fixes
+
+* **getjoblogs:** no reversed pagination ([fb0c3a5](https://github.com/taskforcesh/bullmq/commit/fb0c3a50f0d37851a8f35cb4c478259a63d93461))
+
 # Changelog
+
+## [1.26.1](https://github.com/taskforcesh/bullmq/compare/v1.26.0...v1.26.1) (2021-05-17)
+
+### Bug Fixes
+
+- **flow-producer:** use custom jobId as parentId for children fixes [#552](https://github.com/taskforcesh/bullmq/issues/552) ([645b576](https://github.com/taskforcesh/bullmq/commit/645b576c1aabd8426ab77a68c199a594867cd729))
+
+# [1.26.0](https://github.com/taskforcesh/bullmq/compare/v1.25.1...v1.26.0) (2021-05-16)
+
+### Features
+
+- **custombackoff:** provide job as third parameter ([ddaf8dc](https://github.com/taskforcesh/bullmq/commit/ddaf8dc2f95ca336cb117a540edd4640d5d579e4))
+
+## [1.25.2](https://github.com/taskforcesh/bullmq/compare/v1.25.1...v1.25.2) (2021-05-16)
+
+### Bug Fixes
+
+- **flow-producer:** process parent with children as empty array fixes [#547](https://github.com/taskforcesh/bullmq/issues/547) ([48168f0](https://github.com/taskforcesh/bullmq/commit/48168f07cbaed7ed522c68d127a0c7d5e4cb380e))
 
 ## [1.25.1](https://github.com/taskforcesh/bullmq/compare/v1.25.0...v1.25.1) (2021-05-13)
 
@@ -253,68 +278,68 @@
 
 - job finish queue events race condition ([355bca5](https://github.com/taskforcesh/bullmq/commit/355bca5ee128bf4ff37608746f9c6f7cca580eb0))
 
-## [1.14.0](https://github.com/taskforcesh/bullmq/compare/v1.13.0...v1.14.0) \(2021-01-06\)
+# [1.14.0](https://github.com/taskforcesh/bullmq/compare/v1.13.0...v1.14.0) \(2021-01-06\)
 
-#### Features
+### Features
 
 - **job:** expose extendLock as a public method \([17e8431](https://github.com/taskforcesh/bullmq/commit/17e8431af8bba58612bf9913c63ab5d38afecbb9)\)
 
-## [1.13.0](https://github.com/taskforcesh/bullmq/compare/v1.12.3...v1.13.0) \(2020-12-30\)
+# [1.13.0](https://github.com/taskforcesh/bullmq/compare/v1.12.3...v1.13.0) \(2020-12-30\)
 
-#### Features
+### Features
 
 - add support for manually processing jobs fixes [\#327](https://github.com/taskforcesh/bullmq/issues/327) \([e42bfd2](https://github.com/taskforcesh/bullmq/commit/e42bfd2814fc5136b175470c3085355090cc2e01)\)
 
-### [1.12.3](https://github.com/taskforcesh/bullmq/compare/v1.12.2...v1.12.3) \(2020-12-28\)
+## [1.12.3](https://github.com/taskforcesh/bullmq/compare/v1.12.2...v1.12.3) \(2020-12-28\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - correctly handle "falsy" data values fixes [\#264](https://github.com/taskforcesh/bullmq/issues/264) \([becad91](https://github.com/taskforcesh/bullmq/commit/becad91350fd4ac01037e5b0d4a8a93724dd8dbd)\)
 - **worker:** setname on worker blocking connection \([645b633](https://github.com/taskforcesh/bullmq/commit/645b6338f5883b0c21ae78007777d86b45422615)\)
 
-### [1.12.2](https://github.com/taskforcesh/bullmq/compare/v1.12.1...v1.12.2) \(2020-12-23\)
+## [1.12.2](https://github.com/taskforcesh/bullmq/compare/v1.12.1...v1.12.2) \(2020-12-23\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - catch errors from Repeat \([\#348](https://github.com/taskforcesh/bullmq/issues/348)\) \([09a1a98](https://github.com/taskforcesh/bullmq/commit/09a1a98fc42dc1a9ae98bfb29c0cca3fac02013f)\)
 
-### [1.12.1](https://github.com/taskforcesh/bullmq/compare/v1.12.0...v1.12.1) \(2020-12-21\)
+## [1.12.1](https://github.com/taskforcesh/bullmq/compare/v1.12.0...v1.12.1) \(2020-12-21\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - correctly handle "falsy" data values fixes [\#264](https://github.com/taskforcesh/bullmq/issues/264) \([cf1dbaf](https://github.com/taskforcesh/bullmq/commit/cf1dbaf7e60d74fc8443a5f8a537455f28a8dba3)\)
 
-## [1.12.0](https://github.com/taskforcesh/bullmq/compare/v1.11.2...v1.12.0) \(2020-12-16\)
+# [1.12.0](https://github.com/taskforcesh/bullmq/compare/v1.11.2...v1.12.0) \(2020-12-16\)
 
-#### Features
+### Features
 
 - add ability to get if queue is paused or not \([e98b7d8](https://github.com/taskforcesh/bullmq/commit/e98b7d8973df830cc29e0afc5d86e82c9a7ce76f)\)
 
-### [1.11.2](https://github.com/taskforcesh/bullmq/compare/v1.11.1...v1.11.2) \(2020-12-15\)
+## [1.11.2](https://github.com/taskforcesh/bullmq/compare/v1.11.1...v1.11.2) \(2020-12-15\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - promote jobs to the right "list" when paused \([d3df615](https://github.com/taskforcesh/bullmq/commit/d3df615d37b1114c02eacb45f23643ee2f05374d)\)
 
-### [1.11.1](https://github.com/taskforcesh/bullmq/compare/v1.11.0...v1.11.1) \(2020-12-15\)
+## [1.11.1](https://github.com/taskforcesh/bullmq/compare/v1.11.0...v1.11.1) \(2020-12-15\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - clientCommandMessageReg to support GCP memorystore v5 \([8408dda](https://github.com/taskforcesh/bullmq/commit/8408dda9fa64fc0b968e88fb2726e0a30f717ed7)\)
 
-## [1.11.0](https://github.com/taskforcesh/bullmq/compare/v1.10.0...v1.11.0) \(2020-11-24\)
+# [1.11.0](https://github.com/taskforcesh/bullmq/compare/v1.10.0...v1.11.0) \(2020-11-24\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - add generic type to processor \([d4f6501](https://github.com/taskforcesh/bullmq/commit/d4f650120804bd6161f0eeda5162ad5a96811a05)\)
 
-#### Features
+### Features
 
 - add name and return types to queue, worker and processor \([4879715](https://github.com/taskforcesh/bullmq/commit/4879715ec7c917f11e3a0ac3c5f5126029340ed3)\)
 
-## [1.10.0](https://github.com/taskforcesh/bullmq/compare/v1.9.0...v1.10.0) \(2020-10-20\)
+# [1.10.0](https://github.com/taskforcesh/bullmq/compare/v1.9.0...v1.10.0) \(2020-10-20\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **job:** remove listeners before resolving promise \([563ce92](https://github.com/taskforcesh/bullmq/commit/563ce9218f5dd81f2bc836f9e8ccdedc549f09dd)\)
 - **worker:** continue processing if handleFailed fails. fixes [\#286](https://github.com/taskforcesh/bullmq/issues/286) \([4ef1cbc](https://github.com/taskforcesh/bullmq/commit/4ef1cbc13d53897b57ae3d271afbaa1b213824aa)\)
@@ -322,252 +347,252 @@
 - **worker:** setname on worker blocking connection \([\#291](https://github.com/taskforcesh/bullmq/issues/291)\) \([50a87fc](https://github.com/taskforcesh/bullmq/commit/50a87fcb1dab976a6a0273d2b0cc4b31b63c015f)\)
 - remove async for loop in child pool fixes [\#229](https://github.com/taskforcesh/bullmq/issues/229) \([d77505e](https://github.com/taskforcesh/bullmq/commit/d77505e989cd1395465c5222613555f79e4d9720)\)
 
-#### Features
+### Features
 
 - **sandbox:** kill child workers gracefully \([\#243](https://github.com/taskforcesh/bullmq/issues/243)\) \([4262837](https://github.com/taskforcesh/bullmq/commit/4262837bc67e007fe44606670dce48ee7fec65cd)\)
 
-## [1.9.0](https://github.com/taskforcesh/bullmq/compare/v1.8.14...v1.9.0) \(2020-07-19\)
+# [1.9.0](https://github.com/taskforcesh/bullmq/compare/v1.8.14...v1.9.0) \(2020-07-19\)
 
-#### Features
+### Features
 
 - add grouped rate limiting \([3a958dd](https://github.com/taskforcesh/bullmq/commit/3a958dd30d09a049b0d761679d3b8d92709e815e)\)
 
-### [1.8.14](https://github.com/taskforcesh/bullmq/compare/v1.8.13...v1.8.14) \(2020-07-03\)
+## [1.8.14](https://github.com/taskforcesh/bullmq/compare/v1.8.13...v1.8.14) \(2020-07-03\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **typescript:** fix typings, upgrade ioredis dependencies \([\#220](https://github.com/taskforcesh/bullmq/issues/220)\) \([7059f20](https://github.com/taskforcesh/bullmq/commit/7059f2089553a206ab3937f7fd0d0b9de96aa7b7)\)
 - **worker:** return this.closing when calling close \([b68c845](https://github.com/taskforcesh/bullmq/commit/b68c845c77de6b2973ec31d2f22958ab60ad87aa)\)
 
-### [1.8.13](https://github.com/taskforcesh/bullmq/compare/v1.8.12...v1.8.13) \(2020-06-05\)
+## [1.8.13](https://github.com/taskforcesh/bullmq/compare/v1.8.12...v1.8.13) \(2020-06-05\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **redis-connection:** run the load command for reused redis client \([fab9bba](https://github.com/taskforcesh/bullmq/commit/fab9bba4caee8fd44523febb3bde588b151e8514)\)
 
-### [1.8.12](https://github.com/taskforcesh/bullmq/compare/v1.8.11...v1.8.12) \(2020-06-04\)
+## [1.8.12](https://github.com/taskforcesh/bullmq/compare/v1.8.11...v1.8.12) \(2020-06-04\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - remove unused options \([23aadc3](https://github.com/taskforcesh/bullmq/commit/23aadc300b947693f4afb22296d236a924bd11ca)\)
 
-### [1.8.11](https://github.com/taskforcesh/bullmq/compare/v1.8.10...v1.8.11) \(2020-05-29\)
+## [1.8.11](https://github.com/taskforcesh/bullmq/compare/v1.8.10...v1.8.11) \(2020-05-29\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **scheduler:** remove unnecessary division by 4096 \([4d25e95](https://github.com/taskforcesh/bullmq/commit/4d25e95f9522388bd85e932e04b6668e3da57686)\)
 
-### [1.8.10](https://github.com/taskforcesh/bullmq/compare/v1.8.9...v1.8.10) \(2020-05-28\)
+## [1.8.10](https://github.com/taskforcesh/bullmq/compare/v1.8.9...v1.8.10) \(2020-05-28\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **scheduler:** divide timestamp by 4096 in update set fixes [\#168](https://github.com/taskforcesh/bullmq/issues/168) \([0c5db83](https://github.com/taskforcesh/bullmq/commit/0c5db8391bb8994bee19f25a33efb9dfee792d7b)\)
 
-### [1.8.9](https://github.com/taskforcesh/bullmq/compare/v1.8.8...v1.8.9) \(2020-05-25\)
+## [1.8.9](https://github.com/taskforcesh/bullmq/compare/v1.8.8...v1.8.9) \(2020-05-25\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **scheduler:** divide next timestamp by 4096 \([\#204](https://github.com/taskforcesh/bullmq/issues/204)\) \([9562d74](https://github.com/taskforcesh/bullmq/commit/9562d74625e20b7b6de8750339c85345ba027357)\)
 
-### [1.8.8](https://github.com/taskforcesh/bullmq/compare/v1.8.7...v1.8.8) \(2020-05-25\)
+## [1.8.8](https://github.com/taskforcesh/bullmq/compare/v1.8.7...v1.8.8) \(2020-05-25\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **queue-base:** error event is passed through \([ad14e77](https://github.com/taskforcesh/bullmq/commit/ad14e777171c0c44b7e50752d9847dec23f46158)\)
 - **redis-connection:** error event is passed through \([a15b1a1](https://github.com/taskforcesh/bullmq/commit/a15b1a1824c6863ecf3e5132e22924fc3ff161f6)\)
 - **worker:** error event is passed through \([d7f0374](https://github.com/taskforcesh/bullmq/commit/d7f03749ce300e917399a435a3f426e66145dd8c)\)
 
-### [1.8.7](https://github.com/taskforcesh/bullmq/compare/v1.8.6...v1.8.7) \(2020-04-10\)
+## [1.8.7](https://github.com/taskforcesh/bullmq/compare/v1.8.6...v1.8.7) \(2020-04-10\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **worker:** do not use global child pool fixes [\#172](https://github.com/taskforcesh/bullmq/issues/172) \([bc65f26](https://github.com/taskforcesh/bullmq/commit/bc65f26dd47c59d0a7277ac947140405557be9a5)\)
 
-### [1.8.6](https://github.com/taskforcesh/bullmq/compare/v1.8.5...v1.8.6) \(2020-04-10\)
+## [1.8.6](https://github.com/taskforcesh/bullmq/compare/v1.8.5...v1.8.6) \(2020-04-10\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **workers:** do not call super.close\(\) \([ebd2ae1](https://github.com/taskforcesh/bullmq/commit/ebd2ae1a5613d71643c5a7ba3f685d77585de68e)\)
 - make sure closing is returned in every close call \([88c5948](https://github.com/taskforcesh/bullmq/commit/88c5948d33a9a7b7a4f4f64f3183727b87d80207)\)
 - **scheduler:** duplicate connections fixes [\#174](https://github.com/taskforcesh/bullmq/issues/174) \([011b8ac](https://github.com/taskforcesh/bullmq/commit/011b8acfdec54737d94a9fead2423e060e3364db)\)
 - **worker:** return this.closing when calling close \([06d3d4f](https://github.com/taskforcesh/bullmq/commit/06d3d4f476444a2d2af8538d60cb2561a1915868)\)
 
-### [1.8.5](https://github.com/taskforcesh/bullmq/compare/v1.8.4...v1.8.5) \(2020-04-05\)
+## [1.8.5](https://github.com/taskforcesh/bullmq/compare/v1.8.4...v1.8.5) \(2020-04-05\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - removed deprecated and unused node-uuid \([c810579](https://github.com/taskforcesh/bullmq/commit/c810579029d33ef47d5a7563e63126a69c62fd87)\)
 
-### [1.8.4](https://github.com/taskforcesh/bullmq/compare/v1.8.3...v1.8.4) \(2020-03-17\)
+## [1.8.4](https://github.com/taskforcesh/bullmq/compare/v1.8.3...v1.8.4) \(2020-03-17\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **job:** added nullable/optional properties \([cef134f](https://github.com/taskforcesh/bullmq/commit/cef134f7c4d87e1b80ba42a5e06c3877956ff4cc)\)
 
-### [1.8.3](https://github.com/taskforcesh/bullmq/compare/v1.8.2...v1.8.3) \(2020-03-13\)
+## [1.8.3](https://github.com/taskforcesh/bullmq/compare/v1.8.2...v1.8.3) \(2020-03-13\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - **sandbox:** If the child process is killed, remove it from the pool. \([8fb0fb5](https://github.com/taskforcesh/bullmq/commit/8fb0fb569a0236b37d3bae06bf58a2a1da3221c6)\)
 
-### [1.8.2](https://github.com/taskforcesh/bullmq/compare/v1.8.1...v1.8.2) \(2020-03-03\)
+## [1.8.2](https://github.com/taskforcesh/bullmq/compare/v1.8.1...v1.8.2) \(2020-03-03\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - restore the Job timestamp when deserializing JSON data \([\#138](https://github.com/taskforcesh/bullmq/issues/138)\) \([\#152](https://github.com/taskforcesh/bullmq/issues/152)\) \([c171bd4](https://github.com/taskforcesh/bullmq/commit/c171bd47f7b75378e75307a1decdc0f630ac1cd6)\)
 
-### [1.8.1](https://github.com/taskforcesh/bullmq/compare/v1.8.0...v1.8.1) \(2020-03-02\)
+## [1.8.1](https://github.com/taskforcesh/bullmq/compare/v1.8.0...v1.8.1) \(2020-03-02\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - modified imports to work when esModuleInterop is disabled \([\#132](https://github.com/taskforcesh/bullmq/issues/132)\) \([01681f2](https://github.com/taskforcesh/bullmq/commit/01681f282bafac2df2c602edb51d6bde3483896c)\)
 
-## [1.8.0](https://github.com/taskforcesh/bullmq/compare/v1.7.0...v1.8.0) \(2020-03-02\)
+# [1.8.0](https://github.com/taskforcesh/bullmq/compare/v1.7.0...v1.8.0) \(2020-03-02\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - cleanup signatures for queue add and addBulk \([\#127](https://github.com/taskforcesh/bullmq/issues/127)\) \([48e221b](https://github.com/taskforcesh/bullmq/commit/48e221b53909079a4def9c48c1b69cebabd0ed74)\)
 - exit code 12 when using inspect with child process \([\#137](https://github.com/taskforcesh/bullmq/issues/137)\) \([43ebc67](https://github.com/taskforcesh/bullmq/commit/43ebc67cec3e8f283f9a555b4466cf918226687b)\)
 
-#### Features
+### Features
 
 - **types:** add sandboxed job processor types \([\#114](https://github.com/taskforcesh/bullmq/issues/114)\) \([a50a88c](https://github.com/taskforcesh/bullmq/commit/a50a88cd1658fa9d568235283a4c23a74eb8ed2a)\)
 
-## [1.7.0](https://github.com/taskforcesh/bullmq/compare/v1.6.8...v1.7.0) \(2020-03-02\)
+# [1.7.0](https://github.com/taskforcesh/bullmq/compare/v1.6.8...v1.7.0) \(2020-03-02\)
 
-#### Features
+### Features
 
 - made queue name publicly readable for [\#140](https://github.com/taskforcesh/bullmq/issues/140) \([f2bba2e](https://github.com/taskforcesh/bullmq/commit/f2bba2efd9d85986b01bb35c847a232b5c42ae57)\)
 
-### [1.6.8](https://github.com/taskforcesh/bullmq/compare/v1.6.7...v1.6.8) \(2020-02-22\)
+## [1.6.8](https://github.com/taskforcesh/bullmq/compare/v1.6.7...v1.6.8) \(2020-02-22\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - modified QueueGetters.getJob and Job.fromId to also return null to \([65183fc](https://github.com/taskforcesh/bullmq/commit/65183fcf542d0227ec1d4d6637b46b5381331787)\)
 - modified QueueGetters.getJob and Job.fromId to return undefined \([ede352b](https://github.com/taskforcesh/bullmq/commit/ede352be75ffe05bf633516db9eda88467c562bf)\)
 
-### [1.6.7](https://github.com/taskforcesh/bullmq/compare/v1.6.6...v1.6.7) \(2020-01-16\)
+## [1.6.7](https://github.com/taskforcesh/bullmq/compare/v1.6.6...v1.6.7) \(2020-01-16\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - don't fail a job when the worker already lost the lock \([23c0bf7](https://github.com/taskforcesh/bullmq/commit/23c0bf70eab6d166b0483336f103323d1bf2ca64)\)
 
-### [1.6.6](https://github.com/taskforcesh/bullmq/compare/v1.6.5...v1.6.6) \(2020-01-05\)
+## [1.6.6](https://github.com/taskforcesh/bullmq/compare/v1.6.5...v1.6.6) \(2020-01-05\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - remove duplicate active entry \([1d2cca3](https://github.com/taskforcesh/bullmq/commit/1d2cca38ee61289adcee4899a91f7dcbc93a7c05)\)
 
-### [1.6.5](https://github.com/taskforcesh/bullmq/compare/v1.6.4...v1.6.5) \(2020-01-05\)
+## [1.6.5](https://github.com/taskforcesh/bullmq/compare/v1.6.4...v1.6.5) \(2020-01-05\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - get rid of flushdb/flushall in tests \([550c67b](https://github.com/taskforcesh/bullmq/commit/550c67b25de5f6d800e5e317398044cd16b85924)\)
 
-### [1.6.4](https://github.com/taskforcesh/bullmq/compare/v1.6.3...v1.6.4) \(2020-01-05\)
+## [1.6.4](https://github.com/taskforcesh/bullmq/compare/v1.6.3...v1.6.4) \(2020-01-05\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - delete logs when cleaning jobs in set \([b11c6c7](https://github.com/taskforcesh/bullmq/commit/b11c6c7c9f4f1c49eac93b98fdc93ac8f861c8b2)\)
 
-### [1.6.3](https://github.com/taskforcesh/bullmq/compare/v1.6.2...v1.6.3) \(2020-01-01\)
+## [1.6.3](https://github.com/taskforcesh/bullmq/compare/v1.6.2...v1.6.3) \(2020-01-01\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - add tslib dependency fixes [\#65](https://github.com/taskforcesh/bullmq/issues/65) \([7ad7995](https://github.com/taskforcesh/bullmq/commit/7ad799544a9c30b30aa96df8864119159c9a1185)\)
 
-### [1.6.2](https://github.com/taskforcesh/bullmq/compare/v1.6.1...v1.6.2) \(2019-12-16\)
+## [1.6.2](https://github.com/taskforcesh/bullmq/compare/v1.6.1...v1.6.2) \(2019-12-16\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - change default QueueEvents lastEventId to $ \([3c5b01d](https://github.com/taskforcesh/bullmq/commit/3c5b01d16ee1442f5802a0fe4e7675c14f7a7f1f)\)
 - ensure QE ready before adding test events \([fd190f4](https://github.com/taskforcesh/bullmq/commit/fd190f4be792b03273481c8aaf73be5ca42663d1)\)
 - explicitly test the behavior of .on and .once \([ea11087](https://github.com/taskforcesh/bullmq/commit/ea11087b292d9325105707b53f92ac61c334a147)\)
 
-### [1.6.1](https://github.com/taskforcesh/bullmq/compare/v1.6.0...v1.6.1) \(2019-12-16\)
+## [1.6.1](https://github.com/taskforcesh/bullmq/compare/v1.6.0...v1.6.1) \(2019-12-16\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - check of existing redis instance \([dd466b3](https://github.com/taskforcesh/bullmq/commit/dd466b332b03b430108126531d59ff9e66ce9521)\)
 
-## [1.6.0](https://github.com/taskforcesh/bullmq/compare/v1.5.0...v1.6.0) \(2019-12-12\)
+# [1.6.0](https://github.com/taskforcesh/bullmq/compare/v1.5.0...v1.6.0) \(2019-12-12\)
 
-#### Features
+### Features
 
 - add generic type to job data and return value \([87c0531](https://github.com/taskforcesh/bullmq/commit/87c0531efc2716db37f8a0886848cdb786709554)\)
 
-## [1.5.0](https://github.com/taskforcesh/bullmq/compare/v1.4.3...v1.5.0) \(2019-11-22\)
+# [1.5.0](https://github.com/taskforcesh/bullmq/compare/v1.4.3...v1.5.0) \(2019-11-22\)
 
-#### Features
+### Features
 
 - remove delay dependency \([97e1a30](https://github.com/taskforcesh/bullmq/commit/97e1a3015d853e615ddd623af07f12a194ccab2c)\)
 - remove dependence on Bluebird.delay [\#67](https://github.com/taskforcesh/bullmq/issues/67) \([bedbaf2](https://github.com/taskforcesh/bullmq/commit/bedbaf25af6479e387cd7548e246dca7c72fc140)\)
 
-### [1.4.3](https://github.com/taskforcesh/bullmq/compare/v1.4.2...v1.4.3) \(2019-11-21\)
+## [1.4.3](https://github.com/taskforcesh/bullmq/compare/v1.4.2...v1.4.3) \(2019-11-21\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - check in moveToFinished to use default val for opts.maxLenEvents \([d1118aa](https://github.com/taskforcesh/bullmq/commit/d1118aab77f755b4a65e3dd8ea2e195baf3d2602)\)
 
-### [1.4.2](https://github.com/taskforcesh/bullmq/compare/v1.4.1...v1.4.2) \(2019-11-21\)
+## [1.4.2](https://github.com/taskforcesh/bullmq/compare/v1.4.1...v1.4.2) \(2019-11-21\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - avoid Job&lt;-&gt;Queue circular json error \([5752727](https://github.com/taskforcesh/bullmq/commit/5752727a6294e1b8d35f6a49e4953375510e10e6)\)
 - avoid the .toJSON serializer interface [\#70](https://github.com/taskforcesh/bullmq/issues/70) \([5941b82](https://github.com/taskforcesh/bullmq/commit/5941b82b646e46d53970197a404e5ea54f09d008)\)
 
-### [1.4.1](https://github.com/taskforcesh/bullmq/compare/v1.4.0...v1.4.1) \(2019-11-08\)
+## [1.4.1](https://github.com/taskforcesh/bullmq/compare/v1.4.0...v1.4.1) \(2019-11-08\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - default job settings [\#58](https://github.com/taskforcesh/bullmq/issues/58) \([667fc6e](https://github.com/taskforcesh/bullmq/commit/667fc6e00ae4d6da639d285a104fb67e01c95bbd)\)
 
-## [1.4.0](https://github.com/taskforcesh/bullmq/compare/v1.3.0...v1.4.0) \(2019-11-06\)
+# [1.4.0](https://github.com/taskforcesh/bullmq/compare/v1.3.0...v1.4.0) \(2019-11-06\)
 
-#### Features
+### Features
 
 - job.progress\(\) return last progress for sandboxed processors \([5c4b146](https://github.com/taskforcesh/bullmq/commit/5c4b146ca8e42c8a29f9db87326a17deac30e10e)\)
 
-## [1.3.0](https://github.com/taskforcesh/bullmq/compare/v1.2.0...v1.3.0) \(2019-11-05\)
+# [1.3.0](https://github.com/taskforcesh/bullmq/compare/v1.2.0...v1.3.0) \(2019-11-05\)
 
-#### Features
+### Features
 
 - test worker extends job lock while job is active \([577efdf](https://github.com/taskforcesh/bullmq/commit/577efdfb1d2d3140be78dee3bd658b5ce969b16d)\)
 
-## [1.2.0](https://github.com/taskforcesh/bullmq/compare/v1.1.0...v1.2.0) \(2019-11-03\)
+# [1.2.0](https://github.com/taskforcesh/bullmq/compare/v1.1.0...v1.2.0) \(2019-11-03\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - only run coveralls after success \([bd51893](https://github.com/taskforcesh/bullmq/commit/bd51893c35793657b65246a2f5a06469488c8a06)\)
 
-#### Features
+### Features
 
 - added code coverage and coveralls \([298cfc4](https://github.com/taskforcesh/bullmq/commit/298cfc48e35e648e6a22ac0d1633ac16c7b6e3de)\)
 - added missing deps for coverage \([6f3ab8d](https://github.com/taskforcesh/bullmq/commit/6f3ab8d78ba8503a76447f0db5abf0c1c4f8e185)\)
 - ignore commitlint file in coverage \([f874441](https://github.com/taskforcesh/bullmq/commit/f8744411a1b20b95e568502be15ec50cf8520926)\)
 - only upload coverage once after all tests pass \([a7f73ec](https://github.com/taskforcesh/bullmq/commit/a7f73ecc2f51544f1d810de046ba073cb7aa5663)\)
 
-## [1.1.0](https://github.com/taskforcesh/bullmq/compare/v1.0.1...v1.1.0) \(2019-11-01\)
+# [1.1.0](https://github.com/taskforcesh/bullmq/compare/v1.0.1...v1.1.0) \(2019-11-01\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - failing build \([bb21d53](https://github.com/taskforcesh/bullmq/commit/bb21d53b199885dcc97e7fe20f60caf65e55e782)\)
 - fix failing tests \([824eb6b](https://github.com/taskforcesh/bullmq/commit/824eb6bfb2b750b823d057c894797ccb336245d8)\)
 
-#### Features
+### Features
 
 - initial version of job locking mechanism \([1d4fa38](https://github.com/taskforcesh/bullmq/commit/1d4fa383e39f4f5dcb69a71a1359dd5dea75544c)\)
 
-### [1.0.1](https://github.com/taskforcesh/bullmq/compare/v1.0.0...v1.0.1) \(2019-10-27\)
+## [1.0.1](https://github.com/taskforcesh/bullmq/compare/v1.0.0...v1.0.1) \(2019-10-27\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - save job stacktrace on failure \([85dfe52](https://github.com/taskforcesh/bullmq/commit/85dfe525079a5f89c1901dbf35c7ddc6663afc24)\)
 - simplify logic for stackTraceLimit \([296bd89](https://github.com/taskforcesh/bullmq/commit/296bd89514d430a499afee934dcae2aec41cffa2)\)
 
-## 1.0.0 \(2019-10-20\)
+# 1.0.0 \(2019-10-20\)
 
-#### Bug Fixes
+### Bug Fixes
 
 - add compilation step before running tests \([64abc13](https://github.com/taskforcesh/bullmq/commit/64abc13681f8735fb3ee5add5b271bb4da618047)\)
 - add extra client to worker fixes [\#34](https://github.com/taskforcesh/bullmq/issues/34) \([90bd891](https://github.com/taskforcesh/bullmq/commit/90bd891c7514f5e9e397d7aad15069ee55bebacd)\)
@@ -604,7 +629,7 @@
 - **connections:** reused connections \([1e808d2](https://github.com/taskforcesh/bullmq/commit/1e808d24018a29f6611f4fccd2f5754de0fa3e39)\)
 - waitUntilFinished improvements \([18d4afe](https://github.com/taskforcesh/bullmq/commit/18d4afef08f04d19cb8d931e02fff8f962d07ee7)\)
 
-#### Features
+### Features
 
 - add cleaned event \([c544775](https://github.com/taskforcesh/bullmq/commit/c544775803626b5f03cf6f7c3cf18ed1d92debab)\)
 - add empty method \([4376112](https://github.com/taskforcesh/bullmq/commit/4376112369d869c0a5c7ab4a543cfc50200e1414)\)
