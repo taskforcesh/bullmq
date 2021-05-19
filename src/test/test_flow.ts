@@ -52,11 +52,10 @@ describe('flows', () => {
 
           const childrenValues = await job.getChildrenValues();
 
-          expect(childrenValues).to.deep.equal({
-            [`bull:${queueName}:1`]: values[0],
-            [`bull:${queueName}:2`]: values[1],
-            [`bull:${queueName}:3`]: values[2],
-          });
+          for (let i = 0; i < values.length; i++) {
+            const jobKey = queue.toKey(tree.children[i].job.id);
+            expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+          }
           resolve();
         } catch (err) {
           console.error(err);
