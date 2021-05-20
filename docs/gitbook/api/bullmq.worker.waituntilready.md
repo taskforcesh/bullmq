@@ -7,9 +7,9 @@
 <b>Signature:</b>
 
 ```typescript
-waitUntilReady(): Promise<Redis>;
+waitUntilReady(): Promise<RedisClient>;
 ```
 <b>Returns:</b>
 
-Promise&lt;Redis&gt;
+Promise&lt;[RedisClient](./bullmq.redisclient.md)<!-- -->&gt;
 

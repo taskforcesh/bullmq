@@ -29,15 +29,21 @@
   </p>
 </div>
 
-# NEW! Tutorials
+# 🙏 I Need your help!
+
+I need you to spend 15 seconds to complete this [survey](https://www.surveymonkey.com/r/8TYDNL2)
+
+Thanks!
+
+# 🛠 Tutorials
 
 You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
 # Official FrontEnd
 
-[<img src="http://taskforce.sh/assets/logo_square.png" width="100" alt="Taskforce.sh, Inc" style="padding: 100px"/>](https://taskforce.sh)
+[<img src="http://taskforce.sh/assets/logo_square.png" width="200" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
 
-Supercharge your queues with a profesional front end and optional Redis hosting:
+Supercharge your queues with a profesional front end:
 - Get a complete overview of all your queues.
 - Inspect jobs, search, retry, or promote delayed jobs.
 - Metrics and statistics.
@@ -92,6 +98,15 @@ queueEvents.on('failed', (jobId, err) => {
 ```
 
 This is just scratching the surface, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>
+
+# 🚀 Sponsor 🚀
+
+[![RedisGreen](https://www.redisgreen.com/images/rglogo/redisgreen_transparent_240x48.png)](https://dashboard.redisgreen.net/new?utm_campaign=BULLMQ)
+
+If you need high quality production Redis instances for your BullMQ project, please consider subscribing 
+to [RedisGreen](https://dashboard.redisgreen.net/new?utm_campaign=BULLMQ), 
+leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us
+sponsor the development of BullMQ!
 
 # Thanks
 

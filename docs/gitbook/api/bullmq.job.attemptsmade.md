@@ -4,6 +4,8 @@
 
 ## Job.attemptsMade property
 
+Number of attempts after the job has failed.
+
 <b>Signature:</b>
 
 ```typescript

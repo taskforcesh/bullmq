@@ -5,7 +5,7 @@ import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
 import { QueueBase, Repeat } from './';
 import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
-import { RedisConnection } from './redis-connection';
+import { RedisConnection, RedisClient } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import { v4 } from 'uuid';
@@ -91,7 +91,7 @@ export class Worker<
     this.on('error', err => console.error(err));
   }
 
-  async waitUntilReady() {
+  async waitUntilReady(): Promise<RedisClient> {
     await super.waitUntilReady();
     return this.blockingConnection.client;
   }
@@ -119,7 +119,8 @@ export class Worker<
 
     // IDEA, How to store metadata associated to a worker.
     // create a key from the worker ID associated to the given name.
-    // We keep a hash table bull:myqueue:workers where every worker is a hash key workername:workerId with json holding
+    // We keep a hash table bull:myqueue:workers where
+    // every worker is a hash key workername:workerId with json holding
     // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
     //
     try {
@@ -216,6 +217,10 @@ export class Worker<
 
   private async waitForJob() {
     const client = await this.blockingConnection.client;
+
+    if (this.paused) {
+      return;
+    }
 
     let jobId;
     const opts: WorkerOptions = <WorkerOptions>this.opts;
@@ -393,13 +398,17 @@ export class Worker<
     //
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
-    this.waiting && (await this.blockingConnection.disconnect());
+    if (this.waiting) {
+      await this.blockingConnection.disconnect();
+    } else {
+      reconnect = false;
+    }
 
     if (this.processing) {
       await Promise.all(this.processing.keys());
     }
 
-    this.waiting && reconnect && (await this.blockingConnection.reconnect());
+    reconnect && (await this.blockingConnection.reconnect());
   }
 
   close(force = false) {

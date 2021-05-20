@@ -1,11 +1,10 @@
-import { Job, Queue } from '@src/classes';
-import { QueueEvents, QueueScheduler } from '../classes';
-import { Worker } from '@src/classes/worker';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { delay, removeAllQueueData } from '@src/utils';
+import { Job, Queue, QueueEvents, QueueScheduler } from '../classes';
+import { Worker } from '../classes/worker';
+import { delay, removeAllQueueData } from '../utils';
 
 describe('Pause', function() {
   let queue: Queue;
@@ -311,5 +310,22 @@ describe('Pause', function() {
     await queue.resume();
     const isResumedQueuePaused = await queue.isPaused();
     expect(isResumedQueuePaused).to.be.false;
+  });
+
+  it('should pause and resume worker without error', async function() {
+    const worker = new Worker(queueName, async job => {
+      await delay(100);
+    });
+
+    await worker.waitUntilReady();
+    await delay(10);
+    await worker.pause();
+    await delay(10);
+    worker.resume();
+    await delay(10);
+    await worker.pause();
+    await delay(10);
+
+    return worker.close();
   });
 });

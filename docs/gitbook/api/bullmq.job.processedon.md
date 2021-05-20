@@ -4,6 +4,8 @@
 
 ## Job.processedOn property
 
+Timestamp for when the job was processed.
+
 <b>Signature:</b>
 
 ```typescript

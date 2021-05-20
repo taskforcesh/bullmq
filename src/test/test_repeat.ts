@@ -155,7 +155,7 @@ describe('repeat', function() {
     this.clock.tick(nextTick);
 
     let prev: any;
-    var counter = 0;
+    let counter = 0;
 
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
@@ -602,7 +602,7 @@ describe('repeat', function() {
     );
     this.clock.tick(nextTick);
 
-    var counter = 0;
+    let counter = 0;
 
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', () => {
@@ -731,8 +731,9 @@ describe('repeat', function() {
       queueEvents.on('waiting', function({ jobId }) {
         try {
           expect(jobId).to.be.equal(
-            `repeat:c602b9b36e4beddd9e7db39a3ef2ea4c:${date.getTime() +
-              1 * ONE_SECOND}`,
+            `repeat:c602b9b36e4beddd9e7db39a3ef2ea4c:${
+              date.getTime() + 1 * ONE_SECOND
+            }`,
           );
           resolve();
         } catch (err) {

@@ -20,19 +20,19 @@ export declare class Job<T = any, R = any, N extends string = string>
 
 |  Property | Modifiers | Type | Description |
 |  --- | --- | --- | --- |
-|  [attemptsMade](./bullmq.job.attemptsmade.md) |  | number |  |
+|  [attemptsMade](./bullmq.job.attemptsmade.md) |  | number | Number of attempts after the job has failed. |
 |  [data](./bullmq.job.data.md) |  | T |  |
-|  [failedReason](./bullmq.job.failedreason.md) |  | string |  |
-|  [finishedOn?](./bullmq.job.finishedon.md) |  | number | <i>(Optional)</i> |
+|  [failedReason](./bullmq.job.failedreason.md) |  | string | Reason for failing. |
+|  [finishedOn?](./bullmq.job.finishedon.md) |  | number | <i>(Optional)</i> Timestamp for when the job finished (completed or failed). |
 |  [id?](./bullmq.job.id.md) |  | string | <i>(Optional)</i> |
 |  [name](./bullmq.job.name.md) |  | N |  |
 |  [opts](./bullmq.job.opts.md) |  | [JobsOptions](./bullmq.jobsoptions.md) |  |
-|  [parentKey?](./bullmq.job.parentkey.md) |  | string | <i>(Optional)</i> Fully qualified key pointing to the parent of this job. |
-|  [processedOn?](./bullmq.job.processedon.md) |  | number | <i>(Optional)</i> |
-|  [progress](./bullmq.job.progress.md) |  | number \| object |  |
-|  [returnvalue](./bullmq.job.returnvalue.md) |  | R |  |
-|  [stacktrace](./bullmq.job.stacktrace.md) |  | string\[\] |  |
-|  [timestamp](./bullmq.job.timestamp.md) |  | number |  |
+|  [parentKey?](./bullmq.job.parentkey.md) |  | string | <i>(Optional)</i> Fully qualified key (including the queue prefix) pointing to the parent of this job. |
+|  [processedOn?](./bullmq.job.processedon.md) |  | number | <i>(Optional)</i> Timestamp for when the job was processed. |
+|  [progress](./bullmq.job.progress.md) |  | number \| object | The progress a job has performed so far. |
+|  [returnvalue](./bullmq.job.returnvalue.md) |  | R | The value returned by the processor when processing this job. |
+|  [stacktrace](./bullmq.job.stacktrace.md) |  | string\[\] | Stacktrace for the error (for failed jobs). |
+|  [timestamp](./bullmq.job.timestamp.md) |  | number | Timestamp when the job was created (unless overrided with job options). |
 
 ## Methods
 

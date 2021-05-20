@@ -22,17 +22,18 @@ describe('bulk jobs', () => {
   it('should process jobs', async () => {
     const name = 'test';
     let processor;
-    const processing = new Promise<void>(resolve => [
-      (processor = async (job: Job) => {
-        if (job.data.idx === 0) {
-          expect(job.data.foo).to.be.equal('bar');
-        } else {
-          expect(job.data.idx).to.be.equal(1);
-          expect(job.data.foo).to.be.equal('baz');
-          resolve();
-        }
-      }),
-    ]);
+    const processing = new Promise<void>(
+      resolve =>
+        (processor = async (job: Job) => {
+          if (job.data.idx === 0) {
+            expect(job.data.foo).to.be.equal('bar');
+          } else {
+            expect(job.data.idx).to.be.equal(1);
+            expect(job.data.foo).to.be.equal('baz');
+            resolve();
+          }
+        }),
+    );
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
@@ -57,23 +58,29 @@ describe('bulk jobs', () => {
     const parentQueue = new Queue(parentQueueName);
 
     const parentWorker = new Worker(parentQueueName);
-    const childrenWorker = new Worker(queueName);      
+    const childrenWorker = new Worker(queueName);
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
     const parent = await parentQueue.add('parent', { some: 'data' });
     const jobs = await queue.addBulk([
-      { name, data: { idx: 0, foo: 'bar' }, opts: {
+      {
+        name,
+        data: { idx: 0, foo: 'bar' },
+        opts: {
           parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`
+            queue: `bull:${parentQueueName}`,
           },
         },
       },
-      { name, data: { idx: 1, foo: 'baz' }, opts: {
-          parent:  {
+      {
+        name,
+        data: { idx: 1, foo: 'baz' },
+        opts: {
+          parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`
+            queue: `bull:${parentQueueName}`,
           },
         },
       },
@@ -93,22 +100,23 @@ describe('bulk jobs', () => {
     await parentWorker.close();
     await parentQueue.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
-});
+  });
 
   it('should process jobs with custom ids', async () => {
     const name = 'test';
     let processor;
-    const processing = new Promise<void>(resolve => [
-      (processor = async (job: Job) => {
-        if (job.data.idx === 0) {
-          expect(job.data.foo).to.be.equal('bar');
-        } else {
-          expect(job.data.idx).to.be.equal(1);
-          expect(job.data.foo).to.be.equal('baz');
-          resolve();
-        }
-      }),
-    ]);
+    const processing = new Promise<void>(
+      resolve =>
+        (processor = async (job: Job) => {
+          if (job.data.idx === 0) {
+            expect(job.data.foo).to.be.equal('bar');
+          } else {
+            expect(job.data.idx).to.be.equal(1);
+            expect(job.data.foo).to.be.equal('baz');
+            resolve();
+          }
+        }),
+    );
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 

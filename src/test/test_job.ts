@@ -64,6 +64,39 @@ describe('Job', function() {
       });
       expect(createdJob.id).to.be.equal(customJobId);
     });
+
+    it('should set default size limit and succeed in creating job', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 20 };
+      const createdJob = await Job.create(queue, 'test', data, opts);
+      expect(createdJob).to.not.be.null;
+      expect(createdJob).to.have.property('opts');
+      expect(createdJob.opts.sizeLimit).to.be.equal(20);
+    });
+
+    it('should set default size limit and fail due to size limit exception', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 12 };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
+    });
+
+    it('should set default size limit with non-ascii data and fail due to size limit exception', async () => {
+      const data = { foo: 'βÅ®' }; // 16 bytes
+      const opts = { sizeLimit: 15 };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
+    });
+
+    it('should set custom job id and default size limit and fail due to size limit exception', async () => {
+      const data = { foo: 'bar' }; // 13 bytes
+      const opts = { sizeLimit: 12, jobId: 'customJobId' };
+      await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+        `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
+      );
+    });
   });
 
   describe('JSON.stringify', () => {
@@ -212,7 +245,7 @@ describe('Job', function() {
   });
 
   describe('.log', () => {
-    it('can log two rows with text', async () => {
+    it('can log two rows with text in asc order', async () => {
       const firstLog = 'some log text 1';
       const secondLog = 'some log text 2';
 
@@ -222,6 +255,30 @@ describe('Job', function() {
       await job.log(secondLog);
       const logs = await queue.getJobLogs(job.id);
       expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
+      const firstSavedLog = await queue.getJobLogs(job.id, 0, 0, true);
+      expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
+      const secondSavedLog = await queue.getJobLogs(job.id, 1, 1);
+      expect(secondSavedLog).to.be.eql({ logs: [secondLog], count: 2 });
+      await job.remove();
+
+      const logsRemoved = await queue.getJobLogs(job.id);
+      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
+    });
+
+    it('can log two rows with text in desc order', async () => {
+      const firstLog = 'some log text 1';
+      const secondLog = 'some log text 2';
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await job.log(firstLog);
+      await job.log(secondLog);
+      const logs = await queue.getJobLogs(job.id, 0, -1, false);
+      expect(logs).to.be.eql({ logs: [secondLog, firstLog], count: 2 });
+      const secondSavedLog = await queue.getJobLogs(job.id, 0, 0, false);
+      expect(secondSavedLog).to.be.eql({ logs: [secondLog], count: 2 });
+      const firstSavedLog = await queue.getJobLogs(job.id, 1, 1, false);
+      expect(firstSavedLog).to.be.eql({ logs: [firstLog], count: 2 });
       await job.remove();
 
       const logsRemoved = await queue.getJobLogs(job.id);
@@ -516,7 +573,7 @@ describe('Job', function() {
     });
 
     it('should promote delayed job to the right queue if queue is paused', async () => {
-      const normalJob = await queue.add('normal', { foo: 'bar' });
+      await queue.add('normal', { foo: 'bar' });
       const delayedJob = await queue.add(
         'delayed',
         { foo: 'bar' },

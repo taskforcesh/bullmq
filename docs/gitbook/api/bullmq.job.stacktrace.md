@@ -4,6 +4,8 @@
 
 ## Job.stacktrace property
 
+Stacktrace for the error (for failed jobs).
+
 <b>Signature:</b>
 
 ```typescript

@@ -53,7 +53,7 @@ local function removeJob( prefix, jobId)
     -- the parent child list, but if it is the last child we should move the parent to "wait/paused" 
     -- which requires code from "moveToFinished"
     local parentKey = rcall("HGET", jobKey, "parentKey")
-    if( (type(parentKey) == "string") and (rcall("EXISTS", parentKey) == 1)) then
+    if( (type(parentKey) == "string") and parentKey ~= "" and (rcall("EXISTS", parentKey) == 1)) then
         local parentDependenciesKey = parentKey .. ":dependencies"
         local result = rcall("SREM", parentDependenciesKey, jobKey)
         if rcall("SCARD", parentDependenciesKey) == 0 then 

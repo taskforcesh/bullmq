@@ -26,7 +26,8 @@ export interface JobsOptions
 |  [removeOnComplete?](./bullmq.jobsoptions.removeoncomplete.md) | boolean \| number | <i>(Optional)</i> If true, removes the job when it successfully completes When given an number, it specifies the maximum amount of jobs to keep. Default behavior is to keep the job in the completed set. |
 |  [removeOnFail?](./bullmq.jobsoptions.removeonfail.md) | boolean \| number | <i>(Optional)</i> If true, removes the job when it fails after all attempts. When given an number, it specifies the maximum amount of jobs to keep. |
 |  [repeat?](./bullmq.jobsoptions.repeat.md) | [RepeatOptions](./bullmq.repeatoptions.md) | <i>(Optional)</i> Repeat this job, for example based on a <code>cron</code> schedule. |
+|  [sizeLimit?](./bullmq.jobsoptions.sizelimit.md) | number | <i>(Optional)</i> Limits the size in bytes of the job's data payload (as a JSON serialized string). |
 |  [stackTraceLimit?](./bullmq.jobsoptions.stacktracelimit.md) | number | <i>(Optional)</i> Limits the amount of stack trace lines that will be recorded in the stacktrace. |
 |  [timeout?](./bullmq.jobsoptions.timeout.md) | number | <i>(Optional)</i> The number of milliseconds after which the job should be fail with a timeout error. |
-|  [timestamp?](./bullmq.jobsoptions.timestamp.md) | number | <i>(Optional)</i> Defaults to <code>Date.now()</code> |
+|  [timestamp?](./bullmq.jobsoptions.timestamp.md) | number | <i>(Optional)</i> Timestamp when the job was created. Defaults to <code>Date.now()</code>. |
 

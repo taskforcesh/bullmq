@@ -34,7 +34,7 @@ import { FlowProducer } from 'bullmq';
 // object otherwise it connects to a local redis instance.
 const flowProducer = new FlowProducer();
 
-const flow = await flow.add({
+const flow = await flowProducer.add({
   name: 'renovate-interior',
   queueName: 'renovate',
   children: [
