@@ -1,5 +1,5 @@
 import { Queue, QueueEvents, Worker } from '../classes';
-import { delay, removeAllQueueData } from '@src/utils';
+import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
