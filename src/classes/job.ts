@@ -595,19 +595,6 @@ export class Job<T = any, R = any, N extends string = string> {
     return score !== null;
   }
 
-  private assignParentOpts(parentOpts: ParentOpts = {}) {
-    if (!this.parentKey && parentOpts.parentKey) {
-      const [prefix, queueName, id] = parentOpts.parentKey.split(':');
-
-      this.opts = Object.assign(this.opts, {
-        parent: {
-          id,
-          queue: `${prefix}:${queueName}`,
-        },
-      });
-    }
-  }
-
   private async isInList(list: string) {
     return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
   }
@@ -615,7 +602,6 @@ export class Job<T = any, R = any, N extends string = string> {
   addJob(client: RedisClient, parentOpts?: ParentOpts): string {
     const queue = this.queue;
 
-    this.assignParentOpts(parentOpts);
     const jobData = this.asJSON();
 
     const exceedLimit =

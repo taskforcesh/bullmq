@@ -175,9 +175,7 @@ describe('Job', function() {
 
     it('removes processed hash', async function() {
       const client = await queue.client;
-      const values = [
-        { idx: 0, bar: 'something' }
-      ];
+      const values = [{ idx: 0, bar: 'something' }];
       const token = 'my-token';
       const token2 = 'my-token2';
       const parentQueueName = 'parent-queue-' + v4();
@@ -187,17 +185,11 @@ describe('Job', function() {
       const childrenWorker = new Worker(queueName);
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
-  
+
       const data = { foo: 'bar' };
       const parent = await Job.create(parentQueue, 'testParent', data);
-      const parentKey = getParentKey({
-        id: parent.id,
-        queue: `bull:${parentQueueName}`
-      });
-      const child = new Job(queue, 'testJob1', values[0]);
-      await child.addJob(client, {
-        parentKey,
-        parentDependenciesKey: `${parentKey}:dependencies`,
+      await Job.create(queue, 'testJob1', values[0], {
+        parent: { id: parent.id, queue: `bull:${parentQueueName}` },
       });
 
       const job = (await parentWorker.getNextJob(token)) as Job;
@@ -205,7 +197,7 @@ describe('Job', function() {
 
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
-  
+
       await child1.moveToCompleted('return value', token2);
 
       const parentId = job.id;
@@ -215,7 +207,9 @@ describe('Job', function() {
       const storedJob = await Job.fromId(parentQueue, job.id);
       expect(storedJob).to.be.equal(undefined);
 
-      const processed = await client.hgetall(`bull:${parentQueueName}:${parentId}:processed`);
+      const processed = await client.hgetall(
+        `bull:${parentQueueName}:${parentId}:processed`,
+      );
 
       expect(processed).to.deep.equal({});
 
