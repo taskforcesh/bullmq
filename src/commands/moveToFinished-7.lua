@@ -80,7 +80,8 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
         if result == 1 then 
             local processedSet = parentKey .. ":processed"
             rcall("HSET", processedSet, jobIdKey, ARGV[4])
-            if rcall("SCARD", dependenciesSet) == 0 then 
+            local activeParent = redis.call("ZSCORE", parentQueue .. ":waiting-children", parentId)
+            if rcall("SCARD", dependenciesSet) == 0 and activeParent then 
                 rcall("ZREM", parentQueue .. ":waiting-children", parentId)
 
                 if rcall("HEXISTS", parentQueue .. ":meta", "paused") ~= 1 then
@@ -89,7 +90,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
                     rcall("RPUSH", parentQueue .. ":paused", parentId)
                 end
 
-                local parentEventStream = parentKey .. ":events"
+                local parentEventStream = parentQueue .. ":events"
                 rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
             end
         end

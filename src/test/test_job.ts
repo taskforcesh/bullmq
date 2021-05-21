@@ -172,6 +172,52 @@ describe('Job', function() {
       const storedJob = await Job.fromId(queue, job.id);
       expect(storedJob).to.be.equal(undefined);
     });
+
+    it('removes processed hash', async function() {
+      const client = await queue.client;
+      const values = [{ idx: 0, bar: 'something' }];
+      const token = 'my-token';
+      const token2 = 'my-token2';
+      const parentQueueName = 'parent-queue-' + v4();
+
+      const parentQueue = new Queue(parentQueueName);
+      const parentWorker = new Worker(parentQueueName);
+      const childrenWorker = new Worker(queueName);
+      await parentWorker.waitUntilReady();
+      await childrenWorker.waitUntilReady();
+
+      const data = { foo: 'bar' };
+      const parent = await Job.create(parentQueue, 'testParent', data);
+      await Job.create(queue, 'testJob1', values[0], {
+        parent: { id: parent.id, queue: `bull:${parentQueueName}` },
+      });
+
+      const job = (await parentWorker.getNextJob(token)) as Job;
+      const child1 = (await childrenWorker.getNextJob(token2)) as Job;
+
+      const isActive = await job.isActive();
+      expect(isActive).to.be.equal(true);
+
+      await child1.moveToCompleted('return value', token2);
+
+      const parentId = job.id;
+      await job.moveToCompleted('return value', token);
+      await job.remove();
+
+      const storedJob = await Job.fromId(parentQueue, job.id);
+      expect(storedJob).to.be.equal(undefined);
+
+      const processed = await client.hgetall(
+        `bull:${parentQueueName}:${parentId}:processed`,
+      );
+
+      expect(processed).to.deep.equal({});
+
+      await childrenWorker.close();
+      await parentWorker.close();
+      await parentQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
   });
 
   // TODO: Add more remove tests

@@ -32,7 +32,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [progress](./bullmq.job.progress.md) |  | number \| object | The progress a job has performed so far. |
 |  [returnvalue](./bullmq.job.returnvalue.md) |  | R | The value returned by the processor when processing this job. |
 |  [stacktrace](./bullmq.job.stacktrace.md) |  | string\[\] | Stacktrace for the error (for failed jobs). |
-|  [timestamp](./bullmq.job.timestamp.md) |  | number | Timestamp when the job was created (unless overrided with job options). |
+|  [timestamp](./bullmq.job.timestamp.md) |  | number | Timestamp when the job was created (unless overridden with job options). |
 
 ## Methods
 

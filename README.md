@@ -29,6 +29,12 @@
   </p>
 </div>
 
+# 🙏 I Need your help!
+
+I need you to spend 15 seconds to complete this [survey](https://www.surveymonkey.com/r/8TYDNL2)
+
+Thanks!
+
 # 🛠 Tutorials
 
 You can find tutorials and news in this blog: https://blog.taskforce.sh/

@@ -311,4 +311,21 @@ describe('Pause', function() {
     const isResumedQueuePaused = await queue.isPaused();
     expect(isResumedQueuePaused).to.be.false;
   });
+
+  it('should pause and resume worker without error', async function() {
+    const worker = new Worker(queueName, async job => {
+      await delay(100);
+    });
+
+    await worker.waitUntilReady();
+    await delay(10);
+    await worker.pause();
+    await delay(10);
+    worker.resume();
+    await delay(10);
+    await worker.pause();
+    await delay(10);
+
+    return worker.close();
+  });
 });

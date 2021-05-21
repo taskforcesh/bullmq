@@ -218,6 +218,10 @@ export class Worker<
   private async waitForJob() {
     const client = await this.blockingConnection.client;
 
+    if (this.paused) {
+      return;
+    }
+
     let jobId;
     const opts: WorkerOptions = <WorkerOptions>this.opts;
 
@@ -394,13 +398,17 @@ export class Worker<
     //
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
-    this.waiting && (await this.blockingConnection.disconnect());
+    if (this.waiting) {
+      await this.blockingConnection.disconnect();
+    } else {
+      reconnect = false;
+    }
 
     if (this.processing) {
       await Promise.all(this.processing.keys());
     }
 
-    this.waiting && reconnect && (await this.blockingConnection.reconnect());
+    reconnect && (await this.blockingConnection.reconnect());
   }
 
   close(force = false) {
