@@ -63,7 +63,7 @@ export class Job<T = any, R = any, N extends string = string> {
   stacktrace: string[] = null;
 
   /**
-   * Timestamp when the job was created (unless overrided with job options).
+   * Timestamp when the job was created (unless overridden with job options).
    */
   timestamp: number;
 
