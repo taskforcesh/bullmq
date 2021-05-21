@@ -90,7 +90,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
                     rcall("RPUSH", parentQueue .. ":paused", parentId)
                 end
 
-                local parentEventStream = parentKey .. ":events"
+                local parentEventStream = parentQueue .. ":events"
                 rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
             end
         end
