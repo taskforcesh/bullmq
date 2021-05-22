@@ -39,5 +39,6 @@ export interface RepeatOptions {
    */
   count?: number;
   prevMillis?: number;
+  offset?: number;
   jobId?: string;
 }

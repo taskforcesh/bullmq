@@ -275,7 +275,6 @@ describe('repeat', function() {
   });
 
   it('should repeat every 2 seconds and start immediately', async function() {
-    this.timeout(2000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
@@ -296,7 +295,7 @@ describe('repeat', function() {
       },
     );
 
-    this.clock.tick(500);
+    this.clock.tick(100);
 
     let prev: Job;
     let counter = 0;
@@ -306,7 +305,7 @@ describe('repeat', function() {
         this.clock.tick(nextTick);
         if (prev && counter === 1) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(500);
+          expect(job.timestamp - prev.timestamp).to.be.gte(100);
         } else if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
           expect(job.timestamp - prev.timestamp).to.be.gte(2000);

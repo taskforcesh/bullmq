@@ -28,6 +28,8 @@ export class Repeat extends QueueBase {
 
     const nextMillis = getNextMillis(now, repeatOpts);
 
+    const hasImmediately = repeatOpts.every && repeatOpts.immediately;
+    const offset = hasImmediately ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
       if (!prevMillis && opts.jobId) {
@@ -55,9 +57,10 @@ export class Repeat extends QueueBase {
           name,
           nextMillis,
           repeatJobKey,
-          { ...opts, repeat: { ...filteredRepeatOpts } },
+          { ...opts, repeat: { offset, ...filteredRepeatOpts } },
           data,
           currentCount,
+          hasImmediately,
         );
       }
     }
@@ -70,6 +73,7 @@ export class Repeat extends QueueBase {
     opts: JobsOptions,
     data: T,
     currentCount: number,
+    hasImmediately: boolean,
   ) {
     const client = await this.client;
 
@@ -83,12 +87,13 @@ export class Repeat extends QueueBase {
       opts.repeat.jobId,
     );
     const now = Date.now();
-    const delay = nextMillis - now;
+    const delay =
+      nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
 
     const mergedOpts = {
       ...opts,
       jobId,
-      delay: delay < 0 ? 0 : delay,
+      delay: delay < 0 || hasImmediately ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
     };
@@ -125,7 +130,7 @@ export class Repeat extends QueueBase {
   async removeRepeatableByKey(repeatJobKey: string) {
     const client = await this.client;
 
-    const data = this._keyToData(repeatJobKey);
+    const data = this.keyToData(repeatJobKey);
     const queueKey = this.keys[''];
 
     const repeatJobId = getRepeatJobId(
@@ -144,7 +149,7 @@ export class Repeat extends QueueBase {
     );
   }
 
-  _keyToData(key: string) {
+  private keyToData(key: string) {
     const data = key.split(':');
 
     return {
