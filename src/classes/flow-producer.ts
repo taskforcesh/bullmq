@@ -4,7 +4,7 @@ import { Redis, Pipeline } from 'ioredis';
 
 import { EventEmitter } from 'events';
 import { QueueBaseOptions } from '../interfaces';
-import { RedisConnection } from './redis-connection';
+import { RedisClient, RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
@@ -85,6 +85,10 @@ export class FlowProducer extends EventEmitter {
     updateJobIds(jobsTree, result, 0);
 
     return jobsTree;
+  }
+
+  get client(): Promise<RedisClient> {
+    return this.connection.client;
   }
 
   /**
