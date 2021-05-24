@@ -20,8 +20,10 @@ export interface RepeatOptions
 |  [cron?](./bullmq.repeatoptions.cron.md) | string | <i>(Optional)</i> A cron pattern |
 |  [endDate?](./bullmq.repeatoptions.enddate.md) | Date \| string \| number | <i>(Optional)</i> End date when the repeat job should stop repeating. |
 |  [every?](./bullmq.repeatoptions.every.md) | number | <i>(Optional)</i> Repeat after this amount of milliseconds (<code>cron</code> setting cannot be used together with this setting.) |
+|  [immediately?](./bullmq.repeatoptions.immediately.md) | boolean | <i>(Optional)</i> Repeated job should start right now ( work only with every settings) |
 |  [jobId?](./bullmq.repeatoptions.jobid.md) | string | <i>(Optional)</i> |
 |  [limit?](./bullmq.repeatoptions.limit.md) | number | <i>(Optional)</i> Number of times the job should repeat at max. |
+|  [offset?](./bullmq.repeatoptions.offset.md) | number | <i>(Optional)</i> |
 |  [prevMillis?](./bullmq.repeatoptions.prevmillis.md) | number | <i>(Optional)</i> |
 |  [startDate?](./bullmq.repeatoptions.startdate.md) | Date \| string \| number | <i>(Optional)</i> Start date when the repeat job should start repeating (only with <code>cron</code>). |
 |  [tz?](./bullmq.repeatoptions.tz.md) | string | <i>(Optional)</i> Timezone |
