@@ -13,3 +13,5 @@ isActive(): Promise<boolean>;
 
 Promise&lt;boolean&gt;
 
+true of the job is active.
+

@@ -13,3 +13,5 @@ isDelayed(): Promise<boolean>;
 
 Promise&lt;boolean&gt;
 
+true if the job is delayed.
+

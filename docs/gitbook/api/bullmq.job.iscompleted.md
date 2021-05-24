@@ -13,3 +13,5 @@ isCompleted(): Promise<boolean>;
 
 Promise&lt;boolean&gt;
 
+true if the job has completed.
+

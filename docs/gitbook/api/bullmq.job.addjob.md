@@ -4,6 +4,8 @@
 
 ## Job.addJob() method
 
+Adds the job to Redis.
+
 <b>Signature:</b>
 
 ```typescript
@@ -20,4 +22,5 @@ addJob(client: RedisClient, parentOpts?: ParentOpts): string;
 <b>Returns:</b>
 
 string
+
 

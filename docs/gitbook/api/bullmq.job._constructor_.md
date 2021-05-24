@@ -9,7 +9,10 @@ Constructs a new instance of the `Job` class
 <b>Signature:</b>
 
 ```typescript
-constructor(queue: MinimalQueue, name: N, data: T, opts?: JobsOptions, id?: string);
+constructor(queue: MinimalQueue, 
+    name: N, 
+    data: T, 
+    opts?: JobsOptions, id?: string);
 ```
 
 ## Parameters

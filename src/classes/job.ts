@@ -106,8 +106,19 @@ export class Job<T = any, R = any, N extends string = string> {
 
   constructor(
     private queue: MinimalQueue,
+    /**
+     * The name of the Job
+     */
     public name: N,
+
+    /**
+     * The payload for this job.
+     */
     public data: T,
+
+    /**
+     * The options object for this job.
+     */
     public opts: JobsOptions = {},
     public id?: string,
   ) {
@@ -128,6 +139,15 @@ export class Job<T = any, R = any, N extends string = string> {
     this.toKey = queue.toKey.bind(queue);
   }
 
+  /**
+   * Creates a new job and adds it to the queue.
+   * 
+   * @param queue the queue where to add the job.
+   * @param name  the name of the job.
+   * @param data  the payload of the job.
+   * @param opts the options bag for this job.
+   * @returns 
+   */
   static async create<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     name: N,
@@ -148,6 +168,13 @@ export class Job<T = any, R = any, N extends string = string> {
     return job;
   }
 
+  /**
+   * Creates a bulk of jobs and adds them atomically to the given queue.
+   * 
+   * @param queue the queue were to add the jobs.
+   * @param jobs an array of jobs to be added to the queue.
+   * @returns 
+   */
   static async createBulk<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     jobs: {
@@ -183,6 +210,13 @@ export class Job<T = any, R = any, N extends string = string> {
     return jobInstances;
   }
 
+  /**
+   * Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
+   * @param queue the queue where the job belongs to.
+   * @param json the plain object containing the job.
+   * @param jobId an optional job id (overrides the id coming from the JSON object)
+   * @returns 
+   */
   static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string) {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
@@ -218,6 +252,13 @@ export class Job<T = any, R = any, N extends string = string> {
     return job;
   }
 
+  /**
+   * Fetches a Job from the queue given the passed job id.
+   * 
+   * @param queue the queue where the job belongs to.
+   * @param jobId the job id.
+   * @returns 
+   */
   static async fromId(
     queue: MinimalQueue,
     jobId: string,
@@ -237,6 +278,10 @@ export class Job<T = any, R = any, N extends string = string> {
     return withoutQueue;
   }
 
+  /**
+   * Prepares a job to be serialized for storage in Redis.
+   * @returns 
+   */
   asJSON(): JobJson {
     return {
       id: this.id,
@@ -254,6 +299,11 @@ export class Job<T = any, R = any, N extends string = string> {
     };
   }
 
+  /**
+   * Updates a job's data
+   * 
+   * @param data the data that will replace the current jobs data.
+   */
   async update(data: T) {
     const client = await this.queue.client;
 
@@ -278,6 +328,11 @@ export class Job<T = any, R = any, N extends string = string> {
     return client.rpush(logsKey, logRow);
   }
 
+  /**
+   * Completely remove the job from the queue.
+   * Note, this call will throw an exception if the job 
+   * is being processed when the call is performed.
+   */
   async remove() {
     await this.queue.waitUntilReady();
 
@@ -410,26 +465,50 @@ export class Job<T = any, R = any, N extends string = string> {
     }
   }
 
+  /**
+   * 
+   * @returns true if the job has completed.
+   */
   isCompleted() {
     return this.isInZSet('completed');
   }
 
+  /**
+   * 
+   * @returns true if the job has failed.
+   */
   isFailed() {
     return this.isInZSet('failed');
   }
 
+  /**
+   * 
+   * @returns true if the job is delayed.
+   */
   isDelayed() {
     return this.isInZSet('delayed');
   }
 
+  /**
+   * 
+   * @returns true if the job is waiting for children.
+   */
   isWaitingChildren() {
     return this.isInZSet('waiting-children');
   }
 
+  /**
+   * 
+   * @returns true of the job is active.
+   */
   isActive() {
     return this.isInList('active');
   }
 
+  /**
+   * 
+   * @returns true if the job is waiting.
+   */
   async isWaiting() {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
@@ -547,14 +626,29 @@ export class Job<T = any, R = any, N extends string = string> {
     });
   }
 
+  /**
+   * Moves the job to the delay set.
+   * 
+   * @param timestamp timestmap where the job should be moved back to "wait"
+   * @returns 
+   */
   moveToDelayed(timestamp: number) {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
   }
 
-  moveToWaitingChildren(token: string, opts: MoveToChildrenOpts) {
+  /**
+   * Moves the job to the waiting-children set.
+   * @param {string} token Token to check job is locked by current worker
+   * @param opts the options bag for moving a job to waiting-children.
+   * @returns {boolean} true if the job was moved
+   */
+  moveToWaitingChildren(token: string, opts: MoveToChildrenOpts): Promise<boolean> {
     return Scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
   }
 
+  /**
+   * Promotes a delayed job so that it starts to be processed as soon as possible.
+   */
   async promote() {
     const queue = this.queue;
     const jobId = this.id;
@@ -596,6 +690,9 @@ export class Job<T = any, R = any, N extends string = string> {
     }
   }
 
+  /**
+   * Marks a job to not be retried if it fails (even if attempts has been configured)
+   */
   discard() {
     this.discarded = true;
   }
@@ -611,6 +708,13 @@ export class Job<T = any, R = any, N extends string = string> {
     return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
   }
 
+  /**
+   * Adds the job to Redis.
+   * 
+   * @param client 
+   * @param parentOpts 
+   * @returns 
+   */
   addJob(client: RedisClient, parentOpts?: ParentOpts): string {
     const queue = this.queue;
 

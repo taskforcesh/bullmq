@@ -15,7 +15,6 @@ export declare class Repeat extends QueueBase
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
-|  [\_keyToData(key)](./bullmq.repeat._keytodata.md) |  |  |
 |  [addNextRepeatableJob(name, data, opts, skipCheckExists)](./bullmq.repeat.addnextrepeatablejob.md) |  |  |
 |  [getRepeatableCount()](./bullmq.repeat.getrepeatablecount.md) |  |  |
 |  [getRepeatableJobs(start, end, asc)](./bullmq.repeat.getrepeatablejobs.md) |  |  |

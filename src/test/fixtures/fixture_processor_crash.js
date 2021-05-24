@@ -12,5 +12,7 @@ module.exports = function(job) {
     process.exit(job.data.exitCode);
   }, 100);
 
-  return new Promise(() => {});
+  return new Promise(() => {
+    // do nothing
+  });
 };
