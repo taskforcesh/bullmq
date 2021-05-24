@@ -4,6 +4,8 @@
 
 ## Job.moveToDelayed() method
 
+Moves the job to the delay set.
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,9 +16,10 @@ moveToDelayed(timestamp: number): Promise<void>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  timestamp | number |  |
+|  timestamp | number | timestmap where the job should be moved back to "wait" |
 
 <b>Returns:</b>
 
 Promise&lt;void&gt;
+
 

@@ -4,6 +4,8 @@
 
 ## Job.update() method
 
+Updates a job's data
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,7 +16,7 @@ update(data: T): Promise<void>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  data | T |  |
+|  data | T | the data that will replace the current jobs data. |
 
 <b>Returns:</b>
 

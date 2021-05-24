@@ -4,6 +4,8 @@
 
 ## Job.opts property
 
+The options object for this job.
+
 <b>Signature:</b>
 
 ```typescript

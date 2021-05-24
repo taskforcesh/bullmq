@@ -4,6 +4,8 @@
 
 ## Job.fromJSON() method
 
+Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,11 +16,12 @@ static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string): Job<any,
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  json | [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
-|  jobId | string |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) | the queue where the job belongs to. |
+|  json | [JobJsonRaw](./bullmq.jobjsonraw.md) | the plain object containing the job. |
+|  jobId | string | an optional job id (overrides the id coming from the JSON object) |
 
 <b>Returns:</b>
 
 [Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;
+
 

@@ -4,6 +4,8 @@
 
 ## Job.fromId() method
 
+Fetches a Job from the queue given the passed job id.
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,10 +16,11 @@ static fromId(queue: MinimalQueue, jobId: string): Promise<Job | undefined>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  jobId | string |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) | the queue where the job belongs to. |
+|  jobId | string | the job id. |
 
 <b>Returns:</b>
 
 Promise&lt;[Job](./bullmq.job.md) \| undefined&gt;
+
 

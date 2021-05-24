@@ -4,6 +4,8 @@
 
 ## Job.createBulk() method
 
+Creates a bulk of jobs and adds them atomically to the given queue.
+
 <b>Signature:</b>
 
 ```typescript
@@ -18,10 +20,11 @@ static createBulk<T = any, R = any, N extends string = string>(queue: MinimalQue
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  jobs | { name: N; data: T; opts?: [BulkJobOptions](./bullmq.bulkjoboptions.md)<!-- -->; }\[\] |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) | the queue were to add the jobs. |
+|  jobs | { name: N; data: T; opts?: [BulkJobOptions](./bullmq.bulkjoboptions.md)<!-- -->; }\[\] | an array of jobs to be added to the queue. |
 
 <b>Returns:</b>
 
 Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt;\[\]&gt;
+
 
