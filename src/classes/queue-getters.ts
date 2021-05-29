@@ -4,6 +4,7 @@
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg } from './worker';
+import { Ok } from 'ioredis';
 
 export class QueueGetters extends QueueBase {
   getJob(jobId: string): Promise<Job | undefined> {
@@ -195,6 +196,11 @@ export class QueueGetters extends QueueBase {
     });
   }
 
+  /**
+   * Get worker list related to the queue.
+   * @method
+   * @returns {Object} Returns an array with workers info.
+   */
   async getWorkers() {
     const client = await this.client;
     const clients = await client.client('list');
@@ -222,7 +228,7 @@ export class QueueGetters extends QueueBase {
         client[key] = value;
       });
       const name = client['name'];
-      if (name && name.startsWith(this.clientName())) {
+      if (name && name === this.clientName()) {
         client['name'] = this.name;
         clients.push(client);
       }
