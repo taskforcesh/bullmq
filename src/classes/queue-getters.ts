@@ -4,7 +4,6 @@
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg } from './worker';
-import { Ok } from 'ioredis';
 
 export class QueueGetters extends QueueBase {
   getJob(jobId: string): Promise<Job | undefined> {

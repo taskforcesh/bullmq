@@ -29,13 +29,12 @@ describe('workers', function() {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it.only('should get all workers for this queue', async function() {
+  it('should get all workers for this queue', async function() {
     const worker = new Worker(queueName, async job => {});
     await worker.waitUntilReady();
 
     const workers = await queue.getWorkers();
     expect(workers).to.have.length(1);
-    console.log(workers);
 
     const worker2 = new Worker(queueName, async job => {});
     await worker2.waitUntilReady();
