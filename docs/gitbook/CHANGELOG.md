@@ -40,8 +40,6 @@
 
 * **getjoblogs:** no reversed pagination ([fb0c3a5](https://github.com/taskforcesh/bullmq/commit/fb0c3a50f0d37851a8f35cb4c478259a63d93461))
 
-# Changelog
-
 ## [1.26.1](https://github.com/taskforcesh/bullmq/compare/v1.26.0...v1.26.1) (2021-05-17)
 
 ### Bug Fixes
