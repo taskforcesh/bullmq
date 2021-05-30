@@ -402,7 +402,7 @@ describe('workers', function() {
     let processor;
 
     // for the current strategy this number should not exceed 8 (2^2*2)
-    // this is done to maitain a deterministic output.
+    // this is done to maintain a deterministic output.
     const numJobsPerPriority = 6;
 
     for (let i = 0; i < numJobsPerPriority; i++) {
@@ -955,7 +955,7 @@ describe('workers', function() {
     });
     await queueScheduler.waitUntilReady();
 
-    const job = await queue.add('test', { bar: 'baz' });
+    await queue.add('test', { bar: 'baz' });
 
     const completed = new Promise(resolve => {
       worker.on('completed', resolve);
@@ -1204,8 +1204,6 @@ describe('workers', function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
-      let start: number;
-
       const worker = new Worker(queueName, async job => {
         if (job.attemptsMade < 2) {
           throw new Error('Not yet!');
@@ -1214,7 +1212,7 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      start = Date.now();
+      const start = Date.now();
       await queue.add(
         'test',
         { foo: 'bar' },
@@ -1238,7 +1236,6 @@ describe('workers', function() {
 
     it('should retry a job after a delay if an exponential backoff is given', async function() {
       this.timeout(12000);
-      let start: number;
 
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
@@ -1251,7 +1248,7 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      start = Date.now();
+      const start = Date.now();
       await queue.add(
         'test',
         { foo: 'bar' },
