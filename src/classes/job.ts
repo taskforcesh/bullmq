@@ -133,12 +133,12 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Creates a new job and adds it to the queue.
-   * 
+   *
    * @param queue the queue where to add the job.
    * @param name  the name of the job.
    * @param data  the payload of the job.
    * @param opts the options bag for this job.
-   * @returns 
+   * @returns
    */
   static async create<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -162,10 +162,10 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Creates a bulk of jobs and adds them atomically to the given queue.
-   * 
+   *
    * @param queue the queue were to add the jobs.
    * @param jobs an array of jobs to be added to the queue.
-   * @returns 
+   * @returns
    */
   static async createBulk<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
@@ -207,7 +207,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * @param queue the queue where the job belongs to.
    * @param json the plain object containing the job.
    * @param jobId an optional job id (overrides the id coming from the JSON object)
-   * @returns 
+   * @returns
    */
   static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string) {
     const data = JSON.parse(json.data || '{}');
@@ -246,10 +246,10 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Fetches a Job from the queue given the passed job id.
-   * 
+   *
    * @param queue the queue where the job belongs to.
    * @param jobId the job id.
-   * @returns 
+   * @returns
    */
   static async fromId(
     queue: MinimalQueue,
@@ -272,7 +272,7 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Prepares a job to be serialized for storage in Redis.
-   * @returns 
+   * @returns
    */
   asJSON(): JobJson {
     return {
@@ -293,7 +293,7 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Updates a job's data
-   * 
+   *
    * @param data the data that will replace the current jobs data.
    */
   async update(data: T) {
@@ -322,7 +322,7 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Completely remove the job from the queue.
-   * Note, this call will throw an exception if the job 
+   * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
    */
   async remove() {
@@ -458,7 +458,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * 
+   *
    * @returns true if the job has completed.
    */
   isCompleted() {
@@ -466,7 +466,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * 
+   *
    * @returns true if the job has failed.
    */
   isFailed() {
@@ -474,7 +474,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * 
+   *
    * @returns true if the job is delayed.
    */
   isDelayed() {
@@ -482,7 +482,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * 
+   *
    * @returns true if the job is waiting for children.
    */
   isWaitingChildren() {
@@ -490,7 +490,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * 
+   *
    * @returns true of the job is active.
    */
   isActive() {
@@ -498,7 +498,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * 
+   *
    * @returns true if the job is waiting.
    */
   async isWaiting() {
@@ -620,9 +620,9 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Moves the job to the delay set.
-   * 
-   * @param timestamp timestmap where the job should be moved back to "wait"
-   * @returns 
+   *
+   * @param timestamp timestamp where the job should be moved back to "wait"
+   * @returns
    */
   moveToDelayed(timestamp: number) {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
@@ -692,12 +692,12 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Adds the job to Redis.
-   * 
-   * @param client 
-   * @param parentOpts 
-   * @returns 
+   *
+   * @param client
+   * @param parentOpts
+   * @returns
    */
-  addJob(client: RedisClient, parentOpts?: ParentOpts): string {
+  addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
     const queue = this.queue;
 
     const jobData = this.asJSON();

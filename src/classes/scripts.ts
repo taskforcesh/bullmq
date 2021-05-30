@@ -233,7 +233,7 @@ export class Scripts {
     }
   }
 
-  static finishedErrors(code: number, jobId: string, command: string) {
+  static finishedErrors(code: number, jobId: string, command: string): Error {
     switch (code) {
       case -1:
         return new Error(`Missing key for job ${jobId} ${command}`);
