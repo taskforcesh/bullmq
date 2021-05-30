@@ -1,4 +1,4 @@
-import { Queue, QueueScheduler } from '../classes';
+import { Queue } from '../classes';
 import { QueueEvents } from '../classes/queue-events';
 import { Worker } from '../classes/worker';
 import { expect } from 'chai';
@@ -6,7 +6,6 @@ import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../utils';
-import { resolve } from 'path';
 
 describe('events', function() {
   this.timeout(4000);
