@@ -235,7 +235,7 @@ export class Scripts {
     }
   }
 
-  static finishedErrors(code: number, jobId: string, command: string) {
+  static finishedErrors(code: number, jobId: string, command: string): Error {
     switch (code) {
       case -1:
         return new Error(`Missing key for job ${jobId} ${command}`);
@@ -406,14 +406,8 @@ export class Scripts {
         return true;
       case 1:
         return false;
-      case -1:
-        throw new Error(
-          `Missing Job ${jobId} when trying to move from active to waiting-children`,
-        );
-      case -2:
-        throw new Error(`Missing lock for job ${jobId}`);
-      case -3:
-        throw new Error(`Job is not in the active list ${jobId}`);
+      default:
+        return this.finishedErrors(result, jobId, 'moveToWaitingChildren');
     }
   }
 

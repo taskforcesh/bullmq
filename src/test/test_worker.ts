@@ -1204,8 +1204,6 @@ describe('workers', function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
-      let start: number;
-
       const worker = new Worker(queueName, async job => {
         if (job.attemptsMade < 2) {
           throw new Error('Not yet!');
@@ -1214,7 +1212,7 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      start = Date.now();
+      const start = Date.now();
       await queue.add(
         'test',
         { foo: 'bar' },
