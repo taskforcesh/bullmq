@@ -37,6 +37,10 @@ export class QueueBase extends EventEmitter {
     return this.connection.redisVersion;
   }
 
+  healthCheck(): Promise<boolean> {
+    return this.connection.healthCheck();
+  }
+
   async waitUntilReady() {
     return this.client;
   }

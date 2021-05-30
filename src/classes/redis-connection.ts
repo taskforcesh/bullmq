@@ -112,7 +112,7 @@ export class RedisConnection extends EventEmitter {
     }
   }
 
-  async reconnect() {
+  async reconnect(): Promise<void> {
     const client = await this.client;
     return client.connect();
   }
@@ -135,6 +135,15 @@ export class RedisConnection extends EventEmitter {
       if (lines[i].indexOf(prefix) === 0) {
         return lines[i].substr(prefix.length);
       }
+    }
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this._client.info();
+      return true;
+    } catch (error) {
+      return false;
     }
   }
 
