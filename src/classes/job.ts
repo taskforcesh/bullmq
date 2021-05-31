@@ -46,6 +46,14 @@ export interface JobJsonRaw {
   parentKey?: string;
 }
 
+export interface MoveToChildrenOpts {
+  timestamp?: number;
+  child?: {
+    id: string;
+    queue: string;
+  };
+}
+
 export class Job<T = any, R = any, N extends string = string> {
   /**
    * The progress a job has performed so far.
@@ -626,6 +634,19 @@ export class Job<T = any, R = any, N extends string = string> {
    */
   moveToDelayed(timestamp: number) {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
+  }
+
+  /**
+   * Moves the job to the waiting-children set.
+   * @param {string} token Token to check job is locked by current worker
+   * @param opts the options bag for moving a job to waiting-children.
+   * @returns {boolean} true if the job was moved
+   */
+  moveToWaitingChildren(
+    token: string,
+    opts: MoveToChildrenOpts,
+  ): Promise<boolean | Error> {
+    return Scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
   }
 
   /**

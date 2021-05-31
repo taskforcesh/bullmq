@@ -47,7 +47,8 @@ describe('flows', () => {
     const processingParent = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
         try {
-          expect(processedChildren).to.be.equal(3);
+          const { processed } = await job.getDependencies();
+          expect(Object.keys(processed)).to.have.length(3);
 
           const childrenValues = await job.getChildrenValues();
 
@@ -65,6 +66,8 @@ describe('flows', () => {
 
     const parentWorker = new Worker(parentQueueName, parentProcessor);
     const childrenWorker = new Worker(queueName, childrenProcessor);
+    await parentWorker.waitUntilReady();
+    await childrenWorker.waitUntilReady();
 
     const flow = new FlowProducer();
     const tree = await flow.add({
@@ -279,7 +282,8 @@ describe('flows', () => {
     const processingTop = new Promise<void>((resolve, reject) => [
       (parentProcessor = async (job: Job) => {
         try {
-          expect(processedChildren).to.be.equal(3);
+          const { processed } = await job.getDependencies();
+          expect(Object.keys(processed)).to.have.length(1);
 
           const childrenValues = await job.getChildrenValues();
 
