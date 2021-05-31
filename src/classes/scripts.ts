@@ -12,10 +12,12 @@ import {
   WorkerOptions,
 } from '../interfaces';
 import { array2obj } from '../utils';
+import { MoveToChildrenOpts } from './job';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
 import { Job, JobJson, JobJsonRaw } from './job';
+import { getParentKey } from './flow-producer';
 import { RedisClient } from './redis-connection';
 
 export type MinimalQueue = Pick<
@@ -344,6 +346,34 @@ export class Scripts {
     return keys.concat([JSON.stringify(timestamp), jobId]);
   }
 
+  static moveToWaitingChildrenArgs(
+    queue: MinimalQueue,
+    jobId: string,
+    token: string,
+    opts?: MoveToChildrenOpts,
+  ) {
+    let timestamp = Math.max(0, opts.timestamp ?? 0);
+
+    const childKey = getParentKey(opts.child);
+
+    if (timestamp > 0) {
+      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
+    }
+
+    const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
+      function(name) {
+        return queue.toKey(name);
+      },
+    );
+
+    return keys.concat([
+      token,
+      childKey ?? '',
+      JSON.stringify(timestamp),
+      jobId,
+    ]);
+  }
+
   static async moveToDelayed(
     queue: MinimalQueue,
     jobId: string,
@@ -355,6 +385,29 @@ export class Scripts {
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed');
+    }
+  }
+
+  static async moveToWaitingChildren(
+    queue: MinimalQueue,
+    jobId: string,
+    token: string,
+    opts: MoveToChildrenOpts = {},
+  ) {
+    const client = await queue.client;
+    const multi = client.multi();
+
+    const args = this.moveToWaitingChildrenArgs(queue, jobId, token, opts);
+    (<any>multi).moveToWaitingChildren(args);
+    const [[err, result]] = (await multi.exec()) as [[null | Error, number]];
+
+    switch (result) {
+      case 0:
+        return true;
+      case 1:
+        return false;
+      default:
+        return this.finishedErrors(result, jobId, 'moveToWaitingChildren');
     }
   }
 
