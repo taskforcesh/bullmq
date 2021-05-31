@@ -2,14 +2,14 @@
 /* tslint:disable: no-floating-promises */
 'use strict';
 
-import { Queue, Job } from '@src/classes';
+import { Queue, Job } from '../classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { Worker } from '@src/classes/worker';
+import { Worker } from '../classes/worker';
 import { after } from 'lodash';
-import { removeAllQueueData } from '@src/utils';
+import { removeAllQueueData } from '../utils';
 
 describe('Jobs getters', function() {
   this.timeout(4000);
@@ -168,9 +168,7 @@ describe('Jobs getters', function() {
       after(3, async function() {
         try {
           const jobs = await queue.getJobs('completed');
-          expect(jobs)
-            .to.be.an('array')
-            .that.have.length(3);
+          expect(jobs).to.be.an('array').that.have.length(3);
           expect(jobs[0]).to.have.property('finishedOn');
           expect(jobs[1]).to.have.property('finishedOn');
           expect(jobs[2]).to.have.property('finishedOn');
@@ -204,9 +202,7 @@ describe('Jobs getters', function() {
         try {
           queue;
           const jobs = await queue.getJobs('failed');
-          expect(jobs)
-            .to.be.an('array')
-            .that.has.length(3);
+          expect(jobs).to.be.an('array').that.has.length(3);
           expect(jobs[0]).to.have.property('finishedOn');
           expect(jobs[1]).to.have.property('finishedOn');
           expect(jobs[2]).to.have.property('finishedOn');
@@ -235,9 +231,7 @@ describe('Jobs getters', function() {
       after(3, async function() {
         try {
           const jobs = await queue.getJobs('completed', 1, 2, true);
-          expect(jobs)
-            .to.be.an('array')
-            .that.has.length(2);
+          expect(jobs).to.be.an('array').that.has.length(2);
           expect(jobs[0].data.foo).to.be.eql(2);
           expect(jobs[1].data.foo).to.be.eql(3);
           expect(jobs[0]).to.have.property('finishedOn');
@@ -265,9 +259,7 @@ describe('Jobs getters', function() {
       after(3, async function() {
         try {
           const jobs = await queue.getJobs('completed', -3, -1, true);
-          expect(jobs)
-            .to.be.an('array')
-            .that.has.length(3);
+          expect(jobs).to.be.an('array').that.has.length(3);
           expect(jobs[0].data.foo).to.be.equal(1);
           expect(jobs[1].data.foo).to.be.eql(2);
           expect(jobs[2].data.foo).to.be.eql(3);
@@ -292,9 +284,7 @@ describe('Jobs getters', function() {
       after(3, async function() {
         try {
           const jobs = await queue.getJobs('completed', -300, 99999, true);
-          expect(jobs)
-            .to.be.an('array')
-            .that.has.length(3);
+          expect(jobs).to.be.an('array').that.has.length(3);
           expect(jobs[0].data.foo).to.be.equal(1);
           expect(jobs[1].data.foo).to.be.eql(2);
           expect(jobs[2].data.foo).to.be.eql(3);
