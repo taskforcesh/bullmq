@@ -9,7 +9,7 @@ Adds the job to Redis.
 <b>Signature:</b>
 
 ```typescript
-addJob(client: RedisClient, parentOpts?: ParentOpts): string;
+addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string>;
 ```
 
 ## Parameters
@@ -21,6 +21,6 @@ addJob(client: RedisClient, parentOpts?: ParentOpts): string;
 
 <b>Returns:</b>
 
-string
+Promise&lt;string&gt;
 
 
