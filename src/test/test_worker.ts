@@ -35,7 +35,33 @@ describe('workers', function() {
 
     const workers = await queue.getWorkers();
     expect(workers).to.have.length(1);
-    return worker.close();
+
+    const worker2 = new Worker(queueName, async job => {});
+    await worker2.waitUntilReady();
+
+    const nextWorkers = await queue.getWorkers();
+    expect(nextWorkers).to.have.length(2);
+
+    await worker.close();
+    await worker2.close();
+  });
+
+  it('should get only workers related only to one queue', async function() {
+    const queueName2 = `${queueName}2`;
+    const queue2 = new Queue(queueName2);
+    const worker = new Worker(queueName, async job => {});
+    const worker2 = new Worker(queueName2, async job => {});
+    await worker.waitUntilReady();
+    await worker2.waitUntilReady();
+
+    const workers = await queue.getWorkers();
+    expect(workers).to.have.length(1);
+
+    const workers2 = await queue2.getWorkers();
+    expect(workers2).to.have.length(1);
+
+    await worker.close();
+    await worker2.close();
   });
 
   describe('auto job removal', () => {
@@ -402,7 +428,7 @@ describe('workers', function() {
     let processor;
 
     // for the current strategy this number should not exceed 8 (2^2*2)
-    // this is done to maitain a deterministic output.
+    // this is done to maintain a deterministic output.
     const numJobsPerPriority = 6;
 
     for (let i = 0; i < numJobsPerPriority; i++) {
@@ -955,7 +981,7 @@ describe('workers', function() {
     });
     await queueScheduler.waitUntilReady();
 
-    const job = await queue.add('test', { bar: 'baz' });
+    await queue.add('test', { bar: 'baz' });
 
     const completed = new Promise(resolve => {
       worker.on('completed', resolve);
@@ -1204,8 +1230,6 @@ describe('workers', function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
-      let start: number;
-
       const worker = new Worker(queueName, async job => {
         if (job.attemptsMade < 2) {
           throw new Error('Not yet!');
@@ -1214,7 +1238,7 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      start = Date.now();
+      const start = Date.now();
       await queue.add(
         'test',
         { foo: 'bar' },
@@ -1238,7 +1262,6 @@ describe('workers', function() {
 
     it('should retry a job after a delay if an exponential backoff is given', async function() {
       this.timeout(12000);
-      let start: number;
 
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
@@ -1251,7 +1274,7 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      start = Date.now();
+      const start = Date.now();
       await queue.add(
         'test',
         { foo: 'bar' },
@@ -1742,6 +1765,122 @@ describe('workers', function() {
         await worker.close();
         redisVersionStub.restore();
       });
+    });
+
+    it('should allow to move parent job to waiting-children', async () => {
+      const values = [
+        { idx: 0, bar: 'something' },
+        { idx: 1, baz: 'something' },
+        { idx: 2, qux: 'something' },
+      ];
+      const parentToken = 'parent-token';
+      const childToken = 'child-token';
+
+      const parentQueueName = 'parent-queue';
+
+      const parentQueue = new Queue(parentQueueName);
+      const parentWorker = new Worker(parentQueueName);
+      const childrenWorker = new Worker(queueName);
+
+      const data = { foo: 'bar' };
+      await Job.create(parentQueue, 'testDepend', data);
+      const parent = (await parentWorker.getNextJob(parentToken)) as Job;
+      const currentState = await parent.getState();
+
+      expect(currentState).to.be.equal('active');
+
+      await Job.create(queue, 'testJob1', values[0], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'testJob2', values[1], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'testJob3', values[2], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      const { unprocessed: unprocessed1 } = await parent.getDependencies();
+
+      expect(unprocessed1).to.have.length(3);
+
+      const child1 = (await childrenWorker.getNextJob(childToken)) as Job;
+      const child2 = (await childrenWorker.getNextJob(childToken)) as Job;
+      const child3 = (await childrenWorker.getNextJob(childToken)) as Job;
+      const isActive1 = await child1.isActive();
+
+      expect(isActive1).to.be.true;
+
+      await child1.moveToCompleted('return value1', childToken);
+      const {
+        processed: processed2,
+        unprocessed: unprocessed2,
+      } = await parent.getDependencies();
+      const movedToWaitingChildren = await parent.moveToWaitingChildren(
+        parentToken,
+        {
+          child: {
+            id: child3.id,
+            queue: 'bull:' + queueName,
+          },
+        },
+      );
+
+      expect(processed2).to.deep.equal({
+        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
+      });
+      expect(unprocessed2).to.have.length(2);
+      expect(movedToWaitingChildren).to.be.true;
+
+      const isActive2 = await child2.isActive();
+
+      expect(isActive2).to.be.true;
+
+      await child2.moveToCompleted('return value2', childToken);
+      const {
+        processed: processed3,
+        unprocessed: unprocessed3,
+      } = await parent.getDependencies();
+      const isWaitingChildren1 = await parent.isWaitingChildren();
+
+      expect(processed3).to.deep.equal({
+        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
+        [`bull:${queueName}:${child2.id}`]: `"return value2"`,
+      });
+      expect(unprocessed3).to.have.length(1);
+      expect(isWaitingChildren1).to.be.true;
+
+      const isActive3 = await child3.isActive();
+
+      expect(isActive3).to.be.true;
+
+      await child3.moveToCompleted('return value3', childToken);
+      const {
+        processed: processed4,
+        unprocessed: unprocessed4,
+      } = await parent.getDependencies();
+      const isWaitingChildren2 = await parent.isWaitingChildren();
+
+      expect(processed4).to.deep.equal({
+        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
+        [`bull:${queueName}:${child2.id}`]: `"return value2"`,
+        [`bull:${queueName}:${child3.id}`]: `"return value3"`,
+      });
+      expect(unprocessed4).to.have.length(0);
+      expect(isWaitingChildren2).to.be.false;
+
+      await childrenWorker.close();
+      await parentWorker.close();
+
+      await parentQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
     it('should allow to fail jobs manually', async () => {
