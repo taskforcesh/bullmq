@@ -104,6 +104,7 @@ describe('flows', () => {
     await parentWorker.close();
 
     await flow.close();
+
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
@@ -348,6 +349,7 @@ describe('flows', () => {
     await parentWorker.close();
 
     await flow.close();
+
     await removeAllQueueData(new IORedis(), topQueueName);
   });
 
