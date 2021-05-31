@@ -128,13 +128,12 @@ describe('stalled jobs', function() {
 
     await worker.close(true);
 
+    const errorMessage = 'job stalled more than allowable limit';
     const allFailed = new Promise(resolve => {
       queueScheduler.on(
         'failed',
         after(concurrency, (jobId, failedReason) => {
-          expect(failedReason.message).to.be.equal(
-            'job stalled more than allowable limit',
-          );
+          expect(failedReason.message).to.be.equal(errorMessage);
           resolve();
         }),
       );
@@ -142,9 +141,7 @@ describe('stalled jobs', function() {
 
     const globalAllFailed = new Promise(resolve => {
       queueEvents.on('failed', ({ failedReason }) => {
-        expect(failedReason).to.be.equal(
-          'job stalled more than allowable limit',
-        );
+        expect(failedReason).to.be.equal(errorMessage);
         resolve();
       });
     });
