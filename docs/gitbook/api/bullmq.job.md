@@ -59,6 +59,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [moveToCompleted(returnValue, token, fetchNext)](./bullmq.job.movetocompleted.md) |  | Moves a job to the completed queue. Returned job to be used with Queue.prototype.nextJobFromJobData. |
 |  [moveToDelayed(timestamp)](./bullmq.job.movetodelayed.md) |  | Moves the job to the delay set. |
 |  [moveToFailed(err, token, fetchNext)](./bullmq.job.movetofailed.md) |  | Moves a job to the failed queue. |
+|  [moveToWaitingChildren(token, opts)](./bullmq.job.movetowaitingchildren.md) |  | Moves the job to the waiting-children set. |
 |  [promote()](./bullmq.job.promote.md) |  | Promotes a delayed job so that it starts to be processed as soon as possible. |
 |  [remove()](./bullmq.job.remove.md) |  | Completely remove the job from the queue. Note, this call will throw an exception if the job is being processed when the call is performed. |
 |  [retry(state)](./bullmq.job.retry.md) |  | Attempts to retry the job. Only a job that has failed can be retried. {<!-- -->Promise<!-- -->} If resolved and return code is 1, then the queue emits a waiting event otherwise the operation was not a success and throw the corresponding error. If the promise rejects, it indicates that the script failed to execute |

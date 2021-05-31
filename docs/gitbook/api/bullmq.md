@@ -48,6 +48,7 @@
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  [JobNode](./bullmq.jobnode.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
+|  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
 |  [QueueEvents](./bullmq.queueevents.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |
