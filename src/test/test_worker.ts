@@ -35,7 +35,33 @@ describe('workers', function() {
 
     const workers = await queue.getWorkers();
     expect(workers).to.have.length(1);
-    return worker.close();
+
+    const worker2 = new Worker(queueName, async job => {});
+    await worker2.waitUntilReady();
+
+    const nextWorkers = await queue.getWorkers();
+    expect(nextWorkers).to.have.length(2);
+
+    await worker.close();
+    await worker2.close();
+  });
+
+  it('should get only workers related only to one queue', async function() {
+    const queueName2 = `${queueName}2`;
+    const queue2 = new Queue(queueName2);
+    const worker = new Worker(queueName, async job => {});
+    const worker2 = new Worker(queueName2, async job => {});
+    await worker.waitUntilReady();
+    await worker2.waitUntilReady();
+
+    const workers = await queue.getWorkers();
+    expect(workers).to.have.length(1);
+
+    const workers2 = await queue2.getWorkers();
+    expect(workers2).to.have.length(1);
+
+    await worker.close();
+    await worker2.close();
   });
 
   describe('auto job removal', () => {
