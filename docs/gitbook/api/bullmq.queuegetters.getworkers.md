@@ -4,6 +4,8 @@
 
 ## QueueGetters.getWorkers() method
 
+Get worker list related to the queue. 
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,4 +16,6 @@ getWorkers(): Promise<{
 <b>Returns:</b>
 
 Promise&lt;{ \[index: string\]: string; }\[\]&gt;
+
+{<!-- -->Object<!-- -->} Returns an array with workers info.
 

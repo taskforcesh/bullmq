@@ -16,7 +16,7 @@ moveToDelayed(timestamp: number): Promise<void>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  timestamp | number | timestmap where the job should be moved back to "wait" |
+|  timestamp | number | timestamp where the job should be moved back to "wait" |
 
 <b>Returns:</b>
 

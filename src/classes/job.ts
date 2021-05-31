@@ -718,7 +718,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * @param parentOpts
    * @returns
    */
-  addJob(client: RedisClient, parentOpts?: ParentOpts): string {
+  addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
     const queue = this.queue;
 
     const jobData = this.asJSON();
