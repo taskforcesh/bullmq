@@ -1,3 +1,10 @@
+## [1.29.1](https://github.com/taskforcesh/bullmq/compare/v1.29.0...v1.29.1) (2021-05-31)
+
+
+### Bug Fixes
+
+* **move-stalled-jobs-to-wait:** send failedReason to queueEvents ([7c510b5](https://github.com/taskforcesh/bullmq/commit/7c510b542558bd4b1330371b73331f37b97a818d))
+
 # [1.29.0](https://github.com/taskforcesh/bullmq/compare/v1.28.2...v1.29.0) (2021-05-31)
 
 
