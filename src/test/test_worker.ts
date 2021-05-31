@@ -35,7 +35,33 @@ describe('workers', function() {
 
     const workers = await queue.getWorkers();
     expect(workers).to.have.length(1);
-    return worker.close();
+
+    const worker2 = new Worker(queueName, async job => {});
+    await worker2.waitUntilReady();
+
+    const nextWorkers = await queue.getWorkers();
+    expect(nextWorkers).to.have.length(2);
+
+    await worker.close();
+    await worker2.close();
+  });
+
+  it('should get only workers related only to one queue', async function() {
+    const queueName2 = `${queueName}2`;
+    const queue2 = new Queue(queueName2);
+    const worker = new Worker(queueName, async job => {});
+    const worker2 = new Worker(queueName2, async job => {});
+    await worker.waitUntilReady();
+    await worker2.waitUntilReady();
+
+    const workers = await queue.getWorkers();
+    expect(workers).to.have.length(1);
+
+    const workers2 = await queue2.getWorkers();
+    expect(workers2).to.have.length(1);
+
+    await worker.close();
+    await worker2.close();
   });
 
   describe('auto job removal', () => {
@@ -402,7 +428,7 @@ describe('workers', function() {
     let processor;
 
     // for the current strategy this number should not exceed 8 (2^2*2)
-    // this is done to maitain a deterministic output.
+    // this is done to maintain a deterministic output.
     const numJobsPerPriority = 6;
 
     for (let i = 0; i < numJobsPerPriority; i++) {
@@ -955,7 +981,7 @@ describe('workers', function() {
     });
     await queueScheduler.waitUntilReady();
 
-    const job = await queue.add('test', { bar: 'baz' });
+    await queue.add('test', { bar: 'baz' });
 
     const completed = new Promise(resolve => {
       worker.on('completed', resolve);
@@ -1204,8 +1230,6 @@ describe('workers', function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
-      let start: number;
-
       const worker = new Worker(queueName, async job => {
         if (job.attemptsMade < 2) {
           throw new Error('Not yet!');
@@ -1214,7 +1238,7 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      start = Date.now();
+      const start = Date.now();
       await queue.add(
         'test',
         { foo: 'bar' },
@@ -1238,7 +1262,6 @@ describe('workers', function() {
 
     it('should retry a job after a delay if an exponential backoff is given', async function() {
       this.timeout(12000);
-      let start: number;
 
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
@@ -1251,7 +1274,7 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      start = Date.now();
+      const start = Date.now();
       await queue.add(
         'test',
         { foo: 'bar' },
