@@ -40,13 +40,6 @@ describe('Jobs getters', function() {
   it('should get health check', async function() {
     await queue.waitUntilReady();
 
-    const failed = new Promise(resolve => {
-      queue.on('error', error => {
-        expect(error.message).to.be.equal('Connection is closed.');
-        resolve();
-      });
-    });
-
     const truthy = await queue.healthCheck();
 
     expect(truthy).to.be.true;
@@ -55,8 +48,6 @@ describe('Jobs getters', function() {
 
     const falsy = await queue.healthCheck();
     expect(falsy).to.be.false;
-
-    await failed;
   });
 
   it('should get paused jobs', async function() {

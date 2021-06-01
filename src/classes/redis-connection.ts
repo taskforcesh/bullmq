@@ -143,7 +143,6 @@ export class RedisConnection extends EventEmitter {
       await this._client.info();
       return true;
     } catch (error) {
-      this.emit('error', error);
       return false;
     }
   }
