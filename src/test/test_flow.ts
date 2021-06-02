@@ -285,10 +285,8 @@ describe('flows', () => {
           const { processed } = await job.getDependencies();
           expect(Object.keys(processed)).to.have.length(1);
 
-          const childrenValues = await job.getChildrenValues();
-
           const jobKey = queue.toKey(tree.children[0].job.id);
-          expect(childrenValues[jobKey]).to.be.deep.equal(values[0]);
+          expect(processed[jobKey]).to.be.deep.equal(values[0]);
 
           resolve();
         } catch (err) {
