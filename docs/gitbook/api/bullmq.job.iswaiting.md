@@ -13,3 +13,5 @@ isWaiting(): Promise<boolean>;
 
 Promise&lt;boolean&gt;
 
+true if the job is waiting.
+

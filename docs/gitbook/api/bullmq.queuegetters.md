@@ -27,12 +27,12 @@ export declare class QueueGetters extends QueueBase
 |  [getJob(jobId)](./bullmq.queuegetters.getjob.md) |  |  |
 |  [getJobCountByTypes(types)](./bullmq.queuegetters.getjobcountbytypes.md) |  |  |
 |  [getJobCounts(types)](./bullmq.queuegetters.getjobcounts.md) |  | Returns the job counts for each type specified or every list/set in the queue by default. |
-|  [getJobLogs(jobId, start, end)](./bullmq.queuegetters.getjoblogs.md) |  |  |
+|  [getJobLogs(jobId, start, end, asc)](./bullmq.queuegetters.getjoblogs.md) |  |  |
 |  [getJobs(types, start, end, asc)](./bullmq.queuegetters.getjobs.md) |  |  |
 |  [getRanges(types, start, end, asc)](./bullmq.queuegetters.getranges.md) |  |  |
 |  [getWaiting(start, end)](./bullmq.queuegetters.getwaiting.md) |  |  |
 |  [getWaitingChildren(start, end)](./bullmq.queuegetters.getwaitingchildren.md) |  |  |
 |  [getWaitingChildrenCount()](./bullmq.queuegetters.getwaitingchildrencount.md) |  |  |
 |  [getWaitingCount()](./bullmq.queuegetters.getwaitingcount.md) |  |  |
-|  [getWorkers()](./bullmq.queuegetters.getworkers.md) |  |  |
+|  [getWorkers()](./bullmq.queuegetters.getworkers.md) |  | Get worker list related to the queue.  |
 

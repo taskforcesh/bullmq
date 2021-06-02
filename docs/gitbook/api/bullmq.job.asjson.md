@@ -4,6 +4,8 @@
 
 ## Job.asJSON() method
 
+Prepares a job to be serialized for storage in Redis.
+
 <b>Signature:</b>
 
 ```typescript
@@ -12,4 +14,5 @@ asJSON(): JobJson;
 <b>Returns:</b>
 
 [JobJson](./bullmq.jobjson.md)
+
 

@@ -4,6 +4,8 @@
 
 ## Job.remove() method
 
+Completely remove the job from the queue. Note, this call will throw an exception if the job is being processed when the call is performed.
+
 <b>Signature:</b>
 
 ```typescript

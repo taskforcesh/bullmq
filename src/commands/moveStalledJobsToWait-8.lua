@@ -20,7 +20,8 @@
 
     Events:
       'stalled' with stalled job id.
-]] local rcall = redis.call
+]]
+local rcall = redis.call
 
 -- Check if we need to check for stalled jobs now.
 if rcall("EXISTS", KEYS[5]) == 1 then return {{}, {}} end
@@ -59,11 +60,13 @@ if (#stalling > 0) then
                 local stalledCount = rcall("HINCRBY", jobKey, "stalledCounter",
                                            1)
                 if (stalledCount > MAX_STALLED_JOB_COUNT) then
+                    local failedReason = "job stalled more than allowable limit" 
                     rcall("ZADD", KEYS[4], ARGV[3], jobId)
                     rcall("HSET", jobKey, "failedReason",
-                          "job stalled more than allowable limit")
+                          failedReason)
                     rcall("XADD", KEYS[8], "*", "event", "failed", "jobId",
-                          jobId, 'prev', 'active')
+                          jobId, 'prev', 'active', 'failedReason',
+                          failedReason)
                     table.insert(failed, jobId)
                 else
                     -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.

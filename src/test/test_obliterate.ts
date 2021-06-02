@@ -1,5 +1,5 @@
-import { Queue, QueueEvents, QueueScheduler, Worker } from '../classes';
-import { delay, removeAllQueueData } from '@src/utils';
+import { Queue, QueueEvents, Worker } from '../classes';
+import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
@@ -10,14 +10,14 @@ describe('Obliterate', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  beforeEach(async function () {
+  beforeEach(async () => {
     queueName = 'test-' + v4();
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function () {
+  afterEach(async () => {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
@@ -145,6 +145,24 @@ describe('Obliterate', () => {
     const client = await queue.client;
     const keys = await client.keys(`bull:${queue.name}:*`);
     expect(keys.length).to.be.eql(0);
+  });
+
+  it('should remove job logs', async () => {
+    const job = await queue.add('test', {});
+
+    const queueEvents = new QueueEvents(queue.name);
+
+    const worker = new Worker(queue.name, async job => {
+      return job.log('Lorem Ipsum Dolor Sit Amet');
+    });
+    await worker.waitUntilReady();
+
+    await job.waitUntilFinished(queueEvents);
+
+    await queue.obliterate({ force: true });
+
+    const { logs } = await queue.getJobLogs(job.id);
+    expect(logs).to.have.length(0);
   });
 
   it('should obliterate a queue with high number of jobs in different statuses', async () => {

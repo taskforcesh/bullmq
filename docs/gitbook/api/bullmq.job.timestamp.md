@@ -4,7 +4,7 @@
 
 ## Job.timestamp property
 
-Timestamp when the job was created (unless overrided with job options).
+Timestamp when the job was created (unless overridden with job options).
 
 <b>Signature:</b>
 

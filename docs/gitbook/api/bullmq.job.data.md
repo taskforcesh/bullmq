@@ -4,6 +4,8 @@
 
 ## Job.data property
 
+The payload for this job.
+
 <b>Signature:</b>
 
 ```typescript

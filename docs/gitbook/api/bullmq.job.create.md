@@ -4,6 +4,8 @@
 
 ## Job.create() method
 
+Creates a new job and adds it to the queue.
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,12 +16,13 @@ static create<T = any, R = any, N extends string = string>(queue: MinimalQueue, 
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  name | N |  |
-|  data | T |  |
-|  opts | [JobsOptions](./bullmq.jobsoptions.md) |  |
+|  queue | [MinimalQueue](./bullmq.minimalqueue.md) | the queue where to add the job. |
+|  name | N | the name of the job. |
+|  data | T | the payload of the job. |
+|  opts | [JobsOptions](./bullmq.jobsoptions.md) | the options bag for this job. |
 
 <b>Returns:</b>
 
 Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt;&gt;
+
 

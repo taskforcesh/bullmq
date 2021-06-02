@@ -128,8 +128,8 @@ export class QueueGetters extends QueueBase {
     this.commandByType(types, false, (key, command) => {
       switch (command) {
         case 'lrange':
+          multiCommands.push('lrange');
           if (asc) {
-            multiCommands.push('lrange');
             multi.lrange(key, -(end + 1), -(start + 1));
           } else {
             multi.lrange(key, start, end);
@@ -172,19 +172,34 @@ export class QueueGetters extends QueueBase {
     return Promise.all(jobIds.map(jobId => Job.fromId(this, jobId)));
   }
 
-  async getJobLogs(jobId: string, start = 0, end = -1) {
+  async getJobLogs(jobId: string, start = 0, end = -1, asc = true) {
     const client = await this.client;
     const multi = client.multi();
 
     const logsKey = this.toKey(jobId + ':logs');
-    multi.lrange(logsKey, -(end + 1), -(start + 1));
+    if (asc) {
+      multi.lrange(logsKey, start, end);
+    } else {
+      multi.lrange(logsKey, -(end + 1), -(start + 1));
+    }
     multi.llen(logsKey);
-    return multi.exec().then(result => ({
-      logs: result[0][1],
-      count: result[1][1],
-    }));
+    return multi.exec().then(result => {
+      if (!asc) {
+        result[0][1].reverse();
+      }
+
+      return {
+        logs: result[0][1],
+        count: result[1][1],
+      };
+    });
   }
 
+  /**
+   * Get worker list related to the queue.
+   * @method
+   * @returns {Object} Returns an array with workers info.
+   */
   async getWorkers() {
     const client = await this.client;
     const clients = await client.client('list');
@@ -212,7 +227,7 @@ export class QueueGetters extends QueueBase {
         client[key] = value;
       });
       const name = client['name'];
-      if (name && name.startsWith(this.clientName())) {
+      if (name && name === this.clientName()) {
         client['name'] = this.name;
         clients.push(client);
       }

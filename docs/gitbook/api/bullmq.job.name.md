@@ -4,6 +4,8 @@
 
 ## Job.name property
 
+The name of the Job
+
 <b>Signature:</b>
 
 ```typescript

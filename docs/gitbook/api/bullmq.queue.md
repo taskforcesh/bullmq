@@ -33,11 +33,11 @@ export declare class Queue<T = any, R = any, N extends string = string> extends 
 |  --- | --- | --- |
 |  [add(name, data, opts)](./bullmq.queue.add.md) |  |  |
 |  [addBulk(jobs)](./bullmq.queue.addbulk.md) |  | Adds an array of jobs to the queue.  add |
-|  [clean(grace, limit, type)](./bullmq.queue.clean.md) |  |  |
+|  [clean(grace, limit, type)](./bullmq.queue.clean.md) |  |  clean<!-- -->Cleans jobs from a queue. Similar to drain but keeps jobs within a certain grace period. |
 |  [drain(delayed)](./bullmq.queue.drain.md) |  | Drains the queue, i.e., removes all jobs that are waiting or delayed, but not active, completed or failed.<!-- -->TODO: Convert to an atomic LUA script. |
 |  [getRepeatableJobs(start, end, asc)](./bullmq.queue.getrepeatablejobs.md) |  |  |
 |  [isPaused()](./bullmq.queue.ispaused.md) |  |  |
-|  [obliterate(opts)](./bullmq.queue.obliterate.md) |  |  |
+|  [obliterate(opts)](./bullmq.queue.obliterate.md) |  |  obliterate<!-- -->Completely destroys the queue and all of its contents irreversibly. This method will the \*pause\* the queue and requires that there are no active jobs. It is possible to bypass this requirement, i.e. not having active jobs using the "force" option.<!-- -->Note: This operation requires to iterate on all the jobs stored in the queue and can be slow for very large queues. |
 |  [pause()](./bullmq.queue.pause.md) |  | Pauses the processing of this queue globally.<!-- -->We use an atomic RENAME operation on the wait queue. Since we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue is renamed to 'paused', no new jobs will be processed (the current ones will run until finalized).<!-- -->Adding jobs requires a LUA script to check first if the paused list exist and in that case it will add it there instead of the wait list. |
 |  [remove(jobId)](./bullmq.queue.remove.md) |  | Removes the given job from the queue as well as all its dependencies. |
 |  [removeRepeatable(name, repeatOpts, jobId)](./bullmq.queue.removerepeatable.md) |  |  |

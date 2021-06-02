@@ -45,7 +45,7 @@ describe('stalled jobs', function() {
 
     await worker.waitUntilReady();
 
-    const jobs = await Promise.all([
+    await Promise.all([
       queue.add('test', { bar: 'baz' }),
       queue.add('test', { bar1: 'baz1' }),
       queue.add('test', { bar2: 'baz2' }),
@@ -89,11 +89,14 @@ describe('stalled jobs', function() {
   it('fail stalled jobs that stall more than allowable stalled limit', async function() {
     this.timeout(6000);
 
+    const queueEvents = new QueueEvents(queueName);
+    await queueEvents.waitUntilReady();
+
     const concurrency = 4;
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         return delay(10000);
       },
       {
@@ -108,7 +111,7 @@ describe('stalled jobs', function() {
 
     await worker.waitUntilReady();
 
-    const jobs = await Promise.all([
+    await Promise.all([
       queue.add('test', { bar: 'baz' }),
       queue.add('test', { bar1: 'baz1' }),
       queue.add('test', { bar2: 'baz2' }),
@@ -125,11 +128,26 @@ describe('stalled jobs', function() {
 
     await worker.close(true);
 
+    const errorMessage = 'job stalled more than allowable limit';
     const allFailed = new Promise(resolve => {
-      queueScheduler.on('failed', after(concurrency, resolve));
+      queueScheduler.on(
+        'failed',
+        after(concurrency, (jobId, failedReason) => {
+          expect(failedReason.message).to.be.equal(errorMessage);
+          resolve();
+        }),
+      );
+    });
+
+    const globalAllFailed = new Promise(resolve => {
+      queueEvents.on('failed', ({ failedReason }) => {
+        expect(failedReason).to.be.equal(errorMessage);
+        resolve();
+      });
     });
 
     await allFailed;
+    await globalAllFailed;
 
     await queueScheduler.close();
   });

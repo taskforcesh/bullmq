@@ -23,6 +23,7 @@ export declare class FlowProducer extends EventEmitter
 
 |  Property | Modifiers | Type | Description |
 |  --- | --- | --- | --- |
+|  [client](./bullmq.flowproducer.client.md) |  | Promise&lt;[RedisClient](./bullmq.redisclient.md)<!-- -->&gt; |  |
 |  [closing](./bullmq.flowproducer.closing.md) |  | Promise&lt;void&gt; |  |
 |  [connection](./bullmq.flowproducer.connection.md) |  | [RedisConnection](./bullmq.redisconnection.md) |  |
 |  [keys](./bullmq.flowproducer.keys.md) |  | KeysMap |  |
