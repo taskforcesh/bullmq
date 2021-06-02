@@ -1776,7 +1776,7 @@ describe('workers', function() {
       const parentToken = 'parent-token';
       const childToken = 'child-token';
 
-      const parentQueueName = 'parent-queue';
+      const parentQueueName = `parent-queue-${v4()}`;
 
       const parentQueue = new Queue(parentQueueName);
       const parentWorker = new Worker(parentQueueName);
@@ -1834,7 +1834,7 @@ describe('workers', function() {
       );
 
       expect(processed2).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
+        [`bull:${queueName}:${child1.id}`]: 'return value1',
       });
       expect(unprocessed2).to.have.length(2);
       expect(movedToWaitingChildren).to.be.true;
@@ -1851,8 +1851,8 @@ describe('workers', function() {
       const isWaitingChildren1 = await parent.isWaitingChildren();
 
       expect(processed3).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
-        [`bull:${queueName}:${child2.id}`]: `"return value2"`,
+        [`bull:${queueName}:${child1.id}`]: 'return value1',
+        [`bull:${queueName}:${child2.id}`]: 'return value2',
       });
       expect(unprocessed3).to.have.length(1);
       expect(isWaitingChildren1).to.be.true;
@@ -1869,9 +1869,9 @@ describe('workers', function() {
       const isWaitingChildren2 = await parent.isWaitingChildren();
 
       expect(processed4).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
-        [`bull:${queueName}:${child2.id}`]: `"return value2"`,
-        [`bull:${queueName}:${child3.id}`]: `"return value3"`,
+        [`bull:${queueName}:${child1.id}`]: 'return value1',
+        [`bull:${queueName}:${child2.id}`]: 'return value2',
+        [`bull:${queueName}:${child3.id}`]: 'return value3',
       });
       expect(unprocessed4).to.have.length(0);
       expect(isWaitingChildren2).to.be.false;
