@@ -1834,7 +1834,7 @@ describe('workers', function() {
       );
 
       expect(processed2).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
+        [`bull:${queueName}:${child1.id}`]: 'return value1',
       });
       expect(unprocessed2).to.have.length(2);
       expect(movedToWaitingChildren).to.be.true;
@@ -1851,8 +1851,8 @@ describe('workers', function() {
       const isWaitingChildren1 = await parent.isWaitingChildren();
 
       expect(processed3).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
-        [`bull:${queueName}:${child2.id}`]: `"return value2"`,
+        [`bull:${queueName}:${child1.id}`]: 'return value1',
+        [`bull:${queueName}:${child2.id}`]: 'return value2',
       });
       expect(unprocessed3).to.have.length(1);
       expect(isWaitingChildren1).to.be.true;
@@ -1869,9 +1869,9 @@ describe('workers', function() {
       const isWaitingChildren2 = await parent.isWaitingChildren();
 
       expect(processed4).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: `"return value1"`,
-        [`bull:${queueName}:${child2.id}`]: `"return value2"`,
-        [`bull:${queueName}:${child3.id}`]: `"return value3"`,
+        [`bull:${queueName}:${child1.id}`]: 'return value1',
+        [`bull:${queueName}:${child2.id}`]: 'return value2',
+        [`bull:${queueName}:${child3.id}`]: 'return value3',
       });
       expect(unprocessed4).to.have.length(0);
       expect(isWaitingChildren2).to.be.false;
@@ -1914,18 +1914,28 @@ describe('workers', function() {
         ),
       );
       const {
-        nextCursor: nextCursor1,
+        nextUnprocessedCursor: nextCursor1,
         unprocessed: unprocessed1,
-      } = await parent.getUnprocessedDependencies(0, 10);
+      } = await parent.getDependencies({
+        unprocessed: {
+          cursor: 0,
+          count: 10,
+        },
+      });
 
-      expect(unprocessed1).to.have.length(10);
+      expect(unprocessed1.length).to.be.greaterThanOrEqual(10);
 
       const {
-        nextCursor: nextCursor2,
+        nextUnprocessedCursor: nextCursor2,
         unprocessed: unprocessed2,
-      } = await parent.getUnprocessedDependencies(nextCursor1);
+      } = await parent.getDependencies({
+        unprocessed: {
+          cursor: nextCursor1,
+          count: 10,
+        },
+      });
 
-      expect(unprocessed2).to.have.length(5);
+      expect(unprocessed2.length).to.be.lessThanOrEqual(5);
       expect(nextCursor2).to.be.equal(0);
 
       await childrenWorker.close();

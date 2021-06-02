@@ -54,6 +54,17 @@ export interface MoveToChildrenOpts {
   };
 }
 
+interface DependenciesOpts {
+  processed?: {
+    cursor?: number;
+    count?: number;
+  };
+  unprocessed?: {
+    cursor?: number;
+    count?: number;
+  };
+}
+
 export class Job<T = any, R = any, N extends string = string> {
   /**
    * The progress a job has performed so far.
@@ -547,69 +558,62 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @returns dependencies separated by processed and unprocessed.
    */
-  async getDependencies() {
-    const client = await this.queue.client;
-
-    const multi = client.multi();
-
-    await multi.hgetall(this.toKey(`${this.id}:processed`));
-    await multi.smembers(this.toKey(`${this.id}:dependencies`));
-
-    const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
-      [null | Error, { [jobKey: string]: string }],
-      [null | Error, string[]],
-    ];
-
-    return { processed, unprocessed };
-  }
-
-  /**
-   * Get unprocessed children job keys if this job is a parent and has children.
-   *
-   * @returns unprocessed dependencies and cursor for next iteration.
-   */
-  async getUnprocessedDependencies(
-    cursor = 0,
-    count = 10,
+  async getDependencies(
+    opts: DependenciesOpts = {
+      processed: {},
+      unprocessed: {},
+    },
   ): Promise<{
-    nextCursor: number;
+    nextProcessedCursor: number;
+    processed: Record<string, any>;
+    nextUnprocessedCursor: number;
     unprocessed: string[];
   }> {
+    if (!opts.processed && !opts.unprocessed) {
+      throw Error('processed or unprocessed options should be provided');
+    }
+    const defaultOpts = {
+      cursor: 0,
+      count: 20,
+    };
     const client = await this.queue.client;
+    const multi = client.multi();
 
-    const [nextCursor, unprocessed] = await client.sscan(
-      this.toKey(`${this.id}:dependencies`),
-      cursor,
-      'COUNT',
-      count,
-    );
+    if (opts.processed) {
+      const processedOpts = Object.assign(defaultOpts, opts.processed);
+      await multi.hscan(
+        this.toKey(`${this.id}:processed`),
+        processedOpts.cursor,
+        'COUNT',
+        processedOpts.count,
+      );
+    }
 
-    return { nextCursor: Number(nextCursor), unprocessed };
-  }
+    if (opts.unprocessed) {
+      const unprocessedOpts = Object.assign(defaultOpts, opts.unprocessed);
+      await multi.sscan(
+        this.toKey(`${this.id}:dependencies`),
+        unprocessedOpts.cursor,
+        'COUNT',
+        unprocessedOpts.count,
+      );
+    }
 
-  /**
-   * Get processed children job keys if this job is a parent and has children.
-   *
-   * @returns processed dependencies object with their results and cursor for next iteration.
-   */
-  async getProcessedDependencies(
-    cursor = 0,
-    count = 10,
-  ): Promise<{
-    nextCursor: number;
-    processed: Record<string, any>;
-  }> {
-    const client = await this.queue.client;
+    const [result1, result2] = await multi.exec();
 
-    const [nextCursor, processed] = await client.hscan(
-      this.toKey(`${this.id}:processed`),
-      cursor,
-      'COUNT',
-      count,
-    );
+    const [processedCursor, processed = []] = opts.processed ? result1[1] : [];
+    const [unprocessedCursor, unprocessed = []] = opts.unprocessed
+      ? opts.processed
+        ? result2[1]
+        : result1[1]
+      : [];
 
     const transformedProcessed = processed.reduce(
-      (accumulator, currentValue, index) => {
+      (
+        accumulator: Record<string, any>,
+        currentValue: string,
+        index: number,
+      ) => {
         if (index % 2) {
           return {
             ...accumulator,
@@ -621,7 +625,16 @@ export class Job<T = any, R = any, N extends string = string> {
       {},
     );
 
-    return { nextCursor: Number(nextCursor), processed: transformedProcessed };
+    return {
+      processed: transformedProcessed,
+      unprocessed,
+      nextProcessedCursor: processedCursor
+        ? Number(processedCursor)
+        : undefined,
+      nextUnprocessedCursor: unprocessedCursor
+        ? Number(unprocessedCursor)
+        : undefined,
+    };
   }
 
   /**
