@@ -5,7 +5,14 @@ import { Scripts } from './scripts';
 import { StreamReadRaw } from '../interfaces/redis-streams';
 import { RedisClient } from './redis-connection';
 
-const MAX_TIMEOUT_MS = Math.pow(2, 31) - 1; // 32 bit signed
+export declare interface QueueScheduler {
+  on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
+  on(
+    event: 'failed',
+    listener: (jobId: string, failedReason: Error, prev: string) => void,
+  ): this;
+  on(event: string, listener: Function): this;
+}
 
 /**
  * This class is just used for some automatic bookkeeping of the queue,

@@ -53,11 +53,13 @@
 |  [QueueEvents](./bullmq.queueevents.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |
 |  [QueueOptions](./bullmq.queueoptions.md) |  |
+|  [QueueScheduler](./bullmq.queuescheduler.md) |  |
 |  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
 |  [RateLimiterOptions](./bullmq.ratelimiteroptions.md) |  |
 |  [RepeatOptions](./bullmq.repeatoptions.md) | Settings for repeatable jobs |
 |  [SandboxedJob](./bullmq.sandboxedjob.md) |  |
 |  [Strategies](./bullmq.strategies.md) |  |
+|  [Worker](./bullmq.worker.md) |  |
 |  [WorkerOptions](./bullmq.workeroptions.md) |  |
 
 ## Variables

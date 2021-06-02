@@ -942,16 +942,15 @@ describe('workers', function() {
 
     const job = await queue.add('test', { bar: 'baz' });
 
+    const errorMessage = `Missing lock for job ${job.id} failed`;
     const workerError = new Promise(resolve => {
-      worker.on('error', resolve);
+      worker.on('error', error => {
+        expect(error.message).to.be.equal(errorMessage);
+        resolve();
+      });
     });
 
-    const error = await workerError;
-
-    expect(error).to.be.instanceOf(Error);
-    expect((error as Error).message).to.be.eql(
-      `Missing lock for job ${job.id} failed`,
-    );
+    await workerError;
 
     await worker.close();
     await queueScheduler.close();
@@ -1867,6 +1866,9 @@ describe('workers', function() {
         unprocessed: unprocessed4,
       } = await parent.getDependencies();
       const isWaitingChildren2 = await parent.isWaitingChildren();
+      const movedToWaitingChildren2 = await parent.moveToWaitingChildren(
+        parentToken,
+      );
 
       expect(processed4).to.deep.equal({
         [`bull:${queueName}:${child1.id}`]: 'return value1',
@@ -1875,6 +1877,7 @@ describe('workers', function() {
       });
       expect(unprocessed4).to.have.length(0);
       expect(isWaitingChildren2).to.be.false;
+      expect(movedToWaitingChildren2).to.be.false;
 
       await childrenWorker.close();
       await parentWorker.close();
