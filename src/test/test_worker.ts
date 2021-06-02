@@ -1884,15 +1884,7 @@ describe('workers', function() {
     });
 
     it('should get paginated unprocessed dependencies keys', async () => {
-      const values = [
-        { idx: 0, bar: 'something' },
-        { idx: 1, baz: 'something' },
-        { idx: 2, qux: 'something' },
-        { idx: 3, bar: 'something' },
-        { idx: 4, baz: 'something' },
-        { idx: 5, qux: 'something' },
-        { idx: 6, bar: 'something' },
-      ];
+      const value = { bar: 'something' };
       const parentToken = 'parent-token';
 
       const parentQueueName = `parent-queue-${v4()}`;
@@ -1908,61 +1900,32 @@ describe('workers', function() {
 
       expect(currentState).to.be.equal('active');
 
-      await Job.create(queue, 'testChild1', values[0], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      await Job.create(queue, 'testChild2', values[1], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      await Job.create(queue, 'testChild3', values[2], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      await Job.create(queue, 'testChild4', values[3], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      await Job.create(queue, 'testChild5', values[4], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      await Job.create(queue, 'testChild6', values[5], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      await Job.create(queue, 'testChild7', values[6], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
+      await times(15, async (index: number) =>
+        Job.create(
+          queue,
+          `child${index}`,
+          { idx: index, ...value },
+          {
+            parent: {
+              id: parent.id,
+              queue: 'bull:' + parentQueueName,
+            },
+          },
+        ),
+      );
       const {
         nextCursor: nextCursor1,
         unprocessed: unprocessed1,
-      } = await parent.getUnprocessedDependencies(0, 5);
+      } = await parent.getUnprocessedDependencies(0, 10);
 
-      expect(unprocessed1).to.have.length(5);
+      expect(unprocessed1).to.have.length(10);
 
       const {
         nextCursor: nextCursor2,
         unprocessed: unprocessed2,
-      } = await parent.getUnprocessedDependencies(nextCursor1, 5);
+      } = await parent.getUnprocessedDependencies(nextCursor1);
 
-      expect(unprocessed2).to.have.length(2);
+      expect(unprocessed2).to.have.length(5);
       expect(nextCursor2).to.be.equal(0);
 
       await childrenWorker.close();

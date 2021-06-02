@@ -588,6 +588,43 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * Get processed children job keys if this job is a parent and has children.
+   *
+   * @returns processed dependencies object with their results and cursor for next iteration.
+   */
+  async getProcessedDependencies(
+    cursor = 0,
+    count = 10,
+  ): Promise<{
+    nextCursor: number;
+    processed: Record<string, any>;
+  }> {
+    const client = await this.queue.client;
+
+    const [nextCursor, processed] = await client.hscan(
+      this.toKey(`${this.id}:processed`),
+      cursor,
+      'COUNT',
+      count,
+    );
+
+    const transformedProcessed = processed.reduce(
+      (accumulator, currentValue, index) => {
+        if (index % 2) {
+          return {
+            ...accumulator,
+            [processed[index - 1]]: JSON.parse(currentValue),
+          };
+        }
+        return accumulator;
+      },
+      {},
+    );
+
+    return { nextCursor: Number(nextCursor), processed: transformedProcessed };
+  }
+
+  /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */
   async waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<R> {

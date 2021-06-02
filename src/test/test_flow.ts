@@ -48,7 +48,13 @@ describe('flows', () => {
       (parentProcessor = async (job: Job) => {
         try {
           const { processed } = await job.getDependencies();
+          const {
+            nextCursor,
+            processed: processed2,
+          } = await job.getProcessedDependencies();
+          expect(nextCursor).to.be.equal(0);
           expect(Object.keys(processed)).to.have.length(3);
+          expect(Object.keys(processed2)).to.have.length(3);
 
           const childrenValues = await job.getChildrenValues();
 
