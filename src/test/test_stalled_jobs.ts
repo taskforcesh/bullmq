@@ -61,7 +61,13 @@ describe('stalled jobs', function() {
     await worker.close(true);
 
     const allStalled = new Promise(resolve => {
-      queueScheduler.on('stalled', after(concurrency, resolve));
+      queueScheduler.on(
+        'stalled',
+        after(concurrency, (jobId, prev) => {
+          expect(prev).to.be.equal('active');
+          resolve();
+        }),
+      );
     });
 
     const allStalledGlobalEvent = new Promise(resolve => {
@@ -132,7 +138,8 @@ describe('stalled jobs', function() {
     const allFailed = new Promise(resolve => {
       queueScheduler.on(
         'failed',
-        after(concurrency, (jobId, failedReason) => {
+        after(concurrency, (jobId, failedReason, prev) => {
+          expect(prev).to.be.equal('active');
           expect(failedReason.message).to.be.equal(errorMessage);
           resolve();
         }),

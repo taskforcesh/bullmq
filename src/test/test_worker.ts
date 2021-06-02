@@ -942,16 +942,15 @@ describe('workers', function() {
 
     const job = await queue.add('test', { bar: 'baz' });
 
+    const errorMessage = `Missing lock for job ${job.id} failed`;
     const workerError = new Promise(resolve => {
-      worker.on('error', resolve);
+      worker.on('error', error => {
+        expect(error.message).to.be.equal(errorMessage);
+        resolve();
+      });
     });
 
-    const error = await workerError;
-
-    expect(error).to.be.instanceOf(Error);
-    expect((error as Error).message).to.be.eql(
-      `Missing lock for job ${job.id} failed`,
-    );
+    await workerError;
 
     await worker.close();
     await queueScheduler.close();
