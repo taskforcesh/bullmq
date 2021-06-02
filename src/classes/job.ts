@@ -644,7 +644,7 @@ export class Job<T = any, R = any, N extends string = string> {
    */
   moveToWaitingChildren(
     token: string,
-    opts: MoveToChildrenOpts,
+    opts: MoveToChildrenOpts = {},
   ): Promise<boolean | Error> {
     return Scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
   }
