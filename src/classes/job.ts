@@ -564,6 +564,30 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * Get unprocessed children job keys if this job is a parent and has children.
+   *
+   * @returns unprocessed dependencies and cursor for next iteration.
+   */
+  async getUnprocessedDependencies(
+    cursor = 0,
+    count = 10,
+  ): Promise<{
+    nextCursor: number;
+    unprocessed: string[];
+  }> {
+    const client = await this.queue.client;
+
+    const [nextCursor, unprocessed] = await client.sscan(
+      this.toKey(`${this.id}:dependencies`),
+      cursor,
+      'COUNT',
+      count,
+    );
+
+    return { nextCursor: Number(nextCursor), unprocessed };
+  }
+
+  /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */
   async waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<R> {

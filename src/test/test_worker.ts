@@ -1883,6 +1883,95 @@ describe('workers', function() {
       await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
+    it('should get paginated unprocessed dependencies keys', async () => {
+      const values = [
+        { idx: 0, bar: 'something' },
+        { idx: 1, baz: 'something' },
+        { idx: 2, qux: 'something' },
+        { idx: 3, bar: 'something' },
+        { idx: 4, baz: 'something' },
+        { idx: 5, qux: 'something' },
+        { idx: 6, bar: 'something' },
+      ];
+      const parentToken = 'parent-token';
+
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentQueue = new Queue(parentQueueName);
+      const parentWorker = new Worker(parentQueueName);
+      const childrenWorker = new Worker(queueName);
+
+      const data = { foo: 'bar' };
+      await Job.create(parentQueue, 'parent', data);
+      const parent = (await parentWorker.getNextJob(parentToken)) as Job;
+      const currentState = await parent.getState();
+
+      expect(currentState).to.be.equal('active');
+
+      await Job.create(queue, 'testChild1', values[0], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'testChild2', values[1], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'testChild3', values[2], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'testChild4', values[3], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'testChild5', values[4], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'testChild6', values[5], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'testChild7', values[6], {
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      const {
+        nextCursor: nextCursor1,
+        unprocessed: unprocessed1,
+      } = await parent.getUnprocessedDependencies(0, 5);
+
+      expect(unprocessed1).to.have.length(5);
+
+      const {
+        nextCursor: nextCursor2,
+        unprocessed: unprocessed2,
+      } = await parent.getUnprocessedDependencies(nextCursor1, 5);
+
+      expect(unprocessed2).to.have.length(2);
+      expect(nextCursor2).to.be.equal(0);
+
+      await childrenWorker.close();
+      await parentWorker.close();
+
+      await parentQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+
     it('should allow to fail jobs manually', async () => {
       const worker = new Worker(queueName);
       const token = 'my-token';
