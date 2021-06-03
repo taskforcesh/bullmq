@@ -560,7 +560,14 @@ export class Job<T = any, R = any, N extends string = string> {
       [null | Error, string[]],
     ];
 
-    return { processed, unprocessed };
+    const transformedProcessed = Object.entries(processed).reduce(
+      (accumulator, [key, value]) => {
+        return { ...accumulator, [key]: JSON.parse(value) };
+      },
+      {},
+    );
+
+    return { processed: transformedProcessed, unprocessed };
   }
 
   /**
