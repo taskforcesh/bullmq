@@ -54,6 +54,17 @@ export interface MoveToChildrenOpts {
   };
 }
 
+interface DependenciesOpts {
+  processed?: {
+    cursor?: number;
+    count?: number;
+  };
+  unprocessed?: {
+    cursor?: number;
+    count?: number;
+  };
+}
+
 export class Job<T = any, R = any, N extends string = string> {
   /**
    * The progress a job has performed so far.
@@ -547,27 +558,99 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @returns dependencies separated by processed and unprocessed.
    */
-  async getDependencies() {
+  async getDependencies(
+    opts: DependenciesOpts = {},
+  ): Promise<{
+    nextProcessedCursor?: number;
+    processed?: Record<string, any>;
+    nextUnprocessedCursor?: number;
+    unprocessed?: string[];
+  }> {
     const client = await this.queue.client;
-
     const multi = client.multi();
+    if (!opts.processed && !opts.unprocessed) {
+      await multi.hgetall(this.toKey(`${this.id}:processed`));
+      await multi.smembers(this.toKey(`${this.id}:dependencies`));
 
-    await multi.hgetall(this.toKey(`${this.id}:processed`));
-    await multi.smembers(this.toKey(`${this.id}:dependencies`));
+      const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
+        [null | Error, { [jobKey: string]: string }],
+        [null | Error, string[]],
+      ];
 
-    const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
-      [null | Error, { [jobKey: string]: string }],
-      [null | Error, string[]],
-    ];
+      const transformedProcessed = Object.entries(processed).reduce(
+        (accumulator, [key, value]) => {
+          return { ...accumulator, [key]: JSON.parse(value) };
+        },
+        {},
+      );
 
-    const transformedProcessed = Object.entries(processed).reduce(
-      (accumulator, [key, value]) => {
-        return { ...accumulator, [key]: JSON.parse(value) };
-      },
-      {},
-    );
+      return { processed: transformedProcessed, unprocessed };
+    } else {
+      const defaultOpts = {
+        cursor: 0,
+        count: 20,
+      };
 
-    return { processed: transformedProcessed, unprocessed };
+      if (opts.processed) {
+        const processedOpts = Object.assign(defaultOpts, opts.processed);
+        await multi.hscan(
+          this.toKey(`${this.id}:processed`),
+          processedOpts.cursor,
+          'COUNT',
+          processedOpts.count,
+        );
+      }
+
+      if (opts.unprocessed) {
+        const unprocessedOpts = Object.assign(defaultOpts, opts.unprocessed);
+        await multi.sscan(
+          this.toKey(`${this.id}:dependencies`),
+          unprocessedOpts.cursor,
+          'COUNT',
+          unprocessedOpts.count,
+        );
+      }
+
+      const [result1, result2] = await multi.exec();
+
+      const [processedCursor, processed = []] = opts.processed
+        ? result1[1]
+        : [];
+      const [unprocessedCursor, unprocessed = []] = opts.unprocessed
+        ? opts.processed
+          ? result2[1]
+          : result1[1]
+        : [];
+
+      const transformedProcessed = processed.reduce(
+        (
+          accumulator: Record<string, any>,
+          currentValue: string,
+          index: number,
+        ) => {
+          if (index % 2) {
+            return {
+              ...accumulator,
+              [processed[index - 1]]: JSON.parse(currentValue),
+            };
+          }
+          return accumulator;
+        },
+        {},
+      );
+
+      return {
+        ...(processedCursor
+          ? {
+              processed: transformedProcessed,
+              nextProcessedCursor: Number(processedCursor),
+            }
+          : {}),
+        ...(unprocessedCursor
+          ? { unprocessed, nextUnprocessedCursor: Number(unprocessedCursor) }
+          : {}),
+      };
+    }
   }
 
   /**

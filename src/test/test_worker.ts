@@ -1886,6 +1886,68 @@ describe('workers', function() {
       await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
+    it('should get paginated unprocessed dependencies keys', async () => {
+      const value = { bar: 'something' };
+      const parentToken = 'parent-token';
+
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentQueue = new Queue(parentQueueName);
+      const parentWorker = new Worker(parentQueueName);
+      const childrenWorker = new Worker(queueName);
+
+      const data = { foo: 'bar' };
+      await Job.create(parentQueue, 'parent', data);
+      const parent = (await parentWorker.getNextJob(parentToken)) as Job;
+      const currentState = await parent.getState();
+
+      expect(currentState).to.be.equal('active');
+
+      await times(15, async (index: number) =>
+        Job.create(
+          queue,
+          `child${index}`,
+          { idx: index, ...value },
+          {
+            parent: {
+              id: parent.id,
+              queue: 'bull:' + parentQueueName,
+            },
+          },
+        ),
+      );
+      const {
+        nextUnprocessedCursor: nextCursor1,
+        unprocessed: unprocessed1,
+      } = await parent.getDependencies({
+        unprocessed: {
+          cursor: 0,
+          count: 10,
+        },
+      });
+
+      expect(unprocessed1.length).to.be.greaterThanOrEqual(10);
+
+      const {
+        nextUnprocessedCursor: nextCursor2,
+        unprocessed: unprocessed2,
+      } = await parent.getDependencies({
+        unprocessed: {
+          cursor: nextCursor1,
+          count: 10,
+        },
+      });
+
+      expect(unprocessed2.length).to.be.lessThanOrEqual(5);
+      expect(nextCursor2).to.be.equal(0);
+
+      await childrenWorker.close();
+      await parentWorker.close();
+
+      await parentQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+
     it('should allow to fail jobs manually', async () => {
       const worker = new Worker(queueName);
       const token = 'my-token';
