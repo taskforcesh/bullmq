@@ -9,14 +9,23 @@ Get children job keys if this job is a parent and has children.
 <b>Signature:</b>
 
 ```typescript
-getDependencies(): Promise<{
-        processed: {};
-        unprocessed: string[];
+getDependencies(opts?: DependenciesOpts): Promise<{
+        nextProcessedCursor?: number;
+        processed?: Record<string, any>;
+        nextUnprocessedCursor?: number;
+        unprocessed?: string[];
     }>;
 ```
+
+## Parameters
+
+|  Parameter | Type | Description |
+|  --- | --- | --- |
+|  opts | DependenciesOpts |  |
+
 <b>Returns:</b>
 
-Promise&lt;{ processed: {}; unprocessed: string\[\]; }&gt;
+Promise&lt;{ nextProcessedCursor?: number; processed?: Record&lt;string, any&gt;; nextUnprocessedCursor?: number; unprocessed?: string\[\]; }&gt;
 
 dependencies separated by processed and unprocessed.
 
