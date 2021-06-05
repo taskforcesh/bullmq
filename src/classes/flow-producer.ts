@@ -13,6 +13,8 @@ interface NodeOpts {
   queueName: string;
   prefix?: string;
   id: string;
+  depth?: number;
+  maxChildren?: number;
 }
 
 export interface JobNode {
@@ -48,6 +50,7 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
+   * @method add
    * Adds a flow.
    *
    * A flow is a tree-like structure of jobs that depend on each other.
@@ -61,7 +64,7 @@ export class FlowProducer extends EventEmitter {
    * @param flow An object with a tree-like structure where children jobs
    * will be processed before their parents.
    */
-  async add(flow: FlowJob) {
+  async add(flow: FlowJob): Promise<JobNode> {
     if (this.closing) {
       return;
     }
@@ -111,7 +114,14 @@ export class FlowProducer extends EventEmitter {
     }
     const client = await this.connection.client;
 
-    const jobsTree = this.getNode(client, opts);
+    const updatedOpts = Object.assign(
+      {
+        depth: 10,
+        maxChildren: 20,
+      },
+      opts,
+    );
+    const jobsTree = this.getNode(client, updatedOpts);
 
     return jobsTree;
   }
@@ -202,20 +212,32 @@ export class FlowProducer extends EventEmitter {
 
     const job = await Job.fromId(queue, node.id);
 
-    const { processed = {}, unprocessed = [] } = await job.getDependencies();
-    const processedKeys = Object.keys(processed);
+    if (job) {
+      const { processed = {}, unprocessed = [] } = await job.getDependencies({
+        processed: {
+          count: node.maxChildren,
+        },
+        unprocessed: {
+          count: node.maxChildren,
+        },
+      });
+      const processedKeys = Object.keys(processed);
 
-    const childrenCount = processedKeys.length + unprocessed.length;
-    if (childrenCount > 0) {
-      const children = await this.getChildren(
-        client,
-        processedKeys,
-        unprocessed,
-      );
+      const childrenCount = processedKeys.length + unprocessed.length;
+      const newDepth = node.depth - 1;
+      if (childrenCount > 0 && newDepth) {
+        const children = await this.getChildren(
+          client,
+          processedKeys,
+          unprocessed,
+          newDepth,
+          node.maxChildren,
+        );
 
-      return { job, children };
-    } else {
-      return { job };
+        return { job, children };
+      } else {
+        return { job };
+      }
     }
   }
 
@@ -237,11 +259,19 @@ export class FlowProducer extends EventEmitter {
     client: RedisClient,
     processed: string[],
     unprocessed: string[],
+    depth: number,
+    maxChildren: number,
   ) {
     const getChild = (key: string) => {
       const [prefix, queueName, id] = key.split(':');
 
-      return this.getNode(client, { id, queueName, prefix });
+      return this.getNode(client, {
+        id,
+        queueName,
+        prefix,
+        depth,
+        maxChildren,
+      });
     };
 
     return Promise.all([
@@ -258,7 +288,10 @@ export class FlowProducer extends EventEmitter {
    * @param queueKeys
    * @returns
    */
-  private queueFromNode(node: Omit<NodeOpts, 'id'>, queueKeys: QueueKeys) {
+  private queueFromNode(
+    node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
+    queueKeys: QueueKeys,
+  ) {
     return {
       client: this.connection.client,
       name: node.queueName,
