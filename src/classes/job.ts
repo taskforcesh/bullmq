@@ -525,12 +525,13 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method getState
    * Get current state.
-   * @method
+   *
    * @returns {string} Returns one of these values:
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
-  getState() {
+  getState(): Promise<string> {
     return Scripts.getState(this.queue, this.id);
   }
 
@@ -554,6 +555,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method getDependencies
    * Get children job keys if this job is a parent and has children.
    *
    * @returns dependencies separated by processed and unprocessed.
@@ -651,6 +653,29 @@ export class Job<T = any, R = any, N extends string = string> {
           : {}),
       };
     }
+  }
+
+  /**
+   * @method getDependenciesCount
+   * Get children job counts if this job is a parent and has children.
+   *
+   * @returns dependencies count separated by processed and unprocessed.
+   */
+  async getDependenciesCount(): Promise<{
+    processed: number;
+    unprocessed: number;
+  }> {
+    const client = await this.queue.client;
+    const multi = client.multi();
+    await multi.hlen(this.toKey(`${this.id}:processed`));
+    await multi.scard(this.toKey(`${this.id}:dependencies`));
+
+    const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
+      [null | Error, number],
+      [null | Error, number],
+    ];
+
+    return { processed, unprocessed };
   }
 
   /**
