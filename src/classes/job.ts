@@ -571,8 +571,8 @@ export class Job<T = any, R = any, N extends string = string> {
     const client = await this.queue.client;
     const multi = client.multi();
     if (!opts.processed && !opts.unprocessed) {
-      await multi.hgetall(this.toKey(`${this.id}:processed`));
-      await multi.smembers(this.toKey(`${this.id}:dependencies`));
+      multi.hgetall(this.toKey(`${this.id}:processed`));
+      multi.smembers(this.toKey(`${this.id}:dependencies`));
 
       const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
         [null | Error, { [jobKey: string]: string }],
@@ -595,7 +595,7 @@ export class Job<T = any, R = any, N extends string = string> {
 
       if (opts.processed) {
         const processedOpts = Object.assign(defaultOpts, opts.processed);
-        await multi.hscan(
+        multi.hscan(
           this.toKey(`${this.id}:processed`),
           processedOpts.cursor,
           'COUNT',
@@ -605,7 +605,7 @@ export class Job<T = any, R = any, N extends string = string> {
 
       if (opts.unprocessed) {
         const unprocessedOpts = Object.assign(defaultOpts, opts.unprocessed);
-        await multi.sscan(
+        multi.sscan(
           this.toKey(`${this.id}:dependencies`),
           unprocessedOpts.cursor,
           'COUNT',
@@ -667,8 +667,8 @@ export class Job<T = any, R = any, N extends string = string> {
   }> {
     const client = await this.queue.client;
     const multi = client.multi();
-    await multi.hlen(this.toKey(`${this.id}:processed`));
-    await multi.scard(this.toKey(`${this.id}:dependencies`));
+    multi.hlen(this.toKey(`${this.id}:processed`));
+    multi.scard(this.toKey(`${this.id}:dependencies`));
 
     const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
       [null | Error, number],
