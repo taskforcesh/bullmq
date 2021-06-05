@@ -9,6 +9,12 @@ import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
 
+interface NodeOpts {
+  queueName: string;
+  prefix?: string;
+  id: string;
+}
+
 export interface JobNode {
   job: Job;
   children?: JobNode[];
@@ -83,6 +89,29 @@ export class FlowProducer extends EventEmitter {
     };
 
     updateJobIds(jobsTree, result, 0);
+
+    return jobsTree;
+  }
+
+  /**
+   * @method getFlow
+   * Get a flow.
+   *
+   * A flow is a tree-like structure of jobs that depend on each other.
+   * Whenever the children of a given parent are completed, the parent
+   * will be processed, being able to access the children's result data.
+   *
+   * All Jobs can be in different queues, either children or parents,
+   *
+   * @param flow An object with a tree-like structure.
+   */
+  async getFlow(opts: NodeOpts): Promise<JobNode> {
+    if (this.closing) {
+      return;
+    }
+    const client = await this.connection.client;
+
+    const jobsTree = this.getNode(client, opts);
 
     return jobsTree;
   }
@@ -168,6 +197,28 @@ export class FlowProducer extends EventEmitter {
     }
   }
 
+  private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
+    const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
+
+    const job = await Job.fromId(queue, node.id);
+
+    const { processed = {}, unprocessed = [] } = await job.getDependencies();
+    const processedKeys = Object.keys(processed);
+
+    const childrenCount = processedKeys.length + unprocessed.length;
+    if (childrenCount > 0) {
+      const children = await this.getChildren(
+        client,
+        processedKeys,
+        unprocessed,
+      );
+
+      return { job, children };
+    } else {
+      return { job };
+    }
+  }
+
   private addChildren(
     multi: Pipeline,
     nodes: FlowJob[],
@@ -182,6 +233,23 @@ export class FlowProducer extends EventEmitter {
     return nodes.map(node => this.addNode(multi, node, parent));
   }
 
+  private getChildren(
+    client: RedisClient,
+    processed: string[],
+    unprocessed: string[],
+  ) {
+    const getChild = (key: string) => {
+      const [prefix, queueName, id] = key.split(':');
+
+      return this.getNode(client, { id, queueName, prefix });
+    };
+
+    return Promise.all([
+      ...processed.map(getChild),
+      ...unprocessed.map(getChild),
+    ]);
+  }
+
   /**
    * Helper factory method that creates a queue-like object
    * required to create jobs in any queue.
@@ -190,7 +258,7 @@ export class FlowProducer extends EventEmitter {
    * @param queueKeys
    * @returns
    */
-  private queueFromNode(node: FlowJob, queueKeys: QueueKeys) {
+  private queueFromNode(node: Omit<NodeOpts, 'id'>, queueKeys: QueueKeys) {
     return {
       client: this.connection.client,
       name: node.queueName,
