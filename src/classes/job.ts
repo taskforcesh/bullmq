@@ -661,21 +661,54 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @returns dependencies count separated by processed and unprocessed.
    */
-  async getDependenciesCount(): Promise<{
-    processed: number;
-    unprocessed: number;
+  async getDependenciesCount(
+    opts: {
+      processed?: boolean;
+      unprocessed?: boolean;
+    } = {},
+  ): Promise<{
+    processed?: number;
+    unprocessed?: number;
   }> {
     const client = await this.queue.client;
     const multi = client.multi();
-    multi.hlen(this.toKey(`${this.id}:processed`));
-    multi.scard(this.toKey(`${this.id}:dependencies`));
 
-    const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
+    const updatedOpts =
+      !opts.processed && !opts.unprocessed
+        ? { processed: true, unprocessed: true }
+        : opts;
+
+    if (updatedOpts.processed) {
+      multi.hlen(this.toKey(`${this.id}:processed`));
+    }
+
+    if (updatedOpts.unprocessed) {
+      multi.scard(this.toKey(`${this.id}:dependencies`));
+    }
+
+    const [
+      [err1, result1] = [],
+      [err2, result2] = [],
+    ] = (await multi.exec()) as [
       [null | Error, number],
       [null | Error, number],
     ];
 
-    return { processed, unprocessed };
+    const processed = updatedOpts.processed ? result1 : undefined;
+    const unprocessed = updatedOpts.unprocessed
+      ? updatedOpts.processed
+        ? result2
+        : result1
+      : undefined;
+
+    return {
+      ...(updatedOpts.processed
+        ? {
+            processed,
+          }
+        : {}),
+      ...(updatedOpts.unprocessed ? { unprocessed } : {}),
+    };
   }
 
   /**

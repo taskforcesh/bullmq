@@ -92,9 +92,11 @@ describe('bulk jobs', () => {
     expect(jobs[1].id).to.be.ok;
     expect(jobs[1].data.foo).to.be.eql('baz');
 
-    const { unprocessed } = await parent.getDependencies();
+    const { unprocessed } = await parent.getDependenciesCount({
+      unprocessed: true,
+    });
 
-    expect(unprocessed).to.have.length(2);
+    expect(unprocessed).to.be.equal(2);
 
     await childrenWorker.close();
     await parentWorker.close();
