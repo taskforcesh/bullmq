@@ -1,6 +1,5 @@
 import * as IORedis from 'ioredis';
-import { Queue, QueueEvents, Job, Worker } from '../classes';
-
+import { Queue, Job, Worker } from '../classes';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 import { removeAllQueueData } from '../utils';

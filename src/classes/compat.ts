@@ -55,7 +55,7 @@ export class Queue3<T = any> extends EventEmitter {
   /**
    * This is the Queue constructor.
    * It creates a new Queue that is persisted in Redis.
-   * Everytime the same queue is instantiated it tries to process all the old jobs
+   * Every time the same queue is instantiated it tries to process all the old jobs
    * that may exist from a previous unfinished session.
    */
   constructor(name: string, opts?: CommonOptions) {
@@ -69,7 +69,7 @@ export class Queue3<T = any> extends EventEmitter {
 
   /**
    * Returns a promise that resolves when Redis is connected and the queue is ready to accept jobs.
-   * This replaces the `ready` event emitted on Queue in previous verisons.
+   * This replaces the `ready` event emitted on Queue in previous versions.
    */
   async isReady(): Promise<this> {
     await this.queue.client;
@@ -82,7 +82,7 @@ export class Queue3<T = any> extends EventEmitter {
   /**
    * Defines a processing function for the jobs placed into a given Queue.
    *
-   * The callback is called everytime a job is placed in the queue.
+   * The callback is called every time a job is placed in the queue.
    * It is passed an instance of the job as first argument.
    *
    * If the callback signature contains the second optional done argument,
@@ -425,7 +425,7 @@ export class Queue3<T = any> extends EventEmitter {
   on(event: string, callback: (...args: any[]) => void): this;
 
   /**
-   * An error occured
+   * An error occurred
    */
   on(event: 'error', callback: ErrorEventCallback3): this;
 
@@ -468,7 +468,7 @@ export class Queue3<T = any> extends EventEmitter {
   /**
    * The queue has been resumed
    */
-  on(event: 'resumed', callback: EventCallback3): this; // tslint:disable-line unified-signatures
+  on(event: 'resumed', callback: EventCallback3): this;
 
   /**
    * A job successfully removed.
@@ -487,7 +487,7 @@ export class Queue3<T = any> extends EventEmitter {
    * Emitted every time the queue has processed all the waiting jobs
    * (even if there can be some delayed jobs not yet processed)
    */
-  on(event: 'drained', callback: EventCallback3): this; // tslint:disable-line unified-signatures
+  on(event: 'drained', callback: EventCallback3): this;
 
   on(event: string | symbol, listener: (...args: any[]) => void): this {
     return this.attachListener(false, event, listener);

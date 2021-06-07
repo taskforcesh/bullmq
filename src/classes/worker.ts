@@ -88,7 +88,6 @@ export class Worker<
       }
       this.timerManager = new TimerManager();
 
-      /* tslint:disable: no-floating-promises */
       this.run().catch(error => {
         console.error(error);
       });
