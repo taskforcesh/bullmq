@@ -8,7 +8,7 @@ import { after, times, once } from 'lodash';
 import { RetryErrors } from '../enums';
 import * as sinon from 'sinon';
 
-describe.only('workers', function() {
+describe('workers', function() {
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
