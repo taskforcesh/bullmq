@@ -8,7 +8,7 @@ import { after, times, once } from 'lodash';
 import { RetryErrors } from '../enums';
 import * as sinon from 'sinon';
 
-describe('workers', function() {
+describe.only('workers', function() {
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
@@ -994,10 +994,9 @@ describe('workers', function() {
 
   it('stalled interval cannot be zero', function(done) {
     this.timeout(10000);
-    let queueScheduler;
 
     try {
-      queueScheduler = new QueueScheduler(queueName, {
+      new QueueScheduler(queueName, {
         stalledInterval: 0,
       });
       // Fail test if we reach here.
