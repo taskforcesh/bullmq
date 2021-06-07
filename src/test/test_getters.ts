@@ -1,5 +1,4 @@
 /*eslint-env node */
-/* tslint:disable: no-floating-promises */
 'use strict';
 
 import { Queue, Job } from '../classes';
