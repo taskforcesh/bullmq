@@ -5,7 +5,7 @@ import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { removeAllQueueData, delay } from '../utils';
 
-describe.only('flows', () => {
+describe('flows', () => {
   let queue: Queue;
   let queueName: string;
 

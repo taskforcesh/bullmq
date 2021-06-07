@@ -23,9 +23,12 @@ export interface JobNode {
 }
 
 /**
- * This class allows to add jobs into one or several queues
- * with dependencies between them in such a way that it is possible
- * to build complex flows.
+ * This class allows to add jobs with dependencies between them in such
+ * a way that it is possible to build complex flows.
+ * Note: A flow is a tree-like structure of jobs that depend on each other.
+ * Whenever the children of a given parent are completed, the parent
+ * will be processed, being able to access the children's result data.
+ * All Jobs can be in different queues, either children or parents,
  */
 export class FlowProducer extends EventEmitter {
   toKey: (name: string, type: string) => string;
@@ -53,12 +56,7 @@ export class FlowProducer extends EventEmitter {
    * @method add
    * Adds a flow.
    *
-   * A flow is a tree-like structure of jobs that depend on each other.
-   * Whenever the children of a given parent are completed, the parent
-   * will be processed, being able to access the children's result data.
-   *
-   * All Jobs can be in different queues, either children or parents,
-   * however this call would be atomic, either it fails and no jobs will
+   * This call would be atomic, either it fails and no jobs will
    * be added to the queues, or it succeeds and all jobs will be added.
    *
    * @param flow An object with a tree-like structure where children jobs
@@ -99,12 +97,6 @@ export class FlowProducer extends EventEmitter {
   /**
    * @method getFlow
    * Get a flow.
-   *
-   * A flow is a tree-like structure of jobs that depend on each other.
-   * Whenever the children of a given parent are completed, the parent
-   * will be processed, being able to access the children's result data.
-   *
-   * All Jobs can be in different queues, either children or parents,
    *
    * @param flow An object with a tree-like structure.
    */
@@ -228,8 +220,7 @@ export class FlowProducer extends EventEmitter {
       if (childrenCount > 0 && newDepth) {
         const children = await this.getChildren(
           client,
-          processedKeys,
-          unprocessed,
+          [...processedKeys, ...unprocessed],
           newDepth,
           node.maxChildren,
         );
@@ -257,8 +248,7 @@ export class FlowProducer extends EventEmitter {
 
   private getChildren(
     client: RedisClient,
-    processed: string[],
-    unprocessed: string[],
+    childrenKeys: string[],
     depth: number,
     maxChildren: number,
   ) {
@@ -274,10 +264,7 @@ export class FlowProducer extends EventEmitter {
       });
     };
 
-    return Promise.all([
-      ...processed.map(getChild),
-      ...unprocessed.map(getChild),
-    ]);
+    return Promise.all([...childrenKeys.map(getChild)]);
   }
 
   /**
