@@ -4,7 +4,7 @@
 
 ## FlowProducer class
 
-This class allows to add jobs into one or several queues with dependencies between them in such a way that it is possible to build complex flows.
+This class allows to add jobs with dependencies between them in such a way that it is possible to build complex flows. Note: A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data. All Jobs can be in different queues, either children or parents,
 
 <b>Signature:</b>
 
@@ -35,7 +35,8 @@ export declare class FlowProducer extends EventEmitter
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
-|  [add(flow)](./bullmq.flowproducer.add.md) |  | Adds a flow.<!-- -->A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data.<!-- -->All Jobs can be in different queues, either children or parents, however this call would be atomic, either it fails and no jobs will be added to the queues, or it succeeds and all jobs will be added. |
+|  [add(flow)](./bullmq.flowproducer.add.md) |  |  add Adds a flow.<!-- -->This call would be atomic, either it fails and no jobs will be added to the queues, or it succeeds and all jobs will be added. |
 |  [close()](./bullmq.flowproducer.close.md) |  |  |
 |  [disconnect()](./bullmq.flowproducer.disconnect.md) |  |  |
+|  [getFlow(opts)](./bullmq.flowproducer.getflow.md) |  |  getFlow Get a flow. |
 

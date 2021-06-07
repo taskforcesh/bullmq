@@ -9,11 +9,11 @@ Get current state.
 <b>Signature:</b>
 
 ```typescript
-getState(): Promise<any>;
+getState(): Promise<string>;
 ```
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;string&gt;
 
 {<!-- -->string<!-- -->} Returns one of these values: 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
 

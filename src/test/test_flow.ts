@@ -10,7 +10,7 @@ describe('flows', () => {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 
@@ -109,6 +109,130 @@ describe('flows', () => {
     await flow.close();
 
     await removeAllQueueData(new IORedis(), parentQueueName);
+  });
+
+  it('should get a flow tree', async () => {
+    const name = 'child-job';
+
+    const topQueueName = `parent-queue-${v4()}`;
+
+    const flow = new FlowProducer();
+    const originalTree = await flow.add({
+      name: 'root-job',
+      queueName: topQueueName,
+      data: {},
+      children: [
+        {
+          name,
+          data: { idx: 0, foo: 'bar' },
+          queueName,
+          children: [
+            {
+              name,
+              data: { idx: 1, foo: 'baz' },
+              queueName,
+              children: [{ name, data: { idx: 2, foo: 'qux' }, queueName }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const { job: topJob } = originalTree;
+
+    const tree = await flow.getFlow({
+      id: topJob.id,
+      queueName: topQueueName,
+    });
+
+    expect(tree).to.have.property('job');
+    expect(tree).to.have.property('children');
+
+    const { children, job } = tree;
+    const isWaitingChildren = await job.isWaitingChildren();
+
+    expect(isWaitingChildren).to.be.true;
+    expect(children).to.have.length(1);
+
+    expect(children[0].job.id).to.be.ok;
+    expect(children[0].job.data.foo).to.be.eql('bar');
+    expect(children[0].children).to.have.length(1);
+
+    expect(children[0].children[0].job.id).to.be.ok;
+    expect(children[0].children[0].job.data.foo).to.be.eql('baz');
+
+    expect(children[0].children[0].children[0].job.id).to.be.ok;
+    expect(children[0].children[0].children[0].job.data.foo).to.be.eql('qux');
+
+    await flow.close();
+
+    await removeAllQueueData(new IORedis(), topQueueName);
+  });
+
+  it('should get part of flow tree', async () => {
+    const name = 'child-job';
+
+    const topQueueName = `parent-queue-${v4()}`;
+
+    const flow = new FlowProducer();
+    const originalTree = await flow.add({
+      name: 'root-job',
+      queueName: topQueueName,
+      data: {},
+      children: [
+        {
+          name,
+          data: { idx: 0, foo: 'bar' },
+          queueName,
+          children: [
+            {
+              name,
+              data: { idx: 1, foo: 'baz' },
+              queueName,
+              children: [{ name, data: { idx: 2, foo: 'qux' }, queueName }],
+            },
+          ],
+        },
+        {
+          name,
+          data: { idx: 3, foo: 'bax' },
+          queueName,
+        },
+        {
+          name,
+          data: { idx: 4, foo: 'baz' },
+          queueName,
+        },
+      ],
+    });
+
+    const { job: topJob } = originalTree;
+
+    const tree = await flow.getFlow({
+      id: topJob.id,
+      queueName: topQueueName,
+      depth: 2,
+      maxChildren: 2,
+    });
+
+    expect(tree).to.have.property('job');
+    expect(tree).to.have.property('children');
+
+    const { children, job } = tree;
+    const isWaitingChildren = await job.isWaitingChildren();
+
+    expect(isWaitingChildren).to.be.true;
+    expect(children.length).to.be.greaterThanOrEqual(2);
+
+    expect(children[0].job.id).to.be.ok;
+    expect(children[0].children).to.be.undefined;
+
+    expect(children[1].job.id).to.be.ok;
+    expect(children[1].children).to.be.undefined;
+
+    await flow.close();
+
+    await removeAllQueueData(new IORedis(), topQueueName);
   });
 
   it('should remove processed data when passing removeOnComplete', async () => {
