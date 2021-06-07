@@ -10,7 +10,7 @@
 |  --- | --- |
 |  [Backoffs](./bullmq.backoffs.md) |  |
 |  [ChildPool](./bullmq.childpool.md) |  |
-|  [FlowProducer](./bullmq.flowproducer.md) | This class allows to add jobs into one or several queues with dependencies between them in such a way that it is possible to build complex flows. |
+|  [FlowProducer](./bullmq.flowproducer.md) | This class allows to add jobs with dependencies between them in such a way that it is possible to build complex flows. Note: A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data. All Jobs can be in different queues, either children or parents, |
 |  [Job](./bullmq.job.md) |  |
 |  [Queue](./bullmq.queue.md) |  |
 |  [QueueBase](./bullmq.queuebase.md) |  |
