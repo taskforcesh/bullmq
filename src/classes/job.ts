@@ -530,7 +530,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * @returns {string} Returns one of these values:
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
-  getState() {
+  getState(): Promise<string> {
     return Scripts.getState(this.queue, this.id);
   }
 

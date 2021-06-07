@@ -9,15 +9,26 @@ import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
 
+interface NodeOpts {
+  queueName: string;
+  prefix?: string;
+  id: string;
+  depth?: number;
+  maxChildren?: number;
+}
+
 export interface JobNode {
   job: Job;
   children?: JobNode[];
 }
 
 /**
- * This class allows to add jobs into one or several queues
- * with dependencies between them in such a way that it is possible
- * to build complex flows.
+ * This class allows to add jobs with dependencies between them in such
+ * a way that it is possible to build complex flows.
+ * Note: A flow is a tree-like structure of jobs that depend on each other.
+ * Whenever the children of a given parent are completed, the parent
+ * will be processed, being able to access the children's result data.
+ * All Jobs can be in different queues, either children or parents,
  */
 export class FlowProducer extends EventEmitter {
   toKey: (name: string, type: string) => string;
@@ -42,20 +53,16 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
+   * @method add
    * Adds a flow.
    *
-   * A flow is a tree-like structure of jobs that depend on each other.
-   * Whenever the children of a given parent are completed, the parent
-   * will be processed, being able to access the children's result data.
-   *
-   * All Jobs can be in different queues, either children or parents,
-   * however this call would be atomic, either it fails and no jobs will
+   * This call would be atomic, either it fails and no jobs will
    * be added to the queues, or it succeeds and all jobs will be added.
    *
    * @param flow An object with a tree-like structure where children jobs
    * will be processed before their parents.
    */
-  async add(flow: FlowJob) {
+  async add(flow: FlowJob): Promise<JobNode> {
     if (this.closing) {
       return;
     }
@@ -83,6 +90,30 @@ export class FlowProducer extends EventEmitter {
     };
 
     updateJobIds(jobsTree, result, 0);
+
+    return jobsTree;
+  }
+
+  /**
+   * @method getFlow
+   * Get a flow.
+   *
+   * @param flow An object with a tree-like structure.
+   */
+  async getFlow(opts: NodeOpts): Promise<JobNode> {
+    if (this.closing) {
+      return;
+    }
+    const client = await this.connection.client;
+
+    const updatedOpts = Object.assign(
+      {
+        depth: 10,
+        maxChildren: 20,
+      },
+      opts,
+    );
+    const jobsTree = this.getNode(client, updatedOpts);
 
     return jobsTree;
   }
@@ -168,6 +199,39 @@ export class FlowProducer extends EventEmitter {
     }
   }
 
+  private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
+    const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
+
+    const job = await Job.fromId(queue, node.id);
+
+    if (job) {
+      const { processed = {}, unprocessed = [] } = await job.getDependencies({
+        processed: {
+          count: node.maxChildren,
+        },
+        unprocessed: {
+          count: node.maxChildren,
+        },
+      });
+      const processedKeys = Object.keys(processed);
+
+      const childrenCount = processedKeys.length + unprocessed.length;
+      const newDepth = node.depth - 1;
+      if (childrenCount > 0 && newDepth) {
+        const children = await this.getChildren(
+          client,
+          [...processedKeys, ...unprocessed],
+          newDepth,
+          node.maxChildren,
+        );
+
+        return { job, children };
+      } else {
+        return { job };
+      }
+    }
+  }
+
   private addChildren(
     multi: Pipeline,
     nodes: FlowJob[],
@@ -182,6 +246,27 @@ export class FlowProducer extends EventEmitter {
     return nodes.map(node => this.addNode(multi, node, parent));
   }
 
+  private getChildren(
+    client: RedisClient,
+    childrenKeys: string[],
+    depth: number,
+    maxChildren: number,
+  ) {
+    const getChild = (key: string) => {
+      const [prefix, queueName, id] = key.split(':');
+
+      return this.getNode(client, {
+        id,
+        queueName,
+        prefix,
+        depth,
+        maxChildren,
+      });
+    };
+
+    return Promise.all([...childrenKeys.map(getChild)]);
+  }
+
   /**
    * Helper factory method that creates a queue-like object
    * required to create jobs in any queue.
@@ -190,7 +275,10 @@ export class FlowProducer extends EventEmitter {
    * @param queueKeys
    * @returns
    */
-  private queueFromNode(node: FlowJob, queueKeys: QueueKeys) {
+  private queueFromNode(
+    node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
+    queueKeys: QueueKeys,
+  ) {
     return {
       client: this.connection.client,
       name: node.queueName,
