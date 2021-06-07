@@ -1,10 +1,9 @@
 /*eslint-env node */
-/* tslint:disable: no-floating-promises */
 'use strict';
 
-import { Job, Worker } from '@src/classes';
-import { Queue3 } from '@src/classes/compat';
-import { delay, removeAllQueueData } from '@src/utils';
+import { Job, Worker } from '../classes';
+import { Queue3 } from '../classes/compat';
+import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
@@ -116,9 +115,7 @@ describe('Compat', function() {
         after(3, async function() {
           try {
             const jobs = await queue.getJobs('completed');
-            expect(jobs)
-              .to.be.an('array')
-              .that.have.length(3);
+            expect(jobs).to.be.an('array').that.have.length(3);
             expect(jobs[0]).to.have.property('finishedOn');
             expect(jobs[1]).to.have.property('finishedOn');
             expect(jobs[2]).to.have.property('finishedOn');
@@ -149,9 +146,7 @@ describe('Compat', function() {
           try {
             queue;
             const jobs = await queue.getJobs('failed');
-            expect(jobs)
-              .to.be.an('array')
-              .that.has.length(3);
+            expect(jobs).to.be.an('array').that.has.length(3);
             expect(jobs[0]).to.have.property('finishedOn');
             expect(jobs[1]).to.have.property('finishedOn');
             expect(jobs[2]).to.have.property('finishedOn');
@@ -179,9 +174,7 @@ describe('Compat', function() {
         after(3, async function() {
           try {
             const jobs = await queue.getJobs('completed', 1, 2, true);
-            expect(jobs)
-              .to.be.an('array')
-              .that.has.length(2);
+            expect(jobs).to.be.an('array').that.has.length(2);
             expect(jobs[0].data.foo).to.be.eql(2);
             expect(jobs[1].data.foo).to.be.eql(3);
             expect(jobs[0]).to.have.property('finishedOn');
@@ -208,9 +201,7 @@ describe('Compat', function() {
         after(3, async function() {
           try {
             const jobs = await queue.getJobs('completed', -3, -1, true);
-            expect(jobs)
-              .to.be.an('array')
-              .that.has.length(3);
+            expect(jobs).to.be.an('array').that.has.length(3);
             expect(jobs[0].data.foo).to.be.equal(1);
             expect(jobs[1].data.foo).to.be.eql(2);
             expect(jobs[2].data.foo).to.be.eql(3);
@@ -234,9 +225,7 @@ describe('Compat', function() {
         after(3, async function() {
           try {
             const jobs = await queue.getJobs('completed', -300, 99999, true);
-            expect(jobs)
-              .to.be.an('array')
-              .that.has.length(3);
+            expect(jobs).to.be.an('array').that.has.length(3);
             expect(jobs[0].data.foo).to.be.equal(1);
             expect(jobs[1].data.foo).to.be.eql(2);
             expect(jobs[2].data.foo).to.be.eql(3);
