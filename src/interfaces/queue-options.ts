@@ -24,7 +24,7 @@ export interface QueueOptions extends QueueBaseOptions {
   streams?: {
     events: {
       /**
-       * Max aproximated length for streams
+       * Max approximated length for streams
        */
       maxLen: number;
     };
