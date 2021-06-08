@@ -54,7 +54,7 @@ export interface MoveToChildrenOpts {
   };
 }
 
-interface DependenciesOpts {
+export interface DependenciesOpts {
   processed?: {
     cursor?: number;
     count?: number;
