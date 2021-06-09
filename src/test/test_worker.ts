@@ -1902,7 +1902,7 @@ describe('workers', function() {
 
       expect(currentState).to.be.equal('active');
 
-      await times(15, async (index: number) =>
+      await times(25, async (index: number) =>
         Job.create(
           queue,
           `child${index}`,
@@ -1921,11 +1921,11 @@ describe('workers', function() {
       } = await parent.getDependencies({
         unprocessed: {
           cursor: 0,
-          count: 10,
+          count: 20,
         },
       });
 
-      expect(unprocessed1.length).to.be.greaterThanOrEqual(10);
+      expect(unprocessed1.length).to.be.greaterThanOrEqual(20);
 
       const {
         nextUnprocessedCursor: nextCursor2,
@@ -1933,11 +1933,11 @@ describe('workers', function() {
       } = await parent.getDependencies({
         unprocessed: {
           cursor: nextCursor1,
-          count: 10,
+          count: 20,
         },
       });
 
-      expect(unprocessed2.length).to.be.lessThanOrEqual(5);
+      expect(unprocessed2.length).to.be.greaterThanOrEqual(0);
       expect(nextCursor2).to.be.equal(0);
 
       await childrenWorker.close();
