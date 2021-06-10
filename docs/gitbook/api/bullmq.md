@@ -42,6 +42,7 @@
 |  [AdvancedOptions](./bullmq.advancedoptions.md) |  |
 |  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
+|  [DependenciesOpts](./bullmq.dependenciesopts.md) |  |
 |  [FlowJob](./bullmq.flowjob.md) |  |
 |  [GetNextJobOptions](./bullmq.getnextjoboptions.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
@@ -49,6 +50,7 @@
 |  [JobNode](./bullmq.jobnode.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
+|  [NodeOpts](./bullmq.nodeopts.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
 |  [QueueEvents](./bullmq.queueevents.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |

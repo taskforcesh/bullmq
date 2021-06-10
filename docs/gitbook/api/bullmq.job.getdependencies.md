@@ -4,7 +4,7 @@
 
 ## Job.getDependencies() method
 
-Get children job keys if this job is a parent and has children.
+ getDependencies Get children job keys if this job is a parent and has children.
 
 <b>Signature:</b>
 
@@ -21,7 +21,7 @@ getDependencies(opts?: DependenciesOpts): Promise<{
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  opts | DependenciesOpts |  |
+|  opts | [DependenciesOpts](./bullmq.dependenciesopts.md) |  |
 
 <b>Returns:</b>
 

@@ -404,7 +404,10 @@ describe('flows', () => {
       (resolve, reject) =>
         (parentProcessor = async (job: Job) => {
           try {
-            expect(processedChildren).to.be.equal(3);
+            const { processed, unprocessed } = await job.getDependenciesCount();
+
+            expect(processed).to.be.equal(3);
+            expect(unprocessed).to.be.equal(0);
 
             const childrenValues = await job.getChildrenValues();
 

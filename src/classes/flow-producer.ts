@@ -9,7 +9,7 @@ import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
 
-interface NodeOpts {
+export interface NodeOpts {
   queueName: string;
   prefix?: string;
   id: string;
@@ -306,7 +306,7 @@ export class FlowProducer extends EventEmitter {
   }
 }
 
-export function getParentKey(opts: { id: string; queue: string }) {
+export function getParentKey(opts: { id: string; queue: string }): string {
   if (opts) {
     return `${opts.queue}:${opts.id}`;
   }

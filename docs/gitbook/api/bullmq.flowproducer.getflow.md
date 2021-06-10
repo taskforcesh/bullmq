@@ -16,7 +16,7 @@ getFlow(opts: NodeOpts): Promise<JobNode>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  opts | NodeOpts |  |
+|  opts | [NodeOpts](./bullmq.nodeopts.md) |  |
 
 <b>Returns:</b>
 

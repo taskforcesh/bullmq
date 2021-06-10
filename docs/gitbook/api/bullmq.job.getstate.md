@@ -4,7 +4,7 @@
 
 ## Job.getState() method
 
-Get current state. 
+ getState Get current state.
 
 <b>Signature:</b>
 
