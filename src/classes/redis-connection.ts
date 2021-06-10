@@ -34,8 +34,12 @@ export class RedisConnection extends EventEmitter {
     this.initializing = this.init();
 
     this.initializing
-      .then(client => client.on('error', err => this.emit('error', err)))
+      .then(client => client.on('error', this.handleClientError))
       .catch(err => this.emit('error', err));
+  }
+
+  handleClientError(err: Error) {
+    this.emit('error', err);
   }
 
   /**
@@ -122,6 +126,8 @@ export class RedisConnection extends EventEmitter {
       this.closing = true;
       if (this.opts != this._client) {
         await this._client.quit();
+      } else {
+        this._client.off('error', this.handleClientError);
       }
     }
   }
