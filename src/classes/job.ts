@@ -594,7 +594,7 @@ export class Job<T = any, R = any, N extends string = string> {
       };
 
       if (opts.processed) {
-        const processedOpts = Object.assign(defaultOpts, opts.processed);
+        const processedOpts = Object.assign({ ...defaultOpts }, opts.processed);
         multi.hscan(
           this.toKey(`${this.id}:processed`),
           processedOpts.cursor,
@@ -604,7 +604,10 @@ export class Job<T = any, R = any, N extends string = string> {
       }
 
       if (opts.unprocessed) {
-        const unprocessedOpts = Object.assign(defaultOpts, opts.unprocessed);
+        const unprocessedOpts = Object.assign(
+          { ...defaultOpts },
+          opts.unprocessed,
+        );
         multi.sscan(
           this.toKey(`${this.id}:dependencies`),
           unprocessedOpts.cursor,
