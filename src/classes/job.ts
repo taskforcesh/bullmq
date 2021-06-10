@@ -54,7 +54,7 @@ export interface MoveToChildrenOpts {
   };
 }
 
-interface DependenciesOpts {
+export interface DependenciesOpts {
   processed?: {
     cursor?: number;
     count?: number;
@@ -525,8 +525,9 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method getState
    * Get current state.
-   * @method
+   *
    * @returns {string} Returns one of these values:
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
@@ -554,6 +555,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method getDependencies
    * Get children job keys if this job is a parent and has children.
    *
    * @returns dependencies separated by processed and unprocessed.
@@ -569,8 +571,8 @@ export class Job<T = any, R = any, N extends string = string> {
     const client = await this.queue.client;
     const multi = client.multi();
     if (!opts.processed && !opts.unprocessed) {
-      await multi.hgetall(this.toKey(`${this.id}:processed`));
-      await multi.smembers(this.toKey(`${this.id}:dependencies`));
+      multi.hgetall(this.toKey(`${this.id}:processed`));
+      multi.smembers(this.toKey(`${this.id}:dependencies`));
 
       const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
         [null | Error, { [jobKey: string]: string }],
@@ -593,7 +595,7 @@ export class Job<T = any, R = any, N extends string = string> {
 
       if (opts.processed) {
         const processedOpts = Object.assign(defaultOpts, opts.processed);
-        await multi.hscan(
+        multi.hscan(
           this.toKey(`${this.id}:processed`),
           processedOpts.cursor,
           'COUNT',
@@ -603,7 +605,7 @@ export class Job<T = any, R = any, N extends string = string> {
 
       if (opts.unprocessed) {
         const unprocessedOpts = Object.assign(defaultOpts, opts.unprocessed);
-        await multi.sscan(
+        multi.sscan(
           this.toKey(`${this.id}:dependencies`),
           unprocessedOpts.cursor,
           'COUNT',
@@ -651,6 +653,62 @@ export class Job<T = any, R = any, N extends string = string> {
           : {}),
       };
     }
+  }
+
+  /**
+   * @method getDependenciesCount
+   * Get children job counts if this job is a parent and has children.
+   *
+   * @returns dependencies count separated by processed and unprocessed.
+   */
+  async getDependenciesCount(
+    opts: {
+      processed?: boolean;
+      unprocessed?: boolean;
+    } = {},
+  ): Promise<{
+    processed?: number;
+    unprocessed?: number;
+  }> {
+    const client = await this.queue.client;
+    const multi = client.multi();
+
+    const updatedOpts =
+      !opts.processed && !opts.unprocessed
+        ? { processed: true, unprocessed: true }
+        : opts;
+
+    if (updatedOpts.processed) {
+      multi.hlen(this.toKey(`${this.id}:processed`));
+    }
+
+    if (updatedOpts.unprocessed) {
+      multi.scard(this.toKey(`${this.id}:dependencies`));
+    }
+
+    const [
+      [err1, result1] = [],
+      [err2, result2] = [],
+    ] = (await multi.exec()) as [
+      [null | Error, number],
+      [null | Error, number],
+    ];
+
+    const processed = updatedOpts.processed ? result1 : undefined;
+    const unprocessed = updatedOpts.unprocessed
+      ? updatedOpts.processed
+        ? result2
+        : result1
+      : undefined;
+
+    return {
+      ...(updatedOpts.processed
+        ? {
+            processed,
+          }
+        : {}),
+      ...(updatedOpts.unprocessed ? { unprocessed } : {}),
+    };
   }
 
   /**

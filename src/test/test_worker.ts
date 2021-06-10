@@ -1847,12 +1847,18 @@ describe('workers', function() {
         unprocessed: unprocessed3,
       } = await parent.getDependencies();
       const isWaitingChildren1 = await parent.isWaitingChildren();
+      const {
+        processed: processedCount,
+        unprocessed: unprocessedCount,
+      } = await parent.getDependenciesCount();
 
       expect(processed3).to.deep.equal({
         [`bull:${queueName}:${child1.id}`]: 'return value1',
         [`bull:${queueName}:${child2.id}`]: 'return value2',
       });
+      expect(processedCount).to.be.equal(2);
       expect(unprocessed3).to.have.length(1);
+      expect(unprocessedCount).to.be.equal(1);
       expect(isWaitingChildren1).to.be.true;
 
       const isActive3 = await child3.isActive();
