@@ -1,3 +1,10 @@
+## [1.33.1](https://github.com/taskforcesh/bullmq/compare/v1.33.0...v1.33.1) (2021-06-10)
+
+
+### Bug Fixes
+
+* **job:** destructure default opts for pagination ([73363a5](https://github.com/taskforcesh/bullmq/commit/73363a551f56608f8936ad1f730d0a9c778aafd2))
+
 # [1.33.0](https://github.com/taskforcesh/bullmq/compare/v1.32.0...v1.33.0) (2021-06-10)
 
 
