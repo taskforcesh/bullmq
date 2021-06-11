@@ -524,6 +524,10 @@ export class Job<T = any, R = any, N extends string = string> {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
+  get queueName(): string {
+    return this.queue.name;
+  }
+
   /**
    * @method getState
    * Get current state.
