@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-export declare type MinimalQueue = Pick<QueueBase, 'client' | 'toKey' | 'keys' | 'opts' | 'closing' | 'waitUntilReady' | 'removeListener' | 'emit' | 'on' | 'redisVersion'>;
+export declare type MinimalQueue = Pick<QueueBase, 'name' | 'client' | 'toKey' | 'keys' | 'opts' | 'closing' | 'waitUntilReady' | 'removeListener' | 'emit' | 'on' | 'redisVersion'>;
 ```
 <b>References:</b> [QueueBase](./bullmq.queuebase.md)
 

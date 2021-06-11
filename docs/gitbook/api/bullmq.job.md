@@ -30,6 +30,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [parentKey?](./bullmq.job.parentkey.md) |  | string | <i>(Optional)</i> Fully qualified key (including the queue prefix) pointing to the parent of this job. |
 |  [processedOn?](./bullmq.job.processedon.md) |  | number | <i>(Optional)</i> Timestamp for when the job was processed. |
 |  [progress](./bullmq.job.progress.md) |  | number \| object | The progress a job has performed so far. |
+|  [queueName](./bullmq.job.queuename.md) |  | string |  |
 |  [returnvalue](./bullmq.job.returnvalue.md) |  | R | The value returned by the processor when processing this job. |
 |  [stacktrace](./bullmq.job.stacktrace.md) |  | string\[\] | Stacktrace for the error (for failed jobs). |
 |  [timestamp](./bullmq.job.timestamp.md) |  | number | Timestamp when the job was created (unless overridden with job options). |
