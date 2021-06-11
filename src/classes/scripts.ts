@@ -22,6 +22,7 @@ import { RedisClient } from './redis-connection';
 
 export type MinimalQueue = Pick<
   QueueBase,
+  | 'name'
   | 'client'
   | 'toKey'
   | 'keys'

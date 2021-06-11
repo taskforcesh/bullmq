@@ -243,9 +243,11 @@ describe('flows', () => {
 
     expect(children[0].job.id).to.be.ok;
     expect(children[0].job.data.foo).to.be.eql('bar');
+    expect(children[0].job.queueName).to.be.eql(queueName);
     expect(children[0].children).to.have.length(1);
 
     expect(children[0].children[0].job.id).to.be.ok;
+    expect(children[0].children[0].job.queueName).to.be.eql(queueName);
     expect(children[0].children[0].job.data.foo).to.be.eql('baz');
 
     expect(children[0].children[0].children[0].job.id).to.be.ok;
