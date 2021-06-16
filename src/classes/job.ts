@@ -509,10 +509,11 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method isActive
    *
    * @returns true of the job is active.
    */
-  isActive() {
+  isActive(): Promise<boolean> {
     return this.isInList('active');
   }
 
