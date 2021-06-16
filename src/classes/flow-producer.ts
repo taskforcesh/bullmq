@@ -1,7 +1,5 @@
 import uuid = require('uuid');
-
 import { Redis, Pipeline } from 'ioredis';
-
 import { EventEmitter } from 'events';
 import { QueueBaseOptions } from '../interfaces';
 import { RedisClient, RedisConnection } from './redis-connection';
@@ -98,7 +96,7 @@ export class FlowProducer extends EventEmitter {
    * @method getFlow
    * Get a flow.
    *
-   * @param flow An object with a tree-like structure.
+   * @param opts An object with options for getting a JobNode.
    */
   async getFlow(opts: NodeOpts): Promise<JobNode> {
     if (this.closing) {
