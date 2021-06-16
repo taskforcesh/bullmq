@@ -38,9 +38,9 @@ export class RedisConnection extends EventEmitter {
       .catch(err => this.emit('error', err));
   }
 
-  handleClientError(err: Error) {
+  handleClientError = (err: Error): void => {
     this.emit('error', err);
-  }
+  };
 
   /**
    * Waits for a redis client to be ready.
