@@ -26,6 +26,27 @@ await queue.add(
 );
 ```
 
+You can also define it in the queue's `defaultJobOptions`, and it will apply to all jobs added to the queue, unless overridden. For example:
+
+```typescript
+import { Queue } from "bullmq";
+
+const myQueue = new Queue("foo", {
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: {
+      type: "exponential",
+      delay: 1000
+    }
+  }
+});
+
+await queue.add(
+  "test-retry",
+  { foo: "bar" }
+);
+```
+
 The current built-in backoff functions are "exponential" and "fixed".
 
 With an exponential backoff, it will retry after `2 ^ attempts * delay` milliseconds. For example, with a delay of 3000 milliseconds, for the 7th attempt, it will retry 2^7 * 3000 milliseconds = 6.4 minutes after the previous attempt. With a fixed backoff, it will retry after `delay` milliseconds, so with a delay of 3000 milliseconds, it will retry _every_ attempt 3000 milliseconds after the previous attempt.
