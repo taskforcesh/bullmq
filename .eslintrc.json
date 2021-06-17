@@ -2,7 +2,12 @@
   "parser": "@typescript-eslint/parser",
   "env": { "es6": true, "node": true, "mocha": true },
   "globals": { "Atomics": "readonly", "SharedArrayBuffer": "readonly" },
-  "plugins": ["promise", "prettier", "@typescript-eslint/eslint-plugin"],
+  "plugins": [
+    "promise",
+    "prettier",
+    "mocha",
+    "@typescript-eslint/eslint-plugin"
+  ],
   "extends": [
     "prettier",
     "eslint:recommended",
@@ -32,6 +37,7 @@
     "@typescript-eslint/no-var-requires": 0,
     "@typescript-eslint/no-empty-function": 1,
     "@typescript-eslint/no-this-alias": 0,
+    "mocha/no-exclusive-tests": "error",
     "space-before-function-paren": [
       "error",
       {
