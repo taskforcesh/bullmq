@@ -14,6 +14,7 @@ export class RedisConnection extends EventEmitter {
   private initializing: Promise<RedisClient>;
   private closing: boolean;
   private version: string;
+  private handleClientError: (e: Error) => void;
 
   constructor(private readonly opts?: ConnectionOptions) {
     super();
@@ -33,14 +34,14 @@ export class RedisConnection extends EventEmitter {
 
     this.initializing = this.init();
 
+    this.handleClientError = (err: Error): void => {
+      this.emit('error', err);
+    };
+
     this.initializing
       .then(client => client.on('error', this.handleClientError))
       .catch(err => this.emit('error', err));
   }
-
-  handleClientError = (err: Error): void => {
-    this.emit('error', err);
-  };
 
   /**
    * Waits for a redis client to be ready.
