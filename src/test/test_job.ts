@@ -361,7 +361,7 @@ describe('Job', function() {
 
       await expect(
         job.moveToCompleted('return value', token),
-      ).to.be.rejectedWith(`Job ${job.id} has pending dependencies finished`);
+      ).to.be.rejectedWith(`Job ${job.id} has pending dependencies. finished`);
 
       const isCompleted = await job.isCompleted();
 
@@ -493,6 +493,33 @@ describe('Job', function() {
     });
   });
 
+  describe('.changeDelay', () => {
+    it('can change delay of a delayed job', async () => {
+      const job = await Job.create(
+        queue,
+        'test',
+        { foo: 'bar' },
+        { delay: 1500 },
+      );
+      const isDelayed = await job.isDelayed();
+      expect(isDelayed).to.be.equal(true);
+      await job.changeDelay(2000);
+
+      const isDelayedAfterChangeDelay = await job.isDelayed();
+      expect(isDelayedAfterChangeDelay).to.be.equal(true);
+    });
+
+    it('should not change delay if a job is not delayed', async () => {
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      const isDelayed = await job.isDelayed();
+      expect(isDelayed).to.be.equal(false);
+
+      await expect(job.changeDelay(2000)).to.be.rejectedWith(
+        `Job ${job.id} is not in the delayed state. changeDelay`,
+      );
+    });
+  });
+
   describe('.promote', () => {
     it('can promote a delayed job to be executed immediately', async () => {
       const job = await Job.create(
@@ -558,12 +585,9 @@ describe('Job', function() {
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(false);
 
-      try {
-        await job.promote();
-        throw new Error('Job should not be promoted!');
-      } catch (err) {
-        return;
-      }
+      await expect(job.promote()).to.be.rejectedWith(
+        `Job ${job.id} is not in the delayed state. promote`,
+      );
     });
 
     it('should promote delayed job to the right queue if queue is paused', async () => {
