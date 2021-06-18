@@ -1,3 +1,10 @@
+## [1.34.1](https://github.com/taskforcesh/bullmq/compare/v1.34.0...v1.34.1) (2021-06-18)
+
+
+### Bug Fixes
+
+* **redis-connection:** remove error event listener from client ([2d70fe7](https://github.com/taskforcesh/bullmq/commit/2d70fe7cc7d43673674ec2ba0204c10661b34e95))
+
 # [1.34.0](https://github.com/taskforcesh/bullmq/compare/v1.33.1...v1.34.0) (2021-06-11)
 
 

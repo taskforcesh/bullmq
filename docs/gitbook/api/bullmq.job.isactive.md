@@ -4,6 +4,8 @@
 
 ## Job.isActive() method
 
+ isActive
+
 <b>Signature:</b>
 
 ```typescript

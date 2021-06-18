@@ -51,7 +51,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  [getDependencies(opts)](./bullmq.job.getdependencies.md) |  |  getDependencies Get children job keys if this job is a parent and has children. |
 |  [getDependenciesCount(opts)](./bullmq.job.getdependenciescount.md) |  |  getDependenciesCount Get children job counts if this job is a parent and has children. |
 |  [getState()](./bullmq.job.getstate.md) |  |  getState Get current state. |
-|  [isActive()](./bullmq.job.isactive.md) |  |  |
+|  [isActive()](./bullmq.job.isactive.md) |  |  isActive |
 |  [isCompleted()](./bullmq.job.iscompleted.md) |  |  |
 |  [isDelayed()](./bullmq.job.isdelayed.md) |  |  |
 |  [isFailed()](./bullmq.job.isfailed.md) |  |  |
