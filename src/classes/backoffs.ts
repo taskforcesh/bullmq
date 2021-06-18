@@ -47,7 +47,7 @@ export class Backoffs {
     customStrategies: Strategies,
     err: Error,
     job: Job,
-  ) {
+  ): number {
     if (backoff) {
       const strategy = lookupStrategy(backoff, customStrategies);
 

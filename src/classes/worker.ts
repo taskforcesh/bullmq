@@ -171,7 +171,7 @@ export class Worker<
         tokens.push(token);
       }
     }
-    return Promise.all(processing);
+    return Promise.all(processing.keys());
   }
 
   /**
