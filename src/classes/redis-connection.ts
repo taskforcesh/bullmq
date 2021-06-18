@@ -14,6 +14,7 @@ export class RedisConnection extends EventEmitter {
   private initializing: Promise<RedisClient>;
   private closing: boolean;
   private version: string;
+  private handleClientError: (e: Error) => void;
 
   constructor(private readonly opts?: ConnectionOptions) {
     super();
@@ -33,8 +34,12 @@ export class RedisConnection extends EventEmitter {
 
     this.initializing = this.init();
 
+    this.handleClientError = (err: Error): void => {
+      this.emit('error', err);
+    };
+
     this.initializing
-      .then(client => client.on('error', err => this.emit('error', err)))
+      .then(client => client.on('error', this.handleClientError))
       .catch(err => this.emit('error', err));
   }
 
@@ -122,6 +127,8 @@ export class RedisConnection extends EventEmitter {
       this.closing = true;
       if (this.opts != this._client) {
         await this._client.quit();
+      } else {
+        this._client.off('error', this.handleClientError);
       }
     }
   }
