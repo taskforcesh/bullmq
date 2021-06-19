@@ -1,3 +1,10 @@
+# [1.35.0](https://github.com/taskforcesh/bullmq/compare/v1.34.2...v1.35.0) (2021-06-19)
+
+
+### Features
+
+* **worker:** add drained event typing ([ed5f315](https://github.com/taskforcesh/bullmq/commit/ed5f3155415693d2a6dbfb779397d53d74b704e2))
+
 ## [1.34.2](https://github.com/taskforcesh/bullmq/compare/v1.34.1...v1.34.2) (2021-06-18)
 
 
