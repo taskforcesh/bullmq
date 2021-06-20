@@ -7,15 +7,15 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: string, listener: Function): this;
+on(event: 'error', listener: (failedReason: Error) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | string |  |
-|  listener | Function |  |
+|  event | 'error' |  |
+|  listener | (failedReason: Error) =&gt; void |  |
 
 <b>Returns:</b>
 
