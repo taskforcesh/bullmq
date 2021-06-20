@@ -14,7 +14,7 @@ describe('events', function() {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
@@ -52,7 +52,10 @@ describe('events', function() {
     });
 
     const drained = new Promise(resolve => {
-      queueEvents.once('drained', resolve);
+      queueEvents.once('drained', id => {
+        expect(id).to.be.string;
+        resolve();
+      });
     });
 
     await queue.add('test', { foo: 'bar' });

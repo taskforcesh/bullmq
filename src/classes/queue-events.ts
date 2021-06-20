@@ -6,7 +6,7 @@ import { StreamReadRaw } from '../interfaces/redis-streams';
 export declare interface QueueEvents {
   on(
     event: 'active',
-    listener: (args: { jobId: string }, prev?: string) => void,
+    listener: (args: { jobId: string; prev?: string }, id: string) => void,
   ): this;
   on(
     event: 'waiting',
@@ -99,8 +99,14 @@ export class QueueEvents extends QueueBase {
                 break;
             }
 
-            this.emit(args.event, args, id);
-            this.emit(`${args.event}:${args.jobId}`, args, id);
+            const { event, ...restArgs } = args;
+
+            if (event === 'drained') {
+              this.emit(event, id);
+            } else {
+              this.emit(event, restArgs, id);
+              this.emit(`${event}:${restArgs.jobId}`, restArgs, id);
+            }
           }
         }
       } catch (err) {
