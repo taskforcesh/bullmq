@@ -18,9 +18,13 @@ import { isRedisInstance, delay } from '../utils';
 export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
 
 export declare interface Worker {
-  on(event: 'drained', listener: () => void): this;
   on(event: 'completed', listener: (job: Job) => void): this;
+  on(event: 'drained', listener: () => void): this;
   on(event: 'error', listener: (failedReason: Error) => void): this;
+  on(
+    event: 'progress',
+    listener: (job: Job, progress: number | object) => void,
+  ): this;
   on(event: string, listener: Function): this;
 }
 
