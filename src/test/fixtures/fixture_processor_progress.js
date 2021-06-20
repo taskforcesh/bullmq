@@ -9,23 +9,23 @@ const delay = require('./delay');
 module.exports = function(job) {
   return delay(50)
     .then(() => {
-      job.progress(10);
-      job.log(job.progress());
+      job.updateProgress(10);
+      job.log(job.updateProgress());
       return delay(100);
     })
     .then(() => {
-      job.progress(27);
-      job.log(job.progress());
+      job.updateProgress(27);
+      job.log(job.updateProgress());
       return delay(150);
     })
     .then(() => {
-      job.progress(78);
-      job.log(job.progress());
+      job.updateProgress(78);
+      job.log(job.updateProgress());
       return delay(100);
     })
     .then(() => {
-      job.progress(100);
-      job.log(job.progress());
+      job.updateProgress(100);
+      job.log(job.updateProgress());
     })
     .then(() => {
       return 37;

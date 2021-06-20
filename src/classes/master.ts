@@ -62,9 +62,9 @@ process.on('message', msg => {
         processor = promisify(processor);
       } else {
         const origProcessor = processor;
-        processor = function() {
+        processor = function(...args: any[]) {
           try {
-            return Promise.resolve(origProcessor.apply(null, arguments));
+            return Promise.resolve(origProcessor(...args));
           } catch (err) {
             return Promise.reject(err);
           }
@@ -92,12 +92,9 @@ process.on('message', msg => {
             value: result,
           });
         } catch (err) {
-          if (!err.message) {
-            err = new Error(err);
-          }
           await processSendAsync({
             cmd: 'failed',
-            value: err,
+            value: !err.message ? new Error(err) : err,
           });
         } finally {
           status = 'IDLE';
@@ -143,7 +140,7 @@ function wrapJob(job: JobJson): SandboxedJob {
      * If no argument is given, it behaves as a sync getter.
      * If an argument is given, it behaves as an async setter.
      */
-    progress: (progress?: any) => {
+    updateProgress: (progress?: any) => {
       if (progress) {
         // Locally store reference to new progress value
         // so that we can return it from this process synchronously.
