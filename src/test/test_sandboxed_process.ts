@@ -16,7 +16,7 @@ describe('sandboxed process', () => {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
@@ -346,13 +346,17 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
     const worker = new Worker(queueName, processFile);
 
-    // aquire and release a child here so we know it has it's full termination handler setup
-    const initalizedChild = await worker['childPool'].retain(processFile);
-    await worker['childPool'].release(initalizedChild);
+    // acquire and release a child here so we know it has it's full termination handler setup
+    const initializedChild = await worker['childPool'].retain(processFile);
+    await worker['childPool'].release(initializedChild);
 
     // await this After we've added the job
     const onJobActive = new Promise<void>(resolve => {
-      worker.on('active', resolve);
+      worker.on('active', (job, result, prev) => {
+        expect(result).to.be.null;
+        expect(prev).to.be.equal('waiting');
+        resolve();
+      });
     });
 
     const jobAdd = queue.add('foo', {});
@@ -362,7 +366,7 @@ describe('sandboxed process', () => {
     expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
     const child = Object.values(worker['childPool'].retained)[0];
 
-    expect(child).to.equal(initalizedChild);
+    expect(child).to.equal(initializedChild);
     expect(child.exitCode).to.equal(null);
     expect(child.killed).to.equal(false);
 
