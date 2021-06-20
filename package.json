@@ -7,6 +7,13 @@
   "source": "src/index.ts",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
+  "keywords": [
+    "bull",
+    "bullmq",
+    "queues",
+    "jobs",
+    "redis"
+  ],
   "files": [
     "dist"
   ],
