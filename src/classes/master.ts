@@ -140,6 +140,25 @@ function wrapJob(job: JobJson): SandboxedJob {
      * If no argument is given, it behaves as a sync getter.
      * If an argument is given, it behaves as an async setter.
      */
+    progress: (progress?: any) => {
+      if (progress) {
+        // Locally store reference to new progress value
+        // so that we can return it from this process synchronously.
+        progressValue = progress;
+        // Send message to update job progress.
+        process.send({
+          cmd: 'progress',
+          value: progress,
+        });
+        return Promise.resolve();
+      } else {
+        // Return the last known progress value.
+        return progressValue;
+      }
+    },
+    /*
+     * Emulate the real job `updateProgress` function, should works as `progress` function.
+     */
     updateProgress: (progress?: any) => {
       if (progress) {
         // Locally store reference to new progress value

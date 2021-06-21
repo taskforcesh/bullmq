@@ -14,8 +14,8 @@ module.exports = function(job) {
       return delay(100);
     })
     .then(() => {
-      job.updateProgress(27);
-      job.log(job.updateProgress());
+      job.progress(27);
+      job.log(job.progress());
       return delay(150);
     })
     .then(() => {
@@ -24,8 +24,8 @@ module.exports = function(job) {
       return delay(100);
     })
     .then(() => {
-      job.updateProgress(100);
-      job.log(job.updateProgress());
+      job.progress(100);
+      job.log(job.progress());
     })
     .then(() => {
       return 37;

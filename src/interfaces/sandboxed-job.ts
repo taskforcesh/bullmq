@@ -8,6 +8,9 @@ export interface SandboxedJob<T = any, R = any>
   extends Omit<JobJson, 'data' | 'opts' | 'progress' | 'log' | 'returnValue'> {
   data: T;
   opts: JobsOptions;
+  progress:
+    | (() => object | number)
+    | ((value: object | number) => Promise<void>);
   updateProgress:
     | (() => object | number)
     | ((value: object | number) => Promise<void>);
