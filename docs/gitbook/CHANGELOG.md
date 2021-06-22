@@ -1,3 +1,10 @@
+## [1.36.1](https://github.com/taskforcesh/bullmq/compare/v1.36.0...v1.36.1) (2021-06-22)
+
+
+### Bug Fixes
+
+* **worker:** change active event typing ([220b4f6](https://github.com/taskforcesh/bullmq/commit/220b4f619b30a8f04979e9abd0139e46d89b424d))
+
 # [1.36.0](https://github.com/taskforcesh/bullmq/compare/v1.35.0...v1.36.0) (2021-06-20)
 
 
