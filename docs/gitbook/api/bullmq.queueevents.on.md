@@ -9,7 +9,8 @@
 ```typescript
 on(event: 'active', listener: (args: {
         jobId: string;
-    }, prev?: string) => void): this;
+        prev?: string;
+    }, id: string) => void): this;
 ```
 
 ## Parameters
@@ -17,7 +18,7 @@ on(event: 'active', listener: (args: {
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  event | 'active' |  |
-|  listener | (args: { jobId: string; }, prev?: string) =&gt; void |  |
+|  listener | (args: { jobId: string; prev?: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

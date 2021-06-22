@@ -5,7 +5,7 @@ All classes in BullMQ emit useful events that inform on the lifecycles of the jo
 Some examples:
 
 ```typescript
-import { Queue } from 'bullmq'
+import { Queue } from 'bullmq';
 
 const myQueue = new Queue('Paint');
 
@@ -15,11 +15,11 @@ myQueue.on('waiting', (job: Job) => {
 ```
 
 ```typescript
-import { Worker } from 'bullmq'
+import { Worker } from 'bullmq';
 
 const myWorker = new Worker('Paint');
 
-myWorker.on('drained', (job: Job) => {
+myWorker.on('drained', () => {
   // Queue is drained, no more jobs left
 });
 
@@ -35,18 +35,17 @@ myWorker.on('failed', (job: Job) => {
 The events above are local for the workers that actually completed the jobs, however, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the QueueEvents class:
 
 ```typescript
-import { QueueEvents } from 'bullmq'
+import { QueueEvents } from 'bullmq';
 
-const queueEvents = new QueueEvents('Paint')
+const queueEvents = new QueueEvents('Paint');
 
 queueEvents.on('completed', (jobId: string) => {
-    // Called every time a job is completed in any worker.
+  // Called every time a job is completed in any worker.
 });
 
 queueEvents.on('progress', (jobId: string, progress: number | object) => {
-    // jobId received a progress event
+  // jobId received a progress event
 });
 ```
 
 The QueueEvents class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
-
