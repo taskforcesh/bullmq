@@ -1,4 +1,4 @@
-import uuid = require('uuid');
+import { v4 } from 'uuid';
 import { Redis, Pipeline } from 'ioredis';
 import { EventEmitter } from 'events';
 import { QueueBaseOptions } from '../interfaces';
@@ -6,6 +6,7 @@ import { RedisClient, RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
+import { getParentKey } from '@src/utils';
 
 export interface NodeOpts {
   queueName: string;
@@ -144,7 +145,7 @@ export class FlowProducer extends EventEmitter {
   ): JobNode {
     const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
 
-    const jobId = node.opts?.jobId || uuid.v4();
+    const jobId = node.opts?.jobId || v4();
     const job = new Job(
       queue,
       node.name,
@@ -301,11 +302,5 @@ export class FlowProducer extends EventEmitter {
 
   disconnect() {
     return this.connection.disconnect();
-  }
-}
-
-export function getParentKey(opts: { id: string; queue: string }): string {
-  if (opts) {
-    return `${opts.queue}:${opts.id}`;
   }
 }
