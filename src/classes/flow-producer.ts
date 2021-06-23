@@ -6,7 +6,7 @@ import { RedisClient, RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
-import { getParentKey } from '@src/utils';
+import { getParentKey } from '../utils';
 
 export interface NodeOpts {
   queueName: string;
