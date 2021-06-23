@@ -1,4 +1,4 @@
-import uuid = require('uuid');
+import { v4 } from 'uuid';
 import { Redis, Pipeline } from 'ioredis';
 import { EventEmitter } from 'events';
 import { QueueBaseOptions } from '../interfaces';
@@ -144,7 +144,7 @@ export class FlowProducer extends EventEmitter {
   ): JobNode {
     const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
 
-    const jobId = node.opts?.jobId || uuid.v4();
+    const jobId = node.opts?.jobId || v4();
     const job = new Job(
       queue,
       node.name,
