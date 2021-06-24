@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: 'active', listener: (job: Job, result: null, prev: string) => void): this;
+on(event: 'active', listener: (job: Job, prev: string) => void): this;
 ```
 
 ## Parameters
@@ -15,7 +15,7 @@ on(event: 'active', listener: (job: Job, result: null, prev: string) => void): t
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  event | 'active' |  |
-|  listener | (job: [Job](./bullmq.job.md)<!-- -->, result: null, prev: string) =&gt; void |  |
+|  listener | (job: [Job](./bullmq.job.md)<!-- -->, prev: string) =&gt; void |  |
 
 <b>Returns:</b>
 

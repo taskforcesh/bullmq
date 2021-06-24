@@ -352,8 +352,7 @@ describe('sandboxed process', () => {
 
     // await this After we've added the job
     const onJobActive = new Promise<void>(resolve => {
-      worker.on('active', (job, result, prev) => {
-        expect(result).to.be.null;
+      worker.on('active', (job, prev) => {
         expect(prev).to.be.equal('waiting');
         resolve();
       });
