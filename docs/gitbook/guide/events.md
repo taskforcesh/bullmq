@@ -43,7 +43,7 @@ queueEvents.on('completed', (jobId: string) => {
   // Called every time a job is completed in any worker.
 });
 
-queueEvents.on('progress', (jobId: string, progress: number | object) => {
+queueEvents.on('progress', ({ jobId, progress }: { jobId: string; progress: number | object }) => {
   // jobId received a progress event
 });
 ```
