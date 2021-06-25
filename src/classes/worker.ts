@@ -36,6 +36,7 @@ export class Worker<
 > extends QueueBase {
   opts: WorkerOptions;
 
+  id: string;
   private drained: boolean;
   private waiting = false;
   private processFn: Processor<T, R, N>;
@@ -56,6 +57,7 @@ export class Worker<
   ) {
     super(name, opts);
 
+    this.id = v4();
     this.opts = {
       // settings: {},
       drainDelay: 5,
