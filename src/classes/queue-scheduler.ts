@@ -70,6 +70,7 @@ export class QueueScheduler extends QueueBase {
     }
 
     while (!this.closing) {
+      await this.workerCleaner(client);
       // Check if at least the min stalled check time has passed.
       await this.moveStalledJobsToWait();
 
@@ -166,6 +167,18 @@ export class QueueScheduler extends QueueBase {
       return Scripts.updateDelaySet(this, timestamp);
     }
     return [0, 0];
+  }
+
+  private async workerCleaner(client: RedisClient) {
+    const [workerKey, timestamp] = await client.zrange(
+      this.keys.workers,
+      0,
+      0,
+      'WITHSCORES',
+    );
+    if (Number(timestamp) + 30000 < Date.now()) {
+      await client.zrem(this.keys.workers, workerKey);
+    }
   }
 
   private async moveStalledJobsToWait() {
