@@ -29,12 +29,6 @@
   </p>
 </div>
 
-# 🙏 I Need your help!
-
-I need you to spend 15 seconds to complete this [survey](https://docs.google.com/forms/d/e/1FAIpQLScpD5z9gdsjOwkgjV6XsLV0_paFZt-KYyJtL1r1DrI-yQVWww/viewform?usp=sf_link)
-
-Thanks!
-
 # 🛠 Tutorials
 
 You can find tutorials and news in this blog: https://blog.taskforce.sh/
@@ -43,7 +37,8 @@ You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
 [<img src="http://taskforce.sh/assets/logo_square.png" width="200" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
 
-Supercharge your queues with a profesional front end:
+Supercharge your queues with a professional front end:
+
 - Get a complete overview of all your queues.
 - Inspect jobs, search, retry, or promote delayed jobs.
 - Metrics and statistics.
@@ -103,10 +98,11 @@ This is just scratching the surface, check all the features and more in the offi
 
 [![RedisGreen](https://www.redisgreen.com/images/rglogo/redisgreen_transparent_240x48.png)](https://dashboard.redisgreen.net/new?utm_campaign=BULLMQ)
 
-If you need high quality production Redis instances for your BullMQ project, please consider subscribing 
-to [RedisGreen](https://dashboard.redisgreen.net/new?utm_campaign=BULLMQ), 
-leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us
-sponsor the development of BullMQ!
+If you need high quality production Redis instances for your BullMQ project, please consider subscribing to [RedisGreen](https://dashboard.redisgreen.net/new?utm_campaign=BULLMQ), leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us sponsor the development of BullMQ!
+
+## Contributing
+
+Fork the repo, make some changes, submit a pull-request! Here is the [contributing](contributing.md) doc that has more details.
 
 # Thanks
 
