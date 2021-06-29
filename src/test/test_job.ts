@@ -19,12 +19,14 @@ const sinon = require('sinon');
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
+const ONE_SECOND = 1000;
+
 describe('Job', function() {
   let queue: Queue;
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 
@@ -495,18 +497,43 @@ describe('Job', function() {
 
   describe('.changeDelay', () => {
     it('can change delay of a delayed job', async () => {
+      const clock = sinon.useFakeTimers();
+      const date = new Date();
+      clock.setSystemTime(date);
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.waitUntilReady();
+      const nextTick = 2 * ONE_SECOND;
+
       const job = await Job.create(
         queue,
         'test',
         { foo: 'bar' },
-        { delay: 1500 },
+        { delay: 2000 },
       );
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
-      await job.changeDelay(2000);
+
+      await job.changeDelay(4000);
+      clock.tick(nextTick);
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
+
+      const worker = new Worker(queueName, async job => {});
+
+      clock.tick(2 * nextTick);
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async () => {
+          resolve();
+        });
+      });
+
+      await completing;
+
+      clock.restore();
+      await queueScheduler.close();
+      await worker.close();
     });
 
     it('should not change delay if a job is not delayed', async () => {
