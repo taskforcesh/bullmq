@@ -415,7 +415,7 @@ export class Queue3<T = any> extends EventEmitter {
       | 'paused'
       | 'delayed'
       | 'failed' = 'completed',
-  ): Promise<Array<Job>> {
+  ): Promise<string[]> {
     return this.queue.clean(grace, limit, type);
   }
 
