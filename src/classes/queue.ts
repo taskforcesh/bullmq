@@ -6,6 +6,11 @@ import { QueueGetters } from './queue-getters';
 import { BulkJobOptions, Job } from './job';
 import { Scripts } from './scripts';
 
+export declare interface Queue {
+  on(event: 'cleaned', listener: (jobs: string[], type: string) => void): this;
+  on(event: string, listener: Function): this;
+}
+
 export class Queue<
   T = any,
   R = any,
@@ -209,7 +214,7 @@ export class Queue<
       | 'paused'
       | 'delayed'
       | 'failed' = 'completed',
-  ) {
+  ): Promise<string[]> {
     const jobs = await Scripts.cleanJobsInSet(
       this,
       type,
