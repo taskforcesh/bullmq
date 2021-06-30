@@ -164,7 +164,7 @@ export class Queue<
    * TODO: Convert to an atomic LUA script.
    */
   async drain(delayed = false) {
-    // Get all jobids and empty all lists atomically.
+    // Get all jobIds and empty all lists atomically.
     const client = await this.client;
 
     let multi = client.multi();
@@ -180,10 +180,10 @@ export class Queue<
     multi.del(this.toKey('priority'));
 
     const [waiting, paused] = await multi.exec();
-    const waitingjobs = waiting[1];
+    const waitingJobs = waiting[1];
     const pausedJobs = paused[1];
 
-    const jobKeys = pausedJobs.concat(waitingjobs).map(this.toKey, this);
+    const jobKeys = pausedJobs.concat(waitingJobs).map(this.toKey, this);
 
     if (jobKeys.length) {
       multi = client.multi();
