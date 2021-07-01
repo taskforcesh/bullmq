@@ -94,6 +94,11 @@ export interface JobsOptions {
   };
 
   /**
+   * Allow to create a child where parent should not wait for it to complete
+   */
+  independence?: boolean;
+
+  /**
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;

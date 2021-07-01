@@ -174,6 +174,9 @@ export class Job<T = any, R = any, N extends string = string> {
       parentDependenciesKey: job.parentKey
         ? `${job.parentKey}:dependencies`
         : '',
+      parentIndependentsKey: job.parentKey
+        ? `${job.parentKey}:independents`
+        : '',
     });
 
     return job;
@@ -208,6 +211,9 @@ export class Job<T = any, R = any, N extends string = string> {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
+          : '',
+        parentIndependentsKey: job.parentKey
+          ? `${job.parentKey}:independents`
           : '',
       });
     }

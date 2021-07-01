@@ -38,6 +38,7 @@ export type MinimalQueue = Pick<
 export type ParentOpts = {
   waitChildrenKey?: string;
   parentDependenciesKey?: string;
+  parentIndependentsKey?: string;
   parentKey?: string;
 };
 
@@ -94,7 +95,8 @@ export class Scripts {
       opts.lifo ? 'RPUSH' : 'LPUSH',
       parentOpts.parentKey,
       parentOpts.waitChildrenKey,
-      parentOpts.parentDependenciesKey,
+      opts.independence ? '' : parentOpts.parentDependenciesKey,
+      opts.independence ? parentOpts.parentIndependentsKey : '',
     ];
 
     keys = keys.concat(<string[]>args);

@@ -35,8 +35,9 @@
       ARGV[9]  priority
       ARGV[10] LIFO
       ARGV[11] parentKey?
-      ARGV[12] waitChildrenKey key.
-      ARGV[13] parent dependencies key.
+      ARGV[12] waitChildrenKey key
+      ARGV[13] parent dependencies key
+      ARGV[14] parent independents key
 ]]
 local jobId
 local jobIdKey
@@ -114,6 +115,11 @@ end
 local parentDependenciesKey = ARGV[13]
 if parentDependenciesKey ~= "" then
     rcall("SADD", parentDependenciesKey, jobIdKey)
+end
+
+local parentIndependentsKey = ARGV[14]
+if parentIndependentsKey ~= "" then
+    rcall("SADD", parentIndependentsKey, jobIdKey)
 end
 
 local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents")
