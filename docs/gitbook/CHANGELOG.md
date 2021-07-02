@@ -1,3 +1,10 @@
+## [1.37.1](https://github.com/taskforcesh/bullmq/compare/v1.37.0...v1.37.1) (2021-07-02)
+
+
+### Bug Fixes
+
+* **stalled-jobs:** move stalled jobs to wait in batches ([a23fcb8](https://github.com/taskforcesh/bullmq/commit/a23fcb82d4ca20cbc4b8cd8b544b2d2eaddd86c3)), closes [#422](https://github.com/taskforcesh/bullmq/issues/422)
+
 # [1.37.0](https://github.com/taskforcesh/bullmq/compare/v1.36.1...v1.37.0) (2021-06-30)
 
 
