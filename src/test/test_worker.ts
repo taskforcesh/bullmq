@@ -32,12 +32,14 @@ describe('workers', function() {
   it('should get all workers for this queue', async function() {
     const worker = new Worker(queueName, async job => {});
     await worker.waitUntilReady();
+    await delay(10);
 
     const workers = await queue.getWorkers();
     expect(workers).to.have.length(1);
 
     const worker2 = new Worker(queueName, async job => {});
     await worker2.waitUntilReady();
+    await delay(10);
 
     const nextWorkers = await queue.getWorkers();
     expect(nextWorkers).to.have.length(2);
@@ -942,7 +944,7 @@ describe('workers', function() {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Missing lock for job ${job.id} failed`;
+    const errorMessage = `Missing lock for job ${job.id}. failed`;
     const workerError = new Promise(resolve => {
       worker.on('error', error => {
         expect(error.message).to.be.equal(errorMessage);

@@ -50,5 +50,5 @@ if redis.call("ZREM", KEYS[1], jobId) == 1 then
 
   return 0
 else
-  return -1
+  return -3
 end
