@@ -230,22 +230,29 @@ export class Scripts {
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'finished');
+      throw this.finishedErrors(result, job.id, 'finished', 'active');
     } else if (result) {
       return raw2jobData(result);
     }
   }
 
-  static finishedErrors(code: number, jobId: string, command: string): Error {
+  static finishedErrors(
+    code: number,
+    jobId: string,
+    command: string,
+    state: string,
+  ): Error {
     switch (code) {
       case -1:
-        return new Error(`Missing key for job ${jobId} ${command}`);
+        return new Error(`Missing key for job ${jobId}. ${command}`);
       case -2:
-        return new Error(`Missing lock for job ${jobId} ${command}`);
+        return new Error(`Missing lock for job ${jobId}. ${command}`);
       case -3:
-        return new Error(`Job is not in the active list ${jobId} ${command}`);
+        return new Error(
+          `Job ${jobId} is not in the ${state} state. ${command}`,
+        );
       case -4:
-        return new Error(`Job ${jobId} has pending dependencies ${command}`);
+        return new Error(`Job ${jobId} has pending dependencies. ${command}`);
     }
   }
 
@@ -320,6 +327,46 @@ export class Scripts {
     return (<any>client).getStateV2(keys.concat([jobId]));
   }
 
+  static async changeDelay(
+    queue: MinimalQueue,
+    jobId: string,
+    delay: number,
+  ): Promise<void> {
+    const client = await queue.client;
+
+    const args = this.changeDelayArgs(queue, jobId, delay);
+    const result = await (<any>client).changeDelay(args);
+    if (result < 0) {
+      throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
+    }
+  }
+
+  static changeDelayArgs(
+    queue: MinimalQueue,
+    jobId: string,
+    timestamp: number,
+  ): string[] {
+    //
+    // Bake in the job id first 12 bits into the timestamp
+    // to guarantee correct execution order of delayed jobs
+    // (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
+    //
+    // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
+    //
+    timestamp = Math.max(0, timestamp);
+
+    if (timestamp > 0) {
+      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
+    }
+
+    const keys = ['delayed', jobId].map(function(name) {
+      return queue.toKey(name);
+    });
+    keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
+
+    return keys.concat([JSON.stringify(timestamp), jobId]);
+  }
+
   // Note: We have an issue here with jobs using custom job ids
   static moveToDelayedArgs(
     queue: MinimalQueue,
@@ -385,7 +432,7 @@ export class Scripts {
     const args = this.moveToDelayedArgs(queue, jobId, timestamp);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'moveToDelayed');
+      throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
     }
   }
 
@@ -408,7 +455,12 @@ export class Scripts {
       case 1:
         return false;
       default:
-        return this.finishedErrors(result, jobId, 'moveToWaitingChildren');
+        return this.finishedErrors(
+          result,
+          jobId,
+          'moveToWaitingChildren',
+          'active',
+        );
     }
   }
 
