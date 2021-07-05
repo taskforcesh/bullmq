@@ -41,6 +41,7 @@ export declare class Job<T = any, R = any, N extends string = string>
 |  --- | --- | --- |
 |  [addJob(client, parentOpts)](./bullmq.job.addjob.md) |  | Adds the job to Redis. |
 |  [asJSON()](./bullmq.job.asjson.md) |  | Prepares a job to be serialized for storage in Redis. |
+|  [changeDelay(delay)](./bullmq.job.changedelay.md) |  |  changeDelay Change delay of a delayed job. |
 |  [create(queue, name, data, opts)](./bullmq.job.create.md) | <code>static</code> | Creates a new job and adds it to the queue. |
 |  [createBulk(queue, jobs)](./bullmq.job.createbulk.md) | <code>static</code> | Creates a bulk of jobs and adds them atomically to the given queue. |
 |  [discard()](./bullmq.job.discard.md) |  | Marks a job to not be retried if it fails (even if attempts has been configured) |
