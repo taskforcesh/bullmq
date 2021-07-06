@@ -67,7 +67,16 @@ export class FlowProducer extends EventEmitter {
     const client = await this.connection.client;
     const multi = client.multi();
 
-    const jobsTree = this.addNode(multi, flow);
+    const parentOpts = flow?.opts?.parent;
+    const parentKey = getParentKey(parentOpts);
+    const parentDependenciesKey = parentKey
+      ? `${parentKey}:dependencies`
+      : undefined;
+
+    const jobsTree = this.addNode(multi, flow, {
+      parentOpts,
+      parentDependenciesKey,
+    });
 
     const result = await multi.exec();
 
