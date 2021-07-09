@@ -17,4 +17,6 @@ export interface QueueSchedulerOptions extends QueueBaseOptions {
    * Number of milliseconds between stallness checks.
    */
   stalledInterval?: number;
+
+  workerCleanerTimeout?: number;
 }

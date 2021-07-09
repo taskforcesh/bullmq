@@ -154,14 +154,14 @@ export class Worker<
     const tokens: string[] = Array.from({ length: opts.concurrency }, () =>
       v4(),
     );
-    let now = Date.now();
+    let lastWorkerInfoUpdate = Date.now();
 
-    await this.saveWorkerInfo(now);
+    await this.saveWorkerInfo(lastWorkerInfoUpdate);
     while (!this.closing) {
       const currentTime = Date.now();
-      if (Date.now() - now > 30000) {
-        now = currentTime;
-        await this.saveWorkerInfo(now);
+      if (currentTime - lastWorkerInfoUpdate > 30000) {
+        lastWorkerInfoUpdate = currentTime;
+        await this.saveWorkerInfo(lastWorkerInfoUpdate);
       }
 
       if (processing.size < opts.concurrency) {
