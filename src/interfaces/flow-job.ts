@@ -5,6 +5,6 @@ export interface FlowJob {
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: Omit<JobsOptions, 'parent'>;
+  opts?: Omit<JobsOptions, 'parent' | 'independence'>;
   children?: FlowJob[];
 }
