@@ -1915,14 +1915,14 @@ describe('workers', function() {
       expect(currentState).to.be.equal('active');
 
       await Job.create(queue, 'childJob1', values[0], {
-        independence: true,
+        independent: true,
         parent: {
           id: parent.id,
           queue: 'bull:' + parentQueueName,
         },
       });
       await Job.create(queue, 'childJob2', values[1], {
-        independence: true,
+        independent: true,
         parent: {
           id: parent.id,
           queue: 'bull:' + parentQueueName,

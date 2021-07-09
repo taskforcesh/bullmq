@@ -95,8 +95,8 @@ export class Scripts {
       opts.lifo ? 'RPUSH' : 'LPUSH',
       parentOpts.parentKey,
       parentOpts.waitChildrenKey,
-      opts.independence ? '' : parentOpts.parentDependenciesKey,
-      opts.independence ? parentOpts.parentIndependentsKey : '',
+      opts.independent ? '' : parentOpts.parentDependenciesKey,
+      opts.independent ? parentOpts.parentIndependentsKey : '',
     ];
 
     keys = keys.concat(<string[]>args);
