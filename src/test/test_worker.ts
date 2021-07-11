@@ -1911,8 +1911,14 @@ describe('workers', function() {
       await Job.create(parentQueue, 'parent', data);
       const parent = (await parentWorker.getNextJob(parentToken)) as Job;
       const currentState = await parent.getState();
+      const {
+        independents: countIndependents,
+      } = await parent.getDependenciesCount({
+        independents: true,
+      });
 
       expect(currentState).to.be.equal('active');
+      expect(countIndependents).to.be.equal(0);
 
       await Job.create(queue, 'childJob1', values[0], {
         independent: true,
@@ -1938,10 +1944,15 @@ describe('workers', function() {
         `bull:${parentQueueName}:${parent.id}`,
       );
 
-      const { processed, unprocessed } = await parent.getDependenciesCount();
+      const {
+        processed,
+        unprocessed,
+        independents,
+      } = await parent.getDependenciesCount();
 
       expect(processed).to.be.equal(0);
       expect(unprocessed).to.be.equal(0);
+      expect(independents).to.be.equal(2);
 
       const movedToWaitingChildren = await parent.moveToWaitingChildren(
         parentToken,

@@ -689,50 +689,38 @@ export class Job<T = any, R = any, N extends string = string> {
     opts: {
       processed?: boolean;
       unprocessed?: boolean;
+      independents?: boolean;
     } = {},
   ): Promise<{
     processed?: number;
     unprocessed?: number;
+    independents?: number;
   }> {
-    const client = await this.queue.client;
-    const multi = client.multi();
-
     const updatedOpts =
       !opts.processed && !opts.unprocessed
-        ? { processed: true, unprocessed: true }
+        ? { processed: true, unprocessed: true, independents: true }
         : opts;
 
-    if (updatedOpts.processed) {
-      multi.hlen(this.toKey(`${this.id}:processed`));
-    }
+    const counts = await Scripts.getDependenciesCount(
+      this.queue,
+      this.id,
+      updatedOpts.unprocessed,
+      updatedOpts.processed,
+      updatedOpts.independents,
+    );
 
-    if (updatedOpts.unprocessed) {
-      multi.scard(this.toKey(`${this.id}:dependencies`));
-    }
+    const result = counts.reduce((count, value, index) => {
+      if (index % 2 === 0) {
+        return {
+          ...count,
+          [value]: counts[index + 1],
+        };
+      }
 
-    const [
-      [err1, result1] = [],
-      [err2, result2] = [],
-    ] = (await multi.exec()) as [
-      [null | Error, number],
-      [null | Error, number],
-    ];
+      return count;
+    }, {});
 
-    const processed = updatedOpts.processed ? result1 : undefined;
-    const unprocessed = updatedOpts.unprocessed
-      ? updatedOpts.processed
-        ? result2
-        : result1
-      : undefined;
-
-    return {
-      ...(updatedOpts.processed
-        ? {
-            processed,
-          }
-        : {}),
-      ...(updatedOpts.unprocessed ? { unprocessed } : {}),
-    };
+    return result;
   }
 
   /**

@@ -159,6 +159,43 @@ export class Scripts {
     queue.emit('progress', job, progress);
   }
 
+  static getDependenciesCountArgs(
+    queue: MinimalQueue,
+    jobId: string,
+    unprocessed: boolean,
+    processed: boolean,
+    independents: boolean,
+  ): string[] {
+    const jobKey = queue.toKey(jobId);
+    const keys = [
+      unprocessed ? `${jobKey}:dependencies` : '',
+      processed ? `${jobKey}:processed` : '',
+      independents ? `${jobKey}:independents` : '',
+    ];
+
+    return keys;
+  }
+
+  static async getDependenciesCount(
+    queue: MinimalQueue,
+    jobId: string,
+    unprocessed?: boolean,
+    processed?: boolean,
+    independents?: boolean,
+  ): Promise<(number | string)[]> {
+    const client = await queue.client;
+    const args = this.getDependenciesCountArgs(
+      queue,
+      jobId,
+      unprocessed,
+      processed,
+      independents,
+    );
+
+    const result = await (<any>client).getDependenciesCount(args);
+    return result;
+  }
+
   static moveToFinishedArgs(
     queue: MinimalQueue,
     job: Job,
