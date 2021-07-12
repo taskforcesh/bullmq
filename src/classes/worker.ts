@@ -22,6 +22,7 @@ export declare interface Worker {
   on(event: 'completed', listener: (job: Job) => void): this;
   on(event: 'drained', listener: () => void): this;
   on(event: 'error', listener: (failedReason: Error) => void): this;
+  on(event: 'failed', listener: (job: Job, error: Error) => void): this;
   on(
     event: 'progress',
     listener: (job: Job, progress: number | object) => void,

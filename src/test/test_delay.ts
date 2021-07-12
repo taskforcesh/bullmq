@@ -70,30 +70,30 @@ describe('Delayed jobs', function() {
   });
 
   it('should process delayed jobs in correct order', async function() {
-    this.timeout(20000);
+    this.timeout(2000);
     let order = 0;
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
+    let processor;
+
     const processing = new Promise((resolve, reject) => {
-      const processor = async (job: Job) => {
+      processor = async (job: Job) => {
         order++;
         try {
           expect(order).to.be.equal(job.data.order);
           if (order === 10) {
-            resolve(worker.close());
+            resolve();
           }
         } catch (err) {
           reject(err);
         }
       };
-
-      const worker = new Worker(queueName, processor);
-
-      worker.on('failed', function(job, err) {
-        err.job = job;
-      });
     });
+
+    const worker = new Worker(queueName, processor);
+
+    worker.on('failed', function(job, err) {});
 
     await Promise.all([
       queue.add('test', { order: 1 }, { delay: 100 }),
@@ -111,6 +111,7 @@ describe('Delayed jobs', function() {
     await processing;
 
     await queueScheduler.close();
+    await worker.close();
   });
 
   it('should process delayed jobs in correct order even in case of restart', async function() {
@@ -184,9 +185,7 @@ describe('Delayed jobs', function() {
 
       const worker = new Worker(queueName, processor);
 
-      worker.on('failed', function(job, err) {
-        err.job = job;
-      });
+      worker.on('failed', function(job, err) {});
     });
 
     const now = Date.now();
