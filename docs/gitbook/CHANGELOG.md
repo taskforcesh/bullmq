@@ -1,3 +1,10 @@
+## [1.38.1](https://github.com/taskforcesh/bullmq/compare/v1.38.0...v1.38.1) (2021-07-12)
+
+
+### Bug Fixes
+
+* **reprocess:** do not store job.id in added list ([9c0605e](https://github.com/taskforcesh/bullmq/commit/9c0605e10f0bbdce94153d3f318d56c23bfd3269))
+
 # [1.38.0](https://github.com/taskforcesh/bullmq/compare/v1.37.1...v1.38.0) (2021-07-12)
 
 
