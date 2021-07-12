@@ -1,5 +1,5 @@
 import { Job } from '../classes/job';
-import { BackoffOptions } from '../interfaces/backoff-options';
+import { BackoffOptions } from '../interfaces';
 
 interface BuiltInStrategies {
   [index: string]: (delay: number) => BackoffFunction;

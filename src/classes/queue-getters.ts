@@ -3,7 +3,7 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { clientCommandMessageReg } from './worker';
+import { clientCommandMessageReg } from '../utils';
 
 export class QueueGetters extends QueueBase {
   getJob(jobId: string): Promise<Job | undefined> {

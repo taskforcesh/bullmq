@@ -6,6 +6,7 @@ import { RedisClient, RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
 import { Job } from './job';
+import { getParentKey } from '../utils';
 
 export interface NodeOpts {
   queueName: string;
@@ -301,11 +302,5 @@ export class FlowProducer extends EventEmitter {
 
   disconnect() {
     return this.connection.disconnect();
-  }
-}
-
-export function getParentKey(opts: { id: string; queue: string }): string {
-  if (opts) {
-    return `${opts.queue}:${opts.id}`;
   }
 }
