@@ -7,15 +7,15 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: string, listener: Function): this;
+on(event: 'progress', listener: (job: Job, progress: number | object) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | string |  |
-|  listener | Function |  |
+|  event | 'progress' |  |
+|  listener | (job: [Job](./bullmq.job.md)<!-- -->, progress: number \| object) =&gt; void |  |
 
 <b>Returns:</b>
 
