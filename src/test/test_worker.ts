@@ -1912,13 +1912,13 @@ describe('workers', function() {
       const parent = (await parentWorker.getNextJob(parentToken)) as Job;
       const currentState = await parent.getState();
       const {
-        independents: countIndependents,
+        independents: countIndependents1,
       } = await parent.getDependenciesCount({
         independents: true,
       });
 
       expect(currentState).to.be.equal('active');
-      expect(countIndependents).to.be.equal(0);
+      expect(countIndependents1).to.be.equal(0);
 
       await Job.create(queue, 'childJob1', values[0], {
         independent: true,
@@ -1947,12 +1947,18 @@ describe('workers', function() {
       const {
         processed,
         unprocessed,
-        independents,
+        independents: countIndependents2,
       } = await parent.getDependenciesCount();
+      const { independents } = await parent.getDependencies({
+        independents: {
+          count: 5,
+        },
+      });
 
       expect(processed).to.be.equal(0);
       expect(unprocessed).to.be.equal(0);
-      expect(independents).to.be.equal(2);
+      expect(countIndependents2).to.be.equal(2);
+      expect(independents).to.have.length(2);
 
       const movedToWaitingChildren = await parent.moveToWaitingChildren(
         parentToken,

@@ -63,6 +63,10 @@ export interface DependenciesOpts {
     cursor?: number;
     count?: number;
   };
+  independents?: {
+    cursor?: number;
+    count?: number;
+  };
 }
 
 export class Job<T = any, R = any, N extends string = string> {
@@ -588,15 +592,23 @@ export class Job<T = any, R = any, N extends string = string> {
     processed?: Record<string, any>;
     nextUnprocessedCursor?: number;
     unprocessed?: string[];
+    nextIndependentsCursor?: number;
+    independents?: string[];
   }> {
     const client = await this.queue.client;
     const multi = client.multi();
-    if (!opts.processed && !opts.unprocessed) {
+    if (!opts.processed && !opts.unprocessed && !opts.independents) {
       multi.hgetall(this.toKey(`${this.id}:processed`));
       multi.smembers(this.toKey(`${this.id}:dependencies`));
+      multi.smembers(this.toKey(`${this.id}:independents`));
 
-      const [[err1, processed], [err2, unprocessed]] = (await multi.exec()) as [
+      const [
+        [err1, processed],
+        [err2, unprocessed],
+        [err3, independents],
+      ] = (await multi.exec()) as [
         [null | Error, { [jobKey: string]: string }],
+        [null | Error, string[]],
         [null | Error, string[]],
       ];
 
@@ -607,12 +619,13 @@ export class Job<T = any, R = any, N extends string = string> {
         {},
       );
 
-      return { processed: transformedProcessed, unprocessed };
+      return { processed: transformedProcessed, unprocessed, independents };
     } else {
       const defaultOpts = {
         cursor: 0,
         count: 20,
       };
+      const resultLabels: string[] = [];
 
       if (opts.processed) {
         const processedOpts = Object.assign({ ...defaultOpts }, opts.processed);
@@ -622,6 +635,7 @@ export class Job<T = any, R = any, N extends string = string> {
           'COUNT',
           processedOpts.count,
         );
+        resultLabels.push('processed');
       }
 
       if (opts.unprocessed) {
@@ -635,47 +649,73 @@ export class Job<T = any, R = any, N extends string = string> {
           'COUNT',
           unprocessedOpts.count,
         );
+        resultLabels.push('unprocessed');
       }
 
-      const [result1, result2] = await multi.exec();
+      if (opts.independents) {
+        const independentsOpts = Object.assign(
+          { ...defaultOpts },
+          opts.independents,
+        );
+        multi.sscan(
+          this.toKey(`${this.id}:independents`),
+          independentsOpts.cursor,
+          'COUNT',
+          independentsOpts.count,
+        );
+        resultLabels.push('independents');
+      }
 
-      const [processedCursor, processed = []] = opts.processed
-        ? result1[1]
-        : [];
-      const [unprocessedCursor, unprocessed = []] = opts.unprocessed
-        ? opts.processed
-          ? result2[1]
-          : result1[1]
-        : [];
+      const results = await multi.exec();
 
-      const transformedProcessed = processed.reduce(
-        (
-          accumulator: Record<string, any>,
-          currentValue: string,
-          index: number,
-        ) => {
-          if (index % 2) {
+      const result = resultLabels.reduce((finalResult, label, index) => {
+        switch (label) {
+          case 'processed': {
+            const [processedCursor, processed = []] = results[index][1];
+
             return {
-              ...accumulator,
-              [processed[index - 1]]: JSON.parse(currentValue),
+              ...finalResult,
+              processed: processed.reduce(
+                (
+                  accumulator: Record<string, any>,
+                  currentValue: string,
+                  index: number,
+                ) => {
+                  if (index % 2) {
+                    return {
+                      ...accumulator,
+                      [processed[index - 1]]: JSON.parse(currentValue),
+                    };
+                  }
+                  return accumulator;
+                },
+                {},
+              ),
+              nextProcessedCursor: Number(processedCursor),
             };
           }
-          return accumulator;
-        },
-        {},
-      );
+          case 'unprocessed': {
+            const [unprocessedCursor, unprocessed = []] = results[index][1];
 
-      return {
-        ...(processedCursor
-          ? {
-              processed: transformedProcessed,
-              nextProcessedCursor: Number(processedCursor),
-            }
-          : {}),
-        ...(unprocessedCursor
-          ? { unprocessed, nextUnprocessedCursor: Number(unprocessedCursor) }
-          : {}),
-      };
+            return {
+              ...finalResult,
+              unprocessed,
+              nextUnprocessedCursor: Number(unprocessedCursor),
+            };
+          }
+          case 'independents': {
+            const [independentsCursor, independents = []] = results[index][1];
+
+            return {
+              ...finalResult,
+              independents,
+              nextIndependentsCursor: Number(independentsCursor),
+            };
+          }
+        }
+      }, {});
+
+      return result;
     }
   }
 
