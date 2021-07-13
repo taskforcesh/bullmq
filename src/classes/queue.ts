@@ -30,11 +30,13 @@ export class Queue<
     this.limiter = get(opts, 'limiter');
 
     this.waitUntilReady().then(client => {
-      client.hset(
-        this.keys.meta,
-        'opts.maxLenEvents',
-        get(opts, 'streams.events.maxLen', 10000),
-      );
+      if (!this.closing) {
+        client.hset(
+          this.keys.meta,
+          'opts.maxLenEvents',
+          get(opts, 'streams.events.maxLen', 10000),
+        );
+      }
     });
   }
 
