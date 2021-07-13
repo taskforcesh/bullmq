@@ -82,3 +82,9 @@ export async function removeAllQueueData(
     stream.on('error', error => reject(error));
   });
 }
+
+export function getParentKey(opts: { id: string; queue: string }): string {
+  if (opts) {
+    return `${opts.queue}:${opts.id}`;
+  }
+}

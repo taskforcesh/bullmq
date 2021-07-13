@@ -5,6 +5,7 @@ import { QueueBaseOptions } from '../interfaces';
 import { RedisClient, RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { FlowJob } from '../interfaces/flow-job';
+import { getParentKey } from '../utils';
 import { Job } from './job';
 
 export interface NodeOpts {
@@ -67,7 +68,16 @@ export class FlowProducer extends EventEmitter {
     const client = await this.connection.client;
     const multi = client.multi();
 
-    const jobsTree = this.addNode(multi, flow);
+    const parentOpts = flow?.opts?.parent;
+    const parentKey = getParentKey(parentOpts);
+    const parentDependenciesKey = parentKey
+      ? `${parentKey}:dependencies`
+      : undefined;
+
+    const jobsTree = this.addNode(multi, flow, {
+      parentOpts,
+      parentDependenciesKey,
+    });
 
     const result = await multi.exec();
 
@@ -301,11 +311,5 @@ export class FlowProducer extends EventEmitter {
 
   disconnect() {
     return this.connection.disconnect();
-  }
-}
-
-export function getParentKey(opts: { id: string; queue: string }): string {
-  if (opts) {
-    return `${opts.queue}:${opts.id}`;
   }
 }

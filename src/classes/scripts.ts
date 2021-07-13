@@ -17,7 +17,7 @@ import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
 import { Job, JobJson, JobJsonRaw } from './job';
-import { getParentKey } from './flow-producer';
+import { getParentKey } from '../utils';
 import { RedisClient } from './redis-connection';
 
 export type MinimalQueue = Pick<

@@ -1,10 +1,13 @@
 import { JobsOptions } from './jobs-options';
 
-export interface FlowJob {
+interface FlowJobBase<T> {
   name: string;
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: Omit<JobsOptions, 'parent'>;
-  children?: FlowJob[];
+  opts?: T;
+  children?: FlowChildJob[];
 }
+
+export type FlowChildJob = FlowJobBase<Omit<JobsOptions, 'parent'>>;
+export type FlowJob = FlowJobBase<JobsOptions>;

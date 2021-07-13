@@ -4,7 +4,7 @@
 import { Job, Queue, QueueScheduler } from '../classes';
 import { QueueEvents } from '../classes/queue-events';
 import { Worker } from '../classes/worker';
-import { getParentKey } from '../classes/flow-producer';
+import { getParentKey } from '../utils';
 import { JobsOptions } from '../interfaces';
 import { delay, removeAllQueueData } from '../utils';
 import * as chai from 'chai';
