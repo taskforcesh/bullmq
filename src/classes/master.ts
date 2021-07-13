@@ -130,23 +130,6 @@ process.on('uncaughtException', err => {
 function wrapJob(job: JobJson): SandboxedJob {
   let progressValue = job.progress;
 
-  const progress = (progress?: any) => {
-    if (progress) {
-      // Locally store reference to new progress value
-      // so that we can return it from this process synchronously.
-      progressValue = progress;
-      // Send message to update job progress.
-      process.send({
-        cmd: 'progress',
-        value: progress,
-      });
-      return Promise.resolve();
-    } else {
-      // Return the last known progress value.
-      return progressValue;
-    }
-  };
-
   const updateProgress = (progress: number | object) => {
     // Locally store reference to new progress value
     // so that we can return it from this process synchronously.
@@ -157,6 +140,15 @@ function wrapJob(job: JobJson): SandboxedJob {
       value: progress,
     });
     return Promise.resolve();
+  };
+
+  const progress = (progress?: number | object) => {
+    if (progress) {
+      return updateProgress(progress);
+    } else {
+      // Return the last known progress value.
+      return progressValue;
+    }
   };
 
   return {
