@@ -31,6 +31,7 @@ export declare interface QueueScheduler {
  *
  */
 export class QueueScheduler extends QueueBase {
+  private workerCleanerTimeout: number;
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
 
@@ -46,6 +47,8 @@ export class QueueScheduler extends QueueBase {
         ? (<RedisClient>connection).duplicate()
         : connection,
     });
+
+    this.workerCleanerTimeout = opts.workerCleanerTimeout || 30000;
 
     if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
@@ -72,6 +75,12 @@ export class QueueScheduler extends QueueBase {
     while (!this.closing) {
       // Check if at least the min stalled check time has passed.
       await this.moveStalledJobsToWait();
+
+      await client.zremrangebyscore(
+        this.keys.workers,
+        '-inf',
+        Date.now() - this.workerCleanerTimeout,
+      );
 
       // Listen to the delay event stream from lastDelayStreamTimestamp
       // Can we use XGROUPS to reduce redundancy?

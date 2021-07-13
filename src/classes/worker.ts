@@ -37,6 +37,8 @@ export class Worker<
 > extends QueueBase {
   opts: WorkerOptions;
 
+  id: string;
+  workerName: string;
   private drained: boolean;
   private waiting = false;
   private processFn: Processor<T, R, N>;
@@ -57,6 +59,7 @@ export class Worker<
   ) {
     super(name, opts);
 
+    this.id = v4();
     this.opts = {
       // settings: {},
       drainDelay: 5,
@@ -64,6 +67,8 @@ export class Worker<
       lockDuration: 30000,
       ...this.opts,
     };
+
+    this.workerName = this.opts.name || '__default__';
 
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
@@ -150,8 +155,16 @@ export class Worker<
     const tokens: string[] = Array.from({ length: opts.concurrency }, () =>
       v4(),
     );
+    let lastWorkerInfoUpdate = Date.now();
 
+    await this.saveWorkerInfo(lastWorkerInfoUpdate);
     while (!this.closing) {
+      const currentTime = Date.now();
+      if (currentTime - lastWorkerInfoUpdate > 30000) {
+        lastWorkerInfoUpdate = currentTime;
+        await this.saveWorkerInfo(lastWorkerInfoUpdate);
+      }
+
       if (processing.size < opts.concurrency) {
         const token = tokens.pop();
         processing.set(this.getNextJob(token), token);
@@ -225,6 +238,16 @@ export class Worker<
   private async moveToActive(token: string, jobId?: string) {
     const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
     return this.nextJobFromJobData(jobData, id);
+  }
+
+  private async saveWorkerInfo(now: number) {
+    const workerKey = `${this.workerName}:${this.id}`;
+    const client = await this.blockingConnection.client;
+    const multi = client.multi();
+    multi.zadd(this.keys.workers, now, workerKey);
+    multi.hmset(workerKey, 'name', this.workerName, 'queueName', this.name);
+    multi.expire(workerKey, 30);
+    return multi.exec();
   }
 
   private async waitForJob() {
