@@ -39,6 +39,7 @@ export class Worker<
 
   private drained: boolean;
   private waiting = false;
+  private running = false;
   private processFn: Processor<T, R, N>;
 
   private resumeWorker: () => void;
@@ -96,6 +97,7 @@ export class Worker<
       this.timerManager = new TimerManager();
 
       this.run().catch(error => {
+        this.running = false;
         console.error(error);
       });
     }
@@ -152,6 +154,7 @@ export class Worker<
     );
 
     while (!this.closing) {
+      this.running = true;
       if (processing.size < opts.concurrency) {
         const token = tokens.pop();
         processing.set(this.getNextJob(token), token);
@@ -178,6 +181,7 @@ export class Worker<
         tokens.push(token);
       }
     }
+    this.running = false;
     return Promise.all(processing.keys());
   }
 
@@ -398,6 +402,10 @@ export class Worker<
 
   isPaused() {
     return !!this.paused;
+  }
+
+  isRunning() {
+    return this.running;
   }
 
   /**
