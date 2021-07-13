@@ -147,6 +147,18 @@ function wrapJob(job: JobJson): SandboxedJob {
     }
   };
 
+  const updateProgress = (progress: number | object) => {
+    // Locally store reference to new progress value
+    // so that we can return it from this process synchronously.
+    progressValue = progress;
+    // Send message to update job progress.
+    process.send({
+      cmd: 'progress',
+      value: progress,
+    });
+    return Promise.resolve();
+  };
+
   return {
     ...job,
     data: JSON.parse(job.data || '{}'),
@@ -161,7 +173,7 @@ function wrapJob(job: JobJson): SandboxedJob {
     /*
      * Emulate the real job `updateProgress` function, should works as `progress` function.
      */
-    updateProgress: progress,
+    updateProgress,
     /*
      * Emulate the real job `log` function.
      */

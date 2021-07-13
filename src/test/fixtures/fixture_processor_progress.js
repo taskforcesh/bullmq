@@ -10,7 +10,7 @@ module.exports = function(job) {
   return delay(50)
     .then(() => {
       job.updateProgress(10);
-      job.log(job.updateProgress());
+      job.log(job.progress());
       return delay(100);
     })
     .then(() => {
@@ -20,7 +20,7 @@ module.exports = function(job) {
     })
     .then(() => {
       job.updateProgress(78);
-      job.log(job.updateProgress());
+      job.log(job.progress());
       return delay(100);
     })
     .then(() => {
