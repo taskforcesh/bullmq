@@ -51,6 +51,7 @@
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
+|  [Queue](./bullmq.queue.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
 |  [QueueEvents](./bullmq.queueevents.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |

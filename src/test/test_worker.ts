@@ -225,9 +225,10 @@ describe('workers', function() {
     });
 
     it('should remove job after failed if removeOnFail', async () => {
+      const jobError = new Error('Job Failed');
       const worker = new Worker(queueName, async job => {
         await job.log('test log');
-        throw Error('error');
+        throw jobError;
       });
       await worker.waitUntilReady();
 
@@ -240,11 +241,11 @@ describe('workers', function() {
       expect(job.data.foo).to.be.eql('bar');
 
       return new Promise(resolve => {
-        worker.on('failed', async jobId => {
+        worker.on('failed', async (job, error) => {
           await queue
-            .getJob(jobId)
-            .then(job => {
-              expect(job).to.be.equal(undefined);
+            .getJob(job.id)
+            .then(currentJob => {
+              expect(currentJob).to.be.equal(undefined);
               return null;
             })
             .then(() => {
@@ -253,6 +254,7 @@ describe('workers', function() {
                 resolve();
               });
             });
+          expect(error).to.be.equal(jobError);
         });
       });
     });
@@ -274,17 +276,18 @@ describe('workers', function() {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
 
-      return new Promise(resolve => {
-        worker.on('failed', async jobId => {
-          const job = await newQueue.getJob(jobId);
-          expect(job).to.be.equal(undefined);
+      await new Promise(resolve => {
+        worker.on('failed', async job => {
+          const currentJob = await newQueue.getJob(job.id);
+          expect(currentJob).to.be.equal(undefined);
           const counts = await newQueue.getJobCounts('completed');
           expect(counts.completed).to.be.equal(0);
-          await worker.close();
-          await newQueue.close();
           resolve();
         });
       });
+
+      await worker.close();
+      await newQueue.close();
     });
 
     it('should keep specified number of jobs after completed with removeOnFail', async () => {
