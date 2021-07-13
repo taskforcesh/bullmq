@@ -1,3 +1,10 @@
+# [1.39.0](https://github.com/taskforcesh/bullmq/compare/v1.38.1...v1.39.0) (2021-07-13)
+
+
+### Features
+
+* **worker+scheduler:** add a "running" attribute for healthchecking ([aae358e](https://github.com/taskforcesh/bullmq/commit/aae358e067a0b6f20124751cffcdeaebac6eb7fd))
+
 ## [1.38.1](https://github.com/taskforcesh/bullmq/compare/v1.38.0...v1.38.1) (2021-07-12)
 
 
