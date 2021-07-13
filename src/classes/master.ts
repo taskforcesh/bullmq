@@ -62,9 +62,9 @@ process.on('message', msg => {
         processor = promisify(processor);
       } else {
         const origProcessor = processor;
-        processor = function() {
+        processor = function(...args: any[]) {
           try {
-            return Promise.resolve(origProcessor.apply(null, arguments));
+            return Promise.resolve(origProcessor(...args));
           } catch (err) {
             return Promise.reject(err);
           }
@@ -92,12 +92,9 @@ process.on('message', msg => {
             value: result,
           });
         } catch (err) {
-          if (!err.message) {
-            err = new Error(err);
-          }
           await processSendAsync({
             cmd: 'failed',
-            value: err,
+            value: !err.message ? new Error(err) : err,
           });
         } finally {
           status = 'IDLE';
@@ -133,6 +130,27 @@ process.on('uncaughtException', err => {
 function wrapJob(job: JobJson): SandboxedJob {
   let progressValue = job.progress;
 
+  const updateProgress = (progress: number | object) => {
+    // Locally store reference to new progress value
+    // so that we can return it from this process synchronously.
+    progressValue = progress;
+    // Send message to update job progress.
+    process.send({
+      cmd: 'progress',
+      value: progress,
+    });
+    return Promise.resolve();
+  };
+
+  const progress = (progress?: number | object) => {
+    if (progress) {
+      return updateProgress(progress);
+    } else {
+      // Return the last known progress value.
+      return progressValue;
+    }
+  };
+
   return {
     ...job,
     data: JSON.parse(job.data || '{}'),
@@ -143,22 +161,11 @@ function wrapJob(job: JobJson): SandboxedJob {
      * If no argument is given, it behaves as a sync getter.
      * If an argument is given, it behaves as an async setter.
      */
-    progress: (progress?: any) => {
-      if (progress) {
-        // Locally store reference to new progress value
-        // so that we can return it from this process synchronously.
-        progressValue = progress;
-        // Send message to update job progress.
-        process.send({
-          cmd: 'progress',
-          value: progress,
-        });
-        return Promise.resolve();
-      } else {
-        // Return the last known progress value.
-        return progressValue;
-      }
-    },
+    progress,
+    /*
+     * Emulate the real job `updateProgress` function, should works as `progress` function.
+     */
+    updateProgress,
     /*
      * Emulate the real job `log` function.
      */

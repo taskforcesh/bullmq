@@ -9,7 +9,7 @@ const delay = require('./delay');
 module.exports = function(job) {
   return delay(50)
     .then(() => {
-      job.progress(10);
+      job.updateProgress(10);
       job.log(job.progress());
       return delay(100);
     })
@@ -19,7 +19,7 @@ module.exports = function(job) {
       return delay(150);
     })
     .then(() => {
-      job.progress(78);
+      job.updateProgress(78);
       job.log(job.progress());
       return delay(100);
     })

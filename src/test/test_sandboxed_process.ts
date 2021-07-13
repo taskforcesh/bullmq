@@ -35,7 +35,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completting = new Promise((resolve, reject) => {
+    const completing = new Promise((resolve, reject) => {
       worker.on('completed', async (job, value) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
@@ -53,7 +53,7 @@ describe('sandboxed process', () => {
 
     await queue.add('test', { foo: 'bar' });
 
-    await completting;
+    await completing;
 
     await worker.close();
   });
@@ -64,7 +64,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completting = new Promise((resolve, reject) => {
+    const completing = new Promise((resolve, reject) => {
       worker.on('completed', async (job, value) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
@@ -82,7 +82,7 @@ describe('sandboxed process', () => {
 
     await queue.add('foobar', { foo: 'bar' });
 
-    await completting;
+    await completing;
   });
 
   it('should process with concurrent processors', async function() {
@@ -142,7 +142,7 @@ describe('sandboxed process', () => {
       queue.add('4', { foo: 'bar4' }),
     ]);
 
-    const completting = new Promise((resolve, reject) => {
+    const completing = new Promise((resolve, reject) => {
       const after4 = after(4, async () => {
         expect(worker['childPool'].getAllFree().length).to.eql(1);
         await worker.close();
@@ -164,7 +164,7 @@ describe('sandboxed process', () => {
       });
     });
 
-    await completting;
+    await completing;
   });
 
   it('should process and update progress', async () => {
@@ -319,7 +319,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completting = new Promise((resolve, reject) => {
+    const completing = new Promise((resolve, reject) => {
       worker.on('completed', async () => {
         try {
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
@@ -336,7 +336,7 @@ describe('sandboxed process', () => {
 
     await queue.add('test', { foo: 'bar' });
 
-    await completting;
+    await completing;
 
     await worker.close();
   });
