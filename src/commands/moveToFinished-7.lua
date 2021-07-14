@@ -111,14 +111,16 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
                 local jobKey = ARGV[9] .. jobId
                 local jobLogKey = jobKey .. ':logs'
                 local jobProcessedKey = jobKey .. ':processed'
-                rcall("DEL", jobKey, jobLogKey, jobProcessedKey)
+                local jobIndependentsKey = jobKey .. ':independents'
+                rcall("DEL", jobKey, jobLogKey, jobProcessedKey, jobIndependentsKey)
             end
             rcall("ZREMRANGEBYRANK", KEYS[2], 0, -removeJobs)
         end
     else
         local jobLogKey = jobIdKey .. ':logs'
         local jobProcessedKey = jobIdKey .. ':processed'
-        rcall("DEL", jobIdKey, jobLogKey, jobProcessedKey)
+        local jobIndependentsKey = jobIdKey .. ':independents'
+        rcall("DEL", jobIdKey, jobLogKey, jobProcessedKey, jobIndependentsKey)
     end
 
     rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],

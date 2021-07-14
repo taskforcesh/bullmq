@@ -1896,6 +1896,99 @@ describe('workers', function() {
       await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
+    it('should allow to create independent children', async () => {
+      const values = [
+        { idx: 0, bar: 'something' },
+        { idx: 1, baz: 'something' },
+      ];
+      const parentToken = 'parent-token';
+      const childToken = 'child-token';
+
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentQueue = new Queue(parentQueueName);
+      const parentWorker = new Worker(parentQueueName);
+      const childrenWorker = new Worker(queueName);
+
+      const data = { foo: 'bar' };
+      await Job.create(parentQueue, 'parent', data);
+      const parent = (await parentWorker.getNextJob(parentToken)) as Job;
+      const currentState = await parent.getState();
+      const {
+        independents: countIndependents1,
+      } = await parent.getDependenciesCount({
+        independents: true,
+      });
+
+      expect(currentState).to.be.equal('active');
+      expect(countIndependents1).to.be.equal(0);
+
+      await Job.create(queue, 'childJob1', values[0], {
+        independent: true,
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+      await Job.create(queue, 'childJob2', values[1], {
+        independent: true,
+        parent: {
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        },
+      });
+
+      const child1 = (await childrenWorker.getNextJob(childToken)) as Job;
+      const child2 = (await childrenWorker.getNextJob(childToken)) as Job;
+      const isActive1 = await child1.isActive();
+
+      expect(isActive1).to.be.true;
+      expect(child1.parentKey).to.be.equal(
+        `bull:${parentQueueName}:${parent.id}`,
+      );
+
+      const {
+        processed,
+        unprocessed,
+        independents: countIndependents2,
+      } = await parent.getDependenciesCount();
+      const { independents } = await parent.getDependencies({
+        independents: {
+          count: 5,
+        },
+      });
+
+      expect(processed).to.be.equal(0);
+      expect(unprocessed).to.be.equal(0);
+      expect(countIndependents2).to.be.equal(2);
+      expect(independents).to.have.length(2);
+
+      const movedToWaitingChildren = await parent.moveToWaitingChildren(
+        parentToken,
+      );
+
+      expect(movedToWaitingChildren).to.be.false;
+
+      const isActive2 = await child2.isActive();
+
+      expect(isActive2).to.be.true;
+      expect(child1.parentKey).to.be.equal(
+        `bull:${parentQueueName}:${parent.id}`,
+      );
+
+      await parent.moveToCompleted('return value3', parentToken);
+
+      await child1.moveToCompleted('return value1', childToken);
+
+      await child2.moveToCompleted('return value2', childToken);
+
+      await childrenWorker.close();
+      await parentWorker.close();
+
+      await parentQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+
     it('should get paginated unprocessed dependencies keys', async () => {
       const value = { bar: 'something' };
       const parentToken = 'parent-token';

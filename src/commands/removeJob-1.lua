@@ -84,6 +84,7 @@ local function removeJob( prefix, jobId)
     rcall("DEL", jobKey)
     rcall("DEL", jobKey .. ":logs")
     rcall("DEL", jobKey .. ":processed")
+    rcall("DEL", jobKey .. ":independents")
 
     -- Check if this job has children
     -- If so, we are going to try to remove the children recursively in deep first way because
