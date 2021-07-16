@@ -1,3 +1,10 @@
+## [1.39.3](https://github.com/taskforcesh/bullmq/compare/v1.39.2...v1.39.3) (2021-07-16)
+
+
+### Bug Fixes
+
+* connect if redis client has status "wait" ([f711717](https://github.com/taskforcesh/bullmq/commit/f711717f56822aef43c9fd0440e30fad0876ba62))
+
 ## [1.39.2](https://github.com/taskforcesh/bullmq/compare/v1.39.1...v1.39.2) (2021-07-15)
 
 
