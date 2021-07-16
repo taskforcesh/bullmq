@@ -66,6 +66,10 @@ export class RedisConnection extends EventEmitter {
 
         client.once('ready', handleReady);
         client.once('error', handleError);
+        
+        if (client.status === 'wait') {
+          client.connect(); 
+        }
       }
     });
   }
