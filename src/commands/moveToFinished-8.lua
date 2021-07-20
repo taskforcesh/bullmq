@@ -51,7 +51,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
       local lockKey = jobIdKey .. ':lock'
       if rcall("GET", lockKey) == ARGV[10] then
           rcall("DEL", lockKey)
-          -- rcall("SREM", KEYS[8], ARGV[1])
+          rcall("SREM", KEYS[8], ARGV[1])
       else
           return -2
       end
