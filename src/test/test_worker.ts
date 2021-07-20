@@ -2039,4 +2039,28 @@ describe('workers', function() {
       expect(isActive).to.be.equal(true);
     });
   });
+
+  it('should clear job from stalled set when job completed', async () => {
+    const client = await queue.client;
+    const queueScheduler = new QueueScheduler(queueName, {
+      stalledInterval: 10,
+    });
+    await queueScheduler.waitUntilReady();
+    const worker = new Worker(queueName, async () => {
+      return delay(100);
+    });
+    await worker.waitUntilReady();
+
+    await queue.add('test', { foo: 'bar' });
+
+    const allStalled = new Promise(resolve => {
+      worker.once('completed', async () => {
+        const stalled = await client.scard('bull:' + queueName + ':stalled');
+        expect(stalled).to.be.equal(0);
+        resolve();
+      });
+    });
+
+    await allStalled;
+  });
 });
