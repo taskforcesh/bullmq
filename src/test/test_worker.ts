@@ -16,7 +16,7 @@ describe('workers', function() {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
@@ -2055,12 +2055,15 @@ describe('workers', function() {
 
     const allStalled = new Promise(resolve => {
       worker.once('completed', async () => {
-        const stalled = await client.scard('bull:' + queueName + ':stalled');
+        const stalled = await client.scard(`bull:${queueName}:stalled`);
         expect(stalled).to.be.equal(0);
         resolve();
       });
     });
 
     await allStalled;
+
+    await worker.close();
+    await queueScheduler.close();
   });
 });
