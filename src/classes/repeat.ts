@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { isUndefined } from 'lodash';
 import { JobsOptions, RepeatOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
@@ -24,6 +25,14 @@ export class Repeat extends QueueBase {
     }
 
     let now = Date.now();
+
+    if (
+      !isUndefined(repeatOpts.endDate) &&
+      now > new Date(repeatOpts.endDate).getTime()
+    ) {
+      return;
+    }
+
     now = prevMillis < now ? now : prevMillis;
 
     const nextMillis = getNextMillis(now, repeatOpts);

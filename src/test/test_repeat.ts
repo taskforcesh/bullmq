@@ -32,7 +32,7 @@ describe('repeat', function() {
   });
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     repeat = new Repeat(queueName);
     queueEvents = new QueueEvents(queueName);
@@ -45,6 +45,49 @@ describe('repeat', function() {
     await repeat.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
+  });
+
+  it('it should stop repeating after endDate', async function() {
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.waitUntilReady();
+    const every = 100;
+    const date = new Date('2017-02-07 9:24:00');
+    this.clock.setSystemTime(date);
+    const worker = new Worker(queueName, NoopProc);
+    await worker.waitUntilReady();
+
+    let processed = 0;
+    const completing = new Promise(resolve => {
+      worker.on('completed', async () => {
+        this.clock.tick(every);
+        processed++;
+        if (processed === 10) {
+          resolve();
+        }
+      });
+    });
+
+    await queue.add(
+      'test',
+      { foo: 'bar' },
+      {
+        repeat: {
+          endDate: Date.now() + 1000,
+          every: 100,
+        },
+      },
+    );
+
+    this.clock.tick(every + 1);
+
+    await completing;
+    const delayed = await queue.getDelayed();
+
+    expect(delayed).to.have.length(0);
+    expect(processed).to.be.equal(10);
+
+    await queueScheduler.close();
+    await worker.close();
   });
 
   it('should create multiple jobs if they have the same cron pattern', async function() {
