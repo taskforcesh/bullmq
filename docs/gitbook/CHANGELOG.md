@@ -1,3 +1,10 @@
+## [1.39.5](https://github.com/taskforcesh/bullmq/compare/v1.39.4...v1.39.5) (2021-07-21)
+
+
+### Bug Fixes
+
+* **move-to-finished:** remove stalled jobs when finishing ([3867126](https://github.com/taskforcesh/bullmq/commit/38671261ccc00ca7fefa677663e45a40a92df555))
+
 ## [1.39.4](https://github.com/taskforcesh/bullmq/compare/v1.39.3...v1.39.4) (2021-07-21)
 
 
