@@ -11,7 +11,7 @@ Cleans jobs from a queue. Similar to drain but keeps jobs within a certain grace
 <b>Signature:</b>
 
 ```typescript
-clean(grace: number, limit: number, type?: 'completed' | 'wait' | 'active' | 'paused' | 'delayed' | 'failed'): Promise<any>;
+clean(grace: number, limit: number, type?: 'completed' | 'wait' | 'active' | 'paused' | 'delayed' | 'failed'): Promise<string[]>;
 ```
 
 ## Parameters
@@ -24,5 +24,5 @@ clean(grace: number, limit: number, type?: 'completed' | 'wait' | 'active' | 'pa
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;string\[\]&gt;
 

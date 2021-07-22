@@ -7,15 +7,15 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: 'progress', listener: (job: Job, progress: number | object) => void): this;
+on(event: 'failed', listener: (job: Job, error: Error) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'progress' |  |
-|  listener | (job: [Job](./bullmq.job.md)<!-- -->, progress: number \| object) =&gt; void |  |
+|  event | 'failed' |  |
+|  listener | (job: [Job](./bullmq.job.md)<!-- -->, error: Error) =&gt; void |  |
 
 <b>Returns:</b>
 

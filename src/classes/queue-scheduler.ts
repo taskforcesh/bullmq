@@ -34,6 +34,7 @@ export class QueueScheduler extends QueueBase {
   private workerCleanerTimeout: number;
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
+  private running = false;
 
   constructor(
     name: string,
@@ -54,7 +55,10 @@ export class QueueScheduler extends QueueBase {
       throw new Error('Stalled interval cannot be zero or undefined');
     }
 
-    this.run();
+    this.run().catch(error => {
+      this.running = false;
+      console.error(error);
+    });
   }
 
   private async run() {
@@ -73,6 +77,7 @@ export class QueueScheduler extends QueueBase {
     }
 
     while (!this.closing) {
+      this.running = true;
       // Check if at least the min stalled check time has passed.
       await this.moveStalledJobsToWait();
 
@@ -133,6 +138,11 @@ export class QueueScheduler extends QueueBase {
         }
       }
     }
+    this.running = false;
+  }
+
+  isRunning() {
+    return this.running;
   }
 
   private async readDelayedData(

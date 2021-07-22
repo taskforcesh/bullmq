@@ -471,7 +471,7 @@ export class Job<T = any, R = any, N extends string = string> {
       const results = await multi.exec();
       const code = results[results.length - 1][1];
       if (code < 0) {
-        throw Scripts.finishedErrors(code, this.id, command);
+        throw Scripts.finishedErrors(code, this.id, command, 'active');
       }
     }
   }
@@ -538,6 +538,16 @@ export class Job<T = any, R = any, N extends string = string> {
    */
   getState(): Promise<string> {
     return Scripts.getState(this.queue, this.id);
+  }
+
+  /**
+   * @method changeDelay
+   * Change delay of a delayed job.
+   *
+   * @returns
+   */
+  changeDelay(delay: number): Promise<void> {
+    return Scripts.changeDelay(this.queue, this.id, delay);
   }
 
   /**
@@ -808,13 +818,13 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Promotes a delayed job so that it starts to be processed as soon as possible.
    */
-  async promote() {
+  async promote(): Promise<void> {
     const queue = this.queue;
     const jobId = this.id;
 
-    const result = await Scripts.promote(queue, jobId);
-    if (result === -1) {
-      throw new Error('Job ' + jobId + ' is not in a delayed state');
+    const code = await Scripts.promote(queue, jobId);
+    if (code < 0) {
+      throw Scripts.finishedErrors(code, this.id, 'promote', 'delayed');
     }
   }
 
