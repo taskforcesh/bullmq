@@ -49,3 +49,4 @@ queueEvents.on('progress', (jobId: string, progress: number | object) => {
 ```
 
 The QueueEvents class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
+

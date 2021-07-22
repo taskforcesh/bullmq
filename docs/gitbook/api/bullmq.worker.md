@@ -20,4 +20,5 @@ export declare interface Worker
 |  [on(event, listener)](./bullmq.worker.on_3.md) |  |
 |  [on(event, listener)](./bullmq.worker.on_4.md) |  |
 |  [on(event, listener)](./bullmq.worker.on_5.md) |  |
+|  [on(event, listener)](./bullmq.worker.on_6.md) |  |
 

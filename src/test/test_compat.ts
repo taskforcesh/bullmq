@@ -318,7 +318,7 @@ describe('Compat', function() {
       expect(jobs).to.be.equal(2);
     });
 
-    it('emits drained event when all jobs have been processed', async function() {
+    it('emits global drained event when all jobs have been processed', async function() {
       await queue.add('test', { foo: 'bar' });
       await queue.add('test', { foo: 'baz' });
 

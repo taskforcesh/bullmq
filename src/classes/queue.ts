@@ -6,6 +6,11 @@ import { QueueGetters } from './queue-getters';
 import { BulkJobOptions, Job } from './job';
 import { Scripts } from './scripts';
 
+export declare interface Queue {
+  on(event: 'cleaned', listener: (jobs: string[], type: string) => void): this;
+  on(event: string, listener: Function): this;
+}
+
 export class Queue<
   T = any,
   R = any,
@@ -25,11 +30,13 @@ export class Queue<
     this.limiter = get(opts, 'limiter');
 
     this.waitUntilReady().then(client => {
-      client.hset(
-        this.keys.meta,
-        'opts.maxLenEvents',
-        get(opts, 'streams.events.maxLen', 10000),
-      );
+      if (!this.closing) {
+        client.hset(
+          this.keys.meta,
+          'opts.maxLenEvents',
+          get(opts, 'streams.events.maxLen', 10000),
+        );
+      }
     });
   }
 
@@ -159,7 +166,7 @@ export class Queue<
    * TODO: Convert to an atomic LUA script.
    */
   async drain(delayed = false) {
-    // Get all jobids and empty all lists atomically.
+    // Get all jobIds and empty all lists atomically.
     const client = await this.client;
 
     let multi = client.multi();
@@ -175,10 +182,10 @@ export class Queue<
     multi.del(this.toKey('priority'));
 
     const [waiting, paused] = await multi.exec();
-    const waitingjobs = waiting[1];
+    const waitingJobs = waiting[1];
     const pausedJobs = paused[1];
 
-    const jobKeys = pausedJobs.concat(waitingjobs).map(this.toKey, this);
+    const jobKeys = pausedJobs.concat(waitingJobs).map(this.toKey, this);
 
     if (jobKeys.length) {
       multi = client.multi();
@@ -209,7 +216,7 @@ export class Queue<
       | 'paused'
       | 'delayed'
       | 'failed' = 'completed',
-  ) {
+  ): Promise<string[]> {
     const jobs = await Scripts.cleanJobsInSet(
       this,
       type,
