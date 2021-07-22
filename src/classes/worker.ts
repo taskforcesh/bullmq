@@ -69,6 +69,7 @@ export class Worker<
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
+      runRetryDelay: 15000,
       ...this.opts,
     };
 
@@ -169,7 +170,13 @@ export class Worker<
       this.running = true;
       if (processing.size < opts.concurrency) {
         const token = tokens.pop();
-        processing.set(this.getNextJob(token), token);
+        processing.set(
+          this.retryIfFailed<Job<any, any, string>>(
+            () => this.getNextJob(token),
+            this.opts.runRetryDelay,
+          ),
+          token,
+        );
       }
 
       /*
@@ -188,7 +195,13 @@ export class Worker<
       const job = await completed;
       if (job) {
         // reuse same token if next job is available to process
-        processing.set(this.processJob(job, token), token);
+        processing.set(
+          this.retryIfFailed<void | Job<any, any, string>>(
+            () => this.processJob(job, token),
+            this.opts.runRetryDelay,
+          ),
+          token,
+        );
       } else {
         tokens.push(token);
       }
@@ -504,5 +517,21 @@ export class Worker<
     }
 
     reconnect && (await this.blockingConnection.reconnect());
+  }
+
+  private async retryIfFailed<T>(fn: () => Promise<T>, delayInMs: number) {
+    let retry;
+
+    do {
+      try {
+        retry = false;
+        return await fn();
+      } catch (err) {
+        if (delayInMs) {
+          retry = true;
+          await delay(delayInMs);
+        }
+      }
+    } while (retry);
   }
 }
