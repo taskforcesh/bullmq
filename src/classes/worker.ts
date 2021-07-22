@@ -520,16 +520,15 @@ export class Worker<
   }
 
   private async retryIfFailed<T>(fn: () => Promise<T>, delayInMs: number) {
-    let retry;
-
+    const retry = 1;
     do {
       try {
-        retry = false;
         return await fn();
       } catch (err) {
         if (delayInMs) {
-          retry = true;
           await delay(delayInMs);
+        } else {
+          return;
         }
       }
     } while (retry);
