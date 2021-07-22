@@ -1,8 +1,12 @@
 import * as IORedis from 'ioredis';
 import { Queue, Job, Worker } from '../classes';
 import { v4 } from 'uuid';
-import { expect } from 'chai';
+import * as chai from 'chai';
+import * as chaiAsPromised from 'chai-as-promised';
 import { removeAllQueueData } from '../utils';
+
+chai.use(chaiAsPromised);
+const expect = chai.expect;
 
 describe('connection', () => {
   let queue: Queue;
@@ -148,20 +152,41 @@ describe('connection', () => {
   });
   */
 
-  it.skip('should fail if redis connection fails', async () => {
+  it('should fail if redis connection fails', async () => {
     const queueFail = new Queue('connection fail port', {
-      connection: { port: 1234, host: '127.0.0.1' },
+      connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
     });
 
-    return new Promise(async (resolve, reject) => {
-      try {
-        await queueFail.waitUntilReady();
-        reject(new Error('Did not fail connecting to invalid redis instance'));
-      } catch (err) {
-        expect(err.code).to.be.eql('ECONNREFUSED');
-        await queueFail.close();
-        resolve();
-      }
+    await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
+      'Connection is closed.',
+    );
+  });
+
+  it('should close if connection has failed', async () => {
+    const queueFail = new Queue('connection fail port', {
+      connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
     });
+
+    await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
+      'Connection is closed.',
+    );
+
+    await expect(queueFail.close()).to.be.eventually.equal(undefined);
+  });
+
+  it('should close if connection is failing', async () => {
+    const queueFail = new Queue('connection fail port', {
+      connection: {
+        port: 1234,
+        host: '127.0.0.1',
+        retryStrategy: times => (times === 0 ? 10 : null),
+      },
+    });
+
+    await expect(queueFail.close()).to.be.eventually.equal(undefined);
+
+    await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
+      'Connection is closed.',
+    );
   });
 });
