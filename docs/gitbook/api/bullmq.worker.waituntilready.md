@@ -4,6 +4,8 @@
 
 ## Worker.waitUntilReady() method
 
+Waits until the worker is ready to start processing jobs. In general only useful when writing tests.
+
 <b>Signature:</b>
 
 ```typescript

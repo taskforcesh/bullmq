@@ -4,6 +4,8 @@
 
 ## Worker.isPaused() method
 
+Checks if worker is paused.
+
 <b>Signature:</b>
 
 ```typescript
@@ -12,4 +14,6 @@ isPaused(): boolean;
 <b>Returns:</b>
 
 boolean
+
+true if worker is paused, false otherwise.
 

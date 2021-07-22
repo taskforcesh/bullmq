@@ -1,3 +1,10 @@
+# [1.40.0](https://github.com/taskforcesh/bullmq/compare/v1.39.5...v1.40.0) (2021-07-22)
+
+
+### Features
+
+* **worker:** retry with delay errors in run loop ([409fe7f](https://github.com/taskforcesh/bullmq/commit/409fe7fc09b87b7916a3362a463bb9e0f17ecea8))
+
 ## [1.39.5](https://github.com/taskforcesh/bullmq/compare/v1.39.4...v1.39.5) (2021-07-21)
 
 ### Bug Fixes
@@ -871,4 +878,3 @@
 * Introduced animals into the world, we believe they're going to be a neat addition.
 
 #### 4.0.0-beta.0
-
