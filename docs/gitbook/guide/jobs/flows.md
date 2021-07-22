@@ -47,7 +47,7 @@ const flow = await flowProducer.add({
 
 The above code will add atomically 4 jobs, one to the 'renovate' queue and 3 to the 'steps' queue. When the 3 jobs in the 'activities" queue are completed, the parent job in the 'renovate' queue will be processed as a regular job.
 
-The above call will return instances for all the jobs added to the queue. 
+The above call will return instances for all the jobs added to the queue.
 
 {% hint style="info" %}
 Note that the parent queue does not need to be the same queue as the one used for the children.
@@ -60,7 +60,7 @@ import { Worker } from "bullmq"
 
 const stepsQueue = new Worker('steps', async (job) => {
   await performStep(job.data);
-  
+
   if(job.name === 'paint') {
     return 2500;
   } else if( job.name === 'fix' ) {
@@ -113,7 +113,7 @@ In this case one job will be processed after the previous one has been completed
 The order of processing would be: 'chassis', 'wheels' and finally 'engine'.
 {% endhint %}
 
-#### Getters
+## Getters
 
 There are some special getters that can be used in order to get jobs related to a flow. First we have a method in the Job class to get all the dependencies for a given job:
 
@@ -129,7 +129,7 @@ The Job class also provides a another method that we presented above to get all 
 const values = await job.getChildrenValues();
 ```
 
-Also a new property is available in the Job class, _**parentKey,**_  with a fully qualified key for the job parent.
+Also a new property is available in the Job class, _**parentKey,**_ with a fully qualified key for the job parent.
 
 Finally, there is also a new state where a job can be in, "waiting-children", for parent jobs that have not yet had their children completed:
 
@@ -138,9 +138,9 @@ const state = await job.getState();
 // state will be "waiting-children"
 ```
 
-#### Jobs removal
+## Jobs removal
 
-BullMQ also provides seamless removal functionality for jobs that are part of a flow. 
+BullMQ also provides seamless removal functionality for jobs that are part of a flow.
 
 When removing a job that is part of the flow there are several important considerations:
 
@@ -152,14 +152,12 @@ When removing a job that is part of the flow there are several important conside
 Apart from the considerations above, removing a job can simply be done by either using the Job or the Queue class:
 
 ```typescript
-
 await job.remove();
 // or
 await queue.remove(job.id);
-
 ```
 
-#### Read more: 
+## Read more:
 
 * 💡 [FlowProducer API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.flowproducer.md)
 * 💡 [Job API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.job.md)

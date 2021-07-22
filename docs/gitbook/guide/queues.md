@@ -2,7 +2,17 @@
 
 A Queue is nothing more than a list of jobs waiting to be processed. The jobs can be small, message like, so that the queue can be used as a message broker, or they can be larger long running jobs.
 
-Queues are controlled with the Queue class. As all classes in BullMQ this is a lightweight class with a handful of methods that gives you control over the queue.
+Queues are controlled with the Queue class. As all classes in BullMQ this is a lightweight class with a handful of methods that gives you control over the queue:
+
+```typescript
+const queue = new Queue('Cars');
+```
+
+{% hint style="info" %}
+See [Connections](connections.md) for details on how to pass Redis details to use by the queue.
+{% endhint %}
+
+When you instance a Queue, BullMQ will just _upsert_ a small "meta-key", so if the queue existed before it will just pick it up and you can continue adding jobs to it.
 
 The most important method is probably the _**add**_ method. This method allows you to add jobs to the queue in different fashions:
 

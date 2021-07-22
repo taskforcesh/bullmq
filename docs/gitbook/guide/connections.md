@@ -36,3 +36,13 @@ Note that in the second example, even though the ioredis instance is being reuse
 
 If you can afford many connections, by all means just use them. Redis connections have quite low overhead, so you should not need to care about reusing connections unless your service provider is imposing you hard limitations.
 
+{% hint style="danger" %}
+Make sure that your redis instance has the setting 
+
+`maxmemory-policy=noeviction`
+
+in order to avoid automatic removal of keys which would cause unexpected errors in BullMQ
+{% endhint %}
+
+
+

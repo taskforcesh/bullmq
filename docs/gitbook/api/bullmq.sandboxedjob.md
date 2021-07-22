@@ -7,9 +7,9 @@
 <b>Signature:</b>
 
 ```typescript
-export interface SandboxedJob<T = any, R = any> extends Omit<JobJson, 'data' | 'opts' | 'progress' | 'log' | 'returnValue'> 
+export interface SandboxedJob<T = any, R = any> extends Omit<JobJson, 'data' | 'opts' | 'progress' | 'returnValue'> 
 ```
-<b>Extends:</b> Omit&lt;[JobJson](./bullmq.jobjson.md)<!-- -->, 'data' \| 'opts' \| 'progress' \| 'log' \| 'returnValue'&gt;
+<b>Extends:</b> Omit&lt;[JobJson](./bullmq.jobjson.md)<!-- -->, 'data' \| 'opts' \| 'progress' \| 'returnValue'&gt;
 
 ## Properties
 
@@ -20,4 +20,5 @@ export interface SandboxedJob<T = any, R = any> extends Omit<JobJson, 'data' | '
 |  [opts](./bullmq.sandboxedjob.opts.md) | [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [progress](./bullmq.sandboxedjob.progress.md) | (() =&gt; object \| number) \| ((value: object \| number) =&gt; Promise&lt;void&gt;) |  |
 |  [returnValue](./bullmq.sandboxedjob.returnvalue.md) | R |  |
+|  [updateProgress](./bullmq.sandboxedjob.updateprogress.md) | (value: object \| number) =&gt; Promise&lt;void&gt; |  |
 

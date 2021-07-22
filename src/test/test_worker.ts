@@ -16,7 +16,7 @@ describe('workers', function() {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
@@ -2038,5 +2038,32 @@ describe('workers', function() {
       const isActive = await job2.isActive();
       expect(isActive).to.be.equal(true);
     });
+  });
+
+  it('should clear job from stalled set when job completed', async () => {
+    const client = await queue.client;
+    const queueScheduler = new QueueScheduler(queueName, {
+      stalledInterval: 10,
+    });
+    await queueScheduler.waitUntilReady();
+    const worker = new Worker(queueName, async () => {
+      return delay(100);
+    });
+    await worker.waitUntilReady();
+
+    await queue.add('test', { foo: 'bar' });
+
+    const allStalled = new Promise(resolve => {
+      worker.once('completed', async () => {
+        const stalled = await client.scard(`bull:${queueName}:stalled`);
+        expect(stalled).to.be.equal(0);
+        resolve();
+      });
+    });
+
+    await allStalled;
+
+    await worker.close();
+    await queueScheduler.close();
   });
 });
