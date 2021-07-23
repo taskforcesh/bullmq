@@ -525,6 +525,7 @@ export class Worker<
       try {
         return await fn();
       } catch (err) {
+        console.error(err);
         if (delayInMs) {
           await delay(delayInMs);
         } else {
