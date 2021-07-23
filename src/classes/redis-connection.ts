@@ -1,15 +1,13 @@
 import { EventEmitter } from 'events';
 import * as IORedis from 'ioredis';
 import { Cluster, Redis } from 'ioredis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 import { isRedisInstance } from '../utils';
-
-/**
- * See https://github.com/luin/ioredis/blob/d65f8b2/lib/utils/index.ts#L338
- */
-const CONNECTION_CLOSED_ERROR_MSG = 'Connection is closed.';
 
 export type RedisClient = Redis | Cluster;
 

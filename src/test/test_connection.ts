@@ -1,4 +1,7 @@
 import * as IORedis from 'ioredis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { Queue, Job, Worker } from '../classes';
 import { v4 } from 'uuid';
 import * as chai from 'chai';
@@ -186,7 +189,7 @@ describe('connection', () => {
     await expect(queueFail.close()).to.be.eventually.equal(undefined);
 
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
-      'Connection is closed.',
+      CONNECTION_CLOSED_ERROR_MSG,
     );
   });
 });
