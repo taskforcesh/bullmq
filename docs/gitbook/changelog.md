@@ -1,3 +1,10 @@
+## [1.40.1](https://github.com/taskforcesh/bullmq/compare/v1.40.0...v1.40.1) (2021-07-24)
+
+
+### Bug Fixes
+
+* connection hangs with failed connection fixes [#656](https://github.com/taskforcesh/bullmq/issues/656) ([c465611](https://github.com/taskforcesh/bullmq/commit/c465611ed76afd2adfd0e05a8babd6e369f5c310))
+
 # [1.40.0](https://github.com/taskforcesh/bullmq/compare/v1.39.5...v1.40.0) (2021-07-22)
 
 
