@@ -88,3 +88,5 @@ export function getParentKey(opts: { id: string; queue: string }): string {
     return `${opts.queue}:${opts.id}`;
   }
 }
+
+export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
