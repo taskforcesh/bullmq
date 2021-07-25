@@ -30,6 +30,12 @@ export declare interface Worker {
   on(event: string, listener: Function): this;
 }
 
+/**
+ *
+ * This class represents a worker that is able to process jobs from the queue.
+ * As soon as the class is instantiated it will start processing jobs.
+ *
+ */
 export class Worker<
   T = any,
   R = any,
@@ -63,6 +69,7 @@ export class Worker<
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
+      runRetryDelay: 15000,
       ...this.opts,
     };
 
@@ -105,6 +112,12 @@ export class Worker<
     this.on('error', err => console.error(err));
   }
 
+  /**
+   *
+   * Waits until the worker is ready to start processing jobs.
+   * In general only useful when writing tests.
+   *
+   */
   async waitUntilReady(): Promise<RedisClient> {
     await super.waitUntilReady();
     return this.blockingConnection.client;
@@ -157,7 +170,13 @@ export class Worker<
       this.running = true;
       if (processing.size < opts.concurrency) {
         const token = tokens.pop();
-        processing.set(this.getNextJob(token), token);
+        processing.set(
+          this.retryIfFailed<Job<any, any, string>>(
+            () => this.getNextJob(token),
+            this.opts.runRetryDelay,
+          ),
+          token,
+        );
       }
 
       /*
@@ -176,7 +195,13 @@ export class Worker<
       const job = await completed;
       if (job) {
         // reuse same token if next job is available to process
-        processing.set(this.processJob(job, token), token);
+        processing.set(
+          this.retryIfFailed<void | Job<any, any, string>>(
+            () => this.processJob(job, token),
+            this.opts.runRetryDelay,
+          ),
+          token,
+        );
       } else {
         tokens.push(token);
       }
@@ -377,6 +402,7 @@ export class Worker<
   }
 
   /**
+   *
    * Pauses the processing of this queue only for this worker.
    */
   async pause(doNotWaitActive?: boolean) {
@@ -393,6 +419,10 @@ export class Worker<
     }
   }
 
+  /**
+   *
+   * Resumes processing of this worker (if paused).
+   */
   resume() {
     if (this.resumeWorker) {
       this.resumeWorker();
@@ -400,36 +430,38 @@ export class Worker<
     }
   }
 
+  /**
+   *
+   * Checks if worker is paused.
+   *
+   * @returns true if worker is paused, false otherwise.
+   */
   isPaused() {
     return !!this.paused;
   }
 
+  /**
+   *
+   * Checks if worker is currently running.
+   *
+   * @returns true if worker is running, false otherwise.
+   *
+   */
   isRunning() {
     return this.running;
   }
 
   /**
-   * Returns a promise that resolves when active jobs are cleared
    *
-   * @returns {Promise}
+   * Closes the worker and related redis connections.
+   *
+   * This method waits for current jobs to finalize before returning.
+   *
+   * @param force Use force boolean parameter if you do not want to wait for
+   * current jobs to be processed.
+   *
+   * @returns Promise that resolves when the worker has been closed.
    */
-  private async whenCurrentJobsFinished(reconnect = true) {
-    //
-    // Force reconnection of blocking connection to abort blocking redis call immediately.
-    //
-    if (this.waiting) {
-      await this.blockingConnection.disconnect();
-    } else {
-      reconnect = false;
-    }
-
-    if (this.processing) {
-      await Promise.all(this.processing.keys());
-    }
-
-    reconnect && (await this.blockingConnection.reconnect());
-  }
-
   close(force = false) {
     if (this.closing) {
       return this.closing;
@@ -463,5 +495,42 @@ export class Worker<
         .finally(() => this.emit('closed'));
     })();
     return this.closing;
+  }
+
+  /**
+   * Returns a promise that resolves when active jobs are cleared
+   *
+   * @returns {Promise}
+   */
+  private async whenCurrentJobsFinished(reconnect = true) {
+    //
+    // Force reconnection of blocking connection to abort blocking redis call immediately.
+    //
+    if (this.waiting) {
+      await this.blockingConnection.disconnect();
+    } else {
+      reconnect = false;
+    }
+
+    if (this.processing) {
+      await Promise.all(this.processing.keys());
+    }
+
+    reconnect && (await this.blockingConnection.reconnect());
+  }
+
+  private async retryIfFailed<T>(fn: () => Promise<T>, delayInMs: number) {
+    const retry = 1;
+    do {
+      try {
+        return await fn();
+      } catch (err) {
+        if (delayInMs) {
+          await delay(delayInMs);
+        } else {
+          return;
+        }
+      }
+    } while (retry);
   }
 }
