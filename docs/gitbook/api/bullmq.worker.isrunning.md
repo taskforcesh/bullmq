@@ -4,6 +4,8 @@
 
 ## Worker.isRunning() method
 
+Checks if worker is currently running.
+
 <b>Signature:</b>
 
 ```typescript
@@ -12,4 +14,6 @@ isRunning(): boolean;
 <b>Returns:</b>
 
 boolean
+
+true if worker is running, false otherwise.
 

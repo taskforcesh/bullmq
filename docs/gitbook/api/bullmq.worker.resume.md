@@ -4,6 +4,8 @@
 
 ## Worker.resume() method
 
+Resumes processing of this worker (if paused).
+
 <b>Signature:</b>
 
 ```typescript

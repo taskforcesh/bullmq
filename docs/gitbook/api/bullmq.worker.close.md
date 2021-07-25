@@ -4,6 +4,10 @@
 
 ## Worker.close() method
 
+Closes the worker and related redis connections.
+
+This method waits for current jobs to finalize before returning.
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,9 +18,11 @@ close(force?: boolean): Promise<void>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  force | boolean |  |
+|  force | boolean | Use force boolean parameter if you do not want to wait for current jobs to be processed. |
 
 <b>Returns:</b>
 
 Promise&lt;void&gt;
+
+Promise that resolves when the worker has been closed.
 
