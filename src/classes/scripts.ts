@@ -11,13 +11,11 @@ import {
   QueueSchedulerOptions,
   WorkerOptions,
 } from '../interfaces';
-import { array2obj } from '../utils';
-import { MoveToChildrenOpts } from './job';
+import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
-import { Job, JobJson, JobJsonRaw } from './job';
-import { getParentKey } from './flow-producer';
+import { Job, JobJson, JobJsonRaw, MoveToChildrenOpts } from './job';
 import { RedisClient } from './redis-connection';
 
 export type MinimalQueue = Pick<

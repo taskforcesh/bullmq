@@ -20,6 +20,7 @@ export interface WorkerOptions extends QueueBaseOptions
 |  [limiter?](./bullmq.workeroptions.limiter.md) | [RateLimiterOptions](./bullmq.ratelimiteroptions.md) | <i>(Optional)</i> |
 |  [lockDuration?](./bullmq.workeroptions.lockduration.md) | number | <i>(Optional)</i> |
 |  [lockRenewTime?](./bullmq.workeroptions.lockrenewtime.md) | number | <i>(Optional)</i> |
+|  [runRetryDelay?](./bullmq.workeroptions.runretrydelay.md) | number | <i>(Optional)</i> |
 |  [settings?](./bullmq.workeroptions.settings.md) | [AdvancedOptions](./bullmq.advancedoptions.md) | <i>(Optional)</i> |
 |  [skipDelayCheck?](./bullmq.workeroptions.skipdelaycheck.md) | boolean | <i>(Optional)</i> |
 

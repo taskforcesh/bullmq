@@ -1,6 +1,9 @@
 import { EventEmitter } from 'events';
 import * as IORedis from 'ioredis';
 import { Cluster, Redis } from 'ioredis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
@@ -48,29 +51,31 @@ export class RedisConnection extends EventEmitter {
    * @param {Redis} redis client
    */
   static async waitUntilReady(client: RedisClient) {
-    return new Promise<void>(function(resolve, reject) {
-      if (client.status === 'ready') {
+    if (client.status === 'ready') {
+      return;
+    }
+
+    if (client.status === 'wait') {
+      return client.connect();
+    }
+
+    if (client.status === 'end') {
+      throw new Error(CONNECTION_CLOSED_ERROR_MSG);
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const handleReady = () => {
+        client.removeListener('end', endHandler);
         resolve();
-      } else {
-        const handleError = function(err: NodeJS.ErrnoException) {
-          if (err['code'] !== 'ECONNREFUSED') {
-            client.removeListener('ready', handleReady);
-            reject(err);
-          }
-        };
+      };
 
-        const handleReady = async function() {
-          client.removeListener('error', handleError);
-          resolve();
-        };
+      const endHandler = () => {
+        client.removeListener('ready', handleReady);
+        reject(new Error(CONNECTION_CLOSED_ERROR_MSG));
+      };
 
-        client.once('ready', handleReady);
-        client.once('error', handleError);
-        
-        if (client.status === 'wait') {
-          client.connect(); 
-        }
-      }
+      client.once('ready', handleReady);
+      client.once('end', endHandler);
     });
   }
 
@@ -130,7 +135,13 @@ export class RedisConnection extends EventEmitter {
     if (!this.closing) {
       this.closing = true;
       if (this.opts != this._client) {
-        await this._client.quit();
+        try {
+          await this._client.quit();
+        } catch (error) {
+          if (error.message !== CONNECTION_CLOSED_ERROR_MSG) {
+            throw error;
+          }
+        }
       } else {
         this._client.off('error', this.handleClientError);
       }

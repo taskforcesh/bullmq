@@ -20,7 +20,7 @@
 |  [RedisConnection](./bullmq.redisconnection.md) |  |
 |  [Repeat](./bullmq.repeat.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
-|  [Worker](./bullmq.worker.md) |  |
+|  [Worker](./bullmq.worker.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
 ## Enumerations
 

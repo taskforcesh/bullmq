@@ -2,8 +2,13 @@ import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
-import { errorObject, isEmpty, lengthInUtf8Bytes, tryCatch } from '../utils';
-import { getParentKey } from './flow-producer';
+import {
+  errorObject,
+  isEmpty,
+  getParentKey,
+  lengthInUtf8Bytes,
+  tryCatch,
+} from '../utils';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
