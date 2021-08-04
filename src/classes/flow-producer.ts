@@ -122,6 +122,52 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
+   * Adds multiple flows.
+   *
+   * A flow is a tree-like structure of jobs that depend on each other.
+   * Whenever the children of a given parent are completed, the parent
+   * will be processed, being able to access the children's result data.
+   *
+   * All Jobs can be in different queues, either children or parents,
+   * however this call would be atomic, either it fails and no jobs will
+   * be added to the queues, or it succeeds and all jobs will be added.
+   *
+   * @param flows An array of objects with a tree-like structure where children jobs
+   * will be processed before their parents.
+   */
+  async addBulk(flows: FlowJob[]): Promise<JobNode[]> {
+    if (this.closing) {
+      return;
+    }
+    const client = await this.connection.client;
+    const multi = client.multi();
+
+    const jobsTrees = this.addNodes(multi, flows);
+
+    const result = await multi.exec();
+
+    let index = 0;
+    const updateJobIds = (jobTree: JobNode) => {
+      // TODO: Can we safely ignore result errors? how could they happen in the
+      // first place?
+      jobTree.job.id = result[index][1];
+      index++;
+      const children = jobTree.children;
+      if (children) {
+        for (let i = 0; i < children.length; i++) {
+          updateJobIds(children[i]);
+        }
+      }
+    };
+
+    for (const jobTree of jobsTrees) {
+      updateJobIds(jobTree);
+    }
+
+    return jobsTrees;
+  }
+
+  /**
    * Add a node (job) of a flow to the queue. This method will recursively
    * add all its children as well. Note that a given job can potentially be
    * a parent and a child job at the same time depending on where it is located
@@ -196,6 +242,20 @@ export class FlowProducer extends EventEmitter {
 
       return { job };
     }
+  }
+
+  /**
+   * Adds nodes (jobs) of multiple flows to the queue. This method will recursively
+   * add all its children as well. Note that a given job can potentially be
+   * a parent and a child job at the same time depending on where it is located
+   * in the tree hierarchy.
+   *
+   * @param multi ioredis pipeline
+   * @param nodes the nodes representing jobs to be added to some queue
+   * @returns
+   */
+  private addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
+    return nodes.map(node => this.addNode(multi, node));
   }
 
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
