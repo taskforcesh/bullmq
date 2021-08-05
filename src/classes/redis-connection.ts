@@ -35,12 +35,11 @@ export class RedisConnection extends EventEmitter {
       this._client = <RedisClient>opts;
     }
 
-    this.initializing = this.init();
-
     this.handleClientError = (err: Error): void => {
       this.emit('error', err);
     };
 
+    this.initializing = this.init();
     this.initializing
       .then(client => client.on('error', this.handleClientError))
       .catch(err => this.emit('error', err));
@@ -66,16 +65,25 @@ export class RedisConnection extends EventEmitter {
     return new Promise<void>((resolve, reject) => {
       const handleReady = () => {
         client.removeListener('end', endHandler);
+        client.removeListener('error', errorHandler);
         resolve();
       };
 
       const endHandler = () => {
+        client.removeListener('ready', handleReady);
+        client.removeListener('error', errorHandler);
+        reject(new Error(CONNECTION_CLOSED_ERROR_MSG));
+      };
+
+      const errorHandler = () => {
+        client.removeListener('end', endHandler);
         client.removeListener('ready', handleReady);
         reject(new Error(CONNECTION_CLOSED_ERROR_MSG));
       };
 
       client.once('ready', handleReady);
       client.once('end', endHandler);
+      client.once('error', errorHandler);
     });
   }
 
