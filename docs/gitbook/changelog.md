@@ -1,3 +1,10 @@
+## [1.40.3](https://github.com/taskforcesh/bullmq/compare/v1.40.2...v1.40.3) (2021-08-06)
+
+
+### Bug Fixes
+
+* **redis-connection:** add error event in waitUntilReady ([ac4101e](https://github.com/taskforcesh/bullmq/commit/ac4101e3e798110c022d6c9f10f3b98f5e86b151))
+
 ## [1.40.2](https://github.com/taskforcesh/bullmq/compare/v1.40.1...v1.40.2) (2021-08-06)
 
 
