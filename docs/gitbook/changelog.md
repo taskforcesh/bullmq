@@ -1,3 +1,10 @@
+## [1.40.2](https://github.com/taskforcesh/bullmq/compare/v1.40.1...v1.40.2) (2021-08-06)
+
+
+### Bug Fixes
+
+* move clientCommandMessageReg to utils ([dd5d555](https://github.com/taskforcesh/bullmq/commit/dd5d5553fe768eb18b17b53c7f75e7066024e382))
+
 ### [1.40.1](https://github.com/taskforcesh/bullmq/compare/v1.40.0...v1.40.1) (2021-07-24)
 
 
