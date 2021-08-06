@@ -1,3 +1,10 @@
+## [1.40.4](https://github.com/taskforcesh/bullmq/compare/v1.40.3...v1.40.4) (2021-08-06)
+
+
+### Bug Fixes
+
+* **rate-limiter:** check groupKey is not undefined ([999b918](https://github.com/taskforcesh/bullmq/commit/999b91868814caf4c5c1ddee40798178b71e0ea8))
+
 ## [1.40.3](https://github.com/taskforcesh/bullmq/compare/v1.40.2...v1.40.3) (2021-08-06)
 
 
