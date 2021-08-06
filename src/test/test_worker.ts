@@ -82,20 +82,23 @@ describe('workers', function() {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
 
-      return new Promise((resolve, reject) => {
+      const completed = new Promise((resolve, reject) => {
         worker.on('completed', async (job: Job) => {
           try {
             const gotJob = await queue.getJob(job.id);
             expect(gotJob).to.be.equal(undefined);
             const counts = await queue.getJobCounts('completed');
             expect(counts.completed).to.be.equal(0);
-            await worker.close();
             resolve();
           } catch (err) {
             reject(err);
           }
         });
       });
+
+      await completed;
+
+      await worker.close();
     });
 
     it('should remove a job after completed if the default job options specify removeOnComplete', async () => {

@@ -229,6 +229,78 @@ describe('Rate Limiter', function() {
     await queueScheduler.close();
   });
 
+  it('should not obey rate limit by grouping if groupKey is missing', async function() {
+    const numJobs = 20;
+    const startTime = Date.now();
+
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.waitUntilReady();
+
+    const rateLimitedQueue = new Queue(queueName, {
+      limiter: {
+        groupKey: 'accountId',
+      },
+    });
+
+    const worker = new Worker(queueName, async job => {}, {
+      limiter: {
+        max: 1,
+        duration: 1000,
+        groupKey: 'accountId',
+      },
+    });
+
+    const completed: { [index: string]: number } = {};
+
+    const running = new Promise<void>((resolve, reject) => {
+      const afterJobs = after(numJobs, () => {
+        try {
+          const timeDiff = Date.now() - startTime;
+          // In some test envs, these timestamps can drift.
+          expect(timeDiff).to.be.gte(30);
+          expect(timeDiff).to.be.below(100);
+
+          let count = 0;
+          let prevTime;
+          for (const id in completed) {
+            if (count === 0) prevTime = completed[id];
+            else {
+              const diff = completed[id] - prevTime;
+              expect(diff).to.be.below(10);
+              expect(diff).to.be.gte(0);
+              prevTime = completed[id];
+            }
+            count++;
+          }
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      queueEvents.on('completed', ({ jobId }) => {
+        const id: string = last(jobId.split(':'));
+        completed[id] = Date.now();
+
+        afterJobs();
+      });
+
+      queueEvents.on('failed', async err => {
+        await worker.close();
+        reject(err);
+      });
+    });
+
+    for (let i = 0; i < numJobs; i++) {
+      await rateLimitedQueue.add('rate test', {});
+    }
+
+    await running;
+    await rateLimitedQueue.close();
+    await worker.close();
+    await queueScheduler.close();
+  });
+
   it.skip('should obey priority', async function() {
     this.timeout(20000);
 
