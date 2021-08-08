@@ -258,7 +258,7 @@ describe('Rate Limiter', function() {
           const timeDiff = Date.now() - startTime;
           // In some test envs, these timestamps can drift.
           expect(timeDiff).to.be.gte(30);
-          expect(timeDiff).to.be.below(100);
+          expect(timeDiff).to.be.below(325);
 
           let count = 0;
           let prevTime;
@@ -266,7 +266,7 @@ describe('Rate Limiter', function() {
             if (count === 0) prevTime = completed[id];
             else {
               const diff = completed[id] - prevTime;
-              expect(diff).to.be.below(10);
+              expect(diff).to.be.below(20);
               expect(diff).to.be.gte(0);
               prevTime = completed[id];
             }

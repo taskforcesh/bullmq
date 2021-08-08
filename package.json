@@ -24,6 +24,8 @@
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
     "cm": "git cz",
     "docs": "(api-extractor run || true) && api-documenter markdown -i ./temp -o docs/gitbook/api",
+    "dc:up": "docker-compose -f docker-compose.yml up -d",
+    "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
     "eslint:fix": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore --fix",
     "lint": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore",
