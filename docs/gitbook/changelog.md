@@ -1,67 +1,64 @@
-## [1.40.4](https://github.com/taskforcesh/bullmq/compare/v1.40.3...v1.40.4) (2021-08-06)
+# Changelog
 
-
-### Bug Fixes
-
-* **rate-limiter:** check groupKey is not undefined ([999b918](https://github.com/taskforcesh/bullmq/commit/999b91868814caf4c5c1ddee40798178b71e0ea8))
-
-## [1.40.3](https://github.com/taskforcesh/bullmq/compare/v1.40.2...v1.40.3) (2021-08-06)
-
+## [1.40.4](https://github.com/taskforcesh/bullmq/compare/v1.40.3...v1.40.4) \(2021-08-06\)
 
 ### Bug Fixes
 
-* **redis-connection:** add error event in waitUntilReady ([ac4101e](https://github.com/taskforcesh/bullmq/commit/ac4101e3e798110c022d6c9f10f3b98f5e86b151))
+* **rate-limiter:** check groupKey is not undefined \([999b918](https://github.com/taskforcesh/bullmq/commit/999b91868814caf4c5c1ddee40798178b71e0ea8)\)
 
-## [1.40.2](https://github.com/taskforcesh/bullmq/compare/v1.40.1...v1.40.2) (2021-08-06)
-
+## [1.40.3](https://github.com/taskforcesh/bullmq/compare/v1.40.2...v1.40.3) \(2021-08-06\)
 
 ### Bug Fixes
 
-* move clientCommandMessageReg to utils ([dd5d555](https://github.com/taskforcesh/bullmq/commit/dd5d5553fe768eb18b17b53c7f75e7066024e382))
+* **redis-connection:** add error event in waitUntilReady \([ac4101e](https://github.com/taskforcesh/bullmq/commit/ac4101e3e798110c022d6c9f10f3b98f5e86b151)\)
 
-### [1.40.1](https://github.com/taskforcesh/bullmq/compare/v1.40.0...v1.40.1) (2021-07-24)
+## [1.40.2](https://github.com/taskforcesh/bullmq/compare/v1.40.1...v1.40.2) \(2021-08-06\)
 
+### Bug Fixes
+
+* move clientCommandMessageReg to utils \([dd5d555](https://github.com/taskforcesh/bullmq/commit/dd5d5553fe768eb18b17b53c7f75e7066024e382)\)
+
+### [1.40.1](https://github.com/taskforcesh/bullmq/compare/v1.40.0...v1.40.1) \(2021-07-24\)
 
 #### Bug Fixes
 
-* connection hangs with failed connection fixes [#656](https://github.com/taskforcesh/bullmq/issues/656) ([c465611](https://github.com/taskforcesh/bullmq/commit/c465611ed76afd2adfd0e05a8babd6e369f5c310))
+* connection hangs with failed connection fixes [\#656](https://github.com/taskforcesh/bullmq/issues/656) \([c465611](https://github.com/taskforcesh/bullmq/commit/c465611ed76afd2adfd0e05a8babd6e369f5c310)\)
 
-## [1.40.0](https://github.com/taskforcesh/bullmq/compare/v1.39.5...v1.40.0) (2021-07-22)
-
+## [1.40.0](https://github.com/taskforcesh/bullmq/compare/v1.39.5...v1.40.0) \(2021-07-22\)
 
 #### Features
 
-* **worker:** retry with delay errors in run loop ([409fe7f](https://github.com/taskforcesh/bullmq/commit/409fe7fc09b87b7916a3362a463bb9e0f17ecea8))
+* **worker:** retry with delay errors in run loop \([409fe7f](https://github.com/taskforcesh/bullmq/commit/409fe7fc09b87b7916a3362a463bb9e0f17ecea8)\)
 
-### [1.39.5](https://github.com/taskforcesh/bullmq/compare/v1.39.4...v1.39.5) (2021-07-21)
-
-#### Bug Fixes
-
-* **move-to-finished:** remove stalled jobs when finishing ([3867126](https://github.com/taskforcesh/bullmq/commit/38671261ccc00ca7fefa677663e45a40a92df555))
-
-### [1.39.4](https://github.com/taskforcesh/bullmq/compare/v1.39.3...v1.39.4) (2021-07-21)
+### [1.39.5](https://github.com/taskforcesh/bullmq/compare/v1.39.4...v1.39.5) \(2021-07-21\)
 
 #### Bug Fixes
 
-* **repeatable:** validate endDate when adding next repeatable job ([1324cbb](https://github.com/taskforcesh/bullmq/commit/1324cbb4effd55e98c29d95a21afca7cd045b46c))
+* **move-to-finished:** remove stalled jobs when finishing \([3867126](https://github.com/taskforcesh/bullmq/commit/38671261ccc00ca7fefa677663e45a40a92df555)\)
 
-### [1.39.3](https://github.com/taskforcesh/bullmq/compare/v1.39.2...v1.39.3) (2021-07-16)
-
-#### Bug Fixes
-
-* connect if redis client has status "wait" ([f711717](https://github.com/taskforcesh/bullmq/commit/f711717f56822aef43c9fd0440e30fad0876ba62))
-
-### [1.39.2](https://github.com/taskforcesh/bullmq/compare/v1.39.1...v1.39.2) (2021-07-15)
+### [1.39.4](https://github.com/taskforcesh/bullmq/compare/v1.39.3...v1.39.4) \(2021-07-21\)
 
 #### Bug Fixes
 
-* **queue:** ensure the Queue constructor doesn't try to set queue options if the client is closed ([b40c6eb](https://github.com/taskforcesh/bullmq/commit/b40c6eb931a71d0ae9f6454eb70d84259a6981b7))
+* **repeatable:** validate endDate when adding next repeatable job \([1324cbb](https://github.com/taskforcesh/bullmq/commit/1324cbb4effd55e98c29d95a21afca7cd045b46c)\)
 
-### [1.39.1](https://github.com/taskforcesh/bullmq/compare/v1.39.0...v1.39.1) (2021-07-15)
+### [1.39.3](https://github.com/taskforcesh/bullmq/compare/v1.39.2...v1.39.3) \(2021-07-16\)
 
 #### Bug Fixes
 
-* **sandbox:** use updateProgress method name ([27d62c3](https://github.com/taskforcesh/bullmq/commit/27d62c32b2fac091b2700d6077de593c9fda4c22))
+* connect if redis client has status "wait" \([f711717](https://github.com/taskforcesh/bullmq/commit/f711717f56822aef43c9fd0440e30fad0876ba62)\)
+
+### [1.39.2](https://github.com/taskforcesh/bullmq/compare/v1.39.1...v1.39.2) \(2021-07-15\)
+
+#### Bug Fixes
+
+* **queue:** ensure the Queue constructor doesn't try to set queue options if the client is closed \([b40c6eb](https://github.com/taskforcesh/bullmq/commit/b40c6eb931a71d0ae9f6454eb70d84259a6981b7)\)
+
+### [1.39.1](https://github.com/taskforcesh/bullmq/compare/v1.39.0...v1.39.1) \(2021-07-15\)
+
+#### Bug Fixes
+
+* **sandbox:** use updateProgress method name \([27d62c3](https://github.com/taskforcesh/bullmq/commit/27d62c32b2fac091b2700d6077de593c9fda4c22)\)
 
 ## [1.39.0](https://github.com/taskforcesh/bullmq/compare/v1.38.1...v1.39.0) \(2021-07-13\)
 
@@ -906,3 +903,4 @@
 * Introduced animals into the world, we believe they're going to be a neat addition.
 
 #### 4.0.0-beta.0
+

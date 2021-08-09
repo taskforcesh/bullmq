@@ -27,7 +27,7 @@ await worker.close();
 There is an important consideration regarding job "locks" when processing manually. Locks avoid other workers to fetch the same job that is being processed by a given worker. The ownership of the lock is determined by the "token" that is sent when getting the job.
 
 {% hint style="info" %}
-lock duration setting is called "visibility window" in other queue systems.
+the lock duration setting is called "visibility window" in other queue systems.
 {% endhint %}
 
 Normally a job gets locked as soon as it is fetched from the queue with a max duration of "lockDuration" worker option. The default is 30 seconds but can be changed to any value easily, for example to change it to 60 seconds:
@@ -43,5 +43,46 @@ const job = (await worker.getNextJob(token)) as Job;
 
 // Extend the lock 30 more seconds
 await job.extendLock(token, 30000);
+```
+
+#### Looping through jobs
+
+In many cases you will have an "infinite" loop that processes jobs one by one like this example:
+
+```typescript
+  const worker = new Worker("my-queue");
+
+  const token = "my-token";
+  let job;
+
+  while (1) {
+    let jobData = null,
+      jobId,
+      success;
+
+    if (job) {
+      // Use job.data to process this particular job.
+      // and set success variable if succeeded
+
+      if (success) {
+        [jobData, jobId] = await job.moveToCompleted(
+          "some return value",
+          token
+        );
+      } else {
+        await job.moveToFailed(new Error("some error message"), token);
+      }
+
+      if (jobData) {
+        job = Job.fromJSON(worker, jobData, jobId);
+      } else {
+        job = null;
+      }
+    } else {
+      if (!job) {
+        job = await worker.getNextJob(token);
+      }
+    }
+  }
 ```
 
