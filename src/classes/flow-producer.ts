@@ -52,6 +52,32 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
+   * Updates the job ids in the jobs tree for the children.
+   *
+   * @param jobsTree The job node.
+   * @param result Redis multi exec.
+   * @param index Index of the job in the tree.
+   * @returns next index in job tree
+   */
+  static updateJobIds(
+    jobsTree: JobNode,
+    result: [Error, string][],
+    index: number,
+  ): number {
+    // TODO: Can we safely ignore result errors? how could they happen in the
+    // first place?
+    jobsTree.job.id = result[index][1];
+    index++;
+    const children = jobsTree.children;
+    if (children) {
+      for (let i = 0; i < children.length; i++) {
+        index = FlowProducer.updateJobIds(children[i], result, index);
+      }
+    }
+    return index;
+  }
+
+  /**
    * @method add
    * Adds a flow.
    *
@@ -72,23 +98,7 @@ export class FlowProducer extends EventEmitter {
 
     const result = await multi.exec();
 
-    const updateJobIds = (
-      jobsTree: JobNode,
-      result: [Error, string][],
-      index: number,
-    ) => {
-      // TODO: Can we safely ignore result errors? how could they happen in the
-      // first place?
-      jobsTree.job.id = result[index][1];
-      const children = jobsTree.children;
-      if (children) {
-        for (let i = 0; i < children.length; i++) {
-          updateJobIds(children[i], result, index + i + 1);
-        }
-      }
-    };
-
-    updateJobIds(jobsTree, result, 0);
+    FlowProducer.updateJobIds(jobsTree, result, 0);
 
     return jobsTree;
   }
@@ -147,21 +157,8 @@ export class FlowProducer extends EventEmitter {
     const result = await multi.exec();
 
     let index = 0;
-    const updateJobIds = (jobTree: JobNode) => {
-      // TODO: Can we safely ignore result errors? how could they happen in the
-      // first place?
-      jobTree.job.id = result[index][1];
-      index++;
-      const children = jobTree.children;
-      if (children) {
-        for (let i = 0; i < children.length; i++) {
-          updateJobIds(children[i]);
-        }
-      }
-    };
-
     for (const jobTree of jobsTrees) {
-      updateJobIds(jobTree);
+      index = FlowProducer.updateJobIds(jobTree, result, index);
     }
 
     return jobsTrees;

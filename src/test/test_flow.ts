@@ -791,7 +791,7 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
-  it('should process job when using addBulk', async () => {
+  it('should process jobs when using addBulk', async () => {
     const name = 'child-job';
     const values = [
       { idx: 0, bar: 'something' },
