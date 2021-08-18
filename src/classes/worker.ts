@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
-import { QueueBase, Repeat } from './';
+import { QueueBase } from './queue-base';
+import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
 import { RedisConnection, RedisClient } from './redis-connection';
@@ -10,12 +11,10 @@ import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import { v4 } from 'uuid';
 import { TimerManager } from './timer-manager';
-import { isRedisInstance, delay } from '../utils';
+import { clientCommandMessageReg, delay, isRedisInstance } from '../utils';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
-
-export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
 
 export declare interface Worker {
   on(event: 'active', listener: (job: Job, prev: string) => void): this;
