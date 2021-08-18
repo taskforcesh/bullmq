@@ -379,7 +379,7 @@ describe('flows', () => {
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
-    const waitOnComplete = new Promise((resolve, reject) => {
+    const waitOnComplete = new Promise<void>((resolve, reject) => {
       parentWorker.on('completed', async job => {
         try {
           const gotJob = await parentQueue.getJob(job.id);

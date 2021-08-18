@@ -52,32 +52,6 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
-   * Updates the job ids in the jobs tree for the children.
-   *
-   * @param jobsTree The job node.
-   * @param result Redis multi exec.
-   * @param index Index of the job in the tree.
-   * @returns next index in job tree
-   */
-  static updateJobIds(
-    jobsTree: JobNode,
-    result: [Error, string][],
-    index: number,
-  ): number {
-    // TODO: Can we safely ignore result errors? how could they happen in the
-    // first place?
-    jobsTree.job.id = result[index][1];
-    index++;
-    const children = jobsTree.children;
-    if (children) {
-      for (let i = 0; i < children.length; i++) {
-        index = FlowProducer.updateJobIds(children[i], result, index);
-      }
-    }
-    return index;
-  }
-
-  /**
    * @method add
    * Adds a flow.
    *
@@ -96,9 +70,7 @@ export class FlowProducer extends EventEmitter {
 
     const jobsTree = this.addNode(multi, flow);
 
-    const result = await multi.exec();
-
-    FlowProducer.updateJobIds(jobsTree, result, 0);
+    await multi.exec();
 
     return jobsTree;
   }
@@ -154,12 +126,7 @@ export class FlowProducer extends EventEmitter {
 
     const jobsTrees = this.addNodes(multi, flows);
 
-    const result = await multi.exec();
-
-    let index = 0;
-    for (const jobTree of jobsTrees) {
-      index = FlowProducer.updateJobIds(jobTree, result, index);
-    }
+    await multi.exec();
 
     return jobsTrees;
   }

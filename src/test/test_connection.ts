@@ -16,7 +16,7 @@ describe('connection', () => {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 
@@ -163,6 +163,21 @@ describe('connection', () => {
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
       'Connection is closed.',
     );
+  });
+
+  it('should emit error if redis connection fails', async () => {
+    const queueFail = new Queue('connection fail port', {
+      connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
+    });
+
+    const waitingErrorEvent = new Promise(resolve => {
+      queueFail.on('error', err => {
+        expect(err.message).to.equal('Connection is closed.');
+        resolve();
+      });
+    });
+
+    await waitingErrorEvent;
   });
 
   it('should close if connection has failed', async () => {

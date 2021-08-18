@@ -1,4 +1,4 @@
-import { get } from 'lodash';
+import { get, isUndefined } from 'lodash';
 import { v4 } from 'uuid';
 import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
 import { Repeat } from './repeat';
@@ -80,9 +80,10 @@ export class Queue<
 
   private jobIdForGroup(opts: JobsOptions, data: T) {
     const jobId = opts && opts.jobId;
-    const groupKey = get(this, 'limiter.groupKey');
-    if (groupKey) {
-      return `${jobId || v4()}:${get(data, groupKey)}`;
+    const groupKeyPath = get(this, 'limiter.groupKey');
+    const groupKey = get(data, groupKeyPath);
+    if (groupKeyPath && !isUndefined(groupKey)) {
+      return `${jobId || v4()}:${groupKey}`;
     }
     return jobId;
   }

@@ -29,12 +29,6 @@
 |  [ClientType](./bullmq.clienttype.md) |  |
 |  [RetryErrors](./bullmq.retryerrors.md) |  |
 
-## Functions
-
-|  Function | Description |
-|  --- | --- |
-|  [getParentKey(opts)](./bullmq.getparentkey.md) |  |
-
 ## Interfaces
 
 |  Interface | Description |
@@ -70,7 +64,6 @@
 |  Variable | Description |
 |  --- | --- |
 |  [AdvancedOptionsDefaults](./bullmq.advancedoptionsdefaults.md) |  |
-|  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
 |  [load](./bullmq.load.md) |  |
 
 ## Type Aliases
