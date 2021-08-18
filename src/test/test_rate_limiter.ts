@@ -229,8 +229,7 @@ describe('Rate Limiter', function() {
     await queueScheduler.close();
   });
 
-  // skipped this test as it is failing on CI, although passes locally.
-  it.skip('should not obey rate limit by grouping if groupKey is missing', async function() {
+  it('should not obey rate limit by grouping if groupKey is missing', async function() {
     const numJobs = 20;
     const startTime = Date.now();
 
