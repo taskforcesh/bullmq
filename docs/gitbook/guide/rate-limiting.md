@@ -24,6 +24,8 @@ Jobs that get rate limited will actually end as delayed jobs, so you need at lea
 The rate limiter is global, so if you have for example 10 workers for one queue with the above settings, still only 10 jobs will be processed by second.
 {% endhint %}
 
+### Group keys
+
 It is also possible to define a rate limiter based on group keys, for example you may want to have a rate limiter per _customer_ instead of a global rate limiter for all customers:
 
 ```typescript
