@@ -1,7 +1,7 @@
 # Flows
 
 {% hint style="warning" %}
-The following pattern, although still useful, has been mostly super-seeded by the new [Flows](../guide/jobs/flows.md) functionality
+The following pattern, although still useful, has been mostly super-seeded by the new [Flows](../guide/flows.md) functionality
 {% endhint %}
 
 In some situations you need to execute a flow of actions that each and one of them could fail, it could be database updates, calls to external services, or any other kind of asynchronous call.
