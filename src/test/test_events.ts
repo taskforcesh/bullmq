@@ -1,10 +1,10 @@
+import * as IORedis from 'ioredis';
+import { v4 } from 'uuid';
+import { expect } from 'chai';
+import { beforeEach, describe, it } from 'mocha';
 import { Queue } from '../classes';
 import { QueueEvents } from '../classes/queue-events';
 import { Worker } from '../classes/worker';
-import { expect } from 'chai';
-import * as IORedis from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../utils';
 
 describe('events', function() {
@@ -51,7 +51,7 @@ describe('events', function() {
       drainDelay: 1,
     });
 
-    const drained = new Promise(resolve => {
+    const drained = new Promise<void>(resolve => {
       queueEvents.once('drained', id => {
         expect(id).to.be.string;
         resolve();
@@ -94,7 +94,7 @@ describe('events', function() {
 
     await queue.add('test', {});
 
-    const completed = new Promise(resolve => {
+    const completed = new Promise<void>(resolve => {
       worker.once('active', function() {
         worker.once('completed', async function() {
           await worker.close();
@@ -123,7 +123,7 @@ describe('events', function() {
       state = 'active';
     });
 
-    const completed = new Promise(resolve => {
+    const completed = new Promise<void>(resolve => {
       queueEvents.once('completed', async function({ jobId, returnvalue }) {
         expect(jobId).to.be.equal('1');
         expect(returnvalue).to.be.null;

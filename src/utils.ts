@@ -1,5 +1,9 @@
-import { RedisClient } from './classes';
 import { Cluster } from 'ioredis';
+import { v4 } from 'uuid';
+import { get, isUndefined } from 'lodash';
+import { RedisClient } from './classes/redis-connection';
+import { JobsOptions } from './interfaces/jobs-options';
+import { QueueOptions } from './interfaces/queue-options';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -56,7 +60,7 @@ export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
   prefix = 'bull',
-) {
+): Promise<void | boolean> {
   if (client instanceof Cluster) {
     // todo compat with cluster ?
     // @see https://github.com/luin/ioredis/issues/175
@@ -87,6 +91,20 @@ export function getParentKey(opts: { id: string; queue: string }): string {
   if (opts) {
     return `${opts.queue}:${opts.id}`;
   }
+}
+
+export function jobIdForGroup(
+  jobOpts: JobsOptions,
+  data: any,
+  queueOpts: QueueOptions,
+): string {
+  const jobId = jobOpts?.jobId;
+  const groupKeyPath = get(queueOpts, 'limiter.groupKey');
+  const groupKey = get(data, groupKeyPath);
+  if (groupKeyPath && !isUndefined(groupKey)) {
+    return `${jobId || v4()}:${groupKey}`;
+  }
+  return jobId;
 }
 
 export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;

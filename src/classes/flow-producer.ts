@@ -1,12 +1,38 @@
-import { v4 } from 'uuid';
-import { Redis, Pipeline } from 'ioredis';
 import { EventEmitter } from 'events';
-import { QueueBaseOptions } from '../interfaces';
-import { RedisClient, RedisConnection } from './redis-connection';
-import { KeysMap, QueueKeys } from './queue-keys';
-import { FlowJob } from '../interfaces/flow-job';
-import { getParentKey } from '../utils';
+import { Redis, Pipeline } from 'ioredis';
+import { v4 } from 'uuid';
+import { QueueBaseOptions } from '../interfaces/queue-options';
+import { FlowJob, FlowQueuesOpts, FlowOpts } from '../interfaces/flow-job';
+import { getParentKey, jobIdForGroup } from '../utils';
 import { Job } from './job';
+import { KeysMap, QueueKeys } from './queue-keys';
+import { RedisClient, RedisConnection } from './redis-connection';
+
+export interface AddNodeOpts {
+  multi: Pipeline;
+  node: FlowJob;
+  parent?: {
+    parentOpts: {
+      id: string;
+      queue: string;
+    };
+    parentDependenciesKey: string;
+  };
+  queuesOpts?: FlowQueuesOpts;
+}
+
+export interface AddChildrenOpts {
+  multi: Pipeline;
+  nodes: FlowJob[];
+  parent: {
+    parentOpts: {
+      id: string;
+      queue: string;
+    };
+    parentDependenciesKey: string;
+  };
+  queuesOpts?: FlowQueuesOpts;
+}
 
 export interface NodeOpts {
   queueName: string;
@@ -61,14 +87,18 @@ export class FlowProducer extends EventEmitter {
    * @param flow An object with a tree-like structure where children jobs
    * will be processed before their parents.
    */
-  async add(flow: FlowJob): Promise<JobNode> {
+  async add(flow: FlowJob, opts?: FlowOpts): Promise<JobNode> {
     if (this.closing) {
       return;
     }
     const client = await this.connection.client;
     const multi = client.multi();
 
-    const jobsTree = this.addNode(multi, flow);
+    const jobsTree = this.addNode({
+      multi,
+      node: flow,
+      queuesOpts: opts?.queuesOptions,
+    });
 
     await multi.exec();
 
@@ -142,20 +172,12 @@ export class FlowProducer extends EventEmitter {
    * @param parent Parent data sent to children to create the "links" to their parent
    * @returns
    */
-  private addNode(
-    multi: Pipeline,
-    node: FlowJob,
-    parent?: {
-      parentOpts: {
-        id: string;
-        queue: string;
-      };
-      parentDependenciesKey: string;
-    },
-  ): JobNode {
+  private addNode({ multi, node, parent, queuesOpts }: AddNodeOpts): JobNode {
     const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
+    const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
-    const jobId = node.opts?.jobId || v4();
+    const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
+
     const job = new Job(
       queue,
       node.name,
@@ -189,12 +211,17 @@ export class FlowProducer extends EventEmitter {
         parentId,
       )}:dependencies`;
 
-      const children = this.addChildren(multi, node.children, {
-        parentOpts: {
-          id: parentId,
-          queue: queueKeysParent.getPrefixedQueueName(node.queueName),
+      const children = this.addChildren({
+        multi,
+        nodes: node.children,
+        parent: {
+          parentOpts: {
+            id: parentId,
+            queue: queueKeysParent.getPrefixedQueueName(node.queueName),
+          },
+          parentDependenciesKey,
         },
-        parentDependenciesKey,
+        queuesOpts,
       });
 
       return { job, children };
@@ -219,7 +246,7 @@ export class FlowProducer extends EventEmitter {
    * @returns
    */
   private addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
-    return nodes.map(node => this.addNode(multi, node));
+    return nodes.map(node => this.addNode({ multi, node }));
   }
 
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
@@ -255,18 +282,8 @@ export class FlowProducer extends EventEmitter {
     }
   }
 
-  private addChildren(
-    multi: Pipeline,
-    nodes: FlowJob[],
-    parent: {
-      parentOpts: {
-        id: string;
-        queue: string;
-      };
-      parentDependenciesKey: string;
-    },
-  ) {
-    return nodes.map(node => this.addNode(multi, node, parent));
+  private addChildren({ multi, nodes, parent, queuesOpts }: AddChildrenOpts) {
+    return nodes.map(node => this.addNode({ multi, node, parent, queuesOpts }));
   }
 
   private getChildren(

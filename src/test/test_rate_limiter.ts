@@ -15,7 +15,7 @@ describe('Rate Limiter', function() {
   let queueEvents: QueueEvents;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();

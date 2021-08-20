@@ -16,7 +16,7 @@ describe('Jobs getters', function() {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 
@@ -51,7 +51,7 @@ describe('Jobs getters', function() {
 
   it('should get active jobs', async function() {
     let processor;
-    const processing = new Promise(resolve => {
+    const processing = new Promise<void>(resolve => {
       processor = async (job: Job) => {
         const jobs = await queue.getActive();
         expect(jobs).to.be.a('array');
@@ -85,7 +85,7 @@ describe('Jobs getters', function() {
     const worker = new Worker(queueName, async job => {});
     let counter = 2;
 
-    const completed = new Promise(resolve => {
+    const completed = new Promise<void>(resolve => {
       worker.on('completed', async function() {
         counter--;
 
@@ -114,7 +114,7 @@ describe('Jobs getters', function() {
 
     let counter = 2;
 
-    const failed = new Promise(resolve => {
+    const failed = new Promise<void>(resolve => {
       worker.on('failed', async function() {
         counter--;
 
