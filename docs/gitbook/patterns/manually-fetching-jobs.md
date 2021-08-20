@@ -14,14 +14,13 @@ const job = (await worker.getNextJob(token)) as Job;
 
 // Access job.data and do something with the job
 // processJob(job.data)
-if(succeeded) {
+if (succeeded) {
   await job.moveToCompleted('some return value', token);
 } else {
   await job.moveToFailed(new Error('my error message'), token);
 }
 
 await worker.close();
-
 ```
 
 There is an important consideration regarding job "locks" when processing manually. Locks avoid other workers to fetch the same job that is being processed by a given worker. The ownership of the lock is determined by the "token" that is sent when getting the job.
@@ -50,39 +49,35 @@ await job.extendLock(token, 30000);
 In many cases you will have an "infinite" loop that processes jobs one by one like this example:
 
 ```typescript
-  const worker = new Worker("my-queue");
+const worker = new Worker('my-queue');
 
-  const token = "my-token";
-  let job;
+const token = 'my-token';
+let job;
 
-  while (1) {
-    let jobData = null,
-      jobId,
-      success;
+while (1) {
+  let jobData = null,
+    jobId,
+    success;
 
-    if (job) {
-      // Use job.data to process this particular job.
-      // and set success variable if succeeded
+  if (job) {
+    // Use job.data to process this particular job.
+    // and set success variable if succeeded
 
-      if (success) {
-        [jobData, jobId] = await job.moveToCompleted(
-          "some return value",
-          token
-        );
-      } else {
-        await job.moveToFailed(new Error("some error message"), token);
-      }
-
-      if (jobData) {
-        job = Job.fromJSON(worker, jobData, jobId);
-      } else {
-        job = null;
-      }
+    if (success) {
+      [jobData, jobId] = await job.moveToCompleted('some return value', token);
     } else {
-      if (!job) {
-        job = await worker.getNextJob(token);
-      }
+      await job.moveToFailed(new Error('some error message'), token);
+    }
+
+    if (jobData) {
+      job = Job.fromJSON(worker, jobData, jobId);
+    } else {
+      job = null;
+    }
+  } else {
+    if (!job) {
+      job = await worker.getNextJob(token);
     }
   }
+}
 ```
-
