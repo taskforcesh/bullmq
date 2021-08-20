@@ -1,9 +1,10 @@
-import { get, isUndefined } from 'lodash';
+import { get } from 'lodash';
 import { v4 } from 'uuid';
 import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
-import { Repeat } from './repeat';
-import { QueueGetters } from './queue-getters';
+import { jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
+import { QueueGetters } from './queue-getters';
+import { Repeat } from './repeat';
 import { Scripts } from './scripts';
 
 export declare interface Queue {
@@ -66,7 +67,7 @@ export class Queue<
         true,
       );
     } else {
-      const jobId = this.jobIdForGroup(opts, data);
+      const jobId = jobIdForGroup(opts, data, { limiter: this.limiter });
 
       const job = await Job.create<T, R, N>(this, name, data, {
         ...this.jobsOpts,
@@ -76,16 +77,6 @@ export class Queue<
       this.emit('waiting', job);
       return job;
     }
-  }
-
-  private jobIdForGroup(opts: JobsOptions, data: T) {
-    const jobId = opts && opts.jobId;
-    const groupKeyPath = get(this, 'limiter.groupKey');
-    const groupKey = get(data, groupKeyPath);
-    if (groupKeyPath && !isUndefined(groupKey)) {
-      return `${jobId || v4()}:${groupKey}`;
-    }
-    return jobId;
   }
 
   /**
@@ -103,7 +94,7 @@ export class Queue<
         opts: {
           ...this.jobsOpts,
           ...job.opts,
-          jobId: this.jobIdForGroup(job.opts, job.data),
+          jobId: jobIdForGroup(job.opts, job.data, { limiter: this.limiter }),
         },
       })),
     );

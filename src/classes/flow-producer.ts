@@ -1,11 +1,9 @@
 import { v4 } from 'uuid';
-import { get, isUndefined } from 'lodash';
 import { Redis, Pipeline } from 'ioredis';
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, QueueOptions } from '../interfaces/queue-options';
-import { JobsOptions } from '../interfaces/jobs-options';
+import { QueueBaseOptions } from '../interfaces/queue-options';
 import { FlowJob, FlowQueuesOpts, FlowOpts } from '../interfaces/flow-job';
-import { getParentKey } from '../utils';
+import { getParentKey, jobIdForGroup } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisClient, RedisConnection } from './redis-connection';
@@ -48,20 +46,6 @@ export interface JobNode {
   job: Job;
   children?: JobNode[];
 }
-
-const jobIdForGroup = (
-  jobOpts: JobsOptions,
-  data: any,
-  queueOpts: QueueOptions,
-) => {
-  const jobId = jobOpts && jobOpts.jobId;
-  const groupKeyPath = get(queueOpts, 'limiter.groupKey');
-  const groupKey = get(data, groupKeyPath);
-  if (groupKeyPath && !isUndefined(groupKey)) {
-    return `${jobId || v4()}:${groupKey}`;
-  }
-  return jobId;
-};
 
 /**
  * This class allows to add jobs with dependencies between them in such
