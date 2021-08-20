@@ -1,4 +1,5 @@
 import { JobsOptions } from './jobs-options';
+import { QueueOptions } from './queue-options';
 
 export interface FlowJob {
   name: string;
@@ -7,4 +8,13 @@ export interface FlowJob {
   prefix?: string;
   opts?: Omit<JobsOptions, 'parent'>;
   children?: FlowJob[];
+}
+
+export type FlowQueuesOpts = Record<
+  string,
+  Omit<QueueOptions, 'connection' | 'prefix'>
+>;
+
+export interface FlowOpts {
+  queuesOptions: FlowQueuesOpts;
 }

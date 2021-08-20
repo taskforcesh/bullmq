@@ -28,7 +28,7 @@ describe('connection', () => {
   it('should recover from a connection loss', async () => {
     let processor;
 
-    const processing = new Promise(resolve => {
+    const processing = new Promise<void>(resolve => {
       processor = async (job: Job) => {
         expect(job.data.foo).to.be.equal('bar');
         resolve();
@@ -66,7 +66,7 @@ describe('connection', () => {
     let count = 0;
     let processor;
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         try {
           if (count == 0) {
@@ -170,7 +170,7 @@ describe('connection', () => {
       connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
     });
 
-    const waitingErrorEvent = new Promise(resolve => {
+    const waitingErrorEvent = new Promise<void>(resolve => {
       queueFail.on('error', err => {
         expect(err.message).to.equal('Connection is closed.');
         resolve();
