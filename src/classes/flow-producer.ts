@@ -1,6 +1,6 @@
-import { v4 } from 'uuid';
-import { Redis, Pipeline } from 'ioredis';
 import { EventEmitter } from 'events';
+import { Redis, Pipeline } from 'ioredis';
+import { v4 } from 'uuid';
 import { QueueBaseOptions } from '../interfaces/queue-options';
 import { FlowJob, FlowQueuesOpts, FlowOpts } from '../interfaces/flow-job';
 import { getParentKey, jobIdForGroup } from '../utils';
@@ -246,7 +246,7 @@ export class FlowProducer extends EventEmitter {
    * @returns
    */
   private addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
-    return nodes.map(node => this.addNode(multi, node));
+    return nodes.map(node => this.addNode({ multi, node }));
   }
 
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {

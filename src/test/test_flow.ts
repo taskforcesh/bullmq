@@ -1,4 +1,13 @@
-import { Queue, Worker, Job, FlowProducer, JobNode } from '../classes';
+import { after, last } from 'lodash';
+import {
+  Job,
+  Queue,
+  QueueScheduler,
+  QueueEvents,
+  Worker,
+  FlowProducer,
+  JobNode,
+} from '../classes';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
@@ -105,6 +114,124 @@ describe('flows', () => {
 
     await processingParent;
     await parentWorker.close();
+
+    await flow.close();
+
+    await removeAllQueueData(new IORedis(), parentQueueName);
+  });
+
+  it('should rate limit by grouping', async function() {
+    this.timeout(20000);
+
+    const numGroups = 4;
+    const numJobs = 20;
+    const startTime = new Date().getTime();
+
+    const queueScheduler = new QueueScheduler(queueName);
+    const queueEvents = new QueueEvents(queueName);
+    await queueScheduler.waitUntilReady();
+    await queueEvents.waitUntilReady();
+
+    const name = 'child-job';
+
+    const parentQueueName = `parent-queue-${v4()}`;
+
+    let parentProcessor;
+    const processingParent = new Promise<void>((resolve, reject) => [
+      (parentProcessor = async (job: Job) => {
+        try {
+          resolve();
+        } catch (err) {
+          console.error(err);
+          reject(err);
+        }
+      }),
+    ]);
+
+    const parentWorker = new Worker(parentQueueName, parentProcessor);
+    const childrenWorker = new Worker(queueName, async job => {}, {
+      limiter: {
+        max: 1,
+        duration: 1000,
+        groupKey: 'accountId',
+      },
+    });
+    await parentWorker.waitUntilReady();
+    await childrenWorker.waitUntilReady();
+
+    const completed: { [index: string]: number[] } = {};
+
+    const running = new Promise<void>((resolve, reject) => {
+      const afterJobs = after(numJobs, () => {
+        try {
+          const timeDiff = Date.now() - startTime;
+          // In some test envs, these timestamps can drift.
+          expect(timeDiff).to.be.gte(numGroups * 990);
+          expect(timeDiff).to.be.below((numGroups + 1) * 1100);
+
+          for (const group in completed) {
+            let prevTime = completed[group][0];
+            for (let i = 1; i < completed[group].length; i++) {
+              const diff = completed[group][i] - prevTime;
+              expect(diff).to.be.below(2100);
+              expect(diff).to.be.gte(980);
+              prevTime = completed[group][i];
+            }
+          }
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      queueEvents.on('completed', ({ jobId }) => {
+        const group: string = last(jobId.split(':'));
+        completed[group] = completed[group] || [];
+        completed[group].push(Date.now());
+
+        afterJobs();
+      });
+
+      queueEvents.on('failed', async err => {
+        reject(err);
+      });
+    });
+
+    const flow = new FlowProducer();
+
+    const childrenData = [];
+    for (let i = 0; i < numJobs; i++) {
+      childrenData.push({
+        name,
+        data: { accountId: i % numGroups },
+        queueName,
+      });
+    }
+
+    await flow.add(
+      {
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: childrenData,
+      },
+      {
+        queuesOptions: {
+          [queueName]: {
+            limiter: {
+              groupKey: 'accountId',
+            },
+          },
+        },
+      },
+    );
+
+    await running;
+    await childrenWorker.close();
+    await processingParent;
+    await parentWorker.close();
+    await queueScheduler.close();
+    await queueEvents.close();
 
     await flow.close();
 
