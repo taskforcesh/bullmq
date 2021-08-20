@@ -11,7 +11,7 @@ This call would be atomic, either it fails and no jobs will be added to the queu
 <b>Signature:</b>
 
 ```typescript
-add(flow: FlowJob): Promise<JobNode>;
+add(flow: FlowJob, opts?: FlowOpts): Promise<JobNode>;
 ```
 
 ## Parameters
@@ -19,6 +19,7 @@ add(flow: FlowJob): Promise<JobNode>;
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  flow | [FlowJob](./bullmq.flowjob.md) | An object with a tree-like structure where children jobs will be processed before their parents. |
+|  opts | [FlowOpts](./bullmq.flowopts.md) |  |
 
 <b>Returns:</b>
 

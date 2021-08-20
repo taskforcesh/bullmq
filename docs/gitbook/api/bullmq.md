@@ -33,11 +33,14 @@
 
 |  Interface | Description |
 |  --- | --- |
+|  [AddChildrenOpts](./bullmq.addchildrenopts.md) |  |
+|  [AddNodeOpts](./bullmq.addnodeopts.md) |  |
 |  [AdvancedOptions](./bullmq.advancedoptions.md) |  |
 |  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
 |  [DependenciesOpts](./bullmq.dependenciesopts.md) |  |
 |  [FlowJob](./bullmq.flowjob.md) |  |
+|  [FlowOpts](./bullmq.flowopts.md) |  |
 |  [GetNextJobOptions](./bullmq.getnextjoboptions.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
@@ -73,6 +76,7 @@
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
 |  [BulkJobOptions](./bullmq.bulkjoboptions.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
+|  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  [ParentOpts](./bullmq.parentopts.md) |  |
 |  [Processor](./bullmq.processor.md) | An async function that receives <code>Job</code>s and handles them. |
