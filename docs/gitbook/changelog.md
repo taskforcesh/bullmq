@@ -903,4 +903,3 @@
 * Introduced animals into the world, we believe they're going to be a neat addition.
 
 #### 4.0.0-beta.0
-
