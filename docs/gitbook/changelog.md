@@ -1,4 +1,4 @@
-# Changelog hola
+# Changelog
 
 ## [1.40.4](https://github.com/taskforcesh/bullmq/compare/v1.40.3...v1.40.4) \(2021-08-06\)
 
