@@ -1,3 +1,10 @@
+# [1.41.0](https://github.com/taskforcesh/bullmq/compare/v1.40.4...v1.41.0) (2021-08-20)
+
+
+### Features
+
+* **flow:** add bulk ([dc59fe6](https://github.com/taskforcesh/bullmq/commit/dc59fe62e57b6e761fe4d2ab6179a69dc4792399))
+
 # Changelog
 
 ## [1.40.4](https://github.com/taskforcesh/bullmq/compare/v1.40.3...v1.40.4) \(2021-08-06\)
