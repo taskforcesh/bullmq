@@ -20,3 +20,4 @@ yarn-error.log*
 *.sw*
 temp
 docs/gitbook/api
+package-lock.json
