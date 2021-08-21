@@ -18,6 +18,9 @@ export interface AddNodeOpts {
     };
     parentDependenciesKey: string;
   };
+  /**
+   * Queues options that will be applied in each node depending on queue name presence.
+   */
   queuesOpts?: FlowQueuesOpts;
 }
 
@@ -35,10 +38,25 @@ export interface AddChildrenOpts {
 }
 
 export interface NodeOpts {
+  /**
+   * Root job queue name.
+   */
   queueName: string;
+  /**
+   * Prefix included in job key.
+   */
   prefix?: string;
+  /**
+   * Root job id.
+   */
   id: string;
+  /**
+   * Maximum depth or levels to visit in the tree.
+   */
   depth?: number;
+  /**
+   * Maximum quantity of children per type (processed, unprocessed).
+   */
   maxChildren?: number;
 }
 
@@ -110,7 +128,7 @@ export class FlowProducer extends EventEmitter {
    * @method getFlow
    * Get a flow.
    *
-   * @param {Object} opts An object with options for getting a JobNode.
+   * @param {Object} opts an object with options for getting a JobNode.
    */
   async getFlow(opts: NodeOpts): Promise<JobNode> {
     if (this.closing) {
