@@ -156,6 +156,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method create
    * Creates a new job and adds it to the queue.
    *
    * @param queue the queue where to add the job.
@@ -185,6 +186,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method createBulk
    * Creates a bulk of jobs and adds them atomically to the given queue.
    *
    * @param queue the queue were to add the jobs.
@@ -227,10 +229,12 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method fromJSON
    * Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
+   *
    * @param queue the queue where the job belongs to.
    * @param json the plain object containing the job.
-   * @param jobId an optional job id (overrides the id coming from the JSON object)
+   * @param {string} [jobId] an optional job id (overrides the id coming from the JSON object)
    * @returns
    */
   static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string) {
@@ -269,10 +273,11 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method fromId
    * Fetches a Job from the queue given the passed job id.
    *
    * @param queue the queue where the job belongs to.
-   * @param jobId the job id.
+   * @param {string} jobId the job id.
    * @returns
    */
   static async fromId(
@@ -295,6 +300,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method asJSON
    * Prepares a job to be serialized for storage in Redis.
    * @returns
    */
@@ -316,6 +322,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method update
    * Updates a job's data
    *
    * @param data the data that will replace the current jobs data.
@@ -327,15 +334,22 @@ export class Job<T = any, R = any, N extends string = string> {
     await client.hset(this.queue.toKey(this.id), 'data', JSON.stringify(data));
   }
 
+  /**
+   * @method updateProgress
+   * Updates a job's progress
+   *
+   * @param progress
+   */
   async updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
     return Scripts.updateProgress(this.queue, this, progress);
   }
 
   /**
+   * @method log
    * Logs one row of log data.
    *
-   * @params logRow: string String with log data to be logged.
+   * @param {string} logRow string with log data to be logged.
    *
    */
   async log(logRow: string) {
@@ -345,6 +359,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method remove
    * Completely remove the job from the queue.
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
@@ -364,20 +379,23 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method extendLock
    * Extend the lock for this job.
    *
-   * @param token unique token for the lock
-   * @param duration lock duration in milliseconds
+   * @param {string} token unique token for the lock
+   * @param {number} duration lock duration in milliseconds
    */
   async extendLock(token: string, duration: number) {
     return Scripts.extendLock(this.queue, this.id, token, duration);
   }
 
   /**
+   * @method moveToCompleted
    * Moves a job to the completed queue.
    * Returned job to be used with Queue.prototype.nextJobFromJobData.
-   * @param returnValue {string} The jobs success message.
-   * @param fetchNext {boolean} True when wanting to fetch the next job
+   *
+   * @param {string} returnValue The jobs success message.
+   * @param {boolean} [fetchNext=true] True when wanting to fetch the next job
    * @returns {Promise} Returns the jobData of the next job in the waiting queue.
    */
   async moveToCompleted(
@@ -407,10 +425,12 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method moveToFailed
    * Moves a job to the failed queue.
-   * @param err {Error} The jobs error message.
-   * @param token {string} Token to check job is locked by current worker
-   * @param fetchNext {boolean} True when wanting to fetch the next job
+   *
+   * @param {Error} err the jobs error message.
+   * @param {string} token token to check job is locked by current worker
+   * @param {boolean} [fetchNext=false] true when wanting to fetch the next job
    * @returns void
    */
   async moveToFailed(err: Error, token: string, fetchNext = false) {
@@ -482,23 +502,23 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   *
-   * @returns true if the job has completed.
+   * @method isCompleted
+   * @returns {boolean} true if the job has completed.
    */
   isCompleted() {
     return this.isInZSet('completed');
   }
 
   /**
-   *
-   * @returns true if the job has failed.
+   * @method isFailed
+   * @returns {boolean} true if the job has failed.
    */
   isFailed() {
     return this.isInZSet('failed');
   }
 
   /**
-   *
+   * @method isDelayed
    * @returns true if the job is delayed.
    */
   isDelayed() {
@@ -506,7 +526,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   *
+   * @method isWaitingChildren
    * @returns true if the job is waiting for children.
    */
   isWaitingChildren() {
@@ -523,6 +543,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method isWaiting
    *
    * @returns true if the job is waiting.
    */
@@ -556,6 +577,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method getChildrenValues
    * Get this jobs children result values if any.
    *
    * @returns Object mapping children job keys with their values.
@@ -580,9 +602,7 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @returns dependencies separated by processed and unprocessed.
    */
-  async getDependencies(
-    opts: DependenciesOpts = {},
-  ): Promise<{
+  async getDependencies(opts: DependenciesOpts = {}): Promise<{
     nextProcessedCursor?: number;
     processed?: Record<string, any>;
     nextUnprocessedCursor?: number;
@@ -709,13 +729,8 @@ export class Job<T = any, R = any, N extends string = string> {
       multi.scard(this.toKey(`${this.id}:dependencies`));
     }
 
-    const [
-      [err1, result1] = [],
-      [err2, result2] = [],
-    ] = (await multi.exec()) as [
-      [null | Error, number],
-      [null | Error, number],
-    ];
+    const [[err1, result1] = [], [err2, result2] = []] =
+      (await multi.exec()) as [[null | Error, number], [null | Error, number]];
 
     const processed = updatedOpts.processed ? result1 : undefined;
     const unprocessed = updatedOpts.unprocessed
@@ -735,6 +750,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method waitUntilFinished
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */
   async waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<R> {
@@ -798,9 +814,10 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method moveToDelayed
    * Moves the job to the delay set.
    *
-   * @param timestamp timestamp where the job should be moved back to "wait"
+   * @param {number} timestamp timestamp where the job should be moved back to "wait"
    * @returns
    */
   moveToDelayed(timestamp: number) {
@@ -808,7 +825,9 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method moveToWaitingChildren
    * Moves the job to the waiting-children set.
+   *
    * @param {string} token Token to check job is locked by current worker
    * @param opts the options bag for moving a job to waiting-children.
    * @returns {boolean} true if the job was moved
@@ -821,6 +840,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method promote
    * Promotes a delayed job so that it starts to be processed as soon as possible.
    */
   async promote(): Promise<void> {
@@ -834,6 +854,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method retry
    * Attempts to retry the job. Only a job that has failed can be retried.
    *
    * @return {Promise} If resolved and return code is 1, then the queue emits a waiting event
@@ -865,6 +886,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method discard
    * Marks a job to not be retried if it fails (even if attempts has been configured)
    */
   discard() {
@@ -883,6 +905,7 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
+   * @method addJob
    * Adds the job to Redis.
    *
    * @param client
