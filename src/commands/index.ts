@@ -43,10 +43,22 @@ export const load = async function(client: RedisClient) {
 
 async function loadScripts(dir: string): Promise<Command[]> {
   const files = await readdir(dir);
+  const luaFiles = files.filter(
+    (file: string) => path.extname(file) === '.lua',
+  );
+
+  if (luaFiles.length === 0) {
+    /**
+     * To prevent unclarified runtime error "updateDelayset is not a function
+     * @see https://github.com/OptimalBits/bull/issues/920
+     */
+    throw new Error('No .lua files found!');
+  }
+
   const commands = [];
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
+  for (let i = 0; i < luaFiles.length; i++) {
+    const file = luaFiles[i];
     if (path.extname(file) === '.lua') {
       const longName = path.basename(file, '.lua');
       const name = longName.split('-')[0];
