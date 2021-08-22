@@ -37,6 +37,19 @@ export class QueueBase extends EventEmitter {
     return this.connection.redisVersion;
   }
 
+  emit(event: string | symbol, ...args: any[]) {
+    try {
+      return super.emit(event, args);
+    } catch (err) {
+      try {
+        return super.emit('error', err);
+      } catch (err) {
+        // We give up if the error event also throws an exception.
+        console.error(err);
+      }
+    }
+  }
+
   async waitUntilReady() {
     return this.client;
   }
