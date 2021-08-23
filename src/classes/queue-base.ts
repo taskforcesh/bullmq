@@ -37,9 +37,9 @@ export class QueueBase extends EventEmitter {
     return this.connection.redisVersion;
   }
 
-  emit(event: string | symbol, ...args: any[]) {
+  emit(event: string | symbol, ...args: any[]): boolean {
     try {
-      return super.emit(event, args);
+      return super.emit(event, ...args);
     } catch (err) {
       try {
         return super.emit('error', err);
