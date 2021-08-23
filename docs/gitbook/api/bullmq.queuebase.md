@@ -38,5 +38,6 @@ export declare class QueueBase extends EventEmitter
 |  [clientName()](./bullmq.queuebase.clientname.md) |  |  |
 |  [close()](./bullmq.queuebase.close.md) |  |  |
 |  [disconnect()](./bullmq.queuebase.disconnect.md) |  |  |
+|  [emit(event, args)](./bullmq.queuebase.emit.md) |  |  |
 |  [waitUntilReady()](./bullmq.queuebase.waituntilready.md) |  |  |
 

@@ -4,7 +4,7 @@
 
 ## Job.discard() method
 
-Marks a job to not be retried if it fails (even if attempts has been configured)
+ discard Marks a job to not be retried if it fails (even if attempts has been configured)
 
 <b>Signature:</b>
 

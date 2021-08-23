@@ -4,7 +4,7 @@
 
 ## FlowProducer.addBulk() method
 
-Adds multiple flows.
+ addBulk Adds multiple flows.
 
 A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data.
 

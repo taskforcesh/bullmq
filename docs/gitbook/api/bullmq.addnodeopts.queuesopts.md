@@ -4,6 +4,8 @@
 
 ## AddNodeOpts.queuesOpts property
 
+Queues options that will be applied in each node depending on queue name presence.
+
 <b>Signature:</b>
 
 ```typescript

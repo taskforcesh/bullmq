@@ -4,7 +4,7 @@
 
 ## Job.promote() method
 
-Promotes a delayed job so that it starts to be processed as soon as possible.
+ promote Promotes a delayed job so that it starts to be processed as soon as possible.
 
 <b>Signature:</b>
 

@@ -18,8 +18,8 @@ add(flow: FlowJob, opts?: FlowOpts): Promise<JobNode>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  flow | [FlowJob](./bullmq.flowjob.md) | An object with a tree-like structure where children jobs will be processed before their parents. |
-|  opts | [FlowOpts](./bullmq.flowopts.md) |  |
+|  flow | [FlowJob](./bullmq.flowjob.md) | an object with a tree-like structure where children jobs will be processed before their parents. |
+|  opts | [FlowOpts](./bullmq.flowopts.md) | options that will be applied to the flow object. |
 
 <b>Returns:</b>
 

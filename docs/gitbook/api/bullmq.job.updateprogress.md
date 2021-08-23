@@ -4,6 +4,8 @@
 
 ## Job.updateProgress() method
 
+ updateProgress Updates a job's progress
+
 <b>Signature:</b>
 
 ```typescript

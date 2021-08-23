@@ -4,6 +4,8 @@
 
 ## NodeOpts.queueName property
 
+Root job queue name.
+
 <b>Signature:</b>
 
 ```typescript

@@ -4,7 +4,7 @@
 
 ## Job.moveToWaitingChildren() method
 
-Moves the job to the waiting-children set.
+ moveToWaitingChildren Moves the job to the waiting-children set.
 
 <b>Signature:</b>
 

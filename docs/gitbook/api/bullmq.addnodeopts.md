@@ -17,5 +17,5 @@ export interface AddNodeOpts
 |  [multi](./bullmq.addnodeopts.multi.md) | Pipeline |  |
 |  [node](./bullmq.addnodeopts.node.md) | [FlowJob](./bullmq.flowjob.md) |  |
 |  [parent?](./bullmq.addnodeopts.parent.md) | { parentOpts: { id: string; queue: string; }; parentDependenciesKey: string; } | <i>(Optional)</i> |
-|  [queuesOpts?](./bullmq.addnodeopts.queuesopts.md) | [FlowQueuesOpts](./bullmq.flowqueuesopts.md) | <i>(Optional)</i> |
+|  [queuesOpts?](./bullmq.addnodeopts.queuesopts.md) | [FlowQueuesOpts](./bullmq.flowqueuesopts.md) | <i>(Optional)</i> Queues options that will be applied in each node depending on queue name presence. |
 

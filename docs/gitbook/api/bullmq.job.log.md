@@ -4,9 +4,7 @@
 
 ## Job.log() method
 
-Logs one row of log data.
-
- logRow: string String with log data to be logged.
+ log Logs one row of log data.
 
 <b>Signature:</b>
 
@@ -18,7 +16,7 @@ log(logRow: string): Promise<number>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  logRow | string |  |
+|  logRow | string | string with log data to be logged. |
 
 <b>Returns:</b>
 

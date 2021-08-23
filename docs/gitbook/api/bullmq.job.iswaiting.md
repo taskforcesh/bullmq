@@ -4,6 +4,8 @@
 
 ## Job.isWaiting() method
 
+ isWaiting
+
 <b>Signature:</b>
 
 ```typescript

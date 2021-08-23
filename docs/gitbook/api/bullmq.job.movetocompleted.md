@@ -4,7 +4,7 @@
 
 ## Job.moveToCompleted() method
 
-Moves a job to the completed queue. Returned job to be used with Queue.prototype.nextJobFromJobData.
+ moveToCompleted Moves a job to the completed queue. Returned job to be used with Queue.prototype.nextJobFromJobData.
 
 <b>Signature:</b>
 

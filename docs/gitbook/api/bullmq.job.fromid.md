@@ -4,7 +4,7 @@
 
 ## Job.fromId() method
 
-Fetches a Job from the queue given the passed job id.
+ fromId Fetches a Job from the queue given the passed job id.
 
 <b>Signature:</b>
 

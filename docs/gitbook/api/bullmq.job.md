@@ -39,35 +39,35 @@ export declare class Job<T = any, R = any, N extends string = string>
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
-|  [addJob(client, parentOpts)](./bullmq.job.addjob.md) |  | Adds the job to Redis. |
-|  [asJSON()](./bullmq.job.asjson.md) |  | Prepares a job to be serialized for storage in Redis. |
+|  [addJob(client, parentOpts)](./bullmq.job.addjob.md) |  |  addJob Adds the job to Redis. |
+|  [asJSON()](./bullmq.job.asjson.md) |  |  asJSON Prepares a job to be serialized for storage in Redis. |
 |  [changeDelay(delay)](./bullmq.job.changedelay.md) |  |  changeDelay Change delay of a delayed job. |
-|  [create(queue, name, data, opts)](./bullmq.job.create.md) | <code>static</code> | Creates a new job and adds it to the queue. |
-|  [createBulk(queue, jobs)](./bullmq.job.createbulk.md) | <code>static</code> | Creates a bulk of jobs and adds them atomically to the given queue. |
-|  [discard()](./bullmq.job.discard.md) |  | Marks a job to not be retried if it fails (even if attempts has been configured) |
-|  [extendLock(token, duration)](./bullmq.job.extendlock.md) |  | Extend the lock for this job. |
-|  [fromId(queue, jobId)](./bullmq.job.fromid.md) | <code>static</code> | Fetches a Job from the queue given the passed job id. |
-|  [fromJSON(queue, json, jobId)](./bullmq.job.fromjson.md) | <code>static</code> | Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object) |
-|  [getChildrenValues()](./bullmq.job.getchildrenvalues.md) |  | Get this jobs children result values if any. |
+|  [create(queue, name, data, opts)](./bullmq.job.create.md) | <code>static</code> |  create Creates a new job and adds it to the queue. |
+|  [createBulk(queue, jobs)](./bullmq.job.createbulk.md) | <code>static</code> |  createBulk Creates a bulk of jobs and adds them atomically to the given queue. |
+|  [discard()](./bullmq.job.discard.md) |  |  discard Marks a job to not be retried if it fails (even if attempts has been configured) |
+|  [extendLock(token, duration)](./bullmq.job.extendlock.md) |  |  extendLock Extend the lock for this job. |
+|  [fromId(queue, jobId)](./bullmq.job.fromid.md) | <code>static</code> |  fromId Fetches a Job from the queue given the passed job id. |
+|  [fromJSON(queue, json, jobId)](./bullmq.job.fromjson.md) | <code>static</code> |  fromJSON Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object) |
+|  [getChildrenValues()](./bullmq.job.getchildrenvalues.md) |  |  getChildrenValues Get this jobs children result values if any. |
 |  [getDependencies(opts)](./bullmq.job.getdependencies.md) |  |  getDependencies Get children job keys if this job is a parent and has children. |
 |  [getDependenciesCount(opts)](./bullmq.job.getdependenciescount.md) |  |  getDependenciesCount Get children job counts if this job is a parent and has children. |
 |  [getState()](./bullmq.job.getstate.md) |  |  getState Get current state. |
 |  [isActive()](./bullmq.job.isactive.md) |  |  isActive |
-|  [isCompleted()](./bullmq.job.iscompleted.md) |  |  |
-|  [isDelayed()](./bullmq.job.isdelayed.md) |  |  |
-|  [isFailed()](./bullmq.job.isfailed.md) |  |  |
-|  [isWaiting()](./bullmq.job.iswaiting.md) |  |  |
-|  [isWaitingChildren()](./bullmq.job.iswaitingchildren.md) |  |  |
-|  [log(logRow)](./bullmq.job.log.md) |  | Logs one row of log data. logRow: string String with log data to be logged. |
-|  [moveToCompleted(returnValue, token, fetchNext)](./bullmq.job.movetocompleted.md) |  | Moves a job to the completed queue. Returned job to be used with Queue.prototype.nextJobFromJobData. |
-|  [moveToDelayed(timestamp)](./bullmq.job.movetodelayed.md) |  | Moves the job to the delay set. |
-|  [moveToFailed(err, token, fetchNext)](./bullmq.job.movetofailed.md) |  | Moves a job to the failed queue. |
-|  [moveToWaitingChildren(token, opts)](./bullmq.job.movetowaitingchildren.md) |  | Moves the job to the waiting-children set. |
-|  [promote()](./bullmq.job.promote.md) |  | Promotes a delayed job so that it starts to be processed as soon as possible. |
-|  [remove()](./bullmq.job.remove.md) |  | Completely remove the job from the queue. Note, this call will throw an exception if the job is being processed when the call is performed. |
-|  [retry(state)](./bullmq.job.retry.md) |  | Attempts to retry the job. Only a job that has failed can be retried. {<!-- -->Promise<!-- -->} If resolved and return code is 1, then the queue emits a waiting event otherwise the operation was not a success and throw the corresponding error. If the promise rejects, it indicates that the script failed to execute |
+|  [isCompleted()](./bullmq.job.iscompleted.md) |  |  isCompleted |
+|  [isDelayed()](./bullmq.job.isdelayed.md) |  |  isDelayed |
+|  [isFailed()](./bullmq.job.isfailed.md) |  |  isFailed |
+|  [isWaiting()](./bullmq.job.iswaiting.md) |  |  isWaiting |
+|  [isWaitingChildren()](./bullmq.job.iswaitingchildren.md) |  |  isWaitingChildren |
+|  [log(logRow)](./bullmq.job.log.md) |  |  log Logs one row of log data. |
+|  [moveToCompleted(returnValue, token, fetchNext)](./bullmq.job.movetocompleted.md) |  |  moveToCompleted Moves a job to the completed queue. Returned job to be used with Queue.prototype.nextJobFromJobData. |
+|  [moveToDelayed(timestamp)](./bullmq.job.movetodelayed.md) |  |  moveToDelayed Moves the job to the delay set. |
+|  [moveToFailed(err, token, fetchNext)](./bullmq.job.movetofailed.md) |  |  moveToFailed Moves a job to the failed queue. |
+|  [moveToWaitingChildren(token, opts)](./bullmq.job.movetowaitingchildren.md) |  |  moveToWaitingChildren Moves the job to the waiting-children set. |
+|  [promote()](./bullmq.job.promote.md) |  |  promote Promotes a delayed job so that it starts to be processed as soon as possible. |
+|  [remove()](./bullmq.job.remove.md) |  |  remove Completely remove the job from the queue. Note, this call will throw an exception if the job is being processed when the call is performed. |
+|  [retry(state)](./bullmq.job.retry.md) |  |  retry Attempts to retry the job. Only a job that has failed can be retried. {<!-- -->Promise<!-- -->} If resolved and return code is 1, then the queue emits a waiting event otherwise the operation was not a success and throw the corresponding error. If the promise rejects, it indicates that the script failed to execute |
 |  [toJSON()](./bullmq.job.tojson.md) |  |  |
-|  [update(data)](./bullmq.job.update.md) |  | Updates a job's data |
-|  [updateProgress(progress)](./bullmq.job.updateprogress.md) |  |  |
-|  [waitUntilFinished(queueEvents, ttl)](./bullmq.job.waituntilfinished.md) |  | Returns a promise the resolves when the job has finished. (completed or failed). |
+|  [update(data)](./bullmq.job.update.md) |  |  update Updates a job's data |
+|  [updateProgress(progress)](./bullmq.job.updateprogress.md) |  |  updateProgress Updates a job's progress |
+|  [waitUntilFinished(queueEvents, ttl)](./bullmq.job.waituntilfinished.md) |  |  waitUntilFinished Returns a promise the resolves when the job has finished. (completed or failed). |
 

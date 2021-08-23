@@ -4,6 +4,8 @@
 
 ## NodeOpts.prefix property
 
+Prefix included in job key.
+
 <b>Signature:</b>
 
 ```typescript

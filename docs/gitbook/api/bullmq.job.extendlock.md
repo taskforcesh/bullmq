@@ -4,7 +4,7 @@
 
 ## Job.extendLock() method
 
-Extend the lock for this job.
+ extendLock Extend the lock for this job.
 
 <b>Signature:</b>
 

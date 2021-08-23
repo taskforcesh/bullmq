@@ -4,7 +4,7 @@
 
 ## Job.asJSON() method
 
-Prepares a job to be serialized for storage in Redis.
+ asJSON Prepares a job to be serialized for storage in Redis.
 
 <b>Signature:</b>
 

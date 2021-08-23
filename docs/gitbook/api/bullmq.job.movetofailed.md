@@ -4,7 +4,7 @@
 
 ## Job.moveToFailed() method
 
-Moves a job to the failed queue.
+ moveToFailed Moves a job to the failed queue.
 
 <b>Signature:</b>
 
@@ -16,9 +16,9 @@ moveToFailed(err: Error, token: string, fetchNext?: boolean): Promise<void>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  err | Error | The jobs error message. |
-|  token | string | Token to check job is locked by current worker |
-|  fetchNext | boolean | True when wanting to fetch the next job |
+|  err | Error | the jobs error message. |
+|  token | string | token to check job is locked by current worker |
+|  fetchNext | boolean | true when wanting to fetch the next job |
 
 <b>Returns:</b>
 
