@@ -89,6 +89,29 @@ describe('events', function() {
     await worker.close();
   });
 
+  it('emits error event when there is an error on other events', async function() {
+    const worker = new Worker(queueName, async job => {}, {
+      drainDelay: 1,
+    });
+
+    worker.once('completed', (job: any) => {
+      console.log(job.bar.id);
+    });
+
+    const error = new Promise<void>(resolve => {
+      worker.once('error', resolve);
+    });
+
+    await queue.add('test', { foo: 'bar' });
+
+    await error;
+
+    const jobs = await queue.getJobCountByTypes('completed');
+    expect(jobs).to.be.equal(1);
+
+    await worker.close();
+  });
+
   it('should emit an event when a job becomes active', async () => {
     const worker = new Worker(queueName, async job => {});
 
