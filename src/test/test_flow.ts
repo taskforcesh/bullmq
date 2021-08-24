@@ -174,7 +174,7 @@ describe('flows', () => {
             for (let i = 1; i < completed[group].length; i++) {
               const diff = completed[group][i] - prevTime;
               expect(diff).to.be.below(2100);
-              expect(diff).to.be.gte(980);
+              expect(diff).to.be.gte(970);
               prevTime = completed[group][i];
             }
           }

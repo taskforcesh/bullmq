@@ -1,14 +1,10 @@
-import * as chai from 'chai';
-import * as chaiAsPromised from 'chai-as-promised';
+import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { Queue, QueueEvents, Worker } from '../classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../utils';
-
-chai.use(chaiAsPromised);
-const expect = chai.expect;
 
 describe('sandboxed process', () => {
   let queue: Queue;
@@ -35,7 +31,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async (job, value) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
@@ -64,7 +60,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async (job, value) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
@@ -101,7 +97,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       const after4 = after(4, () => {
         expect(worker['childPool'].getAllFree().length).to.eql(4);
         resolve();
@@ -142,7 +138,7 @@ describe('sandboxed process', () => {
       queue.add('4', { foo: 'bar4' }),
     ]);
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       const after4 = after(4, async () => {
         expect(worker['childPool'].getAllFree().length).to.eql(1);
         await worker.close();
@@ -176,7 +172,7 @@ describe('sandboxed process', () => {
 
     const progresses: any[] = [];
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async (job, value) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
@@ -214,7 +210,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const failing = new Promise((resolve, reject) => {
+    const failing = new Promise<void>((resolve, reject) => {
       worker.on('failed', async (job, err) => {
         try {
           expect(job.data).eql({ foo: 'bar' });
@@ -319,7 +315,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async () => {
         try {
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);

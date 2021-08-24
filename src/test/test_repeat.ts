@@ -1,15 +1,15 @@
+import { expect } from 'chai';
+import * as IORedis from 'ioredis';
+import { beforeEach, describe, it } from 'mocha';
+import * as sinon from 'sinon';
+import { v4 } from 'uuid';
 import { Job, Queue } from '../classes';
 import { QueueEvents } from '../classes/queue-events';
 import { QueueScheduler } from '../classes/queue-scheduler';
 import { Repeat } from '../classes/repeat';
 import { Worker } from '../classes/worker';
-import { expect } from 'chai';
-import * as IORedis from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
 import { removeAllQueueData } from '../utils';
 
-const sinon = require('sinon');
 const moment = require('moment');
 
 const ONE_SECOND = 1000;
@@ -57,7 +57,7 @@ describe('repeat', function() {
     await worker.waitUntilReady();
 
     let processed = 0;
-    const completing = new Promise(resolve => {
+    const completing = new Promise<void>(resolve => {
       worker.on('completed', async () => {
         this.clock.tick(every);
         processed++;

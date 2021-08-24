@@ -1,8 +1,8 @@
-import { Queue, Worker, Job } from '../classes';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { Queue, Worker, Job } from '../classes';
 import { removeAllQueueData } from '../utils';
 
 describe('bulk jobs', () => {
@@ -10,7 +10,7 @@ describe('bulk jobs', () => {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 

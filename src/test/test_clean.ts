@@ -1,10 +1,10 @@
-import { Queue, QueueEvents, Worker } from '../classes';
-import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { Queue, QueueEvents, Worker } from '../classes';
+import { delay, removeAllQueueData } from '../utils';
 
 describe('Cleaner', () => {
   let queue: Queue;
@@ -27,7 +27,7 @@ describe('Cleaner', () => {
   it('should clean an empty queue', async () => {
     await queue.waitUntilReady();
 
-    const waitCleaned = new Promise(resolve => {
+    const waitCleaned = new Promise<void>(resolve => {
       queue.on('cleaned', (jobs, type) => {
         expect(type).to.be.eql('completed');
         expect(jobs.length).to.be.eql(0);
