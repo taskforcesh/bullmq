@@ -9,20 +9,11 @@ export declare interface QueueEvents {
     listener: (args: { jobId: string; prev?: string }, id: string) => void,
   ): this;
   on(
-    event: 'waiting',
-    listener: (args: { jobId: string }, id: string) => void,
-  ): this;
-  on(
-    event: 'delayed',
-    listener: (args: { jobId: string; delay: number }, id: string) => void,
-  ): this;
-  on(
-    event: 'progress',
-    listener: (args: { jobId: string; data: string }, id: string) => void,
-  ): this;
-  on(
-    event: 'stalled',
-    listener: (args: { jobId: string }, id: string) => void,
+    event: 'added',
+    listener: (
+      args: { jobId: string; name: string; data: string; opts: string },
+      id: string,
+    ) => void,
   ): this;
   on(
     event: 'completed',
@@ -32,6 +23,11 @@ export declare interface QueueEvents {
     ) => void,
   ): this;
   on(
+    event: 'delayed',
+    listener: (args: { jobId: string; delay: number }, id: string) => void,
+  ): this;
+  on(event: 'drained', listener: (id: string) => void): this;
+  on(
     event: 'failed',
     listener: (
       args: { jobId: string; failedReason: string; prev?: string },
@@ -39,10 +35,21 @@ export declare interface QueueEvents {
     ) => void,
   ): this;
   on(
+    event: 'progress',
+    listener: (args: { jobId: string; data: string }, id: string) => void,
+  ): this;
+  on(
     event: 'removed',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
-  on(event: 'drained', listener: (id: string) => void): this;
+  on(
+    event: 'stalled',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+  on(
+    event: 'waiting',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
   on(event: string, listener: Function): this;
 }
 
