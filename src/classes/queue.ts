@@ -12,6 +12,13 @@ export declare interface Queue {
   on(event: string, listener: Function): this;
 }
 
+/**
+ * Queue
+ *
+ * This class provides methods to add jobs to a queue and some othe high-level
+ * administration such as pausing or deleting queues.
+ *
+ */
 export class Queue<
   T = any,
   R = any,
@@ -41,6 +48,9 @@ export class Queue<
     });
   }
 
+  /**
+   * Returns this instance current default job options.
+   */
   get defaultJobOptions() {
     return this.jobsOpts;
   }
@@ -58,6 +68,13 @@ export class Queue<
     });
   }
 
+  /**
+   * Adds a new job to the queue.
+   *
+   * @param name Name of the job to be added to the queue,.
+   * @param data Arbitrary data to append to the job.
+   * @param opts Job options that affects how the job is going to be processed.
+   */
   async add(name: N, data: T, opts?: JobsOptions) {
     if (opts && opts.repeat) {
       return (await this.repeat).addNextRepeatableJob<T, R, N>(
@@ -116,17 +133,34 @@ export class Queue<
     this.emit('paused');
   }
 
+  /**
+   * Resumes the proocessing of this queue globally.
+   *
+   * Thie method reverses the pause operation by resuming the processing of the
+   * queue.
+   */
   async resume() {
     await Scripts.pause(this, false);
     this.emit('resumed');
   }
 
+  /**
+   * Returns true if the queue is currently paused.
+   */
   async isPaused() {
     const client = await this.client;
     const pausedKeyExists = await client.hexists(this.keys.meta, 'paused');
     return pausedKeyExists === 1;
   }
 
+  /**
+   * Get all repeatable meta jobs.
+   *
+   * @param start offset of first job to return.
+   * @param end offset of last job to return.
+   * @param asc determine the order in which jobs are returned based on their
+   * next execution time.
+   */
   async getRepeatableJobs(start?: number, end?: number, asc?: boolean) {
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
@@ -155,9 +189,13 @@ export class Queue<
    * Drains the queue, i.e., removes all jobs that are waiting
    * or delayed, but not active, completed or failed.
    *
-   * TODO: Convert to an atomic LUA script.
+   * @param delayed pass true if it should also clean the
+   * delayed jobs.
+   *
    */
   async drain(delayed = false) {
+    // TODO: Convert to an atomic LUA script.
+
     // Get all jobIds and empty all lists atomically.
     const client = await this.client;
 
@@ -248,6 +286,11 @@ export class Queue<
     } while (cursor);
   }
 
+  /**
+   * Trim the event stream to an approximately maxLength.
+   *
+   * @param maxLength
+   */
   async trimEvents(maxLength: number) {
     const client = await this.client;
     return client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
