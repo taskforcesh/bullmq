@@ -4,26 +4,84 @@ import { QueueBase } from './queue-base';
 import { StreamReadRaw } from '../interfaces/redis-streams';
 
 export declare interface QueueEvents {
+  /**
+   * Listen to 'active' event.
+   *
+   * This event is triggered when a job enters the 'active' state.
+   *
+   * @param {'active'} event
+   * @callback listener
+   */
   on(
     event: 'active',
     listener: (args: { jobId: string; prev?: string }, id: string) => void,
   ): this;
+
+  /**
+   * Listen to 'waiting' event.
+   *
+   * This event is triggered when a job enters the 'waiting' state.
+   *
+   * @param {'waiting'} event
+   * @callback listener
+   */
   on(
     event: 'waiting',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
+
+  /**
+   * Listen to 'delayed' event.
+   *
+   * This event is triggered when a job is delayed.
+   *
+   * @param {'delayed'} event
+   * @callback listener
+   */
   on(
     event: 'delayed',
     listener: (args: { jobId: string; delay: number }, id: string) => void,
   ): this;
+
+  /**
+   * Listen to 'progress' event.
+   *
+   * This event is triggered when a job updates it progress, i.e. the
+   * Job##updateProgress() method is called. This is usefull to notify
+   * progress or any other data from within a processor to the rest of the
+   * world.
+   *
+   * @param {'progress'} event
+   * @callback listener
+   */
   on(
     event: 'progress',
     listener: (args: { jobId: string; data: string }, id: string) => void,
   ): this;
+
+  /**
+   * Listen to 'stalled' event.
+   *
+   * This event is triggered when a job has been moved from 'active' back
+   * to 'waiting'/'failed' due to the processor not being able to renew
+   * the lock on the said job.
+   *
+   * @param {'stalled'} event
+   * @callback listener
+   */
   on(
     event: 'stalled',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
+
+  /**
+   * Listen to 'completed' event.
+   *
+   * This event is triggered when a job has succesfully completed.
+   *
+   * @param {'completed'} event
+   * @callback listener
+   */
   on(
     event: 'completed',
     listener: (
@@ -31,6 +89,15 @@ export declare interface QueueEvents {
       id: string,
     ) => void,
   ): this;
+
+  /**
+   * Listen to 'failed' event.
+   *
+   * This event is triggered when a job has thrown an exception.
+   *
+   * @param {'failed'} event
+   * @callback listener
+   */
   on(
     event: 'failed',
     listener: (
@@ -38,14 +105,43 @@ export declare interface QueueEvents {
       id: string,
     ) => void,
   ): this;
+
+  /**
+   * Listen to 'removed' event.
+   *
+   * This event is triggered when a job has been manually
+   * removed from the queue.
+   *
+   * @param {'removed'} event
+   * @callback listener
+   */
   on(
     event: 'removed',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
+
+  /**
+   * Listen to 'drained' event.
+   *
+   * This event is triggered when the queue has drained the waiting list.
+   * Note that there could still be delayed jobs waiting their timers to expire
+   * and this event will still be triggered as long as the waiting list has emptied.
+   *
+   * @param {'drained'} event
+   * @callback listener
+   */
   on(event: 'drained', listener: (id: string) => void): this;
+
   on(event: string, listener: Function): this;
 }
 
+/**
+ * The QueueEvents class is used for listening to the global events
+ * emitted by a given queue.
+ *
+ * This class requires a dedicated redis connection.
+ *
+ */
 export class QueueEvents extends QueueBase {
   constructor(name: string, opts?: QueueEventsOptions) {
     super(name, opts);
