@@ -240,7 +240,7 @@ describe('events', function() {
 
     let eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-    expect(eventsLength).to.be.equal(4);
+    expect(eventsLength).to.be.equal(8);
 
     await trimmedQueue.trimEvents(0);
 
