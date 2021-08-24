@@ -1,22 +1,17 @@
 /*eslint-env node */
 'use strict';
 
+import { expect } from 'chai';
+import * as IORedis from 'ioredis';
+import { after } from 'lodash';
+import { afterEach, beforeEach, describe, it } from 'mocha';
+import * as sinon from 'sinon';
+import { v4 } from 'uuid';
 import { Job, Queue, QueueScheduler } from '../classes';
 import { QueueEvents } from '../classes/queue-events';
 import { Worker } from '../classes/worker';
 import { JobsOptions } from '../interfaces';
 import { delay, getParentKey, removeAllQueueData } from '../utils';
-import * as chai from 'chai';
-import * as chaiAsPromised from 'chai-as-promised';
-import * as IORedis from 'ioredis';
-import { after } from 'lodash';
-import { afterEach, beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
-
-const sinon = require('sinon');
-
-chai.use(chaiAsPromised);
-const expect = chai.expect;
 
 const ONE_SECOND = 1000;
 

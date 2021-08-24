@@ -1,14 +1,14 @@
 /*eslint-env node */
 'use strict';
 
-import { Job, Worker } from '../classes';
-import { Queue3 } from '../classes/compat';
-import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { Job, Worker } from '../classes';
+import { Queue3 } from '../classes/compat';
+import { delay, removeAllQueueData } from '../utils';
 
 describe('Compat', function() {
   describe('jobs getters', function() {
@@ -17,7 +17,7 @@ describe('Compat', function() {
     let queueName: string;
 
     beforeEach(async function() {
-      queueName = 'test-' + v4();
+      queueName = `test-${v4()}`;
       queue = new Queue3(queueName);
     });
 
@@ -52,7 +52,7 @@ describe('Compat', function() {
 
     it('should get active jobs', async function() {
       let processor;
-      const processing = new Promise(resolve => {
+      const processing = new Promise<void>(resolve => {
         processor = async (job: Job) => {
           const jobs = await queue.getActive();
           expect(jobs).to.be.a('array');
@@ -440,7 +440,7 @@ describe('Compat', function() {
 
       await queue.queueEvents.waitUntilReady();
 
-      const processPromise = new Promise((resolve, reject) => {
+      const processPromise = new Promise<void>((resolve, reject) => {
         process = async (job: Job) => {
           try {
             expect(isPaused).to.be.eql(false);
@@ -471,7 +471,7 @@ describe('Compat', function() {
     it('should pause the queue locally', async () => {
       let counter = 2;
       let process;
-      const processPromise = new Promise(resolve => {
+      const processPromise = new Promise<void>(resolve => {
         process = async (job: Job) => {
           expect(queue.isWorkerPaused()).to.be.eql(false);
           counter--;
@@ -545,14 +545,14 @@ describe('Compat', function() {
     it('should pause the queue locally when more than one worker is active', async () => {
       let process1, process2;
 
-      const startProcessing1 = new Promise(resolve => {
+      const startProcessing1 = new Promise<void>(resolve => {
         process1 = async () => {
           resolve();
           return delay(200);
         };
       });
 
-      const startProcessing2 = new Promise(resolve => {
+      const startProcessing2 = new Promise<void>(resolve => {
         process2 = async () => {
           resolve();
           return delay(200);
@@ -607,7 +607,7 @@ describe('Compat', function() {
     it('pauses fast when queue is drained', async function() {
       await queue.process(async () => {});
 
-      const promise = new Promise((resolve, reject) => {
+      const promise = new Promise<void>((resolve, reject) => {
         queue.on('global:drained', async () => {
           try {
             const start = new Date().getTime();

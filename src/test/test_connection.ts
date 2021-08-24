@@ -4,12 +4,8 @@ import * as IORedis from 'ioredis';
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { Queue, Job, Worker } from '../classes';
 import { v4 } from 'uuid';
-import * as chai from 'chai';
-import * as chaiAsPromised from 'chai-as-promised';
+import { expect } from 'chai';
 import { removeAllQueueData } from '../utils';
-
-chai.use(chaiAsPromised);
-const expect = chai.expect;
 
 describe('connection', () => {
   let queue: Queue;

@@ -36,7 +36,7 @@
     "pretty:quick": "./node_modules/.bin/pretty-quick --ignore-path ./.eslintignore --staged",
     "semantic-release": "semantic-release",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
-    "test": "tsc && ts-mocha --paths 'src/**/test_*.ts' --exit",
+    "test": "tsc && ts-mocha --config ./.mocharc.js",
     "test:watch": "ts-mocha --paths 'src/**/test_*.ts' -w --watch-extensions ts"
   },
   "dependencies": {

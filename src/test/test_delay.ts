@@ -40,7 +40,7 @@ describe('Delayed jobs', function() {
       publishHappened = true;
     });
 
-    const completed = new Promise((resolve, reject) => {
+    const completed = new Promise<void>((resolve, reject) => {
       queueEvents.on('completed', async function() {
         try {
           expect(Date.now() > timestamp + delay);
@@ -77,7 +77,7 @@ describe('Delayed jobs', function() {
 
     let processor;
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         order++;
         try {
@@ -127,7 +127,7 @@ describe('Delayed jobs', function() {
 
     queue = new Queue(queueName);
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       worker = new Worker(queueName, async (job: Job) => {
         try {
           expect(order).to.be.equal(job.data.order);
