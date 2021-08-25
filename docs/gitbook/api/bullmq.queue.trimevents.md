@@ -4,6 +4,8 @@
 
 ## Queue.trimEvents() method
 
+Trim the event stream to an approximately maxLength.
+
 <b>Signature:</b>
 
 ```typescript

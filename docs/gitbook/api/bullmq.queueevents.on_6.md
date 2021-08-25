@@ -4,13 +4,15 @@
 
 ## QueueEvents.on() method
 
+Listen to 'waiting' event.
+
+This event is triggered when a job enters the 'waiting' state.
+
 <b>Signature:</b>
 
 ```typescript
-on(event: 'failed', listener: (args: {
+on(event: 'waiting', listener: (args: {
         jobId: string;
-        failedReason: string;
-        prev?: string;
     }, id: string) => void): this;
 ```
 
@@ -18,8 +20,8 @@ on(event: 'failed', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'failed' |  |
-|  listener | (args: { jobId: string; failedReason: string; prev?: string; }, id: string) =&gt; void |  |
+|  event | 'waiting' |  listener |
+|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

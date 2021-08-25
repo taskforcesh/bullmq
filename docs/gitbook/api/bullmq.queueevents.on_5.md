@@ -4,13 +4,16 @@
 
 ## QueueEvents.on() method
 
+Listen to 'progress' event.
+
+This event is triggered when a job updates it progress, i.e. the Job\#\#updateProgress() method is called. This is useful to notify progress or any other data from within a processor to the rest of the world.
+
 <b>Signature:</b>
 
 ```typescript
-on(event: 'completed', listener: (args: {
+on(event: 'progress', listener: (args: {
         jobId: string;
-        returnvalue: string;
-        prev?: string;
+        data: string;
     }, id: string) => void): this;
 ```
 
@@ -18,8 +21,8 @@ on(event: 'completed', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'completed' |  |
-|  listener | (args: { jobId: string; returnvalue: string; prev?: string; }, id: string) =&gt; void |  |
+|  event | 'progress' |  listener |
+|  listener | (args: { jobId: string; data: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

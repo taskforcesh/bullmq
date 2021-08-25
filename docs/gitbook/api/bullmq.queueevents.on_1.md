@@ -4,11 +4,18 @@
 
 ## QueueEvents.on() method
 
+Listen to 'added' event.
+
+This event is triggered when a job is created.
+
 <b>Signature:</b>
 
 ```typescript
-on(event: 'waiting', listener: (args: {
+on(event: 'added', listener: (args: {
         jobId: string;
+        name: string;
+        data: string;
+        opts: string;
     }, id: string) => void): this;
 ```
 
@@ -16,8 +23,8 @@ on(event: 'waiting', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'waiting' |  |
-|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
+|  event | 'added' |  listener |
+|  listener | (args: { jobId: string; name: string; data: string; opts: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

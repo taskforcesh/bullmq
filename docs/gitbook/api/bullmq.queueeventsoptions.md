@@ -4,6 +4,8 @@
 
 ## QueueEventsOptions interface
 
+Options for QueueEvents
+
 <b>Signature:</b>
 
 ```typescript
@@ -15,6 +17,6 @@ export interface QueueEventsOptions extends QueueBaseOptions
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [blockingTimeout?](./bullmq.queueeventsoptions.blockingtimeout.md) | number | <i>(Optional)</i> |
-|  [lastEventId?](./bullmq.queueeventsoptions.lasteventid.md) | string | <i>(Optional)</i> |
+|  [blockingTimeout?](./bullmq.queueeventsoptions.blockingtimeout.md) | number | <i>(Optional)</i> Timeout for the blocking XREAD call to the events stream. |
+|  [lastEventId?](./bullmq.queueeventsoptions.lasteventid.md) | string | <i>(Optional)</i> Last event Id. If provided it is possible to continue consuming events from a known Id instead of from the last produced event. |
 

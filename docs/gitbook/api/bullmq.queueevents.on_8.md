@@ -4,18 +4,26 @@
 
 ## QueueEvents.on() method
 
+Listen to 'failed' event.
+
+This event is triggered when a job has thrown an exception.
+
 <b>Signature:</b>
 
 ```typescript
-on(event: 'drained', listener: (id: string) => void): this;
+on(event: 'failed', listener: (args: {
+        jobId: string;
+        failedReason: string;
+        prev?: string;
+    }, id: string) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'drained' |  |
-|  listener | (id: string) =&gt; void |  |
+|  event | 'failed' |  listener |
+|  listener | (args: { jobId: string; failedReason: string; prev?: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

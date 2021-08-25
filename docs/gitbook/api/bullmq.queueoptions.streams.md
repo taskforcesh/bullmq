@@ -4,6 +4,8 @@
 
 ## QueueOptions.streams property
 
+Options for the streams used internally in BullMQ.
+
 <b>Signature:</b>
 
 ```typescript

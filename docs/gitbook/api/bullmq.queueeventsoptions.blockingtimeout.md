@@ -4,6 +4,8 @@
 
 ## QueueEventsOptions.blockingTimeout property
 
+Timeout for the blocking XREAD call to the events stream.
+
 <b>Signature:</b>
 
 ```typescript

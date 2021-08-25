@@ -4,6 +4,8 @@
 
 ## Queue.getRepeatableJobs() method
 
+Get all repeatable meta jobs.
+
 <b>Signature:</b>
 
 ```typescript
@@ -22,9 +24,9 @@ getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<{
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  start | number |  |
-|  end | number |  |
-|  asc | boolean |  |
+|  start | number | offset of first job to return. |
+|  end | number | offset of last job to return. |
+|  asc | boolean | determine the order in which jobs are returned based on their next execution time. |
 
 <b>Returns:</b>
 

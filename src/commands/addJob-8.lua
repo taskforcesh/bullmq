@@ -59,6 +59,8 @@ end
 rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
       "timestamp", ARGV[6], "delay", ARGV[7], "priority", ARGV[9], "parentKey", ARGV[11])
 
+rcall("XADD", KEYS[7], "*", "event", "added", "jobId", jobId, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5])
+
 -- Check if job is delayed
 local delayedTimestamp = tonumber(ARGV[8])
 

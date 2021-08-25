@@ -4,6 +4,8 @@
 
 ## QueueBaseOptions interface
 
+Base Queue options
+
 <b>Signature:</b>
 
 ```typescript
