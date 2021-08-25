@@ -18,16 +18,35 @@ export declare interface QueueEvents {
   ): this;
 
   /**
-   * Listen to 'waiting' event.
+   * Listen to 'added' event.
    *
-   * This event is triggered when a job enters the 'waiting' state.
+   * This event is triggered when a job is created.
    *
-   * @param {'waiting'} event
+   * @param {'added'} event
    * @callback listener
    */
   on(
-    event: 'waiting',
-    listener: (args: { jobId: string }, id: string) => void,
+    event: 'added',
+    listener: (
+      args: { jobId: string; name: string; data: string; opts: string },
+      id: string,
+    ) => void,
+  ): this;
+
+  /**
+   * Listen to 'completed' event.
+   *
+   * This event is triggered when a job has successfully completed.
+   *
+   * @param {'completed'} event
+   * @callback listener
+   */
+  on(
+    event: 'completed',
+    listener: (
+      args: { jobId: string; returnvalue: string; prev?: string },
+      id: string,
+    ) => void,
   ): this;
 
   /**
@@ -44,10 +63,22 @@ export declare interface QueueEvents {
   ): this;
 
   /**
+   * Listen to 'drained' event.
+   *
+   * This event is triggered when the queue has drained the waiting list.
+   * Note that there could still be delayed jobs waiting their timers to expire
+   * and this event will still be triggered as long as the waiting list has emptied.
+   *
+   * @param {'drained'} event
+   * @callback listener
+   */
+  on(event: 'drained', listener: (id: string) => void): this;
+
+  /**
    * Listen to 'progress' event.
    *
    * This event is triggered when a job updates it progress, i.e. the
-   * Job##updateProgress() method is called. This is usefull to notify
+   * Job##updateProgress() method is called. This is useful to notify
    * progress or any other data from within a processor to the rest of the
    * world.
    *
@@ -57,6 +88,19 @@ export declare interface QueueEvents {
   on(
     event: 'progress',
     listener: (args: { jobId: string; data: string }, id: string) => void,
+  ): this;
+
+  /**
+   * Listen to 'waiting' event.
+   *
+   * This event is triggered when a job enters the 'waiting' state.
+   *
+   * @param {'waiting'} event
+   * @callback listener
+   */
+  on(
+    event: 'waiting',
+    listener: (args: { jobId: string }, id: string) => void,
   ): this;
 
   /**
@@ -72,22 +116,6 @@ export declare interface QueueEvents {
   on(
     event: 'stalled',
     listener: (args: { jobId: string }, id: string) => void,
-  ): this;
-
-  /**
-   * Listen to 'completed' event.
-   *
-   * This event is triggered when a job has succesfully completed.
-   *
-   * @param {'completed'} event
-   * @callback listener
-   */
-  on(
-    event: 'completed',
-    listener: (
-      args: { jobId: string; returnvalue: string; prev?: string },
-      id: string,
-    ) => void,
   ): this;
 
   /**
@@ -119,18 +147,6 @@ export declare interface QueueEvents {
     event: 'removed',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
-
-  /**
-   * Listen to 'drained' event.
-   *
-   * This event is triggered when the queue has drained the waiting list.
-   * Note that there could still be delayed jobs waiting their timers to expire
-   * and this event will still be triggered as long as the waiting list has emptied.
-   *
-   * @param {'drained'} event
-   * @callback listener
-   */
-  on(event: 'drained', listener: (id: string) => void): this;
 
   on(event: string, listener: Function): this;
 }

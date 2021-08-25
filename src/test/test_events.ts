@@ -112,6 +112,30 @@ describe('events', function() {
     await worker.close();
   });
 
+  it('emits added event when one job is added', async function() {
+    const worker = new Worker(queueName, async job => {}, {
+      drainDelay: 1,
+    });
+    const testName = 'test';
+    const testData = { foo: 'bar' };
+
+    const added = new Promise<void>(resolve => {
+      queueEvents.once('added', ({ jobId, name, data, opts }) => {
+        expect(jobId).to.be.equal('1');
+        expect(name).to.be.equal(testName);
+        expect(data).to.be.equal(JSON.stringify(testData));
+        expect(opts).to.be.equal(JSON.stringify({ attempts: 0, delay: 0 }));
+        resolve();
+      });
+    });
+
+    await queue.add(testName, { foo: 'bar' });
+
+    await added;
+
+    await worker.close();
+  });
+
   it('should emit an event when a job becomes active', async () => {
     const worker = new Worker(queueName, async job => {});
 
@@ -216,7 +240,7 @@ describe('events', function() {
 
     let eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-    expect(eventsLength).to.be.equal(4);
+    expect(eventsLength).to.be.equal(8);
 
     await trimmedQueue.trimEvents(0);
 
