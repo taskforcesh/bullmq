@@ -51,6 +51,6 @@ queueEvents.on('progress', (jobId: string, progress: number | object) => {
 The QueueEvents class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
 
 {% hint style="danger" %}
-The event stream is auto-trimmed so that its size does not grow too much, by default it is ~10.000 events, but this can be configured with the `streams.events.maxLen` option: 
+The event stream is auto-trimmed so that its size does not grow too much, by default it is ~10.000 events, but this can be configured with the `streams.events.maxLen` option.
 {% endhint %}
 
