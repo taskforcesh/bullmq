@@ -4,12 +4,17 @@
 
 ## QueueEvents.on() method
 
+Listen to 'completed' event.
+
+This event is triggered when a job has successfully completed.
+
 <b>Signature:</b>
 
 ```typescript
-on(event: 'delayed', listener: (args: {
+on(event: 'completed', listener: (args: {
         jobId: string;
-        delay: number;
+        returnvalue: string;
+        prev?: string;
     }, id: string) => void): this;
 ```
 
@@ -17,8 +22,8 @@ on(event: 'delayed', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'delayed' |  |
-|  listener | (args: { jobId: string; delay: number; }, id: string) =&gt; void |  |
+|  event | 'completed' |  listener |
+|  listener | (args: { jobId: string; returnvalue: string; prev?: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

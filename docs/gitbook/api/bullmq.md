@@ -12,9 +12,9 @@
 |  [ChildPool](./bullmq.childpool.md) |  |
 |  [FlowProducer](./bullmq.flowproducer.md) | This class allows to add jobs with dependencies between them in such a way that it is possible to build complex flows. Note: A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data. All Jobs can be in different queues, either children or parents, |
 |  [Job](./bullmq.job.md) |  |
-|  [Queue](./bullmq.queue.md) |  |
+|  [Queue](./bullmq.queue.md) | Queue<!-- -->This class provides methods to add jobs to a queue and some othe high-level administration such as pausing or deleting queues. |
 |  [QueueBase](./bullmq.queuebase.md) |  |
-|  [QueueEvents](./bullmq.queueevents.md) |  |
+|  [QueueEvents](./bullmq.queueevents.md) | The QueueEvents class is used for listening to the global events emitted by a given queue.<!-- -->This class requires a dedicated redis connection. |
 |  [QueueGetters](./bullmq.queuegetters.md) |  |
 |  [QueueScheduler](./bullmq.queuescheduler.md) | This class is just used for some automatic bookkeeping of the queue, such as updating the delay set as well as moving stalled jobs back to the waiting list.<!-- -->Jobs are checked for stallness once every "visibility window" seconds. Jobs are then marked as candidates for being stalled, in the next check, the candidates are marked as stalled and moved to wait. Workers need to clean the candidate list with the jobs that they are working on, failing to update the list results in the job ending being stalled.<!-- -->This class requires a dedicated redis connection, and at least one is needed to be running at a given time, otherwise delays, stalled jobs, retries, repeatable jobs, etc, will not work correctly or at all. |
 |  [RedisConnection](./bullmq.redisconnection.md) |  |
@@ -49,10 +49,10 @@
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
 |  [Queue](./bullmq.queue.md) |  |
-|  [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
+|  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
 |  [QueueEvents](./bullmq.queueevents.md) |  |
-|  [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |
-|  [QueueOptions](./bullmq.queueoptions.md) |  |
+|  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
+|  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |
 |  [QueueScheduler](./bullmq.queuescheduler.md) |  |
 |  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
 |  [RateLimiterOptions](./bullmq.ratelimiteroptions.md) |  |

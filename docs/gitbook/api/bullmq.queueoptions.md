@@ -4,6 +4,8 @@
 
 ## QueueOptions interface
 
+Options for the Queue class.
+
 <b>Signature:</b>
 
 ```typescript
@@ -16,6 +18,6 @@ export interface QueueOptions extends QueueBaseOptions
 |  Property | Type | Description |
 |  --- | --- | --- |
 |  [defaultJobOptions?](./bullmq.queueoptions.defaultjoboptions.md) | [JobsOptions](./bullmq.jobsoptions.md) | <i>(Optional)</i> |
-|  [limiter?](./bullmq.queueoptions.limiter.md) | { groupKey: string; } | <i>(Optional)</i> |
-|  [streams?](./bullmq.queueoptions.streams.md) | { events: { maxLen: number; }; } | <i>(Optional)</i> |
+|  [limiter?](./bullmq.queueoptions.limiter.md) | { groupKey: string; } | <i>(Optional)</i> Options for the rate limiter. |
+|  [streams?](./bullmq.queueoptions.streams.md) | { events: { maxLen: number; }; } | <i>(Optional)</i> Options for the streams used internally in BullMQ. |
 

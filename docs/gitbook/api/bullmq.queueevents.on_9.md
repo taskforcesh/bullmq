@@ -4,18 +4,24 @@
 
 ## QueueEvents.on() method
 
+Listen to 'removed' event.
+
+This event is triggered when a job has been manually removed from the queue.
+
 <b>Signature:</b>
 
 ```typescript
-on(event: string, listener: Function): this;
+on(event: 'removed', listener: (args: {
+        jobId: string;
+    }, id: string) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | string |  |
-|  listener | Function |  |
+|  event | 'removed' |  listener |
+|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

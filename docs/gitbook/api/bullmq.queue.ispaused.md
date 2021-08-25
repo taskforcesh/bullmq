@@ -4,6 +4,8 @@
 
 ## Queue.isPaused() method
 
+Returns true if the queue is currently paused.
+
 <b>Signature:</b>
 
 ```typescript

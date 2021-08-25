@@ -4,6 +4,8 @@
 
 ## QueueEventsOptions.lastEventId property
 
+Last event Id. If provided it is possible to continue consuming events from a known Id instead of from the last produced event.
+
 <b>Signature:</b>
 
 ```typescript

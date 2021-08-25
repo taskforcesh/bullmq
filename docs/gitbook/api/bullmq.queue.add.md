@@ -4,6 +4,8 @@
 
 ## Queue.add() method
 
+Adds a new job to the queue.
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,9 +16,9 @@ add(name: N, data: T, opts?: JobsOptions): Promise<Job<T, R, N>>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  name | N |  |
-|  data | T |  |
-|  opts | [JobsOptions](./bullmq.jobsoptions.md) |  |
+|  name | N | Name of the job to be added to the queue,. |
+|  data | T | Arbitrary data to append to the job. |
+|  opts | [JobsOptions](./bullmq.jobsoptions.md) | Job options that affects how the job is going to be processed. |
 
 <b>Returns:</b>
 
