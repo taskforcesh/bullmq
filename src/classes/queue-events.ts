@@ -41,14 +41,14 @@ export declare interface QueueEvents {
    * @param {'completed'} event
    * @callback listener
    */
-     on(
-      event: 'completed',
-      listener: (
-        args: { jobId: string; returnvalue: string; prev?: string },
-        id: string,
-      ) => void,
-    ): this;
-  
+  on(
+    event: 'completed',
+    listener: (
+      args: { jobId: string; returnvalue: string; prev?: string },
+      id: string,
+    ) => void,
+  ): this;
+
   /**
    * Listen to 'delayed' event.
    *
@@ -57,10 +57,10 @@ export declare interface QueueEvents {
    * @param {'delayed'} event
    * @callback listener
    */
-     on(
-      event: 'delayed',
-      listener: (args: { jobId: string; delay: number }, id: string) => void,
-    ): this;
+  on(
+    event: 'delayed',
+    listener: (args: { jobId: string; delay: number }, id: string) => void,
+  ): this;
 
   /**
    * Listen to 'drained' event.
@@ -102,7 +102,6 @@ export declare interface QueueEvents {
     event: 'waiting',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
-
 
   /**
    * Listen to 'stalled' event.
