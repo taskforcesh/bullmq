@@ -515,7 +515,7 @@ describe('workers', function() {
     await worker.close();
   });
 
-  it('process a job that updates progress', async () => {
+  it('process a job that updates progress as number', async () => {
     let processor;
 
     const job = await queue.add('test', { foo: 'bar' });
@@ -523,8 +523,7 @@ describe('workers', function() {
     expect(job.data.foo).to.be.eql('bar');
 
     const processing = new Promise<void>((resolve, reject) => {
-      queueEvents.on('progress', args => {
-        const { jobId, data } = args;
+      queueEvents.on('progress', ({ jobId, data }) => {
         expect(jobId).to.be.ok;
         expect(data).to.be.eql(42);
         resolve();
@@ -534,6 +533,38 @@ describe('workers', function() {
         try {
           expect(job.data.foo).to.be.equal('bar');
           await job.updateProgress(42);
+        } catch (err) {
+          reject(err);
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor);
+    await worker.waitUntilReady();
+
+    await processing;
+
+    await worker.close();
+  });
+
+  it('process a job that updates progress as object', async () => {
+    let processor;
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    const processing = new Promise<void>((resolve, reject) => {
+      queueEvents.on('progress', ({ jobId, data }) => {
+        expect(jobId).to.be.ok;
+        expect(data).to.be.eql({ percentage: 42 });
+        resolve();
+      });
+
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.foo).to.be.equal('bar');
+          await job.updateProgress({ percentage: 42 });
         } catch (err) {
           reject(err);
         }
