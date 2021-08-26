@@ -16,7 +16,6 @@ const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 const ONE_DAY = 24 * ONE_HOUR;
-const MAX_INT = 2147483647;
 
 const NoopProc = async (job: Job) => {};
 
@@ -315,6 +314,66 @@ describe('repeat', function() {
     await completing;
     await queueScheduler.close();
     await worker.close();
+  });
+
+  it('should remove repeated job when using removeOnComplete', async function() {
+    this.timeout(200000);
+    const queueName2 = `test-${v4()}`;
+    const queue2 = new Queue(queueName2, {
+      defaultJobOptions: {
+        removeOnComplete: true,
+      },
+    });
+
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.waitUntilReady();
+
+    const date = new Date('2017-02-07 9:24:00');
+    this.clock.setSystemTime(date);
+    const nextTick = 2 * ONE_SECOND + 500;
+    const delay = 5 * ONE_SECOND + 500;
+
+    const worker = new Worker(queueName, async job => {});
+
+    await queue.add(
+      'test',
+      { foo: 'bar' },
+      {
+        repeat: {
+          cron: '*/2 * * * * *',
+          startDate: new Date('2017-02-07 9:24:05'),
+        },
+      },
+    );
+
+    this.clock.tick(nextTick + delay);
+
+    let prev: Job;
+    let counter = 0;
+
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        this.clock.tick(nextTick);
+        if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+        }
+        prev = job;
+        counter++;
+        if (counter == 5) {
+          const counts = await queue2.getJobCounts('completed');
+          expect(counts.completed).to.be.equal(0);
+          resolve();
+        }
+      });
+    });
+
+    await completing;
+
+    await queueScheduler.close();
+    await queue2.close();
+    await worker.close();
+    await removeAllQueueData(new IORedis(), queueName2);
   });
 
   it('should repeat every 2 seconds and start immediately', async function() {
