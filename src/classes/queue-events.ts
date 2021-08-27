@@ -151,6 +151,19 @@ export declare interface QueueEvents {
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
 
+  /**
+   * Listen to 'waiting-children' event.
+   *
+   * This event is triggered when a job enters the 'waiting-children' state.
+   *
+   * @param {'waiting-children'} event
+   * @callback listener
+   */
+  on(
+    event: 'waiting-children',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+
   on(event: string, listener: Function): this;
 }
 

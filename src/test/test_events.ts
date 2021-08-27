@@ -2,7 +2,8 @@ import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 import { beforeEach, describe, it } from 'mocha';
-import { Queue } from '../classes';
+import { FlowProducer } from '../classes/flow-producer';
+import { Queue } from '../classes/queue';
 import { QueueEvents } from '../classes/queue-events';
 import { Worker } from '../classes/worker';
 import { delay, removeAllQueueData } from '../utils';
@@ -151,6 +152,37 @@ describe('events', function() {
     });
 
     await completed;
+  });
+
+  it('emits waiting-children event when one job is a parent', async function() {
+    const worker = new Worker(queueName, async job => {}, {
+      drainDelay: 1,
+    });
+    const name = 'parent-job';
+
+    const waitingChildren = new Promise<void>(resolve => {
+      queueEvents.once('waiting-children', async ({ jobId }) => {
+        const job = await queue.getJob(jobId);
+        const state = await job.getState();
+        expect(state).to.be.equal('waiting-children');
+        expect(job.name).to.be.equal(name);
+        resolve();
+      });
+    });
+
+    const flow = new FlowProducer();
+    await flow.add({
+      name,
+      queueName,
+      data: {},
+      children: [
+        { name: 'test', data: { foo: 'bar' }, queueName: 'children-queue' },
+      ],
+    });
+
+    await waitingChildren;
+
+    await worker.close();
   });
 
   it('should listen to global events', async () => {

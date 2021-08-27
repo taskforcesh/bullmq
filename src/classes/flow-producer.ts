@@ -161,7 +161,7 @@ export class FlowProducer extends EventEmitter {
    * however this call would be atomic, either it fails and no jobs will
    * be added to the queues, or it succeeds and all jobs will be added.
    *
-   * @param flows An array of objects with a tree-like structure where children jobs
+   * @param flows - an array of objects with a tree-like structure where children jobs
    * will be processed before their parents.
    */
   async addBulk(flows: FlowJob[]): Promise<JobNode[]> {
@@ -184,9 +184,9 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi ioredis pipeline
-   * @param node the node representing a job to be added to some queue
-   * @param parent Parent data sent to children to create the "links" to their parent
+   * @param multi - ioredis pipeline
+   * @param node - the node representing a job to be added to some queue
+   * @param parent - parent data sent to children to create the "links" to their parent
    * @returns
    */
   private addNode({ multi, node, parent, queuesOpts }: AddNodeOpts): JobNode {
@@ -258,8 +258,8 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi ioredis pipeline
-   * @param nodes the nodes representing jobs to be added to some queue
+   * @param multi - ioredis pipeline
+   * @param nodes - the nodes representing jobs to be added to some queue
    * @returns
    */
   private addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
@@ -328,8 +328,8 @@ export class FlowProducer extends EventEmitter {
    * Helper factory method that creates a queue-like object
    * required to create jobs in any queue.
    *
-   * @param node
-   * @param queueKeys
+   * @param node -
+   * @param queueKeys -
    * @returns
    */
   private queueFromNode(

@@ -68,6 +68,7 @@ local delayedTimestamp = tonumber(ARGV[8])
 local waitChildrenKey = ARGV[12]
 if waitChildrenKey ~= "" then
     rcall("ZADD", waitChildrenKey, ARGV[6], jobId)
+    rcall("XADD", KEYS[7], "*", "event", "waiting-children", "jobId", jobId)
 elseif (delayedTimestamp ~= 0) then
     local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
     rcall("ZADD", KEYS[5], timestamp, jobId)
