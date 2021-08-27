@@ -98,8 +98,8 @@ export class Queue<
 
   /**
    * Adds an array of jobs to the queue.
-   * @method add
-   * @param jobs: [] The array of jobs to add to the queue. Each job is defined by 3
+   *
+   * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
    */
   async addBulk(jobs: { name: N; data: T; opts?: BulkJobOptions }[]) {
@@ -226,8 +226,6 @@ export class Queue<
   }
 
   /**
-   * @method clean
-   *
    * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
    *
@@ -259,8 +257,6 @@ export class Queue<
   }
 
   /**
-   * @method obliterate
-   *
    * Completely destroys the queue and all of its contents irreversibly.
    * This method will the *pause* the queue and requires that there are no
    * active jobs. It is possible to bypass this requirement, i.e. not

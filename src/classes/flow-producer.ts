@@ -96,15 +96,14 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
-   * @method add
    * Adds a flow.
    *
    * This call would be atomic, either it fails and no jobs will
    * be added to the queues, or it succeeds and all jobs will be added.
    *
-   * @param flow an object with a tree-like structure where children jobs
+   * @param flow - an object with a tree-like structure where children jobs
    * will be processed before their parents.
-   * @param {Object} [opts] options that will be applied to the flow object.
+   * @param opts - options that will be applied to the flow object.
    */
   async add(flow: FlowJob, opts?: FlowOpts): Promise<JobNode> {
     if (this.closing) {
@@ -125,10 +124,9 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
-   * @method getFlow
    * Get a flow.
    *
-   * @param {Object} opts an object with options for getting a JobNode.
+   * @param opts - an object with options for getting a JobNode.
    */
   async getFlow(opts: NodeOpts): Promise<JobNode> {
     if (this.closing) {
@@ -153,7 +151,6 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
-   * @method addBulk
    * Adds multiple flows.
    *
    * A flow is a tree-like structure of jobs that depend on each other.
@@ -182,7 +179,6 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
-   * @method addNode
    * Add a node (job) of a flow to the queue. This method will recursively
    * add all its children as well. Note that a given job can potentially be
    * a parent and a child job at the same time depending on where it is located
@@ -257,7 +253,6 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
-   * @method addNodes
    * Adds nodes (jobs) of multiple flows to the queue. This method will recursively
    * add all its children as well. Note that a given job can potentially be
    * a parent and a child job at the same time depending on where it is located
