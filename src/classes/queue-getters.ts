@@ -196,7 +196,6 @@ export class QueueGetters extends QueueBase {
   }
 
   /**
-   * @method getWorkers
    * Get worker list related to the queue.
    *
    * @returns {Object} Returns an array with workers info.
