@@ -43,10 +43,14 @@ queueEvents.on('completed', (jobId: string) => {
   // Called every time a job is completed in any worker.
 });
 
-queueEvents.on('progress', (jobId: string, progress: number | object) => {
+queueEvents.on('progress', ({ jobId, data }: { jobId: string; data: number | object })) => {
   // jobId received a progress event
 });
 ```
 
 The QueueEvents class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
+
+{% hint style="danger" %}
+The event stream is auto-trimmed so that its size does not grow too much, by default it is ~10.000 events, but this can be configured with the `streams.events.maxLen` option.
+{% endhint %}
 

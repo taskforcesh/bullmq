@@ -3,6 +3,7 @@
   "env": { "es6": true, "node": true, "mocha": true },
   "globals": { "Atomics": "readonly", "SharedArrayBuffer": "readonly" },
   "plugins": [
+    "eslint-plugin-tsdoc",
     "promise",
     "prettier",
     "mocha",
@@ -58,6 +59,7 @@
     "max-len": [
       "error",
       { "code": 120, "ignorePattern": "^import\\s.+\\sfrom\\s.+;$" }
-    ]
+    ],
+    "tsdoc/syntax": "warn"
   }
 }

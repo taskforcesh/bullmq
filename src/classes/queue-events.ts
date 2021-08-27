@@ -87,7 +87,10 @@ export declare interface QueueEvents {
    */
   on(
     event: 'progress',
-    listener: (args: { jobId: string; data: string }, id: string) => void,
+    listener: (
+      args: { jobId: string; data: number | object },
+      id: string,
+    ) => void,
   ): this;
 
   /**

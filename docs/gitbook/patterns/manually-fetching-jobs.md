@@ -44,7 +44,7 @@ const job = (await worker.getNextJob(token)) as Job;
 await job.extendLock(token, 30000);
 ```
 
-#### Looping through jobs
+## Looping through jobs
 
 In many cases you will have an "infinite" loop that processes jobs one by one like this example:
 
@@ -81,3 +81,4 @@ while (1) {
   }
 }
 ```
+
