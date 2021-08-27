@@ -152,18 +152,6 @@ export declare interface QueueEvents {
   ): this;
 
   /**
-   * Listen to 'drained' event.
-   *
-   * This event is triggered when the queue has drained the waiting list.
-   * Note that there could still be delayed jobs waiting their timers to expire
-   * and this event will still be triggered as long as the waiting list has emptied.
-   *
-   * @param {'drained'} event
-   * @callback listener
-   */
-  on(event: 'drained', listener: (id: string) => void): this;
-
-  /**
    * Listen to 'waiting-children' event.
    *
    * This event is triggered when a job enters the 'waiting-children' state.

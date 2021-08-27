@@ -864,7 +864,7 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Marks a job to not be retried if it fails (even if attempts has been configured)
    */
-  discard() {
+  discard(): void {
     this.discarded = true;
   }
 
