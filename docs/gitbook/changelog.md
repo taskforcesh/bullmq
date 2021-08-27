@@ -5,7 +5,6 @@
 
 * **queue-events:** add waiting-children event ([#704](https://github.com/taskforcesh/bullmq/issues/704)) ([18b0b79](https://github.com/taskforcesh/bullmq/commit/18b0b7954313274a61fcc058380bfb9d682c059d))
 
-# Changelog
 
 ## [1.43.0](https://github.com/taskforcesh/bullmq/compare/v1.42.1...v1.43.0) \(2021-08-25\)
 
