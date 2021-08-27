@@ -4,7 +4,7 @@
 
 ## Job.addJob() method
 
- addJob Adds the job to Redis.
+Adds the job to Redis.
 
 <b>Signature:</b>
 

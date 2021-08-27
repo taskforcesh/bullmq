@@ -4,7 +4,7 @@
 
 ## FlowProducer.addBulk() method
 
- addBulk Adds multiple flows.
+Adds multiple flows.
 
 A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data.
 
@@ -20,7 +20,7 @@ addBulk(flows: FlowJob[]): Promise<JobNode[]>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  flows | [FlowJob](./bullmq.flowjob.md)<!-- -->\[\] | An array of objects with a tree-like structure where children jobs will be processed before their parents. |
+|  flows | [FlowJob](./bullmq.flowjob.md)<!-- -->\[\] | an array of objects with a tree-like structure where children jobs will be processed before their parents. |
 
 <b>Returns:</b>
 

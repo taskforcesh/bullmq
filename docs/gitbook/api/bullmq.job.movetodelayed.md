@@ -4,7 +4,7 @@
 
 ## Job.moveToDelayed() method
 
- moveToDelayed Moves the job to the delay set.
+Moves the job to the delay set.
 
 <b>Signature:</b>
 

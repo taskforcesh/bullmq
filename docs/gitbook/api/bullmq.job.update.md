@@ -4,7 +4,7 @@
 
 ## Job.update() method
 
- update Updates a job's data
+Updates a job's data
 
 <b>Signature:</b>
 

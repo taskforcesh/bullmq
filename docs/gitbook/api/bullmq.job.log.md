@@ -4,7 +4,7 @@
 
 ## Job.log() method
 
- log Logs one row of log data.
+Logs one row of log data.
 
 <b>Signature:</b>
 

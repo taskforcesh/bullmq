@@ -16,7 +16,8 @@ export declare interface QueueEvents
 |  --- | --- |
 |  [on(event, listener)](./bullmq.queueevents.on.md) | Listen to 'active' event.<!-- -->This event is triggered when a job enters the 'active' state. |
 |  [on(event, listener)](./bullmq.queueevents.on_9.md) | Listen to 'removed' event.<!-- -->This event is triggered when a job has been manually removed from the queue. |
-|  [on(event, listener)](./bullmq.queueevents.on_10.md) |  |
+|  [on(event, listener)](./bullmq.queueevents.on_10.md) | Listen to 'waiting-children' event.<!-- -->This event is triggered when a job enters the 'waiting-children' state. |
+|  [on(event, listener)](./bullmq.queueevents.on_11.md) |  |
 |  [on(event, listener)](./bullmq.queueevents.on_1.md) | Listen to 'added' event.<!-- -->This event is triggered when a job is created. |
 |  [on(event, listener)](./bullmq.queueevents.on_2.md) | Listen to 'completed' event.<!-- -->This event is triggered when a job has successfully completed. |
 |  [on(event, listener)](./bullmq.queueevents.on_3.md) | Listen to 'delayed' event.<!-- -->This event is triggered when a job is delayed. |

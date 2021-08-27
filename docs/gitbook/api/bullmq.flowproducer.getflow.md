@@ -4,7 +4,7 @@
 
 ## FlowProducer.getFlow() method
 
- getFlow Get a flow.
+Get a flow.
 
 <b>Signature:</b>
 

@@ -4,8 +4,6 @@
 
 ## Job.isCompleted() method
 
- isCompleted
-
 <b>Signature:</b>
 
 ```typescript
@@ -15,5 +13,5 @@ isCompleted(): Promise<boolean>;
 
 Promise&lt;boolean&gt;
 
-{<!-- -->boolean<!-- -->} true if the job has completed.
+true if the job has completed.
 

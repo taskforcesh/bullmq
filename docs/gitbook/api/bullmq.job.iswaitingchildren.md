@@ -4,8 +4,6 @@
 
 ## Job.isWaitingChildren() method
 
- isWaitingChildren
-
 <b>Signature:</b>
 
 ```typescript

@@ -4,7 +4,7 @@
 
 ## Job.waitUntilFinished() method
 
- waitUntilFinished Returns a promise the resolves when the job has finished. (completed or failed).
+Returns a promise the resolves when the job has finished. (completed or failed).
 
 <b>Signature:</b>
 

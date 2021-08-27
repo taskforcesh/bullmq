@@ -4,7 +4,7 @@
 
 ## Job.getState() method
 
- getState Get current state.
+Get current state.
 
 <b>Signature:</b>
 
@@ -15,5 +15,5 @@ getState(): Promise<string>;
 
 Promise&lt;string&gt;
 
-{<!-- -->string<!-- -->} Returns one of these values: 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
+Returns one of these values: 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
 

@@ -4,7 +4,7 @@
 
 ## Job.getDependenciesCount() method
 
- getDependenciesCount Get children job counts if this job is a parent and has children.
+Get children job counts if this job is a parent and has children.
 
 <b>Signature:</b>
 

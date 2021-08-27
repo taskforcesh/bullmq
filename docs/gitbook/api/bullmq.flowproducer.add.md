@@ -4,7 +4,7 @@
 
 ## FlowProducer.add() method
 
- add Adds a flow.
+Adds a flow.
 
 This call would be atomic, either it fails and no jobs will be added to the queues, or it succeeds and all jobs will be added.
 

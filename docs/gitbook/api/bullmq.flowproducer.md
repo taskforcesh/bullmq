@@ -35,9 +35,9 @@ export declare class FlowProducer extends EventEmitter
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
-|  [add(flow, opts)](./bullmq.flowproducer.add.md) |  |  add Adds a flow.<!-- -->This call would be atomic, either it fails and no jobs will be added to the queues, or it succeeds and all jobs will be added. |
-|  [addBulk(flows)](./bullmq.flowproducer.addbulk.md) |  |  addBulk Adds multiple flows.<!-- -->A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data.<!-- -->All Jobs can be in different queues, either children or parents, however this call would be atomic, either it fails and no jobs will be added to the queues, or it succeeds and all jobs will be added. |
+|  [add(flow, opts)](./bullmq.flowproducer.add.md) |  | Adds a flow.<!-- -->This call would be atomic, either it fails and no jobs will be added to the queues, or it succeeds and all jobs will be added. |
+|  [addBulk(flows)](./bullmq.flowproducer.addbulk.md) |  | Adds multiple flows.<!-- -->A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data.<!-- -->All Jobs can be in different queues, either children or parents, however this call would be atomic, either it fails and no jobs will be added to the queues, or it succeeds and all jobs will be added. |
 |  [close()](./bullmq.flowproducer.close.md) |  |  |
 |  [disconnect()](./bullmq.flowproducer.disconnect.md) |  |  |
-|  [getFlow(opts)](./bullmq.flowproducer.getflow.md) |  |  getFlow Get a flow. |
+|  [getFlow(opts)](./bullmq.flowproducer.getflow.md) |  | Get a flow. |
 

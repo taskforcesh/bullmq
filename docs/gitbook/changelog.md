@@ -1,3 +1,10 @@
+# [1.44.0](https://github.com/taskforcesh/bullmq/compare/v1.43.0...v1.44.0) (2021-08-27)
+
+
+### Features
+
+* **queue-events:** add waiting-children event ([#704](https://github.com/taskforcesh/bullmq/issues/704)) ([18b0b79](https://github.com/taskforcesh/bullmq/commit/18b0b7954313274a61fcc058380bfb9d682c059d))
+
 # Changelog
 
 ## [1.43.0](https://github.com/taskforcesh/bullmq/compare/v1.42.1...v1.43.0) \(2021-08-25\)
@@ -927,4 +934,3 @@
 * Introduced animals into the world, we believe they're going to be a neat addition.
 
 **4.0.0-beta.0**
-

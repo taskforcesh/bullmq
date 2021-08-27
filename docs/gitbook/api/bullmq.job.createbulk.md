@@ -4,7 +4,7 @@
 
 ## Job.createBulk() method
 
- createBulk Creates a bulk of jobs and adds them atomically to the given queue.
+Creates a bulk of jobs and adds them atomically to the given queue.
 
 <b>Signature:</b>
 

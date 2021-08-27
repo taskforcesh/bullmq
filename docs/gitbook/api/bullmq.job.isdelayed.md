@@ -4,8 +4,6 @@
 
 ## Job.isDelayed() method
 
- isDelayed
-
 <b>Signature:</b>
 
 ```typescript

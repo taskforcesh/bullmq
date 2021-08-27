@@ -4,7 +4,7 @@
 
 ## Job.moveToFailed() method
 
- moveToFailed Moves a job to the failed queue.
+Moves a job to the failed queue.
 
 <b>Signature:</b>
 

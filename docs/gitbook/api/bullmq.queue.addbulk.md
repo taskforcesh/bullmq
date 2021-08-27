@@ -4,7 +4,7 @@
 
 ## Queue.addBulk() method
 
-Adds an array of jobs to the queue.  add
+Adds an array of jobs to the queue.
 
 <b>Signature:</b>
 
@@ -20,7 +20,7 @@ addBulk(jobs: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  jobs | { name: N; data: T; opts?: [BulkJobOptions](./bullmq.bulkjoboptions.md)<!-- -->; }\[\] | : \[\] The array of jobs to add to the queue. Each job is defined by 3 properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'. |
+|  jobs | { name: N; data: T; opts?: [BulkJobOptions](./bullmq.bulkjoboptions.md)<!-- -->; }\[\] | The array of jobs to add to the queue. Each job is defined by 3 properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'. |
 
 <b>Returns:</b>
 

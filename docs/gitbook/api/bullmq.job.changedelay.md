@@ -4,7 +4,7 @@
 
 ## Job.changeDelay() method
 
- changeDelay Change delay of a delayed job.
+Change delay of a delayed job.
 
 <b>Signature:</b>
 

@@ -4,7 +4,7 @@
 
 ## Job.fromJSON() method
 
- fromJSON Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
+Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
 
 <b>Signature:</b>
 

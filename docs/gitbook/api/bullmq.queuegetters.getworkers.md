@@ -4,7 +4,7 @@
 
 ## QueueGetters.getWorkers() method
 
- getWorkers Get worker list related to the queue.
+Get worker list related to the queue.
 
 <b>Signature:</b>
 

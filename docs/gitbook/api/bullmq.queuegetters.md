@@ -34,5 +34,5 @@ export declare class QueueGetters extends QueueBase
 |  [getWaitingChildren(start, end)](./bullmq.queuegetters.getwaitingchildren.md) |  |  |
 |  [getWaitingChildrenCount()](./bullmq.queuegetters.getwaitingchildrencount.md) |  |  |
 |  [getWaitingCount()](./bullmq.queuegetters.getwaitingcount.md) |  |  |
-|  [getWorkers()](./bullmq.queuegetters.getworkers.md) |  |  getWorkers Get worker list related to the queue. |
+|  [getWorkers()](./bullmq.queuegetters.getworkers.md) |  | Get worker list related to the queue. |
 

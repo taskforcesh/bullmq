@@ -4,7 +4,7 @@
 
 ## Job.getChildrenValues() method
 
- getChildrenValues Get this jobs children result values if any.
+Get this jobs children result values if any.
 
 <b>Signature:</b>
 

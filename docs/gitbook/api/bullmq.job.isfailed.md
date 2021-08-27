@@ -4,8 +4,6 @@
 
 ## Job.isFailed() method
 
- isFailed
-
 <b>Signature:</b>
 
 ```typescript
@@ -15,5 +13,5 @@ isFailed(): Promise<boolean>;
 
 Promise&lt;boolean&gt;
 
-{<!-- -->boolean<!-- -->} true if the job has failed.
+true if the job has failed.
 

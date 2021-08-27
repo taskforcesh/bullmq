@@ -4,7 +4,7 @@
 
 ## Job.create() method
 
- create Creates a new job and adds it to the queue.
+Creates a new job and adds it to the queue.
 
 <b>Signature:</b>
 

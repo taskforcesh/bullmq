@@ -13,7 +13,7 @@ This event is triggered when a job updates it progress, i.e. the Job\#\#updatePr
 ```typescript
 on(event: 'progress', listener: (args: {
         jobId: string;
-        data: string;
+        data: number | object;
     }, id: string) => void): this;
 ```
 
@@ -22,7 +22,7 @@ on(event: 'progress', listener: (args: {
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  event | 'progress' |  listener |
-|  listener | (args: { jobId: string; data: string; }, id: string) =&gt; void |  |
+|  listener | (args: { jobId: string; data: number \| object; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 
