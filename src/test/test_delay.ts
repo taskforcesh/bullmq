@@ -15,7 +15,7 @@ describe('Delayed jobs', function() {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 
@@ -118,7 +118,6 @@ describe('Delayed jobs', function() {
     this.timeout(5000);
 
     let worker: Worker;
-    const queueName = 'delayed queue multiple' + v4();
     let order = 1;
 
     let secondQueueScheduler: QueueScheduler;

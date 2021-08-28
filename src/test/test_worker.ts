@@ -1,12 +1,12 @@
-import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
-import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
-import { v4 } from 'uuid';
-import { delay, removeAllQueueData } from '../utils';
 import { after, times, once } from 'lodash';
-import { RetryErrors } from '../enums';
+import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
+import { v4 } from 'uuid';
+import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
+import { delay, removeAllQueueData } from '../utils';
+import { RetryErrors } from '../enums';
 
 describe('workers', function() {
   const sandbox = sinon.createSandbox();
@@ -64,6 +64,7 @@ describe('workers', function() {
 
     await worker.close();
     await worker2.close();
+    await removeAllQueueData(new IORedis(), queueName2);
   });
 
   describe('auto job removal', () => {

@@ -1108,11 +1108,9 @@ describe('flows', () => {
       expect(nextJob).to.not.be.undefined;
       expect(await (nextJob as Job).getState()).to.be.equal('active');
 
-      try {
-        await tree.job.remove();
-      } catch (err) {
-        return;
-      }
+      await expect(tree.job.remove()).to.be.rejectedWith(
+        `Could not remove job ${tree.job.id}`,
+      );
 
       expect(await tree.job.getState()).to.be.equal('waiting-children');
       expect(await tree.children[0].job.getState()).to.be.equal('active');
