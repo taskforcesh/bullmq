@@ -159,6 +159,7 @@ describe('events', function() {
       drainDelay: 1,
     });
     const name = 'parent-job';
+    const childrenQueueName = `children-queue-${v4()}`;
 
     const waitingChildren = new Promise<void>(resolve => {
       queueEvents.once('waiting-children', async ({ jobId }) => {
@@ -176,13 +177,14 @@ describe('events', function() {
       queueName,
       data: {},
       children: [
-        { name: 'test', data: { foo: 'bar' }, queueName: 'children-queue' },
+        { name: 'test', data: { foo: 'bar' }, queueName: childrenQueueName },
       ],
     });
 
     await waitingChildren;
 
     await worker.close();
+    await removeAllQueueData(new IORedis(), childrenQueueName);
   });
 
   it('should listen to global events', async () => {
