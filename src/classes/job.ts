@@ -837,7 +837,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
-  async retry(state: 'completed' | 'failed' = 'failed') {
+  async retry(state: 'completed' | 'failed' = 'failed'): Promise<void> {
     const client = await this.queue.client;
 
     this.failedReason = null;

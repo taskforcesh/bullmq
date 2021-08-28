@@ -6,7 +6,6 @@ import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
-import { RetryErrors } from '../enums';
 
 describe('workers', function() {
   const sandbox = sinon.createSandbox();
@@ -1679,11 +1678,7 @@ describe('workers', function() {
           const completedCount = await queue.getCompletedCount();
           expect(completedCount).to.equal(1);
 
-          try {
-            await job.retry();
-          } catch (err) {
-            expect(err).to.be.equal(RetryErrors.JobNotExist);
-          }
+          await expect(job.retry()).to.be.rejectedWith('Retried job not exist');
 
           const completedCount2 = await queue.getCompletedCount();
           expect(completedCount2).to.equal(1);
@@ -1717,11 +1712,7 @@ describe('workers', function() {
 
       await activating;
 
-      try {
-        await job.retry();
-      } catch (err) {
-        expect(err.message).to.equal('Retried job not failed');
-      }
+      await expect(job.retry()).to.be.rejectedWith('Retried job not failed');
 
       await worker.close();
     });

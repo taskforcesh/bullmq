@@ -1,5 +1,5 @@
 export enum RetryErrors {
-  JobNotFailed = -2,
+  JobNotFailed = -3,
   JobIsActive = -1,
   JobNotExist = 0,
 }
