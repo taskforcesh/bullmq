@@ -11,6 +11,7 @@ import {
   QueueSchedulerOptions,
   WorkerOptions,
 } from '../interfaces';
+import { ErrorCodes } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
@@ -242,15 +243,15 @@ export class Scripts {
     state: string,
   ): Error {
     switch (code) {
-      case -1:
+      case ErrorCodes.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
-      case -2:
+      case ErrorCodes.JobLockNotExist:
         return new Error(`Missing lock for job ${jobId}. ${command}`);
-      case -3:
+      case ErrorCodes.JobNotInState:
         return new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
-      case -4:
+      case ErrorCodes.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
     }
   }
@@ -295,7 +296,7 @@ export class Scripts {
     );
   }
 
-  static async isFinished(queue: MinimalQueue, jobId: string) {
+  static async isFinished(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
     const keys = ['completed', 'failed'].map(function(key: string) {
@@ -305,7 +306,7 @@ export class Scripts {
     return (<any>client).isFinished(keys.concat([jobId]));
   }
 
-  static async getState(queue: MinimalQueue, jobId: string) {
+  static async getState(queue: MinimalQueue, jobId: string): Promise<string> {
     const client = await queue.client;
 
     const keys = [
@@ -425,7 +426,7 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const args = this.moveToDelayedArgs(queue, jobId, timestamp);
@@ -440,7 +441,7 @@ export class Scripts {
     jobId: string,
     token: string,
     opts: MoveToChildrenOpts = {},
-  ) {
+  ): Promise<boolean> {
     const client = await queue.client;
     const multi = client.multi();
 
@@ -454,7 +455,7 @@ export class Scripts {
       case 1:
         return false;
       default:
-        return this.finishedErrors(
+        throw this.finishedErrors(
           result,
           jobId,
           'moveToWaitingChildren',
@@ -497,12 +498,12 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param {Job} job
+   * @param job -
    * @param {Object} options
    * @param {String} options.state The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
-   * @return {Promise<Number>} Returns a promise that evaluates to a return code:
+   * @returns Returns a promise that evaluates to a return code:
    * 1 means the operation was a success
    * 0 means the job does not exist
    * -1 means the job is currently locked and can't be retried.
@@ -649,9 +650,9 @@ export class Scripts {
     const result = await (<any>client).obliterate(keys.concat(args));
     if (result < 0) {
       switch (result) {
-        case -1:
+        case ErrorCodes.JobNotInState:
           throw new Error('Cannot obliterate non-paused queue');
-        case -2:
+        case ErrorCodes.ActiveJobsExist:
           throw new Error('Cannot obliterate queue with active jobs');
       }
     }

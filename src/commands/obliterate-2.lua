@@ -62,7 +62,7 @@ end
 
 -- 1) Check if paused, if not return with error.
 if rcall("HEXISTS", KEYS[1], "paused") ~= 1 then
-    return -1 -- Error, NotPaused
+    return -10 -- Error, NotPaused
 end
 
 -- 2) Check if there are active jobs, if there are and not "force" return error.
@@ -70,7 +70,7 @@ local activeKey = baseKey .. 'active'
 local activeJobs = getListItems(activeKey, maxCount)
 if (#activeJobs > 0) then
     if(ARGV[2] == "") then 
-        return -2 -- Error, ExistsActiveJobs
+        return -5 -- Error, ExistActiveJobs
     end
 end
 
