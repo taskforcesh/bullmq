@@ -13,7 +13,7 @@
   Output:
     1 means the operation was a success
     0 means the job does not exist
-    -2 means the job was not found in the expected set.
+    -3 means the job was not found in the expected set.
 ]]
 local rcall = redis.call;
 if (rcall("EXISTS", KEYS[1]) == 1) then
@@ -25,7 +25,7 @@ if (rcall("EXISTS", KEYS[1]) == 1) then
     rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId);
     return 1
   else
-    return -2
+    return -3
   end
 else
   return 0

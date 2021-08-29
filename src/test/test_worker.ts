@@ -6,7 +6,6 @@ import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
-import { RetryErrors } from '../enums';
 
 describe('workers', function() {
   const sandbox = sinon.createSandbox();
@@ -1651,8 +1650,9 @@ describe('workers', function() {
       await queueScheduler.close();
     }).timeout(5000);
 
-    it.skip('should not retry a job that has been retried already', async () => {
+    it('should not retry a job that has been retried already', async () => {
       let attempts = 0;
+      const failedError = new Error('failed');
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
@@ -1667,8 +1667,6 @@ describe('workers', function() {
 
       await queue.add('test', { foo: 'bar' });
 
-      const failedError = new Error('failed');
-
       await new Promise<void>((resolve, reject) => {
         const failedHandler = once(async (job, err) => {
           expect(job.data.foo).to.equal('bar');
@@ -1679,11 +1677,9 @@ describe('workers', function() {
           const completedCount = await queue.getCompletedCount();
           expect(completedCount).to.equal(1);
 
-          try {
-            await job.retry();
-          } catch (err) {
-            expect(err).to.be.equal(RetryErrors.JobNotExist);
-          }
+          await expect(job.retry()).to.be.rejectedWith(
+            'Retried job not failed',
+          );
 
           const completedCount2 = await queue.getCompletedCount();
           expect(completedCount2).to.equal(1);
@@ -1717,11 +1713,7 @@ describe('workers', function() {
 
       await activating;
 
-      try {
-        await job.retry();
-      } catch (err) {
-        expect(err.message).to.equal('Retried job not failed');
-      }
+      await expect(job.retry()).to.be.rejectedWith('Retried job not failed');
 
       await worker.close();
     });
