@@ -1626,12 +1626,10 @@ describe('workers', function() {
             const count = await queue.getCompletedCount();
             expect(count).to.equal(1);
             await queue.clean(0, 0);
-            try {
-              await job.retry();
-            } catch (err) {
-              // expect(err.message).to.equal(RetryErrors.JobNotExist);
-              expect(err.message).to.equal('Retried job not exist');
-            }
+
+            await expect(job.retry()).to.be.rejectedWith(
+              'Retried job not exist',
+            );
 
             const completedCount = await queue.getCompletedCount();
             expect(completedCount).to.equal(0);
