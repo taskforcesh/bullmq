@@ -83,18 +83,14 @@ describe('Obliterate', () => {
 
     await job.waitUntilFinished(queueEvents);
 
-    try {
-      await queue.obliterate();
-    } catch (err) {
-      const client = await queue.client;
-      const keys = await client.keys(`bull:${queue.name}:*`);
-      expect(keys.length).to.be.not.eql(0);
+    await expect(queue.obliterate()).to.be.rejectedWith(
+      'Cannot obliterate queue with active jobs',
+    );
+    const client = await queue.client;
+    const keys = await client.keys(`bull:${queue.name}:*`);
+    expect(keys.length).to.be.not.eql(0);
 
-      await worker.close();
-      return;
-    }
-
-    throw new Error('Should raise an exception if there are active jobs');
+    await worker.close();
   });
 
   it('should obliterate if queue has active jobs using "force"', async () => {
