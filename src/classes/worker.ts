@@ -206,12 +206,12 @@ export class Worker<
       }
     }
     this.running = false;
-    return Promise.all(processing.keys());
+    return Promise.all([...processing.keys()]);
   }
 
   /**
    * Returns a promise that resolves to the next job in queue.
-   * @param token worker token to be assigned to retrieved job
+   * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
@@ -435,7 +435,7 @@ export class Worker<
    *
    * @returns true if worker is paused, false otherwise.
    */
-  isPaused() {
+  isPaused(): boolean {
     return !!this.paused;
   }
 
@@ -446,7 +446,7 @@ export class Worker<
    * @returns true if worker is running, false otherwise.
    *
    */
-  isRunning() {
+  isRunning(): boolean {
     return this.running;
   }
 
@@ -456,7 +456,7 @@ export class Worker<
    *
    * This method waits for current jobs to finalize before returning.
    *
-   * @param force Use force boolean parameter if you do not want to wait for
+   * @param force - Use force boolean parameter if you do not want to wait for
    * current jobs to be processed.
    *
    * @returns Promise that resolves when the worker has been closed.
@@ -499,7 +499,7 @@ export class Worker<
   /**
    * Returns a promise that resolves when active jobs are cleared
    *
-   * @returns {Promise}
+   * @returns
    */
   private async whenCurrentJobsFinished(reconnect = true) {
     //

@@ -131,7 +131,8 @@
       [
         "@semantic-release/changelog",
         {
-          "changelogFile": "docs/gitbook/changelog.md"
+          "changelogFile": "docs/gitbook/changelog.md",
+          "changelogTitle": "Changelog"
         }
       ],
       [
