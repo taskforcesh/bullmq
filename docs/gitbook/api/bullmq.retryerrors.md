@@ -16,5 +16,5 @@ export declare enum RetryErrors
 |  --- | --- | --- |
 |  JobIsActive | <code>-1</code> |  |
 |  JobNotExist | <code>0</code> |  |
-|  JobNotFailed | <code>-2</code> |  |
+|  JobNotFailed | <code>-3</code> |  |
 

@@ -853,19 +853,16 @@ describe('repeat', function() {
     await queueScheduler.close();
   });
 
-  it('should throw an error when using .cron and .every simutaneously', async function() {
-    try {
-      await queue.add(
+  it('should throw an error when using .cron and .every simultaneously', async function() {
+    await expect(
+      queue.add(
         'repeat',
         { type: 'm' },
         { repeat: { every: 5000, cron: '* /1 * * * * *' } },
-      );
-      throw new Error('The error was not thrown');
-    } catch (err) {
-      expect(err.message).to.be.eql(
-        'Both .cron and .every options are defined for this repeatable job',
-      );
-    }
+      ),
+    ).to.be.rejectedWith(
+      'Both .cron and .every options are defined for this repeatable job',
+    );
   });
 
   it('should emit a waiting event when adding a repeatable job to the waiting list', async function() {

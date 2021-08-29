@@ -884,12 +884,9 @@ describe('Job', function() {
 
       const job = await queue.add('test', { foo: 'bar' });
 
-      try {
-        await job.waitUntilFinished(queueEvents);
-        throw new Error('should have been rejected');
-      } catch (err) {
-        expect(err.message).equal('test error');
-      }
+      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+        'test error',
+      );
 
       await worker.close();
     });
