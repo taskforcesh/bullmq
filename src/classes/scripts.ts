@@ -650,9 +650,9 @@ export class Scripts {
     const result = await (<any>client).obliterate(keys.concat(args));
     if (result < 0) {
       switch (result) {
-        case ErrorCodes.JobNotInState:
+        case -1:
           throw new Error('Cannot obliterate non-paused queue');
-        case ErrorCodes.ActiveJobsExist:
+        case -2:
           throw new Error('Cannot obliterate queue with active jobs');
       }
     }

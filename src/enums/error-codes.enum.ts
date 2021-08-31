@@ -3,6 +3,4 @@ export enum ErrorCodes {
   JobLockNotExist = -2,
   JobNotInState = -3,
   JobPendingDependencies = -4,
-  ActiveJobsExist = -5,
-  QueueNotPaused = -10,
 }
