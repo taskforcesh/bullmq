@@ -70,7 +70,7 @@ local activeKey = baseKey .. 'active'
 local activeJobs = getListItems(activeKey, maxCount)
 if (#activeJobs > 0) then
     if(ARGV[2] == "") then 
-        return -2 -- Error, ExistsActiveJobs
+        return -2 -- Error, ExistActiveJobs
     end
 end
 

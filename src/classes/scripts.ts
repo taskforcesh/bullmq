@@ -129,7 +129,7 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
-  ) {
+  ): Promise<number> {
     const client = await queue.client;
     const args = [
       queue.toKey(jobId) + ':lock',
@@ -145,7 +145,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job,
     progress: number | object,
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const keys = [queue.toKey(job.id), queue.keys.events];
@@ -295,7 +295,7 @@ export class Scripts {
     );
   }
 
-  static async isFinished(queue: MinimalQueue, jobId: string) {
+  static async isFinished(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
     const keys = ['completed', 'failed'].map(function(key: string) {
@@ -305,7 +305,7 @@ export class Scripts {
     return (<any>client).isFinished(keys.concat([jobId]));
   }
 
-  static async getState(queue: MinimalQueue, jobId: string) {
+  static async getState(queue: MinimalQueue, jobId: string): Promise<string> {
     const client = await queue.client;
 
     const keys = [
@@ -440,7 +440,7 @@ export class Scripts {
     jobId: string,
     token: string,
     opts: MoveToChildrenOpts = {},
-  ) {
+  ): Promise<boolean> {
     const client = await queue.client;
     const multi = client.multi();
 
@@ -454,7 +454,7 @@ export class Scripts {
       case 1:
         return false;
       default:
-        return this.finishedErrors(
+        throw this.finishedErrors(
           result,
           jobId,
           'moveToWaitingChildren',
@@ -502,7 +502,7 @@ export class Scripts {
    * @param {String} options.state The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
-   * @return {Promise<Number>} Returns a promise that evaluates to a return code:
+   * @returns Returns a promise that evaluates to a return code:
    * 1 means the operation was a success
    * 0 means the job does not exist
    * -1 means the job is currently locked and can't be retried.
