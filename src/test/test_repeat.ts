@@ -473,8 +473,8 @@ describe('repeat', function() {
     await worker.close();
   });
 
-  // Skipped until we find a way of simulating time to avoid waiting a month
-  it.skip('should repeat 7:th day every month at 9:25', async function(done) {
+  it('should repeat 7:th day every month at 9:25', async function() {
+    this.timeout(200000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
@@ -496,26 +496,32 @@ describe('repeat', function() {
     );
     nextTick();
 
-    let counter = 20;
+    let counter = 10;
     let prev: Job;
-    worker.on('completed', async job => {
-      if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        const diff = moment(job.timestamp).diff(
-          moment(prev.timestamp),
-          'months',
-          true,
-        );
-        expect(diff).to.be.gte(1);
-      }
-      prev = job;
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          const diff = moment(job.timestamp).diff(
+            moment(prev.timestamp),
+            'months',
+            true,
+          );
+          expect(diff).to.be.gte(1);
+        }
+        prev = job;
 
-      counter--;
-      if (counter == 0) {
-        done();
-      }
-      nextTick();
+        counter--;
+        if (counter == 0) {
+          resolve();
+        }
+        nextTick();
+      });
     });
+
+    await completing;
+    await queueScheduler.close();
+    await worker.close();
   });
 
   it('should create two jobs with the same ids', async function() {
