@@ -484,7 +484,6 @@ describe('workers', function() {
   });
 
   it('process several jobs serially', async () => {
-    this.timeout(12000);
     let counter = 1;
     const maxJobs = 35;
 
@@ -510,6 +509,39 @@ describe('workers', function() {
     for (let i = 1; i <= maxJobs; i++) {
       await queue.add('test', { foo: 'bar', num: i });
     }
+
+    await processing;
+    await worker.close();
+  });
+
+  it('process several jobs serially using process option as false', async () => {
+    let counter = 1;
+    const maxJobs = 10;
+
+    let processor;
+    const processing = new Promise<void>((resolve, reject) => {
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.num).to.be.equal(counter);
+          expect(job.data.foo).to.be.equal('bar');
+          if (counter === maxJobs) {
+            resolve();
+          }
+          counter++;
+        } catch (err) {
+          reject(err);
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor, { process: false });
+    await worker.waitUntilReady();
+
+    for (let i = 1; i <= maxJobs; i++) {
+      await queue.add('test', { foo: 'bar', num: i });
+    }
+
+    worker.process();
 
     await processing;
     await worker.close();

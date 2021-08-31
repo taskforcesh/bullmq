@@ -69,6 +69,7 @@ export class Worker<
       concurrency: 1,
       lockDuration: 30000,
       runRetryDelay: 15000,
+      process: true,
       ...this.opts,
     };
 
@@ -102,13 +103,23 @@ export class Worker<
       }
       this.timerManager = new TimerManager();
 
+      if (this.opts.process)
+        this.run().catch(error => {
+          this.running = false;
+          console.error(error);
+        });
+    }
+
+    this.on('error', err => console.error(err));
+  }
+
+  process(): void {
+    if (this.processFn && !this.running) {
       this.run().catch(error => {
         this.running = false;
         console.error(error);
       });
     }
-
-    this.on('error', err => console.error(err));
   }
 
   /**
