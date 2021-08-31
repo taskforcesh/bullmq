@@ -1,7 +1,7 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
 import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
-import { jobIdForGroup } from '../utils';
+import { isRedisInstance, jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
@@ -32,7 +32,10 @@ export class Queue<
   private _repeat: Repeat;
 
   constructor(name: string, opts?: QueueOptions) {
-    super(name, opts);
+    super(name, {
+      sharedConnection: isRedisInstance(opts?.connection),
+      ...opts,
+    });
 
     this.jobsOpts = get(opts, 'defaultJobOptions');
     this.limiter = get(opts, 'limiter');
