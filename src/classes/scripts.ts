@@ -11,6 +11,7 @@ import {
   QueueSchedulerOptions,
   WorkerOptions,
 } from '../interfaces';
+import { ErrorCodes } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
@@ -242,15 +243,15 @@ export class Scripts {
     state: string,
   ): Error {
     switch (code) {
-      case -1:
+      case ErrorCodes.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
-      case -2:
+      case ErrorCodes.JobLockNotExist:
         return new Error(`Missing lock for job ${jobId}. ${command}`);
-      case -3:
+      case ErrorCodes.JobNotInState:
         return new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
-      case -4:
+      case ErrorCodes.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
     }
   }
@@ -425,7 +426,7 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const args = this.moveToDelayedArgs(queue, jobId, timestamp);
@@ -435,6 +436,17 @@ export class Scripts {
     }
   }
 
+  /**
+   * Move parent job to waiting-children state.
+   *
+   * @returns true if job is successfully moved, false if there are pending dependencies.
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobLockNotExist
+   * This exception is thrown if job lock is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in active state.
+   */
   static async moveToWaitingChildren(
     queue: MinimalQueue,
     jobId: string,
@@ -497,7 +509,7 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param {Job} job
+   * @param job -
    * @param {Object} options
    * @param {String} options.state The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
