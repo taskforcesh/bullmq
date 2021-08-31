@@ -70,6 +70,7 @@ export class Worker<
       lockDuration: 30000,
       runRetryDelay: 15000,
       ...this.opts,
+      sharedConnection: isRedisInstance(opts.connection),
     };
 
     this.opts.lockRenewTime =

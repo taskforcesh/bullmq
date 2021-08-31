@@ -21,7 +21,10 @@ export class QueueBase extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new RedisConnection(opts.connection);
+    this.connection = new RedisConnection(
+      opts.connection,
+      opts.sharedConnection,
+    );
     this.connection.on('error', this.emit.bind(this, 'error'));
 
     const queueKeys = new QueueKeys(opts.prefix);

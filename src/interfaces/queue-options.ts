@@ -10,7 +10,15 @@ export enum ClientType {
  * Base Queue options
  */
 export interface QueueBaseOptions {
+  /**
+   * Options for connecting to a Redis instance.
+   */
   connection?: ConnectionOptions;
+
+  /**
+   * Specify if the connection is shared.
+   */
+  sharedConnection?: boolean;
 
   /**
    * Prefix for all queue keys.
