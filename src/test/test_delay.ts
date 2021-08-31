@@ -67,6 +67,7 @@ describe('Delayed jobs', function() {
     await completed;
     await queueScheduler.close();
     await queueEvents.close();
+    await worker.close();
   });
 
   it('should process delayed jobs in correct order', async function() {
@@ -167,8 +168,9 @@ describe('Delayed jobs', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
+    let worker: Worker;
     const processing = new Promise((resolve, reject) => {
-      const processor = async (job: Job) => {
+      worker = new Worker(queueName, async (job: Job) => {
         try {
           expect(order).to.be.equal(job.data.order);
 
@@ -180,12 +182,10 @@ describe('Delayed jobs', function() {
         }
 
         order++;
-      };
-
-      const worker = new Worker(queueName, processor);
-
-      worker.on('failed', function(job, err) {});
+      });
     });
+
+    worker.on('failed', function(job, err) {});
 
     const now = Date.now();
     const promises = [];
@@ -205,5 +205,6 @@ describe('Delayed jobs', function() {
     await Promise.all(promises);
     await processing;
     await queueScheduler.close();
+    await worker.close();
   });
 });
