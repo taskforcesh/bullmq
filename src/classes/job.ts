@@ -374,7 +374,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * @param token - unique token for the lock
    * @param duration - lock duration in milliseconds
    */
-  async extendLock(token: string, duration: number) {
+  extendLock(token: string, duration: number): Promise<number> {
     return Scripts.extendLock(this.queue, this.id, token, duration);
   }
 

@@ -130,7 +130,7 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
-  ) {
+  ): Promise<number> {
     const client = await queue.client;
     const args = [
       queue.toKey(jobId) + ':lock',
@@ -146,7 +146,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job,
     progress: number | object,
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const keys = [queue.toKey(job.id), queue.keys.events];
@@ -436,6 +436,17 @@ export class Scripts {
     }
   }
 
+  /**
+   * Move parent job to waiting-children state.
+   *
+   * @returns true if job is successfully moved, false if there are pending dependencies.
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobLockNotExist
+   * This exception is thrown if job lock is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in active state.
+   */
   static async moveToWaitingChildren(
     queue: MinimalQueue,
     jobId: string,
