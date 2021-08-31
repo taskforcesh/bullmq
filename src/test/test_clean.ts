@@ -72,6 +72,8 @@ describe('Cleaner', () => {
     await delay(100);
     const jobs = await queue.getCompleted();
     expect(jobs.length).to.be.eql(1);
+
+    await worker.close();
   });
 
   it('should clean all failed jobs', async () => {
@@ -88,6 +90,8 @@ describe('Cleaner', () => {
     expect(jobs.length).to.be.eql(2);
     const count = await queue.count();
     expect(count).to.be.eql(0);
+
+    await worker.close();
   });
 
   it('should clean all waiting jobs', async () => {
@@ -138,5 +142,7 @@ describe('Cleaner', () => {
     expect(jobs.length).to.be.eql(2);
     const failed = await queue.getFailed();
     expect(failed.length).to.be.eql(0);
+
+    await worker.close();
   });
 });

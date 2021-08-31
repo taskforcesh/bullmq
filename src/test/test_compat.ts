@@ -277,7 +277,7 @@ describe('Compat', function() {
     let queueName: string;
 
     beforeEach(async function() {
-      queueName = 'test-' + v4();
+      queueName = `test-${v4()}`;
       queue = new Queue3(queueName);
     });
 
@@ -386,7 +386,7 @@ describe('Compat', function() {
     let queueName: string;
 
     beforeEach(async function() {
-      queueName = 'test-' + v4();
+      queueName = `test-${v4()}`;
       queue = new Queue3(queueName);
     });
 
@@ -578,7 +578,8 @@ describe('Compat', function() {
       expect(count.waiting).to.be.eql(2);
       expect(count.completed).to.be.eql(2);
 
-      return Promise.all([worker1.close(), worker2.close()]);
+      await worker1.close();
+      await worker2.close();
     });
 
     // it('should wait for blocking job retrieval to complete before pausing locally', async () => {

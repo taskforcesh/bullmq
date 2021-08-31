@@ -152,6 +152,7 @@ describe('events', function() {
     });
 
     await completed;
+    await worker.close();
   });
 
   it('emits waiting-children event when one job is a parent', async function() {
