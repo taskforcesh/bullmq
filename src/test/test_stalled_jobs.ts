@@ -11,7 +11,7 @@ describe('stalled jobs', function() {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 
@@ -60,7 +60,7 @@ describe('stalled jobs', function() {
     await queueScheduler.waitUntilReady();
     await worker.close(true);
 
-    const allStalled = new Promise(resolve => {
+    const allStalled = new Promise<void>(resolve => {
       queueScheduler.on(
         'stalled',
         after(concurrency, (jobId, prev) => {
@@ -86,9 +86,7 @@ describe('stalled jobs', function() {
     await allCompleted;
 
     await queueEvents.close();
-
     await queueScheduler.close();
-
     await worker2.close();
   });
 
@@ -135,7 +133,7 @@ describe('stalled jobs', function() {
     await worker.close(true);
 
     const errorMessage = 'job stalled more than allowable limit';
-    const allFailed = new Promise(resolve => {
+    const allFailed = new Promise<void>(resolve => {
       queueScheduler.on(
         'failed',
         after(concurrency, (jobId, failedReason, prev) => {
@@ -146,7 +144,7 @@ describe('stalled jobs', function() {
       );
     });
 
-    const globalAllFailed = new Promise(resolve => {
+    const globalAllFailed = new Promise<void>(resolve => {
       queueEvents.on('failed', ({ failedReason }) => {
         expect(failedReason).to.be.equal(errorMessage);
         resolve();
@@ -156,6 +154,7 @@ describe('stalled jobs', function() {
     await allFailed;
     await globalAllFailed;
 
+    await queueEvents.close();
     await queueScheduler.close();
   });
 
