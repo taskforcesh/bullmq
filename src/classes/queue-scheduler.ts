@@ -37,7 +37,7 @@ export class QueueScheduler extends QueueBase {
 
   constructor(
     name: string,
-    { connection, ...opts }: QueueSchedulerOptions = {},
+    { connection, autorun = true, ...opts }: QueueSchedulerOptions = {},
   ) {
     super(name, {
       maxStalledCount: 1,
@@ -52,13 +52,24 @@ export class QueueScheduler extends QueueBase {
       throw new Error('Stalled interval cannot be zero or undefined');
     }
 
-    this.run().catch(error => {
-      this.running = false;
-      console.error(error);
-    });
+    if (autorun) {
+      this.execute().catch(error => {
+        this.running = false;
+        console.error(error);
+      });
+    }
   }
 
-  private async run() {
+  run(): void {
+    if (!this.running) {
+      this.execute().catch(error => {
+        this.running = false;
+        console.error(error);
+      });
+    }
+  }
+
+  private async execute() {
     const client = await this.waitUntilReady();
 
     const key = this.keys.delay;
