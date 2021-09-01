@@ -69,7 +69,7 @@ export class Worker<
       concurrency: 1,
       lockDuration: 30000,
       runRetryDelay: 15000,
-      process: true,
+      autorun: true,
       ...this.opts,
     };
 
@@ -103,8 +103,8 @@ export class Worker<
       }
       this.timerManager = new TimerManager();
 
-      if (this.opts.process)
-        this.run().catch(error => {
+      if (this.opts.autorun)
+        this.execute().catch(error => {
           this.running = false;
           console.error(error);
         });
@@ -113,12 +113,16 @@ export class Worker<
     this.on('error', err => console.error(err));
   }
 
-  process(): void {
-    if (this.processFn && !this.running) {
-      this.run().catch(error => {
-        this.running = false;
-        console.error(error);
-      });
+  run(): void {
+    if (this.processFn) {
+      if (!this.running) {
+        this.execute().catch(error => {
+          this.running = false;
+          console.error(error);
+        });
+      }
+    } else {
+      throw new Error('No process function is defined.');
     }
   }
 
@@ -147,7 +151,7 @@ export class Worker<
     });
   }
 
-  private async run() {
+  private async execute() {
     const client = await this.blockingConnection.client;
 
     if (this.closing) {

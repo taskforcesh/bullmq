@@ -10,6 +10,7 @@ export type Processor<T = any, R = any, N extends string = string> = (
 ) => Promise<R>;
 
 export interface WorkerOptions extends QueueBaseOptions {
+  autorun?: boolean;
   /**
    * Amount of jobs that a single worker is allowed to work on
    * in parallel.
@@ -21,7 +22,6 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @see {@link https://docs.bullmq.io/guide/rate-limiting}
    */
   limiter?: RateLimiterOptions;
-  process?: boolean;
   skipDelayCheck?: boolean;
   drainDelay?: number;
   lockDuration?: number;
