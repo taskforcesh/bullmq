@@ -53,7 +53,9 @@ export class QueueScheduler extends QueueBase {
     }
 
     if (autorun) {
-      this.run();
+      this.run().catch(error => {
+        console.error(error);
+      });
     }
   }
 
@@ -133,7 +135,7 @@ export class QueueScheduler extends QueueBase {
         this.running = false;
       } catch (error) {
         this.running = false;
-        console.error(error);
+        throw error;
       }
     } else {
       throw new Error('Queue Scheduler is already running.');
