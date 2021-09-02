@@ -953,11 +953,7 @@
 
 ## 4.0.0-beta.1
 
-<<<<<<< HEAD
 ### Added
-=======
-### Added**
->>>>>>> master
 
 * Introduced animals into the world, we believe they're going to be a neat addition.
 
