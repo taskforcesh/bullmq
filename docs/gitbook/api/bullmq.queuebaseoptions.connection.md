@@ -4,6 +4,8 @@
 
 ## QueueBaseOptions.connection property
 
+Options for connecting to a Redis instance.
+
 <b>Signature:</b>
 
 ```typescript

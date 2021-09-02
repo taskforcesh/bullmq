@@ -1,3 +1,10 @@
+## [1.44.3](https://github.com/taskforcesh/bullmq/compare/v1.44.2...v1.44.3) (2021-09-02)
+
+
+### Bug Fixes
+
+* **queuescheduler:** handle shared connections fixes [#721](https://github.com/taskforcesh/bullmq/issues/721) ([32a2b2e](https://github.com/taskforcesh/bullmq/commit/32a2b2eccfa3ba1516eacd71e334cae6c787ce4c))
+
 ## [1.44.2](https://github.com/taskforcesh/bullmq/compare/v1.44.1...v1.44.2) (2021-08-29)
 
 
@@ -22,11 +29,13 @@
 
 # [1.43.0](https://github.com/taskforcesh/bullmq/compare/v1.42.1...v1.43.0) \(2021-08-25\)
 
+
 ### Features
 
 * **events:** add added event when job is created \([\#699](https://github.com/taskforcesh/bullmq/issues/699)\) \([f533cc5](https://github.com/taskforcesh/bullmq/commit/f533cc55a43cf6ea78a60e85102f15b1c1ff69a0)\)
 
 ## [1.42.1](https://github.com/taskforcesh/bullmq/compare/v1.42.0...v1.42.1) \(2021-08-23\)
+
 
 ### Bug Fixes
 
@@ -34,11 +43,13 @@
 
 # [1.42.0](https://github.com/taskforcesh/bullmq/compare/v1.41.0...v1.42.0) \(2021-08-20\)
 
+
 ### Features
 
 * **flows:** add queuesOptions for rate limit \([\#692](https://github.com/taskforcesh/bullmq/issues/692)\) \([6689ec3](https://github.com/taskforcesh/bullmq/commit/6689ec3fadd21904d9935f932c047f540ed8caf0)\), closes [\#621](https://github.com/taskforcesh/bullmq/issues/621)
 
 # [1.41.0](https://github.com/taskforcesh/bullmq/compare/v1.40.4...v1.41.0) \(2021-08-20\)
+
 
 ### Features
 
@@ -942,7 +953,11 @@
 
 ## 4.0.0-beta.1
 
+<<<<<<< HEAD
 ### Added
+=======
+### Added**
+>>>>>>> master
 
 * Introduced animals into the world, we believe they're going to be a neat addition.
 

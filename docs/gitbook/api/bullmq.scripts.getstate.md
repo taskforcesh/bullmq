@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static getState(queue: MinimalQueue, jobId: string): Promise<any>;
+static getState(queue: MinimalQueue, jobId: string): Promise<string>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ static getState(queue: MinimalQueue, jobId: string): Promise<any>;
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;string&gt;
 

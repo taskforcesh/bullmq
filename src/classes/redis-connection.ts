@@ -19,7 +19,10 @@ export class RedisConnection extends EventEmitter {
   private version: string;
   private handleClientError: (e: Error) => void;
 
-  constructor(private readonly opts?: ConnectionOptions) {
+  constructor(
+    private readonly opts?: ConnectionOptions,
+    private readonly shared: boolean = false,
+  ) {
     super();
 
     if (!isRedisInstance(opts)) {
@@ -142,7 +145,7 @@ export class RedisConnection extends EventEmitter {
   async close() {
     if (!this.closing) {
       this.closing = true;
-      if (this.opts != this._client) {
+      if (!this.shared) {
         try {
           await this._client.quit();
         } catch (error) {

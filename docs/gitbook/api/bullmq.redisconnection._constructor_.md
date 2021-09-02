@@ -9,7 +9,7 @@ Constructs a new instance of the `RedisConnection` class
 <b>Signature:</b>
 
 ```typescript
-constructor(opts?: ConnectionOptions);
+constructor(opts?: ConnectionOptions, shared?: boolean);
 ```
 
 ## Parameters
@@ -17,4 +17,5 @@ constructor(opts?: ConnectionOptions);
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  opts | [ConnectionOptions](./bullmq.connectionoptions.md) |  |
+|  shared | boolean |  |
 

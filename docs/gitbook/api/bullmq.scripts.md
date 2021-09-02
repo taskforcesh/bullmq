@@ -31,7 +31,7 @@ export declare class Scripts
 |  [moveToFailedArgs(queue, job, failedReason, removeOnFailed, token, fetchNext)](./bullmq.scripts.movetofailedargs.md) | <code>static</code> |  |
 |  [moveToFinished(queue, job, val, propVal, shouldRemove, target, token, fetchNext)](./bullmq.scripts.movetofinished.md) | <code>static</code> |  |
 |  [moveToFinishedArgs(queue, job, val, propVal, shouldRemove, target, token, fetchNext)](./bullmq.scripts.movetofinishedargs.md) | <code>static</code> |  |
-|  [moveToWaitingChildren(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildren.md) | <code>static</code> |  |
+|  [moveToWaitingChildren(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildren.md) | <code>static</code> | Move parent job to waiting-children state. |
 |  [moveToWaitingChildrenArgs(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildrenargs.md) | <code>static</code> |  |
 |  [obliterate(queue, opts)](./bullmq.scripts.obliterate.md) | <code>static</code> |  |
 |  [pause(queue, pause)](./bullmq.scripts.pause.md) | <code>static</code> |  |

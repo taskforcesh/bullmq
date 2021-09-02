@@ -61,6 +61,7 @@ describe('workers', function() {
     const workers2 = await queue2.getWorkers();
     expect(workers2).to.have.length(1);
 
+    await queue2.close();
     await worker.close();
     await worker2.close();
     await removeAllQueueData(new IORedis(), queueName2);
@@ -1033,18 +1034,14 @@ describe('workers', function() {
     await queueScheduler.close();
   });
 
-  it('stalled interval cannot be zero', function(done) {
+  it('stalled interval cannot be zero', function() {
     this.timeout(10000);
-
-    try {
-      new QueueScheduler(queueName, {
-        stalledInterval: 0,
-      });
-      // Fail test if we reach here.
-      done(new Error('Should throw an exception'));
-    } catch (err) {
-      done();
-    }
+    expect(
+      () =>
+        new QueueScheduler(queueName, {
+          stalledInterval: 0,
+        }),
+    ).to.throw('Stalled interval cannot be zero or undefined');
   });
 
   describe('Concurrency process', () => {
@@ -1385,7 +1382,6 @@ describe('workers', function() {
       });
 
       await worker.close();
-
       await queueScheduler.close();
     });
 
@@ -1485,7 +1481,6 @@ describe('workers', function() {
       });
 
       await worker.close();
-
       await queueScheduler.close();
     });
 
@@ -1546,7 +1541,6 @@ describe('workers', function() {
       });
 
       await worker.close();
-
       await queueScheduler.close();
     });
 
@@ -1594,6 +1588,7 @@ describe('workers', function() {
       });
 
       await worker.close();
+      await queueScheduler.close();
     });
 
     it('should not retry a job that has been removed', async () => {
@@ -2026,6 +2021,8 @@ describe('workers', function() {
       expect(job).not.to.be.equal(undefined);
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
+
+      await worker.close();
     });
 
     it("shouldn't block when disabled", async () => {
@@ -2044,6 +2041,8 @@ describe('workers', function() {
       const job2 = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job2.isActive();
       expect(isActive).to.be.equal(true);
+
+      await worker.close();
     });
 
     it("shouldn't block when disabled and paused", async () => {
@@ -2064,6 +2063,8 @@ describe('workers', function() {
       const job2 = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job2.isActive();
       expect(isActive).to.be.equal(true);
+
+      await worker.close();
     });
   });
 

@@ -46,6 +46,7 @@ export class QueueScheduler extends QueueBase {
       connection: isRedisInstance(connection)
         ? (<RedisClient>connection).duplicate()
         : connection,
+      sharedConnection: false,
     });
 
     if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
