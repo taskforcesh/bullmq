@@ -553,7 +553,30 @@ describe('workers', function() {
         const worker = new Worker(queueName, undefined, { autorun: false });
         await worker.waitUntilReady();
 
-        expect(() => worker.run()).to.throw('No process function is defined.');
+        await expect(worker.run()).to.be.rejectedWith(
+          'No process function is defined.',
+        );
+
+        await worker.close();
+      });
+    });
+
+    describe('when run method is called when worker is running', function() {
+      it('throws error', async () => {
+        const maxJobs = 10;
+        const worker = new Worker(queueName, async (job: Job) => {}, {
+          autorun: false,
+        });
+        await worker.waitUntilReady();
+        worker.run();
+
+        for (let i = 1; i <= maxJobs; i++) {
+          await queue.add('test', { foo: 'bar', num: i });
+        }
+
+        await expect(worker.run()).to.be.rejectedWith(
+          'Worker is already running.',
+        );
 
         await worker.close();
       });
