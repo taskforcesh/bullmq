@@ -485,7 +485,6 @@ describe('workers', function() {
   });
 
   it('process several jobs serially', async () => {
-    this.timeout(12000);
     let counter = 1;
     const maxJobs = 35;
 
@@ -514,6 +513,75 @@ describe('workers', function() {
 
     await processing;
     await worker.close();
+  });
+
+  describe('when autorun option is provided as false', function() {
+    it('process several jobs serially using process option as false', async () => {
+      let counter = 1;
+      const maxJobs = 10;
+
+      let processor;
+      const processing = new Promise<void>((resolve, reject) => {
+        processor = async (job: Job) => {
+          try {
+            expect(job.data.num).to.be.equal(counter);
+            expect(job.data.foo).to.be.equal('bar');
+            if (counter === maxJobs) {
+              resolve();
+            }
+            counter++;
+          } catch (err) {
+            reject(err);
+          }
+        };
+      });
+
+      const worker = new Worker(queueName, processor, { autorun: false });
+      await worker.waitUntilReady();
+
+      for (let i = 1; i <= maxJobs; i++) {
+        await queue.add('test', { foo: 'bar', num: i });
+      }
+
+      worker.run();
+
+      await processing;
+      await worker.close();
+    });
+
+    describe('when process function is not defined', function() {
+      it('throws error', async () => {
+        const worker = new Worker(queueName, undefined, { autorun: false });
+        await worker.waitUntilReady();
+
+        await expect(worker.run()).to.be.rejectedWith(
+          'No process function is defined.',
+        );
+
+        await worker.close();
+      });
+    });
+
+    describe('when run method is called when worker is running', function() {
+      it('throws error', async () => {
+        const maxJobs = 10;
+        const worker = new Worker(queueName, async (job: Job) => {}, {
+          autorun: false,
+        });
+        await worker.waitUntilReady();
+        worker.run();
+
+        for (let i = 1; i <= maxJobs; i++) {
+          await queue.add('test', { foo: 'bar', num: i });
+        }
+
+        await expect(worker.run()).to.be.rejectedWith(
+          'Worker is already running.',
+        );
+
+        await worker.close();
+      });
+    });
   });
 
   it('process a job that updates progress as number', async () => {
