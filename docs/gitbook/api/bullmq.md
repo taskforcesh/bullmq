@@ -27,6 +27,7 @@
 |  Enumeration | Description |
 |  --- | --- |
 |  [ClientType](./bullmq.clienttype.md) |  |
+|  [ErrorCodes](./bullmq.errorcodes.md) |  |
 |  [RetryErrors](./bullmq.retryerrors.md) |  |
 
 ## Interfaces

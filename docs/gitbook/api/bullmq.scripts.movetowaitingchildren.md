@@ -4,10 +4,12 @@
 
 ## Scripts.moveToWaitingChildren() method
 
+Move parent job to waiting-children state.
+
 <b>Signature:</b>
 
 ```typescript
-static moveToWaitingChildren(queue: MinimalQueue, jobId: string, token: string, opts?: MoveToChildrenOpts): Promise<boolean | Error>;
+static moveToWaitingChildren(queue: MinimalQueue, jobId: string, token: string, opts?: MoveToChildrenOpts): Promise<boolean>;
 ```
 
 ## Parameters
@@ -21,5 +23,15 @@ static moveToWaitingChildren(queue: MinimalQueue, jobId: string, token: string, 
 
 <b>Returns:</b>
 
-Promise&lt;boolean \| Error&gt;
+Promise&lt;boolean&gt;
+
+true if job is successfully moved, false if there are pending dependencies.
+
+## Exceptions
+
+JobNotExist This exception is thrown if jobId is missing.
+
+JobLockNotExist This exception is thrown if job lock is missing.
+
+JobNotInState This exception is thrown if job is not in active state.
 
