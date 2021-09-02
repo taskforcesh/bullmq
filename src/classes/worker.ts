@@ -103,7 +103,10 @@ export class Worker<
       }
       this.timerManager = new TimerManager();
 
-      if (this.opts.autorun) this.run();
+      if (this.opts.autorun)
+        this.run().catch(error => {
+          console.error(error);
+        });
     }
 
     this.on('error', err => console.error(err));
@@ -211,7 +214,8 @@ export class Worker<
           return Promise.all([...processing.keys()]);
         } catch (error) {
           this.running = false;
-          console.error(error);
+
+          throw error;
         }
       } else {
         throw new Error('Worker is already running.');
