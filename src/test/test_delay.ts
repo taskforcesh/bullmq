@@ -70,6 +70,80 @@ describe('Delayed jobs', function() {
     await worker.close();
   });
 
+  describe('when autorun option is provided as false', function() {
+    it('should process a delayed job only after delayed time', async function() {
+      const delay = 1000;
+      const queueScheduler = new QueueScheduler(queueName, { autorun: false });
+      await queueScheduler.waitUntilReady();
+      const queueEvents = new QueueEvents(queueName);
+      await queueEvents.waitUntilReady();
+
+      const worker = new Worker(queueName, async job => {});
+
+      const timestamp = Date.now();
+      let publishHappened = false;
+
+      queueEvents.on('delayed', () => {
+        publishHappened = true;
+      });
+
+      const completed = new Promise<void>((resolve, reject) => {
+        queueEvents.on('completed', async function() {
+          try {
+            expect(Date.now() > timestamp + delay);
+            const jobs = await queue.getWaiting();
+            expect(jobs.length).to.be.equal(0);
+
+            const delayedJobs = await queue.getDelayed();
+            expect(delayedJobs.length).to.be.equal(0);
+            expect(publishHappened).to.be.eql(true);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      const job = await queue.add('test', { delayed: 'foobar' }, { delay });
+
+      expect(job.id).to.be.ok;
+      expect(job.data.delayed).to.be.eql('foobar');
+      expect(job.opts.delay).to.be.eql(delay);
+
+      queueScheduler.run();
+
+      await completed;
+      await queueScheduler.close();
+      await queueEvents.close();
+      await worker.close();
+    });
+
+    describe('when run method is called when queue-scheduler is running', function() {
+      it('throws an error', async function() {
+        const delay = 1000;
+        const maxJobs = 10;
+        const queueScheduler = new QueueScheduler(queueName, {
+          autorun: false,
+        });
+        await queueScheduler.waitUntilReady();
+
+        const worker = new Worker(queueName, async job => {});
+        queueScheduler.run();
+
+        for (let i = 1; i <= maxJobs; i++) {
+          await queue.add('test', { foo: 'bar', num: i }, { delay });
+        }
+
+        await expect(queueScheduler.run()).to.be.rejectedWith(
+          'Queue Scheduler is already running.',
+        );
+
+        await queueScheduler.close();
+        await worker.close();
+      });
+    });
+  });
+
   it('should process delayed jobs in correct order', async function() {
     this.timeout(2000);
     let order = 0;
