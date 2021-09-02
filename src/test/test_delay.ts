@@ -116,6 +116,31 @@ describe('Delayed jobs', function() {
       await queueEvents.close();
       await worker.close();
     });
+
+    describe('when run method is called when queue-scheduler is running', function() {
+      it('throws an error', async function() {
+        const delay = 1000;
+        const maxJobs = 10;
+        const queueScheduler = new QueueScheduler(queueName, {
+          autorun: false,
+        });
+        await queueScheduler.waitUntilReady();
+
+        const worker = new Worker(queueName, async job => {});
+        queueScheduler.run();
+
+        for (let i = 1; i <= maxJobs; i++) {
+          await queue.add('test', { foo: 'bar', num: i }, { delay });
+        }
+
+        await expect(queueScheduler.run()).to.be.rejectedWith(
+          'Queue Scheduler is already running.',
+        );
+
+        await queueScheduler.close();
+        await worker.close();
+      });
+    });
   });
 
   it('should process delayed jobs in correct order', async function() {
