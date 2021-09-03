@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
+import { v4 } from 'uuid';
 import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -9,7 +10,6 @@ import { Job, JobJsonRaw } from './job';
 import { RedisConnection, RedisClient } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
-import { v4 } from 'uuid';
 import { TimerManager } from './timer-manager';
 import { clientCommandMessageReg, delay, isRedisInstance } from '../utils';
 
