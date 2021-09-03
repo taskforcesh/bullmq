@@ -176,12 +176,12 @@ export declare interface QueueEvents {
  *
  */
 export class QueueEvents extends QueueBase {
-  constructor(name: string, opts?: QueueEventsOptions) {
+  constructor(name: string, { connection, ...opts }: QueueEventsOptions = {}) {
     super(name, {
       ...opts,
-      connection: isRedisInstance(opts?.connection)
-        ? (<RedisClient>opts.connection).duplicate()
-        : opts?.connection,
+      connection: isRedisInstance(connection)
+        ? (<RedisClient>connection).duplicate()
+        : connection,
     });
 
     this.opts = Object.assign(
