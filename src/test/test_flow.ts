@@ -120,6 +120,149 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
+  describe('when priority option is provided', async () => {
+    it('should process children before the parent prioritizing jobs per queueName', async () => {
+      const name = 'child-job';
+      const values = [
+        { bar: 'something' },
+        { baz: 'something' },
+        { qux: 'something' },
+      ];
+
+      const parentQueueName = `parent-queue-${v4()}`;
+      const grandChildrenQueueName = `grand-children-queue-${v4()}`;
+
+      let grandChildrenProcessor,
+        childrenProcessor,
+        parentProcessor,
+        processedGrandChildren = 0,
+        processedChildren = 0;
+      const processingChildren = new Promise<void>((resolve, reject) => {
+        childrenProcessor = async (job: Job) => {
+          processedChildren++;
+          expect(processedChildren).to.be.equal(job.data.order);
+
+          if (processedChildren === 3) {
+            resolve();
+          }
+          return values[job.data.order - 1];
+        };
+
+        grandChildrenProcessor = async (job: Job) => {
+          processedGrandChildren++;
+          expect(processedGrandChildren).to.be.equal(job.data.order);
+
+          return values[job.data.order - 1];
+        };
+      });
+
+      const processingParent = new Promise<void>((resolve, reject) => [
+        (parentProcessor = async (job: Job) => {
+          try {
+            const {
+              processed,
+              nextProcessedCursor,
+            } = await job.getDependencies({
+              processed: {},
+            });
+            expect(nextProcessedCursor).to.be.equal(0);
+            expect(Object.keys(processed)).to.have.length(3);
+
+            const childrenValues = await job.getChildrenValues();
+
+            for (let i = 0; i < values.length; i++) {
+              const jobKey = queue.toKey(tree.children[i].job.id);
+              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+            }
+            resolve();
+          } catch (err) {
+            console.error(err);
+            reject(err);
+          }
+        }),
+      ]);
+
+      const parentWorker = new Worker(parentQueueName, parentProcessor);
+      const childrenWorker = new Worker(queueName, childrenProcessor);
+      const grandChildrenWorker = new Worker(
+        grandChildrenQueueName,
+        grandChildrenProcessor,
+      );
+
+      await parentWorker.waitUntilReady();
+      await childrenWorker.waitUntilReady();
+      await grandChildrenWorker.waitUntilReady();
+
+      const flow = new FlowProducer();
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          {
+            name,
+            data: { order: 1, foo: 'bar' },
+            queueName,
+            opts: { priority: 1 },
+          },
+          {
+            name,
+            data: { order: 2, foo: 'baz' },
+            queueName,
+            opts: { priority: 2 },
+          },
+          {
+            name,
+            data: { order: 3, foo: 'qux' },
+            queueName,
+            opts: { priority: 3 },
+            children: [
+              {
+                name,
+                data: { order: 1, foo: 'bar' },
+                queueName: grandChildrenQueueName,
+                opts: { priority: 1 },
+              },
+              {
+                name,
+                data: { order: 2, foo: 'baz' },
+                queueName: grandChildrenQueueName,
+                opts: { priority: 2 },
+              },
+              {
+                name,
+                data: { order: 3, foo: 'qux' },
+                queueName: grandChildrenQueueName,
+                opts: { priority: 3 },
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(tree).to.have.property('job');
+      expect(tree).to.have.property('children');
+
+      const { children, job } = tree;
+      const parentState = await job.getState();
+
+      expect(parentState).to.be.eql('waiting-children');
+      expect(children).to.have.length(3);
+
+      await processingChildren;
+      await processingParent;
+
+      await grandChildrenWorker.close();
+      await childrenWorker.close();
+      await parentWorker.close();
+
+      await flow.close();
+
+      await removeAllQueueData(new IORedis(), parentQueueName);
+      await removeAllQueueData(new IORedis(), grandChildrenQueueName);
+    });
+  });
+
   it('should rate limit by grouping', async function() {
     this.timeout(20000);
 
