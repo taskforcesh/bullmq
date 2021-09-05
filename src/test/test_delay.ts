@@ -1,11 +1,8 @@
-import { Queue, Job } from '../classes';
+import { Queue, Job, Worker, QueueEvents, QueueScheduler } from '../classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { Worker } from '../classes/worker';
-import { QueueEvents } from '../classes/queue-events';
-import { QueueScheduler } from '../classes/queue-scheduler';
 import { removeAllQueueData } from '../utils';
 
 describe('Delayed jobs', function() {

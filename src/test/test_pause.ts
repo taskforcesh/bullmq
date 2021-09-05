@@ -2,8 +2,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { Job, Queue, QueueEvents, QueueScheduler } from '../classes';
-import { Worker } from '../classes/worker';
+import { Job, Queue, QueueEvents, QueueScheduler, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
 
 describe('Pause', function() {
@@ -180,7 +179,7 @@ describe('Pause', function() {
     const worker = new Worker(queueName, process);
     await worker.waitUntilReady();
 
-    const jobs = [];
+    const jobs: Promise<Job | void>[] = [];
     for (let i = 0; i < 10; i++) {
       jobs.push(queue.add('test', i));
     }

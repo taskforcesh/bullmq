@@ -681,7 +681,7 @@ describe('workers', function() {
     expect(job.data.foo).to.be.eql('bar');
 
     await new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job, data) => {
+      worker.on('completed', async (job: Job, data: any) => {
         try {
           expect(job).to.be.ok;
           expect(data).to.be.eql(37);
@@ -740,7 +740,7 @@ describe('workers', function() {
     expect(job.data.foo).to.be.eql('bar');
 
     await new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job, data) => {
+      worker.on('completed', async (job: Job, data: any) => {
         try {
           expect(job).to.be.ok;
           expect(data).to.be.eql(37);
@@ -775,7 +775,7 @@ describe('workers', function() {
     expect(job.data.foo).to.be.eql('bar');
 
     await new Promise<void>(resolve => {
-      worker.on('completed', (job, data) => {
+      worker.on('completed', (job: Job, data: any) => {
         expect(job).to.be.ok;
         expect(data).to.be.eql('my data');
         resolve();

@@ -2,10 +2,7 @@ import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 import { beforeEach, describe, it } from 'mocha';
-import { FlowProducer } from '../classes/flow-producer';
-import { Queue } from '../classes/queue';
-import { QueueEvents } from '../classes/queue-events';
-import { Worker } from '../classes/worker';
+import { FlowProducer, Queue, QueueEvents, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
 
 describe('events', function() {

@@ -1,7 +1,4 @@
-import { Queue } from '../classes';
-import { QueueEvents } from '../classes/queue-events';
-import { QueueScheduler } from '../classes/queue-scheduler';
-import { Worker } from '../classes/worker';
+import { Queue, QueueEvents, QueueScheduler, Worker } from '../classes';
 import { assert, expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after, every, last } from 'lodash';
