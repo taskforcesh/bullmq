@@ -11,9 +11,7 @@ import {
   Repeat,
   Worker,
 } from '../classes';
-
 import { JobsOptions } from '../interfaces';
-
 import { removeAllQueueData } from '../utils';
 
 const moment = require('moment');
