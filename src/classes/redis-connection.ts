@@ -43,9 +43,7 @@ export class RedisConnection extends EventEmitter {
     };
 
     this.initializing = this.init();
-    this.initializing
-      .then(client => client.on('error', this.handleClientError))
-      .catch(err => this.emit('error', err));
+    this.initializing.catch(err => this.emit('error', err));
   }
 
   /**
@@ -100,6 +98,8 @@ export class RedisConnection extends EventEmitter {
       this._client = new IORedis(opts);
     }
 
+    this._client.on('error', this.handleClientError);
+
     await RedisConnection.waitUntilReady(this._client);
     await load(this._client);
 
@@ -145,15 +145,16 @@ export class RedisConnection extends EventEmitter {
   async close() {
     if (!this.closing) {
       this.closing = true;
-      if (!this.shared) {
-        try {
+      try {
+        await this.initializing;
+        if (!this.shared) {
           await this._client.quit();
-        } catch (error) {
-          if (error.message !== CONNECTION_CLOSED_ERROR_MSG) {
-            throw error;
-          }
         }
-      } else {
+      } catch (error) {
+        if (error.message !== CONNECTION_CLOSED_ERROR_MSG) {
+          throw error;
+        }
+      } finally {
         this._client.off('error', this.handleClientError);
       }
     }
