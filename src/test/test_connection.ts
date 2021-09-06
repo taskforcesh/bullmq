@@ -37,7 +37,7 @@ describe('connection', () => {
       // error event has to be observed or the exception will bubble up
     });
 
-    queue.on('error', err => {
+    queue.on('error', (err: Error) => {
       // error event has to be observed or the exception will bubble up
     });
 
@@ -83,7 +83,7 @@ describe('connection', () => {
       // error event has to be observed or the exception will bubble up
     });
 
-    queue.on('error', err => {
+    queue.on('error', (err: Error) => {
       // error event has to be observed or the exception will bubble up
     });
 
@@ -167,7 +167,7 @@ describe('connection', () => {
     });
 
     const waitingErrorEvent = new Promise<void>((resolve, reject) => {
-      queueFail.on('error', err => {
+      queueFail.on('error', (err: Error) => {
         try {
           expect(err.message).to.equal('connect ECONNREFUSED 127.0.0.1:1234');
           resolve();

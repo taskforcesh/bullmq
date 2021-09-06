@@ -7,9 +7,7 @@ import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { Job, Queue, QueueScheduler } from '../classes';
-import { QueueEvents } from '../classes/queue-events';
-import { Worker } from '../classes/worker';
+import { Job, Queue, QueueScheduler, QueueEvents, Worker } from '../classes';
 import { JobsOptions } from '../interfaces';
 import { delay, getParentKey, removeAllQueueData } from '../utils';
 

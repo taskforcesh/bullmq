@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
-import { Queue, QueueEvents, Worker } from '../classes';
+import { Queue, QueueEvents, Worker, Job, ChildProcessExt } from '../classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../utils';
@@ -32,7 +32,7 @@ describe('sandboxed process', () => {
     });
 
     const completing = new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job, value) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(42);
@@ -61,7 +61,7 @@ describe('sandboxed process', () => {
     });
 
     const completing = new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job, value) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(42);
@@ -103,7 +103,7 @@ describe('sandboxed process', () => {
         resolve();
       });
 
-      worker.on('completed', async (job, value) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(value).to.be.eql(42);
           expect(
@@ -145,7 +145,7 @@ describe('sandboxed process', () => {
         resolve();
       });
 
-      worker.on('completed', async (job, value) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(value).to.be.eql(42);
           expect(
@@ -173,7 +173,7 @@ describe('sandboxed process', () => {
     const progresses: any[] = [];
 
     const completing = new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job, value) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(37);
@@ -359,7 +359,9 @@ describe('sandboxed process', () => {
 
     expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(1);
     expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
-    const child = Object.values(worker['childPool'].retained)[0];
+    const child = Object.values(
+      worker['childPool'].retained,
+    )[0] as ChildProcessExt;
 
     expect(child).to.equal(initializedChild);
     expect(child.exitCode).to.equal(null);

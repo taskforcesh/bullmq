@@ -3,11 +3,15 @@ import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { Job, Queue } from '../classes';
-import { QueueEvents } from '../classes/queue-events';
-import { QueueScheduler } from '../classes/queue-scheduler';
-import { Repeat } from '../classes/repeat';
-import { Worker } from '../classes/worker';
+import {
+  Job,
+  Queue,
+  QueueEvents,
+  QueueScheduler,
+  Repeat,
+  Worker,
+} from '../classes';
+import { JobsOptions } from '../interfaces';
 import { removeAllQueueData } from '../utils';
 
 const moment = require('moment');
@@ -672,7 +676,9 @@ describe('repeat', function() {
     const afterRemoved = new Promise<void>(async resolve => {
       worker = new Worker(queueName, async job => {
         const repeatWorker = await worker.repeat;
-        repeatWorker.addNextRepeatableJob = async (...args) => {
+        (<unknown>repeatWorker.addNextRepeatableJob) = async (
+          ...args: [string, unknown, JobsOptions, boolean?]
+        ) => {
           // In order to simulate race condition
           // Make removeRepeatables happen any time after a moveToX is called
           await queue.removeRepeatable('test', repeatOpts, jobId);
