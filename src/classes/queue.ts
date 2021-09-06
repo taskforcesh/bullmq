@@ -40,15 +40,20 @@ export class Queue<
     this.jobsOpts = get(opts, 'defaultJobOptions');
     this.limiter = get(opts, 'limiter');
 
-    this.waitUntilReady().then(client => {
-      if (!this.closing) {
-        client.hset(
-          this.keys.meta,
-          'opts.maxLenEvents',
-          get(opts, 'streams.events.maxLen', 10000),
-        );
-      }
-    });
+    this.waitUntilReady()
+      .then(client => {
+        if (!this.closing) {
+          client.hset(
+            this.keys.meta,
+            'opts.maxLenEvents',
+            get(opts, 'streams.events.maxLen', 10000),
+          );
+        }
+      })
+      .catch(err => {
+        // We ignore this error to avoid warnings. The error can still
+        // be received by listening to event 'error'
+      });
   }
 
   /**

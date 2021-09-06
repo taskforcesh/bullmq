@@ -166,10 +166,14 @@ describe('connection', () => {
       connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
     });
 
-    const waitingErrorEvent = new Promise<void>(resolve => {
+    const waitingErrorEvent = new Promise<void>((resolve, reject) => {
       queueFail.on('error', err => {
-        expect(err.message).to.equal('Connection is closed.');
-        resolve();
+        try {
+          expect(err.message).to.equal('connect ECONNREFUSED 127.0.0.1:1234');
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
     });
 
@@ -181,8 +185,10 @@ describe('connection', () => {
       connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
     });
 
+    queueFail.on('error', () => {});
+
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
-      'Connection is closed.',
+      CONNECTION_CLOSED_ERROR_MSG,
     );
 
     await expect(queueFail.close()).to.be.eventually.equal(undefined);
