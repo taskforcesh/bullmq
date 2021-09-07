@@ -56,7 +56,7 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  static addJob(
+  static async addJob(
     client: RedisClient,
     queue: MinimalQueue,
     job: JobJson,
@@ -67,7 +67,7 @@ export class Scripts {
       parentDependenciesKey: null,
       parentKey: null,
     },
-  ) {
+  ): Promise<string> {
     const queueKeys = queue.keys;
     let keys = [
       queueKeys.wait,
@@ -98,7 +98,13 @@ export class Scripts {
 
     keys = keys.concat(<string[]>args);
 
-    return (<any>client).addJob(keys);
+    const result = await (<any>client).addJob(keys);
+
+    if (result < 0) {
+      throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
+    }
+
+    return result;
   }
 
   static async pause(queue: MinimalQueue, pause: boolean) {
@@ -240,7 +246,7 @@ export class Scripts {
     code: number,
     jobId: string,
     command: string,
-    state: string,
+    state?: string,
   ): Error {
     switch (code) {
       case ErrorCodes.JobNotExist:
@@ -253,6 +259,8 @@ export class Scripts {
         );
       case ErrorCodes.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
+      case ErrorCodes.ParentJobNotExist:
+        return new Error(`Missing key for parent job ${jobId}. ${command}`);
     }
   }
 

@@ -91,6 +91,17 @@ describe('Job', function() {
         `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
       );
     });
+
+    describe('when parent key is missing', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const parentId = v4();
+        const opts = { parent: { id: parentId, queue: queueName } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          `Missing key for parent job ${queueName}:${parentId}. addJob`,
+        );
+      });
+    });
   });
 
   describe('JSON.stringify', () => {
