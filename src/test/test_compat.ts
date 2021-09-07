@@ -67,103 +67,131 @@ describe('Compat', function() {
       await processing;
     });
 
-    it('should get completed jobs', function(done) {
+    it('should get completed jobs', async () => {
       queue.process(async job => {});
 
       let counter = 2;
 
-      queue.on('completed', async function() {
-        counter--;
+      let listener;
 
-        if (counter === 0) {
-          const jobs = await queue.getCompleted();
-          expect(jobs).to.be.a('array');
-          done();
-        }
+      const completing = new Promise<void>(resolve => {
+        listener = async function() {
+          counter--;
+
+          if (counter === 0) {
+            const jobs = await queue.getCompleted();
+            expect(jobs).to.be.a('array');
+            resolve();
+          }
+        };
+        queue.on('completed', listener);
       });
 
-      queue.add('test', { foo: 'bar' });
-      queue.add('test', { baz: 'qux' });
+      await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { baz: 'qux' });
+
+      await completing;
+
+      queue.off('completed', listener);
     });
 
-    it('should get failed jobs', function(done) {
+    it('should get failed jobs', async () => {
       queue.process(async job => {
         throw new Error('Forced error');
       });
 
       let counter = 2;
 
-      queue.on('failed', async function() {
-        counter--;
+      let listener;
+      const failing = new Promise<void>(resolve => {
+        listener = async function() {
+          counter--;
 
-        if (counter === 0) {
-          const jobs = await queue.getFailed();
-          expect(jobs).to.be.a('array');
-          done();
-        }
+          if (counter === 0) {
+            const jobs = await queue.getFailed();
+            expect(jobs).to.be.a('array');
+            resolve();
+          }
+        };
+        queue.on('failed', listener);
       });
 
-      queue.add('test', { foo: 'bar' });
-      queue.add('test', { baz: 'qux' });
+      await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { baz: 'qux' });
+
+      await failing;
+
+      queue.off('failed', listener);
     });
 
-    it('should return all completed jobs when not setting start/end', function(done) {
+    it('should return all completed jobs when not setting start/end', async () => {
       queue.process(async job => {});
 
-      queue.on(
-        'completed',
-        after(3, async function() {
-          try {
-            const jobs = await queue.getJobs('completed');
-            expect(jobs).to.be.an('array').that.have.length(3);
-            expect(jobs[0]).to.have.property('finishedOn');
-            expect(jobs[1]).to.have.property('finishedOn');
-            expect(jobs[2]).to.have.property('finishedOn');
+      const completing = new Promise<void>((resolve, reject) => {
+        queue.on(
+          'completed',
+          after(3, async function() {
+            try {
+              const jobs = await queue.getJobs('completed');
+              expect(jobs).to.be.an('array').that.have.length(3);
+              expect(jobs[0]).to.have.property('finishedOn');
+              expect(jobs[1]).to.have.property('finishedOn');
+              expect(jobs[2]).to.have.property('finishedOn');
 
-            expect(jobs[0]).to.have.property('processedOn');
-            expect(jobs[1]).to.have.property('processedOn');
-            expect(jobs[2]).to.have.property('processedOn');
-            done();
-          } catch (err) {
-            done(err);
-          }
-        }),
-      );
+              expect(jobs[0]).to.have.property('processedOn');
+              expect(jobs[1]).to.have.property('processedOn');
+              expect(jobs[2]).to.have.property('processedOn');
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }),
+        );
+      });
 
-      queue.add('test', { foo: 1 });
-      queue.add('test', { foo: 2 });
-      queue.add('test', { foo: 3 });
+      await queue.add('test', { foo: 1 });
+      await queue.add('test', { foo: 2 });
+      await queue.add('test', { foo: 3 });
+
+      await completing;
+
+      queue.off('completed');
     });
 
-    it('should return all failed jobs when not setting start/end', function(done) {
+    it('should return all failed jobs when not setting start/end', async () => {
       queue.process(async job => {
         throw new Error('error');
       });
 
-      queue.on(
-        'failed',
-        after(3, async function() {
-          try {
-            queue;
-            const jobs = await queue.getJobs('failed');
-            expect(jobs).to.be.an('array').that.has.length(3);
-            expect(jobs[0]).to.have.property('finishedOn');
-            expect(jobs[1]).to.have.property('finishedOn');
-            expect(jobs[2]).to.have.property('finishedOn');
+      const failing = new Promise<void>((resolve, reject) => {
+        queue.on(
+          'failed',
+          after(3, async function() {
+            try {
+              const jobs = await queue.getJobs('failed');
+              expect(jobs).to.be.an('array').that.has.length(3);
+              expect(jobs[0]).to.have.property('finishedOn');
+              expect(jobs[1]).to.have.property('finishedOn');
+              expect(jobs[2]).to.have.property('finishedOn');
 
-            expect(jobs[0]).to.have.property('processedOn');
-            expect(jobs[1]).to.have.property('processedOn');
-            expect(jobs[2]).to.have.property('processedOn');
-            done();
-          } catch (err) {
-            done(err);
-          }
-        }),
-      );
+              expect(jobs[0]).to.have.property('processedOn');
+              expect(jobs[1]).to.have.property('processedOn');
+              expect(jobs[2]).to.have.property('processedOn');
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }),
+        );
+      });
 
-      queue.add('test', { foo: 1 });
-      queue.add('test', { foo: 2 });
-      queue.add('test', { foo: 3 });
+      await queue.add('test', { foo: 1 });
+      await queue.add('test', { foo: 2 });
+      await queue.add('test', { foo: 3 });
+
+      await failing;
+
+      queue.off('failed');
     });
 
     it('should return subset of jobs when setting positive range', function(done) {
@@ -286,12 +314,18 @@ describe('Compat', function() {
       await removeAllQueueData(new IORedis(), queueName);
     });
 
-    it('should emit waiting when a job has been added', function(done) {
-      queue.on('waiting', function() {
-        done();
+    it('should emit waiting when a job has been added', async () => {
+      let listener;
+      const waiting = new Promise<void>(resolve => {
+        listener = resolve;
+        queue.on('waiting', listener);
       });
 
-      queue.add('test', { foo: 'bar' });
+      await queue.add('test', { foo: 'bar' });
+
+      await waiting;
+
+      queue.off('waiting', listener);
     });
 
     it('should emit global waiting event when a job has been added', function(done) {
@@ -316,34 +350,44 @@ describe('Compat', function() {
 
       const jobs = await queue.getJobCountByTypes('completed');
       expect(jobs).to.be.equal(2);
+      queue.off('drained');
     });
 
     it('emits global drained event when all jobs have been processed', async function() {
-      await queue.add('test', { foo: 'bar' });
-      await queue.add('test', { foo: 'baz' });
-
       queue.process(async job => {});
 
       const drained = new Promise(resolve => {
         queue.once('global:drained', resolve);
       });
 
+      await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { foo: 'baz' });
+
       await drained;
 
       const jobs = await queue.getJobCountByTypes('completed');
       expect(jobs).to.be.equal(2);
+      queue.off('global:drained');
     });
 
-    it('should emit an event when a job becomes active', function(done) {
+    it('should emit an event when a job becomes active', async () => {
       queue.add('test', {});
 
       queue.process(async () => {});
 
-      queue.once('active', function() {
-        queue.once('completed', async function() {
-          done();
-        });
+      const activating = new Promise<void>(resolve => {
+        queue.once('active', resolve);
       });
+
+      const completing = new Promise<void>(resolve => {
+        queue.once('completed', resolve);
+      });
+
+      await activating;
+      await completing;
+
+      queue.off('active');
+      queue.off('completed');
     });
 
     it('should listen to global events with .once', async function() {
@@ -357,13 +401,19 @@ describe('Compat', function() {
       await queue.process(() => null);
       await delay(50);
       expect(events).to.eql(['waiting', 'active', 'completed']);
+      queue.off('global:waiting');
+      queue.off('global:active');
+      queue.off('global:completed');
     });
 
     it('should listen to global events with .on', async function() {
       const events: string[] = [];
-      queue.on('global:waiting', () => events.push('waiting'));
-      queue.on('global:active', () => events.push('active'));
-      queue.on('global:completed', () => events.push('completed'));
+      const waitingListener = () => events.push('waiting');
+      const activeListener = () => events.push('active');
+      const completedListener = () => events.push('completed');
+      queue.on('global:waiting', waitingListener);
+      queue.on('global:active', activeListener);
+      queue.on('global:completed', completedListener);
       await queue.isReady();
       await delay(50); // additional delay since XREAD from '$' is unstable
       await queue.add('test', {});
@@ -378,6 +428,9 @@ describe('Compat', function() {
         'active',
         'completed',
       ]);
+      queue.off('global:waiting', waitingListener);
+      queue.off('global:active', activeListener);
+      queue.off('global:completed', completedListener);
     });
   });
 
@@ -465,7 +518,10 @@ describe('Compat', function() {
       queue.add('test', { foo: 'paused' });
       queue.add('test', { foo: 'paused' });
 
-      return processPromise;
+      await processPromise;
+
+      queue.off('global:paused');
+      queue.off('global:resumed');
     });
 
     it('should pause the queue locally', async () => {
@@ -608,8 +664,9 @@ describe('Compat', function() {
     it('pauses fast when queue is drained', async function() {
       await queue.process(async () => {});
 
+      let drainedListener;
       const promise = new Promise<void>((resolve, reject) => {
-        queue.on('global:drained', async () => {
+        drainedListener = async () => {
           try {
             const start = new Date().getTime();
             await queue.pause();
@@ -620,13 +677,17 @@ describe('Compat', function() {
           } catch (err) {
             reject(err);
           }
-        });
+        };
+
+        queue.on('global:drained', drainedListener);
       });
 
       await queue.queueEvents.waitUntilReady();
 
       await queue.add('test', {});
-      return promise;
+      await promise;
+
+      queue.off('global:drained', drainedListener);
     });
   });
 });

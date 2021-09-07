@@ -100,7 +100,13 @@
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
     "all": true,
-    "check-coverage": true
+    "check-coverage": true,
+    "include": [
+      "src/**/*.ts"
+    ],
+    "exclude": [
+      "src/**/test_*.ts"
+    ]
   },
   "config": {
     "commitizen": {

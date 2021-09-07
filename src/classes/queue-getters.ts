@@ -92,7 +92,7 @@ export class QueueGetters extends QueueBase {
     return this.getJobCountByTypes('waiting', 'paused');
   }
 
-  getWaitingChildrenCount() {
+  getWaitingChildrenCount(): Promise<number> {
     return this.getJobCountByTypes('waiting-children', 'paused');
   }
 
