@@ -30,6 +30,20 @@
 |  [ErrorCodes](./bullmq.errorcodes.md) |  |
 |  [RetryErrors](./bullmq.retryerrors.md) |  |
 
+## Functions
+
+|  Function | Description |
+|  --- | --- |
+|  [array2obj(arr)](./bullmq.array2obj.md) |  |
+|  [delay(ms)](./bullmq.delay.md) |  |
+|  [getParentKey(opts)](./bullmq.getparentkey.md) |  |
+|  [isEmpty(obj)](./bullmq.isempty.md) |  |
+|  [isRedisInstance(obj)](./bullmq.isredisinstance.md) |  |
+|  [jobIdForGroup(jobOpts, data, queueOpts)](./bullmq.jobidforgroup.md) |  |
+|  [lengthInUtf8Bytes(str)](./bullmq.lengthinutf8bytes.md) | Checks the size of string for ascii/non-ascii characters (Reference: https://stackoverflow.com/a/23318053/1347170) |
+|  [removeAllQueueData(client, queueName, prefix)](./bullmq.removeallqueuedata.md) |  |
+|  [tryCatch(fn, ctx, args)](./bullmq.trycatch.md) |  |
+
 ## Interfaces
 
 |  Interface | Description |
@@ -68,6 +82,8 @@
 |  Variable | Description |
 |  --- | --- |
 |  [AdvancedOptionsDefaults](./bullmq.advancedoptionsdefaults.md) |  |
+|  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
+|  [errorObject](./bullmq.errorobject.md) |  |
 |  [load](./bullmq.load.md) |  |
 
 ## Type Aliases

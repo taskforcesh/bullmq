@@ -16,7 +16,7 @@ drain(delayed?: boolean): Promise<[Error, any][]>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  delayed | boolean | pass true if it should also clean the delayed jobs. |
+|  delayed | boolean | Pass true if it should also clean the delayed jobs. |
 
 <b>Returns:</b>
 

@@ -9,7 +9,7 @@ Constructs a new instance of the `QueueEvents` class
 <b>Signature:</b>
 
 ```typescript
-constructor(name: string, opts?: QueueEventsOptions);
+constructor(name: string, { connection, ...opts }?: QueueEventsOptions);
 ```
 
 ## Parameters
@@ -17,5 +17,5 @@ constructor(name: string, opts?: QueueEventsOptions);
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  name | string |  |
-|  opts | [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |
+|  { connection, ...opts } | [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |
 

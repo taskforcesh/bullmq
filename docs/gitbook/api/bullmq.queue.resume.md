@@ -4,9 +4,9 @@
 
 ## Queue.resume() method
 
-Resumes the proocessing of this queue globally.
+Resumes the processing of this queue globally.
 
-Thie method reverses the pause operation by resuming the processing of the queue.
+The method reverses the pause operation by resuming the processing of the queue.
 
 <b>Signature:</b>
 
