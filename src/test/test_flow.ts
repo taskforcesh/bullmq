@@ -845,6 +845,7 @@ describe('flows', () => {
       (childrenProcessor = async (job: Job) => {
         try {
           const childrenValues = await job.getChildrenValues();
+          const waitingChildrenCount = await queue.getWaitingChildrenCount();
 
           expect(job.data.idx).to.be.eql(values.length - 1 - processedChildren);
           switch (job.data.idx) {
@@ -852,6 +853,7 @@ describe('flows', () => {
               {
                 const jobKey = queue.toKey(tree.children[0].children[0].job.id);
                 expect(childrenValues[jobKey]).to.be.deep.equal(values[1]);
+                expect(waitingChildrenCount).to.be.deep.equal(0);
               }
               break;
             case 1:
@@ -860,6 +862,7 @@ describe('flows', () => {
                   tree.children[0].children[0].children[0].job.id,
                 );
                 expect(childrenValues[jobKey]).to.be.deep.equal(values[2]);
+                expect(waitingChildrenCount).to.be.deep.equal(1);
               }
               break;
           }

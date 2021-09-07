@@ -400,9 +400,9 @@ export class Queue3<T = any> extends EventEmitter {
   /**
    * Tells the queue remove all jobs created outside of a grace period in milliseconds.
    * You can clean the jobs with the following states: completed, wait (typo for waiting), active, delayed, and failed.
-   * @param grace Grace period in milliseconds.
-   * @param limit Maximum amount of jobs to clean per call. If not provided will clean all matching jobs.
-   * @param type Status of the job to clean. Values are completed, wait,
+   * @param grace - Grace period in milliseconds.
+   * @param limit - Maximum amount of jobs to clean per call. If not provided will clean all matching jobs.
+   * @param type - Status of the job to clean. Values are completed, wait,
    * active, paused, delayed, and failed. Defaults to completed.
    */
   clean(
@@ -497,7 +497,7 @@ export class Queue3<T = any> extends EventEmitter {
     return this.attachListener(true, event, listener);
   }
 
-  off(event: string | symbol, listener: (...args: any[]) => void): this {
+  off(event: string | symbol, listener?: (...args: any[]) => void): this {
     return this.detachListener(event, listener);
   }
 
@@ -546,7 +546,7 @@ export class Queue3<T = any> extends EventEmitter {
   /**
    * Returns Redis clients array which belongs to current Queue from string with all redis clients
    *
-   * @param list String with all redis clients
+   * @param list - String with all redis clients
    */
   parseClientList(list: string): { [key: string]: string }[] {
     return (this.queue as any).parseClientList(list);
