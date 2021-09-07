@@ -33,11 +33,11 @@ export class QueueKeys {
     return keys;
   }
 
-  toKey(name: string, type: string) {
+  toKey(name: string, type: string): string {
     return `${this.getPrefixedQueueName(name)}:${type}`;
   }
 
-  getPrefixedQueueName(name: string) {
+  getPrefixedQueueName(name: string): string {
     return `${this.prefix}:${name}`;
   }
 }

@@ -63,7 +63,7 @@ export class Queue<
     return this.jobsOpts;
   }
 
-  get repeat() {
+  get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
         this._repeat = new Repeat(this.name, {
@@ -79,9 +79,9 @@ export class Queue<
   /**
    * Adds a new job to the queue.
    *
-   * @param name Name of the job to be added to the queue,.
-   * @param data Arbitrary data to append to the job.
-   * @param opts Job options that affects how the job is going to be processed.
+   * @param name - Name of the job to be added to the queue,.
+   * @param data - Arbitrary data to append to the job.
+   * @param opts - Job options that affects how the job is going to be processed.
    */
   async add(name: N, data: T, opts?: JobsOptions) {
     if (opts && opts.repeat) {
@@ -136,18 +136,18 @@ export class Queue<
     Adding jobs requires a LUA script to check first if the paused list exist
     and in that case it will add it there instead of the wait list.
   */
-  async pause() {
+  async pause(): Promise<void> {
     await Scripts.pause(this, true);
     this.emit('paused');
   }
 
   /**
-   * Resumes the proocessing of this queue globally.
+   * Resumes the processing of this queue globally.
    *
-   * Thie method reverses the pause operation by resuming the processing of the
+   * The method reverses the pause operation by resuming the processing of the
    * queue.
    */
-  async resume() {
+  async resume(): Promise<void> {
     await Scripts.pause(this, false);
     this.emit('resumed');
   }
@@ -155,7 +155,7 @@ export class Queue<
   /**
    * Returns true if the queue is currently paused.
    */
-  async isPaused() {
+  async isPaused(): Promise<boolean> {
     const client = await this.client;
     const pausedKeyExists = await client.hexists(this.keys.meta, 'paused');
     return pausedKeyExists === 1;
@@ -164,9 +164,9 @@ export class Queue<
   /**
    * Get all repeatable meta jobs.
    *
-   * @param start offset of first job to return.
-   * @param end offset of last job to return.
-   * @param asc determine the order in which jobs are returned based on their
+   * @param start - Offset of first job to return.
+   * @param end - Offset of last job to return.
+   * @param asc - Determine the order in which jobs are returned based on their
    * next execution time.
    */
   async getRepeatableJobs(start?: number, end?: number, asc?: boolean) {
@@ -185,7 +185,7 @@ export class Queue<
    * Removes the given job from the queue as well as all its
    * dependencies.
    *
-   * @param jobId The if of the job to remove
+   * @param jobId - The if of the job to remove
    * @returns 1 if it managed to remove the job or -1 if the job or
    * any of its dependencies was locked.
    */
@@ -197,7 +197,7 @@ export class Queue<
    * Drains the queue, i.e., removes all jobs that are waiting
    * or delayed, but not active, completed or failed.
    *
-   * @param delayed pass true if it should also clean the
+   * @param delayed - Pass true if it should also clean the
    * delayed jobs.
    *
    */
@@ -237,8 +237,8 @@ export class Queue<
    * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
    *
-   * @param {number} grace - The grace period
-   * @param {number} The max number of jobs to clean
+   * @param grace - The grace period
+   * @param The - Max number of jobs to clean
    * @param {string} [type=completed] - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
    */

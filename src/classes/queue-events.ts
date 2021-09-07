@@ -1,7 +1,8 @@
 import { QueueEventsOptions } from '../interfaces';
-import { array2obj, delay } from '../utils';
-import { QueueBase } from './queue-base';
+import { array2obj, delay, isRedisInstance } from '../utils';
 import { StreamReadRaw } from '../interfaces/redis-streams';
+import { QueueBase } from './queue-base';
+import { RedisClient } from './redis-connection';
 
 export declare interface QueueEvents {
   /**
@@ -175,8 +176,13 @@ export declare interface QueueEvents {
  *
  */
 export class QueueEvents extends QueueBase {
-  constructor(name: string, opts?: QueueEventsOptions) {
-    super(name, opts);
+  constructor(name: string, { connection, ...opts }: QueueEventsOptions = {}) {
+    super(name, {
+      ...opts,
+      connection: isRedisInstance(connection)
+        ? (<RedisClient>connection).duplicate()
+        : connection,
+    });
 
     this.opts = Object.assign(
       {

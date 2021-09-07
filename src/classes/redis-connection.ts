@@ -48,7 +48,7 @@ export class RedisConnection extends EventEmitter {
 
   /**
    * Waits for a redis client to be ready.
-   * @param {Redis} redis client
+   * @param redis - client
    */
   static async waitUntilReady(client: RedisClient) {
     if (client.status === 'ready') {
@@ -142,7 +142,7 @@ export class RedisConnection extends EventEmitter {
     return client.connect();
   }
 
-  async close() {
+  async close(): Promise<void> {
     if (!this.closing) {
       this.closing = true;
       try {
