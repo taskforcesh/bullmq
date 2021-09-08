@@ -11,7 +11,7 @@ describe('Obliterate', () => {
   let queueName: string;
 
   beforeEach(async () => {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();

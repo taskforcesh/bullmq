@@ -277,7 +277,7 @@ export class Queue<
    * with active jobs in the queue. Use count with the maximum number of deleted keys per iteration,
    * 1000 is the default.
    */
-  async obliterate(opts?: { force?: boolean; count?: number }) {
+  async obliterate(opts?: { force?: boolean; count?: number }): Promise<void> {
     await this.pause();
 
     let cursor = 0;

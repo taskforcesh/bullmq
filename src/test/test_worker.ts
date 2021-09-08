@@ -512,6 +512,8 @@ describe('workers', function() {
     }
 
     await processing;
+    expect(worker.isRunning()).to.be.equal(true);
+
     await worker.close();
   });
 
@@ -2028,9 +2030,11 @@ describe('workers', function() {
               queue: 'bull:' + queueName,
             },
           });
+          const waitingChildren = await parentQueue.getWaitingChildren();
           const currentState2 = await parent.getState();
 
           expect(currentState2).to.be.equal('waiting-children');
+          expect(waitingChildren.length).to.be.equal(1);
 
           await expect(
             parent.moveToWaitingChildren(parentToken, {

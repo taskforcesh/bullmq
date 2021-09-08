@@ -115,6 +115,7 @@ export class Scripts {
 
     keys.push(queue.keys.events);
 
+    console.log(keys.concat([pause ? 'paused' : 'resumed']));
     return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
 
