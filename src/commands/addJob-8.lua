@@ -37,10 +37,21 @@
       ARGV[11] parentKey?
       ARGV[12] waitChildrenKey key.
       ARGV[13] parent dependencies key.
+
+      Output:
+        jobId  - OK
+        -5     - Missing parent key
 ]]
 local jobId
 local jobIdKey
 local rcall = redis.call
+local parentKey = ARGV[11]
+
+if parentKey ~= "" then
+  if rcall("EXISTS", parentKey) ~= 1 then
+    return -5
+  end
+end
 
 local jobCounter = rcall("INCR", KEYS[4])
 
@@ -57,7 +68,7 @@ end
 
 -- Store the job.
 rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
-      "timestamp", ARGV[6], "delay", ARGV[7], "priority", ARGV[9], "parentKey", ARGV[11])
+      "timestamp", ARGV[6], "delay", ARGV[7], "priority", ARGV[9], "parentKey", parentKey)
 
 rcall("XADD", KEYS[7], "*", "event", "added", "jobId", jobId, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5])
 
