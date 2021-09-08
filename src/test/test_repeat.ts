@@ -84,6 +84,8 @@ describe('repeat', function() {
     this.clock.tick(every + 1);
 
     await completing;
+
+    expect(queueScheduler.isRunning()).to.be.equal(true);
     const delayed = await queue.getDelayed();
 
     expect(delayed).to.have.length(0);
