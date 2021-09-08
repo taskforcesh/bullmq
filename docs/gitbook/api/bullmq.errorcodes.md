@@ -18,4 +18,5 @@ export declare enum ErrorCodes
 |  JobNotExist | <code>-1</code> |  |
 |  JobNotInState | <code>-3</code> |  |
 |  JobPendingDependencies | <code>-4</code> |  |
+|  ParentJobNotExist | <code>-5</code> |  |
 

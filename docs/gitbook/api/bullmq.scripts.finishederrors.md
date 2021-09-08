@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static finishedErrors(code: number, jobId: string, command: string, state: string): Error;
+static finishedErrors(code: number, jobId: string, command: string, state?: string): Error;
 ```
 
 ## Parameters

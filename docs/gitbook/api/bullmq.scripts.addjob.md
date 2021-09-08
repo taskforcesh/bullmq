@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static addJob(client: RedisClient, queue: MinimalQueue, job: JobJson, opts: JobsOptions, jobId: string, parentOpts?: ParentOpts): any;
+static addJob(client: RedisClient, queue: MinimalQueue, job: JobJson, opts: JobsOptions, jobId: string, parentOpts?: ParentOpts): Promise<string>;
 ```
 
 ## Parameters
@@ -23,5 +23,5 @@ static addJob(client: RedisClient, queue: MinimalQueue, job: JobJson, opts: Jobs
 
 <b>Returns:</b>
 
-any
+Promise&lt;string&gt;
 

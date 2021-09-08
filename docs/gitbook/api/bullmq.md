@@ -81,7 +81,6 @@
 
 |  Variable | Description |
 |  --- | --- |
-|  [AdvancedOptionsDefaults](./bullmq.advancedoptionsdefaults.md) |  |
 |  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
 |  [errorObject](./bullmq.errorobject.md) |  |
 |  [load](./bullmq.load.md) |  |
