@@ -4,7 +4,3 @@ export interface AdvancedOptions {
    */
   backoffStrategies?: {};
 }
-
-export const AdvancedOptionsDefaults: AdvancedOptions = {
-  backoffStrategies: {},
-};
