@@ -206,7 +206,7 @@ export class FlowProducer extends EventEmitter {
       jobId,
     );
 
-    const parentKey = getParentKey(parent?.parentOpts);
+    // const parentKey = getParentKey(parent?.parentOpts);
 
     if (node.children && node.children.length > 0) {
       // Create parent job, will be a job in status "waiting-children".
@@ -220,7 +220,8 @@ export class FlowProducer extends EventEmitter {
       job.addJob(<Redis>(multi as unknown), {
         parentDependenciesKey: parent?.parentDependenciesKey,
         waitChildrenKey,
-        parentKey,
+        parentId: parent?.parentOpts?.id,
+        parentQueueKey: parent?.parentOpts?.queue,
       });
 
       const parentDependenciesKey = `${queueKeysParent.toKey(
@@ -245,7 +246,8 @@ export class FlowProducer extends EventEmitter {
     } else {
       job.addJob(<Redis>(multi as unknown), {
         parentDependenciesKey: parent?.parentDependenciesKey,
-        parentKey,
+        parentId: parent?.parentOpts?.id,
+        parentQueueKey: parent?.parentOpts?.queue,
       });
 
       return { job };

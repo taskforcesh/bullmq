@@ -116,6 +116,10 @@ export class Job<T = any, R = any, N extends string = string> {
    */
   parentKey?: string;
 
+  parentId?: string;
+
+  parentQueueKey?: string;
+
   private toKey: (type: string) => string;
 
   private discarded: boolean;
@@ -150,6 +154,10 @@ export class Job<T = any, R = any, N extends string = string> {
 
     this.opts.backoff = Backoffs.normalize(opts.backoff);
 
+    this.parentId = opts?.parent?.id;
+
+    this.parentQueueKey = opts?.parent?.queue;
+
     this.parentKey = getParentKey(opts.parent);
 
     this.toKey = queue.toKey.bind(queue);
@@ -175,7 +183,8 @@ export class Job<T = any, R = any, N extends string = string> {
     const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
     job.id = await job.addJob(client, {
-      parentKey: job.parentKey,
+      parentId: job.parentId,
+      parentQueueKey: job.parentQueueKey,
       parentDependenciesKey: job.parentKey
         ? `${job.parentKey}:dependencies`
         : '',
@@ -210,7 +219,8 @@ export class Job<T = any, R = any, N extends string = string> {
 
     for (const job of jobInstances) {
       job.addJob(<RedisClient>(multi as unknown), {
-        parentKey: job.parentKey,
+        parentId: job.parentId,
+        parentQueueKey: job.parentQueueKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
           : '',
@@ -305,6 +315,7 @@ export class Job<T = any, R = any, N extends string = string> {
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
       opts: JSON.stringify(this.opts),
+      parentKey: this.parentKey,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,

@@ -4,4 +4,5 @@ export enum ErrorCodes {
   JobNotInState = -3,
   JobPendingDependencies = -4,
   ParentJobNotExist = -5,
+  ParentJobCompleted = -6,
 }

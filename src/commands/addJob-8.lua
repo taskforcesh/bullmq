@@ -34,9 +34,10 @@
       ARGV[8]  delayedTimestamp
       ARGV[9]  priority
       ARGV[10] LIFO
-      ARGV[11] parentKey?
+      ARGV[11] parentId?
       ARGV[12] waitChildrenKey key.
       ARGV[13] parent dependencies key.
+      ARGV[14] parentQueueKey?
 
       Output:
         jobId  - OK
@@ -45,11 +46,18 @@
 local jobId
 local jobIdKey
 local rcall = redis.call
-local parentKey = ARGV[11]
 
-if parentKey ~= "" then
+local parentId = ARGV[11] .. "" 
+local parentQueueKey = ARGV[14] .. "" 
+local parentKey = ""
+if ARGV[11] ~= "" and ARGV[14] ~= "" then
+  parentKey = parentQueueKey ..":" .. parentId
   if rcall("EXISTS", parentKey) ~= 1 then
     return -5
+  end
+
+  if rcall("ZSCORE", parentQueueKey ..":completed", parentId) ~= false then
+    return -6
   end
 end
 

@@ -102,6 +102,50 @@ describe('Job', function() {
         );
       });
     });
+
+    describe('when parent is already completed', () => {
+      it('throws an error', async () => {
+        const values = [{ idx: 0, bar: 'something' }];
+        const token = 'my-token';
+
+        const parentQueueName = `parent-queue-${v4()}`;
+
+        const parentQueue = new Queue(parentQueueName);
+
+        const parentWorker = new Worker(parentQueueName);
+        const childrenWorker = new Worker(queueName);
+        await parentWorker.waitUntilReady();
+        await childrenWorker.waitUntilReady();
+
+        const data = { foo: 'bar' };
+        const parent = await Job.create(parentQueue, 'testParent', data);
+
+        const job = (await parentWorker.getNextJob(token)) as Job;
+        await job.moveToCompleted('return value', token);
+
+        const parentKey = getParentKey({
+          id: parent.id,
+          queue: 'bull:' + parentQueueName,
+        });
+        const client = await queue.client;
+        const child1 = new Job(queue, 'testJob1', values[0]);
+
+        await expect(
+          child1.addJob(client, {
+            parentId: parent.id,
+            parentQueueKey: 'bull:' + parentQueueName,
+            parentDependenciesKey: `${parentKey}:dependencies`,
+          }),
+        ).to.be.rejectedWith(
+          `Parent job ${parentKey} is already completed. addJob`,
+        );
+
+        await childrenWorker.close();
+        await parentWorker.close();
+        await parentQueue.close();
+        await removeAllQueueData(new IORedis(), parentQueueName);
+      });
+    });
   });
 
   describe('JSON.stringify', () => {
@@ -346,7 +390,8 @@ describe('Job', function() {
       const client = await queue.client;
       const child1 = new Job(queue, 'testJob1', values[0]);
       await child1.addJob(client, {
-        parentKey,
+        parentId: parent.id,
+        parentQueueKey: 'bull:' + parentQueueName,
         parentDependenciesKey: `${parentKey}:dependencies`,
       });
       await Job.create(queue, 'testJob2', values[1], {

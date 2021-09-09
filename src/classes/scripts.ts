@@ -37,7 +37,8 @@ export type MinimalQueue = Pick<
 export type ParentOpts = {
   waitChildrenKey?: string;
   parentDependenciesKey?: string;
-  parentKey?: string;
+  parentId?: string;
+  parentQueueKey?: string;
 };
 
 export class Scripts {
@@ -65,7 +66,8 @@ export class Scripts {
     parentOpts: ParentOpts = {
       waitChildrenKey: null,
       parentDependenciesKey: null,
-      parentKey: null,
+      parentId: null,
+      parentQueueKey: null,
     },
   ): Promise<string> {
     const queueKeys = queue.keys;
@@ -91,17 +93,23 @@ export class Scripts {
       opts.delay ? job.timestamp + opts.delay : 0,
       opts.priority || 0,
       opts.lifo ? 'RPUSH' : 'LPUSH',
-      parentOpts.parentKey,
+      parentOpts.parentId,
       parentOpts.waitChildrenKey,
       parentOpts.parentDependenciesKey,
+      parentOpts.parentQueueKey,
     ];
 
     keys = keys.concat(<string[]>args);
 
     const result = await (<any>client).addJob(keys);
 
+    const parentKey = getParentKey({
+      id: parentOpts.parentId,
+      queue: parentOpts.parentQueueKey,
+    });
+
     if (result < 0) {
-      throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
+      throw this.finishedErrors(result, parentKey, 'addJob');
     }
 
     return result;
@@ -261,6 +269,10 @@ export class Scripts {
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCodes.ParentJobNotExist:
         return new Error(`Missing key for parent job ${jobId}. ${command}`);
+      case ErrorCodes.ParentJobCompleted:
+        return new Error(
+          `Parent job ${jobId} is already completed. ${command}`,
+        );
     }
   }
 
