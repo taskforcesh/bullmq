@@ -3,7 +3,7 @@ import { Redis, Pipeline } from 'ioredis';
 import { v4 } from 'uuid';
 import { QueueBaseOptions } from '../interfaces/queue-options';
 import { FlowJob, FlowQueuesOpts, FlowOpts } from '../interfaces/flow-job';
-import { getParentKey, jobIdForGroup } from '../utils';
+import { jobIdForGroup } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisClient, RedisConnection } from './redis-connection';
@@ -205,8 +205,6 @@ export class FlowProducer extends EventEmitter {
       },
       jobId,
     );
-
-    // const parentKey = getParentKey(parent?.parentOpts);
 
     if (node.children && node.children.length > 0) {
       // Create parent job, will be a job in status "waiting-children".
