@@ -1,7 +1,12 @@
 import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import { RetryErrors } from '../enums';
-import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
+import {
+  BackoffOptions,
+  JobsOptions,
+  ParentKeys,
+  WorkerOptions,
+} from '../interfaces';
 import {
   errorObject,
   isEmpty,
@@ -114,11 +119,7 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
-  parentKey?: string;
-
-  parentId?: string;
-
-  parentQueueKey?: string;
+  parentKey?: ParentKeys;
 
   private toKey: (type: string) => string;
 
@@ -154,11 +155,9 @@ export class Job<T = any, R = any, N extends string = string> {
 
     this.opts.backoff = Backoffs.normalize(opts.backoff);
 
-    this.parentId = opts?.parent?.id;
-
-    this.parentQueueKey = opts?.parent?.queue;
-
-    this.parentKey = getParentKey(opts.parent);
+    if (opts.parent) {
+      this.parentKey = { ...opts.parent };
+    }
 
     this.toKey = queue.toKey.bind(queue);
   }
@@ -182,12 +181,12 @@ export class Job<T = any, R = any, N extends string = string> {
 
     const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
+    const parentKey = getParentKey(job.parentKey);
+
     job.id = await job.addJob(client, {
-      parentId: job.parentId,
-      parentQueueKey: job.parentQueueKey,
-      parentDependenciesKey: job.parentKey
-        ? `${job.parentKey}:dependencies`
-        : '',
+      parentId: job.parentKey?.id,
+      parentQueueKey: job.parentKey?.queue,
+      parentDependenciesKey: parentKey ? `${parentKey}:dependencies` : '',
     });
 
     return job;
@@ -218,12 +217,12 @@ export class Job<T = any, R = any, N extends string = string> {
     const multi = client.multi();
 
     for (const job of jobInstances) {
+      const parentKey = getParentKey(job.parentKey);
+
       job.addJob(<RedisClient>(multi as unknown), {
-        parentId: job.parentId,
-        parentQueueKey: job.parentQueueKey,
-        parentDependenciesKey: job.parentKey
-          ? `${job.parentKey}:dependencies`
-          : '',
+        parentId: job.parentKey?.id,
+        parentQueueKey: job.parentKey?.queue,
+        parentDependenciesKey: parentKey ? `${parentKey}:dependencies` : '',
       });
     }
 
@@ -273,7 +272,11 @@ export class Job<T = any, R = any, N extends string = string> {
     }
 
     if (json.parentKey) {
-      job.parentKey = json.parentKey;
+      const keys = json.parentKey.split(/\.(?=[^:]+$)/);
+      job.parentKey = {
+        id: keys[0],
+        queue: keys[1],
+      };
     }
 
     return job;
@@ -315,7 +318,9 @@ export class Job<T = any, R = any, N extends string = string> {
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
       opts: JSON.stringify(this.opts),
-      parentKey: this.parentKey,
+      parentKey: JSON.stringify(
+        typeof this.parentKey === 'undefined' ? {} : this.parentKey,
+      ),
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,

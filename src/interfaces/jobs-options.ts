@@ -1,6 +1,11 @@
 import { RepeatOptions } from './repeat-options';
 import { BackoffOptions } from './backoff-options';
 
+export interface ParentKeys {
+  id: string;
+  queue: string; // Queue name including prefix
+}
+
 export interface JobsOptions {
   /**
    * Timestamp when the job was created. Defaults to `Date.now()`.
@@ -88,10 +93,7 @@ export interface JobsOptions {
   /**
    *
    */
-  parent?: {
-    id: string;
-    queue: string; // Queue name including prefix
-  };
+  parent?: ParentKeys;
 
   /**
    * Internal property used by repeatable jobs.

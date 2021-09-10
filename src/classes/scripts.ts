@@ -97,6 +97,7 @@ export class Scripts {
       parentOpts.waitChildrenKey,
       parentOpts.parentDependenciesKey,
       parentOpts.parentQueueKey,
+      job.parentKey,
     ];
 
     keys = keys.concat(<string[]>args);
