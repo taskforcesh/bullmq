@@ -780,14 +780,17 @@ export class Job<T = any, R = any, N extends string = string> {
       // that has already happened. We block checking the job until the queue events object is actually listening to
       // Redis so there's no chance that it will miss events.
       await queueEvents.waitUntilReady();
-      const status = await Scripts.isFinished(this.queue, jobId);
+      const [status, result] = (await Scripts.isFinished(
+        this.queue,
+        jobId,
+        true,
+      )) as [number, string];
       const finished = status > 0;
       if (finished) {
-        const job = await Job.fromId(this.queue, this.id);
         if (status == 2) {
-          onFailed(job);
+          onFailed({ failedReason: result });
         } else {
-          onCompleted(job);
+          onCompleted({ returnvalue: getReturnValue(result) });
         }
       }
     });
