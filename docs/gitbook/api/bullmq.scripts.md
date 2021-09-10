@@ -21,7 +21,7 @@ export declare class Scripts
 |  [extendLock(queue, jobId, token, duration)](./bullmq.scripts.extendlock.md) | <code>static</code> |  |
 |  [finishedErrors(code, jobId, command, state)](./bullmq.scripts.finishederrors.md) | <code>static</code> |  |
 |  [getState(queue, jobId)](./bullmq.scripts.getstate.md) | <code>static</code> |  |
-|  [isFinished(queue, jobId)](./bullmq.scripts.isfinished.md) | <code>static</code> |  |
+|  [isFinished(queue, jobId, returnValue)](./bullmq.scripts.isfinished.md) | <code>static</code> |  |
 |  [isJobInList(queue, listKey, jobId)](./bullmq.scripts.isjobinlist.md) | <code>static</code> |  |
 |  [moveStalledJobsToWait(queue)](./bullmq.scripts.movestalledjobstowait.md) | <code>static</code> |  |
 |  [moveToActive(worker, token, jobId)](./bullmq.scripts.movetoactive.md) | <code>static</code> |  |
