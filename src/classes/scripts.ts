@@ -304,14 +304,20 @@ export class Scripts {
     );
   }
 
-  static async isFinished(queue: MinimalQueue, jobId: string): Promise<number> {
+  static async isFinished(
+    queue: MinimalQueue,
+    jobId: string,
+    returnValue = false,
+  ): Promise<number | [number, string]> {
     const client = await queue.client;
 
-    const keys = ['completed', 'failed'].map(function(key: string) {
+    const keys = ['completed', 'failed', jobId].map(function(key: string) {
       return queue.toKey(key);
     });
 
-    return (<any>client).isFinished(keys.concat([jobId]));
+    return (<any>client).isFinished(
+      keys.concat([jobId, returnValue ? '1' : '']),
+    );
   }
 
   static async getState(queue: MinimalQueue, jobId: string): Promise<string> {
