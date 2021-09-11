@@ -4,7 +4,7 @@ import { RetryErrors } from '../enums';
 import {
   BackoffOptions,
   JobsOptions,
-  ParentKeys,
+  ParentJobKeys,
   WorkerOptions,
 } from '../interfaces';
 import {
@@ -119,7 +119,7 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
-  parentKey?: ParentKeys;
+  parentKey?: ParentJobKeys;
 
   private toKey: (type: string) => string;
 

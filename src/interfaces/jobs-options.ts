@@ -1,7 +1,7 @@
 import { RepeatOptions } from './repeat-options';
 import { BackoffOptions } from './backoff-options';
 
-export interface ParentKeys {
+export interface ParentJobKeys {
   id: string;
   queue: string; // Queue name including prefix
 }
@@ -93,7 +93,7 @@ export interface JobsOptions {
   /**
    *
    */
-  parent?: ParentKeys;
+  parent?: ParentJobKeys;
 
   /**
    * Internal property used by repeatable jobs.
