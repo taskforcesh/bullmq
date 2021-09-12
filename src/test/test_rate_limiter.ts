@@ -263,7 +263,7 @@ describe('Rate Limiter', function() {
             if (count === 0) prevTime = completed[id];
             else {
               const diff = completed[id] - prevTime;
-              expect(diff).to.be.below(20);
+              expect(diff).to.be.below(25);
               expect(diff).to.be.gte(0);
               prevTime = completed[id];
             }

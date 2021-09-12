@@ -244,7 +244,7 @@ export class QueueEvents extends QueueBase {
           }
         }
       } catch (err) {
-        if (err.message !== 'Connection is closed.') {
+        if ((err as Error).message !== 'Connection is closed.') {
           throw err;
         }
         await delay(5000);
