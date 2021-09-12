@@ -843,6 +843,41 @@ describe('Job', function() {
       await worker.close();
     });
 
+    describe('when job was added with removeOnComplete', async () => {
+      it('rejects with missing key for job message', async function() {
+        const worker = new Worker(queueName, async job => 'qux');
+        await worker.waitUntilReady();
+
+        const completed = new Promise<void>((resolve, reject) => {
+          worker.on('completed', async (job: Job) => {
+            try {
+              const gotJob = await queue.getJob(job.id);
+              expect(gotJob).to.be.equal(undefined);
+              const counts = await queue.getJobCounts('completed');
+              expect(counts.completed).to.be.equal(0);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        const job = await queue.add(
+          'test',
+          { foo: 'bar' },
+          { removeOnComplete: true },
+        );
+
+        await completed;
+
+        await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+          `Missing key for job ${queue.toKey(job.id)}. isFinished`,
+        );
+
+        await worker.close();
+      });
+    });
+
     it('should resolve when the job has been completed and return object', async function() {
       const worker = new Worker(queueName, async job => ({ resultFoo: 'bar' }));
 

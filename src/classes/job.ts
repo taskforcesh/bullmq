@@ -785,9 +785,9 @@ export class Job<T = any, R = any, N extends string = string> {
         jobId,
         true,
       )) as [number, string];
-      const finished = status > 0;
+      const finished = status != 0;
       if (finished) {
-        if (status == 2) {
+        if (status == -5 || status == 2) {
           onFailed({ failedReason: result });
         } else {
           onCompleted({ returnvalue: getReturnValue(result) });

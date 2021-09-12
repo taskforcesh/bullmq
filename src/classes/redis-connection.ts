@@ -151,7 +151,7 @@ export class RedisConnection extends EventEmitter {
           await this._client.quit();
         }
       } catch (error) {
-        if (error.message !== CONNECTION_CLOSED_ERROR_MSG) {
+        if ((error as Error).message !== CONNECTION_CLOSED_ERROR_MSG) {
           throw error;
         }
       } finally {

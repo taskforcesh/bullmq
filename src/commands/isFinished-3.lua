@@ -9,11 +9,20 @@
     ARGV[1] job id
     ARGV[2] return value?
   Output:
-    0 - not finished.
-    1 - completed.
-    2 - failed.
+    0 - Not finished.
+    1 - Completed.
+    2 - Failed.
+   -5 - Missing job. 
 ]]
 local rcall = redis.call
+if rcall("EXISTS", KEYS[3]) ~= 1 then
+  if ARGV[2] == "1" then
+
+    return {-5,"Missing key for job " .. KEYS[3] .. ". isFinished"}
+  end  
+  return -5
+end
+
 if rcall("ZSCORE", KEYS[1], ARGV[1]) ~= false then
   if ARGV[2] == "1" then
     local returnValue = rcall("HGET", KEYS[3], "returnvalue")
