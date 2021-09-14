@@ -201,7 +201,7 @@ export class QueueEvents extends QueueBase {
 
     if (autorun)
       this.run().catch(error => {
-        this.emit('error', error);
+        console.error(error);
       });
   }
 
@@ -216,6 +216,7 @@ export class QueueEvents extends QueueBase {
         let id = opts.lastEventId || '$';
 
         while (!this.closing) {
+          this.running = true;
           try {
             // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
             const data: StreamReadRaw = (await client.xread(
@@ -265,8 +266,7 @@ export class QueueEvents extends QueueBase {
         }
       } catch (error) {
         this.running = false;
-
-        throw error;
+        this.emit('error', error);
       }
     } else {
       throw new Error('Queue Events is already running.');

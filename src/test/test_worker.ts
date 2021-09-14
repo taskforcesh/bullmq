@@ -518,7 +518,7 @@ describe('workers', function() {
   });
 
   describe('when autorun option is provided as false', function() {
-    it('process several jobs serially using process option as false', async () => {
+    it('processes several jobs serially using process option as false', async () => {
       let counter = 1;
       const maxJobs = 10;
 
