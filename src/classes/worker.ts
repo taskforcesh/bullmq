@@ -1,5 +1,8 @@
 import * as fs from 'fs';
 import { Redis } from 'ioredis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as path from 'path';
 import { v4 } from 'uuid';
 import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
@@ -289,6 +292,11 @@ export class Worker<
         this.keys.active,
         opts.drainDelay,
       );
+    } catch (error) {
+      if ((error as Error).message !== CONNECTION_CLOSED_ERROR_MSG) {
+        await delay(2000);
+        this.emit('error', error);
+      }
     } finally {
       this.waiting = false;
     }
