@@ -396,7 +396,7 @@ describe('Job', function() {
     });
 
     it('moves the job to wait for retry if attempts are given', async function() {
-      const queueEvents = new QueueEvents(queueName);
+      const queueEvents = new QueueEvents(queueName, { autorun: false });
       await queueEvents.waitUntilReady();
 
       const job = await Job.create(
@@ -407,6 +407,8 @@ describe('Job', function() {
       );
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
+
+      queueEvents.run();
 
       const waiting = new Promise(resolve => {
         queueEvents.on('waiting', resolve);
