@@ -64,6 +64,8 @@ export class RedisConnection extends EventEmitter {
     }
 
     return new Promise<void>((resolve, reject) => {
+      const errorHandler = (err: Error) => {};
+
       const handleReady = () => {
         client.removeListener('end', endHandler);
         client.removeListener('error', errorHandler);
@@ -76,14 +78,8 @@ export class RedisConnection extends EventEmitter {
         reject(new Error(CONNECTION_CLOSED_ERROR_MSG));
       };
 
-      const errorHandler = () => {
-        client.removeListener('end', endHandler);
-        client.removeListener('ready', handleReady);
-        reject(new Error(CONNECTION_CLOSED_ERROR_MSG));
-      };
-
       client.once('ready', handleReady);
-      client.once('end', endHandler);
+      client.on('end', endHandler);
       client.once('error', errorHandler);
     });
   }
