@@ -1,7 +1,4 @@
 import * as IORedis from 'ioredis';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { Queue, Job, Worker } from '../classes';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
@@ -157,7 +154,7 @@ describe('connection', () => {
     });
 
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
-      'Connection is closed.',
+      'connect ECONNREFUSED 127.0.0.1:1234',
     );
   });
 
@@ -187,8 +184,8 @@ describe('connection', () => {
 
     queueFail.on('error', () => {});
 
-    await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
-      CONNECTION_CLOSED_ERROR_MSG,
+    await expect(queueFail.waitUntilReady()).to.be.rejectedWith(
+      'connect ECONNREFUSED 127.0.0.1:1234',
     );
 
     await expect(queueFail.close()).to.be.eventually.equal(undefined);
@@ -206,7 +203,7 @@ describe('connection', () => {
     await expect(queueFail.close()).to.be.eventually.equal(undefined);
 
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
-      CONNECTION_CLOSED_ERROR_MSG,
+      'connect ECONNREFUSED 127.0.0.1:1234',
     );
   });
 });

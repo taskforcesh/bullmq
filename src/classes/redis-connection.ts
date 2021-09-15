@@ -64,7 +64,10 @@ export class RedisConnection extends EventEmitter {
     }
 
     return new Promise<void>((resolve, reject) => {
-      const errorHandler = (err: Error) => {};
+      let lastError: Error;
+      const errorHandler = (err: Error) => {
+        lastError = err;
+      };
 
       const handleReady = () => {
         client.removeListener('end', endHandler);
@@ -75,7 +78,7 @@ export class RedisConnection extends EventEmitter {
       const endHandler = () => {
         client.removeListener('ready', handleReady);
         client.removeListener('error', errorHandler);
-        reject(new Error(CONNECTION_CLOSED_ERROR_MSG));
+        reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
       };
 
       client.once('ready', handleReady);
@@ -147,7 +150,11 @@ export class RedisConnection extends EventEmitter {
           await this._client.quit();
         }
       } catch (error) {
-        if ((error as Error).message !== CONNECTION_CLOSED_ERROR_MSG) {
+        const errorMessage = `${(error as Error).message}`;
+        if (
+          errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
+          !errorMessage.includes('ECONNREFUSED')
+        ) {
           throw error;
         }
       } finally {
