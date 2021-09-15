@@ -208,68 +208,72 @@ export class QueueEvents extends QueueBase {
   async run(): Promise<void> {
     if (!this.running) {
       try {
+        this.running = true;
         const client = await this.client;
 
-        const opts: QueueEventsOptions = this.opts;
-
-        const key = this.keys.events;
-        let id = opts.lastEventId || '$';
-
-        while (!this.closing) {
-          this.running = true;
-          try {
-            // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
-            const data: StreamReadRaw = (await client.xread(
-              'BLOCK',
-              opts.blockingTimeout,
-              'STREAMS',
-              key,
-              id,
-            )) as any;
-
-            if (data) {
-              const stream = data[0];
-              const events = stream[1];
-
-              for (let i = 0; i < events.length; i++) {
-                id = events[i][0];
-                const args = array2obj(events[i][1]);
-
-                //
-                // TODO: we may need to have a separate xtream for progress data
-                // to avoid this hack.
-                switch (args.event) {
-                  case 'progress':
-                    args.data = JSON.parse(args.data);
-                    break;
-                  case 'completed':
-                    args.returnvalue = JSON.parse(args.returnvalue);
-                    break;
-                }
-
-                const { event, ...restArgs } = args;
-
-                if (event === 'drained') {
-                  this.emit(event, id);
-                } else {
-                  this.emit(event, restArgs, id);
-                  this.emit(`${event}:${restArgs.jobId}`, restArgs, id);
-                }
-              }
-            }
-          } catch (err) {
-            if ((err as Error).message !== CONNECTION_CLOSED_ERROR_MSG) {
-              throw err;
-            }
-            await delay(5000);
-          }
-        }
+        await this.consumeEvents(client);
       } catch (error) {
         this.running = false;
-        this.emit('error', error);
+        throw error;
       }
     } else {
       throw new Error('Queue Events is already running.');
+    }
+  }
+
+  private async consumeEvents(client: RedisClient) {
+    const opts: QueueEventsOptions = this.opts;
+
+    const key = this.keys.events;
+    let id = opts.lastEventId || '$';
+
+    while (!this.closing) {
+      try {
+        // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
+        const data: StreamReadRaw = (await client.xread(
+          'BLOCK',
+          opts.blockingTimeout,
+          'STREAMS',
+          key,
+          id,
+        )) as any;
+
+        if (data) {
+          const stream = data[0];
+          const events = stream[1];
+
+          for (let i = 0; i < events.length; i++) {
+            id = events[i][0];
+            const args = array2obj(events[i][1]);
+
+            //
+            // TODO: we may need to have a separate xtream for progress data
+            // to avoid this hack.
+            switch (args.event) {
+              case 'progress':
+                args.data = JSON.parse(args.data);
+                break;
+              case 'completed':
+                args.returnvalue = JSON.parse(args.returnvalue);
+                break;
+            }
+
+            const { event, ...restArgs } = args;
+
+            if (event === 'drained') {
+              this.emit(event, id);
+            } else {
+              this.emit(event, restArgs, id);
+              this.emit(`${event}:${restArgs.jobId}`, restArgs, id);
+            }
+          }
+        }
+      } catch (err) {
+        if ((err as Error).message !== CONNECTION_CLOSED_ERROR_MSG) {
+          throw err;
+        }
+        await delay(5000);
+      }
     }
   }
 
