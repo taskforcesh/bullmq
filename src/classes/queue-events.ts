@@ -4,6 +4,7 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { QueueEventsOptions } from '../interfaces';
 import { array2obj, delay, isRedisInstance } from '../utils';
 import { StreamReadRaw } from '../interfaces/redis-streams';
+import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisClient } from './redis-connection';
 
@@ -250,7 +251,7 @@ export class QueueEvents extends QueueBase {
         if ((err as Error).message !== CONNECTION_CLOSED_ERROR_MSG) {
           throw err;
         }
-        await delay(5000);
+        await delay(DELAY_TIME_5);
       }
     }
   }

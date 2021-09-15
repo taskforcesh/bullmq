@@ -57,6 +57,7 @@ describe('repeat', function() {
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
     const worker = new Worker(queueName, NoopProc);
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
     await worker.waitUntilReady();
 
     let processed = 0;
@@ -93,6 +94,7 @@ describe('repeat', function() {
 
     await queueScheduler.close();
     await worker.close();
+    delayStub.restore();
   });
 
   it('should create multiple jobs if they have the same cron pattern', async function() {
@@ -323,7 +325,7 @@ describe('repeat', function() {
   });
 
   it('should remove repeated job when using removeOnComplete', async function() {
-    this.timeout(200000);
+    this.timeout(20000);
     const queueName2 = `test-${v4()}`;
     const queue2 = new Queue(queueName2, {
       defaultJobOptions: {
@@ -340,6 +342,7 @@ describe('repeat', function() {
     const delay = 5 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
       'test',
@@ -380,6 +383,7 @@ describe('repeat', function() {
     await queue2.close();
     await worker.close();
     await removeAllQueueData(new IORedis(), queueName2);
+    delayStub.restore();
   });
 
   it('should repeat every 2 seconds and start immediately', async function() {
@@ -432,7 +436,7 @@ describe('repeat', function() {
   });
 
   it('should repeat once a day for 5 days', async function() {
-    this.timeout(200000);
+    this.timeout(80000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
@@ -443,6 +447,7 @@ describe('repeat', function() {
     const delay = 5 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
       'repeat',
@@ -477,10 +482,11 @@ describe('repeat', function() {
     await completing;
     await queueScheduler.close();
     await worker.close();
+    delayStub.restore();
   });
 
   it('should repeat 7:th day every month at 9:25', async function() {
-    this.timeout(200000);
+    this.timeout(80000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
@@ -488,6 +494,7 @@ describe('repeat', function() {
     this.clock.setSystemTime(date);
 
     const worker = new Worker(queueName, async job => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     const nextTick = () => {
       const now = moment();
@@ -528,6 +535,7 @@ describe('repeat', function() {
     await completing;
     await queueScheduler.close();
     await worker.close();
+    delayStub.restore();
   });
 
   it('should create two jobs with the same ids', async function() {
@@ -721,6 +729,7 @@ describe('repeat', function() {
 
     const worker = new Worker(queueName, NoopProc);
     await worker.waitUntilReady();
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
       'myTestJob',
@@ -746,6 +755,7 @@ describe('repeat', function() {
 
     await worker.close();
     await queueScheduler.close();
+    delayStub.restore();
   });
 
   it('should not repeat more than 5 times', async function() {

@@ -108,3 +108,7 @@ export function jobIdForGroup(
 }
 
 export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
+
+export const DELAY_TIME_5 = 5000;
+
+export const DELAY_TIME_1 = 100;

@@ -6,6 +6,12 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as path from 'path';
 import { v4 } from 'uuid';
 import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
+import {
+  clientCommandMessageReg,
+  delay,
+  DELAY_TIME_1,
+  isRedisInstance,
+} from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
@@ -14,7 +20,6 @@ import { RedisConnection, RedisClient } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import { TimerManager } from './timer-manager';
-import { clientCommandMessageReg, delay, isRedisInstance } from '../utils';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -293,14 +298,19 @@ export class Worker<
         opts.drainDelay,
       );
     } catch (error) {
+      console.log(error);
       if ((error as Error).message !== CONNECTION_CLOSED_ERROR_MSG) {
-        await delay(2000);
         this.emit('error', error);
       }
+      await this.delay();
     } finally {
       this.waiting = false;
     }
     return jobId;
+  }
+
+  async delay(): Promise<void> {
+    await delay(DELAY_TIME_1);
   }
 
   private async nextJobFromJobData(
