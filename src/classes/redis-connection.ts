@@ -7,7 +7,7 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
-import { isRedisInstance } from '../utils';
+import { isRedisInstance, handleError } from '../utils';
 
 export type RedisClient = Redis | Cluster;
 
@@ -150,13 +150,7 @@ export class RedisConnection extends EventEmitter {
           await this._client.quit();
         }
       } catch (error) {
-        const errorMessage = `${(error as Error).message}`;
-        if (
-          errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
-          !errorMessage.includes('ECONNREFUSED')
-        ) {
-          throw error;
-        }
+        handleError(error);
       } finally {
         this._client.off('error', this.handleClientError);
       }
