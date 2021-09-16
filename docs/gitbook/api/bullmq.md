@@ -38,6 +38,7 @@
 |  [delay(ms)](./bullmq.delay.md) |  |
 |  [getParentKey(opts)](./bullmq.getparentkey.md) |  |
 |  [isEmpty(obj)](./bullmq.isempty.md) |  |
+|  [isNotConnectionError(error)](./bullmq.isnotconnectionerror.md) |  |
 |  [isRedisInstance(obj)](./bullmq.isredisinstance.md) |  |
 |  [jobIdForGroup(jobOpts, data, queueOpts)](./bullmq.jobidforgroup.md) |  |
 |  [lengthInUtf8Bytes(str)](./bullmq.lengthinutf8bytes.md) | Checks the size of string for ascii/non-ascii characters (Reference: https://stackoverflow.com/a/23318053/1347170) |
@@ -82,6 +83,8 @@
 |  Variable | Description |
 |  --- | --- |
 |  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
+|  [DELAY\_TIME\_1](./bullmq.delay_time_1.md) |  |
+|  [DELAY\_TIME\_5](./bullmq.delay_time_5.md) |  |
 |  [errorObject](./bullmq.errorobject.md) |  |
 |  [load](./bullmq.load.md) |  |
 
