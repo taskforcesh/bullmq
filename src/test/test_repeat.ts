@@ -277,7 +277,7 @@ describe('repeat', function() {
   });
 
   it('should repeat every 2 seconds with startDate in past', async function() {
-    this.timeout(200000);
+    this.timeout(100000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
@@ -287,6 +287,7 @@ describe('repeat', function() {
     const delay = 5 * ONE_SECOND + 500;
 
     const worker = new Worker(queueName, async job => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
       'repeat',
@@ -322,6 +323,7 @@ describe('repeat', function() {
     await completing;
     await queueScheduler.close();
     await worker.close();
+    delayStub.restore();
   });
 
   it('should remove repeated job when using removeOnComplete', async function() {
@@ -395,6 +397,7 @@ describe('repeat', function() {
     const nextTick = 2 * ONE_SECOND;
 
     const worker = new Worker(queueName, async () => {});
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
       'repeat',
@@ -433,10 +436,11 @@ describe('repeat', function() {
     await completing;
     await queueScheduler.close();
     await worker.close();
+    delayStub.restore();
   });
 
   it('should repeat once a day for 5 days', async function() {
-    this.timeout(80000);
+    this.timeout(100000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
@@ -486,7 +490,7 @@ describe('repeat', function() {
   });
 
   it('should repeat 7:th day every month at 9:25', async function() {
-    this.timeout(80000);
+    this.timeout(100000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 

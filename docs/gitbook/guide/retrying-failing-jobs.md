@@ -9,9 +9,10 @@ For BullMQ to reschedule failed jobs, make sure you create a `QueueScheduler` fo
 The code below shows how to specify a "exponential" backoff function with a 1 second delay as seed value, so it will retry at most 3 times spaced after 1 second, 2 seconds and 4 seconds:
 
 ```typescript
-import { Queue } from 'bullmq';
+import { Queue, QueueScheduler } from 'bullmq';
 
 const myQueue = new Queue('foo');
+const myQueueScheduler = new QueueScheduler('foo');
 
 await queue.add(
   'test-retry',
@@ -29,7 +30,7 @@ await queue.add(
 You can also define it in the queue's `defaultJobOptions`, and it will apply to all jobs added to the queue, unless overridden. For example:
 
 ```typescript
-import { Queue } from "bullmq";
+import { Queue, QueueScheduler } from "bullmq";
 
 const myQueue = new Queue("foo", {
   defaultJobOptions: {
@@ -40,6 +41,8 @@ const myQueue = new Queue("foo", {
     }
   }
 });
+
+const myQueueScheduler = new QueueScheduler('foo');
 
 await queue.add(
   "test-retry",
