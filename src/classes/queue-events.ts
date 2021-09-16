@@ -271,9 +271,10 @@ export class QueueEvents extends QueueBase {
           }
         }
       } catch (err) {
-        if (isNotConnectionError(err) || this.connection.closed) {
+        if (isNotConnectionError(err)) {
           throw err;
         }
+
         await delay(DELAY_TIME_5);
       }
     }

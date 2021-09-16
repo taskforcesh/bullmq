@@ -6,7 +6,7 @@ import { FlowProducer, Queue, QueueEvents, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
 
 describe('events', function() {
-  this.timeout(25000);
+  this.timeout(6000);
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -35,8 +35,8 @@ describe('events', function() {
         queue2.on('waiting', resolve);
       });
 
-      const run = new Promise((resolve, reject) => {
-        queueEvents2.run().catch(reject);
+      const run = new Promise(resolve => {
+        queueEvents2.run().then(resolve);
       });
 
       await queue2.add('test', { foo: 'bar' });
@@ -45,7 +45,7 @@ describe('events', function() {
 
       await queue2.close();
       await queueEvents2.close();
-      await expect(run).to.have.been.rejected;
+      await expect(run).to.have.been.fulfilled;
       await removeAllQueueData(new IORedis(), queueName2);
     });
 

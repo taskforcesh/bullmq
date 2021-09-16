@@ -120,10 +120,7 @@ export class RedisConnection extends EventEmitter {
       let _resolve, _reject;
 
       const disconnecting = new Promise<void>((resolve, reject) => {
-        client.once('end', () => {
-          this.closed = true;
-          resolve();
-        });
+        client.once('end', resolve);
         client.once('error', reject);
         _resolve = resolve;
         _reject = reject;
