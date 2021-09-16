@@ -420,7 +420,11 @@ export class Job<T = any, R = any, N extends string = string> {
    * @param fetchNext - true when wanting to fetch the next job
    * @returns void
    */
-  async moveToFailed(err: Error, token: string, fetchNext = false) {
+  async moveToFailed(
+    err: Error,
+    token: string,
+    fetchNext = false,
+  ): Promise<void> {
     const client = await this.queue.client;
 
     const queue = this.queue;

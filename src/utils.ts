@@ -1,4 +1,7 @@
 import { Cluster } from 'ioredis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
 import { get, isUndefined } from 'lodash';
 import { RedisClient } from './classes/redis-connection';
@@ -108,3 +111,15 @@ export function jobIdForGroup(
 }
 
 export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
+
+export const DELAY_TIME_5 = 5000;
+
+export const DELAY_TIME_1 = 100;
+
+export function isNotConnectionError(error: Error): boolean {
+  const errorMessage = `${(error as Error).message}`;
+  return (
+    errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
+    !errorMessage.includes('ECONNREFUSED')
+  );
+}
