@@ -16,6 +16,7 @@ export class RedisConnection extends EventEmitter {
   private _client: RedisClient;
   private initializing: Promise<RedisClient>;
   private closing: boolean;
+  public closed: boolean;
   private version: string;
   private handleClientError: (e: Error) => void;
 
@@ -118,8 +119,11 @@ export class RedisConnection extends EventEmitter {
     if (client.status !== 'end') {
       let _resolve, _reject;
 
-      const disconnecting = new Promise((resolve, reject) => {
-        client.once('end', resolve);
+      const disconnecting = new Promise<void>((resolve, reject) => {
+        client.once('end', () => {
+          this.closed = true;
+          resolve();
+        });
         client.once('error', reject);
         _resolve = resolve;
         _reject = reject;
