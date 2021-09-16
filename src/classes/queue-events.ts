@@ -1,6 +1,12 @@
 import { QueueEventsOptions } from '../interfaces';
-import { array2obj, delay, handleError, isRedisInstance } from '../utils';
+import {
+  array2obj,
+  delay,
+  isNotConnectionError,
+  isRedisInstance,
+} from '../utils';
 import { StreamReadRaw } from '../interfaces/redis-streams';
+import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisClient } from './redis-connection';
 
@@ -244,8 +250,10 @@ export class QueueEvents extends QueueBase {
           }
         }
       } catch (err) {
-        handleError(err);
-        await delay(5000);
+        if (isNotConnectionError(err)) {
+          throw err;
+        }
+        await delay(DELAY_TIME_5);
       }
     }
   }

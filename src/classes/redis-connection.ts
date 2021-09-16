@@ -7,7 +7,7 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
 import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
-import { isRedisInstance, handleError } from '../utils';
+import { isRedisInstance, isNotConnectionError } from '../utils';
 
 export type RedisClient = Redis | Cluster;
 
@@ -150,7 +150,9 @@ export class RedisConnection extends EventEmitter {
           await this._client.quit();
         }
       } catch (error) {
-        handleError(error);
+        if (isNotConnectionError(error)) {
+          throw error;
+        }
       } finally {
         this._client.off('error', this.handleClientError);
       }
