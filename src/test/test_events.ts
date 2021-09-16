@@ -35,9 +35,7 @@ describe('events', function() {
         queue2.on('waiting', resolve);
       });
 
-      const run = new Promise(resolve => {
-        queueEvents2.run().then(resolve);
-      });
+      const running = queueEvents2.run();
 
       await queue2.add('test', { foo: 'bar' });
 
@@ -45,7 +43,7 @@ describe('events', function() {
 
       await queue2.close();
       await queueEvents2.close();
-      await expect(run).to.have.been.fulfilled;
+      await expect(running).to.have.been.fulfilled;
       await removeAllQueueData(new IORedis(), queueName2);
     });
 
@@ -56,7 +54,7 @@ describe('events', function() {
         const queueEvents2 = new QueueEvents(queueName2, { autorun: false });
         await queueEvents2.waitUntilReady();
 
-        queueEvents2.run();
+        const running = queueEvents2.run();
 
         await queue2.add('test', { foo: 'bar' });
 
@@ -66,6 +64,7 @@ describe('events', function() {
 
         await queue2.close();
         await queueEvents2.close();
+        await expect(running).to.have.been.fulfilled;
         await removeAllQueueData(new IORedis(), queueName2);
       });
     });
