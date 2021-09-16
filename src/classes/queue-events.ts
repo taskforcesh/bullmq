@@ -199,10 +199,7 @@ export class QueueEvents extends QueueBase {
       this.opts,
     );
 
-    if (autorun)
-      this.run().catch(error => {
-        console.error(error);
-      });
+    if (autorun) this.run().catch(error => this.emit('error', error));
   }
 
   async run(): Promise<void> {
