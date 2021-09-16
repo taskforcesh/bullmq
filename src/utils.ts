@@ -116,12 +116,10 @@ export const DELAY_TIME_5 = 5000;
 
 export const DELAY_TIME_1 = 100;
 
-export function handleError(error: Error): void {
+export function isNotConnectionError(error: Error): boolean {
   const errorMessage = `${(error as Error).message}`;
-  if (
+  return (
     errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
     !errorMessage.includes('ECONNREFUSED')
-  ) {
-    throw error;
-  }
+  );
 }
