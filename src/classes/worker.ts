@@ -309,6 +309,10 @@ export class Worker<
     return jobId;
   }
 
+  /**
+   *
+   * This function is exposed only for testing purposes.
+   */
   async delay(): Promise<void> {
     await delay(DELAY_TIME_1);
   }

@@ -588,6 +588,7 @@ describe('repeat', function() {
     });
 
     const worker = new Worker(queueName, processor);
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add('remove', { foo: 'bar' }, { repeat });
     this.clock.tick(nextTick);
@@ -604,6 +605,7 @@ describe('repeat', function() {
     await processing;
     await queueScheduler.close();
     await worker.close();
+    delayStub.restore();
   });
 
   it('should be able to remove repeatable jobs by key', async () => {
