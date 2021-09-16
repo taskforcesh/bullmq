@@ -16,7 +16,6 @@ export class RedisConnection extends EventEmitter {
   private _client: RedisClient;
   private initializing: Promise<RedisClient>;
   private closing: boolean;
-  public closed: boolean;
   private version: string;
   private handleClientError: (e: Error) => void;
 
