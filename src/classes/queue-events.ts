@@ -182,7 +182,12 @@ export declare interface QueueEvents {
  *
  */
 export class QueueEvents extends QueueBase {
-  constructor(name: string, { connection, ...opts }: QueueEventsOptions = {}) {
+  private running = false;
+
+  constructor(
+    name: string,
+    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+  ) {
     super(name, {
       ...opts,
       connection: isRedisInstance(connection)
@@ -197,12 +202,28 @@ export class QueueEvents extends QueueBase {
       this.opts,
     );
 
-    this.consumeEvents().catch(err => this.emit('error', err));
+    if (autorun) {
+      this.run().catch(error => this.emit('error', error));
+    }
   }
 
-  private async consumeEvents() {
-    const client = await this.client;
+  async run(): Promise<void> {
+    if (!this.running) {
+      try {
+        this.running = true;
+        const client = await this.client;
 
+        await this.consumeEvents(client);
+      } catch (error) {
+        this.running = false;
+        throw error;
+      }
+    } else {
+      throw new Error('Queue Events is already running.');
+    }
+  }
+
+  private async consumeEvents(client: RedisClient) {
     const opts: QueueEventsOptions = this.opts;
 
     const key = this.keys.events;
@@ -253,6 +274,7 @@ export class QueueEvents extends QueueBase {
         if (isNotConnectionError(err)) {
           throw err;
         }
+
         await delay(DELAY_TIME_5);
       }
     }

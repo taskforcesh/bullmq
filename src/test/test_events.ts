@@ -6,7 +6,7 @@ import { FlowProducer, Queue, QueueEvents, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
 
 describe('events', function() {
-  this.timeout(4000);
+  this.timeout(6000);
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -22,6 +22,52 @@ describe('events', function() {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
+  });
+
+  describe('when autorun option is provided as false', function() {
+    it('emits waiting when a job has been added', async () => {
+      const queueName2 = `test-${v4()}`;
+      const queue2 = new Queue(queueName2);
+      const queueEvents2 = new QueueEvents(queueName2, { autorun: false });
+      await queueEvents2.waitUntilReady();
+
+      const waiting = new Promise(resolve => {
+        queue2.on('waiting', resolve);
+      });
+
+      const running = queueEvents2.run();
+
+      await queue2.add('test', { foo: 'bar' });
+
+      await waiting;
+
+      await queue2.close();
+      await queueEvents2.close();
+      await expect(running).to.have.been.fulfilled;
+      await removeAllQueueData(new IORedis(), queueName2);
+    });
+
+    describe('when run method is called when queueEvent is running', function() {
+      it('throws error', async () => {
+        const queueName2 = `test-${v4()}`;
+        const queue2 = new Queue(queueName2);
+        const queueEvents2 = new QueueEvents(queueName2, { autorun: false });
+        await queueEvents2.waitUntilReady();
+
+        const running = queueEvents2.run();
+
+        await queue2.add('test', { foo: 'bar' });
+
+        await expect(queueEvents2.run()).to.be.rejectedWith(
+          'Queue Events is already running.',
+        );
+
+        await queue2.close();
+        await queueEvents2.close();
+        await expect(running).to.have.been.fulfilled;
+        await removeAllQueueData(new IORedis(), queueName2);
+      });
+    });
   });
 
   it('should emit waiting when a job has been added', async function() {

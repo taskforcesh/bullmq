@@ -118,7 +118,7 @@ export class RedisConnection extends EventEmitter {
     if (client.status !== 'end') {
       let _resolve, _reject;
 
-      const disconnecting = new Promise((resolve, reject) => {
+      const disconnecting = new Promise<void>((resolve, reject) => {
         client.once('end', resolve);
         client.once('error', reject);
         _resolve = resolve;

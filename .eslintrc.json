@@ -48,6 +48,7 @@
       }
     ],
     "arrow-parens": [2, "as-needed", { "requireForBlockBody": false }],
+    "curly": "error",
     "no-async-promise-executor": 0,
     "no-extraneous-class": 0,
     "@typescript-eslint/no-inferrable-types": 2,

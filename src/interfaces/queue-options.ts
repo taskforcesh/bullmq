@@ -63,6 +63,7 @@ export interface QueueOptions extends QueueBaseOptions {
  * Options for QueueEvents
  */
 export interface QueueEventsOptions extends QueueBaseOptions {
+  autorun?: boolean;
   /**
    * Last event Id. If provided it is possible to continue
    * consuming events from a known Id instead of from the last
