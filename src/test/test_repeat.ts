@@ -494,7 +494,7 @@ describe('repeat', function() {
   });
 
   it('should repeat 7:th day every month at 9:25', async function() {
-    this.timeout(100000);
+    this.timeout(200000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
@@ -519,7 +519,7 @@ describe('repeat', function() {
 
     let counter = 10;
     let prev: Job;
-    const completing = new Promise<void>((resolve, reject) => {
+    const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);

@@ -21,7 +21,7 @@
   * [LIFO](guide/jobs/lifo.md)
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
-  * [Prioritized](guide/jobs/proritized.md)
+  * [Prioritized](guide/jobs/prioritized.md)
   * [Adding bulks](guide/jobs/adding-bulks.md)
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
