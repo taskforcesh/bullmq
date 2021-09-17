@@ -34,24 +34,25 @@ describe('Rate Limiter', function() {
     });
     await worker.waitUntilReady();
 
-    queueEvents.on('failed', ({ failedReason }) => {
-      assert.fail(failedReason);
-    });
+    queueEvents.on('failed', ({ failedReason }) => {});
 
     await Promise.all([
       queue.add('test', {}),
       queue.add('test', {}),
       queue.add('test', {}),
       queue.add('test', {}),
+      queue.add('test', {}),
     ]);
 
-    await worker.getNextJob('test-token');
-    await worker.getNextJob('test-token');
-    await worker.getNextJob('test-token');
-    await worker.getNextJob('test-token');
+    await Promise.all([
+      worker.getNextJob('test-token'),
+      worker.getNextJob('test-token'),
+      worker.getNextJob('test-token'),
+      worker.getNextJob('test-token'),
+    ]);
 
     const delayedCount = await queue.getDelayedCount();
-    expect(delayedCount).to.eq(3);
+    expect(delayedCount).to.equal(4);
     await worker.close();
   });
 
