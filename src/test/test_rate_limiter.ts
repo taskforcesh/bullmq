@@ -261,8 +261,9 @@ describe('Rate Limiter', function() {
           let count = 0;
           let prevTime;
           for (const id in completed) {
-            if (count === 0) prevTime = completed[id];
-            else {
+            if (count === 0) {
+              prevTime = completed[id];
+            } else {
               const diff = completed[id] - prevTime;
               expect(diff).to.be.below(25);
               expect(diff).to.be.gte(0);
