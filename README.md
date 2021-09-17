@@ -101,7 +101,7 @@ Since there are a few job queue solutions, here is a table comparing them:
 | Feature                   |     Bullmq      |      Bull       |  Kue  |   Bee    | Agenda |
 | :------------------------ | :-------------: | :-------------: | :---: | :------: | ------ |
 | Backend                   |      redis      |      redis      | redis |  redis   | mongo  |
-| Parent/Child dependencies |        ✓        |                 |   ✓   |          | ✓      |
+| Parent/Child dependencies |        ✓        |                 |       |          |        |
 | Priorities                |        ✓        |        ✓        |   ✓   |          | ✓      |
 | Concurrency               |        ✓        |        ✓        |   ✓   |    ✓     | ✓      |
 | Delayed jobs              |        ✓        |        ✓        |   ✓   |          | ✓      |
