@@ -94,6 +94,27 @@ queueEvents.on('failed', (jobId, err) => {
 
 This is just scratching the surface, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>
 
+# Feature Comparison
+
+Since there are a few job queue solutions, here is a table comparing them:
+
+| Feature                   |     Bullmq      |      Bull       |  Kue  |   Bee    | Agenda |
+| :------------------------ | :-------------: | :-------------: | :---: | :------: | ------ |
+| Backend                   |      redis      |      redis      | redis |  redis   | mongo  |
+| Parent/Child dependencies |        ✓        |                 |   ✓   |          | ✓      |
+| Priorities                |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Concurrency               |        ✓        |        ✓        |   ✓   |    ✓     | ✓      |
+| Delayed jobs              |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Global events             |        ✓        |        ✓        |   ✓   |          |        |
+| Rate Limiter              |        ✓        |        ✓        |       |          |        |
+| Pause/Resume              |        ✓        |        ✓        |   ✓   |          |        |
+| Sandboxed worker          |        ✓        |        ✓        |       |          |        |
+| Repeatable jobs           |        ✓        |        ✓        |       |          | ✓      |
+| Atomic ops                |        ✓        |        ✓        |       |    ✓     |        |
+| Persistence               |        ✓        |        ✓        |   ✓   |    ✓     | ✓      |
+| UI                        |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Optimized for             | Jobs / Messages | Jobs / Messages | Jobs  | Messages | Jobs   |
+
 # 🚀 Sponsor 🚀
 
 [![RedisGreen](https://www.redisgreen.com/images/rglogo/redisgreen_transparent_240x48.png)](https://dashboard.redisgreen.net/new?utm_campaign=BULLMQ)
