@@ -494,7 +494,7 @@ describe('repeat', function() {
   });
 
   it('should repeat 7:th day every month at 9:25', async function() {
-    this.timeout(100000);
+    this.timeout(200000);
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
