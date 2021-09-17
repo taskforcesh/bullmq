@@ -63,6 +63,7 @@ export class QueueScheduler extends QueueBase {
   async run() {
     if (!this.running) {
       try {
+        this.running = true;
         const client = await this.waitUntilReady();
 
         const key = this.keys.delay;
@@ -78,7 +79,6 @@ export class QueueScheduler extends QueueBase {
         }
 
         while (!this.closing) {
-          this.running = true;
           // Check if at least the min stalled check time has passed.
           await this.moveStalledJobsToWait();
 

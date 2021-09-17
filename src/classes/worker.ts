@@ -110,10 +110,9 @@ export class Worker<
       }
       this.timerManager = new TimerManager();
 
-      if (this.opts.autorun)
-        this.run().catch(error => {
-          console.error(error);
-        });
+      if (this.opts.autorun) {
+        this.run().catch(error => this.emit('error', error));
+      }
     }
 
     this.on('error', err => console.error(err));
@@ -148,6 +147,7 @@ export class Worker<
     if (this.processFn) {
       if (!this.running) {
         try {
+          this.running = true;
           const client = await this.blockingConnection.client;
 
           if (this.closing) {
@@ -178,7 +178,6 @@ export class Worker<
           );
 
           while (!this.closing) {
-            this.running = true;
             if (processing.size < opts.concurrency) {
               const token = tokens.pop();
               processing.set(
