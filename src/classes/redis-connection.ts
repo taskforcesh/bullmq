@@ -150,7 +150,7 @@ export class RedisConnection extends EventEmitter {
           await this._client.quit();
         }
       } catch (error) {
-        if (isNotConnectionError(error)) {
+        if (isNotConnectionError(error as Error)) {
           throw error;
         }
       } finally {
