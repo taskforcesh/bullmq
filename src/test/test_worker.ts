@@ -1016,22 +1016,6 @@ describe('workers', function() {
     await worker.close();
   });
 
-  it('count added, unprocessed jobs', async () => {
-    const maxJobs = 100;
-    const added = [];
-
-    for (let i = 1; i <= maxJobs; i++) {
-      added.push(queue.add('test', { foo: 'bar', num: i }));
-    }
-
-    await Promise.all(added);
-    const count = await queue.count();
-    expect(count).to.be.eql(maxJobs);
-    await queue.drain();
-    const countAfterEmpty = await queue.count();
-    expect(countAfterEmpty).to.be.eql(0);
-  });
-
   it('emit error if lock is lost', async function() {
     this.timeout(10000);
 
