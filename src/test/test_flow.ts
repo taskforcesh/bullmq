@@ -120,6 +120,97 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
+  describe('when custom prefix is set in flow producer', async () => {
+    it('uses default prefix to add jobs', async () => {
+      const childrenQueue = new Queue(queueName, { prefix: '{bull}' });
+
+      const name = 'child-job';
+      const values = [{ bar: 'something' }];
+
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      let childrenProcessor,
+        parentProcessor,
+        processedChildren = 0;
+      const processingChildren = new Promise<void>(
+        resolve =>
+          (childrenProcessor = async (job: Job) => {
+            processedChildren++;
+
+            if (processedChildren == values.length) {
+              resolve();
+            }
+            return values[job.data.idx];
+          }),
+      );
+
+      const processingParent = new Promise<void>((resolve, reject) => [
+        (parentProcessor = async (job: Job) => {
+          try {
+            const {
+              processed,
+              nextProcessedCursor,
+            } = await job.getDependencies({
+              processed: {},
+            });
+            expect(nextProcessedCursor).to.be.equal(0);
+            expect(Object.keys(processed)).to.have.length(1);
+
+            const childrenValues = await job.getChildrenValues();
+
+            for (let i = 0; i < values.length; i++) {
+              const jobKey = childrenQueue.toKey(tree.children[i].job.id);
+              expect(childrenValues[jobKey]).to.be.deep.equal(values[i]);
+            }
+            resolve();
+          } catch (err) {
+            console.error(err);
+            reject(err);
+          }
+        }),
+      ]);
+
+      const parentWorker = new Worker(parentQueueName, parentProcessor, {
+        prefix: '{bull}',
+      });
+      const childrenWorker = new Worker(queueName, childrenProcessor, {
+        prefix: '{bull}',
+      });
+      await parentWorker.waitUntilReady();
+      await childrenWorker.waitUntilReady();
+
+      const flow = new FlowProducer({ prefix: '{bull}' });
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [{ name, data: { idx: 0, foo: 'bar' }, queueName }],
+      });
+
+      expect(tree).to.have.property('job');
+      expect(tree).to.have.property('children');
+
+      const { children, job } = tree;
+      const parentState = await job.getState();
+
+      expect(parentState).to.be.eql('waiting-children');
+      expect(children).to.have.length(1);
+
+      expect(children[0].job.id).to.be.ok;
+      expect(children[0].job.data.foo).to.be.eql('bar');
+
+      await processingChildren;
+      await childrenWorker.close();
+
+      await processingParent;
+      await parentWorker.close();
+
+      await flow.close();
+      await childrenQueue.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+  });
+
   describe('when priority option is provided', async () => {
     it('should process children before the parent prioritizing jobs per queueName', async () => {
       const name = 'child-job';
