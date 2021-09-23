@@ -84,6 +84,7 @@ describe('queues', function() {
   beforeEach(async function() {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName);
+    await queue.waitUntilReady();
   });
 
   afterEach(async function() {
@@ -168,6 +169,27 @@ describe('queues', function() {
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).to.be.eql(0);
         await queueScheduler.close();
+      });
+    });
+
+    describe('when queue is paused', () => {
+      it('clean queue including paused jobs', async () => {
+        const maxJobs = 50;
+        const added = [];
+
+        await queue.pause();
+        for (let i = 1; i <= maxJobs; i++) {
+          added.push(queue.add('test', { foo: 'bar', num: i }));
+        }
+
+        await Promise.all(added);
+        const count = await queue.count();
+        expect(count).to.be.eql(maxJobs);
+        const count2 = await queue.getJobCounts('paused');
+        expect(count2.paused).to.be.eql(maxJobs);
+        await queue.drain();
+        const countAfterEmpty = await queue.count();
+        expect(countAfterEmpty).to.be.eql(0);
       });
     });
   });
