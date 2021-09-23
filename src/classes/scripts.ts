@@ -264,6 +264,28 @@ export class Scripts {
     }
   }
 
+  static drainArgs(queue: MinimalQueue, delayed: boolean) {
+    const queueKeys = queue.keys;
+
+    const keys = [
+      queueKeys.wait,
+      queueKeys.paused,
+      delayed ? queueKeys.delayed : '',
+      queueKeys.priority,
+    ];
+
+    const args = [queueKeys['']];
+
+    return keys.concat(args);
+  }
+
+  static async drain(queue: MinimalQueue, delayed: boolean) {
+    const client = await queue.client;
+    const args = this.drainArgs(queue, delayed);
+
+    await (<any>client).drain(args);
+  }
+
   static moveToCompleted(
     queue: MinimalQueue,
     job: Job,

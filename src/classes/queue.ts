@@ -199,38 +199,9 @@ export class Queue<
    *
    * @param delayed - Pass true if it should also clean the
    * delayed jobs.
-   *
    */
-  async drain(delayed = false) {
-    // TODO: Convert to an atomic LUA script.
-
-    // Get all jobIds and empty all lists atomically.
-    const client = await this.client;
-
-    let multi = client.multi();
-
-    multi.lrange(this.toKey('wait'), 0, -1);
-    multi.lrange(this.toKey('paused'), 0, -1);
-    if (delayed) {
-      // TODO: get delayed jobIds too!
-      multi.del(this.toKey('delayed'));
-    }
-    multi.del(this.toKey('wait'));
-    multi.del(this.toKey('paused'));
-    multi.del(this.toKey('priority'));
-
-    const [waiting, paused] = await multi.exec();
-    const waitingJobs = waiting[1];
-    const pausedJobs = paused[1];
-
-    const jobKeys = pausedJobs.concat(waitingJobs).map(this.toKey, this);
-
-    if (jobKeys.length) {
-      multi = client.multi();
-
-      multi.del(...jobKeys);
-      return multi.exec();
-    }
+  drain(delayed = false) {
+    return Scripts.drain(this, delayed);
   }
 
   /**
