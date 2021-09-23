@@ -1,9 +1,10 @@
-import { Queue, QueueEvents, Worker } from '../classes';
-import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
+import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { Queue, QueueEvents, FlowProducer, Worker } from '../classes';
+import { delay, removeAllQueueData } from '../utils';
 
 describe('Obliterate', () => {
   let queue: Queue;
@@ -60,6 +61,54 @@ describe('Obliterate', () => {
     expect(keys.length).to.be.eql(0);
 
     await worker.close();
+  });
+
+  describe('when creating a flow', async () => {
+    it('obliterates a queue with jobs and its dependency keys', async () => {
+      await queue.waitUntilReady();
+      const name = 'child-job';
+
+      let first = true;
+      const worker = new Worker(queue.name, async job => {
+        if (first) {
+          first = false;
+          throw new Error('failed first');
+        }
+        return delay(10);
+      });
+      await worker.waitUntilReady();
+
+      const completing = new Promise((resolve, reject) => {
+        worker.on('completed', after(2, resolve));
+      });
+
+      const failing = new Promise((resolve, reject) => {
+        worker.on('failed', resolve);
+      });
+
+      const flow = new FlowProducer();
+      await flow.add({
+        name: 'parent-job',
+        queueName: queueName,
+        data: {},
+        children: [
+          { name, data: { idx: 0, foo: 'bar' }, queueName },
+          { name, data: { idx: 1, foo: 'baz' }, queueName },
+          { name, data: { idx: 2, foo: 'qux' }, queueName },
+        ],
+      });
+
+      await failing;
+      await completing;
+      await queue.obliterate();
+
+      const client = await queue.client;
+      const keys = await client.keys(`bull:${queue.name}:*`);
+
+      expect(keys.length).to.be.eql(0);
+
+      await worker.close();
+    });
   });
 
   it('should raise exception if queue has active jobs', async () => {
