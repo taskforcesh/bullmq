@@ -36,6 +36,8 @@ local function removeJobs(parentKey, keys)
     for i, key in ipairs(keys) do
         rcall("DEL", baseKey .. key)
         rcall("DEL", baseKey .. key .. ':logs')
+        rcall("DEL", baseKey .. key .. ':dependencies')
+        rcall("DEL", baseKey .. key .. ':processed')
     end
     maxCount = maxCount - #keys
 end
