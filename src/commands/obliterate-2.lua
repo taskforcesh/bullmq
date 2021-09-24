@@ -32,25 +32,26 @@ local function getSetItems(keyName, max)
     return rcall('SMEMBERS', keyName, 0, max)
 end
 
-local function removeJobs(parentKey, keys)
+local function removeJobs(keys)
     for i, key in ipairs(keys) do
-        rcall("DEL", baseKey .. key)
-        rcall("DEL", baseKey .. key .. ':logs')
-        rcall("DEL", baseKey .. key .. ':dependencies')
-        rcall("DEL", baseKey .. key .. ':processed')
+        local jobKey = baseKey .. key 
+        rcall("DEL", jobKey)
+        rcall("DEL", jobKey .. ':logs')
+        rcall("DEL", jobKey .. ':dependencies')
+        rcall("DEL", jobKey .. ':processed')
     end
     maxCount = maxCount - #keys
 end
 
 local function removeListJobs(keyName, max)
     local jobs = getListItems(keyName, max)
-    removeJobs(keyName, jobs)
+    removeJobs(jobs)
     rcall("LTRIM", keyName, #jobs, -1)
 end
 
 local function removeZSetJobs(keyName, max)
     local jobs = getZSetItems(keyName, max)
-    removeJobs(keyName, jobs)
+    removeJobs(jobs)
     if(#jobs > 0) then
         rcall("ZREM", keyName, unpack(jobs))
     end
@@ -77,7 +78,7 @@ if (#activeJobs > 0) then
 end
 
 removeLockKeys(activeJobs)
-removeJobs(activeKey, activeJobs)
+removeJobs(activeJobs)
 rcall("LTRIM", activeKey, #activeJobs, -1)
 if(maxCount <= 0) then
     return 1
