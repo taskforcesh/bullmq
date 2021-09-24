@@ -8,25 +8,26 @@
     KEYS[3] 'delayed'
     KEYS[4] 'priority'
 
-    ARGV[1]  queue key prefix,
+    ARGV[1]  queue key prefix
 ]]
 local rcall = redis.call
+local queueBaseKey = ARGV[1]
 
-local function delete_item (list, queuePrefix)
-  for _, v in ipairs(list) do
-    rcall("DEL", queuePrefix .. v)
+local function removeJobs (list)
+  for _, id in ipairs(list) do
+    rcall("DEL", queueBaseKey .. id)
   end
 end
 
 local wait_ids = rcall("LRANGE", KEYS[1] , 0, -1)
 local paused_ids = rcall("LRANGE", KEYS[2] , 0, -1)
 
-delete_item(wait_ids, ARGV[1])
-delete_item(paused_ids, ARGV[1])
+removeJobs(wait_ids)
+removeJobs(paused_ids)
 
 if KEYS[3] ~= "" then
   local delayed_ids = rcall("ZRANGE", KEYS[3] , 0, -1)
-  delete_item(delayed_ids, ARGV[1])
+  removeJobs(delayed_ids)
   rcall("DEL", KEYS[3])
 end
 
