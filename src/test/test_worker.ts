@@ -1711,32 +1711,35 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>((resolve, reject) => {
-        const failedHandler = once(async (job, err) => {
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
           expect(err).to.equal(failedError);
-
           await job.retry();
-          await delay(100);
-          const completedCount = await queue.getCompletedCount();
-          expect(completedCount).to.equal(1);
-
-          await expect(job.retry()).to.be.rejectedWith(
-            `Job ${job.id} is not in the failed state. reprocessJob`,
-          );
-
-          const completedCount2 = await queue.getCompletedCount();
-          expect(completedCount2).to.equal(1);
-          const failedCount = await queue.getFailedCount();
-          expect(failedCount).to.equal(0);
-
           resolve();
         });
-
-        worker.on('failed', failedHandler);
       });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', resolve);
+      });
+
+      const retriedJob = await queue.add('test', { foo: 'bar' });
+
+      await failing;
+      await completing;
+
+      const completedCount = await queue.getCompletedCount();
+      expect(completedCount).to.equal(1);
+
+      await expect(retriedJob.retry()).to.be.rejectedWith(
+        `Job ${retriedJob.id} is not in the failed state. reprocessJob`,
+      );
+
+      const completedCount2 = await queue.getCompletedCount();
+      expect(completedCount2).to.equal(1);
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.equal(0);
 
       await worker.close();
       await queueScheduler.close();
