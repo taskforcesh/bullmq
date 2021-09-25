@@ -42,12 +42,15 @@ export class QueueGetters extends QueueBase {
     return this.getJobCountByTypes('waiting', 'paused', 'delayed');
   }
 
-  // Job counts by type
-  // Queue#getJobCountByTypes('completed') => completed count
-  // Queue#getJobCountByTypes('completed,failed') => completed + failed count
-  // Queue#getJobCountByTypes('completed', 'failed') => completed + failed count
-  // Queue#getJobCountByTypes('completed', 'waiting', 'failed') => completed + waiting + failed count
-  async getJobCountByTypes(...types: string[]) {
+  /**
+   * Job counts by type
+   *
+   * Queue#getJobCountByTypes('completed') => completed count
+   * Queue#getJobCountByTypes('completed,failed') => completed + failed count
+   * Queue#getJobCountByTypes('completed', 'failed') => completed + failed count
+   * Queue#getJobCountByTypes('completed', 'waiting', 'failed') => completed + waiting + failed count
+   */
+  async getJobCountByTypes(...types: string[]): Promise<number> {
     const result = await this.getJobCounts(...types);
     return Object.values(result).reduce((sum, count) => sum + count);
   }
@@ -55,8 +58,13 @@ export class QueueGetters extends QueueBase {
   /**
    * Returns the job counts for each type specified or every list/set in the queue by default.
    *
+   * @returns An object, key (type) and value (count)
    */
-  async getJobCounts(...types: string[]) {
+  async getJobCounts(
+    ...types: string[]
+  ): Promise<{
+    [index: string]: number;
+  }> {
     const client = await this.client;
     const multi = client.multi();
 
@@ -88,7 +96,7 @@ export class QueueGetters extends QueueBase {
     return this.getJobCountByTypes('active');
   }
 
-  getWaitingCount() {
+  getWaitingCount(): Promise<number> {
     return this.getJobCountByTypes('waiting', 'paused');
   }
 
