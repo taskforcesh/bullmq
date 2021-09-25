@@ -1677,7 +1677,7 @@ describe('workers', function() {
             await queue.clean(0, 0);
 
             await expect(job.retry()).to.be.rejectedWith(
-              'Retried job not exist',
+              `Missing key for job ${job.id}. reprocessJob`,
             );
 
             const completedCount = await queue.getCompletedCount();
@@ -1725,7 +1725,7 @@ describe('workers', function() {
           expect(completedCount).to.equal(1);
 
           await expect(job.retry()).to.be.rejectedWith(
-            'Retried job not failed',
+            `Job ${job.id} is not in the failed state. reprocessJob`,
           );
 
           const completedCount2 = await queue.getCompletedCount();
