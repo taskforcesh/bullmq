@@ -1649,6 +1649,8 @@ describe('workers', function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
+      const failedError = new Error('failed');
+      let attempts = 0;
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {
           attempts++;
@@ -1658,44 +1660,41 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      let attempts = 0;
-      const failedError = new Error('failed');
-
-      await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>((resolve, reject) => {
-        const failedHandler = once(async (job, err) => {
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
           expect(err).to.equal(failedError);
           expect(job.failedReason).to.equal(failedError.message);
-
-          try {
-            await job.retry();
-            await delay(100);
-            const count = await queue.getCompletedCount();
-            expect(count).to.equal(1);
-            await queue.clean(0, 0);
-
-            await expect(job.retry()).to.be.rejectedWith(
-              `Missing key for job ${job.id}. reprocessJob`,
-            );
-
-            const completedCount = await queue.getCompletedCount();
-            expect(completedCount).to.equal(0);
-            const failedCount = await queue.getFailedCount();
-            expect(failedCount).to.equal(0);
-          } catch (err) {
-            reject(err);
-          }
+          await job.retry();
           resolve();
         });
-
-        worker.on('failed', failedHandler);
       });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', resolve);
+      });
+
+      const retriedJob = await queue.add('test', { foo: 'bar' });
+
+      await failing;
+      await completing;
+
+      const count = await queue.getCompletedCount();
+      expect(count).to.equal(1);
+      await queue.clean(0, 0);
+
+      await expect(retriedJob.retry()).to.be.rejectedWith(
+        `Missing key for job ${retriedJob.id}. reprocessJob`,
+      );
+
+      const completedCount = await queue.getCompletedCount();
+      expect(completedCount).to.equal(0);
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.equal(0);
 
       await worker.close();
       await queueScheduler.close();
-    }).timeout(5000);
+    });
 
     it('should not retry a job that has been retried already', async () => {
       let attempts = 0;
