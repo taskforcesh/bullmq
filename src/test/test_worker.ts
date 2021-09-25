@@ -1762,7 +1762,9 @@ describe('workers', function() {
 
       await activating;
 
-      await expect(job.retry()).to.be.rejectedWith('Retried job not failed');
+      await expect(job.retry()).to.be.rejectedWith(
+        `Job ${job.id} is not in the failed state. reprocessJob`,
+      );
 
       await worker.close();
     });
