@@ -858,14 +858,7 @@ export class Job<T = any, R = any, N extends string = string> {
       'failedReason',
     );
 
-    const result = await Scripts.reprocessJob(this.queue, this, state);
-    if (result === 1) {
-      return;
-    } else if (result === RetryErrors.JobNotExist) {
-      throw new Error('Retried job not exist');
-    } else if (result === RetryErrors.JobNotFailed) {
-      throw new Error('Retried job not failed');
-    }
+    return Scripts.reprocessJob(this.queue, this, state);
   }
 
   /**

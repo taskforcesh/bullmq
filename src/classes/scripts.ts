@@ -560,7 +560,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job,
     state: 'failed' | 'completed',
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const keys = [
@@ -572,7 +572,14 @@ export class Scripts {
 
     const args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH'];
 
-    return (<any>client).reprocessJob(keys.concat(args));
+    const result = await (<any>client).reprocessJob(keys.concat(args));
+
+    switch (result) {
+      case 1:
+        return;
+      default:
+        throw this.finishedErrors(result, job.id, 'reprocessJob', 'failed');
+    }
   }
 
   static async moveToActive<T, R, N extends string>(
