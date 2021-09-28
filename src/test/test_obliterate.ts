@@ -18,7 +18,7 @@ describe('Obliterate', function() {
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async () => {
+  afterEach(async function() {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
@@ -217,8 +217,6 @@ describe('Obliterate', function() {
       arr1.push(queue.add('test', { foo: `barLoop${i}` }));
     }
 
-    queueEvents.on('failed', () => {});
-
     const [lastCompletedJob] = (await Promise.all(arr1)).splice(-1);
 
     let fail = false;
@@ -254,5 +252,7 @@ describe('Obliterate', function() {
     const client = await queue.client;
     const keys = await client.keys(`bull:${queue.name}*`);
     expect(keys.length).to.be.eql(0);
+
+    await worker.close();
   });
 });

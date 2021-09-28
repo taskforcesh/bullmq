@@ -22,7 +22,7 @@ describe('Job', function() {
     queue = new Queue(queueName);
   });
 
-  afterEach(async () => {
+  afterEach(async function() {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
   });
