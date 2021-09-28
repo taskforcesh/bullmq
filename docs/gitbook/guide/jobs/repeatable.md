@@ -94,14 +94,14 @@ await myQueue.add(
       every: 10000,
       limit: 100,
     },
-    jobId: 'pingeon',
+    jobId: 'pigeon',
   },
 );
 ```
 
 ## Slow repeatable jobs
 
-It is worth to mention the case where the repeatable frequency is larger than the time it takes to process a job.
+It is worth to mention the case where the repeatable frequency is greater than the time it takes to process a job.
 
 For instance, let's say that you have a job that is repeated every second, but the process of the job itself takes 5 seconds. As explained above, repeatable jobs are just delayed jobs, so this means that the next repeatable job will be added as soon as the next job is starting to be processed.
 
