@@ -7,6 +7,9 @@ import { QueueBaseOptions } from '../interfaces';
  * @see {@link https://docs.bullmq.io/guide/queuescheduler}
  */
 export interface QueueSchedulerOptions extends QueueBaseOptions {
+  /**
+   * Condition to start scheduler at instance creation.
+   */
   autorun?: boolean;
   /**
    * Amount of times a job can be recovered from a stalled state
