@@ -6,7 +6,7 @@ import { v4 } from 'uuid';
 import { Queue, QueueEvents, FlowProducer, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
 
-describe('Obliterate', () => {
+describe('Obliterate', function() {
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -210,11 +210,14 @@ describe('Obliterate', () => {
     expect(logs).to.have.length(0);
   });
 
-  it('should obliterate a queue with high number of jobs in different statuses', async () => {
+  it('should obliterate a queue with high number of jobs in different statuses', async function() {
+    this.timeout(6000);
     const arr1 = [];
     for (let i = 0; i < 300; i++) {
       arr1.push(queue.add('test', { foo: `barLoop${i}` }));
     }
+
+    queueEvents.on('failed', () => {});
 
     const [lastCompletedJob] = (await Promise.all(arr1)).splice(-1);
 
@@ -237,12 +240,9 @@ describe('Obliterate', () => {
 
     const [lastFailedJob] = (await Promise.all(arr2)).splice(-1);
 
-    try {
-      await lastFailedJob.waitUntilFinished(queueEvents);
-      expect(true).to.be.equal(false);
-    } catch (err) {
-      expect(true).to.be.equal(true);
-    }
+    await expect(
+      lastFailedJob.waitUntilFinished(queueEvents),
+    ).to.be.eventually.rejectedWith('failed job');
 
     const arr3 = [];
     for (let i = 0; i < 1623; i++) {
@@ -254,5 +254,5 @@ describe('Obliterate', () => {
     const client = await queue.client;
     const keys = await client.keys(`bull:${queue.name}*`);
     expect(keys.length).to.be.eql(0);
-  }).timeout(20000);
+  });
 });
