@@ -8,7 +8,7 @@ import { QueueBaseOptions } from '../interfaces';
  */
 export interface QueueSchedulerOptions extends QueueBaseOptions {
   /**
-   * Condition to start processor at instance creation.
+   * Condition to start scheduler at instance creation.
    */
   autorun?: boolean;
   /**

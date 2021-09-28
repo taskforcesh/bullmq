@@ -64,7 +64,7 @@ export interface QueueOptions extends QueueBaseOptions {
  */
 export interface QueueEventsOptions extends QueueBaseOptions {
   /**
-   * Condition to start processor at instance creation.
+   * Condition to start listening to events at instance creation.
    */
   autorun?: boolean;
   /**
