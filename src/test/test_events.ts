@@ -19,6 +19,7 @@ describe('events', function() {
   });
 
   afterEach(async function() {
+    this.timeout(4000);
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);

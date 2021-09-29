@@ -1,5 +1,5 @@
 import { Queue, QueueEvents, QueueScheduler, Worker } from '../classes';
-import { assert, expect } from 'chai';
+import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after, every, last } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
@@ -19,6 +19,7 @@ describe('Rate Limiter', function() {
   });
 
   afterEach(async function() {
+    this.timeout(4000);
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
