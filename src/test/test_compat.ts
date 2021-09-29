@@ -12,7 +12,6 @@ import { delay, removeAllQueueData } from '../utils';
 
 describe('Compat', function() {
   describe('jobs getters', function() {
-    this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
 
@@ -22,7 +21,6 @@ describe('Compat', function() {
     });
 
     afterEach(async function() {
-      this.timeout(4000);
       await queue.close();
       await removeAllQueueData(new IORedis(), queueName);
     });
@@ -301,7 +299,6 @@ describe('Compat', function() {
   });
 
   describe('events', function() {
-    this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
 
@@ -311,7 +308,6 @@ describe('Compat', function() {
     });
 
     afterEach(async function() {
-      this.timeout(4000);
       await queue.close();
       await removeAllQueueData(new IORedis(), queueName);
     });
@@ -452,7 +448,6 @@ describe('Compat', function() {
     });
 
     afterEach(async function() {
-      this.timeout(4000);
       await queue.close();
       await removeAllQueueData(new IORedis(), queueName);
     });

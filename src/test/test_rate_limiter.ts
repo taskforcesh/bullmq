@@ -19,14 +19,12 @@ describe('Rate Limiter', function() {
   });
 
   afterEach(async function() {
-    this.timeout(4000);
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should put a job into the delayed queue when limit is hit', async function() {
-    this.timeout(4000);
     const worker = new Worker(queueName, async job => {}, {
       limiter: {
         max: 1,

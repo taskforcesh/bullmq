@@ -22,7 +22,6 @@ describe('workers', function() {
   });
 
   afterEach(async function() {
-    this.timeout(4000);
     sandbox.restore();
     await queue.close();
     await queueEvents.close();

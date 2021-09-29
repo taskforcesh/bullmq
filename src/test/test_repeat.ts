@@ -43,7 +43,6 @@ describe('repeat', function() {
   });
 
   afterEach(async function() {
-    this.timeout(4000);
     this.clock.restore();
     await queue.close();
     await repeat.close();

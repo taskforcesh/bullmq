@@ -88,7 +88,6 @@ describe('queues', function() {
   });
 
   afterEach(async function() {
-    this.timeout(4000);
     sandbox.restore();
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
