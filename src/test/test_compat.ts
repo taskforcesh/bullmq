@@ -12,7 +12,6 @@ import { delay, removeAllQueueData } from '../utils';
 
 describe('Compat', function() {
   describe('jobs getters', function() {
-    this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
 
@@ -300,7 +299,6 @@ describe('Compat', function() {
   });
 
   describe('events', function() {
-    this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
 

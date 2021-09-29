@@ -1,6 +1,5 @@
 import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
-import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import {
   errorObject,

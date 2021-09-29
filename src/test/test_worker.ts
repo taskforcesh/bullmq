@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
-import { after, times, once } from 'lodash';
+import { after, times } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
