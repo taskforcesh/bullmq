@@ -13,6 +13,7 @@ export class QueueBase extends EventEmitter {
   constructor(
     public readonly name: string,
     public opts: QueueBaseOptions = {},
+    Connection: typeof RedisConnection = RedisConnection,
   ) {
     super();
 
@@ -21,10 +22,7 @@ export class QueueBase extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new RedisConnection(
-      opts.connection,
-      opts.sharedConnection,
-    );
+    this.connection = new Connection(opts.connection, opts.sharedConnection);
     this.connection.on('error', this.emit.bind(this, 'error'));
 
     const queueKeys = new QueueKeys(opts.prefix);

@@ -8,7 +8,7 @@ import {
 import { StreamReadRaw } from '../interfaces/redis-streams';
 import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
-import { RedisClient } from './redis-connection';
+import { RedisClient, RedisConnection } from './redis-connection';
 
 export declare interface QueueEvents {
   /**
@@ -187,13 +187,18 @@ export class QueueEvents extends QueueBase {
   constructor(
     name: string,
     { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+    Connection?: typeof RedisConnection,
   ) {
-    super(name, {
-      ...opts,
-      connection: isRedisInstance(connection)
-        ? (<RedisClient>connection).duplicate()
-        : connection,
-    });
+    super(
+      name,
+      {
+        ...opts,
+        connection: isRedisInstance(connection)
+          ? (<RedisClient>connection).duplicate()
+          : connection,
+      },
+      Connection,
+    );
 
     this.opts = Object.assign(
       {
