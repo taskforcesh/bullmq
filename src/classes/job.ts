@@ -1,6 +1,5 @@
 import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
-import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import {
   errorObject,
@@ -859,14 +858,7 @@ export class Job<
       'failedReason',
     );
 
-    const result = await Scripts.reprocessJob(this.queue, this, state);
-    if (result === 1) {
-      return;
-    } else if (result === RetryErrors.JobNotExist) {
-      throw new Error('Retried job not exist');
-    } else if (result === RetryErrors.JobNotFailed) {
-      throw new Error('Retried job not failed');
-    }
+    return Scripts.reprocessJob(this.queue, this, state);
   }
 
   /**

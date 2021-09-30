@@ -261,6 +261,28 @@ export class Scripts {
     }
   }
 
+  static drainArgs(queue: MinimalQueue, delayed: boolean) {
+    const queueKeys = queue.keys;
+
+    const keys = [
+      queueKeys.wait,
+      queueKeys.paused,
+      delayed ? queueKeys.delayed : '',
+      queueKeys.priority,
+    ];
+
+    const args = [queueKeys['']];
+
+    return keys.concat(args);
+  }
+
+  static async drain(queue: MinimalQueue, delayed: boolean) {
+    const client = await queue.client;
+    const args = this.drainArgs(queue, delayed);
+
+    await (<any>client).drain(args);
+  }
+
   static moveToCompleted(
     queue: MinimalQueue,
     job: Job,
@@ -535,7 +557,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job,
     state: 'failed' | 'completed',
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const keys = [
@@ -547,7 +569,14 @@ export class Scripts {
 
     const args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH'];
 
-    return (<any>client).reprocessJob(keys.concat(args));
+    const result = await (<any>client).reprocessJob(keys.concat(args));
+
+    switch (result) {
+      case 1:
+        return;
+      default:
+        throw this.finishedErrors(result, job.id, 'reprocessJob', 'failed');
+    }
   }
 
   static async moveToActive<T, R, N extends string>(

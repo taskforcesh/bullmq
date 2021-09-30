@@ -18,7 +18,7 @@ describe('Cleaner', () => {
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async () => {
+  afterEach(async function() {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);

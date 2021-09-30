@@ -12,7 +12,6 @@ import { delay, removeAllQueueData } from '../utils';
 
 describe('Compat', function() {
   describe('jobs getters', function() {
-    this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
 
@@ -300,7 +299,6 @@ describe('Compat', function() {
   });
 
   describe('events', function() {
-    this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
 
@@ -360,13 +358,19 @@ describe('Compat', function() {
         queue.once('global:drained', resolve);
       });
 
+      const completing = new Promise<void>(resolve => {
+        queue.on('completed', after(2, resolve));
+      });
+
       await queue.add('test', { foo: 'bar' });
       await queue.add('test', { foo: 'baz' });
 
+      await completing;
       await drained;
 
       const jobs = await queue.getJobCountByTypes('completed');
       expect(jobs).to.be.equal(2);
+      queue.off('completed');
       queue.off('global:drained');
     });
 

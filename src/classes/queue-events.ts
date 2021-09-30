@@ -276,7 +276,7 @@ export class QueueEvents extends QueueBase {
           }
         }
       } catch (err) {
-        if (isNotConnectionError(err)) {
+        if (isNotConnectionError(err as Error)) {
           throw err;
         }
 

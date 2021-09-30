@@ -486,7 +486,6 @@ export class Worker<
    * Checks if worker is currently running.
    *
    * @returns true if worker is running, false otherwise.
-   *
    */
   isRunning(): boolean {
     return this.running;

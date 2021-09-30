@@ -18,6 +18,8 @@ export declare class Scripts
 |  [changeDelay(queue, jobId, delay)](./bullmq.scripts.changedelay.md) | <code>static</code> |  |
 |  [changeDelayArgs(queue, jobId, timestamp)](./bullmq.scripts.changedelayargs.md) | <code>static</code> |  |
 |  [cleanJobsInSet(queue, set, timestamp, limit)](./bullmq.scripts.cleanjobsinset.md) | <code>static</code> |  |
+|  [drain(queue, delayed)](./bullmq.scripts.drain.md) | <code>static</code> |  |
+|  [drainArgs(queue, delayed)](./bullmq.scripts.drainargs.md) | <code>static</code> |  |
 |  [extendLock(queue, jobId, token, duration)](./bullmq.scripts.extendlock.md) | <code>static</code> |  |
 |  [finishedErrors(code, jobId, command, state)](./bullmq.scripts.finishederrors.md) | <code>static</code> |  |
 |  [getState(queue, jobId)](./bullmq.scripts.getstate.md) | <code>static</code> |  |
