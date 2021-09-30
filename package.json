@@ -62,7 +62,7 @@
     "@semantic-release/npm": "^7.0.9",
     "@semantic-release/release-notes-generator": "^9.0.1",
     "@types/chai": "^4.2.16",
-    "@types/chai-as-promised": "^7.1.3",
+    "@types/chai-as-promised": "^7.1.4",
     "@types/ioredis": "^4.27.4",
     "@types/lodash": "^4.14.173",
     "@types/mocha": "^5.2.7",
