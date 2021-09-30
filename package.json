@@ -52,7 +52,7 @@
     "@commitlint/cli": "^8.3.5",
     "@commitlint/config-conventional": "^8.3.4",
     "@istanbuljs/nyc-config-typescript": "^0.1.3",
-    "@microsoft/api-documenter": "^7.13.41",
+    "@microsoft/api-documenter": "^7.13.50",
     "@microsoft/api-extractor": "^7.18.7",
     "@semantic-release/changelog": "^5.0.1",
     "@semantic-release/commit-analyzer": "^8.0.1",
