@@ -5,7 +5,6 @@
 /*eslint-env node */
 'use strict';
 
-import { pack } from 'msgpackr';
 const msgpack = require('msgpack');
 
 import * as semver from 'semver';
@@ -93,7 +92,7 @@ export class Scripts {
       parentOpts.parentDependenciesKey || null,
     ];
 
-    keys.push(pack(args), job.data, msgpack.pack(opts));
+    keys.push(msgpack.pack(args), job.data, msgpack.pack(opts));
 
     const result = await (<any>client).addJob(keys);
 
