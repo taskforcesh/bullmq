@@ -93,7 +93,7 @@
     "pretty-quick": "^3.1.0",
     "semantic-release": "^17.3.1",
     "sinon": "^7.2.2",
-    "ts-mocha": "^6.0.0",
+    "ts-mocha": "^8.0.0",
     "ts-node": "^8.10.2",
     "typescript": "^3.9.10"
   },
