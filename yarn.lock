@@ -2224,7 +2224,7 @@ eslint-config-prettier@6.7.0:
   dependencies:
     get-stdin "^6.0.0"
 
-eslint-plugin-mocha@^8.0.0:
+eslint-plugin-mocha@^8.2.0:
   version "8.2.0"
   resolved "https://registry.yarnpkg.com/eslint-plugin-mocha/-/eslint-plugin-mocha-8.2.0.tgz#1d9724edcef37583921ef853494200c2b8a3730d"
   integrity sha512-8oOR47Ejt+YJPNQzedbiklDqS1zurEaNrxXpRs+Uk4DMDPVmKNagShFeUaYsfvWP55AhI+P1non5QZAHV6K78A==
