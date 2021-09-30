@@ -91,7 +91,7 @@
     "nyc": "^14.1.1",
     "prettier": "^2.4.1",
     "pretty-quick": "^3.1.1",
-    "semantic-release": "^17.3.1",
+    "semantic-release": "^17.4.7",
     "sinon": "^7.5.0",
     "ts-mocha": "^8.0.0",
     "ts-node": "^8.10.2",
