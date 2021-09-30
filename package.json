@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "cron-parser": "^2.18.0",
-    "get-port": "^5.0.0",
+    "get-port": "^5.1.1",
     "ioredis": "^4.27.8",
     "lodash": "^4.17.21",
     "semver": "^6.3.0",
