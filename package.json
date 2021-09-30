@@ -76,7 +76,7 @@
     "chai-as-promised": "^7.1.1",
     "commitizen": "^4.2.4",
     "copyfiles": "^2.4.1",
-    "coveralls": "^3.0.7",
+    "coveralls": "^3.1.1",
     "eslint": "6.8.0",
     "eslint-config-prettier": "6.7.0",
     "eslint-plugin-mocha": "^8.2.0",
