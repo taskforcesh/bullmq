@@ -775,10 +775,10 @@
   resolved "https://registry.yarnpkg.com/@types/chai/-/chai-4.2.17.tgz#85f9f0610f514b22a94125d441f73eef65bde5cc"
   integrity sha512-LaiwWNnYuL8xJlQcE91QB2JoswWZckq9A4b+nMPq8dt8AP96727Nb3X4e74u+E3tm4NLTILNI9MYFsyVc30wSA==
 
-"@types/ioredis@^4.27.0":
-  version "4.27.0"
-  resolved "https://registry.yarnpkg.com/@types/ioredis/-/ioredis-4.27.0.tgz#906d23460134f5450ba833944d94beff5bb00983"
-  integrity sha512-H3Uaffcxav+KmZob0bF1glq04DzENDv2fcMovDc+/yt2fIKZN3LKEOtR8OIAvQvIq0UW2s5m6C0AZwQKLHg13Q==
+"@types/ioredis@^4.27.4":
+  version "4.27.4"
+  resolved "https://registry.yarnpkg.com/@types/ioredis/-/ioredis-4.27.4.tgz#2caf9d0222640c9d7ce278fca2f9892c1323f9c8"
+  integrity sha512-uTAA/woL//GxXQI1e9FuUoDZCpP8yn5LXQdea1IEFyLtb8GP2w3HfOE+SqglF6QSAp/3cZLWzrMhHqWSYI3bfg==
   dependencies:
     "@types/node" "*"
 
@@ -1834,7 +1834,7 @@ cp-file@^6.2.0:
     pify "^4.0.1"
     safe-buffer "^5.0.1"
 
-cron-parser@^2.7.3:
+cron-parser@^2.18.0:
   version "2.18.0"
   resolved "https://registry.yarnpkg.com/cron-parser/-/cron-parser-2.18.0.tgz#de1bb0ad528c815548371993f81a54e5a089edcf"
   integrity sha512-s4odpheTyydAbTBQepsqd2rNWGa2iV3cyo8g7zbI2QQYGLVsfbhmwukayS1XHppe02Oy1fg7mg6xoaraVJeEcg==
