@@ -66,7 +66,7 @@
     "@types/ioredis": "^4.27.4",
     "@types/lodash": "^4.14.119",
     "@types/mocha": "^5.2.5",
-    "@types/node": "^12.6.8",
+    "@types/node": "^12.20.25",
     "@types/semver": "^6.2.3",
     "@types/sinon": "^7.5.2",
     "@types/uuid": "^3.4.10",
