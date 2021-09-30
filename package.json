@@ -69,7 +69,7 @@
     "@types/node": "^12.6.8",
     "@types/semver": "^6.0.1",
     "@types/sinon": "^7.0.13",
-    "@types/uuid": "^3.4.5",
+    "@types/uuid": "^3.4.10",
     "@typescript-eslint/eslint-plugin": "4.5.0",
     "@typescript-eslint/parser": "4.5.0",
     "chai": "^4.3.4",
