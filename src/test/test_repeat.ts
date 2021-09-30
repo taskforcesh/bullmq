@@ -546,19 +546,27 @@ describe('repeat', function() {
     delayStub.restore();
   });
 
-  it('should create two jobs with the same ids', async function() {
-    const options = {
-      repeat: {
-        cron: '0 1 * * *',
-      },
-    };
+  describe('when 2 jobs with the same options are added', function() {
+    it('creates only one job', async function() {
+      const options = {
+        repeat: {
+          cron: '0 1 * * *',
+        },
+      };
 
-    const p1 = queue.add('test', { foo: 'bar' }, options);
-    const p2 = queue.add('test', { foo: 'bar' }, options);
+      const p1 = queue.add('test', { foo: 'bar' }, options);
+      const p2 = queue.add('test', { foo: 'bar' }, options);
 
-    const jobs = await Promise.all([p1, p2]);
-    expect(jobs.length).to.be.eql(2);
-    expect(jobs[0].id).to.be.eql(jobs[1].id);
+      const jobs = await Promise.all([p1, p2]);
+      const configs = await repeat.getRepeatableJobs(0, -1, true);
+
+      const count = await queue.count();
+
+      expect(count).to.be.equal(1);
+      expect(configs).to.have.length(1);
+      expect(jobs.length).to.be.eql(2);
+      expect(jobs[0].id).to.be.eql(jobs[1].id);
+    });
   });
 
   it('should allow removing a named repeatable job', async function() {

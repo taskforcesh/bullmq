@@ -6,7 +6,7 @@ import { FlowProducer, Queue, QueueEvents, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
 
 describe('events', function() {
-  this.timeout(6000);
+  this.timeout(8000);
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;

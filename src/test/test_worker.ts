@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
-import { after, times, once } from 'lodash';
+import { after, times } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
@@ -149,7 +149,9 @@ describe('workers', function() {
       const jobIds = await Promise.all(
         datas.map(
           async data =>
-            (await queue.add('test', data, { removeOnComplete: keepJobs })).id,
+            (
+              await queue.add('test', data, { removeOnComplete: keepJobs })
+            ).id,
         ),
       );
 
@@ -309,7 +311,9 @@ describe('workers', function() {
       const jobIds = await Promise.all(
         datas.map(
           async data =>
-            (await queue.add('test', data, { removeOnFail: keepJobs })).id,
+            (
+              await queue.add('test', data, { removeOnFail: keepJobs })
+            ).id,
         ),
       );
 
@@ -749,10 +753,9 @@ describe('workers', function() {
           const gotJob = await queue.getJob(job.id);
           expect(gotJob.returnvalue).to.be.eql(37);
 
-          const retval = await (await queue.client).hget(
-            queue.toKey(gotJob.id),
-            'returnvalue',
-          );
+          const retval = await (
+            await queue.client
+          ).hget(queue.toKey(gotJob.id), 'returnvalue');
           expect(JSON.parse(retval)).to.be.eql(37);
           resolve();
         } catch (err) {
@@ -1014,22 +1017,6 @@ describe('workers', function() {
     });
 
     await worker.close();
-  });
-
-  it('count added, unprocessed jobs', async () => {
-    const maxJobs = 100;
-    const added = [];
-
-    for (let i = 1; i <= maxJobs; i++) {
-      added.push(queue.add('test', { foo: 'bar', num: i }));
-    }
-
-    await Promise.all(added);
-    const count = await queue.count();
-    expect(count).to.be.eql(maxJobs);
-    await queue.drain();
-    const countAfterEmpty = await queue.count();
-    expect(countAfterEmpty).to.be.eql(0);
   });
 
   it('emit error if lock is lost', async function() {
@@ -1665,6 +1652,8 @@ describe('workers', function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
+      const failedError = new Error('failed');
+      let attempts = 0;
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {
           attempts++;
@@ -1674,44 +1663,41 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      let attempts = 0;
-      const failedError = new Error('failed');
-
-      await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>((resolve, reject) => {
-        const failedHandler = once(async (job, err) => {
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
           expect(err).to.equal(failedError);
           expect(job.failedReason).to.equal(failedError.message);
-
-          try {
-            await job.retry();
-            await delay(100);
-            const count = await queue.getCompletedCount();
-            expect(count).to.equal(1);
-            await queue.clean(0, 0);
-
-            await expect(job.retry()).to.be.rejectedWith(
-              'Retried job not exist',
-            );
-
-            const completedCount = await queue.getCompletedCount();
-            expect(completedCount).to.equal(0);
-            const failedCount = await queue.getFailedCount();
-            expect(failedCount).to.equal(0);
-          } catch (err) {
-            reject(err);
-          }
+          await job.retry();
           resolve();
         });
-
-        worker.on('failed', failedHandler);
       });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', resolve);
+      });
+
+      const retriedJob = await queue.add('test', { foo: 'bar' });
+
+      await failing;
+      await completing;
+
+      const count = await queue.getCompletedCount();
+      expect(count).to.equal(1);
+      await queue.clean(0, 0);
+
+      await expect(retriedJob.retry()).to.be.rejectedWith(
+        `Missing key for job ${retriedJob.id}. reprocessJob`,
+      );
+
+      const completedCount = await queue.getCompletedCount();
+      expect(completedCount).to.equal(0);
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.equal(0);
 
       await worker.close();
       await queueScheduler.close();
-    }).timeout(5000);
+    });
 
     it('should not retry a job that has been retried already', async () => {
       let attempts = 0;
@@ -1728,32 +1714,35 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      await queue.add('test', { foo: 'bar' });
-
-      await new Promise<void>((resolve, reject) => {
-        const failedHandler = once(async (job, err) => {
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
           expect(err).to.equal(failedError);
-
           await job.retry();
-          await delay(100);
-          const completedCount = await queue.getCompletedCount();
-          expect(completedCount).to.equal(1);
-
-          await expect(job.retry()).to.be.rejectedWith(
-            'Retried job not failed',
-          );
-
-          const completedCount2 = await queue.getCompletedCount();
-          expect(completedCount2).to.equal(1);
-          const failedCount = await queue.getFailedCount();
-          expect(failedCount).to.equal(0);
-
           resolve();
         });
-
-        worker.on('failed', failedHandler);
       });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', resolve);
+      });
+
+      const retriedJob = await queue.add('test', { foo: 'bar' });
+
+      await failing;
+      await completing;
+
+      const completedCount = await queue.getCompletedCount();
+      expect(completedCount).to.equal(1);
+
+      await expect(retriedJob.retry()).to.be.rejectedWith(
+        `Job ${retriedJob.id} is not in the failed state. reprocessJob`,
+      );
+
+      const completedCount2 = await queue.getCompletedCount();
+      expect(completedCount2).to.equal(1);
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.equal(0);
 
       await worker.close();
       await queueScheduler.close();
@@ -1776,7 +1765,9 @@ describe('workers', function() {
 
       await activating;
 
-      await expect(job.retry()).to.be.rejectedWith('Retried job not failed');
+      await expect(job.retry()).to.be.rejectedWith(
+        `Job ${job.id} is not in the failed state. reprocessJob`,
+      );
 
       await worker.close();
     });
@@ -1915,10 +1906,8 @@ describe('workers', function() {
         expect(isActive1).to.be.true;
 
         await child1.moveToCompleted('return value1', childToken);
-        const {
-          processed: processed2,
-          unprocessed: unprocessed2,
-        } = await parent.getDependencies();
+        const { processed: processed2, unprocessed: unprocessed2 } =
+          await parent.getDependencies();
         const movedToWaitingChildren = await parent.moveToWaitingChildren(
           parentToken,
           {
@@ -1940,15 +1929,11 @@ describe('workers', function() {
         expect(isActive2).to.be.true;
 
         await child2.moveToCompleted('return value2', childToken);
-        const {
-          processed: processed3,
-          unprocessed: unprocessed3,
-        } = await parent.getDependencies();
+        const { processed: processed3, unprocessed: unprocessed3 } =
+          await parent.getDependencies();
         const isWaitingChildren1 = await parent.isWaitingChildren();
-        const {
-          processed: processedCount,
-          unprocessed: unprocessedCount,
-        } = await parent.getDependenciesCount();
+        const { processed: processedCount, unprocessed: unprocessedCount } =
+          await parent.getDependenciesCount();
 
         expect(processed3).to.deep.equal({
           [`bull:${queueName}:${child1.id}`]: 'return value1',
@@ -1964,10 +1949,8 @@ describe('workers', function() {
         expect(isActive3).to.be.true;
 
         await child3.moveToCompleted('return value3', childToken);
-        const {
-          processed: processed4,
-          unprocessed: unprocessed4,
-        } = await parent.getDependencies();
+        const { processed: processed4, unprocessed: unprocessed4 } =
+          await parent.getDependencies();
         const isWaitingChildren2 = await parent.isWaitingChildren();
         const movedToWaitingChildren2 = await parent.moveToWaitingChildren(
           parentToken,
@@ -2089,27 +2072,23 @@ describe('workers', function() {
         }),
       );
 
-      const {
-        nextUnprocessedCursor: nextCursor1,
-        unprocessed: unprocessed1,
-      } = await parent.getDependencies({
-        unprocessed: {
-          cursor: 0,
-          count: 50,
-        },
-      });
+      const { nextUnprocessedCursor: nextCursor1, unprocessed: unprocessed1 } =
+        await parent.getDependencies({
+          unprocessed: {
+            cursor: 0,
+            count: 50,
+          },
+        });
 
       expect(unprocessed1.length).to.be.greaterThanOrEqual(50);
 
-      const {
-        nextUnprocessedCursor: nextCursor2,
-        unprocessed: unprocessed2,
-      } = await parent.getDependencies({
-        unprocessed: {
-          cursor: nextCursor1,
-          count: 50,
-        },
-      });
+      const { nextUnprocessedCursor: nextCursor2, unprocessed: unprocessed2 } =
+        await parent.getDependencies({
+          unprocessed: {
+            cursor: nextCursor1,
+            count: 50,
+          },
+        });
 
       expect(unprocessed2.length).to.be.lessThanOrEqual(15);
       expect(nextCursor2).to.be.equal(0);

@@ -12,7 +12,6 @@ import { delay, removeAllQueueData } from '../utils';
 
 describe('Compat', function() {
   describe('jobs getters', function() {
-    this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
 
@@ -301,7 +300,6 @@ describe('Compat', function() {
   });
 
   describe('events', function() {
-    this.timeout(4000);
     let queue: Queue3;
     let queueName: string;
 
@@ -360,20 +358,28 @@ describe('Compat', function() {
     it('emits global drained event when all jobs have been processed', async function() {
       queue.process(async job => {});
 
-      let _resolve;
+      let _resolveDrained;
       const drained = new Promise(resolve => {
-        _resolve = resolve;
+        _resolveDrained = resolve;
         queue.once('global:drained', resolve);
+      });
+
+      let _resolveCompleted;
+      const completing = new Promise<void>(resolve => {
+        _resolveCompleted = resolve;
+        queue.on('completed', after(2, resolve));
       });
 
       await queue.add('test', { foo: 'bar' });
       await queue.add('test', { foo: 'baz' });
 
+      await completing;
       await drained;
 
       const jobs = await queue.getJobCountByTypes('completed');
       expect(jobs).to.be.equal(2);
-      queue.off('global:drained', _resolve);
+      queue.off('global:drained', _resolveDrained);
+      queue.off('completed', _resolveCompleted);
     });
 
     it('should emit an event when a job becomes active', async () => {

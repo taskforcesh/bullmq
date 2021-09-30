@@ -10,7 +10,6 @@ import { Queue, Job, Worker } from '../classes';
 import { removeAllQueueData } from '../utils';
 
 describe('Jobs getters', function() {
-  this.timeout(4000);
   let queue: Queue;
   let queueName: string;
 
