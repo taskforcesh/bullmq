@@ -39,7 +39,7 @@ import { QueueEvents } from 'bullmq';
 
 const queueEvents = new QueueEvents('Paint');
 
-queueEvents.on('completed', (jobId: string) => {
+queueEvents.on('completed', ({jobId: string}) => {
   // Called every time a job is completed in any worker.
 });
 
@@ -53,4 +53,3 @@ The QueueEvents class is implemented using [Redis streams](https://redis.io/topi
 {% hint style="danger" %}
 The event stream is auto-trimmed so that its size does not grow too much, by default it is ~10.000 events, but this can be configured with the `streams.events.maxLen` option.
 {% endhint %}
-
