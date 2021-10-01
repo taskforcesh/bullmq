@@ -83,12 +83,12 @@ import { QueueEvents } from 'bullmq';
 
 const queueEvents = new QueueEvents('Paint');
 
-queueEvents.on('completed', jobId => {
+queueEvents.on('completed', ({ jobId }) => {
   console.log('done painting');
 });
 
-queueEvents.on('failed', (jobId, err) => {
-  console.error('error painting', err);
+queueEvents.on('failed', ({ jobId: string, failedReason: string }) => {
+  console.error('error painting', failedReason);
 });
 ```
 
