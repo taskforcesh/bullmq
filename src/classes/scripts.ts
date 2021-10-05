@@ -5,7 +5,6 @@
 /*eslint-env node */
 'use strict';
 import { pack } from 'msgpack';
-//const msgpack = require('msgpack');
 
 import * as semver from 'semver';
 import {
