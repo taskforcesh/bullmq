@@ -5,6 +5,7 @@ import {
   errorObject,
   isEmpty,
   getParentKey,
+  getParentId,
   lengthInUtf8Bytes,
   tryCatch,
 } from '../utils';
@@ -150,6 +151,7 @@ export class Job<T = any, R = any, N extends string = string> {
     this.opts.backoff = Backoffs.normalize(opts.backoff);
 
     this.parentKey = getParentKey(opts.parent);
+    this.parentId = getParentId(opts.parent);
 
     this.toKey = queue.toKey.bind(queue);
   }

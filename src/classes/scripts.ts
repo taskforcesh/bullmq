@@ -12,7 +12,7 @@ import {
   WorkerOptions,
 } from '../interfaces';
 import { ErrorCodes } from '../enums';
-import { array2obj, getParentKey } from '../utils';
+import { array2obj, getParentKey, getParentId } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';

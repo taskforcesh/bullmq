@@ -12,6 +12,15 @@ export declare function getParentKey(opts: {
     queue: string;
 }): string;
 ```
+## getParentId() function
+
+<b>Signature:</b>
+
+```typescript
+export declare function getParentId(opts: {
+    id: string;
+}): string;
+```
 
 ## Parameters
 

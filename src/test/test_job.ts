@@ -9,7 +9,7 @@ import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { Job, Queue, QueueScheduler, QueueEvents, Worker } from '../classes';
 import { JobsOptions } from '../interfaces';
-import { delay, getParentKey, removeAllQueueData } from '../utils';
+import { delay, getParentKey, getParentId, removeAllQueueData } from '../utils';
 
 const ONE_SECOND = 1000;
 
@@ -340,6 +340,10 @@ describe('Job', function() {
       const data = { foo: 'bar' };
       const parent = await Job.create(parentQueue, 'testParent', data);
       const parentKey = getParentKey({
+        id: parent.id,
+        queue: 'bull:' + parentQueueName,
+      });
+      const parentId = getParentKey({
         id: parent.id,
         queue: 'bull:' + parentQueueName,
       });
