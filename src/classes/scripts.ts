@@ -370,7 +370,8 @@ export class Scripts {
   ): Promise<void> {
     const client = await queue.client;
 
-    const args = this.changeDelayArgs(queue, jobId, delay);
+    const delayTimestamp = Date.now() + delay;
+    const args = this.changeDelayArgs(queue, jobId, delayTimestamp);
     const result = await (<any>client).changeDelay(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
