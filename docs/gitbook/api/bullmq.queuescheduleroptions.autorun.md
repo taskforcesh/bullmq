@@ -4,6 +4,8 @@
 
 ## QueueSchedulerOptions.autorun property
 
+Condition to start scheduler at instance creation.
+
 <b>Signature:</b>
 
 ```typescript

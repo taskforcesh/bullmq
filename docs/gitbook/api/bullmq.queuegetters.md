@@ -25,7 +25,7 @@ export declare class QueueGetters extends QueueBase
 |  [getFailed(start, end)](./bullmq.queuegetters.getfailed.md) |  |  |
 |  [getFailedCount()](./bullmq.queuegetters.getfailedcount.md) |  |  |
 |  [getJob(jobId)](./bullmq.queuegetters.getjob.md) |  |  |
-|  [getJobCountByTypes(types)](./bullmq.queuegetters.getjobcountbytypes.md) |  |  |
+|  [getJobCountByTypes(types)](./bullmq.queuegetters.getjobcountbytypes.md) |  | Job counts by type<!-- -->Queue\#getJobCountByTypes('completed') =<!-- -->&gt; completed count Queue\#getJobCountByTypes('completed,failed') =<!-- -->&gt; completed + failed count Queue\#getJobCountByTypes('completed', 'failed') =<!-- -->&gt; completed + failed count Queue\#getJobCountByTypes('completed', 'waiting', 'failed') =<!-- -->&gt; completed + waiting + failed count |
 |  [getJobCounts(types)](./bullmq.queuegetters.getjobcounts.md) |  | Returns the job counts for each type specified or every list/set in the queue by default. |
 |  [getJobLogs(jobId, start, end, asc)](./bullmq.queuegetters.getjoblogs.md) |  |  |
 |  [getJobs(types, start, end, asc)](./bullmq.queuegetters.getjobs.md) |  |  |

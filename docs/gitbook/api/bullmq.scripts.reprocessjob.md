@@ -9,7 +9,7 @@ Attempts to reprocess a job
 <b>Signature:</b>
 
 ```typescript
-static reprocessJob(queue: MinimalQueue, job: Job, state: 'failed' | 'completed'): Promise<any>;
+static reprocessJob(queue: MinimalQueue, job: Job, state: 'failed' | 'completed'): Promise<void>;
 ```
 
 ## Parameters
@@ -22,7 +22,7 @@ static reprocessJob(queue: MinimalQueue, job: Job, state: 'failed' | 'completed'
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;void&gt;
 
 Returns a promise that evaluates to a return code: 1 means the operation was a success 0 means the job does not exist -1 means the job is currently locked and can't be retried. -2 means the job was not found in the expected set
 

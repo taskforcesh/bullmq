@@ -24,3 +24,5 @@ getJobCounts(...types: string[]): Promise<{
 
 Promise&lt;{ \[index: string\]: number; }&gt;
 
+An object, key (type) and value (count)
+

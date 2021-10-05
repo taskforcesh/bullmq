@@ -17,7 +17,7 @@ export interface QueueSchedulerOptions extends QueueBaseOptions
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [autorun?](./bullmq.queuescheduleroptions.autorun.md) | boolean | <i>(Optional)</i> |
+|  [autorun?](./bullmq.queuescheduleroptions.autorun.md) | boolean | <i>(Optional)</i> Condition to start scheduler at instance creation. |
 |  [maxStalledCount?](./bullmq.queuescheduleroptions.maxstalledcount.md) | number | <i>(Optional)</i> Amount of times a job can be recovered from a stalled state to the <code>wait</code> state. If this is exceeded, the job is moved to <code>failed</code>. |
 |  [stalledInterval?](./bullmq.queuescheduleroptions.stalledinterval.md) | number | <i>(Optional)</i> Number of milliseconds between stallness checks. |
 

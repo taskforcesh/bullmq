@@ -15,7 +15,7 @@ export interface WorkerOptions extends QueueBaseOptions
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [autorun?](./bullmq.workeroptions.autorun.md) | boolean | <i>(Optional)</i> |
+|  [autorun?](./bullmq.workeroptions.autorun.md) | boolean | <i>(Optional)</i> Condition to start processor at instance creation. |
 |  [concurrency?](./bullmq.workeroptions.concurrency.md) | number | <i>(Optional)</i> Amount of jobs that a single worker is allowed to work on in parallel. |
 |  [drainDelay?](./bullmq.workeroptions.draindelay.md) | number | <i>(Optional)</i> |
 |  [limiter?](./bullmq.workeroptions.limiter.md) | [RateLimiterOptions](./bullmq.ratelimiteroptions.md) | <i>(Optional)</i> |
