@@ -320,7 +320,7 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @param data - the data that will replace the current jobs data.
    */
-  async update(data: T) {
+  async update(data: T): Promise<void> {
     const client = await this.queue.client;
 
     this.data = data;

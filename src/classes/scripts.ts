@@ -45,7 +45,7 @@ export class Scripts {
     queue: MinimalQueue,
     listKey: string,
     jobId: string,
-  ) {
+  ): Promise<boolean> {
     const client = await queue.client;
     let result;
     if (semver.lt(queue.redisVersion, '6.0.6')) {
@@ -264,7 +264,7 @@ export class Scripts {
     }
   }
 
-  static drainArgs(queue: MinimalQueue, delayed: boolean) {
+  static drainArgs(queue: MinimalQueue, delayed: boolean): string[] {
     const queueKeys = queue.keys;
 
     const keys = [
@@ -279,11 +279,11 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async drain(queue: MinimalQueue, delayed: boolean) {
+  static async drain(queue: MinimalQueue, delayed: boolean): Promise<void> {
     const client = await queue.client;
     const args = this.drainArgs(queue, delayed);
 
-    await (<any>client).drain(args);
+    return (<any>client).drain(args);
   }
 
   static moveToCompleted(

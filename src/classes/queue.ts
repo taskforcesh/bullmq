@@ -22,7 +22,7 @@ export declare interface Queue {
 export class Queue<
   T = any,
   R = any,
-  N extends string = string
+  N extends string = string,
 > extends QueueGetters {
   token = v4();
   jobsOpts: JobsOptions;
@@ -59,7 +59,7 @@ export class Queue<
   /**
    * Returns this instance current default job options.
    */
-  get defaultJobOptions() {
+  get defaultJobOptions(): JobsOptions {
     return this.jobsOpts;
   }
 
