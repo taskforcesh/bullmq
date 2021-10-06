@@ -53,7 +53,13 @@ process.on('SIGINT', waitForCurrentJobAndExit);
 process.on('message', msg => {
   switch (msg.cmd) {
     case 'init':
-      processor = require(msg.value);
+      try {
+        processor = require(msg.value);
+      } catch (err) {
+        processor = function() {
+          return Promise.reject(err); 
+        }
+      }
       if (processor.default) {
         // support es2015 module.
         processor = processor.default;
