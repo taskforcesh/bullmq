@@ -23,6 +23,9 @@
     <a href="https://coveralls.io/github/taskforcesh/bullmq?branch=master">
       <img src="https://coveralls.io/repos/github/taskforcesh/bullmq/badge.svg?branch=master"/>
     </a>
+    <a href="https://github.com/semantic-release/semantic-release">
+      <img src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg"/>
+    </a>
   </p>
   <p>
     <em>Follow <a href="https://twitter.com/manast">@manast</a> for *important* Bull/BullMQ news and updates!</em>
