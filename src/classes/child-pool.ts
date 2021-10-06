@@ -95,7 +95,7 @@ export class ChildPool {
       await stat(masterFile);
     }
 
-    child = fork(masterFile, [], { execArgv, env: process.env, stdio: 'pipe' });
+    child = fork(masterFile, [], { execArgv, stdio: 'pipe' });
     child.processFile = processFile;
 
     _this.retained[child.pid] = child;
