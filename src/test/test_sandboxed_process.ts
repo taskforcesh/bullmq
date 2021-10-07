@@ -203,6 +203,40 @@ describe('sandboxed process', () => {
     await worker.close();
   });
 
+  describe('when env variables are provided', () => {
+    it('shares env variables', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_env.js';
+
+      const worker = new Worker(queueName, processFile, {
+        drainDelay: 1,
+      });
+
+      process.env.variable = 'variable';
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql('variable');
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await completing;
+      process.env.variable = undefined;
+      await worker.close();
+    });
+  });
+
   it('should process and fail', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_fail.js';
 
