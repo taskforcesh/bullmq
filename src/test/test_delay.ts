@@ -33,8 +33,11 @@ describe('Delayed jobs', function() {
     const timestamp = Date.now();
     let publishHappened = false;
 
-    queueEvents.on('delayed', () => {
-      publishHappened = true;
+    const delayed = new Promise<void>((resolve, reject) => {
+      queueEvents.on('delayed', () => {
+        publishHappened = true;
+        resolve();
+      });
     });
 
     const completed = new Promise<void>((resolve, reject) => {
@@ -61,6 +64,7 @@ describe('Delayed jobs', function() {
     expect(job.data.delayed).to.be.eql('foobar');
     expect(job.opts.delay).to.be.eql(delay);
 
+    await delayed;
     await completed;
     await queueScheduler.close();
     await queueEvents.close();
@@ -80,8 +84,11 @@ describe('Delayed jobs', function() {
       const timestamp = Date.now();
       let publishHappened = false;
 
-      queueEvents.on('delayed', () => {
-        publishHappened = true;
+      const delayed = new Promise<void>((resolve, reject) => {
+        queueEvents.on('delayed', () => {
+          publishHappened = true;
+          resolve();
+        });
       });
 
       const completed = new Promise<void>((resolve, reject) => {
@@ -109,6 +116,7 @@ describe('Delayed jobs', function() {
 
       queueScheduler.run();
 
+      await delayed;
       await completed;
       await queueScheduler.close();
       await queueEvents.close();

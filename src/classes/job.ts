@@ -320,7 +320,7 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @param data - the data that will replace the current jobs data.
    */
-  async update(data: T) {
+  async update(data: T): Promise<void> {
     const client = await this.queue.client;
 
     this.data = data;
@@ -529,7 +529,7 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * @returns true if the job is waiting.
    */
-  async isWaiting() {
+  async isWaiting(): Promise<boolean> {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
@@ -550,7 +550,8 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Change delay of a delayed job.
    *
-   * @returns
+   * @param delay - milliseconds to be added to current time.
+   * @returns void
    */
   changeDelay(delay: number): Promise<void> {
     return Scripts.changeDelay(this.queue, this.id, delay);
@@ -580,9 +581,7 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @returns dependencies separated by processed and unprocessed.
    */
-  async getDependencies(
-    opts: DependenciesOpts = {},
-  ): Promise<{
+  async getDependencies(opts: DependenciesOpts = {}): Promise<{
     nextProcessedCursor?: number;
     processed?: Record<string, any>;
     nextUnprocessedCursor?: number;
@@ -708,13 +707,8 @@ export class Job<T = any, R = any, N extends string = string> {
       multi.scard(this.toKey(`${this.id}:dependencies`));
     }
 
-    const [
-      [err1, result1] = [],
-      [err2, result2] = [],
-    ] = (await multi.exec()) as [
-      [null | Error, number],
-      [null | Error, number],
-    ];
+    const [[err1, result1] = [], [err2, result2] = []] =
+      (await multi.exec()) as [[null | Error, number], [null | Error, number]];
 
     const processed = updatedOpts.processed ? result1 : undefined;
     const unprocessed = updatedOpts.unprocessed
