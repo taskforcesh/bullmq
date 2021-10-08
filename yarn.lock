@@ -833,6 +833,11 @@
   resolved "https://registry.yarnpkg.com/@types/mocha/-/mocha-5.2.7.tgz#315d570ccb56c53452ff8638738df60726d5b6ea"
   integrity sha512-NYrtPht0wGzhwe9+/idPaBB+TqkY9AhTvOLMkThm0IoEfLaiVQZwBwyJ5puCkO3AUCWrmcoePjp2mbFocKy4SQ==
 
+"@types/msgpack@^0.0.31":
+  version "0.0.31"
+  resolved "https://registry.yarnpkg.com/@types/msgpack/-/msgpack-0.0.31.tgz#889336f33f5f1c76e80b1aaf92f8061d69a806cb"
+  integrity sha512-9TyS+Ph/14zCizVcp6RG7xmRsHr3jsFA088iKbQMrTRvL6Lcs5rdOpOgjsDww8vpk6Q1dBASvm7W6Hs4hQDVDg==
+
 "@types/node@*":
   version "15.0.0"
   resolved "https://registry.yarnpkg.com/@types/node/-/node-15.0.0.tgz#557dd0da4a6dca1407481df3bbacae0cd6f68042"
