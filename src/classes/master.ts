@@ -56,7 +56,7 @@ process.on('message', msg => {
       try {
         processor = require(msg.value);
       } catch (err) {
-        status = 'IDLE';
+        status = 'ERRORED';
         return process.send({
           cmd: 'init-failed',
           err: err.message,
