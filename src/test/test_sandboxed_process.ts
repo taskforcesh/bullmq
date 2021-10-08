@@ -338,7 +338,7 @@ describe('sandboxed process', () => {
     const job = await queue.add('test', { exitCode: 1 });
 
     await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
-      'Error initializing child: Internal Exception Handler Run-Time Failure',
+      'Broken file processor',
     );
   });
 

@@ -52,8 +52,10 @@ async function initChild(child: ChildProcess, processFile: string) {
     const onMessageHandler = (msg: any) => {
       if (msg.cmd === 'init-complete') {
         resolve();
-        child.off('message', onMessageHandler);
+      } else if (msg.cmd === 'init-failed') {
+        reject(new Error(msg.err));
       }
+      child.off('message', onMessageHandler);
     };
     child.on('message', onMessageHandler);
     child.on('close', (code, signal) => {
