@@ -499,13 +499,24 @@ describe('Job', function() {
   });
 
   describe('.changeDelay', () => {
-    it('can change delay of a delayed job', async () => {
-      const clock = sinon.useFakeTimers();
-      const date = new Date();
-      clock.setSystemTime(date);
+    it('can change delay of a delayed job', async function() {
+      this.timeout(8000);
+
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
-      const nextTick = 2 * ONE_SECOND;
+
+      const worker = new Worker(queueName, async job => {});
+      await worker.waitUntilReady();
+
+      const startTime = new Date().getTime();
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async () => {
+          const timeDiff = new Date().getTime() - startTime;
+          expect(timeDiff).to.be.gte(4000);
+          resolve();
+        });
+      });
 
       const job = await Job.create(
         queue,
@@ -513,28 +524,17 @@ describe('Job', function() {
         { foo: 'bar' },
         { delay: 2000 },
       );
+
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
 
       await job.changeDelay(4000);
-      clock.tick(nextTick);
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
 
-      const worker = new Worker(queueName, async job => {});
-
-      clock.tick(2 * nextTick);
-
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async () => {
-          resolve();
-        });
-      });
-
       await completing;
 
-      clock.restore();
       await queueScheduler.close();
       await worker.close();
     });

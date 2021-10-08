@@ -7,9 +7,9 @@ Imagine a simple worker that performs some async processing:
 ```typescript
 import { Queue, Worker } from 'bullmq';
 
-const myWorker = new Worker('AsyncProc', async (job)=>{
-    const result = await doSomeAsyncProcessing();
-    return result;
+const myWorker = new Worker('AsyncProc', async job => {
+  const result = await doSomeAsyncProcessing();
+  return result;
 });
 ```
 
@@ -20,17 +20,16 @@ Note, in the example above we could just return directly doSomeAsyncProcessing, 
 We can now listen to the completed event in order to get the result value:
 
 ```typescript
-import { Job, QueueEvents, Queue } from 'bullmq'
+import { Job, QueueEvents, Queue } from 'bullmq';
 
 const queue = new Queue('AsyncProc');
 const queueEvents = new QueueEvents('AsyncProc');
 
-queueEvents.on('completed', async (jobId: string) => {
-    const job = await Job.fromId(queue, jobId);
-    
-    console.log(job.returnvalue);
-});
+queueEvents.on('completed', async ({ jobId: string }) => {
+  const job = await Job.fromId(queue, jobId);
 
+  console.log(job.returnvalue);
+});
 ```
 
 If you want to store the result of the processing function it is still much more robust to do it in the process function itself, that will guarantee that if the job is completed the return value would be stored as well. Storing data on the completed event on the other hand could fail and still the job would complete without detecting the error.
@@ -38,6 +37,3 @@ If you want to store the result of the processing function it is still much more
 ### Using a "results" Queue
 
 Another common practice to send jobs results robustly is to have a special "results" queue where the results are sent to. The worker for this "results" queue can reliably do something with the data such as storing it in a database. This approach is useful for designing robust micro-service architectures, where data is sent between services using queues. Even if the service that processes the result is down at the time the results queue receives the data, the result will still be processed as soon as the service come up online again.
-
-
-

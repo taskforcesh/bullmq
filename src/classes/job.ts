@@ -324,7 +324,7 @@ export class Job<
    *
    * @param data - the data that will replace the current jobs data.
    */
-  async update(data: DataType) {
+  async update(data: DataType): Promise<void> {
     const client = await this.queue.client;
 
     this.data = data;
@@ -534,7 +534,7 @@ export class Job<
   /**
    * @returns true if the job is waiting.
    */
-  async isWaiting() {
+  async isWaiting(): Promise<boolean> {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
@@ -555,7 +555,8 @@ export class Job<
   /**
    * Change delay of a delayed job.
    *
-   * @returns
+   * @param delay - milliseconds to be added to current time.
+   * @returns void
    */
   changeDelay(delay: number): Promise<void> {
     return Scripts.changeDelay(this.queue, this.id, delay);

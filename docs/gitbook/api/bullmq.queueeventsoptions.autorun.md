@@ -4,6 +4,8 @@
 
 ## QueueEventsOptions.autorun property
 
+Condition to start listening to events at instance creation.
+
 <b>Signature:</b>
 
 ```typescript

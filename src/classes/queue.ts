@@ -68,7 +68,7 @@ export class Queue<
   /**
    * Returns this instance current default job options.
    */
-  get defaultJobOptions() {
+  get defaultJobOptions(): JobsOptions {
     return this.jobsOpts;
   }
 
