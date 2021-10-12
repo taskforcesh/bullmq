@@ -32,6 +32,9 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   return standard.concat(convertedArgs);
 };
 
+/**
+ * @see https://nodejs.org/api/process.html#process_exit_codes
+ */
 const exitCodesErrors: { [index: number]: string } = {
   1: 'Uncaught Fatal Exception',
   2: 'Unused',

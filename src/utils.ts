@@ -21,8 +21,8 @@ export function tryCatch(fn: (...args: any) => any, ctx: any, args: any[]) {
 
 /**
  * Checks the size of string for ascii/non-ascii characters
- * (Reference: https://stackoverflow.com/a/23318053/1347170)
- * @param {string} str
+ * @see https://stackoverflow.com/a/23318053/1347170
+ * @param str -
  */
 export function lengthInUtf8Bytes(str: string): number {
   return Buffer.byteLength(str, 'utf8');
@@ -110,7 +110,8 @@ export function jobIdForGroup(
   return jobId;
 }
 
-export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
+export const clientCommandMessageReg =
+  /ERR unknown command ['`]\s*client\s*['`]/;
 
 export const DELAY_TIME_5 = 5000;
 
