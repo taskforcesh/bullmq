@@ -47,6 +47,16 @@ describe('Jobs getters', function() {
 
     expect(allJobs.length).to.be.equal(4);
     expect(jobsWithoutProvidingRange.length).to.be.equal(allJobs.length);
+
+    expect(allJobs[0].data.foo).to.be.equal('bar');
+    expect(allJobs[1].data.baz).to.be.equal('qux');
+    expect(allJobs[2].data.bar).to.be.equal('qux');
+    expect(allJobs[3].data.baz).to.be.equal('xuq');
+
+    expect(jobsWithoutProvidingRange[0].data.foo).to.be.equal('bar');
+    expect(jobsWithoutProvidingRange[1].data.baz).to.be.equal('qux');
+    expect(jobsWithoutProvidingRange[2].data.bar).to.be.equal('qux');
+    expect(jobsWithoutProvidingRange[3].data.baz).to.be.equal('xuq');
   });
 
   it('should get paused jobs', async function() {
