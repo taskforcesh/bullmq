@@ -4,6 +4,7 @@
 
 /*eslint-env node */
 'use strict';
+import { pack } from 'msgpack';
 
 import * as semver from 'semver';
 import {
@@ -63,13 +64,13 @@ export class Scripts {
     opts: JobsOptions,
     jobId: string,
     parentOpts: ParentOpts = {
+      parentKey: null,
       waitChildrenKey: null,
       parentDependenciesKey: null,
-      parentKey: null,
     },
   ): Promise<string> {
     const queueKeys = queue.keys;
-    let keys = [
+    const keys: (string | Buffer)[] = [
       queueKeys.wait,
       queueKeys.paused,
       queueKeys.meta,
@@ -84,19 +85,13 @@ export class Scripts {
       queueKeys[''],
       typeof jobId !== 'undefined' ? jobId : '',
       job.name,
-      job.data,
-      job.opts,
       job.timestamp,
-      opts.delay,
-      opts.delay ? job.timestamp + opts.delay : 0,
-      opts.priority || 0,
-      opts.lifo ? 'RPUSH' : 'LPUSH',
-      parentOpts.parentKey,
-      parentOpts.waitChildrenKey,
-      parentOpts.parentDependenciesKey,
+      parentOpts.parentKey || null,
+      parentOpts.waitChildrenKey || null,
+      parentOpts.parentDependenciesKey || null,
     ];
 
-    keys = keys.concat(<string[]>args);
+    keys.push(pack(args), job.data, pack(opts));
 
     const result = await (<any>client).addJob(keys);
 

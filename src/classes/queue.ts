@@ -6,6 +6,7 @@ import { BulkJobOptions, Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { Scripts } from './scripts';
+import { RedisConnection } from './redis-connection';
 
 export declare interface Queue {
   on(event: 'cleaned', listener: (jobs: string[], type: string) => void): this;
@@ -20,9 +21,9 @@ export declare interface Queue {
  *
  */
 export class Queue<
-  T = any,
-  R = any,
-  N extends string = string,
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
 > extends QueueGetters {
   token = v4();
   jobsOpts: JobsOptions;
@@ -31,11 +32,19 @@ export class Queue<
   } = null;
   private _repeat: Repeat;
 
-  constructor(name: string, opts?: QueueOptions) {
-    super(name, {
-      sharedConnection: isRedisInstance(opts?.connection),
-      ...opts,
-    });
+  constructor(
+    name: string,
+    opts?: QueueOptions,
+    Connection?: typeof RedisConnection,
+  ) {
+    super(
+      name,
+      {
+        sharedConnection: isRedisInstance(opts?.connection),
+        ...opts,
+      },
+      Connection,
+    );
 
     this.jobsOpts = get(opts, 'defaultJobOptions');
     this.limiter = get(opts, 'limiter');
@@ -83,22 +92,26 @@ export class Queue<
    * @param data - Arbitrary data to append to the job.
    * @param opts - Job options that affects how the job is going to be processed.
    */
-  async add(name: N, data: T, opts?: JobsOptions) {
+  async add(name: NameType, data: DataType, opts?: JobsOptions) {
     if (opts && opts.repeat) {
-      return (await this.repeat).addNextRepeatableJob<T, R, N>(
-        name,
-        data,
-        { ...this.jobsOpts, ...opts },
-        true,
-      );
+      return (await this.repeat).addNextRepeatableJob<
+        DataType,
+        ResultType,
+        NameType
+      >(name, data, { ...this.jobsOpts, ...opts }, true);
     } else {
       const jobId = jobIdForGroup(opts, data, { limiter: this.limiter });
 
-      const job = await Job.create<T, R, N>(this, name, data, {
-        ...this.jobsOpts,
-        ...opts,
-        jobId,
-      });
+      const job = await Job.create<DataType, ResultType, NameType>(
+        this,
+        name,
+        data,
+        {
+          ...this.jobsOpts,
+          ...opts,
+          jobId,
+        },
+      );
       this.emit('waiting', job);
       return job;
     }
@@ -110,7 +123,9 @@ export class Queue<
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
    */
-  async addBulk(jobs: { name: N; data: T; opts?: BulkJobOptions }[]) {
+  async addBulk(
+    jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
+  ) {
     return Job.createBulk(
       this,
       jobs.map(job => ({
@@ -173,7 +188,11 @@ export class Queue<
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
 
-  async removeRepeatable(name: N, repeatOpts: RepeatOptions, jobId?: string) {
+  async removeRepeatable(
+    name: NameType,
+    repeatOpts: RepeatOptions,
+    jobId?: string,
+  ) {
     return (await this.repeat).removeRepeatable(name, repeatOpts, jobId);
   }
 

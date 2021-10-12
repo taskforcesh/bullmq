@@ -147,12 +147,10 @@ describe('flows', () => {
       const processingParent = new Promise<void>((resolve, reject) => [
         (parentProcessor = async (job: Job) => {
           try {
-            const {
-              processed,
-              nextProcessedCursor,
-            } = await job.getDependencies({
-              processed: {},
-            });
+            const { processed, nextProcessedCursor } =
+              await job.getDependencies({
+                processed: {},
+              });
             expect(nextProcessedCursor).to.be.equal(0);
             expect(Object.keys(processed)).to.have.length(1);
 
@@ -250,12 +248,10 @@ describe('flows', () => {
       const processingParent = new Promise<void>((resolve, reject) => [
         (parentProcessor = async (job: Job) => {
           try {
-            const {
-              processed,
-              nextProcessedCursor,
-            } = await job.getDependencies({
-              processed: {},
-            });
+            const { processed, nextProcessedCursor } =
+              await job.getDependencies({
+                processed: {},
+              });
             expect(nextProcessedCursor).to.be.equal(0);
             expect(Object.keys(processed)).to.have.length(3);
 
@@ -504,12 +500,10 @@ describe('flows', () => {
           });
           expect(Object.keys(processed).length).greaterThanOrEqual(50);
 
-          const {
-            processed: processed2,
-            nextProcessedCursor: nextCursor2,
-          } = await job.getDependencies({
-            processed: { cursor: nextProcessedCursor, count: 50 },
-          });
+          const { processed: processed2, nextProcessedCursor: nextCursor2 } =
+            await job.getDependencies({
+              processed: { cursor: nextProcessedCursor, count: 50 },
+            });
           expect(Object.keys(processed2).length).lessThanOrEqual(22);
           expect(nextCursor2).to.be.equal(0);
 

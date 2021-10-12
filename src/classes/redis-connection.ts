@@ -9,11 +9,14 @@ import { load } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 import { isRedisInstance, isNotConnectionError } from '../utils';
 
+import * as path from 'path';
+
 export type RedisClient = Redis | Cluster;
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
-  private _client: RedisClient;
+  protected _client: RedisClient;
+
   private initializing: Promise<RedisClient>;
   private closing: boolean;
   private version: string;
@@ -91,6 +94,10 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
+  protected loadCommands() {
+    return load(this._client, path.join(__dirname, '../commands'));
+  }
+
   private async init() {
     const opts = this.opts as RedisOptions;
     if (!this._client) {
@@ -100,7 +107,7 @@ export class RedisConnection extends EventEmitter {
     this._client.on('error', this.handleClientError);
 
     await RedisConnection.waitUntilReady(this._client);
-    await load(this._client);
+    await this.loadCommands();
 
     if (opts && opts.skipVersionCheck !== true && !this.closing) {
       this.version = await this.getRedisVersion();

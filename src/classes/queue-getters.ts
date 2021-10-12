@@ -60,9 +60,7 @@ export class QueueGetters extends QueueBase {
    *
    * @returns An object, key (type) and value (count)
    */
-  async getJobCounts(
-    ...types: string[]
-  ): Promise<{
+  async getJobCounts(...types: string[]): Promise<{
     [index: string]: number;
   }> {
     const client = await this.client;

@@ -168,7 +168,7 @@ describe('events', function() {
         expect(jobId).to.be.equal('1');
         expect(name).to.be.equal(testName);
         expect(data).to.be.equal(JSON.stringify(testData));
-        expect(opts).to.be.equal(JSON.stringify({ attempts: 0, delay: 0 }));
+        expect(JSON.parse(opts)).to.be.deep.equal({ attempts: 0, delay: 0 });
         resolve();
       });
     });

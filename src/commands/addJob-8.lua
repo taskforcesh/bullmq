@@ -24,19 +24,17 @@
       KEYS[7] events stream key
       KEYS[8] delay stream key
 
-      ARGV[1]  key prefix,
-      ARGV[2]  custom id (will not generate one automatically)
-      ARGV[3]  name
-      ARGV[4]  data (json stringified job data)
-      ARGV[5]  opts (json stringified job opts)
-      ARGV[6]  timestamp
-      ARGV[7]  delay
-      ARGV[8]  delayedTimestamp
-      ARGV[9]  priority
-      ARGV[10] LIFO
-      ARGV[11] parentKey?
-      ARGV[12] waitChildrenKey key.
-      ARGV[13] parent dependencies key.
+      ARGV[1] msgpacked arguments array
+            [1]  key prefix,
+            [2]  custom id (will not generate one automatically)
+            [3]  name
+            [4]  timestamp
+            [5]  parentKey?
+            [6] waitChildrenKey key.
+            [7] parent dependencies key.
+
+      ARGV[2] Json stringified job data
+      ARGV[3] msgpacked options
 
       Output:
         jobId  - OK
@@ -45,9 +43,15 @@
 local jobId
 local jobIdKey
 local rcall = redis.call
-local parentKey = ARGV[11]
 
-if parentKey ~= "" then
+local args = cmsgpack.unpack(ARGV[1])
+
+local data = ARGV[2]
+local opts = cmsgpack.unpack(ARGV[3])
+
+local parentKey = args[5]
+
+if parentKey ~= nil then
   if rcall("EXISTS", parentKey) ~= 1 then
     return -5
   end
@@ -55,30 +59,41 @@ end
 
 local jobCounter = rcall("INCR", KEYS[4])
 
-if ARGV[2] == "" then
+if args[2] == "" then
     jobId = jobCounter
-    jobIdKey = ARGV[1] .. jobId
+    jobIdKey = args[1] .. jobId
 else
-    jobId = ARGV[2]
-    jobIdKey = ARGV[1] .. jobId
+    jobId = args[2]
+    jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
         return jobId .. "" -- convert to string
     end
 end
 
 -- Store the job.
-rcall("HMSET", jobIdKey, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5],
-      "timestamp", ARGV[6], "delay", ARGV[7], "priority", ARGV[9], "parentKey", parentKey)
+local jsonOpts = cjson.encode(opts)
+local delay = opts['delay'] or 0
+local priority = opts['priority'] or 0
+local timestamp = args[4]
 
-rcall("XADD", KEYS[7], "*", "event", "added", "jobId", jobId, "name", ARGV[3], "data", ARGV[4], "opts", ARGV[5])
+if parentKey ~= nil then
+    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+        "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey)
+else
+    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+    "timestamp", timestamp, "delay", delay, "priority", priority )
+end
+
+-- TODO: do not send data and opts to the event added (for performance reasons).
+rcall("XADD", KEYS[7], "*", "event", "added", "jobId", jobId, "name", args[3], "data", ARGV[2], "opts", jsonOpts)
 
 -- Check if job is delayed
-local delayedTimestamp = tonumber(ARGV[8])
+local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
 
 -- Check if job is a parent, if so add to the parents set
-local waitChildrenKey = ARGV[12]
-if waitChildrenKey ~= "" then
-    rcall("ZADD", waitChildrenKey, ARGV[6], jobId)
+local waitChildrenKey = args[6]
+if waitChildrenKey ~= nil then
+    rcall("ZADD", waitChildrenKey, timestamp, jobId)
     rcall("XADD", KEYS[7], "*", "event", "waiting-children", "jobId", jobId)
 elseif (delayedTimestamp ~= 0) then
     local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
@@ -101,10 +116,10 @@ else
     end
 
     -- Standard or priority add
-    local priority = tonumber(ARGV[9])
     if priority == 0 then
         -- LIFO or FIFO
-        rcall(ARGV[10], target, jobId)
+        local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH';
+        rcall(pushCmd, target, jobId)
     else
         -- Priority add
         rcall("ZADD", KEYS[6], priority, jobId)
@@ -125,8 +140,8 @@ end
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 -- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
 -- fail in this case.
-local parentDependenciesKey = ARGV[13]
-if parentDependenciesKey ~= "" then
+local parentDependenciesKey = args[7]
+if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end
 

@@ -163,7 +163,7 @@ function wrapJob(job: JobJson): SandboxedJob {
   return {
     ...job,
     data: JSON.parse(job.data || '{}'),
-    opts: JSON.parse(job.opts || '{}'),
+    opts: job.opts,
     returnValue: JSON.parse(job.returnvalue || '{}'),
     /*
      * Emulate the real job `progress` function.

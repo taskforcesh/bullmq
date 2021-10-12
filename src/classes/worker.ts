@@ -42,16 +42,16 @@ export declare interface Worker {
  *
  */
 export class Worker<
-  T = any,
-  R = any,
-  N extends string = string
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
 > extends QueueBase {
   opts: WorkerOptions;
 
   private drained: boolean;
   private waiting = false;
   private running = false;
-  private processFn: Processor<T, R, N>;
+  private processFn: Processor<DataType, ResultType, NameType>;
 
   private resumeWorker: () => void;
   private paused: Promise<void>;
@@ -61,13 +61,17 @@ export class Worker<
 
   private blockingConnection: RedisConnection;
 
-  private processing: Map<Promise<Job<T, R, N> | string>, string>; // { [index: number]: Promise<Job | void> } = {};
+  private processing: Map<
+    Promise<Job<DataType, ResultType, NameType> | string>,
+    string
+  >; // { [index: number]: Promise<Job | void> } = {};
   constructor(
     name: string,
-    processor?: string | Processor<T, R, N>,
+    processor?: string | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
+    Connection?: typeof RedisConnection,
   ) {
-    super(name, opts);
+    super(name, opts, Connection);
 
     this.opts = {
       // settings: {},
@@ -106,7 +110,10 @@ export class Worker<
         }
 
         this.childPool = this.childPool || new ChildPool();
-        this.processFn = sandbox<T, R, N>(processor, this.childPool).bind(this);
+        this.processFn = sandbox<DataType, ResultType, NameType>(
+          processor,
+          this.childPool,
+        ).bind(this);
       }
       this.timerManager = new TimerManager();
 
@@ -343,7 +350,7 @@ export class Worker<
     }
   }
 
-  async processJob(job: Job<T, R, N>, token: string) {
+  async processJob(job: Job<DataType, ResultType, NameType>, token: string) {
     if (!job || this.closing || this.paused) {
       return;
     }
@@ -388,7 +395,7 @@ export class Worker<
 
     // end copy-paste from Bull3
 
-    const handleCompleted = async (result: R) => {
+    const handleCompleted = async (result: ResultType) => {
       const jobData = await job.moveToCompleted(
         result,
         token,

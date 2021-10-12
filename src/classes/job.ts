@@ -22,7 +22,7 @@ export interface JobJson {
   id: string;
   name: string;
   data: string;
-  opts: string;
+  opts: JobsOptions;
   progress: number | object;
   attemptsMade: number;
   finishedOn?: number;
@@ -69,7 +69,11 @@ export interface DependenciesOpts {
   };
 }
 
-export class Job<T = any, R = any, N extends string = string> {
+export class Job<
+  DataType = any,
+  ReturnType = any,
+  NameType extends string = string,
+> {
   /**
    * The progress a job has performed so far.
    */
@@ -78,7 +82,7 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * The value returned by the processor when processing this job.
    */
-  returnvalue: R = null;
+  returnvalue: ReturnType = null;
 
   /**
    * Stacktrace for the error (for failed jobs).
@@ -124,12 +128,12 @@ export class Job<T = any, R = any, N extends string = string> {
     /**
      * The name of the Job
      */
-    public name: N,
+    public name: NameType,
 
     /**
      * The payload for this job.
      */
-    public data: T,
+    public data: DataType,
 
     /**
      * The options object for this job.
@@ -303,7 +307,7 @@ export class Job<T = any, R = any, N extends string = string> {
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: JSON.stringify(this.opts),
+      opts: this.opts,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,
@@ -320,7 +324,7 @@ export class Job<T = any, R = any, N extends string = string> {
    *
    * @param data - the data that will replace the current jobs data.
    */
-  async update(data: T): Promise<void> {
+  async update(data: DataType): Promise<void> {
     const client = await this.queue.client;
 
     this.data = data;
@@ -386,7 +390,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * @returns Returns the jobData of the next job in the waiting queue.
    */
   async moveToCompleted(
-    returnValue: R,
+    returnValue: ReturnType,
     token: string,
     fetchNext = true,
   ): Promise<[JobJsonRaw, string] | []> {
@@ -425,9 +429,10 @@ export class Job<T = any, R = any, N extends string = string> {
     fetchNext = false,
   ): Promise<void> {
     const client = await this.queue.client;
+    const message = err?.message;
 
     const queue = this.queue;
-    this.failedReason = err.message;
+    this.failedReason = message;
 
     let command: string;
     const multi = client.multi();
@@ -473,7 +478,7 @@ export class Job<T = any, R = any, N extends string = string> {
       const args = Scripts.moveToFailedArgs(
         queue,
         this,
-        err.message,
+        message,
         this.opts.removeOnFail,
         token,
         fetchNext,
@@ -730,7 +735,10 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */
-  async waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<R> {
+  async waitUntilFinished(
+    queueEvents: QueueEvents,
+    ttl?: number,
+  ): Promise<ReturnType> {
     await this.queue.waitUntilReady();
 
     const jobId = this.id;
@@ -908,15 +916,17 @@ export class Job<T = any, R = any, N extends string = string> {
     this.attemptsMade++;
     this.stacktrace = this.stacktrace || [];
 
-    this.stacktrace.push(err.stack);
-    if (this.opts.stackTraceLimit) {
-      this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+    if (err?.stack) {
+      this.stacktrace.push(err.stack);
+      if (this.opts.stackTraceLimit) {
+        this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+      }
     }
 
     const params = {
       attemptsMade: this.attemptsMade,
       stacktrace: JSON.stringify(this.stacktrace),
-      failedReason: err.message,
+      failedReason: err?.message,
     };
 
     multi.hmset(this.queue.toKey(this.id), params);

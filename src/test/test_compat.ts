@@ -126,26 +126,27 @@ describe('Compat', function() {
     it('should return all completed jobs when not setting start/end', async () => {
       queue.process(async job => {});
 
-      const completing = new Promise<void>((resolve, reject) => {
-        queue.on(
-          'completed',
-          after(3, async function() {
-            try {
-              const jobs = await queue.getJobs('completed');
-              expect(jobs).to.be.an('array').that.have.length(3);
-              expect(jobs[0]).to.have.property('finishedOn');
-              expect(jobs[1]).to.have.property('finishedOn');
-              expect(jobs[2]).to.have.property('finishedOn');
+      let completedCb;
 
-              expect(jobs[0]).to.have.property('processedOn');
-              expect(jobs[1]).to.have.property('processedOn');
-              expect(jobs[2]).to.have.property('processedOn');
-              resolve();
-            } catch (err) {
-              reject(err);
-            }
-          }),
-        );
+      const completing = new Promise<void>((resolve, reject) => {
+        completedCb = after(3, async function() {
+          try {
+            const jobs = await queue.getJobs('completed');
+            expect(jobs).to.be.an('array').that.have.length(3);
+            expect(jobs[0]).to.have.property('finishedOn');
+            expect(jobs[1]).to.have.property('finishedOn');
+            expect(jobs[2]).to.have.property('finishedOn');
+
+            expect(jobs[0]).to.have.property('processedOn');
+            expect(jobs[1]).to.have.property('processedOn');
+            expect(jobs[2]).to.have.property('processedOn');
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+
+        queue.on('completed', completedCb);
       });
 
       await queue.add('test', { foo: 1 });
@@ -154,7 +155,7 @@ describe('Compat', function() {
 
       await completing;
 
-      queue.off('completed');
+      queue.off('completed', completedCb);
     });
 
     it('should return all failed jobs when not setting start/end', async () => {
@@ -162,26 +163,26 @@ describe('Compat', function() {
         throw new Error('error');
       });
 
-      const failing = new Promise<void>((resolve, reject) => {
-        queue.on(
-          'failed',
-          after(3, async function() {
-            try {
-              const jobs = await queue.getJobs('failed');
-              expect(jobs).to.be.an('array').that.has.length(3);
-              expect(jobs[0]).to.have.property('finishedOn');
-              expect(jobs[1]).to.have.property('finishedOn');
-              expect(jobs[2]).to.have.property('finishedOn');
+      let failedCb;
 
-              expect(jobs[0]).to.have.property('processedOn');
-              expect(jobs[1]).to.have.property('processedOn');
-              expect(jobs[2]).to.have.property('processedOn');
-              resolve();
-            } catch (err) {
-              reject(err);
-            }
-          }),
-        );
+      const failing = new Promise<void>((resolve, reject) => {
+        failedCb = after(3, async function() {
+          try {
+            const jobs = await queue.getJobs('failed');
+            expect(jobs).to.be.an('array').that.has.length(3);
+            expect(jobs[0]).to.have.property('finishedOn');
+            expect(jobs[1]).to.have.property('finishedOn');
+            expect(jobs[2]).to.have.property('finishedOn');
+
+            expect(jobs[0]).to.have.property('processedOn');
+            expect(jobs[1]).to.have.property('processedOn');
+            expect(jobs[2]).to.have.property('processedOn');
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+        queue.on('failed', failedCb);
       });
 
       await queue.add('test', { foo: 1 });
@@ -190,7 +191,7 @@ describe('Compat', function() {
 
       await failing;
 
-      queue.off('failed');
+      queue.off('failed', failedCb);
     });
 
     it('should return subset of jobs when setting positive range', function(done) {
@@ -340,7 +341,10 @@ describe('Compat', function() {
 
       queue.process(async job => {});
 
+      let _resolve;
+
       const drained = new Promise(resolve => {
+        _resolve = resolve;
         queue.once('drained', resolve);
       });
 
@@ -348,17 +352,21 @@ describe('Compat', function() {
 
       const jobs = await queue.getJobCountByTypes('completed');
       expect(jobs).to.be.equal(2);
-      queue.off('drained');
+      queue.off('drained', _resolve);
     });
 
     it('emits global drained event when all jobs have been processed', async function() {
       queue.process(async job => {});
 
+      let _resolveDrained;
       const drained = new Promise(resolve => {
+        _resolveDrained = resolve;
         queue.once('global:drained', resolve);
       });
 
+      let _resolveCompleted;
       const completing = new Promise<void>(resolve => {
+        _resolveCompleted = resolve;
         queue.on('completed', after(2, resolve));
       });
 
@@ -370,8 +378,8 @@ describe('Compat', function() {
 
       const jobs = await queue.getJobCountByTypes('completed');
       expect(jobs).to.be.equal(2);
-      queue.off('completed');
-      queue.off('global:drained');
+      queue.off('global:drained', _resolveDrained);
+      queue.off('completed', _resolveCompleted);
     });
 
     it('should emit an event when a job becomes active', async () => {
@@ -379,35 +387,44 @@ describe('Compat', function() {
 
       queue.process(async () => {});
 
+      let _resolveActive;
       const activating = new Promise<void>(resolve => {
+        _resolveActive = resolve;
         queue.once('active', resolve);
       });
 
+      let _resolveCompleting;
       const completing = new Promise<void>(resolve => {
+        _resolveCompleting = resolve;
         queue.once('completed', resolve);
       });
 
       await activating;
       await completing;
 
-      queue.off('active');
-      queue.off('completed');
+      queue.off('active', _resolveActive);
+      queue.off('completed', _resolveCompleting);
     });
 
     it('should listen to global events with .once', async function() {
       const events: string[] = [];
-      queue.once('global:waiting', () => events.push('waiting'));
-      queue.once('global:active', () => events.push('active'));
-      queue.once('global:completed', () => events.push('completed'));
+
+      const waitingCb = () => events.push('waiting');
+      const activeCb = () => events.push('active');
+      const completedCb = () => events.push('completed');
+
+      queue.once('global:waiting', waitingCb);
+      queue.once('global:active', activeCb);
+      queue.once('global:completed', completedCb);
       await queue.isReady();
       await queue.add('test', {});
       await queue.add('test', {});
       await queue.process(() => null);
       await delay(50);
       expect(events).to.eql(['waiting', 'active', 'completed']);
-      queue.off('global:waiting');
-      queue.off('global:active');
-      queue.off('global:completed');
+      queue.off('global:waiting', waitingCb);
+      queue.off('global:active', activeCb);
+      queue.off('global:completed', completedCb);
     });
 
     it('should listen to global events with .on', async function() {
@@ -486,14 +503,17 @@ describe('Compat', function() {
         isResumed = true,
         first = true;
 
-      queue.on('global:paused', async () => {
+      const pausedCb = async () => {
         isPaused = false;
         await queue.resume();
-      });
+      };
 
-      queue.on('global:resumed', () => {
+      queue.on('global:paused', pausedCb);
+
+      const resumedCb = () => {
         isResumed = true;
-      });
+      };
+      queue.on('global:resumed', resumedCb);
 
       await queue.queueEvents.waitUntilReady();
 
@@ -524,8 +544,8 @@ describe('Compat', function() {
 
       await processPromise;
 
-      queue.off('global:paused');
-      queue.off('global:resumed');
+      queue.off('global:paused', pausedCb);
+      queue.off('global:resumed', resumedCb);
     });
 
     it('should pause the queue locally', async () => {

@@ -149,7 +149,9 @@ describe('workers', function() {
       const jobIds = await Promise.all(
         datas.map(
           async data =>
-            (await queue.add('test', data, { removeOnComplete: keepJobs })).id,
+            (
+              await queue.add('test', data, { removeOnComplete: keepJobs })
+            ).id,
         ),
       );
 
@@ -309,7 +311,9 @@ describe('workers', function() {
       const jobIds = await Promise.all(
         datas.map(
           async data =>
-            (await queue.add('test', data, { removeOnFail: keepJobs })).id,
+            (
+              await queue.add('test', data, { removeOnFail: keepJobs })
+            ).id,
         ),
       );
 
@@ -749,10 +753,9 @@ describe('workers', function() {
           const gotJob = await queue.getJob(job.id);
           expect(gotJob.returnvalue).to.be.eql(37);
 
-          const retval = await (await queue.client).hget(
-            queue.toKey(gotJob.id),
-            'returnvalue',
-          );
+          const retval = await (
+            await queue.client
+          ).hget(queue.toKey(gotJob.id), 'returnvalue');
           expect(JSON.parse(retval)).to.be.eql(37);
           resolve();
         } catch (err) {
@@ -1903,10 +1906,8 @@ describe('workers', function() {
         expect(isActive1).to.be.true;
 
         await child1.moveToCompleted('return value1', childToken);
-        const {
-          processed: processed2,
-          unprocessed: unprocessed2,
-        } = await parent.getDependencies();
+        const { processed: processed2, unprocessed: unprocessed2 } =
+          await parent.getDependencies();
         const movedToWaitingChildren = await parent.moveToWaitingChildren(
           parentToken,
           {
@@ -1928,15 +1929,11 @@ describe('workers', function() {
         expect(isActive2).to.be.true;
 
         await child2.moveToCompleted('return value2', childToken);
-        const {
-          processed: processed3,
-          unprocessed: unprocessed3,
-        } = await parent.getDependencies();
+        const { processed: processed3, unprocessed: unprocessed3 } =
+          await parent.getDependencies();
         const isWaitingChildren1 = await parent.isWaitingChildren();
-        const {
-          processed: processedCount,
-          unprocessed: unprocessedCount,
-        } = await parent.getDependenciesCount();
+        const { processed: processedCount, unprocessed: unprocessedCount } =
+          await parent.getDependenciesCount();
 
         expect(processed3).to.deep.equal({
           [`bull:${queueName}:${child1.id}`]: 'return value1',
@@ -1952,10 +1949,8 @@ describe('workers', function() {
         expect(isActive3).to.be.true;
 
         await child3.moveToCompleted('return value3', childToken);
-        const {
-          processed: processed4,
-          unprocessed: unprocessed4,
-        } = await parent.getDependencies();
+        const { processed: processed4, unprocessed: unprocessed4 } =
+          await parent.getDependencies();
         const isWaitingChildren2 = await parent.isWaitingChildren();
         const movedToWaitingChildren2 = await parent.moveToWaitingChildren(
           parentToken,
@@ -2077,27 +2072,23 @@ describe('workers', function() {
         }),
       );
 
-      const {
-        nextUnprocessedCursor: nextCursor1,
-        unprocessed: unprocessed1,
-      } = await parent.getDependencies({
-        unprocessed: {
-          cursor: 0,
-          count: 50,
-        },
-      });
+      const { nextUnprocessedCursor: nextCursor1, unprocessed: unprocessed1 } =
+        await parent.getDependencies({
+          unprocessed: {
+            cursor: 0,
+            count: 50,
+          },
+        });
 
       expect(unprocessed1.length).to.be.greaterThanOrEqual(50);
 
-      const {
-        nextUnprocessedCursor: nextCursor2,
-        unprocessed: unprocessed2,
-      } = await parent.getDependencies({
-        unprocessed: {
-          cursor: nextCursor1,
-          count: 50,
-        },
-      });
+      const { nextUnprocessedCursor: nextCursor2, unprocessed: unprocessed2 } =
+        await parent.getDependencies({
+          unprocessed: {
+            cursor: nextCursor1,
+            count: 50,
+          },
+        });
 
       expect(unprocessed2.length).to.be.lessThanOrEqual(15);
       expect(nextCursor2).to.be.equal(0);
