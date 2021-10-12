@@ -34,6 +34,21 @@ describe('Jobs getters', function() {
     expect(jobs[1].data.baz).to.be.equal('qux');
   });
 
+  it('should get all waiting jobs when no range is provided', async () => {
+    await Promise.all([
+      queue.add('test', { foo: 'bar' }),
+      queue.add('test', { baz: 'qux' }),
+      queue.add('test', { bar: 'qux' }),
+      queue.add('test', { baz: 'xuq' }),
+    ]);
+
+    const jobsWithoutProvidingRange = await queue.getWaiting();
+    const allJobs = await queue.getWaiting(0, -1);
+
+    expect(allJobs.length).to.be.equal(4);
+    expect(jobsWithoutProvidingRange.length).to.be.equal(allJobs.length);
+  });
+
   it('should get paused jobs', async function() {
     await queue.pause();
     await Promise.all([
@@ -128,6 +143,40 @@ describe('Jobs getters', function() {
 
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { baz: 'qux' });
+
+    await failed;
+  });
+
+  it('should get all failed jobs when no range is provided', async () => {
+    const worker = new Worker(queueName, async job => {
+      throw new Error('Forced error');
+    });
+
+    const counter = 4;
+
+    const failed = new Promise<void>(resolve => {
+      worker.on(
+        'failed',
+        after(counter, async () => {
+          const jobsWithoutProvidingRange = await queue.getFailed();
+          const allJobs = await queue.getFailed(0, -1);
+
+          expect(allJobs).to.be.a('array');
+          expect(allJobs).to.have.length(4);
+          expect(jobsWithoutProvidingRange).to.be.a('array');
+          expect(jobsWithoutProvidingRange).to.have.length(allJobs.length);
+          await worker.close();
+          resolve();
+        }),
+      );
+    });
+
+    await Promise.all([
+      queue.add('test', { foo: 'bar' }),
+      queue.add('test', { baz: 'qux' }),
+      queue.add('test', { bar: 'qux' }),
+      queue.add('test', { baz: 'xuq' }),
+    ]);
 
     await failed;
   });
