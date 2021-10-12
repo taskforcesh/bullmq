@@ -4,7 +4,14 @@
 
 /*eslint-env node */
 'use strict';
-import { pack } from 'msgpack';
+import { Packr } from 'msgpackr';
+
+const packer = new Packr({
+  useRecords: false,
+  encodeUndefinedAsNil: true,
+});
+
+const pack = packer.pack;
 
 import * as semver from 'semver';
 import {
@@ -91,7 +98,28 @@ export class Scripts {
       parentOpts.parentDependenciesKey || null,
     ];
 
-    keys.push(pack(args), job.data, pack(opts));
+    let encodedOpts;
+    if (opts.repeat) {
+      const repeat = {
+        ...opts.repeat,
+      };
+
+      if (repeat.startDate) {
+        repeat.startDate = +new Date(repeat.startDate);
+      }
+      if (repeat.endDate) {
+        repeat.endDate = +new Date(repeat.endDate);
+      }
+
+      encodedOpts = pack({
+        ...opts,
+        repeat,
+      });
+    } else {
+      encodedOpts = pack(opts);
+    }
+
+    keys.push(pack(args), job.data, encodedOpts);
 
     const result = await (<any>client).addJob(keys);
 
