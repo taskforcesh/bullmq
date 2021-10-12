@@ -102,27 +102,27 @@ export class QueueGetters extends QueueBase {
     return this.getJobCountByTypes('waiting-children', 'paused');
   }
 
-  getWaiting(start = 0, end = 1) {
+  getWaiting(start = 0, end = -1) {
     return this.getJobs(['waiting'], start, end, true);
   }
 
-  getWaitingChildren(start = 0, end = 1) {
+  getWaitingChildren(start = 0, end = -1) {
     return this.getJobs(['waiting-children'], start, end, true);
   }
 
-  getActive(start = 0, end = 1) {
+  getActive(start = 0, end = -1) {
     return this.getJobs(['active'], start, end, true);
   }
 
-  getDelayed(start = 0, end = 1) {
+  getDelayed(start = 0, end = -1) {
     return this.getJobs(['delayed'], start, end, true);
   }
 
-  getCompleted(start = 0, end = 1) {
+  getCompleted(start = 0, end = -1) {
     return this.getJobs(['completed'], start, end, false);
   }
 
-  getFailed(start = 0, end = 1) {
+  getFailed(start = 0, end = -1) {
     return this.getJobs(['failed'], start, end, false);
   }
 
