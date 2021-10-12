@@ -1,3 +1,10 @@
+## [1.50.2](https://github.com/taskforcesh/bullmq/compare/v1.50.1...v1.50.2) (2021-10-12)
+
+
+### Bug Fixes
+
+* **msgpack:** replace msgpack by msgpackr ([dc13a75](https://github.com/taskforcesh/bullmq/commit/dc13a75374bbd29fefbf3e56f822e763df3712d9))
+
 ## [1.50.1](https://github.com/taskforcesh/bullmq/compare/v1.50.0...v1.50.1) (2021-10-12)
 
 
