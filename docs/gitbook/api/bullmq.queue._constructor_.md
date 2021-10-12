@@ -9,7 +9,7 @@ Constructs a new instance of the `Queue` class
 <b>Signature:</b>
 
 ```typescript
-constructor(name: string, opts?: QueueOptions);
+constructor(name: string, opts?: QueueOptions, Connection?: typeof RedisConnection);
 ```
 
 ## Parameters
@@ -18,4 +18,5 @@ constructor(name: string, opts?: QueueOptions);
 |  --- | --- | --- |
 |  name | string |  |
 |  opts | [QueueOptions](./bullmq.queueoptions.md) |  |
+|  Connection | typeof [RedisConnection](./bullmq.redisconnection.md) |  |
 

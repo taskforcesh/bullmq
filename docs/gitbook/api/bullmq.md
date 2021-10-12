@@ -20,7 +20,7 @@
 |  [RedisConnection](./bullmq.redisconnection.md) |  |
 |  [Repeat](./bullmq.repeat.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
-|  [Worker](./bullmq.worker.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
+|  [Worker\_2](./bullmq.worker_2.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
 ## Enumerations
 
@@ -40,7 +40,7 @@
 |  [isNotConnectionError(error)](./bullmq.isnotconnectionerror.md) |  |
 |  [isRedisInstance(obj)](./bullmq.isredisinstance.md) |  |
 |  [jobIdForGroup(jobOpts, data, queueOpts)](./bullmq.jobidforgroup.md) |  |
-|  [lengthInUtf8Bytes(str)](./bullmq.lengthinutf8bytes.md) | Checks the size of string for ascii/non-ascii characters (Reference: https://stackoverflow.com/a/23318053/1347170) |
+|  [lengthInUtf8Bytes(str)](./bullmq.lengthinutf8bytes.md) | Checks the size of string for ascii/non-ascii characters |
 |  [removeAllQueueData(client, queueName, prefix)](./bullmq.removeallqueuedata.md) |  |
 |  [tryCatch(fn, ctx, args)](./bullmq.trycatch.md) |  |
 
@@ -74,8 +74,8 @@
 |  [RepeatOptions](./bullmq.repeatoptions.md) | Settings for repeatable jobs |
 |  [SandboxedJob](./bullmq.sandboxedjob.md) |  |
 |  [Strategies](./bullmq.strategies.md) |  |
-|  [Worker](./bullmq.worker.md) |  |
-|  [WorkerOptions](./bullmq.workeroptions.md) |  |
+|  [Worker\_2](./bullmq.worker_2.md) |  |
+|  [WorkerOptions\_2](./bullmq.workeroptions_2.md) |  |
 
 ## Variables
 

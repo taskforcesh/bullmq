@@ -20,7 +20,7 @@ export interface JobJson
 |  [finishedOn?](./bullmq.jobjson.finishedon.md) | number | <i>(Optional)</i> |
 |  [id](./bullmq.jobjson.id.md) | string |  |
 |  [name](./bullmq.jobjson.name.md) | string |  |
-|  [opts](./bullmq.jobjson.opts.md) | string |  |
+|  [opts](./bullmq.jobjson.opts.md) | [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [parentKey?](./bullmq.jobjson.parentkey.md) | string | <i>(Optional)</i> |
 |  [processedOn?](./bullmq.jobjson.processedon.md) | number | <i>(Optional)</i> |
 |  [progress](./bullmq.jobjson.progress.md) | number \| object |  |

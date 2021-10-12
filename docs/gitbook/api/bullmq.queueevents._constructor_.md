@@ -9,7 +9,7 @@ Constructs a new instance of the `QueueEvents` class
 <b>Signature:</b>
 
 ```typescript
-constructor(name: string, { connection, autorun, ...opts }?: QueueEventsOptions);
+constructor(name: string, { connection, autorun, ...opts }?: QueueEventsOptions, Connection?: typeof RedisConnection);
 ```
 
 ## Parameters
@@ -18,4 +18,5 @@ constructor(name: string, { connection, autorun, ...opts }?: QueueEventsOptions)
 |  --- | --- | --- |
 |  name | string |  |
 |  { connection, autorun, ...opts } | [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |
+|  Connection | typeof [RedisConnection](./bullmq.redisconnection.md) |  |
 

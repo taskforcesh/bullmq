@@ -4,7 +4,7 @@
 
 ## lengthInUtf8Bytes() function
 
-Checks the size of string for ascii/non-ascii characters (Reference: https://stackoverflow.com/a/23318053/1347170)
+Checks the size of string for ascii/non-ascii characters
 
 <b>Signature:</b>
 

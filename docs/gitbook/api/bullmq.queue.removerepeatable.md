@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-removeRepeatable(name: N, repeatOpts: RepeatOptions, jobId?: string): Promise<any>;
+removeRepeatable(name: NameType, repeatOpts: RepeatOptions, jobId?: string): Promise<any>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  name | N |  |
+|  name | NameType |  |
 |  repeatOpts | [RepeatOptions](./bullmq.repeatoptions.md) |  |
 |  jobId | string |  |
 

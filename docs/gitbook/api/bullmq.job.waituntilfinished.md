@@ -9,7 +9,7 @@ Returns a promise the resolves when the job has finished. (completed or failed).
 <b>Signature:</b>
 
 ```typescript
-waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<R>;
+waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<ReturnType>;
 ```
 
 ## Parameters
@@ -21,5 +21,5 @@ waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<R>;
 
 <b>Returns:</b>
 
-Promise&lt;R&gt;
+Promise&lt;ReturnType&gt;
 

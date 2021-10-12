@@ -9,14 +9,14 @@ Moves a job to the completed queue. Returned job to be used with Queue.prototype
 <b>Signature:</b>
 
 ```typescript
-moveToCompleted(returnValue: R, token: string, fetchNext?: boolean): Promise<[JobJsonRaw, string] | []>;
+moveToCompleted(returnValue: ReturnType, token: string, fetchNext?: boolean): Promise<[JobJsonRaw, string] | []>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  returnValue | R | The jobs success message. |
+|  returnValue | ReturnType | The jobs success message. |
 |  token | string |  |
 |  fetchNext | boolean | True when wanting to fetch the next job |
 

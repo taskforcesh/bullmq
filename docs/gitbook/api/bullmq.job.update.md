@@ -9,14 +9,14 @@ Updates a job's data
 <b>Signature:</b>
 
 ```typescript
-update(data: T): Promise<void>;
+update(data: DataType): Promise<void>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  data | T | the data that will replace the current jobs data. |
+|  data | DataType | the data that will replace the current jobs data. |
 
 <b>Returns:</b>
 
