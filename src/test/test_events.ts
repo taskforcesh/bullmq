@@ -138,10 +138,6 @@ describe('events', function() {
       drainDelay: 1,
     });
 
-    worker.once('completed', (job: any) => {
-      console.log(job.bar.id);
-    });
-
     const error = new Promise<void>(resolve => {
       worker.once('error', resolve);
     });
