@@ -4,7 +4,7 @@
 
 /*eslint-env node */
 'use strict';
-import { pack } from 'msgpack';
+import { pack } from 'msgpackr';
 
 import * as semver from 'semver';
 import {
