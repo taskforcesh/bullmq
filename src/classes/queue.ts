@@ -204,7 +204,7 @@ export class Queue<
    * Removes the given job from the queue as well as all its
    * dependencies.
    *
-   * @param jobId - The if of the job to remove
+   * @param jobId - The id of the job to remove
    * @returns 1 if it managed to remove the job or -1 if the job or
    * any of its dependencies was locked.
    */

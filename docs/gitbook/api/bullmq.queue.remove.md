@@ -16,7 +16,7 @@ remove(jobId: string): Promise<any>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  jobId | string | The if of the job to remove |
+|  jobId | string | The id of the job to remove |
 
 <b>Returns:</b>
 
