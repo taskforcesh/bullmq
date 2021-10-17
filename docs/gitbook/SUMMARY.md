@@ -44,8 +44,29 @@
 * [Idempotent jobs](patterns/idempotent-jobs.md)
 * [Debounce jobs](patterns/debounce-jobs.md)
 
+## BullMQ Pro
+
+* [Introduction](bullmq-pro/introduction.md)
+* [Install](bullmq-pro/install.md)
+* [Groups](bullmq-pro/groups.md)
+
+## Bull
+
+* [Introduction](bull/introduction.md)
+* [Install](bull/install.md)
+* [Quick Guide](bull/quick-guide.md)
+* [Important Notes](bull/important-notes.md)
+* [Reference](https://github.com/OptimalBits/bull/blob/develop/REFERENCE.md)
+* [Patterns](bull/patterns/README.md)
+  * [Message queue](bull/patterns/message-queue.md)
+  * [Returning Job Completions](bull/patterns/returning-job-completions.md)
+  * [Reusing Redis Connections](bull/patterns/reusing-redis-connections.md)
+  * [Redis cluster](bull/patterns/redis-cluster.md)
+  * [Custom backoff strategy](bull/patterns/custom-backoff-strategy.md)
+  * [Debugging](bull/patterns/debugging.md)
+  * [Manually fetching jobs](bull/patterns/manually-fetching-jobs.md)
+
 ## Bull 3.x Migration
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
-

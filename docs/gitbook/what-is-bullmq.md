@@ -4,7 +4,7 @@ description: General description of BullMQ and its features
 
 # What is BullMQ
 
-BullMQ is a [Node.js](https://nodejs.org) library that implements a fast and robust queue system built on top of [Redis](https://redis.io/).
+BullMQ is a [Node.js](https://nodejs.org) library that implements a fast and robust queue system built on top of [Redis](https://redis.io) that helps in resolving many modern age micro-services architectures.
 
 The library is designed so that it will fulfil the following goals:
 
@@ -17,7 +17,7 @@ View the repository, see open issues, and contribute back [on GitHub](https://gi
 
 ## **Features**
 
-If you are new to Message Queues, you may wonder why they are needed after all. Queues can solve many different problems in an elegant way, from smoothing out processing peaks to creating robust communication channels between micro-services or offloading heavy work from one server to many smaller workers, and many other cases. Check the [Patterns](patterns/producer-consumer.md) section for getting some inspiration and information about best practices.
+If you are new to Message Queues, you may wonder why they are needed after all. Queues can solve many different problems in an elegant way, from smoothing out processing peaks to creating robust communication channels between micro-services or offloading heavy work from one server to many smaller workers, and many other use cases. Check the [Patterns](patterns/producer-consumer.md) section for getting some inspiration and information about best practices.
 
 * [x] **Minimal CPU usage due to a polling-free design**
 * [x] **Distributed job execution based on Redis**
@@ -27,6 +27,5 @@ If you are new to Message Queues, you may wonder why they are needed after all. 
 * [x] **Scheduled and repeatable jobs according to cron specifications**
 * [x] **Retries of failed jobs**
 * [x] **Concurrency setting per worker**
-* [x] **Threaded \(sandboxed\) processing functions**
+* [x] **Threaded (sandboxed) processing functions**
 * [x] **Automatic recovery from process crashes**
-
