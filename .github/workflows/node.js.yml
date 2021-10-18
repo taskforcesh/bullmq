@@ -19,6 +19,18 @@ jobs:
         ports:
           - 6379:6379
 
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js 12.x
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12.x
+      - run: yarn install --frozen-lockfile --non-interactive
+      - run: yarn lint
+
+  test:
+    runs-on: ubuntu-latest
+
     strategy:
       matrix:
         node-version: [10.x, 12.x, 14.x, 16.x]
@@ -26,9 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
+        uses: ./
         with:
           node-version: ${{ matrix.node-version }}
-      - run: yarn install --frozen-lockfile --non-interactive
-      - run: yarn lint
       - run: yarn test
