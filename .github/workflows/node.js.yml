@@ -13,12 +13,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-
     steps:
       - uses: actions/checkout@v2
       - name: Use Node.js 12.x
@@ -30,6 +24,12 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
 
     strategy:
       matrix:
