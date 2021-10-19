@@ -613,10 +613,10 @@
     colors "~1.2.1"
     string-argv "~0.3.1"
 
-"@semantic-release/changelog@^5.0.1":
-  version "5.0.1"
-  resolved "https://registry.yarnpkg.com/@semantic-release/changelog/-/changelog-5.0.1.tgz#50a84b63e5d391b7debfe021421589fa2bcdafe4"
-  integrity sha512-unvqHo5jk4dvAf2nZ3aw4imrlwQ2I50eVVvq9D47Qc3R+keNqepx1vDYwkjF8guFXnOYaYcR28yrZWno1hFbiw==
+"@semantic-release/changelog@^6.0.0":
+  version "6.0.0"
+  resolved "https://registry.yarnpkg.com/@semantic-release/changelog/-/changelog-6.0.0.tgz#b16636009bfbde9c09c6c1b89463af257d4a7142"
+  integrity sha512-X01Me+QVMykvILockNGlXXl3dgr1QqpbRQsknQoOJQCXQGXoqY3DNQ3rBQuI8/SUK7RZwYLctg0NbPNArlo6eQ==
   dependencies:
     "@semantic-release/error" "^2.1.0"
     aggregate-error "^3.0.0"
