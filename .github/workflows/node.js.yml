@@ -21,6 +21,10 @@ jobs:
           node-version: 12.x
       - run: yarn install --frozen-lockfile --non-interactive
       - run: yarn lint
+      - uses: actions/upload-artifact@v2
+        with:
+          name: my-artifact
+          path: ./dist
 
   test:
     needs: build
@@ -38,8 +42,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: my-artifact
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: ./
+        uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
       - run: yarn test
