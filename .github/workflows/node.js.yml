@@ -57,6 +57,7 @@ jobs:
           path: node_modules
           key: node_modules-${{ hashFiles('**/yarn.lock') }}
           # no restore-keys here, so we only accept this exact version
+      - run: yarn install --production --frozen-lockfile --non-interactive
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v1
         with:
