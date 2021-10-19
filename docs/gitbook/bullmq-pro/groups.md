@@ -14,7 +14,7 @@ Of course you can have as many workers as you want and also scale up/down the am
 There is no hard limit on the amount of groups that you can have, nor do they have any impact on performance. When a group is empty, the group itself does not consume any resources in Redis.
 {% endhint %}
 
-Another way to see groups is like "virtual" queues. So instead of having one queue per "user" you have a "virtual" queue so that all users get their jobs processed in a more predictable way.
+Another way to see groups is like "virtual" queues. So instead of having one queue per "user" you have a "virtual" queue per user so that all users get their jobs processed in a more predictable way.
 
 In order to use the group functionality just use the group property in the job options when adding a job:
 
