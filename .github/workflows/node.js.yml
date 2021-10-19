@@ -23,6 +23,7 @@ jobs:
       - run: yarn lint
 
   test:
+    needs: build
     runs-on: ubuntu-latest
 
     services:
