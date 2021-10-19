@@ -22,7 +22,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: '**/node_modules'
-          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+          key: node_modules-${{ hashFiles('**/yarn.lock') }}
           restore-keys: |
             node_modules-
       - run: yarn install --frozen-lockfile --non-interactive
@@ -55,7 +55,7 @@ jobs:
         uses: actions/cache@v1
         with:
           path: node_modules
-          key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+          key: node_modules-${{ hashFiles('**/yarn.lock') }}
           # no restore-keys here, so we only accept this exact version
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v1
