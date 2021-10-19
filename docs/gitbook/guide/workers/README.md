@@ -77,10 +77,10 @@ worker.on('error', err => {
 ```
 
 {% hint style="danger" %}
-If the error handler is missing, your worker may stop processing jobs when an error is emitted!. More info [here](https://nodejs.org/api/events.html#events_error_events).
+If the error handler is missing, your worker may stop processing jobs when an error is emitted!. More info [here](https://nodejs.org/api/events.html#events\_error\_events).
 {% endhint %}
 
-### Typescript typings
+## Typescript typings
 
 It is also possible to specify the data types for the Job data and return value using generics:
 
