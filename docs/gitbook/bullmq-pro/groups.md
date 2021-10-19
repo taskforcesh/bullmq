@@ -23,6 +23,9 @@ Another way to see groups is like "virtual" queues. So instead of having one que
 In order to use the group functionality just use the group property in the job options when adding a job:
 
 ```typescript
+  import { QueuePro } from 'bullmq-pro'
+  
+  const queue = new QueuePro();
 
   const job1 = await queue.add('test', { foo: 'bar1' }, {
     group: {
@@ -38,3 +41,15 @@ In order to use the group functionality just use the group property in the job o
 
 ```
 
+In order to process the jobs, just use a pro worker as you normally do with standard workers:
+
+```typescript
+import { WorkerPro } from 'bullmq-pro'
+
+const worker = new WorkerPro('test', async job => {
+  // Do something usefull.
+  
+  // You can also do something different depending on the group
+  await doSomethingSpecialForMyGroup(job.opts.group);
+});
+```

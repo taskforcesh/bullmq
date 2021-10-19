@@ -14,3 +14,15 @@ Then just install the @taskforcesh/bullmq-pro package as you would install any o
 ```
 yarn add @taskforcesh/bullmq-pro
 ```
+
+In order to use BullMQ Pro just import the Pro versions of the classes. This classes are subclasses of the open source BullMQ library with new functionality:
+
+```typescript
+import { QueuePro, WorkerPro } from 'bullmq-pro'
+
+const queue = new QueuePro('myQueue');
+
+const worker = new WorkerPro('myQueue', async job => {
+  // Process job
+});
+```
