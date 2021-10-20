@@ -64,24 +64,26 @@ export class Worker<
   private processing: Map<
     Promise<Job<DataType, ResultType, NameType> | string>,
     string
-  >; // { [index: number]: Promise<Job | void> } = {};
+  >;
   constructor(
     name: string,
     processor?: string | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
     Connection?: typeof RedisConnection,
   ) {
-    super(name, opts, Connection);
+    super(
+      name,
+      { ...opts, sharedConnection: isRedisInstance(opts.connection) },
+      Connection,
+    );
 
     this.opts = {
-      // settings: {},
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
       runRetryDelay: 15000,
       autorun: true,
       ...this.opts,
-      sharedConnection: isRedisInstance(opts.connection),
     };
 
     this.opts.lockRenewTime =
