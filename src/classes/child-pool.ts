@@ -107,9 +107,7 @@ export class ChildPool {
 
     child.on('exit', _this.remove.bind(_this, child));
 
-    child.stdout.on('data', function(data) {
-      console.log(data.toString());
-    });
+    child.stdout.pipe(process.stdout);
 
     await initChild(child, child.processFile);
     return child;
