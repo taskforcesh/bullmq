@@ -5,6 +5,7 @@ import { Queue, QueueEvents, Worker, Job, ChildProcessExt } from '../classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../utils';
+const stdout = require('test-console').stdout;
 
 describe('sandboxed process', () => {
   let queue: Queue;
@@ -52,6 +53,41 @@ describe('sandboxed process', () => {
     await completing;
 
     await worker.close();
+  });
+
+  describe('when there is an output from stdout', () => {
+    it('uses the parent stdout', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_stdout.js';
+
+      const worker = new Worker(queueName, processFile, {
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          expect(job.data).to.be.eql({ foo: 'bar' });
+          expect(value).to.be.eql(1);
+          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          resolve();
+        });
+      });
+      const inspect = stdout.inspect();
+
+      await queue.add('test', { foo: 'bar' });
+
+      let output = '';
+      inspect.on('data', (chunk: string) => {
+        output += chunk;
+      });
+
+      await completing;
+      inspect.restore();
+
+      expect(output).to.be.equal('message\n');
+
+      await worker.close();
+    });
   });
 
   it('should process with named processor', async () => {
