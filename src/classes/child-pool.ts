@@ -108,6 +108,7 @@ export class ChildPool {
     child.on('exit', _this.remove.bind(_this, child));
 
     child.stdout.pipe(process.stdout);
+    child.stderr.pipe(process.stderr);
 
     await initChild(child, child.processFile);
     return child;
