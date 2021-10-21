@@ -26,6 +26,12 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
+      - name: Load node_modules
+        uses: actions/cache@v2
+        with:
+          path: node_modules
+          key: node_modules-${{ hashFiles('**/yarn.lock') }}
+          # no restore-keys here, so we only accept this exact version
       - run: yarn install --frozen-lockfile --non-interactive
       - run: yarn coverage
       - name: Coverage
