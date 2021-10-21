@@ -521,6 +521,35 @@ describe('workers', function() {
     await worker.close();
   });
 
+  describe('when sharing a redis connection between workers', function() {
+    it('should not close the connection', async () => {
+      const connection = new IORedis();
+
+      return new Promise((resolve, reject) => {
+        connection.on('ready', async () => {
+          const worker1 = new Worker('test-shared', null, { connection });
+          const worker2 = new Worker('test-shared', null, { connection });
+
+          try {
+            // There is no point into checking the ready status after closing
+            // since ioredis will not update it anyway:
+            // https://github.com/luin/ioredis/issues/614
+            expect(connection.status).to.be.equal('ready');
+            await worker1.close();
+            await worker2.close();
+            await connection.quit();
+
+            connection.on('end', () => {
+              resolve();
+            });
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+    });
+  });
+
   describe('when autorun option is provided as false', function() {
     it('processes several jobs serially using process option as false', async () => {
       let counter = 1;
