@@ -120,6 +120,102 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
+  describe('when backoff strategy is provided', async () => {
+    it('retries a job after a delay if a fixed backoff is given', async () => {
+      const name = 'child-job';
+      const values = [{ bar: 'something' }];
+
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      let childrenProcessor,
+        parentProcessor,
+        processedChildren = 0;
+      const processingChildren = new Promise<void>(
+        resolve =>
+          (childrenProcessor = async (job: Job) => {
+            if (job.attemptsMade < 2) {
+              throw new Error('Not yet!');
+            }
+            processedChildren++;
+
+            if (processedChildren == values.length) {
+              resolve();
+            }
+            return values[job.data.idx];
+          }),
+      );
+
+      const processingParent = new Promise<void>((resolve, reject) => [
+        (parentProcessor = async (job: Job) => {
+          try {
+            resolve();
+          } catch (err) {
+            console.error(err);
+            reject(err);
+          }
+        }),
+      ]);
+
+      const queueScheduler = new QueueScheduler(queueName);
+      await queueScheduler.waitUntilReady();
+
+      const parentWorker = new Worker(parentQueueName, parentProcessor);
+      const childrenWorker = new Worker(queueName, childrenProcessor, {
+        settings: {
+          backoffStrategies: {
+            custom(attemptsMade: number) {
+              return attemptsMade * 500;
+            },
+          },
+        },
+      });
+      await parentWorker.waitUntilReady();
+      await childrenWorker.waitUntilReady();
+
+      const flow = new FlowProducer();
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          {
+            name,
+            data: { idx: 0, foo: 'bar' },
+            queueName,
+            opts: {
+              attempts: 3,
+              backoff: {
+                type: 'custom',
+              },
+            },
+          },
+        ],
+      });
+
+      expect(tree).to.have.property('job');
+      expect(tree).to.have.property('children');
+
+      const { children, job } = tree;
+      const parentState = await job.getState();
+
+      expect(parentState).to.be.eql('waiting-children');
+      expect(children).to.have.length(1);
+
+      expect(children[0].job.id).to.be.ok;
+      expect(children[0].job.data.foo).to.be.eql('bar');
+
+      await processingChildren;
+      await childrenWorker.close();
+
+      await processingParent;
+      await parentWorker.close();
+
+      await flow.close();
+
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+  });
+
   describe('when custom prefix is set in flow producer', async () => {
     it('uses default prefix to add jobs', async () => {
       const childrenQueue = new Queue(queueName, { prefix: '{bull}' });
