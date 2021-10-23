@@ -237,6 +237,7 @@ export class Scripts {
       opts.lockDuration,
       job.opts?.parent?.id,
       job.opts?.parent?.queue,
+      job.parentKey,
     ];
 
     return keys.concat(args);

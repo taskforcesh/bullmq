@@ -25,7 +25,7 @@ describe('flows', () => {
 
   afterEach(async function() {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    //await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should process children before the parent', async () => {
@@ -213,6 +213,80 @@ describe('flows', () => {
       await flow.close();
 
       await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+  });
+
+  describe('when continually adding jobs', async () => {
+    it('adds jobs that do not exists', async () => {
+      const worker = new Worker(queueName, async (job: Job) => {});
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', (job: Job) => {
+          if (job.id === 'thu') {
+            resolve();
+          }
+        });
+      });
+
+      const flow = new FlowProducer();
+      await flow.add({
+        queueName,
+        name: 'tue',
+        opts: {
+          jobId: 'tue',
+        },
+        children: [
+          {
+            name: 'mon',
+            queueName,
+            opts: {
+              jobId: 'mon',
+            },
+          },
+        ],
+      });
+
+      await flow.add({
+        queueName,
+        name: 'wed',
+        opts: {
+          jobId: 'wed',
+        },
+        children: [
+          {
+            name: 'tue',
+            queueName,
+            opts: {
+              jobId: 'tue',
+            },
+          },
+        ],
+      });
+
+      const tree = await flow.add({
+        queueName,
+        name: 'thu',
+        opts: {
+          jobId: 'thu',
+        },
+        children: [
+          {
+            name: 'wed',
+            queueName,
+            opts: {
+              jobId: 'wed',
+            },
+          },
+        ],
+      });
+
+      await completing;
+
+      const state = await tree.job.getState();
+
+      expect(state).to.be.equal('completed');
+
+      await flow.close();
     });
   });
 

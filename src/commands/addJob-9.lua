@@ -77,7 +77,7 @@ else
         local parentQueueKey = args[8]
         local parentId = args[9]
         rcall("HSET", processedSet, jobIdKey, returnvalue)
-        local activeParent = rcall("ZSCORE", parentQueue .. ":waiting-children", parentId)
+        local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
         if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
           rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
           if rcall("HEXISTS", parentQueueKey .. ":meta", "paused") ~= 1 then
