@@ -33,6 +33,8 @@
             [5]  parentKey?
             [6] waitChildrenKey key.
             [7] parent dependencies key.
+            [8] parent queue key.
+            [8] parent id.
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -72,7 +74,20 @@ else
       if rcall("ZSCORE", KEYS[7], jobId) ~= false then
         local processedSet = parentKey .. ":processed"
         local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
+        local parentQueueKey = args[8]
+        local parentId = args[9]
         rcall("HSET", processedSet, jobIdKey, returnvalue)
+        local activeParent = rcall("ZSCORE", parentQueue .. ":waiting-children", parentId)
+        if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
+          rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
+          if rcall("HEXISTS", parentQueueKey .. ":meta", "paused") ~= 1 then
+            rcall("RPUSH", parentQueueKey .. ":wait", parentId)
+          else
+            rcall("RPUSH", parentQueueKey .. ":paused", parentId)
+          end
+          local parentEventStream = parentQueueKey .. ":events"
+          rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+        end
       else
         if parentDependenciesKey ~= nil then
           rcall("SADD", parentDependenciesKey, jobIdKey)

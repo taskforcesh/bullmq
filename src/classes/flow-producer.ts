@@ -222,6 +222,8 @@ export class FlowProducer extends EventEmitter {
 
       job.addJob(<Redis>(multi as unknown), {
         parentDependenciesKey: parent?.parentDependenciesKey,
+        parentId: parent?.parentOpts.id,
+        parentQueueKey: parent?.parentOpts.queue,
         waitChildrenKey,
         parentKey,
       });
@@ -248,6 +250,8 @@ export class FlowProducer extends EventEmitter {
     } else {
       job.addJob(<Redis>(multi as unknown), {
         parentDependenciesKey: parent?.parentDependenciesKey,
+        parentId: parent?.parentOpts.id,
+        parentQueueKey: parent?.parentOpts.queue,
         parentKey,
       });
 

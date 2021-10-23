@@ -45,7 +45,9 @@ export type MinimalQueue = Pick<
 export type ParentOpts = {
   waitChildrenKey?: string;
   parentDependenciesKey?: string;
+  parentId?: string;
   parentKey?: string;
+  parentQueueKey?: string;
 };
 
 export class Scripts {
@@ -71,7 +73,9 @@ export class Scripts {
     opts: JobsOptions,
     jobId: string,
     parentOpts: ParentOpts = {
+      parentId: null,
       parentKey: null,
+      parentQueueKey: null,
       waitChildrenKey: null,
       parentDependenciesKey: null,
     },
@@ -97,6 +101,8 @@ export class Scripts {
       parentOpts.parentKey || null,
       parentOpts.waitChildrenKey || null,
       parentOpts.parentDependenciesKey || null,
+      parentOpts.parentQueueKey || null,
+      parentOpts.parentId || null,
     ];
 
     let encodedOpts;
