@@ -84,6 +84,7 @@ export class Scripts {
       queueKeys.id,
       queueKeys.delayed,
       queueKeys.priority,
+      queueKeys.completed,
       queueKeys.events,
       queueKeys.delay,
     ];
