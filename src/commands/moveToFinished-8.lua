@@ -41,16 +41,9 @@
 ]]
 local rcall = redis.call
 
-local getJobIdFromKey = function (jobKey)
-    return string.match(jobKey, ".*:(.*)")
-end
-
-local getJobKeyPrefix = function (jobKey, jobId)
-    return string.sub(jobKey, 0, #jobKey - #jobId)
-end
-
 -- Includes
 <%= moveParent %>
+<%= destructureJobKey %>
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
