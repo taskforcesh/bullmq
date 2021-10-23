@@ -68,14 +68,16 @@ else
   jobId = args[2]
   jobIdKey = args[1] .. jobId
   if rcall("EXISTS", jobIdKey) == 1 then
-    if rcall("ZSCORE", KEYS[7], jobId) ~= false then
-      -- return "completed"
-    else
-      if parentDependenciesKey ~= nil then
-        rcall("SADD", parentDependenciesKey, jobIdKey)
-      end  
-    end     
     if parentKey ~= nil then
+      if rcall("ZSCORE", KEYS[7], jobId) ~= false then
+        local processedSet = parentKey .. ":processed"
+        local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
+        rcall("HSET", processedSet, jobIdKey, returnvalue)
+      else
+        if parentDependenciesKey ~= nil then
+          rcall("SADD", parentDependenciesKey, jobIdKey)
+        end
+      end
       rcall("HMSET", jobIdKey, "parentKey", parentKey)
     end
     return jobId .. "" -- convert to string        
