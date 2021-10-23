@@ -62,6 +62,9 @@ end
 
 local jobCounter = rcall("INCR", KEYS[4])
 
+-- Includes
+<%= moveParent %>
+
 local parentDependenciesKey = args[7]
 if args[2] == "" then
   jobId = jobCounter
@@ -72,22 +75,10 @@ else
   if rcall("EXISTS", jobIdKey) == 1 then
     if parentKey ~= nil then
       if rcall("ZSCORE", KEYS[7], jobId) ~= false then
-        local processedSet = parentKey .. ":processed"
         local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
         local parentQueueKey = args[8]
         local parentId = args[9]
-        rcall("HSET", processedSet, jobIdKey, returnvalue)
-        local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
-        if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
-          rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
-          if rcall("HEXISTS", parentQueueKey .. ":meta", "paused") ~= 1 then
-            rcall("RPUSH", parentQueueKey .. ":wait", parentId)
-          else
-            rcall("RPUSH", parentQueueKey .. ":paused", parentId)
-          end
-          local parentEventStream = parentQueueKey .. ":events"
-          rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
-        end
+        moveParent(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue)
       else
         if parentDependenciesKey ~= nil then
           rcall("SADD", parentDependenciesKey, jobIdKey)

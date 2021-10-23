@@ -49,6 +49,9 @@ local getJobKeyPrefix = function (jobKey, jobId)
     return string.sub(jobKey, 0, #jobKey - #jobId)
 end
 
+-- Includes
+<%= moveParent %>
+
 local jobIdKey = KEYS[3]
 if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
 
@@ -82,31 +85,17 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     -- 4) if parent's dependencies is empty, then move parent to "wait/paused". Note it may be a different queue!.
     -- NOTE: Priorities not supported yet for parent jobs.
     local parentId = ARGV[12]
-    local parentQueue = ARGV[13]
+    local parentQueueKey = ARGV[13]
     if parentId == "" and ARGV[14] ~= "" then
       parentId = getJobIdFromKey(ARGV[14])
-      parentQueue = getJobKeyPrefix(ARGV[14], ":"..parentId)
+      parentQueueKey = getJobKeyPrefix(ARGV[14], ":"..parentId)
     end
     if parentId ~= "" and ARGV[5] == "completed" then 
-        local parentKey =  parentQueue .. ":" .. parentId
+        local parentKey =  parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
         if result == 1 then 
-            local processedSet = parentKey .. ":processed"
-            rcall("HSET", processedSet, jobIdKey, ARGV[4])
-            local activeParent = redis.call("ZSCORE", parentQueue .. ":waiting-children", parentId)
-            if rcall("SCARD", dependenciesSet) == 0 and activeParent then 
-                rcall("ZREM", parentQueue .. ":waiting-children", parentId)
-
-                if rcall("HEXISTS", parentQueue .. ":meta", "paused") ~= 1 then
-                    rcall("RPUSH", parentQueue .. ":wait", parentId)
-                else
-                    rcall("RPUSH", parentQueue .. ":paused", parentId)
-                end
-
-                local parentEventStream = parentQueue .. ":events"
-                rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
-            end
+            moveParent(parentKey, parentQueueKey, dependenciesSet, parentId, jobIdKey, ARGV[4])
         end
     end
     
