@@ -220,9 +220,9 @@ describe('flows', () => {
     it('adds jobs that do not exists', async () => {
       const worker = new Worker(queueName, async (job: Job) => {});
 
-      const completing = new Promise<void>((resolve, reject) => {
+      const completing1 = new Promise<void>((resolve, reject) => {
         worker.on('completed', (job: Job) => {
-          if (job.id === 'thu') {
+          if (job.id === 'wed') {
             resolve();
           }
         });
@@ -263,6 +263,16 @@ describe('flows', () => {
         ],
       });
 
+      await completing1;
+
+      const completing2 = new Promise<void>((resolve, reject) => {
+        worker.on('completed', (job: Job) => {
+          if (job.id === 'thu') {
+            resolve();
+          }
+        });
+      });
+
       const tree = await flow.add({
         queueName,
         name: 'thu',
@@ -280,7 +290,7 @@ describe('flows', () => {
         ],
       });
 
-      await completing;
+      await completing2;
 
       const state = await tree.job.getState();
 
