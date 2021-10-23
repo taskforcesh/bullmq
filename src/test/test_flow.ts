@@ -25,7 +25,7 @@ describe('flows', () => {
 
   afterEach(async function() {
     await queue.close();
-    //await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(), queueName);
   });
 
   it('should process children before the parent', async () => {
