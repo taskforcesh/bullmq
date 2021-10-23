@@ -81,7 +81,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     local parentQueueKey = ARGV[13]
     if parentId == "" and ARGV[14] ~= "" then
       parentId = getJobIdFromKey(ARGV[14])
-      parentQueueKey = getJobKeyPrefix(ARGV[14], ":"..parentId)
+      parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
     end
     if parentId ~= "" and ARGV[5] == "completed" then 
         local parentKey =  parentQueueKey .. ":" .. parentId

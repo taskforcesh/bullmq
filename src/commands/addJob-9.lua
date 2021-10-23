@@ -33,8 +33,6 @@
             [5]  parentKey?
             [6] waitChildrenKey key.
             [7] parent dependencies key.
-            [8] parent queue key.
-            [8] parent id.
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -64,6 +62,7 @@ local jobCounter = rcall("INCR", KEYS[4])
 
 -- Includes
 <%= moveParent %>
+<%= destructureJobKey %>
 
 local parentDependenciesKey = args[7]
 if args[2] == "" then
@@ -76,8 +75,8 @@ else
     if parentKey ~= nil then
       if rcall("ZSCORE", KEYS[7], jobId) ~= false then
         local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
-        local parentQueueKey = args[8]
-        local parentId = args[9]
+        local parentId = getJobIdFromKey(parentKey)
+        local parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
         moveParent(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue)
       else
         if parentDependenciesKey ~= nil then

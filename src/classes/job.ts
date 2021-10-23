@@ -179,8 +179,6 @@ export class Job<
 
     job.id = await job.addJob(client, {
       parentKey: job.parentKey,
-      parentId: job.opts.parent?.id,
-      parentQueueKey: job.opts.parent?.queue,
       parentDependenciesKey: job.parentKey
         ? `${job.parentKey}:dependencies`
         : '',
@@ -215,9 +213,7 @@ export class Job<
 
     for (const job of jobInstances) {
       job.addJob(<RedisClient>(multi as unknown), {
-        parentId: job.opts.parent?.id,
         parentKey: job.parentKey,
-        parentQueueKey: job.opts.parent?.queue,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
           : '',
