@@ -4,7 +4,7 @@
   The job must be locked before it can be moved to a finished status,
   and the lock must be released in this script.
 
-     Input:
+    Input:
       KEYS[1] active key
       KEYS[2] completed/failed key
       KEYS[3] jobId key
@@ -29,20 +29,20 @@
       ARGV[13] parentQueue
       ARGV[14] parentKey
 
-     Output:
+    Output:
       0 OK
       -1 Missing key.
       -2 Missing lock.
       -3 Job not in active set
       -4 Job has pending dependencies
 
-     Events:
+    Events:
       'completed/failed'
 ]]
 local rcall = redis.call
 
 -- Includes
-<%= moveParent %>
+<%= updateParentDepsIfNeeded %>
 <%= destructureJobKey %>
 
 local jobIdKey = KEYS[3]
@@ -88,7 +88,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
         if result == 1 then 
-            moveParent(parentKey, parentQueueKey, dependenciesSet, parentId, jobIdKey, ARGV[4])
+          updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet, parentId, jobIdKey, ARGV[4])
         end
     end
     

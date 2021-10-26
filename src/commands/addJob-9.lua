@@ -61,7 +61,7 @@ end
 local jobCounter = rcall("INCR", KEYS[4])
 
 -- Includes
-<%= moveParent %>
+<%= updateParentDepsIfNeeded %>
 <%= destructureJobKey %>
 
 local parentDependenciesKey = args[7]
@@ -77,7 +77,7 @@ else
         local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
         local parentId = getJobIdFromKey(parentKey)
         local parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
-        moveParent(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue)
+        updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue)
       else
         if parentDependenciesKey ~= nil then
           rcall("SADD", parentDependenciesKey, jobIdKey)

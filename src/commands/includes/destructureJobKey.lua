@@ -1,5 +1,6 @@
 --[[
   Functions to destructure job key.
+  Just a bit of warning, these functions may be a bit slow and affect performance significantly.
 ]]
 
 local getJobIdFromKey = function (jobKey)
