@@ -56,11 +56,11 @@ export class QueueBase extends EventEmitter {
     }
   }
 
-  async waitUntilReady() {
+  waitUntilReady(): Promise<RedisClient> {
     return this.client;
   }
 
-  protected base64Name() {
+  protected base64Name(): string {
     return Buffer.from(this.name).toString('base64');
   }
 
@@ -68,14 +68,14 @@ export class QueueBase extends EventEmitter {
     return this.opts.prefix + ':' + this.base64Name();
   }
 
-  close() {
+  close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
     }
     return this.closing;
   }
 
-  disconnect() {
+  disconnect(): Promise<void> {
     return this.connection.disconnect();
   }
 }

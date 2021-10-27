@@ -205,10 +205,10 @@ export class Queue<
    * dependencies.
    *
    * @param jobId - The id of the job to remove
-   * @returns 1 if it managed to remove the job or -1 if the job or
+   * @returns 1 if it managed to remove the job or 0 if the job or
    * any of its dependencies was locked.
    */
-  async remove(jobId: string) {
+  async remove(jobId: string): Promise<number> {
     return Scripts.remove(this, jobId);
   }
 
@@ -219,7 +219,7 @@ export class Queue<
    * @param delayed - Pass true if it should also clean the
    * delayed jobs.
    */
-  drain(delayed = false) {
+  drain(delayed = false): Promise<void> {
     return Scripts.drain(this, delayed);
   }
 
@@ -283,7 +283,7 @@ export class Queue<
   /**
    * Trim the event stream to an approximately maxLength.
    *
-   * @param maxLength
+   * @param maxLength -
    */
   async trimEvents(maxLength: number) {
     const client = await this.client;

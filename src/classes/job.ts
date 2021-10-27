@@ -357,7 +357,7 @@ export class Job<
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
    */
-  async remove() {
+  async remove(): Promise<void> {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
