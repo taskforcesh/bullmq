@@ -141,16 +141,16 @@ export class Queue<
   }
 
   /**
-    Pauses the processing of this queue globally.
-
-    We use an atomic RENAME operation on the wait queue. Since
-    we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue
-    is renamed to 'paused', no new jobs will be processed (the current ones
-    will run until finalized).
-
-    Adding jobs requires a LUA script to check first if the paused list exist
-    and in that case it will add it there instead of the wait list.
-  */
+   * Pauses the processing of this queue globally.
+   *
+   * We use an atomic RENAME operation on the wait queue. Since
+   * we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue
+   * is renamed to 'paused', no new jobs will be processed (the current ones
+   * will run until finalized).
+   *
+   * Adding jobs requires a LUA script to check first if the paused list exist
+   * and in that case it will add it there instead of the wait list.
+   */
   async pause(): Promise<void> {
     await Scripts.pause(this, true);
     this.emit('paused');
