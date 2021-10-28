@@ -7,28 +7,28 @@ import { v4 } from 'uuid';
 import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
 
-describe('workers', function() {
+describe('workers', function () {
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  beforeEach(async function() {
+  beforeEach(async function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async function() {
+  afterEach(async function () {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should get all workers for this queue', async function() {
+  it('should get all workers for this queue', async function () {
     const worker = new Worker(queueName, async job => {});
     await worker.waitUntilReady();
     await delay(10);
@@ -47,7 +47,7 @@ describe('workers', function() {
     await worker2.close();
   });
 
-  it('should get only workers related only to one queue', async function() {
+  it('should get only workers related only to one queue', async function () {
     const queueName2 = `${queueName}2`;
     const queue2 = new Queue(queueName2);
     const worker = new Worker(queueName, async job => {});
@@ -390,7 +390,7 @@ describe('workers', function() {
     });
   });
 
-  it('process a lifo queue', async function() {
+  it('process a lifo queue', async function () {
     this.timeout(3000);
     let currentValue = 0;
     let first = true;
@@ -521,7 +521,7 @@ describe('workers', function() {
     await worker.close();
   });
 
-  describe('when sharing a redis connection between workers', function() {
+  describe('when sharing a redis connection between workers', function () {
     it('should not close the connection', async () => {
       const connection = new IORedis();
 
@@ -550,7 +550,7 @@ describe('workers', function() {
     });
   });
 
-  describe('when autorun option is provided as false', function() {
+  describe('when autorun option is provided as false', function () {
     it('processes several jobs serially using process option as false', async () => {
       let counter = 1;
       const maxJobs = 10;
@@ -584,7 +584,7 @@ describe('workers', function() {
       await worker.close();
     });
 
-    describe('when process function is not defined', function() {
+    describe('when process function is not defined', function () {
       it('throws error', async () => {
         const worker = new Worker(queueName, undefined, { autorun: false });
         await worker.waitUntilReady();
@@ -597,7 +597,7 @@ describe('workers', function() {
       });
     });
 
-    describe('when run method is called when worker is running', function() {
+    describe('when run method is called when worker is running', function () {
       it('throws error', async () => {
         const maxJobs = 10;
         const worker = new Worker(queueName, async (job: Job) => {}, {
@@ -900,6 +900,70 @@ describe('workers', function() {
     await worker.close();
   });
 
+  it.only('process a job that throws an exception after worker close', async () => {
+    const jobError = new Error('Job Failed');
+
+    const worker = new Worker(queueName, async job => {
+      expect(job.data.foo).to.be.equal('bar');
+      await delay(3000);
+      throw jobError;
+    });
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await delay(100);
+    /* Try to gracefully close while having a job that will be failed running */
+    worker.close();
+
+    /* The event is rightly emitted */
+    await new Promise<void>(resolve => {
+      worker.once('failed', async (job, err) => {
+        expect(job).to.be.ok;
+        expect(job.data.foo).to.be.eql('bar');
+        expect(err).to.be.eql(jobError);
+        resolve();
+      });
+    });
+
+    /* But the job is not in failed */
+    const count = await queue.getJobCounts('active', 'failed');
+    expect(count.active).to.be.eq(0);
+    expect(count.failed).to.be.eq(1);
+  });
+
+  it.only('process a job that complete after demanding worker close', async () => {
+    const worker = new Worker(queueName, async job => {
+      expect(job.data.foo).to.be.equal('bar');
+      await delay(3000);
+    });
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await delay(100);
+    /* Try to gracefully close while having a job that will be completed running */
+    worker.close();
+
+    await new Promise<void>(resolve => {
+      worker.once('completed', async (job, err) => {
+        expect(job).to.be.ok;
+        expect(job.data.foo).to.be.eql('bar');
+        resolve();
+      });
+    });
+
+    const count = await queue.getJobCounts('active', 'completed');
+    expect(count.active).to.be.eq(0);
+    expect(count.completed).to.be.eq(1);
+  });
+
   it('process a job that returns data with a circular dependency', async () => {
     const worker = new Worker(queueName, async job => {
       const circular = { x: {} };
@@ -1048,7 +1112,7 @@ describe('workers', function() {
     await worker.close();
   });
 
-  it('emit error if lock is lost', async function() {
+  it('emit error if lock is lost', async function () {
     this.timeout(10000);
 
     const worker = new Worker(
@@ -1084,7 +1148,7 @@ describe('workers', function() {
     await queueScheduler.close();
   });
 
-  it('continue processing after a worker has stalled', async function() {
+  it('continue processing after a worker has stalled', async function () {
     let first = true;
     this.timeout(10000);
 
@@ -1120,7 +1184,7 @@ describe('workers', function() {
     await queueScheduler.close();
   });
 
-  it('stalled interval cannot be zero', function() {
+  it('stalled interval cannot be zero', function () {
     this.timeout(10000);
     expect(
       () =>
@@ -1160,7 +1224,7 @@ describe('workers', function() {
 
     //This job use delay to check that at any time we have 4 process in parallel.
     //Due to time to get new jobs and call process, false negative can appear.
-    it('should process job respecting the concurrency set', async function() {
+    it('should process job respecting the concurrency set', async function () {
       this.timeout(10000);
       let nbProcessing = 0;
       let pendingMessageToProcess = 8;
@@ -1204,7 +1268,7 @@ describe('workers', function() {
       await worker.close();
     });
 
-    it('should wait for all concurrent processing in case of pause', async function() {
+    it('should wait for all concurrent processing in case of pause', async function () {
       this.timeout(10000);
 
       let i = 0;
@@ -1346,7 +1410,7 @@ describe('workers', function() {
       await worker.close();
     });
 
-    it('should retry a job after a delay if a fixed backoff is given', async function() {
+    it('should retry a job after a delay if a fixed backoff is given', async function () {
       this.timeout(12000);
 
       const queueScheduler = new QueueScheduler(queueName);
@@ -1382,7 +1446,7 @@ describe('workers', function() {
       await queueScheduler.close();
     });
 
-    it('should retry a job after a delay if an exponential backoff is given', async function() {
+    it('should retry a job after a delay if an exponential backoff is given', async function () {
       this.timeout(12000);
 
       const queueScheduler = new QueueScheduler(queueName);
@@ -1422,7 +1486,7 @@ describe('workers', function() {
       await queueScheduler.close();
     });
 
-    it('should retry a job after a delay if a custom backoff is given', async function() {
+    it('should retry a job after a delay if a custom backoff is given', async function () {
       this.timeout(12000);
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
@@ -1518,7 +1582,7 @@ describe('workers', function() {
       await worker.close();
     });
 
-    it('should retry a job after a delay if a custom backoff is given based on the error thrown', async function() {
+    it('should retry a job after a delay if a custom backoff is given based on the error thrown', async function () {
       class CustomError extends Error {}
 
       this.timeout(12000);
@@ -1570,7 +1634,7 @@ describe('workers', function() {
       await queueScheduler.close();
     });
 
-    it('should retry a job after a delay if a custom backoff is given based on the job data', async function() {
+    it('should retry a job after a delay if a custom backoff is given based on the job data', async function () {
       class CustomError extends Error {
         failedIds: number[];
       }
@@ -1630,7 +1694,7 @@ describe('workers', function() {
       await queueScheduler.close();
     });
 
-    it('should be able to handle a custom backoff if it returns a promise', async function() {
+    it('should be able to handle a custom backoff if it returns a promise', async function () {
       this.timeout(12000);
 
       const queueScheduler = new QueueScheduler(queueName);
