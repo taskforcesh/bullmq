@@ -21,8 +21,9 @@
       KEYS[4] 'id'
       KEYS[5] 'delayed'
       KEYS[6] 'priority'
-      KEYS[7] events stream key
-      KEYS[8] delay stream key
+      KEYS[7] 'completed'
+      KEYS[8] events stream key
+      KEYS[9] delay stream key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -59,15 +60,33 @@ end
 
 local jobCounter = rcall("INCR", KEYS[4])
 
+-- Includes
+<%= updateParentDepsIfNeeded %>
+<%= destructureJobKey %>
+
+local parentDependenciesKey = args[7]
 if args[2] == "" then
-    jobId = jobCounter
-    jobIdKey = args[1] .. jobId
+  jobId = jobCounter
+  jobIdKey = args[1] .. jobId
 else
-    jobId = args[2]
-    jobIdKey = args[1] .. jobId
-    if rcall("EXISTS", jobIdKey) == 1 then
-        return jobId .. "" -- convert to string
+  jobId = args[2]
+  jobIdKey = args[1] .. jobId
+  if rcall("EXISTS", jobIdKey) == 1 then
+    if parentKey ~= nil then
+      if rcall("ZSCORE", KEYS[7], jobId) ~= false then
+        local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
+        local parentId = getJobIdFromKey(parentKey)
+        local parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
+        updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue)
+      else
+        if parentDependenciesKey ~= nil then
+          rcall("SADD", parentDependenciesKey, jobIdKey)
+        end
+      end
+      rcall("HMSET", jobIdKey, "parentKey", parentKey)
     end
+    return jobId .. "" -- convert to string        
+  end
 end
 
 -- Store the job.
@@ -85,7 +104,7 @@ else
 end
 
 -- TODO: do not send data and opts to the event added (for performance reasons).
-rcall("XADD", KEYS[7], "*", "event", "added", "jobId", jobId, "name", args[3], "data", ARGV[2], "opts", jsonOpts)
+rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3], "data", ARGV[2], "opts", jsonOpts)
 
 -- Check if job is delayed
 local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
@@ -94,13 +113,13 @@ local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
 local waitChildrenKey = args[6]
 if waitChildrenKey ~= nil then
     rcall("ZADD", waitChildrenKey, timestamp, jobId)
-    rcall("XADD", KEYS[7], "*", "event", "waiting-children", "jobId", jobId)
+    rcall("XADD", KEYS[8], "*", "event", "waiting-children", "jobId", jobId)
 elseif (delayedTimestamp ~= 0) then
     local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
     rcall("ZADD", KEYS[5], timestamp, jobId)
-    rcall("XADD", KEYS[7], "*", "event", "delayed", "jobId", jobId, "delay",
+    rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay",
           delayedTimestamp)
-    rcall("XADD", KEYS[8], "*", "nextTimestamp", delayedTimestamp)
+    rcall("XADD", KEYS[9], "*", "nextTimestamp", delayedTimestamp)
 else
     local target
 
@@ -134,18 +153,17 @@ else
         end
     end
     -- Emit waiting event
-    rcall("XADD", KEYS[7], "*", "event", "waiting", "jobId", jobId)
+    rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
 end
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 -- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
 -- fail in this case.
-local parentDependenciesKey = args[7]
 if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end
 
 local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents")
-if (maxEvents) then rcall("XTRIM", KEYS[7], "MAXLEN", "~", maxEvents) end
+if (maxEvents) then rcall("XTRIM", KEYS[8], "MAXLEN", "~", maxEvents) end
 
 return jobId .. "" -- convert to string

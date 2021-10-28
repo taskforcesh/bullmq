@@ -4,7 +4,7 @@
   The job must be locked before it can be moved to a finished status,
   and the lock must be released in this script.
 
-     Input:
+    Input:
       KEYS[1] active key
       KEYS[2] completed/failed key
       KEYS[3] jobId key
@@ -27,18 +27,23 @@
       ARGV[11] lock duration in milliseconds
       ARGV[12] parentId
       ARGV[13] parentQueue
+      ARGV[14] parentKey
 
-     Output:
+    Output:
       0 OK
       -1 Missing key.
       -2 Missing lock.
       -3 Job not in active set
       -4 Job has pending dependencies
 
-     Events:
+    Events:
       'completed/failed'
 ]]
 local rcall = redis.call
+
+-- Includes
+<%= updateParentDepsIfNeeded %>
+<%= destructureJobKey %>
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
@@ -73,27 +78,17 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     -- 4) if parent's dependencies is empty, then move parent to "wait/paused". Note it may be a different queue!.
     -- NOTE: Priorities not supported yet for parent jobs.
     local parentId = ARGV[12]
+    local parentQueueKey = ARGV[13]
+    if parentId == "" and ARGV[14] ~= "" then
+      parentId = getJobIdFromKey(ARGV[14])
+      parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
+    end
     if parentId ~= "" and ARGV[5] == "completed" then 
-        local parentQueue = ARGV[13]
-        local parentKey =  parentQueue .. ":" .. parentId
+        local parentKey =  parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
         if result == 1 then 
-            local processedSet = parentKey .. ":processed"
-            rcall("HSET", processedSet, jobIdKey, ARGV[4])
-            local activeParent = redis.call("ZSCORE", parentQueue .. ":waiting-children", parentId)
-            if rcall("SCARD", dependenciesSet) == 0 and activeParent then 
-                rcall("ZREM", parentQueue .. ":waiting-children", parentId)
-
-                if rcall("HEXISTS", parentQueue .. ":meta", "paused") ~= 1 then
-                    rcall("RPUSH", parentQueue .. ":wait", parentId)
-                else
-                    rcall("RPUSH", parentQueue .. ":paused", parentId)
-                end
-
-                local parentEventStream = parentQueue .. ":events"
-                rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
-            end
+          updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet, parentId, jobIdKey, ARGV[4])
         end
     end
     
