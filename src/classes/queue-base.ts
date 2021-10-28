@@ -22,10 +22,14 @@ export class QueueBase extends EventEmitter {
       ...opts,
     };
 
-    if (Object.keys(opts).length === 1) {
-      console.warn(`DEPRECATION WARNING: Currently it is possible to instantiate Queue, Worker, QueueScheduler, etc
-      without providing explicitly a connection or connection options. This behaviour will be removed in major
-      release`);
+    if (!opts.connection) {
+      console.warn(
+        [
+          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker, QueueScheduler and QueueEvents',
+          'without providing explicitly a connection or connection options is deprecated. This behaviour will',
+          'be removed in the next major release',
+        ].join(' '),
+      );
     }
 
     this.connection = new Connection(opts.connection, opts.sharedConnection);
