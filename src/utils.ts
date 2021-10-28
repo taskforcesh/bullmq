@@ -104,7 +104,7 @@ export function jobIdForGroup(
   const jobId = jobOpts?.jobId;
   const groupKeyPath = get(queueOpts, 'limiter.groupKey');
   const groupKey = get(data, groupKeyPath);
-  if (groupKeyPath && !(typeof groupKey === undefined)) {
+  if (groupKeyPath && !(typeof groupKey === 'undefined')) {
     return `${jobId || v4()}:${groupKey}`;
   }
   return jobId;
