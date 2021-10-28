@@ -9,7 +9,7 @@ Removes the given job from the queue as well as all its dependencies.
 <b>Signature:</b>
 
 ```typescript
-remove(jobId: string): Promise<any>;
+remove(jobId: string): Promise<number>;
 ```
 
 ## Parameters
@@ -20,7 +20,7 @@ remove(jobId: string): Promise<any>;
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;number&gt;
 
-1 if it managed to remove the job or -1 if the job or any of its dependencies was locked.
+1 if it managed to remove the job or 0 if the job or any of its dependencies was locked.
 

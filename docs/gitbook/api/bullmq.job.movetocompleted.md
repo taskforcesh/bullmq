@@ -17,8 +17,8 @@ moveToCompleted(returnValue: ReturnType, token: string, fetchNext?: boolean): Pr
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  returnValue | ReturnType | The jobs success message. |
-|  token | string |  |
-|  fetchNext | boolean | True when wanting to fetch the next job |
+|  token | string | Worker token used to acquire completed job. |
+|  fetchNext | boolean | True when wanting to fetch the next job. |
 
 <b>Returns:</b>
 

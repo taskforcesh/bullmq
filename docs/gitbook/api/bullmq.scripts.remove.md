@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static remove(queue: MinimalQueue, jobId: string): Promise<any>;
+static remove(queue: MinimalQueue, jobId: string): Promise<number>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ static remove(queue: MinimalQueue, jobId: string): Promise<any>;
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;number&gt;
 
