@@ -1,6 +1,6 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
-import { values, flatten } from 'lodash';
+import { flatten } from 'lodash';
 import * as getPort from 'get-port';
 import * as fs from 'fs';
 import { promisify } from 'util';
@@ -136,7 +136,7 @@ export class ChildPool {
   }
 
   async clean() {
-    const children = values(this.retained).concat(this.getAllFree());
+    const children = Object.values(this.retained).concat(this.getAllFree());
     this.retained = {};
     this.free = {};
 
@@ -148,6 +148,6 @@ export class ChildPool {
   }
 
   getAllFree() {
-    return flatten(values(this.free));
+    return flatten(Object.values(this.free));
   }
 }

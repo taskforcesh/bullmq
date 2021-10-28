@@ -3,7 +3,7 @@ import { Cluster } from 'ioredis';
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
-import { get, isUndefined } from 'lodash';
+import { get } from 'lodash';
 import { RedisClient } from './classes/redis-connection';
 import { JobsOptions } from './interfaces/jobs-options';
 import { QueueOptions } from './interfaces/queue-options';
@@ -104,7 +104,7 @@ export function jobIdForGroup(
   const jobId = jobOpts?.jobId;
   const groupKeyPath = get(queueOpts, 'limiter.groupKey');
   const groupKey = get(data, groupKeyPath);
-  if (groupKeyPath && !isUndefined(groupKey)) {
+  if (groupKeyPath && !(typeof groupKey === 'undefined')) {
     return `${jobId || v4()}:${groupKey}`;
   }
   return jobId;
