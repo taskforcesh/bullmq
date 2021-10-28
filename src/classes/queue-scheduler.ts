@@ -60,7 +60,7 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  async run() {
+  async run(): Promise<void> {
     if (!this.running) {
       try {
         this.running = true;
@@ -205,7 +205,7 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  async close() {
+  close(): Promise<void> {
     if (this.closing) {
       return this.closing;
     }

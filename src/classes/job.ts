@@ -357,7 +357,7 @@ export class Job<
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
    */
-  async remove() {
+  async remove(): Promise<void> {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
@@ -386,7 +386,8 @@ export class Job<
    * Returned job to be used with Queue.prototype.nextJobFromJobData.
    *
    * @param returnValue - The jobs success message.
-   * @param fetchNext - True when wanting to fetch the next job
+   * @param token - Worker token used to acquire completed job.
+   * @param fetchNext - True when wanting to fetch the next job.
    * @returns Returns the jobData of the next job in the waiting queue.
    */
   async moveToCompleted(

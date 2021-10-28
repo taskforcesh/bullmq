@@ -147,7 +147,7 @@ export class Scripts {
     return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
 
-  static async remove(queue: MinimalQueue, jobId: string) {
+  static async remove(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
     const keys = [jobId].map(name => queue.toKey(name));
