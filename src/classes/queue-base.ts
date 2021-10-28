@@ -23,8 +23,9 @@ export class QueueBase extends EventEmitter {
     };
 
     if (Object.keys(opts).length === 1) {
-      console.warn(`Currently it is possible to instantiate Queue, Worker, QueueScheduler, etc without providing
-      explicitly a connection or connection options. This behaviour will be removed in major release`);
+      console.warn(`DEPRECATION WARNING: Currently it is possible to instantiate Queue, Worker, QueueScheduler, etc
+      without providing explicitly a connection or connection options. This behaviour will be removed in major
+      release`);
     }
 
     this.connection = new Connection(opts.connection, opts.sharedConnection);
