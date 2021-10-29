@@ -19,6 +19,7 @@
 * [Jobs](guide/jobs/README.md)
   * [FIFO](guide/jobs/fifo.md)
   * [LIFO](guide/jobs/lifo.md)
+  * [Job Ids](guide/jobs/job-ids.md)
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/prioritized.md)
