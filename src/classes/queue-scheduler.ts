@@ -5,7 +5,7 @@ import { Scripts } from './scripts';
 import { StreamReadRaw } from '../interfaces/redis-streams';
 import { RedisClient } from './redis-connection';
 
-export declare interface QueueScheduler {
+export declare interface QueueSchedulerDeclaration {
   on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
   on(
     event: 'failed',
@@ -30,7 +30,10 @@ export declare interface QueueScheduler {
  * jobs, etc, will not work correctly or at all.
  *
  */
-export class QueueScheduler extends QueueBase {
+export class QueueScheduler
+  extends QueueBase
+  implements QueueSchedulerDeclaration
+{
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
   private running = false;
