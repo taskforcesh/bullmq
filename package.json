@@ -18,8 +18,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && yarn copylua",
-    "copylua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
+    "build": "tsc && yarn copy:lua && yarn copy:includes:lua",
+    "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
+    "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/commands/includes",
     "coverage": "nyc --reporter=text npm run test",
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
     "cm": "git cz",
