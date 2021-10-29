@@ -13,6 +13,16 @@ import * as path from 'path';
 
 export type RedisClient = Redis | Cluster;
 
+const overrideMessage = [
+  'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false',
+  'and will be overrided by BullMQ.',
+].join(' ');
+
+const deprecationMessage = [
+  'BullMQ: DEPRECATION WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false.',
+  'On the next versions having this settings will throw an exception',
+].join(' ');
+
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   protected _client: RedisClient;
@@ -29,6 +39,8 @@ export class RedisConnection extends EventEmitter {
     super();
 
     if (!isRedisInstance(opts)) {
+      this.checkOptions(overrideMessage, <RedisOptions>opts);
+
       this.opts = {
         port: 6379,
         host: '127.0.0.1',
@@ -36,9 +48,18 @@ export class RedisConnection extends EventEmitter {
           return Math.min(Math.exp(times), 20000);
         },
         ...opts,
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
       };
     } else {
       this._client = <RedisClient>opts;
+      this.checkOptions(deprecationMessage, this._client.options);
+      if (
+        (<RedisOptions>opts).maxRetriesPerRequest ||
+        (<RedisOptions>opts).enableReadyCheck
+      ) {
+        console.error(deprecationMessage);
+      }
     }
 
     this.handleClientError = (err: Error): void => {
@@ -47,6 +68,12 @@ export class RedisConnection extends EventEmitter {
 
     this.initializing = this.init();
     this.initializing.catch(err => this.emit('error', err));
+  }
+
+  private checkOptions(msg: string, options?: RedisOptions) {
+    if (options && (options.maxRetriesPerRequest || options.enableReadyCheck)) {
+      console.error(msg);
+    }
   }
 
   /**

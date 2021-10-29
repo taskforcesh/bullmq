@@ -216,9 +216,94 @@ describe('flows', () => {
     });
   });
 
+  describe('when continually adding jobs', async () => {
+    it('adds jobs that do not exists', async () => {
+      const worker = new Worker(queueName, async (job: Job) => {});
+
+      const completing1 = new Promise<void>((resolve, reject) => {
+        worker.on('completed', (job: Job) => {
+          if (job.id === 'wed') {
+            resolve();
+          }
+        });
+      });
+
+      const flow = new FlowProducer();
+      await flow.add({
+        queueName,
+        name: 'tue',
+        opts: {
+          jobId: 'tue',
+        },
+        children: [
+          {
+            name: 'mon',
+            queueName,
+            opts: {
+              jobId: 'mon',
+            },
+          },
+        ],
+      });
+
+      await flow.add({
+        queueName,
+        name: 'wed',
+        opts: {
+          jobId: 'wed',
+        },
+        children: [
+          {
+            name: 'tue',
+            queueName,
+            opts: {
+              jobId: 'tue',
+            },
+          },
+        ],
+      });
+
+      await completing1;
+
+      const completing2 = new Promise<void>((resolve, reject) => {
+        worker.on('completed', (job: Job) => {
+          if (job.id === 'thu') {
+            resolve();
+          }
+        });
+      });
+
+      const tree = await flow.add({
+        queueName,
+        name: 'thu',
+        opts: {
+          jobId: 'thu',
+        },
+        children: [
+          {
+            name: 'wed',
+            queueName,
+            opts: {
+              jobId: 'wed',
+            },
+          },
+        ],
+      });
+
+      await completing2;
+
+      const state = await tree.job.getState();
+
+      expect(state).to.be.equal('completed');
+
+      await flow.close();
+    });
+  });
+
   describe('when custom prefix is set in flow producer', async () => {
     it('uses default prefix to add jobs', async () => {
-      const childrenQueue = new Queue(queueName, { prefix: '{bull}' });
+      const prefix = '{bull}';
+      const childrenQueue = new Queue(queueName, { prefix });
 
       const name = 'child-job';
       const values = [{ bar: 'something' }];
@@ -265,10 +350,10 @@ describe('flows', () => {
       ]);
 
       const parentWorker = new Worker(parentQueueName, parentProcessor, {
-        prefix: '{bull}',
+        prefix,
       });
       const childrenWorker = new Worker(queueName, childrenProcessor, {
-        prefix: '{bull}',
+        prefix,
       });
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
@@ -301,7 +386,8 @@ describe('flows', () => {
 
       await flow.close();
       await childrenQueue.close();
-      await removeAllQueueData(new IORedis(), parentQueueName);
+      await removeAllQueueData(new IORedis(), parentQueueName, prefix);
+      await removeAllQueueData(new IORedis(), queueName, prefix);
     });
   });
 

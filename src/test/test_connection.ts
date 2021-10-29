@@ -1,5 +1,7 @@
 import * as IORedis from 'ioredis';
-import { Queue, Job, Worker } from '../classes';
+import { Queue, Job, Worker, QueueBase } from '../classes';
+import { RedisClient } from '../classes/redis-connection';
+
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 import { removeAllQueueData } from '../utils';
@@ -10,12 +12,34 @@ describe('connection', () => {
 
   beforeEach(async function() {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
+    queue = new Queue(queueName, { connection: { host: 'localhost' } });
   });
 
   afterEach(async function() {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
+  });
+
+  it('should override maxRetriesPerRequest: null and enableReadyCheck: false as redis options', async () => {
+    const opts = {
+      connection: {
+        host: 'localhost',
+        maxRetriesPerRequest: 20,
+        enableReadyCheck: true,
+      },
+    };
+
+    function checkOptions(client: RedisClient) {
+      expect(
+        (<IORedis.RedisOptions>client.options).maxRetriesPerRequest,
+      ).to.be.equal(null);
+      expect(
+        (<IORedis.RedisOptions>client.options).enableReadyCheck,
+      ).to.be.equal(false);
+    }
+
+    const queue = new QueueBase(queueName, opts);
+    checkOptions(await queue.client);
   });
 
   it('should recover from a connection loss', async () => {

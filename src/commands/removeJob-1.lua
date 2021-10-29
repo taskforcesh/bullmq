@@ -12,13 +12,8 @@
 
 local rcall = redis.call
 
-local getJobIdFromKey = function (jobKey)
-    return string.match(jobKey, ".*:(.*)")
-end
-
-local getJobKeyPrefix = function (jobKey, jobId)
-    return string.sub(jobKey, 0, #jobKey - #jobId)
-end
+-- Includes
+<%= destructureJobKey %>
 
 -- recursively check if there are no locks on the
 -- jobs to be removed.
