@@ -9,3 +9,12 @@ The main reason to be able to specify a custom id is in cases when you want to a
 {% hint style="danger" %}
 Jobs that are removed from the queue, either manually or when using settings such as removeOnComplete/Failed will not be considered as duplicates meaning that you can add the same job id many times over as long as the previous job has already been removed from the queue.
 {% endhint %}
+
+In order to specify a custom job id just use the jobId option when adding jobs to the queue:
+
+```typescript
+await myQueue.add('wall', { color: 'pink' }, {
+  jobId: customJobId,
+});
+
+```
