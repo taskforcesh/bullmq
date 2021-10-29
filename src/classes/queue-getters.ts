@@ -216,11 +216,15 @@ export class QueueGetters extends QueueBase {
    *
    * @returns - Returns an array with workers info.
    */
-  async getWorkers() {
+  async getWorkers(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
     const client = await this.client;
     const clients = await client.client('list');
     try {
-      const list = await this.parseClientList(clients);
+      const list = this.parseClientList(clients);
       return list;
     } catch (err) {
       if (!clientCommandMessageReg.test(err.message)) {

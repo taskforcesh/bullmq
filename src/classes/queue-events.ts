@@ -10,7 +10,7 @@ import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisClient, RedisConnection } from './redis-connection';
 
-export declare interface QueueEvents {
+export declare interface QueueEventsDeclaration {
   /**
    * Listen to 'active' event.
    *
@@ -181,7 +181,7 @@ export declare interface QueueEvents {
  * This class requires a dedicated redis connection.
  *
  */
-export class QueueEvents extends QueueBase {
+export class QueueEvents extends QueueBase implements QueueEventsDeclaration {
   private running = false;
 
   constructor(
@@ -285,7 +285,7 @@ export class QueueEvents extends QueueBase {
     }
   }
 
-  async close() {
+  close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.disconnect();
     }
