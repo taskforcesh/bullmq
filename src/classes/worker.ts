@@ -22,7 +22,7 @@ import { TimerManager } from './timer-manager';
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-export declare interface WorkerDeclaration {
+interface WorkerDeclaration {
   on(event: 'active', listener: (job: Job, prev: string) => void): this;
   on(event: 'completed', listener: (job: Job) => void): this;
   on(event: 'drained', listener: () => void): this;
