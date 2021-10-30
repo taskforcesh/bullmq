@@ -16,6 +16,7 @@ describe('Obliterate', function() {
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function() {
@@ -53,6 +54,8 @@ describe('Obliterate', function() {
     });
     await worker.waitUntilReady();
 
+    worker.run();
+
     await job.waitUntilFinished(queueEvents);
 
     await queue.obliterate();
@@ -85,6 +88,8 @@ describe('Obliterate', function() {
       const failing = new Promise((resolve, reject) => {
         worker.on('failed', resolve);
       });
+
+      worker.run();
 
       const flow = new FlowProducer();
       await flow.add({
@@ -130,6 +135,8 @@ describe('Obliterate', function() {
     });
     await worker.waitUntilReady();
 
+    worker.run();
+
     await job.waitUntilFinished(queueEvents);
 
     await expect(queue.obliterate()).to.be.rejectedWith(
@@ -160,6 +167,8 @@ describe('Obliterate', function() {
       return delay(250);
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await job.waitUntilFinished(queueEvents);
     await queue.obliterate({ force: true });
@@ -195,12 +204,12 @@ describe('Obliterate', function() {
   it('should remove job logs', async () => {
     const job = await queue.add('test', {});
 
-    const queueEvents = new QueueEvents(queue.name);
-
-    const worker = new Worker(queue.name, async job => {
+    const worker = new Worker(queueName, async job => {
       return job.log('Lorem Ipsum Dolor Sit Amet');
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await job.waitUntilFinished(queueEvents);
 
@@ -226,6 +235,8 @@ describe('Obliterate', function() {
       }
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await lastCompletedJob.waitUntilFinished(queueEvents);
 

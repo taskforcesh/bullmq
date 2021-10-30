@@ -85,7 +85,6 @@ export class Worker<
       concurrency: 1,
       lockDuration: 30000,
       runRetryDelay: 15000,
-      autorun: true,
       ...this.opts,
     };
 
@@ -121,10 +120,6 @@ export class Worker<
         ).bind(this);
       }
       this.timerManager = new TimerManager();
-
-      if (this.opts.autorun) {
-        this.run().catch(error => this.emit('error', error));
-      }
     }
 
     this.on('error', err => console.error(err));

@@ -24,66 +24,40 @@ describe('events', function() {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  describe('when autorun option is provided as false', function() {
-    it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
-      const queue2 = new Queue(queueName2);
-      const queueEvents2 = new QueueEvents(queueName2, { autorun: false });
-      await queueEvents2.waitUntilReady();
-
-      const waiting = new Promise(resolve => {
-        queue2.on('waiting', resolve);
-      });
-
-      const running = queueEvents2.run();
-
-      await queue2.add('test', { foo: 'bar' });
-
-      await waiting;
-
-      await queue2.close();
-      await queueEvents2.close();
-      await expect(running).to.have.been.fulfilled;
-      await removeAllQueueData(new IORedis(), queueName2);
-    });
-
-    describe('when run method is called when queueEvent is running', function() {
-      it('throws error', async () => {
-        const queueName2 = `test-${v4()}`;
-        const queue2 = new Queue(queueName2);
-        const queueEvents2 = new QueueEvents(queueName2, { autorun: false });
-        await queueEvents2.waitUntilReady();
-
-        const running = queueEvents2.run();
-
-        await queue2.add('test', { foo: 'bar' });
-
-        await expect(queueEvents2.run()).to.be.rejectedWith(
-          'Queue Events is already running.',
-        );
-
-        await queue2.close();
-        await queueEvents2.close();
-        await expect(running).to.have.been.fulfilled;
-        await removeAllQueueData(new IORedis(), queueName2);
-      });
-    });
-  });
-
-  it('should emit waiting when a job has been added', async function() {
+  it('emits waiting when a job has been added', async () => {
     const waiting = new Promise(resolve => {
       queue.on('waiting', resolve);
     });
 
     await queue.add('test', { foo: 'bar' });
 
+    const running = queueEvents.run();
+
     await waiting;
+
+    await expect(running).to.have.been.fulfilled;
+  });
+
+  describe('when run method is called when queueEvent is running', function() {
+    it('throws error', async () => {
+      const running = queueEvents.run();
+
+      await queue.add('test', { foo: 'bar' });
+
+      await expect(queueEvents.run()).to.be.rejectedWith(
+        'Queue Events is already running.',
+      );
+
+      await expect(running).to.have.been.fulfilled;
+    });
   });
 
   it('should emit global waiting event when a job has been added', async function() {
     const waiting = new Promise(resolve => {
       queue.on('waiting', resolve);
     });
+
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
 
@@ -101,6 +75,9 @@ describe('events', function() {
         resolve();
       });
     });
+
+    worker.run();
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { foo: 'baz' });
@@ -121,6 +98,9 @@ describe('events', function() {
     const drained = new Promise(resolve => {
       worker.once('drained', resolve);
     });
+
+    worker.run();
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { foo: 'baz' });
@@ -146,6 +126,9 @@ describe('events', function() {
     const error = new Promise<void>(resolve => {
       worker.once('error', resolve);
     });
+
+    worker.run();
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
 
@@ -174,6 +157,9 @@ describe('events', function() {
       });
     });
 
+    worker.run();
+    queueEvents.run();
+
     await queue.add(testName, { foo: 'bar' });
 
     await added;
@@ -184,8 +170,6 @@ describe('events', function() {
   it('should emit an event when a job becomes active', async () => {
     const worker = new Worker(queueName, async job => {});
 
-    await queue.add('test', {});
-
     const completed = new Promise<void>(resolve => {
       worker.once('active', function() {
         worker.once('completed', async function() {
@@ -194,6 +178,11 @@ describe('events', function() {
         });
       });
     });
+
+    worker.run();
+    queueEvents.run();
+
+    await queue.add('test', {});
 
     await completed;
     await worker.close();
@@ -215,6 +204,9 @@ describe('events', function() {
         resolve();
       });
     });
+
+    worker.run();
+    queueEvents.run();
 
     const flow = new FlowProducer();
     await flow.add({
@@ -258,6 +250,9 @@ describe('events', function() {
       });
     });
 
+    worker.run();
+    queueEvents.run();
+
     await queue.add('test', {});
 
     await completed;
@@ -285,6 +280,8 @@ describe('events', function() {
       worker.on('drained', resolve);
     });
 
+    queueEvents.run();
+
     await waitForCompletion;
     await worker.close();
 
@@ -309,6 +306,8 @@ describe('events', function() {
   it('should trim events manually', async () => {
     const queueName = 'test-manual-' + v4();
     const trimmedQueue = new Queue(queueName);
+
+    queueEvents.run();
 
     await trimmedQueue.add('test', {});
     await trimmedQueue.add('test', {});

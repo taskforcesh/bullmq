@@ -85,6 +85,8 @@ describe('Jobs getters', function() {
     });
     const worker = new Worker(queueName, processor);
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
     await processing;
 
@@ -124,6 +126,8 @@ describe('Jobs getters', function() {
       });
     });
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { baz: 'qux' });
 
@@ -150,6 +154,8 @@ describe('Jobs getters', function() {
         }
       });
     });
+
+    worker.run();
 
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { baz: 'qux' });
@@ -180,6 +186,8 @@ describe('Jobs getters', function() {
         }),
       );
     });
+
+    worker.run();
 
     await Promise.all([
       queue.add('test', { foo: 'bar' }),
@@ -242,6 +250,8 @@ describe('Jobs getters', function() {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
     queue.add('test', { foo: 3 });
@@ -274,6 +284,8 @@ describe('Jobs getters', function() {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
     queue.add('test', { foo: 3 });
@@ -302,6 +314,8 @@ describe('Jobs getters', function() {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
     queue.add('test', { foo: 3 });
@@ -327,6 +341,8 @@ describe('Jobs getters', function() {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
     queue.add('test', { foo: 3 });
@@ -351,6 +367,8 @@ describe('Jobs getters', function() {
         }
       }),
     );
+
+    worker.run();
 
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
@@ -381,6 +399,8 @@ describe('Jobs getters', function() {
         }
       }),
     );
+
+    worker.run();
 
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });

@@ -26,6 +26,8 @@ describe('stalled jobs', function() {
     const queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
 
+    queueEvents.run();
+
     const concurrency = 4;
 
     const worker = new Worker(
@@ -45,6 +47,8 @@ describe('stalled jobs', function() {
 
     await worker.waitUntilReady();
 
+    worker.run();
+
     await Promise.all([
       queue.add('test', { bar: 'baz' }),
       queue.add('test', { bar1: 'baz1' }),
@@ -58,6 +62,9 @@ describe('stalled jobs', function() {
       stalledInterval: 100,
     });
     await queueScheduler.waitUntilReady();
+
+    queueScheduler.run();
+
     await worker.close(true);
 
     const allStalled = new Promise<void>(resolve => {
@@ -83,6 +90,8 @@ describe('stalled jobs', function() {
       worker2.on('completed', after(concurrency, resolve));
     });
 
+    worker2.run();
+
     await allCompleted;
 
     await queueEvents.close();
@@ -95,6 +104,8 @@ describe('stalled jobs', function() {
 
     const queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
+
+    queueEvents.run();
 
     const concurrency = 4;
 
@@ -115,6 +126,8 @@ describe('stalled jobs', function() {
 
     await worker.waitUntilReady();
 
+    worker.run();
+
     await Promise.all([
       queue.add('test', { bar: 'baz' }),
       queue.add('test', { bar1: 'baz1' }),
@@ -129,6 +142,8 @@ describe('stalled jobs', function() {
       maxStalledCount: 0,
     });
     await queueScheduler.waitUntilReady();
+
+    queueScheduler.run();
 
     await worker.close(true);
 
@@ -178,6 +193,8 @@ describe('stalled jobs', function() {
       worker.on('active', after(concurrency, resolve));
     });
 
+    worker.run();
+
     await Promise.all([
       queue.add('test', { bar: 'baz' }),
       queue.add('test', { bar1: 'baz1' }),
@@ -194,6 +211,8 @@ describe('stalled jobs', function() {
     const allStalled = new Promise(resolve =>
       queueScheduler.on('stalled', after(concurrency, resolve)),
     );
+
+    queueScheduler.run();
 
     await delay(500); // Wait for jobs to become active
 

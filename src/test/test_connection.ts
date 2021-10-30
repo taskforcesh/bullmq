@@ -1,7 +1,6 @@
 import * as IORedis from 'ioredis';
 import { Queue, Job, Worker, QueueBase } from '../classes';
 import { RedisClient } from '../classes/redis-connection';
-
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 import { removeAllQueueData } from '../utils';
@@ -61,6 +60,8 @@ describe('connection', () => {
     queue.on('error', (err: Error) => {
       // error event has to be observed or the exception will bubble up
     });
+
+    worker.run();
 
     const workerClient = await worker.client;
     const queueClient = await queue.client;
@@ -124,6 +125,8 @@ describe('connection', () => {
         await queue.add('test', { foo: 'bar' });
       }
     });
+
+    worker.run();
 
     await queue.waitUntilReady();
     await queue.add('test', { foo: 'bar' });

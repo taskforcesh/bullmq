@@ -81,6 +81,9 @@ describe('flows', () => {
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
+    parentWorker.run();
+    childrenWorker.run();
+
     const flow = new FlowProducer();
     const tree = await flow.add({
       name: 'parent-job',
@@ -159,6 +162,8 @@ describe('flows', () => {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
+      queueScheduler.run();
+
       const parentWorker = new Worker(parentQueueName, parentProcessor);
       const childrenWorker = new Worker(queueName, childrenProcessor, {
         settings: {
@@ -171,6 +176,9 @@ describe('flows', () => {
       });
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
+
+      parentWorker.run();
+      childrenWorker.run();
 
       const flow = new FlowProducer();
       const tree = await flow.add({
@@ -227,6 +235,8 @@ describe('flows', () => {
           }
         });
       });
+
+      worker.run();
 
       const flow = new FlowProducer();
       await flow.add({
@@ -358,6 +368,9 @@ describe('flows', () => {
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
+      parentWorker.run();
+      childrenWorker.run();
+
       const flow = new FlowProducer({ prefix: '{bull}' });
       const tree = await flow.add({
         name: 'parent-job',
@@ -462,6 +475,10 @@ describe('flows', () => {
       await childrenWorker.waitUntilReady();
       await grandChildrenWorker.waitUntilReady();
 
+      parentWorker.run();
+      childrenWorker.run();
+      grandChildrenWorker.run();
+
       const flow = new FlowProducer();
       const tree = await flow.add({
         name: 'parent-job',
@@ -544,6 +561,9 @@ describe('flows', () => {
     await queueScheduler.waitUntilReady();
     await queueEvents.waitUntilReady();
 
+    queueScheduler.run();
+    queueEvents.run();
+
     const name = 'child-job';
 
     const parentQueueName = `parent-queue-${v4()}`;
@@ -570,6 +590,9 @@ describe('flows', () => {
     });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
+
+    parentWorker.run();
+    childrenWorker.run();
 
     const completed: { [index: string]: number[] } = {};
 
@@ -701,6 +724,9 @@ describe('flows', () => {
     const childrenWorker = new Worker(queueName, childrenProcessor);
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
+
+    parentWorker.run();
+    childrenWorker.run();
 
     const otherValues = Array.from(Array(72).keys()).map(() => ({
       name,
@@ -931,6 +957,9 @@ describe('flows', () => {
       });
     });
 
+    parentWorker.run();
+    childrenWorker.run();
+
     const flow = new FlowProducer();
     const tree = await flow.add({
       name: 'parent-job',
@@ -981,6 +1010,8 @@ describe('flows', () => {
     );
 
     const parentWorker = new Worker(parentQueueName, parentProcessor);
+
+    parentWorker.run();
 
     const flow = new FlowProducer();
     const tree = await flow.add({
@@ -1051,6 +1082,9 @@ describe('flows', () => {
 
     const parentWorker = new Worker(parentQueueName, parentProcessor);
     const childrenWorker = new Worker(queueName, childrenProcessor);
+
+    parentWorker.run();
+    childrenWorker.run();
 
     const flow = new FlowProducer();
     const tree = await flow.add({
@@ -1168,6 +1202,9 @@ describe('flows', () => {
     const parentWorker = new Worker(topQueueName, parentProcessor);
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
+    parentWorker.run();
+    childrenWorker.run();
+
     const flow = new FlowProducer();
     const tree = await flow.add({
       name: 'root-job',
@@ -1236,6 +1273,8 @@ describe('flows', () => {
 
     const childrenWorker = new Worker(queueName, childrenProcessor);
 
+    childrenWorker.run();
+
     const flow = new FlowProducer();
     const tree = await flow.add({
       name: 'parent-job',
@@ -1288,6 +1327,9 @@ describe('flows', () => {
     );
 
     const parentWorker = new Worker(parentQueueName, parentProcessor);
+
+    parentWorker.run();
+    childrenWorker.run();
 
     const parentQueue = new Queue(parentQueueName);
     await parentQueue.pause();
@@ -1433,6 +1475,9 @@ describe('flows', () => {
 
     const parentWorker = new Worker(rootQueueName, rootProcessor);
     const childrenWorker = new Worker(queueName, childrenProcessor);
+
+    parentWorker.run();
+    childrenWorker.run();
 
     await processingChildren;
     await childrenWorker.close();

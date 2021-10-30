@@ -65,6 +65,7 @@ export class Queue3<T = any> extends EventEmitter {
     this.name = name;
 
     this.queue = new Queue(this.name, this.opts);
+    this.queueScheduler = new QueueScheduler(this.name, this.opts);
   }
 
   /**
@@ -103,7 +104,8 @@ export class Queue3<T = any> extends EventEmitter {
     }
 
     this.worker = new Worker(this.name, processor, this.opts);
-    this.queueScheduler = new QueueScheduler(this.name, this.opts);
+    this.worker.run();
+    this.queueScheduler.run();
     await this.worker.client;
   }
 
@@ -559,6 +561,7 @@ export class Queue3<T = any> extends EventEmitter {
   private getQueueEvents() {
     if (!this.queueEvents) {
       this.queueEvents = new QueueEvents(this.name, this.opts);
+      this.queueEvents.run();
     }
     return this.queueEvents;
   }

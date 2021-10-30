@@ -16,6 +16,7 @@ describe('Cleaner', () => {
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function() {
@@ -49,6 +50,8 @@ describe('Cleaner', () => {
     const worker = new Worker(queueName, async job => {});
     await worker.waitUntilReady();
 
+    worker.run();
+
     queue.on(
       'completed',
       after(2, async () => {
@@ -63,6 +66,8 @@ describe('Cleaner', () => {
   it('should only remove a job outside of the grace period', async () => {
     const worker = new Worker(queueName, async job => {});
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
@@ -81,6 +86,8 @@ describe('Cleaner', () => {
       throw new Error('It failed');
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
@@ -130,6 +137,8 @@ describe('Cleaner', () => {
       throw new Error('It failed');
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const client = new IORedis();
 

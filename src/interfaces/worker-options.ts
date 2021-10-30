@@ -11,10 +11,6 @@ export type Processor<T = any, R = any, N extends string = string> = (
 
 export interface WorkerOptions extends QueueBaseOptions {
   /**
-   * Condition to start processor at instance creation.
-   */
-  autorun?: boolean;
-  /**
    * Amount of jobs that a single worker is allowed to work on
    * in parallel.
    *

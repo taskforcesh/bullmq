@@ -641,9 +641,11 @@ describe('Compat', function() {
 
       const worker1 = new Worker(queueName, process1);
       await worker1.waitUntilReady();
+      worker1.run();
 
       const worker2 = new Worker(queueName, process2);
       await worker2.waitUntilReady();
+      worker2.run();
 
       queue.add('test', 1);
       queue.add('test', 2);

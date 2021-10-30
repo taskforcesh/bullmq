@@ -147,6 +147,8 @@ describe('Job', function() {
         const testJob = await newQueue.add('test', 0);
       });
 
+      worker.run();
+
       try {
         await promise;
       } finally {
@@ -399,6 +401,8 @@ describe('Job', function() {
       const queueEvents = new QueueEvents(queueName);
       await queueEvents.waitUntilReady();
 
+      queueEvents.run();
+
       const job = await Job.create(
         queue,
         'test',
@@ -505,8 +509,12 @@ describe('Job', function() {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
+      queueScheduler.run();
+
       const worker = new Worker(queueName, async job => {});
       await worker.waitUntilReady();
+
+      worker.run();
 
       const startTime = new Date().getTime();
 
@@ -569,10 +577,12 @@ describe('Job', function() {
     });
 
     it('should process a promoted job according to its priority', async function() {
+      this.timeout(10000);
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
-      this.timeout(10000);
+      queueScheduler.run();
+
       const worker = new Worker(queueName, job => {
         return delay(100);
       });
@@ -593,6 +603,8 @@ describe('Job', function() {
       const processStarted = new Promise(resolve =>
         worker.on('active', after(2, resolve)),
       );
+
+      worker.run();
 
       const add = (jobId: string, ms = 0) =>
         queue.add('test', {}, { jobId, delay: ms, priority: 1 });
@@ -825,6 +837,7 @@ describe('Job', function() {
     beforeEach(async function() {
       queueEvents = new QueueEvents(queueName);
       await queueEvents.waitUntilReady();
+      queueEvents.run();
     });
 
     afterEach(async function() {
@@ -833,6 +846,8 @@ describe('Job', function() {
 
     it('should resolve when the job has been completed', async function() {
       const worker = new Worker(queueName, async job => 'qux');
+
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -862,6 +877,8 @@ describe('Job', function() {
           });
         });
 
+        worker.run();
+
         const job = await queue.add(
           'test',
           { foo: 'bar' },
@@ -881,6 +898,8 @@ describe('Job', function() {
     it('should resolve when the job has been completed and return object', async function() {
       const worker = new Worker(queueName, async job => ({ resultFoo: 'bar' }));
 
+      worker.run();
+
       const job = await queue.add('test', { foo: 'bar' });
 
       const result = await job.waitUntilFinished(queueEvents);
@@ -897,6 +916,8 @@ describe('Job', function() {
         return { resultFoo: 'bar' };
       });
 
+      worker.run();
+
       const job = await queue.add('test', { foo: 'bar' });
       await delay(600);
 
@@ -909,6 +930,8 @@ describe('Job', function() {
 
     it('should resolve when the job has been completed and return string', async function() {
       const worker = new Worker(queueName, async job => 'a string');
+
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -925,6 +948,9 @@ describe('Job', function() {
         await delay(500);
         throw new Error('test error');
       });
+      await worker.waitUntilReady();
+
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -937,6 +963,8 @@ describe('Job', function() {
 
     it('should resolve directly if already processed', async function() {
       const worker = new Worker(queueName, async job => ({ resultFoo: 'bar' }));
+
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -953,6 +981,8 @@ describe('Job', function() {
       const worker = new Worker(queueName, async job => {
         throw new Error('test error');
       });
+
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 

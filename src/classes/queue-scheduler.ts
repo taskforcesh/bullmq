@@ -40,7 +40,7 @@ export class QueueScheduler
 
   constructor(
     name: string,
-    { connection, autorun = true, ...opts }: QueueSchedulerOptions = {},
+    { connection, ...opts }: QueueSchedulerOptions = {},
   ) {
     super(name, {
       maxStalledCount: 1,
@@ -54,12 +54,6 @@ export class QueueScheduler
 
     if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
-    }
-
-    if (autorun) {
-      this.run().catch(error => {
-        console.error(error);
-      });
     }
   }
 
