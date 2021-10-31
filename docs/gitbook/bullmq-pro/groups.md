@@ -8,7 +8,7 @@ Groups resolves this problem since jobs will be processed in a "[round-robin](ht
 
 ![](<../.gitbook/assets/image (1).png>)
 
-If you have several workers or a concur
+If you have several workers or a concurrency factor larger than one, jobs will be processed in parallel, but they will be picked up from the groups as mentioned before following a round-robin ordering.
 
 Of course you can have as many workers as you want and also scale up/down the amount of workers depending on how many jobs you have waiting in the queue.
 
