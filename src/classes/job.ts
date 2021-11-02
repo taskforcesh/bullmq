@@ -11,7 +11,6 @@ import {
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
-import { fromPairs } from 'lodash';
 import { RedisClient } from './redis-connection';
 
 const logger = debuglog('bull');
@@ -573,12 +572,19 @@ export class Job<
 
     const result = (await client.hgetall(
       this.toKey(`${this.id}:processed`),
-    )) as Object;
+    )) as { [jobKey: string]: string };
 
     if (result) {
-      return fromPairs(
-        Object.entries(result).map(([k, v]) => [k, JSON.parse(v)]),
+      const pairs: Array<[string, CT]> = Object.entries(result).map(
+        ([k, v]) => [k, JSON.parse(v)],
       );
+
+      return pairs.reduce((acc, val) => {
+        return {
+          [val[0]]: val[1],
+          ...acc,
+        };
+      }, {});
     }
   }
 

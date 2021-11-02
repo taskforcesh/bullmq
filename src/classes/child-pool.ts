@@ -1,6 +1,5 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
-import { flatten } from 'lodash';
 import * as getPort from 'get-port';
 import * as fs from 'fs';
 import { promisify } from 'util';
@@ -147,7 +146,10 @@ export class ChildPool {
     return (this.free[id] = this.free[id] || []);
   }
 
-  getAllFree() {
-    return flatten(Object.values(this.free));
+  getAllFree(): ChildProcessExt[] {
+    return Object.values(this.free).reduce(
+      (first, second) => first.concat(second),
+      [],
+    );
   }
 }
