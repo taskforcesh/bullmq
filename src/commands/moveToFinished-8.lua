@@ -27,7 +27,6 @@
       ARGV[11] lock duration in milliseconds
       ARGV[12] parentId
       ARGV[13] parentQueue
-      ARGV[14] parentKey
 
     Output:
       0 OK
@@ -40,7 +39,7 @@
       'completed/failed'
 ]]
 local rcall = redis.call
-
+local parentKey
 -- Includes
 <%= updateParentDepsIfNeeded %>
 <%= destructureJobKey %>
@@ -79,10 +78,6 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     -- NOTE: Priorities not supported yet for parent jobs.
     local parentId = ARGV[12]
     local parentQueueKey = ARGV[13]
-    if parentId == "" and ARGV[14] ~= "" then
-      parentId = getJobIdFromKey(ARGV[14])
-      parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
-    end
     if parentId ~= "" and ARGV[5] == "completed" then 
         local parentKey =  parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"

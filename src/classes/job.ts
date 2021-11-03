@@ -47,14 +47,14 @@ export interface JobJsonRaw {
   failedReason: string;
   stacktrace: string[];
   returnvalue: string;
-  parentKey?: string;
+  parent?: string;
 }
 
 export interface MoveToChildrenOpts {
   timestamp?: number;
   child?: {
     id: string;
-    queue: string;
+    queueKey: string;
   };
 }
 
@@ -114,10 +114,7 @@ export class Job<
    */
   processedOn?: number;
 
-  /**
-   * Fully qualified key (including the queue prefix) pointing to the parent of this job.
-   */
-  parentKey?: string;
+  parent?: { id: string; queueKey: string };
 
   private toKey: (type: string) => string;
 
@@ -153,7 +150,7 @@ export class Job<
 
     this.opts.backoff = Backoffs.normalize(opts.backoff);
 
-    this.parentKey = getParentKey(opts.parent);
+    this.parent = opts.parent ? { ...opts.parent } : undefined;
 
     this.toKey = queue.toKey.bind(queue);
   }
@@ -178,7 +175,7 @@ export class Job<
     const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
     job.id = await job.addJob(client, {
-      parentKey: job.parentKey,
+      ...(job.parent ? job.parent : {}),
       parentDependenciesKey: job.parentKey
         ? `${job.parentKey}:dependencies`
         : '',
@@ -213,7 +210,7 @@ export class Job<
 
     for (const job of jobInstances) {
       job.addJob(<RedisClient>(multi as unknown), {
-        parentKey: job.parentKey,
+        ...(job.parent ? job.parent : {}),
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
           : '',
@@ -265,8 +262,8 @@ export class Job<
       job.returnvalue = getReturnValue(json.returnvalue);
     }
 
-    if (json.parentKey) {
-      job.parentKey = json.parentKey;
+    if (json.parent) {
+      job.parent = JSON.parse(json.parent);
     }
 
     return job;
@@ -541,6 +538,13 @@ export class Job<
 
   get queueName(): string {
     return this.queue.name;
+  }
+
+  /**
+   * Fully qualified key (including the queue prefix) pointing to the parent of this job.
+   */
+  get parentKey(): string {
+    return getParentKey(this.parent);
   }
 
   /**

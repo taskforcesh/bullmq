@@ -14,7 +14,7 @@ export interface AddNodeOpts {
   parent?: {
     parentOpts: {
       id: string;
-      queue: string;
+      queueKey: string;
     };
     parentDependenciesKey: string;
   };
@@ -30,7 +30,7 @@ export interface AddChildrenOpts {
   parent: {
     parentOpts: {
       id: string;
-      queue: string;
+      queueKey: string;
     };
     parentDependenciesKey: string;
   };
@@ -221,9 +221,9 @@ export class FlowProducer extends EventEmitter {
       );
 
       job.addJob(<Redis>(multi as unknown), {
+        ...(job.parent ? job.parent : {}),
         parentDependenciesKey: parent?.parentDependenciesKey,
         waitChildrenKey,
-        parentKey,
       });
 
       const parentDependenciesKey = `${queueKeysParent.toKey(
@@ -237,7 +237,7 @@ export class FlowProducer extends EventEmitter {
         parent: {
           parentOpts: {
             id: parentId,
-            queue: queueKeysParent.getPrefixedQueueName(node.queueName),
+            queueKey: queueKeysParent.getPrefixedQueueName(node.queueName),
           },
           parentDependenciesKey,
         },
@@ -247,8 +247,8 @@ export class FlowProducer extends EventEmitter {
       return { job, children };
     } else {
       job.addJob(<Redis>(multi as unknown), {
+        ...(job.parent ? job.parent : {}),
         parentDependenciesKey: parent?.parentDependenciesKey,
-        parentKey,
       });
 
       return { job };

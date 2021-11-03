@@ -90,7 +90,7 @@ export interface JobsOptions {
    */
   parent?: {
     id: string;
-    queue: string; // Queue name including prefix
+    queueKey: string; // Queue name including prefix
   };
 
   /**

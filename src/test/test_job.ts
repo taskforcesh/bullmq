@@ -96,7 +96,7 @@ describe('Job', function() {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const parentId = v4();
-        const opts = { parent: { id: parentId, queue: queueName } };
+        const opts = { parent: { id: parentId, queueKey: queueName } };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
           `Missing key for parent job ${queueName}:${parentId}. addJob`,
         );
@@ -194,7 +194,7 @@ describe('Job', function() {
       const data = { foo: 'bar' };
       const parent = await Job.create(parentQueue, 'testParent', data);
       await Job.create(queue, 'testJob1', values[0], {
-        parent: { id: parent.id, queue: `bull:${parentQueueName}` },
+        parent: { id: parent.id, queueKey: `bull:${parentQueueName}` },
       });
 
       const job = (await parentWorker.getNextJob(token)) as Job;
@@ -341,18 +341,19 @@ describe('Job', function() {
       const parent = await Job.create(parentQueue, 'testParent', data);
       const parentKey = getParentKey({
         id: parent.id,
-        queue: 'bull:' + parentQueueName,
+        queueKey: 'bull:' + parentQueueName,
       });
       const client = await queue.client;
       const child1 = new Job(queue, 'testJob1', values[0]);
       await child1.addJob(client, {
-        parentKey,
+        id: parent.id,
+        queueKey: 'bull:' + parentQueueName,
         parentDependenciesKey: `${parentKey}:dependencies`,
       });
       await Job.create(queue, 'testJob2', values[1], {
         parent: {
           id: parent.id,
-          queue: 'bull:' + parentQueueName,
+          queueKey: 'bull:' + parentQueueName,
         },
       });
 
