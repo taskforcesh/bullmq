@@ -17,7 +17,7 @@ export interface FlowJob
 |  [children?](./bullmq.flowjob.children.md) | [FlowJob](./bullmq.flowjob.md)<!-- -->\[\] | <i>(Optional)</i> |
 |  [data?](./bullmq.flowjob.data.md) | any | <i>(Optional)</i> |
 |  [name](./bullmq.flowjob.name.md) | string |  |
-|  [opts?](./bullmq.flowjob.opts.md) | Omit&lt;[JobsOptions](./bullmq.jobsoptions.md)<!-- -->, 'parent'&gt; | <i>(Optional)</i> |
+|  [opts?](./bullmq.flowjob.opts.md) | Omit&lt;[JobsOptions](./bullmq.jobsoptions.md)<!-- -->, 'parent' \| 'repeat'&gt; | <i>(Optional)</i> |
 |  [prefix?](./bullmq.flowjob.prefix.md) | string | <i>(Optional)</i> |
 |  [queueName](./bullmq.flowjob.queuename.md) | string |  |
 

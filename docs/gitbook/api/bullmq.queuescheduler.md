@@ -2,19 +2,34 @@
 
 [Home](./index.md) &gt; [bullmq](./bullmq.md) &gt; [QueueScheduler](./bullmq.queuescheduler.md)
 
-## QueueScheduler interface
+## QueueScheduler class
+
+This class is just used for some automatic bookkeeping of the queue, such as updating the delay set as well as moving stalled jobs back to the waiting list.
+
+Jobs are checked for stallness once every "visibility window" seconds. Jobs are then marked as candidates for being stalled, in the next check, the candidates are marked as stalled and moved to wait. Workers need to clean the candidate list with the jobs that they are working on, failing to update the list results in the job ending being stalled.
+
+This class requires a dedicated redis connection, and at least one is needed to be running at a given time, otherwise delays, stalled jobs, retries, repeatable jobs, etc, will not work correctly or at all.
 
 <b>Signature:</b>
 
 ```typescript
-export declare interface QueueScheduler 
+export declare class QueueScheduler extends QueueBase implements QueueSchedulerDeclaration 
 ```
+<b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
+
+<b>Implements:</b> QueueSchedulerDeclaration
+
+## Constructors
+
+|  Constructor | Modifiers | Description |
+|  --- | --- | --- |
+|  [(constructor)(name, { connection, autorun, ...opts })](./bullmq.queuescheduler._constructor_.md) |  | Constructs a new instance of the <code>QueueScheduler</code> class |
 
 ## Methods
 
-|  Method | Description |
-|  --- | --- |
-|  [on(event, listener)](./bullmq.queuescheduler.on.md) |  |
-|  [on(event, listener)](./bullmq.queuescheduler.on_1.md) |  |
-|  [on(event, listener)](./bullmq.queuescheduler.on_2.md) |  |
+|  Method | Modifiers | Description |
+|  --- | --- | --- |
+|  [close()](./bullmq.queuescheduler.close.md) |  |  |
+|  [isRunning()](./bullmq.queuescheduler.isrunning.md) |  |  |
+|  [run()](./bullmq.queuescheduler.run.md) |  |  |
 

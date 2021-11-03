@@ -2,23 +2,44 @@
 
 [Home](./index.md) &gt; [bullmq](./bullmq.md) &gt; [Worker\_2](./bullmq.worker_2.md)
 
-## Worker\_2 interface
+## Worker\_2 class
+
+This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs.
 
 <b>Signature:</b>
 
 ```typescript
-export declare interface Worker 
+export declare class Worker<DataType = any, ResultType = any, NameType extends string = string> extends QueueBase implements WorkerDeclaration 
 ```
+<b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
+
+<b>Implements:</b> WorkerDeclaration
+
+## Constructors
+
+|  Constructor | Modifiers | Description |
+|  --- | --- | --- |
+|  [(constructor)(name, processor, opts, Connection)](./bullmq.worker_2._constructor_.md) |  | Constructs a new instance of the <code>Worker</code> class |
+
+## Properties
+
+|  Property | Modifiers | Type | Description |
+|  --- | --- | --- | --- |
+|  [opts](./bullmq.worker_2.opts.md) |  | WorkerOptions |  |
+|  [repeat](./bullmq.worker_2.repeat.md) |  | Promise&lt;[Repeat](./bullmq.repeat.md)<!-- -->&gt; |  |
 
 ## Methods
 
-|  Method | Description |
-|  --- | --- |
-|  [on(event, listener)](./bullmq.worker_2.on.md) |  |
-|  [on(event, listener)](./bullmq.worker_2.on_1.md) |  |
-|  [on(event, listener)](./bullmq.worker_2.on_2.md) |  |
-|  [on(event, listener)](./bullmq.worker_2.on_3.md) |  |
-|  [on(event, listener)](./bullmq.worker_2.on_4.md) |  |
-|  [on(event, listener)](./bullmq.worker_2.on_5.md) |  |
-|  [on(event, listener)](./bullmq.worker_2.on_6.md) |  |
+|  Method | Modifiers | Description |
+|  --- | --- | --- |
+|  [close(force)](./bullmq.worker_2.close.md) |  | Closes the worker and related redis connections.<!-- -->This method waits for current jobs to finalize before returning. |
+|  [delay()](./bullmq.worker_2.delay.md) |  | This function is exposed only for testing purposes. |
+|  [getNextJob(token, { block })](./bullmq.worker_2.getnextjob.md) |  | Returns a promise that resolves to the next job in queue. |
+|  [isPaused()](./bullmq.worker_2.ispaused.md) |  | Checks if worker is paused. |
+|  [isRunning()](./bullmq.worker_2.isrunning.md) |  | Checks if worker is currently running. |
+|  [pause(doNotWaitActive)](./bullmq.worker_2.pause.md) |  | Pauses the processing of this queue only for this worker. |
+|  [processJob(job, token)](./bullmq.worker_2.processjob.md) |  |  |
+|  [resume()](./bullmq.worker_2.resume.md) |  | Resumes processing of this worker (if paused). |
+|  [run()](./bullmq.worker_2.run.md) |  |  |
+|  [waitUntilReady()](./bullmq.worker_2.waituntilready.md) |  | Waits until the worker is ready to start processing jobs. In general only useful when writing tests. |
 
