@@ -34,10 +34,7 @@ interface QueueEventsDeclaration {
    */
   on(
     event: 'added',
-    listener: (
-      args: { jobId: string; name: string; data: string; opts: string },
-      id: string,
-    ) => void,
+    listener: (args: { jobId: string; name: string }, id: string) => void,
   ): this;
 
   /**
