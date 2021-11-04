@@ -10,7 +10,7 @@ import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisClient, RedisConnection } from './redis-connection';
 
-interface QueueEventsDeclaration {
+export interface QueueEventsDeclaration {
   /**
    * Listen to 'active' event.
    *
