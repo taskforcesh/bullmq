@@ -22,7 +22,7 @@ import { TimerManager } from './timer-manager';
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-interface WorkerDeclaration {
+export interface WorkerDeclaration {
   on(event: 'active', listener: (job: Job, prev: string) => void): this;
   on(event: 'completed', listener: (job: Job) => void): this;
   on(event: 'drained', listener: () => void): this;
@@ -141,7 +141,7 @@ export class Worker<
     return this.blockingConnection.client;
   }
 
-  get repeat() {
+  get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
         const connection = await this.client;

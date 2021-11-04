@@ -5,7 +5,7 @@ import { Scripts } from './scripts';
 import { StreamReadRaw } from '../interfaces/redis-streams';
 import { RedisClient } from './redis-connection';
 
-interface QueueSchedulerDeclaration {
+export interface QueueSchedulerDeclaration {
   on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
   on(
     event: 'failed',

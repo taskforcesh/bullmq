@@ -488,12 +488,10 @@ export class Job<
       command = 'failed';
     }
 
-    if (!this.queue.closing) {
-      const results = await multi.exec();
-      const code = results[results.length - 1][1];
-      if (code < 0) {
-        throw Scripts.finishedErrors(code, this.id, command, 'active');
-      }
+    const results = await multi.exec();
+    const code = results[results.length - 1][1];
+    if (code < 0) {
+      throw Scripts.finishedErrors(code, this.id, command, 'active');
     }
   }
 

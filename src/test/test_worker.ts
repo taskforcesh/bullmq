@@ -67,6 +67,70 @@ describe('workers', function() {
     await removeAllQueueData(new IORedis(), queueName2);
   });
 
+  describe('when closing a worker', () => {
+    it('process a job that throws an exception after worker close', async () => {
+      const jobError = new Error('Job Failed');
+
+      const worker = new Worker(queueName, async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(3000);
+        throw jobError;
+      });
+      await worker.waitUntilReady();
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+
+      await delay(100);
+      /* Try to gracefully close while having a job that will be failed running */
+      worker.close();
+
+      await new Promise<void>(resolve => {
+        worker.once('failed', async (job, err) => {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          expect(err).to.be.eql(jobError);
+          resolve();
+        });
+      });
+
+      const count = await queue.getJobCounts('active', 'failed');
+      expect(count.active).to.be.eq(0);
+      expect(count.failed).to.be.eq(1);
+    });
+
+    it('process a job that complete after worker close', async () => {
+      const worker = new Worker(queueName, async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(3000);
+      });
+      await worker.waitUntilReady();
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+
+      await delay(100);
+      /* Try to gracefully close while having a job that will be completed running */
+      worker.close();
+
+      await new Promise<void>(resolve => {
+        worker.once('completed', async (job, err) => {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          resolve();
+        });
+      });
+
+      const count = await queue.getJobCounts('active', 'completed');
+      expect(count.active).to.be.eq(0);
+      expect(count.completed).to.be.eq(1);
+    });
+  });
+
   describe('auto job removal', () => {
     it('should remove job after completed if removeOnComplete', async () => {
       const worker = new Worker(queueName, async (job, token) => {
