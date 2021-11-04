@@ -13,7 +13,7 @@ export declare class Worker<DataType = any, ResultType = any, NameType extends s
 ```
 <b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
 
-<b>Implements:</b> WorkerDeclaration
+<b>Implements:</b> [WorkerDeclaration](./bullmq.workerdeclaration.md)
 
 ## Constructors
 

@@ -15,7 +15,7 @@ export declare class QueueEvents extends QueueBase implements QueueEventsDeclara
 ```
 <b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
 
-<b>Implements:</b> QueueEventsDeclaration
+<b>Implements:</b> [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md)
 
 ## Constructors
 
