@@ -141,7 +141,7 @@ export class Worker<
     return this.blockingConnection.client;
   }
 
-  get repeat() {
+  get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
         const connection = await this.client;
