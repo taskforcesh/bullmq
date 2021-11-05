@@ -34,6 +34,7 @@ export class QueueScheduler
   extends QueueBase
   implements QueueSchedulerDeclaration
 {
+  private workerCleanerTimeout: number;
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
   private running = false;
@@ -51,6 +52,8 @@ export class QueueScheduler
         : connection,
       sharedConnection: false,
     });
+
+    this.workerCleanerTimeout = opts.workerCleanerTimeout || 30000;
 
     if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
@@ -84,6 +87,12 @@ export class QueueScheduler
         while (!this.closing) {
           // Check if at least the min stalled check time has passed.
           await this.moveStalledJobsToWait();
+
+          await client.zremrangebyscore(
+            this.keys.workers,
+            '-inf',
+            Date.now() - this.workerCleanerTimeout,
+          );
 
           // Listen to the delay event stream from lastDelayStreamTimestamp
           // Can we use XGROUPS to reduce redundancy?

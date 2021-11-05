@@ -123,6 +123,7 @@ if(maxCount > 0) then
     rcall("DEL", baseKey .. 'id')
     rcall("DEL", baseKey .. 'meta')
     rcall("DEL", baseKey .. 'repeat')
+    rcall("DEL", baseKey .. 'workers')
     return 0
 else
     return 1

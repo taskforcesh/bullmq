@@ -10,6 +10,7 @@ export type Processor<T = any, R = any, N extends string = string> = (
 ) => Promise<R>;
 
 export interface WorkerOptions extends QueueBaseOptions {
+  name?: string;
   /**
    * Condition to start processor at instance creation.
    */

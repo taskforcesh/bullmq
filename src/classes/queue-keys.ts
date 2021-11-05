@@ -26,6 +26,7 @@ export class QueueKeys {
       'meta',
       'events',
       'delay',
+      'workers',
     ].forEach(key => {
       keys[key] = this.toKey(name, key);
     });

@@ -41,7 +41,10 @@ describe('workers', function() {
     await delay(10);
 
     const nextWorkers = await queue.getWorkers();
+    const workerKeys = await queue.getWorkersInfo();
+
     expect(nextWorkers).to.have.length(2);
+    expect(workerKeys).to.have.length(2);
 
     await worker.close();
     await worker2.close();
