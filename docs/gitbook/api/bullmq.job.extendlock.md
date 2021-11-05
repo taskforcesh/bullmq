@@ -9,7 +9,7 @@ Extend the lock for this job.
 <b>Signature:</b>
 
 ```typescript
-extendLock(token: string, duration: number): Promise<any>;
+extendLock(token: string, duration: number): Promise<number>;
 ```
 
 ## Parameters
@@ -21,5 +21,5 @@ extendLock(token: string, duration: number): Promise<any>;
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;number&gt;
 

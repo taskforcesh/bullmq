@@ -4,6 +4,8 @@
 
 ## Queue.defaultJobOptions property
 
+Returns this instance current default job options.
+
 <b>Signature:</b>
 
 ```typescript

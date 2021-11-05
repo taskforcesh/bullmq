@@ -1,29 +1,53 @@
 import { QueueEventsOptions } from '../interfaces';
-import { array2obj, delay } from '../utils';
-import { QueueBase } from './queue-base';
+import {
+  array2obj,
+  delay,
+  isNotConnectionError,
+  isRedisInstance,
+} from '../utils';
 import { StreamReadRaw } from '../interfaces/redis-streams';
+import { DELAY_TIME_5 } from '../utils';
+import { QueueBase } from './queue-base';
+import { RedisClient, RedisConnection } from './redis-connection';
 
-export declare interface QueueEvents {
+export interface QueueEventsDeclaration {
+  /**
+   * Listen to 'active' event.
+   *
+   * This event is triggered when a job enters the 'active' state.
+   *
+   * @param {'active'} event
+   * @callback listener
+   */
   on(
     event: 'active',
     listener: (args: { jobId: string; prev?: string }, id: string) => void,
   ): this;
+
+  /**
+   * Listen to 'added' event.
+   *
+   * This event is triggered when a job is created.
+   *
+   * @param {'added'} event
+   * @callback listener
+   */
   on(
-    event: 'waiting',
-    listener: (args: { jobId: string }, id: string) => void,
+    event: 'added',
+    listener: (
+      args: { jobId: string; name: string; data: string; opts: string },
+      id: string,
+    ) => void,
   ): this;
-  on(
-    event: 'delayed',
-    listener: (args: { jobId: string; delay: number }, id: string) => void,
-  ): this;
-  on(
-    event: 'progress',
-    listener: (args: { jobId: string; data: string }, id: string) => void,
-  ): this;
-  on(
-    event: 'stalled',
-    listener: (args: { jobId: string }, id: string) => void,
-  ): this;
+
+  /**
+   * Listen to 'completed' event.
+   *
+   * This event is triggered when a job has successfully completed.
+   *
+   * @param {'completed'} event
+   * @callback listener
+   */
   on(
     event: 'completed',
     listener: (
@@ -31,6 +55,87 @@ export declare interface QueueEvents {
       id: string,
     ) => void,
   ): this;
+
+  /**
+   * Listen to 'delayed' event.
+   *
+   * This event is triggered when a job is delayed.
+   *
+   * @param {'delayed'} event
+   * @callback listener
+   */
+  on(
+    event: 'delayed',
+    listener: (args: { jobId: string; delay: number }, id: string) => void,
+  ): this;
+
+  /**
+   * Listen to 'drained' event.
+   *
+   * This event is triggered when the queue has drained the waiting list.
+   * Note that there could still be delayed jobs waiting their timers to expire
+   * and this event will still be triggered as long as the waiting list has emptied.
+   *
+   * @param {'drained'} event
+   * @callback listener
+   */
+  on(event: 'drained', listener: (id: string) => void): this;
+
+  /**
+   * Listen to 'progress' event.
+   *
+   * This event is triggered when a job updates it progress, i.e. the
+   * Job##updateProgress() method is called. This is useful to notify
+   * progress or any other data from within a processor to the rest of the
+   * world.
+   *
+   * @param {'progress'} event
+   * @callback listener
+   */
+  on(
+    event: 'progress',
+    listener: (
+      args: { jobId: string; data: number | object },
+      id: string,
+    ) => void,
+  ): this;
+
+  /**
+   * Listen to 'waiting' event.
+   *
+   * This event is triggered when a job enters the 'waiting' state.
+   *
+   * @param {'waiting'} event
+   * @callback listener
+   */
+  on(
+    event: 'waiting',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+
+  /**
+   * Listen to 'stalled' event.
+   *
+   * This event is triggered when a job has been moved from 'active' back
+   * to 'waiting'/'failed' due to the processor not being able to renew
+   * the lock on the said job.
+   *
+   * @param {'stalled'} event
+   * @callback listener
+   */
+  on(
+    event: 'stalled',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+
+  /**
+   * Listen to 'failed' event.
+   *
+   * This event is triggered when a job has thrown an exception.
+   *
+   * @param {'failed'} event
+   * @callback listener
+   */
   on(
     event: 'failed',
     listener: (
@@ -38,17 +143,62 @@ export declare interface QueueEvents {
       id: string,
     ) => void,
   ): this;
+
+  /**
+   * Listen to 'removed' event.
+   *
+   * This event is triggered when a job has been manually
+   * removed from the queue.
+   *
+   * @param {'removed'} event
+   * @callback listener
+   */
   on(
     event: 'removed',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
-  on(event: 'drained', listener: (id: string) => void): this;
+
+  /**
+   * Listen to 'waiting-children' event.
+   *
+   * This event is triggered when a job enters the 'waiting-children' state.
+   *
+   * @param {'waiting-children'} event
+   * @callback listener
+   */
+  on(
+    event: 'waiting-children',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+
   on(event: string, listener: Function): this;
 }
 
-export class QueueEvents extends QueueBase {
-  constructor(name: string, opts?: QueueEventsOptions) {
-    super(name, opts);
+/**
+ * The QueueEvents class is used for listening to the global events
+ * emitted by a given queue.
+ *
+ * This class requires a dedicated redis connection.
+ *
+ */
+export class QueueEvents extends QueueBase implements QueueEventsDeclaration {
+  private running = false;
+
+  constructor(
+    name: string,
+    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+    Connection?: typeof RedisConnection,
+  ) {
+    super(
+      name,
+      {
+        ...opts,
+        connection: isRedisInstance(connection)
+          ? (<RedisClient>connection).duplicate()
+          : connection,
+      },
+      Connection,
+    );
 
     this.opts = Object.assign(
       {
@@ -57,12 +207,28 @@ export class QueueEvents extends QueueBase {
       this.opts,
     );
 
-    this.consumeEvents().catch(err => this.emit('error', err));
+    if (autorun) {
+      this.run().catch(error => this.emit('error', error));
+    }
   }
 
-  private async consumeEvents() {
-    const client = await this.client;
+  async run(): Promise<void> {
+    if (!this.running) {
+      try {
+        this.running = true;
+        const client = await this.client;
 
+        await this.consumeEvents(client);
+      } catch (error) {
+        this.running = false;
+        throw error;
+      }
+    } else {
+      throw new Error('Queue Events is already running.');
+    }
+  }
+
+  private async consumeEvents(client: RedisClient) {
     const opts: QueueEventsOptions = this.opts;
 
     const key = this.keys.events;
@@ -110,15 +276,16 @@ export class QueueEvents extends QueueBase {
           }
         }
       } catch (err) {
-        if (err.message !== 'Connection is closed.') {
+        if (isNotConnectionError(err as Error)) {
           throw err;
         }
-        await delay(5000);
+
+        await delay(DELAY_TIME_5);
       }
     }
   }
 
-  async close() {
+  close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.disconnect();
     }

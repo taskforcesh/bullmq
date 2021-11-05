@@ -4,6 +4,14 @@
 
 /*eslint-env node */
 'use strict';
+import { Packr } from 'msgpackr';
+
+const packer = new Packr({
+  useRecords: false,
+  encodeUndefinedAsNil: true,
+});
+
+const pack = packer.pack;
 
 import * as semver from 'semver';
 import {
@@ -11,6 +19,7 @@ import {
   QueueSchedulerOptions,
   WorkerOptions,
 } from '../interfaces';
+import { ErrorCodes } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
@@ -44,7 +53,7 @@ export class Scripts {
     queue: MinimalQueue,
     listKey: string,
     jobId: string,
-  ) {
+  ): Promise<boolean> {
     const client = await queue.client;
     let result;
     if (semver.lt(queue.redisVersion, '6.0.6')) {
@@ -55,26 +64,27 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  static addJob(
+  static async addJob(
     client: RedisClient,
     queue: MinimalQueue,
     job: JobJson,
     opts: JobsOptions,
     jobId: string,
     parentOpts: ParentOpts = {
+      parentKey: null,
       waitChildrenKey: null,
       parentDependenciesKey: null,
-      parentKey: null,
     },
-  ) {
+  ): Promise<string> {
     const queueKeys = queue.keys;
-    let keys = [
+    const keys: (string | Buffer)[] = [
       queueKeys.wait,
       queueKeys.paused,
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
       queueKeys.priority,
+      queueKeys.completed,
       queueKeys.events,
       queueKeys.delay,
     ];
@@ -83,21 +93,42 @@ export class Scripts {
       queueKeys[''],
       typeof jobId !== 'undefined' ? jobId : '',
       job.name,
-      job.data,
-      job.opts,
       job.timestamp,
-      opts.delay,
-      opts.delay ? job.timestamp + opts.delay : 0,
-      opts.priority || 0,
-      opts.lifo ? 'RPUSH' : 'LPUSH',
-      parentOpts.parentKey,
-      parentOpts.waitChildrenKey,
-      parentOpts.parentDependenciesKey,
+      parentOpts.parentKey || null,
+      parentOpts.waitChildrenKey || null,
+      parentOpts.parentDependenciesKey || null,
     ];
 
-    keys = keys.concat(<string[]>args);
+    let encodedOpts;
+    if (opts.repeat) {
+      const repeat = {
+        ...opts.repeat,
+      };
 
-    return (<any>client).addJob(keys);
+      if (repeat.startDate) {
+        repeat.startDate = +new Date(repeat.startDate);
+      }
+      if (repeat.endDate) {
+        repeat.endDate = +new Date(repeat.endDate);
+      }
+
+      encodedOpts = pack({
+        ...opts,
+        repeat,
+      });
+    } else {
+      encodedOpts = pack(opts);
+    }
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    const result = await (<any>client).addJob(keys);
+
+    if (result < 0) {
+      throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
+    }
+
+    return result;
   }
 
   static async pause(queue: MinimalQueue, pause: boolean) {
@@ -117,7 +148,7 @@ export class Scripts {
     return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
 
-  static async remove(queue: MinimalQueue, jobId: string) {
+  static async remove(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
     const keys = [jobId].map(name => queue.toKey(name));
@@ -129,7 +160,7 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
-  ) {
+  ): Promise<number> {
     const client = await queue.client;
     const args = [
       queue.toKey(jobId) + ':lock',
@@ -145,7 +176,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job,
     progress: number | object,
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const keys = [queue.toKey(job.id), queue.keys.events];
@@ -200,6 +231,7 @@ export class Scripts {
       opts.lockDuration,
       job.opts?.parent?.id,
       job.opts?.parent?.queue,
+      job.parentKey,
     ];
 
     return keys.concat(args);
@@ -239,20 +271,44 @@ export class Scripts {
     code: number,
     jobId: string,
     command: string,
-    state: string,
+    state?: string,
   ): Error {
     switch (code) {
-      case -1:
+      case ErrorCodes.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
-      case -2:
+      case ErrorCodes.JobLockNotExist:
         return new Error(`Missing lock for job ${jobId}. ${command}`);
-      case -3:
+      case ErrorCodes.JobNotInState:
         return new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
-      case -4:
+      case ErrorCodes.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
+      case ErrorCodes.ParentJobNotExist:
+        return new Error(`Missing key for parent job ${jobId}. ${command}`);
     }
+  }
+
+  static drainArgs(queue: MinimalQueue, delayed: boolean): string[] {
+    const queueKeys = queue.keys;
+
+    const keys = [
+      queueKeys.wait,
+      queueKeys.paused,
+      delayed ? queueKeys.delayed : '',
+      queueKeys.priority,
+    ];
+
+    const args = [queueKeys['']];
+
+    return keys.concat(args);
+  }
+
+  static async drain(queue: MinimalQueue, delayed: boolean): Promise<void> {
+    const client = await queue.client;
+    const args = this.drainArgs(queue, delayed);
+
+    return (<any>client).drain(args);
   }
 
   static moveToCompleted(
@@ -295,17 +351,23 @@ export class Scripts {
     );
   }
 
-  static async isFinished(queue: MinimalQueue, jobId: string) {
+  static async isFinished(
+    queue: MinimalQueue,
+    jobId: string,
+    returnValue = false,
+  ): Promise<number | [number, string]> {
     const client = await queue.client;
 
-    const keys = ['completed', 'failed'].map(function(key: string) {
+    const keys = ['completed', 'failed', jobId].map(function(key: string) {
       return queue.toKey(key);
     });
 
-    return (<any>client).isFinished(keys.concat([jobId]));
+    return (<any>client).isFinished(
+      keys.concat([jobId, returnValue ? '1' : '']),
+    );
   }
 
-  static async getState(queue: MinimalQueue, jobId: string) {
+  static async getState(queue: MinimalQueue, jobId: string): Promise<string> {
     const client = await queue.client;
 
     const keys = [
@@ -333,7 +395,8 @@ export class Scripts {
   ): Promise<void> {
     const client = await queue.client;
 
-    const args = this.changeDelayArgs(queue, jobId, delay);
+    const delayTimestamp = Date.now() + delay;
+    const args = this.changeDelayArgs(queue, jobId, delayTimestamp);
     const result = await (<any>client).changeDelay(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
@@ -425,7 +488,7 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const args = this.moveToDelayedArgs(queue, jobId, timestamp);
@@ -435,12 +498,23 @@ export class Scripts {
     }
   }
 
+  /**
+   * Move parent job to waiting-children state.
+   *
+   * @returns true if job is successfully moved, false if there are pending dependencies.
+   * @throws JobNotExist
+   * This exception is thrown if jobId is missing.
+   * @throws JobLockNotExist
+   * This exception is thrown if job lock is missing.
+   * @throws JobNotInState
+   * This exception is thrown if job is not in active state.
+   */
   static async moveToWaitingChildren(
     queue: MinimalQueue,
     jobId: string,
     token: string,
     opts: MoveToChildrenOpts = {},
-  ) {
+  ): Promise<boolean> {
     const client = await queue.client;
     const multi = client.multi();
 
@@ -454,7 +528,7 @@ export class Scripts {
       case 1:
         return false;
       default:
-        return this.finishedErrors(
+        throw this.finishedErrors(
           result,
           jobId,
           'moveToWaitingChildren',
@@ -497,12 +571,12 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param {Job} job
+   * @param job -
    * @param {Object} options
    * @param {String} options.state The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
-   * @return {Promise<Number>} Returns a promise that evaluates to a return code:
+   * @returns Returns a promise that evaluates to a return code:
    * 1 means the operation was a success
    * 0 means the job does not exist
    * -1 means the job is currently locked and can't be retried.
@@ -512,7 +586,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job,
     state: 'failed' | 'completed',
-  ) {
+  ): Promise<void> {
     const client = await queue.client;
 
     const keys = [
@@ -524,7 +598,14 @@ export class Scripts {
 
     const args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH'];
 
-    return (<any>client).reprocessJob(keys.concat(args));
+    const result = await (<any>client).reprocessJob(keys.concat(args));
+
+    switch (result) {
+      case 1:
+        return;
+      default:
+        throw this.finishedErrors(result, job.id, 'reprocessJob', 'failed');
+    }
   }
 
   static async moveToActive<T, R, N extends string>(

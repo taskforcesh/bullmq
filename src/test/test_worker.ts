@@ -1,12 +1,11 @@
-import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
-import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
-import { v4 } from 'uuid';
-import { delay, removeAllQueueData } from '../utils';
-import { after, times, once } from 'lodash';
-import { RetryErrors } from '../enums';
+import { after, times } from 'lodash';
+import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
+import { v4 } from 'uuid';
+import { Queue, QueueEvents, Job, Worker, QueueScheduler } from '../classes';
+import { delay, removeAllQueueData } from '../utils';
 
 describe('workers', function() {
   const sandbox = sinon.createSandbox();
@@ -65,8 +64,74 @@ describe('workers', function() {
     const workers2 = await queue2.getWorkers();
     expect(workers2).to.have.length(1);
 
+    await queue2.close();
     await worker.close();
     await worker2.close();
+    await removeAllQueueData(new IORedis(), queueName2);
+  });
+
+  describe('when closing a worker', () => {
+    it('process a job that throws an exception after worker close', async () => {
+      const jobError = new Error('Job Failed');
+
+      const worker = new Worker(queueName, async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(3000);
+        throw jobError;
+      });
+      await worker.waitUntilReady();
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+
+      await delay(100);
+      /* Try to gracefully close while having a job that will be failed running */
+      worker.close();
+
+      await new Promise<void>(resolve => {
+        worker.once('failed', async (job, err) => {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          expect(err).to.be.eql(jobError);
+          resolve();
+        });
+      });
+
+      const count = await queue.getJobCounts('active', 'failed');
+      expect(count.active).to.be.eq(0);
+      expect(count.failed).to.be.eq(1);
+    });
+
+    it('process a job that complete after worker close', async () => {
+      const worker = new Worker(queueName, async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(3000);
+      });
+      await worker.waitUntilReady();
+
+      const job = await queue.add('test', { foo: 'bar' });
+
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+
+      await delay(100);
+      /* Try to gracefully close while having a job that will be completed running */
+      worker.close();
+
+      await new Promise<void>(resolve => {
+        worker.once('completed', async (job, err) => {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          resolve();
+        });
+      });
+
+      const count = await queue.getJobCounts('active', 'completed');
+      expect(count.active).to.be.eq(0);
+      expect(count.completed).to.be.eq(1);
+    });
   });
 
   describe('auto job removal', () => {
@@ -85,20 +150,23 @@ describe('workers', function() {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
 
-      return new Promise((resolve, reject) => {
+      const completed = new Promise<void>((resolve, reject) => {
         worker.on('completed', async (job: Job) => {
           try {
             const gotJob = await queue.getJob(job.id);
             expect(gotJob).to.be.equal(undefined);
             const counts = await queue.getJobCounts('completed');
             expect(counts.completed).to.be.equal(0);
-            await worker.close();
             resolve();
           } catch (err) {
             reject(err);
           }
         });
       });
+
+      await completed;
+
+      await worker.close();
     });
 
     it('should remove a job after completed if the default job options specify removeOnComplete', async () => {
@@ -117,21 +185,22 @@ describe('workers', function() {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
 
-      return new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         worker.on('completed', async job => {
           try {
             const gotJob = await newQueue.getJob(job.id);
             expect(gotJob).to.be.equal(undefined);
             const counts = await newQueue.getJobCounts('completed');
             expect(counts.completed).to.be.equal(0);
-            await worker.close();
-            await newQueue.close();
             resolve();
           } catch (err) {
             reject(err);
           }
         });
       });
+
+      await worker.close();
+      await newQueue.close();
     });
 
     it('should keep specified number of jobs after completed with removeOnComplete', async () => {
@@ -147,11 +216,13 @@ describe('workers', function() {
       const jobIds = await Promise.all(
         datas.map(
           async data =>
-            (await queue.add('test', data, { removeOnComplete: keepJobs })).id,
+            (
+              await queue.add('test', data, { removeOnComplete: keepJobs })
+            ).id,
         ),
       );
 
-      return new Promise(resolve => {
+      await new Promise<void>(resolve => {
         worker.on('completed', async job => {
           if (job.data == 8) {
             const counts = await queue.getJobCounts('completed');
@@ -170,11 +241,12 @@ describe('workers', function() {
                 }
               }),
             );
-            await worker.close();
             resolve();
           }
         });
       });
+
+      await worker.close();
     });
 
     it('should keep specified number of jobs after completed with global removeOnComplete', async () => {
@@ -243,7 +315,7 @@ describe('workers', function() {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
 
-      return new Promise(resolve => {
+      return new Promise<void>(resolve => {
         worker.on('failed', async (job, error) => {
           await queue
             .getJob(job.id)
@@ -279,7 +351,7 @@ describe('workers', function() {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
 
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         worker.on('failed', async job => {
           const currentJob = await newQueue.getJob(job.id);
           expect(currentJob).to.be.equal(undefined);
@@ -306,7 +378,9 @@ describe('workers', function() {
       const jobIds = await Promise.all(
         datas.map(
           async data =>
-            (await queue.add('test', data, { removeOnFail: keepJobs })).id,
+            (
+              await queue.add('test', data, { removeOnFail: keepJobs })
+            ).id,
         ),
       );
 
@@ -354,7 +428,7 @@ describe('workers', function() {
         datas.map(async data => (await newQueue.add('test', data)).id),
       );
 
-      return new Promise((resolve, reject) => {
+      return new Promise<void>((resolve, reject) => {
         worker.on('failed', async job => {
           if (job.data == 8) {
             try {
@@ -389,7 +463,7 @@ describe('workers', function() {
     let first = true;
 
     let processor;
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         try {
           expect(job.data.count).to.be.equal(currentValue--);
@@ -449,7 +523,7 @@ describe('workers', function() {
     let counter = 0;
     let total = 0;
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         try {
           expect(job.id).to.be.ok;
@@ -482,12 +556,11 @@ describe('workers', function() {
   });
 
   it('process several jobs serially', async () => {
-    this.timeout(12000);
     let counter = 1;
     const maxJobs = 35;
 
     let processor;
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         try {
           expect(job.data.num).to.be.equal(counter);
@@ -510,19 +583,118 @@ describe('workers', function() {
     }
 
     await processing;
+    expect(worker.isRunning()).to.be.equal(true);
+
     await worker.close();
   });
 
-  it('process a job that updates progress', async () => {
+  describe('when sharing a redis connection between workers', function() {
+    it('should not close the connection', async () => {
+      const connection = new IORedis();
+
+      return new Promise((resolve, reject) => {
+        connection.on('ready', async () => {
+          const worker1 = new Worker('test-shared', null, { connection });
+          const worker2 = new Worker('test-shared', null, { connection });
+
+          try {
+            // There is no point into checking the ready status after closing
+            // since ioredis will not update it anyway:
+            // https://github.com/luin/ioredis/issues/614
+            expect(connection.status).to.be.equal('ready');
+            await worker1.close();
+            await worker2.close();
+            await connection.quit();
+
+            connection.on('end', () => {
+              resolve();
+            });
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+    });
+  });
+
+  describe('when autorun option is provided as false', function() {
+    it('processes several jobs serially using process option as false', async () => {
+      let counter = 1;
+      const maxJobs = 10;
+
+      let processor;
+      const processing = new Promise<void>((resolve, reject) => {
+        processor = async (job: Job) => {
+          try {
+            expect(job.data.num).to.be.equal(counter);
+            expect(job.data.foo).to.be.equal('bar');
+            if (counter === maxJobs) {
+              resolve();
+            }
+            counter++;
+          } catch (err) {
+            reject(err);
+          }
+        };
+      });
+
+      const worker = new Worker(queueName, processor, { autorun: false });
+      await worker.waitUntilReady();
+
+      for (let i = 1; i <= maxJobs; i++) {
+        await queue.add('test', { foo: 'bar', num: i });
+      }
+
+      worker.run();
+
+      await processing;
+      await worker.close();
+    });
+
+    describe('when process function is not defined', function() {
+      it('throws error', async () => {
+        const worker = new Worker(queueName, undefined, { autorun: false });
+        await worker.waitUntilReady();
+
+        await expect(worker.run()).to.be.rejectedWith(
+          'No process function is defined.',
+        );
+
+        await worker.close();
+      });
+    });
+
+    describe('when run method is called when worker is running', function() {
+      it('throws error', async () => {
+        const maxJobs = 10;
+        const worker = new Worker(queueName, async (job: Job) => {}, {
+          autorun: false,
+        });
+        await worker.waitUntilReady();
+        worker.run();
+
+        for (let i = 1; i <= maxJobs; i++) {
+          await queue.add('test', { foo: 'bar', num: i });
+        }
+
+        await expect(worker.run()).to.be.rejectedWith(
+          'Worker is already running.',
+        );
+
+        await worker.close();
+      });
+    });
+  });
+
+  it('process a job that updates progress as number', async () => {
     let processor;
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    const processing = new Promise((resolve, reject) => {
-      queueEvents.on('progress', args => {
-        const { jobId, data } = args;
+    const processing = new Promise<void>((resolve, reject) => {
+      queueEvents.on('progress', ({ jobId, data }) => {
         expect(jobId).to.be.ok;
         expect(data).to.be.eql(42);
         resolve();
@@ -532,6 +704,38 @@ describe('workers', function() {
         try {
           expect(job.data.foo).to.be.equal('bar');
           await job.updateProgress(42);
+        } catch (err) {
+          reject(err);
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor);
+    await worker.waitUntilReady();
+
+    await processing;
+
+    await worker.close();
+  });
+
+  it('process a job that updates progress as object', async () => {
+    let processor;
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    const processing = new Promise<void>((resolve, reject) => {
+      queueEvents.on('progress', ({ jobId, data }) => {
+        expect(jobId).to.be.ok;
+        expect(data).to.be.eql({ percentage: 42 });
+        resolve();
+      });
+
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.foo).to.be.equal('bar');
+          await job.updateProgress({ percentage: 42 });
         } catch (err) {
           reject(err);
         }
@@ -578,8 +782,8 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise((resolve, reject) => {
-      worker.on('completed', async (job, data) => {
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, data: any) => {
         try {
           expect(job).to.be.ok;
           expect(data).to.be.eql(37);
@@ -604,7 +808,7 @@ describe('workers', function() {
     });
     await worker.waitUntilReady();
 
-    const waiting = new Promise((resolve, reject) => {
+    const waiting = new Promise<void>((resolve, reject) => {
       queueEvents.on('completed', async data => {
         try {
           expect(data).to.be.ok;
@@ -637,18 +841,17 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise((resolve, reject) => {
-      worker.on('completed', async (job, data) => {
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, data: any) => {
         try {
           expect(job).to.be.ok;
           expect(data).to.be.eql(37);
           const gotJob = await queue.getJob(job.id);
           expect(gotJob.returnvalue).to.be.eql(37);
 
-          const retval = await (await queue.client).hget(
-            queue.toKey(gotJob.id),
-            'returnvalue',
-          );
+          const retval = await (
+            await queue.client
+          ).hget(queue.toKey(gotJob.id), 'returnvalue');
           expect(JSON.parse(retval)).to.be.eql(37);
           resolve();
         } catch (err) {
@@ -672,8 +875,8 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise(resolve => {
-      worker.on('completed', (job, data) => {
+    await new Promise<void>(resolve => {
+      worker.on('completed', (job: Job, data: any) => {
         expect(job).to.be.ok;
         expect(data).to.be.eql('my data');
         resolve();
@@ -694,7 +897,7 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise(resolve => {
+    await new Promise<void>(resolve => {
       worker.on('completed', job => {
         expect(job).to.be.ok;
         resolve();
@@ -752,7 +955,7 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise(resolve => {
+    await new Promise<void>(resolve => {
       worker.once('failed', async (job, err) => {
         expect(job).to.be.ok;
         expect(job.data.foo).to.be.eql('bar');
@@ -772,7 +975,7 @@ describe('workers', function() {
     });
     await worker.waitUntilReady();
 
-    const waiting = new Promise((resolve, reject) => {
+    const waiting = new Promise<void>((resolve, reject) => {
       worker.on('failed', () => {
         resolve();
       });
@@ -800,7 +1003,7 @@ describe('workers', function() {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise((resolve, reject) => {
+    await new Promise<void>((resolve, reject) => {
       worker.once('failed', (job, err) => {
         try {
           expect(job.id).to.be.ok;
@@ -827,7 +1030,7 @@ describe('workers', function() {
     });
     await worker.waitUntilReady();
 
-    const failing = new Promise((resolve, reject) => {
+    const failing = new Promise<void>((resolve, reject) => {
       worker.once('failed', async (job, err) => {
         try {
           expect(job).to.be.ok;
@@ -841,7 +1044,7 @@ describe('workers', function() {
       });
     });
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.once('completed', () => {
         try {
           expect(failedOnce).to.be.eql(true);
@@ -902,7 +1105,7 @@ describe('workers', function() {
       await worker.resume();
     });
 
-    await new Promise(resolve => {
+    await new Promise<void>(resolve => {
       worker.once('completed', () => {
         expect(failedOnce).to.be.eql(true);
         resolve();
@@ -910,22 +1113,6 @@ describe('workers', function() {
     });
 
     await worker.close();
-  });
-
-  it('count added, unprocessed jobs', async () => {
-    const maxJobs = 100;
-    const added = [];
-
-    for (let i = 1; i <= maxJobs; i++) {
-      added.push(queue.add('test', { foo: 'bar', num: i }));
-    }
-
-    await Promise.all(added);
-    const count = await queue.count();
-    expect(count).to.be.eql(maxJobs);
-    await queue.drain();
-    const countAfterEmpty = await queue.count();
-    expect(countAfterEmpty).to.be.eql(0);
   });
 
   it('emit error if lock is lost', async function() {
@@ -951,7 +1138,7 @@ describe('workers', function() {
     const job = await queue.add('test', { bar: 'baz' });
 
     const errorMessage = `Missing lock for job ${job.id}. failed`;
-    const workerError = new Promise(resolve => {
+    const workerError = new Promise<void>(resolve => {
       worker.on('error', error => {
         expect(error.message).to.be.equal(errorMessage);
         resolve();
@@ -1000,18 +1187,14 @@ describe('workers', function() {
     await queueScheduler.close();
   });
 
-  it('stalled interval cannot be zero', function(done) {
+  it('stalled interval cannot be zero', function() {
     this.timeout(10000);
-
-    try {
-      new QueueScheduler(queueName, {
-        stalledInterval: 0,
-      });
-      // Fail test if we reach here.
-      done(new Error('Should throw an exception'));
-    } catch (err) {
-      done();
-    }
+    expect(
+      () =>
+        new QueueScheduler(queueName, {
+          stalledInterval: 0,
+        }),
+    ).to.throw('Stalled interval cannot be zero or undefined');
   });
 
   describe('Concurrency process', () => {
@@ -1216,7 +1399,7 @@ describe('workers', function() {
         },
       );
 
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         worker.on('completed', () => {
           reject(new Error('Failed job was retried more than it should be!'));
         });
@@ -1254,7 +1437,7 @@ describe('workers', function() {
         },
       );
 
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
           expect(elapse).to.be.greaterThan(2000);
@@ -1293,7 +1476,7 @@ describe('workers', function() {
         },
       );
 
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
           const expected = 1000 * (Math.pow(2, 2) - 1);
@@ -1343,7 +1526,7 @@ describe('workers', function() {
         },
       );
 
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
           expect(elapse).to.be.greaterThan(3000);
@@ -1352,7 +1535,6 @@ describe('workers', function() {
       });
 
       await worker.close();
-
       await queueScheduler.close();
     });
 
@@ -1389,7 +1571,7 @@ describe('workers', function() {
         },
       );
 
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         worker.on('completed', () => {
           reject(new Error('Failed job was retried more than it should be!'));
         });
@@ -1443,7 +1625,7 @@ describe('workers', function() {
         },
       );
 
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
           expect(elapse).to.be.greaterThan(3000);
@@ -1452,7 +1634,6 @@ describe('workers', function() {
       });
 
       await worker.close();
-
       await queueScheduler.close();
     });
 
@@ -1504,7 +1685,7 @@ describe('workers', function() {
         },
       );
 
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
           expect(elapse).to.be.greaterThan(2500);
@@ -1513,7 +1694,6 @@ describe('workers', function() {
       });
 
       await worker.close();
-
       await queueScheduler.close();
     });
 
@@ -1552,7 +1732,7 @@ describe('workers', function() {
         },
       );
 
-      await new Promise(resolve => {
+      await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
           expect(elapse).to.be.greaterThan(1000);
@@ -1561,12 +1741,15 @@ describe('workers', function() {
       });
 
       await worker.close();
+      await queueScheduler.close();
     });
 
     it('should not retry a job that has been removed', async () => {
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
+      const failedError = new Error('failed');
+      let attempts = 0;
       const worker = new Worker(queueName, async job => {
         if (attempts === 0) {
           attempts++;
@@ -1576,49 +1759,45 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      let attempts = 0;
-      const failedError = new Error('failed');
-
-      await queue.add('test', { foo: 'bar' });
-
-      await new Promise((resolve, reject) => {
-        const failedHandler = once(async (job, err) => {
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
           expect(err).to.equal(failedError);
           expect(job.failedReason).to.equal(failedError.message);
-
-          try {
-            await job.retry();
-            await delay(100);
-            const count = await queue.getCompletedCount();
-            expect(count).to.equal(1);
-            await queue.clean(0, 0);
-            try {
-              await job.retry();
-            } catch (err) {
-              // expect(err.message).to.equal(RetryErrors.JobNotExist);
-              expect(err.message).to.equal('Retried job not exist');
-            }
-
-            const completedCount = await queue.getCompletedCount();
-            expect(completedCount).to.equal(0);
-            const failedCount = await queue.getFailedCount();
-            expect(failedCount).to.equal(0);
-          } catch (err) {
-            reject(err);
-          }
+          await job.retry();
           resolve();
         });
-
-        worker.on('failed', failedHandler);
       });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', resolve);
+      });
+
+      const retriedJob = await queue.add('test', { foo: 'bar' });
+
+      await failing;
+      await completing;
+
+      const count = await queue.getCompletedCount();
+      expect(count).to.equal(1);
+      await queue.clean(0, 0);
+
+      await expect(retriedJob.retry()).to.be.rejectedWith(
+        `Missing key for job ${retriedJob.id}. reprocessJob`,
+      );
+
+      const completedCount = await queue.getCompletedCount();
+      expect(completedCount).to.equal(0);
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.equal(0);
 
       await worker.close();
       await queueScheduler.close();
-    }).timeout(5000);
+    });
 
-    it.skip('should not retry a job that has been retried already', async () => {
+    it('should not retry a job that has been retried already', async () => {
       let attempts = 0;
+      const failedError = new Error('failed');
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
 
@@ -1631,36 +1810,35 @@ describe('workers', function() {
 
       await worker.waitUntilReady();
 
-      await queue.add('test', { foo: 'bar' });
-
-      const failedError = new Error('failed');
-
-      await new Promise((resolve, reject) => {
-        const failedHandler = once(async (job, err) => {
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
           expect(err).to.equal(failedError);
-
           await job.retry();
-          await delay(100);
-          const completedCount = await queue.getCompletedCount();
-          expect(completedCount).to.equal(1);
-
-          try {
-            await job.retry();
-          } catch (err) {
-            expect(err).to.be.equal(RetryErrors.JobNotExist);
-          }
-
-          const completedCount2 = await queue.getCompletedCount();
-          expect(completedCount2).to.equal(1);
-          const failedCount = await queue.getFailedCount();
-          expect(failedCount).to.equal(0);
-
           resolve();
         });
-
-        worker.on('failed', failedHandler);
       });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', resolve);
+      });
+
+      const retriedJob = await queue.add('test', { foo: 'bar' });
+
+      await failing;
+      await completing;
+
+      const completedCount = await queue.getCompletedCount();
+      expect(completedCount).to.equal(1);
+
+      await expect(retriedJob.retry()).to.be.rejectedWith(
+        `Job ${retriedJob.id} is not in the failed state. reprocessJob`,
+      );
+
+      const completedCount2 = await queue.getCompletedCount();
+      expect(completedCount2).to.equal(1);
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.equal(0);
 
       await worker.close();
       await queueScheduler.close();
@@ -1683,11 +1861,9 @@ describe('workers', function() {
 
       await activating;
 
-      try {
-        await job.retry();
-      } catch (err) {
-        expect(err.message).to.equal('Retried job not failed');
-      }
+      await expect(job.retry()).to.be.rejectedWith(
+        `Job ${job.id} is not in the failed state. reprocessJob`,
+      );
 
       await worker.close();
     });
@@ -1773,130 +1949,190 @@ describe('workers', function() {
       });
     });
 
-    it('should allow to move parent job to waiting-children', async () => {
-      const values = [
-        { idx: 0, bar: 'something' },
-        { idx: 1, baz: 'something' },
-        { idx: 2, qux: 'something' },
-      ];
-      const parentToken = 'parent-token';
-      const childToken = 'child-token';
+    describe('when move job to waiting-children', () => {
+      it('allows to move parent job to waiting-children', async () => {
+        const values = [
+          { idx: 0, bar: 'something' },
+          { idx: 1, baz: 'something' },
+          { idx: 2, qux: 'something' },
+        ];
+        const parentToken = 'parent-token';
+        const childToken = 'child-token';
 
-      const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${v4()}`;
 
-      const parentQueue = new Queue(parentQueueName);
-      const parentWorker = new Worker(parentQueueName);
-      const childrenWorker = new Worker(queueName);
+        const parentQueue = new Queue(parentQueueName);
+        const parentWorker = new Worker(parentQueueName);
+        const childrenWorker = new Worker(queueName);
 
-      const data = { foo: 'bar' };
-      await Job.create(parentQueue, 'testDepend', data);
-      const parent = (await parentWorker.getNextJob(parentToken)) as Job;
-      const currentState = await parent.getState();
+        const data = { foo: 'bar' };
+        await Job.create(parentQueue, 'testDepend', data);
+        const parent = (await parentWorker.getNextJob(parentToken)) as Job;
+        const currentState = await parent.getState();
 
-      expect(currentState).to.be.equal('active');
+        expect(currentState).to.be.equal('active');
 
-      await Job.create(queue, 'testJob1', values[0], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      await Job.create(queue, 'testJob2', values[1], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      await Job.create(queue, 'testJob3', values[2], {
-        parent: {
-          id: parent.id,
-          queue: 'bull:' + parentQueueName,
-        },
-      });
-      const { unprocessed: unprocessed1 } = await parent.getDependencies();
-
-      expect(unprocessed1).to.have.length(3);
-
-      const child1 = (await childrenWorker.getNextJob(childToken)) as Job;
-      const child2 = (await childrenWorker.getNextJob(childToken)) as Job;
-      const child3 = (await childrenWorker.getNextJob(childToken)) as Job;
-      const isActive1 = await child1.isActive();
-
-      expect(isActive1).to.be.true;
-
-      await child1.moveToCompleted('return value1', childToken);
-      const {
-        processed: processed2,
-        unprocessed: unprocessed2,
-      } = await parent.getDependencies();
-      const movedToWaitingChildren = await parent.moveToWaitingChildren(
-        parentToken,
-        {
-          child: {
-            id: child3.id,
-            queue: 'bull:' + queueName,
+        await Job.create(queue, 'testJob1', values[0], {
+          parent: {
+            id: parent.id,
+            queue: 'bull:' + parentQueueName,
           },
-        },
-      );
+        });
+        await Job.create(queue, 'testJob2', values[1], {
+          parent: {
+            id: parent.id,
+            queue: 'bull:' + parentQueueName,
+          },
+        });
+        await Job.create(queue, 'testJob3', values[2], {
+          parent: {
+            id: parent.id,
+            queue: 'bull:' + parentQueueName,
+          },
+        });
+        const { unprocessed: unprocessed1 } = await parent.getDependencies();
 
-      expect(processed2).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: 'return value1',
+        expect(unprocessed1).to.have.length(3);
+
+        const child1 = (await childrenWorker.getNextJob(childToken)) as Job;
+        const child2 = (await childrenWorker.getNextJob(childToken)) as Job;
+        const child3 = (await childrenWorker.getNextJob(childToken)) as Job;
+        const isActive1 = await child1.isActive();
+
+        expect(isActive1).to.be.true;
+
+        await child1.moveToCompleted('return value1', childToken);
+        const { processed: processed2, unprocessed: unprocessed2 } =
+          await parent.getDependencies();
+        const movedToWaitingChildren = await parent.moveToWaitingChildren(
+          parentToken,
+          {
+            child: {
+              id: child3.id,
+              queue: 'bull:' + queueName,
+            },
+          },
+        );
+
+        expect(processed2).to.deep.equal({
+          [`bull:${queueName}:${child1.id}`]: 'return value1',
+        });
+        expect(unprocessed2).to.have.length(2);
+        expect(movedToWaitingChildren).to.be.true;
+
+        const isActive2 = await child2.isActive();
+
+        expect(isActive2).to.be.true;
+
+        await child2.moveToCompleted('return value2', childToken);
+        const { processed: processed3, unprocessed: unprocessed3 } =
+          await parent.getDependencies();
+        const isWaitingChildren1 = await parent.isWaitingChildren();
+        const { processed: processedCount, unprocessed: unprocessedCount } =
+          await parent.getDependenciesCount();
+
+        expect(processed3).to.deep.equal({
+          [`bull:${queueName}:${child1.id}`]: 'return value1',
+          [`bull:${queueName}:${child2.id}`]: 'return value2',
+        });
+        expect(processedCount).to.be.equal(2);
+        expect(unprocessed3).to.have.length(1);
+        expect(unprocessedCount).to.be.equal(1);
+        expect(isWaitingChildren1).to.be.true;
+
+        const isActive3 = await child3.isActive();
+
+        expect(isActive3).to.be.true;
+
+        await child3.moveToCompleted('return value3', childToken);
+        const { processed: processed4, unprocessed: unprocessed4 } =
+          await parent.getDependencies();
+        const isWaitingChildren2 = await parent.isWaitingChildren();
+        const movedToWaitingChildren2 = await parent.moveToWaitingChildren(
+          parentToken,
+        );
+
+        expect(processed4).to.deep.equal({
+          [`bull:${queueName}:${child1.id}`]: 'return value1',
+          [`bull:${queueName}:${child2.id}`]: 'return value2',
+          [`bull:${queueName}:${child3.id}`]: 'return value3',
+        });
+        expect(unprocessed4).to.have.length(0);
+        expect(isWaitingChildren2).to.be.false;
+        expect(movedToWaitingChildren2).to.be.false;
+
+        await childrenWorker.close();
+        await parentWorker.close();
+
+        await parentQueue.close();
+        await removeAllQueueData(new IORedis(), parentQueueName);
       });
-      expect(unprocessed2).to.have.length(2);
-      expect(movedToWaitingChildren).to.be.true;
 
-      const isActive2 = await child2.isActive();
+      describe('when job is not in active state', () => {
+        it('throws an error', async () => {
+          const values = [{ idx: 0, bar: 'something' }];
+          const parentToken = 'parent-token';
+          const childToken = 'child-token';
 
-      expect(isActive2).to.be.true;
+          const parentQueueName = `parent-queue-${v4()}`;
 
-      await child2.moveToCompleted('return value2', childToken);
-      const {
-        processed: processed3,
-        unprocessed: unprocessed3,
-      } = await parent.getDependencies();
-      const isWaitingChildren1 = await parent.isWaitingChildren();
-      const {
-        processed: processedCount,
-        unprocessed: unprocessedCount,
-      } = await parent.getDependenciesCount();
+          const parentQueue = new Queue(parentQueueName);
+          const parentWorker = new Worker(parentQueueName);
+          const childrenWorker = new Worker(queueName);
 
-      expect(processed3).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: 'return value1',
-        [`bull:${queueName}:${child2.id}`]: 'return value2',
+          const data = { foo: 'bar' };
+          await Job.create(parentQueue, 'testDepend', data);
+
+          const parent = (await parentWorker.getNextJob(parentToken)) as Job;
+          const currentState = await parent.getState();
+
+          expect(currentState).to.be.equal('active');
+
+          await Job.create(queue, 'testJob1', values[0], {
+            parent: {
+              id: parent.id,
+              queue: 'bull:' + parentQueueName,
+            },
+          });
+          const { unprocessed: unprocessed1 } = await parent.getDependencies();
+
+          expect(unprocessed1).to.have.length(1);
+
+          const child1 = (await childrenWorker.getNextJob(childToken)) as Job;
+          const isActive1 = await child1.isActive();
+
+          expect(isActive1).to.be.true;
+
+          await parent.moveToWaitingChildren(parentToken, {
+            child: {
+              id: child1.id,
+              queue: 'bull:' + queueName,
+            },
+          });
+          const waitingChildren = await parentQueue.getWaitingChildren();
+          const currentState2 = await parent.getState();
+
+          expect(currentState2).to.be.equal('waiting-children');
+          expect(waitingChildren.length).to.be.equal(1);
+
+          await expect(
+            parent.moveToWaitingChildren(parentToken, {
+              child: {
+                id: child1.id,
+                queue: 'bull:' + queueName,
+              },
+            }),
+          ).to.be.rejectedWith(
+            `Job ${parent.id} is not in the active state. moveToWaitingChildren`,
+          );
+
+          await childrenWorker.close();
+          await parentWorker.close();
+
+          await parentQueue.close();
+          await removeAllQueueData(new IORedis(), parentQueueName);
+        });
       });
-      expect(processedCount).to.be.equal(2);
-      expect(unprocessed3).to.have.length(1);
-      expect(unprocessedCount).to.be.equal(1);
-      expect(isWaitingChildren1).to.be.true;
-
-      const isActive3 = await child3.isActive();
-
-      expect(isActive3).to.be.true;
-
-      await child3.moveToCompleted('return value3', childToken);
-      const {
-        processed: processed4,
-        unprocessed: unprocessed4,
-      } = await parent.getDependencies();
-      const isWaitingChildren2 = await parent.isWaitingChildren();
-      const movedToWaitingChildren2 = await parent.moveToWaitingChildren(
-        parentToken,
-      );
-
-      expect(processed4).to.deep.equal({
-        [`bull:${queueName}:${child1.id}`]: 'return value1',
-        [`bull:${queueName}:${child2.id}`]: 'return value2',
-        [`bull:${queueName}:${child3.id}`]: 'return value3',
-      });
-      expect(unprocessed4).to.have.length(0);
-      expect(isWaitingChildren2).to.be.false;
-      expect(movedToWaitingChildren2).to.be.false;
-
-      await childrenWorker.close();
-      await parentWorker.close();
-
-      await parentQueue.close();
-      await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
     it('should get paginated unprocessed dependencies keys', async () => {
@@ -1932,27 +2168,23 @@ describe('workers', function() {
         }),
       );
 
-      const {
-        nextUnprocessedCursor: nextCursor1,
-        unprocessed: unprocessed1,
-      } = await parent.getDependencies({
-        unprocessed: {
-          cursor: 0,
-          count: 50,
-        },
-      });
+      const { nextUnprocessedCursor: nextCursor1, unprocessed: unprocessed1 } =
+        await parent.getDependencies({
+          unprocessed: {
+            cursor: 0,
+            count: 50,
+          },
+        });
 
       expect(unprocessed1.length).to.be.greaterThanOrEqual(50);
 
-      const {
-        nextUnprocessedCursor: nextCursor2,
-        unprocessed: unprocessed2,
-      } = await parent.getDependencies({
-        unprocessed: {
-          cursor: nextCursor1,
-          count: 50,
-        },
-      });
+      const { nextUnprocessedCursor: nextCursor2, unprocessed: unprocessed2 } =
+        await parent.getDependencies({
+          unprocessed: {
+            cursor: nextCursor1,
+            count: 50,
+          },
+        });
 
       expect(unprocessed2.length).to.be.lessThanOrEqual(15);
       expect(nextCursor2).to.be.equal(0);
@@ -2002,6 +2234,8 @@ describe('workers', function() {
       expect(job).not.to.be.equal(undefined);
       const isActive = await job.isActive();
       expect(isActive).to.be.equal(true);
+
+      await worker.close();
     });
 
     it("shouldn't block when disabled", async () => {
@@ -2020,6 +2254,8 @@ describe('workers', function() {
       const job2 = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job2.isActive();
       expect(isActive).to.be.equal(true);
+
+      await worker.close();
     });
 
     it("shouldn't block when disabled and paused", async () => {
@@ -2040,6 +2276,8 @@ describe('workers', function() {
       const job2 = (await worker.getNextJob(token, { block: false })) as Job;
       const isActive = await job2.isActive();
       expect(isActive).to.be.equal(true);
+
+      await worker.close();
     });
   });
 
@@ -2056,7 +2294,7 @@ describe('workers', function() {
 
     await queue.add('test', { foo: 'bar' });
 
-    const allStalled = new Promise(resolve => {
+    const allStalled = new Promise<void>(resolve => {
       worker.once('completed', async () => {
         const stalled = await client.scard(`bull:${queueName}:stalled`);
         expect(stalled).to.be.equal(0);

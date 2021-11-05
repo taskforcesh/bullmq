@@ -17,11 +17,11 @@ moveToWaitingChildren(token: string, opts?: MoveToChildrenOpts): Promise<boolean
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  token | string | Token to check job is locked by current worker |
-|  opts | [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) | the options bag for moving a job to waiting-children. |
+|  opts | [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) | The options bag for moving a job to waiting-children. |
 
 <b>Returns:</b>
 
 Promise&lt;boolean \| Error&gt;
 
-{<!-- -->boolean<!-- -->} true if the job was moved
+true if the job was moved
 

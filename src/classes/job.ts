@@ -1,6 +1,5 @@
 import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
-import { RetryErrors } from '../enums';
 import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
 import {
   errorObject,
@@ -23,7 +22,7 @@ export interface JobJson {
   id: string;
   name: string;
   data: string;
-  opts: string;
+  opts: JobsOptions;
   progress: number | object;
   attemptsMade: number;
   finishedOn?: number;
@@ -49,6 +48,7 @@ export interface JobJsonRaw {
   stacktrace: string[];
   returnvalue: string;
   parentKey?: string;
+  parent?: string;
 }
 
 export interface MoveToChildrenOpts {
@@ -70,7 +70,11 @@ export interface DependenciesOpts {
   };
 }
 
-export class Job<T = any, R = any, N extends string = string> {
+export class Job<
+  DataType = any,
+  ReturnType = any,
+  NameType extends string = string,
+> {
   /**
    * The progress a job has performed so far.
    */
@@ -79,7 +83,7 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * The value returned by the processor when processing this job.
    */
-  returnvalue: R = null;
+  returnvalue: ReturnType = null;
 
   /**
    * Stacktrace for the error (for failed jobs).
@@ -115,6 +119,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
   parentKey?: string;
+  parent?: { id: string; queueKey: string };
 
   private toKey: (type: string) => string;
 
@@ -125,12 +130,12 @@ export class Job<T = any, R = any, N extends string = string> {
     /**
      * The name of the Job
      */
-    public name: N,
+    public name: NameType,
 
     /**
      * The payload for this job.
      */
-    public data: T,
+    public data: DataType,
 
     /**
      * The options object for this job.
@@ -152,16 +157,20 @@ export class Job<T = any, R = any, N extends string = string> {
 
     this.parentKey = getParentKey(opts.parent);
 
+    this.parent = opts.parent
+      ? { id: opts.parent.id, queueKey: opts.parent.queue }
+      : undefined;
+
     this.toKey = queue.toKey.bind(queue);
   }
 
   /**
    * Creates a new job and adds it to the queue.
    *
-   * @param queue the queue where to add the job.
-   * @param name  the name of the job.
-   * @param data  the payload of the job.
-   * @param opts the options bag for this job.
+   * @param queue - the queue where to add the job.
+   * @param name - the name of the job.
+   * @param data - the payload of the job.
+   * @param opts - the options bag for this job.
    * @returns
    */
   static async create<T = any, R = any, N extends string = string>(
@@ -187,8 +196,8 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Creates a bulk of jobs and adds them atomically to the given queue.
    *
-   * @param queue the queue were to add the jobs.
-   * @param jobs an array of jobs to be added to the queue.
+   * @param queue -the queue were to add the jobs.
+   * @param jobs - an array of jobs to be added to the queue.
    * @returns
    */
   static async createBulk<T = any, R = any, N extends string = string>(
@@ -228,9 +237,10 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
-   * @param queue the queue where the job belongs to.
-   * @param json the plain object containing the job.
-   * @param jobId an optional job id (overrides the id coming from the JSON object)
+   *
+   * @param queue - the queue where the job belongs to.
+   * @param json - the plain object containing the job.
+   * @param jobId - an optional job id (overrides the id coming from the JSON object)
    * @returns
    */
   static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string) {
@@ -265,14 +275,18 @@ export class Job<T = any, R = any, N extends string = string> {
       job.parentKey = json.parentKey;
     }
 
+    if (json.parent) {
+      job.parent = JSON.parse(json.parent);
+    }
+
     return job;
   }
 
   /**
    * Fetches a Job from the queue given the passed job id.
    *
-   * @param queue the queue where the job belongs to.
-   * @param jobId the job id.
+   * @param queue - the queue where the job belongs to.
+   * @param jobId - the job id.
    * @returns
    */
   static async fromId(
@@ -303,7 +317,7 @@ export class Job<T = any, R = any, N extends string = string> {
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: JSON.stringify(this.opts),
+      opts: this.opts,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,
@@ -318,15 +332,20 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Updates a job's data
    *
-   * @param data the data that will replace the current jobs data.
+   * @param data - the data that will replace the current jobs data.
    */
-  async update(data: T) {
+  async update(data: DataType): Promise<void> {
     const client = await this.queue.client;
 
     this.data = data;
     await client.hset(this.queue.toKey(this.id), 'data', JSON.stringify(data));
   }
 
+  /**
+   * Updates a job's progress
+   *
+   * @param progress - number or object to be saved as progress.
+   */
   async updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
     return Scripts.updateProgress(this.queue, this, progress);
@@ -335,8 +354,7 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Logs one row of log data.
    *
-   * @params logRow: string String with log data to be logged.
-   *
+   * @param logRow - string with log data to be logged.
    */
   async log(logRow: string) {
     const client = await this.queue.client;
@@ -349,7 +367,7 @@ export class Job<T = any, R = any, N extends string = string> {
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
    */
-  async remove() {
+  async remove(): Promise<void> {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
@@ -366,22 +384,24 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Extend the lock for this job.
    *
-   * @param token unique token for the lock
-   * @param duration lock duration in milliseconds
+   * @param token - unique token for the lock
+   * @param duration - lock duration in milliseconds
    */
-  async extendLock(token: string, duration: number) {
+  extendLock(token: string, duration: number): Promise<number> {
     return Scripts.extendLock(this.queue, this.id, token, duration);
   }
 
   /**
    * Moves a job to the completed queue.
    * Returned job to be used with Queue.prototype.nextJobFromJobData.
-   * @param returnValue {string} The jobs success message.
-   * @param fetchNext {boolean} True when wanting to fetch the next job
-   * @returns {Promise} Returns the jobData of the next job in the waiting queue.
+   *
+   * @param returnValue - The jobs success message.
+   * @param token - Worker token used to acquire completed job.
+   * @param fetchNext - True when wanting to fetch the next job.
+   * @returns Returns the jobData of the next job in the waiting queue.
    */
   async moveToCompleted(
-    returnValue: R,
+    returnValue: ReturnType,
     token: string,
     fetchNext = true,
   ): Promise<[JobJsonRaw, string] | []> {
@@ -408,16 +428,22 @@ export class Job<T = any, R = any, N extends string = string> {
 
   /**
    * Moves a job to the failed queue.
-   * @param err {Error} The jobs error message.
-   * @param token {string} Token to check job is locked by current worker
-   * @param fetchNext {boolean} True when wanting to fetch the next job
+   *
+   * @param err - the jobs error message.
+   * @param token - token to check job is locked by current worker
+   * @param fetchNext - true when wanting to fetch the next job
    * @returns void
    */
-  async moveToFailed(err: Error, token: string, fetchNext = false) {
+  async moveToFailed(
+    err: Error,
+    token: string,
+    fetchNext = false,
+  ): Promise<void> {
     const client = await this.queue.client;
+    const message = err?.message;
 
     const queue = this.queue;
-    this.failedReason = err.message;
+    this.failedReason = message;
 
     let command: string;
     const multi = client.multi();
@@ -463,7 +489,7 @@ export class Job<T = any, R = any, N extends string = string> {
       const args = Scripts.moveToFailedArgs(
         queue,
         this,
-        err.message,
+        message,
         this.opts.removeOnFail,
         token,
         fetchNext,
@@ -472,50 +498,42 @@ export class Job<T = any, R = any, N extends string = string> {
       command = 'failed';
     }
 
-    if (!this.queue.closing) {
-      const results = await multi.exec();
-      const code = results[results.length - 1][1];
-      if (code < 0) {
-        throw Scripts.finishedErrors(code, this.id, command, 'active');
-      }
+    const results = await multi.exec();
+    const code = results[results.length - 1][1];
+    if (code < 0) {
+      throw Scripts.finishedErrors(code, this.id, command, 'active');
     }
   }
 
   /**
-   *
    * @returns true if the job has completed.
    */
-  isCompleted() {
+  isCompleted(): Promise<boolean> {
     return this.isInZSet('completed');
   }
 
   /**
-   *
    * @returns true if the job has failed.
    */
-  isFailed() {
+  isFailed(): Promise<boolean> {
     return this.isInZSet('failed');
   }
 
   /**
-   *
    * @returns true if the job is delayed.
    */
-  isDelayed() {
+  isDelayed(): Promise<boolean> {
     return this.isInZSet('delayed');
   }
 
   /**
-   *
    * @returns true if the job is waiting for children.
    */
-  isWaitingChildren() {
+  isWaitingChildren(): Promise<boolean> {
     return this.isInZSet('waiting-children');
   }
 
   /**
-   * @method isActive
-   *
    * @returns true of the job is active.
    */
   isActive(): Promise<boolean> {
@@ -523,10 +541,9 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   *
    * @returns true if the job is waiting.
    */
-  async isWaiting() {
+  async isWaiting(): Promise<boolean> {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
@@ -535,10 +552,9 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * @method getState
    * Get current state.
    *
-   * @returns {string} Returns one of these values:
+   * @returns Returns one of these values:
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
   getState(): Promise<string> {
@@ -546,10 +562,10 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * @method changeDelay
    * Change delay of a delayed job.
    *
-   * @returns
+   * @param delay - milliseconds to be added to current time.
+   * @returns void
    */
   changeDelay(delay: number): Promise<void> {
     return Scripts.changeDelay(this.queue, this.id, delay);
@@ -575,14 +591,11 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * @method getDependencies
    * Get children job keys if this job is a parent and has children.
    *
    * @returns dependencies separated by processed and unprocessed.
    */
-  async getDependencies(
-    opts: DependenciesOpts = {},
-  ): Promise<{
+  async getDependencies(opts: DependenciesOpts = {}): Promise<{
     nextProcessedCursor?: number;
     processed?: Record<string, any>;
     nextUnprocessedCursor?: number;
@@ -679,7 +692,6 @@ export class Job<T = any, R = any, N extends string = string> {
   }
 
   /**
-   * @method getDependenciesCount
    * Get children job counts if this job is a parent and has children.
    *
    * @returns dependencies count separated by processed and unprocessed.
@@ -709,13 +721,8 @@ export class Job<T = any, R = any, N extends string = string> {
       multi.scard(this.toKey(`${this.id}:dependencies`));
     }
 
-    const [
-      [err1, result1] = [],
-      [err2, result2] = [],
-    ] = (await multi.exec()) as [
-      [null | Error, number],
-      [null | Error, number],
-    ];
+    const [[err1, result1] = [], [err2, result2] = []] =
+      (await multi.exec()) as [[null | Error, number], [null | Error, number]];
 
     const processed = updatedOpts.processed ? result1 : undefined;
     const unprocessed = updatedOpts.unprocessed
@@ -737,7 +744,10 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
    */
-  async waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<R> {
+  async waitUntilFinished(
+    queueEvents: QueueEvents,
+    ttl?: number,
+  ): Promise<ReturnType> {
     await this.queue.waitUntilReady();
 
     const jobId = this.id;
@@ -784,14 +794,17 @@ export class Job<T = any, R = any, N extends string = string> {
       // that has already happened. We block checking the job until the queue events object is actually listening to
       // Redis so there's no chance that it will miss events.
       await queueEvents.waitUntilReady();
-      const status = await Scripts.isFinished(this.queue, jobId);
-      const finished = status > 0;
+      const [status, result] = (await Scripts.isFinished(
+        this.queue,
+        jobId,
+        true,
+      )) as [number, string];
+      const finished = status != 0;
       if (finished) {
-        const job = await Job.fromId(this.queue, this.id);
-        if (status == 2) {
-          onFailed(job);
+        if (status == -5 || status == 2) {
+          onFailed({ failedReason: result });
         } else {
-          onCompleted(job);
+          onCompleted({ returnvalue: getReturnValue(result) });
         }
       }
     });
@@ -800,18 +813,19 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Moves the job to the delay set.
    *
-   * @param timestamp timestamp where the job should be moved back to "wait"
+   * @param timestamp - timestamp where the job should be moved back to "wait"
    * @returns
    */
-  moveToDelayed(timestamp: number) {
+  moveToDelayed(timestamp: number): Promise<void> {
     return Scripts.moveToDelayed(this.queue, this.id, timestamp);
   }
 
   /**
    * Moves the job to the waiting-children set.
-   * @param {string} token Token to check job is locked by current worker
-   * @param opts the options bag for moving a job to waiting-children.
-   * @returns {boolean} true if the job was moved
+   *
+   * @param token - Token to check job is locked by current worker
+   * @param opts - The options bag for moving a job to waiting-children.
+   * @returns true if the job was moved
    */
   moveToWaitingChildren(
     token: string,
@@ -836,11 +850,11 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Attempts to retry the job. Only a job that has failed can be retried.
    *
-   * @return {Promise} If resolved and return code is 1, then the queue emits a waiting event
+   * @returns If resolved and return code is 1, then the queue emits a waiting event
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
-  async retry(state: 'completed' | 'failed' = 'failed') {
+  async retry(state: 'completed' | 'failed' = 'failed'): Promise<void> {
     const client = await this.queue.client;
 
     this.failedReason = null;
@@ -854,20 +868,13 @@ export class Job<T = any, R = any, N extends string = string> {
       'failedReason',
     );
 
-    const result = await Scripts.reprocessJob(this.queue, this, state);
-    if (result === 1) {
-      return;
-    } else if (result === RetryErrors.JobNotExist) {
-      throw new Error('Retried job not exist');
-    } else if (result === RetryErrors.JobNotFailed) {
-      throw new Error('Retried job not failed');
-    }
+    return Scripts.reprocessJob(this.queue, this, state);
   }
 
   /**
    * Marks a job to not be retried if it fails (even if attempts has been configured)
    */
-  discard() {
+  discard(): void {
     this.discarded = true;
   }
 
@@ -885,8 +892,8 @@ export class Job<T = any, R = any, N extends string = string> {
   /**
    * Adds the job to Redis.
    *
-   * @param client
-   * @param parentOpts
+   * @param client -
+   * @param parentOpts -
    * @returns
    */
   addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
@@ -918,15 +925,17 @@ export class Job<T = any, R = any, N extends string = string> {
     this.attemptsMade++;
     this.stacktrace = this.stacktrace || [];
 
-    this.stacktrace.push(err.stack);
-    if (this.opts.stackTraceLimit) {
-      this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+    if (err?.stack) {
+      this.stacktrace.push(err.stack);
+      if (this.opts.stackTraceLimit) {
+        this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+      }
     }
 
     const params = {
       attemptsMade: this.attemptsMade,
       stacktrace: JSON.stringify(this.stacktrace),
-      failedReason: err.message,
+      failedReason: err?.message,
     };
 
     multi.hmset(this.queue.toKey(this.id), params);

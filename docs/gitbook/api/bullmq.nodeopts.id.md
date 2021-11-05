@@ -4,6 +4,8 @@
 
 ## NodeOpts.id property
 
+Root job id.
+
 <b>Signature:</b>
 
 ```typescript

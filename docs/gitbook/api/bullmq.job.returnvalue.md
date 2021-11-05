@@ -9,5 +9,5 @@ The value returned by the processor when processing this job.
 <b>Signature:</b>
 
 ```typescript
-returnvalue: R;
+returnvalue: ReturnType;
 ```

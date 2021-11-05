@@ -13,6 +13,7 @@ export class QueueBase extends EventEmitter {
   constructor(
     public readonly name: string,
     public opts: QueueBaseOptions = {},
+    Connection: typeof RedisConnection = RedisConnection,
   ) {
     super();
 
@@ -21,7 +22,17 @@ export class QueueBase extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new RedisConnection(opts.connection);
+    if (!opts.connection) {
+      console.warn(
+        [
+          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker, QueueScheduler and QueueEvents',
+          'without providing explicitly a connection or connection options is deprecated. This behaviour will',
+          'be removed in the next major release',
+        ].join(' '),
+      );
+    }
+
+    this.connection = new Connection(opts.connection, opts.sharedConnection);
     this.connection.on('error', this.emit.bind(this, 'error'));
 
     const queueKeys = new QueueKeys(opts.prefix);
@@ -37,26 +48,39 @@ export class QueueBase extends EventEmitter {
     return this.connection.redisVersion;
   }
 
-  async waitUntilReady() {
+  emit(event: string | symbol, ...args: any[]): boolean {
+    try {
+      return super.emit(event, ...args);
+    } catch (err) {
+      try {
+        return super.emit('error', err);
+      } catch (err) {
+        // We give up if the error event also throws an exception.
+        console.error(err);
+      }
+    }
+  }
+
+  waitUntilReady(): Promise<RedisClient> {
     return this.client;
   }
 
-  protected base64Name() {
+  protected base64Name(): string {
     return Buffer.from(this.name).toString('base64');
   }
 
-  protected clientName() {
+  protected clientName(): string {
     return this.opts.prefix + ':' + this.base64Name();
   }
 
-  close() {
+  close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
     }
     return this.closing;
   }
 
-  disconnect() {
+  disconnect(): Promise<void> {
     return this.connection.disconnect();
   }
 }

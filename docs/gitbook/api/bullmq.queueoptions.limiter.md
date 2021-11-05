@@ -4,6 +4,8 @@
 
 ## QueueOptions.limiter property
 
+Options for the rate limiter.
+
 <b>Signature:</b>
 
 ```typescript

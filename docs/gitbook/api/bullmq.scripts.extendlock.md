@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static extendLock(queue: MinimalQueue, jobId: string, token: string, duration: number): Promise<any>;
+static extendLock(queue: MinimalQueue, jobId: string, token: string, duration: number): Promise<number>;
 ```
 
 ## Parameters
@@ -21,5 +21,5 @@ static extendLock(queue: MinimalQueue, jobId: string, token: string, duration: n
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;number&gt;
 

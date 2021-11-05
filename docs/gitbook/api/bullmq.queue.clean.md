@@ -4,8 +4,6 @@
 
 ## Queue.clean() method
 
- clean
-
 Cleans jobs from a queue. Similar to drain but keeps jobs within a certain grace period.
 
 <b>Signature:</b>

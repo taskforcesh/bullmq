@@ -3,7 +3,7 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { clientCommandMessageReg } from './worker';
+import { clientCommandMessageReg } from '../utils';
 
 export class QueueGetters extends QueueBase {
   getJob(jobId: string): Promise<Job | undefined> {
@@ -38,16 +38,19 @@ export class QueueGetters extends QueueBase {
   /**
     Returns the number of jobs waiting to be processed.
   */
-  count() {
+  count(): Promise<number> {
     return this.getJobCountByTypes('waiting', 'paused', 'delayed');
   }
 
-  // Job counts by type
-  // Queue#getJobCountByTypes('completed') => completed count
-  // Queue#getJobCountByTypes('completed,failed') => completed + failed count
-  // Queue#getJobCountByTypes('completed', 'failed') => completed + failed count
-  // Queue#getJobCountByTypes('completed', 'waiting', 'failed') => completed + waiting + failed count
-  async getJobCountByTypes(...types: string[]) {
+  /**
+   * Job counts by type
+   *
+   * Queue#getJobCountByTypes('completed') => completed count
+   * Queue#getJobCountByTypes('completed,failed') => completed + failed count
+   * Queue#getJobCountByTypes('completed', 'failed') => completed + failed count
+   * Queue#getJobCountByTypes('completed', 'waiting', 'failed') => completed + waiting + failed count
+   */
+  async getJobCountByTypes(...types: string[]): Promise<number> {
     const result = await this.getJobCounts(...types);
     return Object.values(result).reduce((sum, count) => sum + count);
   }
@@ -55,8 +58,11 @@ export class QueueGetters extends QueueBase {
   /**
    * Returns the job counts for each type specified or every list/set in the queue by default.
    *
+   * @returns An object, key (type) and value (count)
    */
-  async getJobCounts(...types: string[]) {
+  async getJobCounts(...types: string[]): Promise<{
+    [index: string]: number;
+  }> {
     const client = await this.client;
     const multi = client.multi();
 
@@ -72,51 +78,51 @@ export class QueueGetters extends QueueBase {
     return counts;
   }
 
-  getCompletedCount() {
+  getCompletedCount(): Promise<number> {
     return this.getJobCountByTypes('completed');
   }
 
-  getFailedCount() {
+  getFailedCount(): Promise<number> {
     return this.getJobCountByTypes('failed');
   }
 
-  getDelayedCount() {
+  getDelayedCount(): Promise<number> {
     return this.getJobCountByTypes('delayed');
   }
 
-  getActiveCount() {
+  getActiveCount(): Promise<number> {
     return this.getJobCountByTypes('active');
   }
 
-  getWaitingCount() {
+  getWaitingCount(): Promise<number> {
     return this.getJobCountByTypes('waiting', 'paused');
   }
 
-  getWaitingChildrenCount() {
+  getWaitingChildrenCount(): Promise<number> {
     return this.getJobCountByTypes('waiting-children', 'paused');
   }
 
-  getWaiting(start = 0, end = 1) {
+  getWaiting(start = 0, end = -1): Promise<Job<any, any, string>[]> {
     return this.getJobs(['waiting'], start, end, true);
   }
 
-  getWaitingChildren(start = 0, end = 1) {
+  getWaitingChildren(start = 0, end = -1): Promise<Job<any, any, string>[]> {
     return this.getJobs(['waiting-children'], start, end, true);
   }
 
-  getActive(start = 0, end = 1) {
+  getActive(start = 0, end = -1): Promise<Job<any, any, string>[]> {
     return this.getJobs(['active'], start, end, true);
   }
 
-  getDelayed(start = 0, end = 1) {
+  getDelayed(start = 0, end = -1): Promise<Job<any, any, string>[]> {
     return this.getJobs(['delayed'], start, end, true);
   }
 
-  getCompleted(start = 0, end = 1) {
+  getCompleted(start = 0, end = -1): Promise<Job<any, any, string>[]> {
     return this.getJobs(['completed'], start, end, false);
   }
 
-  getFailed(start = 0, end = 1) {
+  getFailed(start = 0, end = -1): Promise<Job<any, any, string>[]> {
     return this.getJobs(['failed'], start, end, false);
   }
 
@@ -161,7 +167,12 @@ export class QueueGetters extends QueueBase {
     return results;
   }
 
-  async getJobs(types: string[] | string, start = 0, end = -1, asc = false) {
+  async getJobs(
+    types: string[] | string,
+    start = 0,
+    end = -1,
+    asc = false,
+  ): Promise<Job<any, any, string>[]> {
     types = Array.isArray(types) ? types : [types];
 
     if (types.indexOf('waiting') !== -1) {
@@ -172,7 +183,12 @@ export class QueueGetters extends QueueBase {
     return Promise.all(jobIds.map(jobId => Job.fromId(this, jobId)));
   }
 
-  async getJobLogs(jobId: string, start = 0, end = -1, asc = true) {
+  async getJobLogs(
+    jobId: string,
+    start = 0,
+    end = -1,
+    asc = true,
+  ): Promise<{ logs: [string]; count: number }> {
     const client = await this.client;
     const multi = client.multi();
 
@@ -196,16 +212,19 @@ export class QueueGetters extends QueueBase {
   }
 
   /**
-   * @method getWorkers
    * Get worker list related to the queue.
    *
-   * @returns {Object} Returns an array with workers info.
+   * @returns - Returns an array with workers info.
    */
-  async getWorkers() {
+  async getWorkers(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
     const client = await this.client;
     const clients = await client.client('list');
     try {
-      const list = await this.parseClientList(clients);
+      const list = this.parseClientList(clients);
       return list;
     } catch (err) {
       if (!clientCommandMessageReg.test(err.message)) {

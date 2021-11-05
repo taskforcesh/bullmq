@@ -4,6 +4,8 @@
 
 ## NodeOpts.maxChildren property
 
+Maximum quantity of children per type (processed, unprocessed).
+
 <b>Signature:</b>
 
 ```typescript

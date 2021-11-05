@@ -1,11 +1,8 @@
-import { Queue, Job } from '../classes';
+import { Queue, Job, Worker, QueueEvents, QueueScheduler } from '../classes';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { Worker } from '../classes/worker';
-import { QueueEvents } from '../classes/queue-events';
-import { QueueScheduler } from '../classes/queue-scheduler';
 import { removeAllQueueData } from '../utils';
 
 describe('Delayed jobs', function() {
@@ -15,7 +12,7 @@ describe('Delayed jobs', function() {
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 
@@ -36,11 +33,14 @@ describe('Delayed jobs', function() {
     const timestamp = Date.now();
     let publishHappened = false;
 
-    queueEvents.on('delayed', () => {
-      publishHappened = true;
+    const delayed = new Promise<void>((resolve, reject) => {
+      queueEvents.on('delayed', () => {
+        publishHappened = true;
+        resolve();
+      });
     });
 
-    const completed = new Promise((resolve, reject) => {
+    const completed = new Promise<void>((resolve, reject) => {
       queueEvents.on('completed', async function() {
         try {
           expect(Date.now() > timestamp + delay);
@@ -64,9 +64,89 @@ describe('Delayed jobs', function() {
     expect(job.data.delayed).to.be.eql('foobar');
     expect(job.opts.delay).to.be.eql(delay);
 
+    await delayed;
     await completed;
     await queueScheduler.close();
     await queueEvents.close();
+    await worker.close();
+  });
+
+  describe('when autorun option is provided as false', function() {
+    it('should process a delayed job only after delayed time', async function() {
+      const delay = 1000;
+      const queueScheduler = new QueueScheduler(queueName, { autorun: false });
+      await queueScheduler.waitUntilReady();
+      const queueEvents = new QueueEvents(queueName);
+      await queueEvents.waitUntilReady();
+
+      const worker = new Worker(queueName, async job => {});
+
+      const timestamp = Date.now();
+      let publishHappened = false;
+
+      const delayed = new Promise<void>((resolve, reject) => {
+        queueEvents.on('delayed', () => {
+          publishHappened = true;
+          resolve();
+        });
+      });
+
+      const completed = new Promise<void>((resolve, reject) => {
+        queueEvents.on('completed', async function() {
+          try {
+            expect(Date.now() > timestamp + delay);
+            const jobs = await queue.getWaiting();
+            expect(jobs.length).to.be.equal(0);
+
+            const delayedJobs = await queue.getDelayed();
+            expect(delayedJobs.length).to.be.equal(0);
+            expect(publishHappened).to.be.eql(true);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      const job = await queue.add('test', { delayed: 'foobar' }, { delay });
+
+      expect(job.id).to.be.ok;
+      expect(job.data.delayed).to.be.eql('foobar');
+      expect(job.opts.delay).to.be.eql(delay);
+
+      queueScheduler.run();
+
+      await delayed;
+      await completed;
+      await queueScheduler.close();
+      await queueEvents.close();
+      await worker.close();
+    });
+
+    describe('when run method is called when queue-scheduler is running', function() {
+      it('throws an error', async function() {
+        const delay = 1000;
+        const maxJobs = 10;
+        const queueScheduler = new QueueScheduler(queueName, {
+          autorun: false,
+        });
+        await queueScheduler.waitUntilReady();
+
+        const worker = new Worker(queueName, async job => {});
+        queueScheduler.run();
+
+        for (let i = 1; i <= maxJobs; i++) {
+          await queue.add('test', { foo: 'bar', num: i }, { delay });
+        }
+
+        await expect(queueScheduler.run()).to.be.rejectedWith(
+          'Queue Scheduler is already running.',
+        );
+
+        await queueScheduler.close();
+        await worker.close();
+      });
+    });
   });
 
   it('should process delayed jobs in correct order', async function() {
@@ -77,7 +157,7 @@ describe('Delayed jobs', function() {
 
     let processor;
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         order++;
         try {
@@ -118,7 +198,6 @@ describe('Delayed jobs', function() {
     this.timeout(5000);
 
     let worker: Worker;
-    const queueName = 'delayed queue multiple' + v4();
     let order = 1;
 
     let secondQueueScheduler: QueueScheduler;
@@ -127,7 +206,7 @@ describe('Delayed jobs', function() {
 
     queue = new Queue(queueName);
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       worker = new Worker(queueName, async (job: Job) => {
         try {
           expect(order).to.be.equal(job.data.order);
@@ -168,8 +247,9 @@ describe('Delayed jobs', function() {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
+    let worker: Worker;
     const processing = new Promise((resolve, reject) => {
-      const processor = async (job: Job) => {
+      worker = new Worker(queueName, async (job: Job) => {
         try {
           expect(order).to.be.equal(job.data.order);
 
@@ -181,12 +261,10 @@ describe('Delayed jobs', function() {
         }
 
         order++;
-      };
-
-      const worker = new Worker(queueName, processor);
-
-      worker.on('failed', function(job, err) {});
+      });
     });
+
+    worker.on('failed', function(job, err) {});
 
     const now = Date.now();
     const promises = [];
@@ -206,5 +284,6 @@ describe('Delayed jobs', function() {
     await Promise.all(promises);
     await processing;
     await queueScheduler.close();
+    await worker.close();
   });
 });

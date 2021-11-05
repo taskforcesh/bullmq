@@ -8,8 +8,8 @@
 
 ```typescript
 getJobLogs(jobId: string, start?: number, end?: number, asc?: boolean): Promise<{
-        logs: any;
-        count: any;
+        logs: [string];
+        count: number;
     }>;
 ```
 
@@ -24,5 +24,5 @@ getJobLogs(jobId: string, start?: number, end?: number, asc?: boolean): Promise<
 
 <b>Returns:</b>
 
-Promise&lt;{ logs: any; count: any; }&gt;
+Promise&lt;{ logs: \[string\]; count: number; }&gt;
 

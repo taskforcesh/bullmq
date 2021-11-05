@@ -1,22 +1,15 @@
 /*eslint-env node */
 'use strict';
 
-import { Job, Queue, QueueScheduler } from '../classes';
-import { QueueEvents } from '../classes/queue-events';
-import { Worker } from '../classes/worker';
-import { JobsOptions } from '../interfaces';
-import { delay, getParentKey, removeAllQueueData } from '../utils';
-import * as chai from 'chai';
-import * as chaiAsPromised from 'chai-as-promised';
+import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
+import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-
-const sinon = require('sinon');
-
-chai.use(chaiAsPromised);
-const expect = chai.expect;
+import { Job, Queue, QueueScheduler, QueueEvents, Worker } from '../classes';
+import { JobsOptions } from '../interfaces';
+import { delay, getParentKey, removeAllQueueData } from '../utils';
 
 const ONE_SECOND = 1000;
 
@@ -29,7 +22,7 @@ describe('Job', function() {
     queue = new Queue(queueName);
   });
 
-  afterEach(async () => {
+  afterEach(async function() {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
   });
@@ -97,6 +90,17 @@ describe('Job', function() {
       await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
         `The size of job test exceeds the limit ${opts.sizeLimit} bytes`,
       );
+    });
+
+    describe('when parent key is missing', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const parentId = v4();
+        const opts = { parent: { id: parentId, queue: queueName } };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          `Missing key for parent job ${queueName}:${parentId}. addJob`,
+        );
+      });
     });
   });
 
@@ -495,13 +499,24 @@ describe('Job', function() {
   });
 
   describe('.changeDelay', () => {
-    it('can change delay of a delayed job', async () => {
-      const clock = sinon.useFakeTimers();
-      const date = new Date();
-      clock.setSystemTime(date);
+    it('can change delay of a delayed job', async function() {
+      this.timeout(8000);
+
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
-      const nextTick = 2 * ONE_SECOND;
+
+      const worker = new Worker(queueName, async job => {});
+      await worker.waitUntilReady();
+
+      const startTime = new Date().getTime();
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async () => {
+          const timeDiff = new Date().getTime() - startTime;
+          expect(timeDiff).to.be.gte(4000);
+          resolve();
+        });
+      });
 
       const job = await Job.create(
         queue,
@@ -509,28 +524,17 @@ describe('Job', function() {
         { foo: 'bar' },
         { delay: 2000 },
       );
+
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
 
       await job.changeDelay(4000);
-      clock.tick(nextTick);
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
 
-      const worker = new Worker(queueName, async job => {});
-
-      clock.tick(2 * nextTick);
-
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async () => {
-          resolve();
-        });
-      });
-
       await completing;
 
-      clock.restore();
       await queueScheduler.close();
       await worker.close();
     });
@@ -839,6 +843,41 @@ describe('Job', function() {
       await worker.close();
     });
 
+    describe('when job was added with removeOnComplete', async () => {
+      it('rejects with missing key for job message', async function() {
+        const worker = new Worker(queueName, async job => 'qux');
+        await worker.waitUntilReady();
+
+        const completed = new Promise<void>((resolve, reject) => {
+          worker.on('completed', async (job: Job) => {
+            try {
+              const gotJob = await queue.getJob(job.id);
+              expect(gotJob).to.be.equal(undefined);
+              const counts = await queue.getJobCounts('completed');
+              expect(counts.completed).to.be.equal(0);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        const job = await queue.add(
+          'test',
+          { foo: 'bar' },
+          { removeOnComplete: true },
+        );
+
+        await completed;
+
+        await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+          `Missing key for job ${queue.toKey(job.id)}. isFinished`,
+        );
+
+        await worker.close();
+      });
+    });
+
     it('should resolve when the job has been completed and return object', async function() {
       const worker = new Worker(queueName, async job => ({ resultFoo: 'bar' }));
 
@@ -889,12 +928,9 @@ describe('Job', function() {
 
       const job = await queue.add('test', { foo: 'bar' });
 
-      try {
-        await job.waitUntilFinished(queueEvents);
-        throw new Error('should have been rejected');
-      } catch (err) {
-        expect(err.message).equal('test error');
-      }
+      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+        'test error',
+      );
 
       await worker.close();
     });

@@ -14,7 +14,7 @@ static moveToActive<T, R, N extends string>(worker: Worker<T, R, N>, token: stri
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  worker | [Worker](./bullmq.worker.md)<!-- -->&lt;T, R, N&gt; |  |
+|  worker | Worker&lt;T, R, N&gt; |  |
 |  token | string |  |
 |  jobId | string |  |
 

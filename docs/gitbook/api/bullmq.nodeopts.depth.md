@@ -4,6 +4,8 @@
 
 ## NodeOpts.depth property
 
+Maximum depth or levels to visit in the tree.
+
 <b>Signature:</b>
 
 ```typescript

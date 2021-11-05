@@ -23,6 +23,9 @@
     <a href="https://coveralls.io/github/taskforcesh/bullmq?branch=master">
       <img src="https://coveralls.io/repos/github/taskforcesh/bullmq/badge.svg?branch=master"/>
     </a>
+    <a href="https://github.com/semantic-release/semantic-release">
+      <img src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg"/>
+    </a>
   </p>
   <p>
     <em>Follow <a href="https://twitter.com/manast">@manast</a> for *important* Bull/BullMQ news and updates!</em>
@@ -83,16 +86,37 @@ import { QueueEvents } from 'bullmq';
 
 const queueEvents = new QueueEvents('Paint');
 
-queueEvents.on('completed', jobId => {
+queueEvents.on('completed', ({ jobId }) => {
   console.log('done painting');
 });
 
-queueEvents.on('failed', (jobId, err) => {
-  console.error('error painting', err);
+queueEvents.on('failed', ({ jobId: string, failedReason: string }) => {
+  console.error('error painting', failedReason);
 });
 ```
 
 This is just scratching the surface, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>
+
+# Feature Comparison
+
+Since there are a few job queue solutions, here is a table comparing them:
+
+| Feature                   |     Bullmq      |      Bull       |  Kue  |   Bee    | Agenda |
+| :------------------------ | :-------------: | :-------------: | :---: | :------: | ------ |
+| Backend                   |      redis      |      redis      | redis |  redis   | mongo  |
+| Parent/Child dependencies |        ✓        |                 |       |          |        |
+| Priorities                |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Concurrency               |        ✓        |        ✓        |   ✓   |    ✓     | ✓      |
+| Delayed jobs              |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Global events             |        ✓        |        ✓        |   ✓   |          |        |
+| Rate Limiter              |        ✓        |        ✓        |       |          |        |
+| Pause/Resume              |        ✓        |        ✓        |   ✓   |          |        |
+| Sandboxed worker          |        ✓        |        ✓        |       |          |        |
+| Repeatable jobs           |        ✓        |        ✓        |       |          | ✓      |
+| Atomic ops                |        ✓        |        ✓        |       |    ✓     |        |
+| Persistence               |        ✓        |        ✓        |   ✓   |    ✓     | ✓      |
+| UI                        |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Optimized for             | Jobs / Messages | Jobs / Messages | Jobs  | Messages | Jobs   |
 
 # 🚀 Sponsor 🚀
 

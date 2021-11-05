@@ -6,21 +6,19 @@
 
 Drains the queue, i.e., removes all jobs that are waiting or delayed, but not active, completed or failed.
 
-TODO: Convert to an atomic LUA script.
-
 <b>Signature:</b>
 
 ```typescript
-drain(delayed?: boolean): Promise<[Error, any][]>;
+drain(delayed?: boolean): Promise<void>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  delayed | boolean |  |
+|  delayed | boolean | Pass true if it should also clean the delayed jobs. |
 
 <b>Returns:</b>
 
-Promise&lt;\[Error, any\]\[\]&gt;
+Promise&lt;void&gt;
 

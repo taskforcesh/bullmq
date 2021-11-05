@@ -12,38 +12,50 @@
 |  [ChildPool](./bullmq.childpool.md) |  |
 |  [FlowProducer](./bullmq.flowproducer.md) | This class allows to add jobs with dependencies between them in such a way that it is possible to build complex flows. Note: A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data. All Jobs can be in different queues, either children or parents, |
 |  [Job](./bullmq.job.md) |  |
-|  [Queue](./bullmq.queue.md) |  |
+|  [Queue](./bullmq.queue.md) | Queue<!-- -->This class provides methods to add jobs to a queue and some othe high-level administration such as pausing or deleting queues. |
 |  [QueueBase](./bullmq.queuebase.md) |  |
-|  [QueueEvents](./bullmq.queueevents.md) |  |
+|  [QueueEvents](./bullmq.queueevents.md) | The QueueEvents class is used for listening to the global events emitted by a given queue.<!-- -->This class requires a dedicated redis connection. |
 |  [QueueGetters](./bullmq.queuegetters.md) |  |
 |  [QueueScheduler](./bullmq.queuescheduler.md) | This class is just used for some automatic bookkeeping of the queue, such as updating the delay set as well as moving stalled jobs back to the waiting list.<!-- -->Jobs are checked for stallness once every "visibility window" seconds. Jobs are then marked as candidates for being stalled, in the next check, the candidates are marked as stalled and moved to wait. Workers need to clean the candidate list with the jobs that they are working on, failing to update the list results in the job ending being stalled.<!-- -->This class requires a dedicated redis connection, and at least one is needed to be running at a given time, otherwise delays, stalled jobs, retries, repeatable jobs, etc, will not work correctly or at all. |
 |  [RedisConnection](./bullmq.redisconnection.md) |  |
 |  [Repeat](./bullmq.repeat.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
-|  [Worker](./bullmq.worker.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
+|  [Worker\_2](./bullmq.worker_2.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
 ## Enumerations
 
 |  Enumeration | Description |
 |  --- | --- |
 |  [ClientType](./bullmq.clienttype.md) |  |
-|  [RetryErrors](./bullmq.retryerrors.md) |  |
+|  [ErrorCodes](./bullmq.errorcodes.md) |  |
 
 ## Functions
 
 |  Function | Description |
 |  --- | --- |
+|  [array2obj(arr)](./bullmq.array2obj.md) |  |
+|  [delay(ms)](./bullmq.delay.md) |  |
 |  [getParentKey(opts)](./bullmq.getparentkey.md) |  |
+|  [isEmpty(obj)](./bullmq.isempty.md) |  |
+|  [isNotConnectionError(error)](./bullmq.isnotconnectionerror.md) |  |
+|  [isRedisInstance(obj)](./bullmq.isredisinstance.md) |  |
+|  [jobIdForGroup(jobOpts, data, queueOpts)](./bullmq.jobidforgroup.md) |  |
+|  [lengthInUtf8Bytes(str)](./bullmq.lengthinutf8bytes.md) | Checks the size of string for ascii/non-ascii characters |
+|  [removeAllQueueData(client, queueName, prefix)](./bullmq.removeallqueuedata.md) |  |
+|  [tryCatch(fn, ctx, args)](./bullmq.trycatch.md) |  |
 
 ## Interfaces
 
 |  Interface | Description |
 |  --- | --- |
+|  [AddChildrenOpts](./bullmq.addchildrenopts.md) |  |
+|  [AddNodeOpts](./bullmq.addnodeopts.md) |  |
 |  [AdvancedOptions](./bullmq.advancedoptions.md) |  |
 |  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
 |  [DependenciesOpts](./bullmq.dependenciesopts.md) |  |
 |  [FlowJob](./bullmq.flowjob.md) |  |
+|  [FlowOpts](./bullmq.flowopts.md) |  |
 |  [GetNextJobOptions](./bullmq.getnextjoboptions.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
@@ -52,25 +64,27 @@
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
 |  [Queue](./bullmq.queue.md) |  |
-|  [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
-|  [QueueEvents](./bullmq.queueevents.md) |  |
-|  [QueueEventsOptions](./bullmq.queueeventsoptions.md) |  |
-|  [QueueOptions](./bullmq.queueoptions.md) |  |
-|  [QueueScheduler](./bullmq.queuescheduler.md) |  |
+|  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
+|  [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md) |  |
+|  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
+|  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |
+|  [QueueSchedulerDeclaration](./bullmq.queueschedulerdeclaration.md) |  |
 |  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
 |  [RateLimiterOptions](./bullmq.ratelimiteroptions.md) |  |
 |  [RepeatOptions](./bullmq.repeatoptions.md) | Settings for repeatable jobs |
 |  [SandboxedJob](./bullmq.sandboxedjob.md) |  |
 |  [Strategies](./bullmq.strategies.md) |  |
-|  [Worker](./bullmq.worker.md) |  |
-|  [WorkerOptions](./bullmq.workeroptions.md) |  |
+|  [WorkerDeclaration](./bullmq.workerdeclaration.md) |  |
+|  [WorkerOptions\_2](./bullmq.workeroptions_2.md) |  |
 
 ## Variables
 
 |  Variable | Description |
 |  --- | --- |
-|  [AdvancedOptionsDefaults](./bullmq.advancedoptionsdefaults.md) |  |
 |  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
+|  [DELAY\_TIME\_1](./bullmq.delay_time_1.md) |  |
+|  [DELAY\_TIME\_5](./bullmq.delay_time_5.md) |  |
+|  [errorObject](./bullmq.errorobject.md) |  |
 |  [load](./bullmq.load.md) |  |
 
 ## Type Aliases
@@ -80,6 +94,7 @@
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
 |  [BulkJobOptions](./bullmq.bulkjoboptions.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
+|  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  [ParentOpts](./bullmq.parentopts.md) |  |
 |  [Processor](./bullmq.processor.md) | An async function that receives <code>Job</code>s and handles them. |

@@ -4,6 +4,8 @@
 
 ## Queue.getRepeatableJobs() method
 
+Get all repeatable meta jobs.
+
 <b>Signature:</b>
 
 ```typescript
@@ -11,7 +13,14 @@ getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<{
         key: string;
         name: string;
         id: string;
-        endDate: number;
+        endDate: number; /**
+         * Get all repeatable meta jobs.
+         *
+         * @param start - Offset of first job to return.
+         * @param end - Offset of last job to return.
+         * @param asc - Determine the order in which jobs are returned based on their
+         * next execution time.
+         */
         tz: string;
         cron: string;
         next: number;
@@ -22,11 +31,11 @@ getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<{
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  start | number |  |
-|  end | number |  |
-|  asc | boolean |  |
+|  start | number | Offset of first job to return. |
+|  end | number | Offset of last job to return. |
+|  asc | boolean | Determine the order in which jobs are returned based on their next execution time. |
 
 <b>Returns:</b>
 
-Promise&lt;{ key: string; name: string; id: string; endDate: number; tz: string; cron: string; next: number; }\[\]&gt;
+Promise&lt;{ key: string; name: string; id: string; endDate: number; /\*\* \* Get all repeatable meta jobs. \* \* @param start - Offset of first job to return. \* @param end - Offset of last job to return. \* @param asc - Determine the order in which jobs are returned based on their \* next execution time. \*/ tz: string; cron: string; next: number; }\[\]&gt;
 

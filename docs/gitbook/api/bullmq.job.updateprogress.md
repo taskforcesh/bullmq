@@ -4,6 +4,8 @@
 
 ## Job.updateProgress() method
 
+Updates a job's progress
+
 <b>Signature:</b>
 
 ```typescript
@@ -14,7 +16,7 @@ updateProgress(progress: number | object): Promise<void>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  progress | number \| object |  |
+|  progress | number \| object | number or object to be saved as progress. |
 
 <b>Returns:</b>
 

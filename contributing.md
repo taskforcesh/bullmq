@@ -18,6 +18,13 @@ yarn test
 
 - Provide feedback on the PR about your changes and results.
 
+## Start Redis
+
+In case you don't have redis installed, there is a redis docker-compose for development purposes.
+
+- Before starting Redis, make sure you have [docker-compose](https://docs.docker.com/compose/install/) installed.
+- Now please follow [pull request testing](#pull-request-testing) section.
+
 ## Doing a release
 
 Releases are automatically performed by semantic-release and consists on the following:
@@ -29,6 +36,6 @@ Releases are automatically performed by semantic-release and consists on the fol
 - update changelog following the commits format.
 - `git tag -a 3.X.Y -m 3.X.Y` `git push --tags`
 - `npm publish`
-- add a version on the github release page, based on the tag
+- add a version on the github release page, based on the tag.
 
 So please, just follow the semantic-release commit format and don't change package.json version, this will be automatically changed.

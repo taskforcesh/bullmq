@@ -2,8 +2,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { Job, Queue, QueueEvents, QueueScheduler } from '../classes';
-import { Worker } from '../classes/worker';
+import { Job, Queue, QueueEvents, QueueScheduler, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
 
 describe('Pause', function() {
@@ -12,7 +11,7 @@ describe('Pause', function() {
   let queueEvents: QueueEvents;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
@@ -62,7 +61,7 @@ describe('Pause', function() {
     let process;
     let isPaused = false;
     let counter = 2;
-    const processPromise = new Promise(resolve => {
+    const processPromise = new Promise<void>(resolve => {
       process = async (job: Job) => {
         expect(isPaused).to.be.eql(false);
         expect(job.data.foo).to.be.equal('paused');
@@ -94,7 +93,7 @@ describe('Pause', function() {
       isResumed = true,
       first = true;
 
-    const processPromise = new Promise((resolve, reject) => {
+    const processPromise = new Promise<void>((resolve, reject) => {
       process = async (job: Job) => {
         try {
           expect(isPaused).to.be.eql(false);
@@ -115,7 +114,7 @@ describe('Pause', function() {
       };
     });
 
-    const worker = new Worker(queueName, process);
+    new Worker(queueName, process);
 
     queueEvents.on('paused', async () => {
       isPaused = false;
@@ -136,7 +135,7 @@ describe('Pause', function() {
     let worker: Worker;
     let counter = 2;
     let process;
-    const processPromise = new Promise(resolve => {
+    const processPromise = new Promise<void>(resolve => {
       process = async (job: Job) => {
         expect(worker.isPaused()).to.be.eql(false);
         counter--;
@@ -170,7 +169,7 @@ describe('Pause', function() {
   it('should wait until active jobs are finished before resolving pause', async () => {
     let process;
 
-    const startProcessing = new Promise(resolve => {
+    const startProcessing = new Promise<void>(resolve => {
       process = async () => {
         resolve();
         return delay(1000);
@@ -180,7 +179,7 @@ describe('Pause', function() {
     const worker = new Worker(queueName, process);
     await worker.waitUntilReady();
 
-    const jobs = [];
+    const jobs: Promise<Job | void>[] = [];
     for (let i = 0; i < 10; i++) {
       jobs.push(queue.add('test', i));
     }
@@ -214,14 +213,14 @@ describe('Pause', function() {
   it('should pause the queue locally when more than one worker is active', async () => {
     let process1, process2;
 
-    const startProcessing1 = new Promise(resolve => {
+    const startProcessing1 = new Promise<void>(resolve => {
       process1 = async () => {
         resolve();
         return delay(200);
       };
     });
 
-    const startProcessing2 = new Promise(resolve => {
+    const startProcessing2 = new Promise<void>(resolve => {
       process2 = async () => {
         resolve();
         return delay(200);
@@ -255,7 +254,7 @@ describe('Pause', function() {
   it('should wait for blocking job retrieval to complete before pausing locally', async () => {
     let process;
 
-    const startProcessing = new Promise(resolve => {
+    const startProcessing = new Promise<void>(resolve => {
       process = async () => {
         resolve();
         return delay(200);

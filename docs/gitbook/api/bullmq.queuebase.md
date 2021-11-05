@@ -15,7 +15,7 @@ export declare class QueueBase extends EventEmitter
 
 |  Constructor | Modifiers | Description |
 |  --- | --- | --- |
-|  [(constructor)(name, opts)](./bullmq.queuebase._constructor_.md) |  | Constructs a new instance of the <code>QueueBase</code> class |
+|  [(constructor)(name, opts, Connection)](./bullmq.queuebase._constructor_.md) |  | Constructs a new instance of the <code>QueueBase</code> class |
 
 ## Properties
 
@@ -38,5 +38,6 @@ export declare class QueueBase extends EventEmitter
 |  [clientName()](./bullmq.queuebase.clientname.md) |  |  |
 |  [close()](./bullmq.queuebase.close.md) |  |  |
 |  [disconnect()](./bullmq.queuebase.disconnect.md) |  |  |
+|  [emit(event, args)](./bullmq.queuebase.emit.md) |  |  |
 |  [waitUntilReady()](./bullmq.queuebase.waituntilready.md) |  |  |
 

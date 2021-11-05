@@ -1,8 +1,5 @@
-import { Queue } from '../classes';
-import { QueueEvents } from '../classes/queue-events';
-import { QueueScheduler } from '../classes/queue-scheduler';
-import { Worker } from '../classes/worker';
-import { assert, expect } from 'chai';
+import { Queue, QueueEvents, QueueScheduler, Worker } from '../classes';
+import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after, every, last } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
@@ -15,7 +12,7 @@ describe('Rate Limiter', function() {
   let queueEvents: QueueEvents;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.waitUntilReady();
@@ -27,7 +24,7 @@ describe('Rate Limiter', function() {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should put a job into the delayed queue when limit is hit', async () => {
+  it('should put a job into the delayed queue when limit is hit', async function() {
     const worker = new Worker(queueName, async job => {}, {
       limiter: {
         max: 1,
@@ -36,11 +33,10 @@ describe('Rate Limiter', function() {
     });
     await worker.waitUntilReady();
 
-    queueEvents.on('failed', ({ failedReason }) => {
-      assert.fail(failedReason);
-    });
+    queueEvents.on('failed', ({ failedReason }) => {});
 
     await Promise.all([
+      queue.add('test', {}),
       queue.add('test', {}),
       queue.add('test', {}),
       queue.add('test', {}),
@@ -55,7 +51,7 @@ describe('Rate Limiter', function() {
     ]);
 
     const delayedCount = await queue.getDelayedCount();
-    expect(delayedCount).to.eq(3);
+    expect(delayedCount).to.equal(4);
     await worker.close();
   });
 
@@ -194,8 +190,8 @@ describe('Rate Limiter', function() {
             let prevTime = completed[group][0];
             for (let i = 1; i < completed[group].length; i++) {
               const diff = completed[group][i] - prevTime;
-              expect(diff).to.be.below(2000);
-              expect(diff).to.be.gte(990);
+              expect(diff).to.be.below(2100);
+              expect(diff).to.be.gte(970);
               prevTime = completed[group][i];
             }
           }
@@ -221,6 +217,79 @@ describe('Rate Limiter', function() {
 
     for (let i = 0; i < numJobs; i++) {
       await rateLimitedQueue.add('rate test', { accountId: i % numGroups });
+    }
+
+    await running;
+    await rateLimitedQueue.close();
+    await worker.close();
+    await queueScheduler.close();
+  });
+
+  it('should not obey rate limit by grouping if groupKey is missing', async function() {
+    const numJobs = 20;
+    const startTime = Date.now();
+
+    const queueScheduler = new QueueScheduler(queueName);
+    await queueScheduler.waitUntilReady();
+
+    const rateLimitedQueue = new Queue(queueName, {
+      limiter: {
+        groupKey: 'accountId',
+      },
+    });
+
+    const worker = new Worker(queueName, async job => {}, {
+      limiter: {
+        max: 1,
+        duration: 1000,
+        groupKey: 'accountId',
+      },
+    });
+
+    const completed: { [index: string]: number } = {};
+
+    const running = new Promise<void>((resolve, reject) => {
+      const afterJobs = after(numJobs, () => {
+        try {
+          const timeDiff = Date.now() - startTime;
+          // In some test envs, these timestamps can drift.
+          expect(timeDiff).to.be.gte(25);
+          expect(timeDiff).to.be.below(325);
+
+          let count = 0;
+          let prevTime;
+          for (const id in completed) {
+            if (count === 0) {
+              prevTime = completed[id];
+            } else {
+              const diff = completed[id] - prevTime;
+              expect(diff).to.be.below(25);
+              expect(diff).to.be.gte(0);
+              prevTime = completed[id];
+            }
+            count++;
+          }
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+
+      queueEvents.on('completed', ({ jobId }) => {
+        const id: string = last(jobId.split(':'));
+        completed[id] = Date.now();
+
+        afterJobs();
+      });
+
+      queueEvents.on('failed', async err => {
+        await worker.close();
+        reject(err);
+      });
+    });
+
+    for (let i = 0; i < numJobs; i++) {
+      await rateLimitedQueue.add('rate test', {});
     }
 
     await running;

@@ -6,8 +6,6 @@
 
 Attempts to retry the job. Only a job that has failed can be retried.
 
- {<!-- -->Promise<!-- -->} If resolved and return code is 1, then the queue emits a waiting event otherwise the operation was not a success and throw the corresponding error. If the promise rejects, it indicates that the script failed to execute
-
 <b>Signature:</b>
 
 ```typescript
@@ -23,4 +21,6 @@ retry(state?: 'completed' | 'failed'): Promise<void>;
 <b>Returns:</b>
 
 Promise&lt;void&gt;
+
+If resolved and return code is 1, then the queue emits a waiting event otherwise the operation was not a success and throw the corresponding error. If the promise rejects, it indicates that the script failed to execute
 

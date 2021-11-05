@@ -6,8 +6,6 @@
 
 Logs one row of log data.
 
- logRow: string String with log data to be logged.
-
 <b>Signature:</b>
 
 ```typescript
@@ -18,7 +16,7 @@ log(logRow: string): Promise<number>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  logRow | string |  |
+|  logRow | string | string with log data to be logged. |
 
 <b>Returns:</b>
 

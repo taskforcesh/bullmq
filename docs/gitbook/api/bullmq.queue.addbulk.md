@@ -4,25 +4,25 @@
 
 ## Queue.addBulk() method
 
-Adds an array of jobs to the queue.  add
+Adds an array of jobs to the queue.
 
 <b>Signature:</b>
 
 ```typescript
 addBulk(jobs: {
-        name: N;
-        data: T;
+        name: NameType;
+        data: DataType;
         opts?: BulkJobOptions;
-    }[]): Promise<Job<T, any, N>[]>;
+    }[]): Promise<Job<DataType, any, NameType>[]>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  jobs | { name: N; data: T; opts?: [BulkJobOptions](./bullmq.bulkjoboptions.md)<!-- -->; }\[\] | : \[\] The array of jobs to add to the queue. Each job is defined by 3 properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'. |
+|  jobs | { name: NameType; data: DataType; opts?: [BulkJobOptions](./bullmq.bulkjoboptions.md)<!-- -->; }\[\] | The array of jobs to add to the queue. Each job is defined by 3 properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'. |
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;T, any, N&gt;\[\]&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;DataType, any, NameType&gt;\[\]&gt;
 

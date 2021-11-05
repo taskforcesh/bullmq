@@ -1,22 +1,20 @@
 /*eslint-env node */
 'use strict';
 
-import { Queue, Job } from '../classes';
-import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
+import { after } from 'lodash';
+import { describe, beforeEach, it } from 'mocha';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { Worker } from '../classes/worker';
-import { after } from 'lodash';
+import { Queue, Job, Worker } from '../classes';
 import { removeAllQueueData } from '../utils';
 
 describe('Jobs getters', function() {
-  this.timeout(4000);
   let queue: Queue;
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = `test-${v4()}`;
     queue = new Queue(queueName);
   });
 
@@ -36,6 +34,31 @@ describe('Jobs getters', function() {
     expect(jobs[1].data.baz).to.be.equal('qux');
   });
 
+  it('should get all waiting jobs when no range is provided', async () => {
+    await Promise.all([
+      queue.add('test', { foo: 'bar' }),
+      queue.add('test', { baz: 'qux' }),
+      queue.add('test', { bar: 'qux' }),
+      queue.add('test', { baz: 'xuq' }),
+    ]);
+
+    const jobsWithoutProvidingRange = await queue.getWaiting();
+    const allJobs = await queue.getWaiting(0, -1);
+
+    expect(allJobs.length).to.be.equal(4);
+    expect(jobsWithoutProvidingRange.length).to.be.equal(allJobs.length);
+
+    expect(allJobs[0].data.foo).to.be.equal('bar');
+    expect(allJobs[1].data.baz).to.be.equal('qux');
+    expect(allJobs[2].data.bar).to.be.equal('qux');
+    expect(allJobs[3].data.baz).to.be.equal('xuq');
+
+    expect(jobsWithoutProvidingRange[0].data.foo).to.be.equal('bar');
+    expect(jobsWithoutProvidingRange[1].data.baz).to.be.equal('qux');
+    expect(jobsWithoutProvidingRange[2].data.bar).to.be.equal('qux');
+    expect(jobsWithoutProvidingRange[3].data.baz).to.be.equal('xuq');
+  });
+
   it('should get paused jobs', async function() {
     await queue.pause();
     await Promise.all([
@@ -51,7 +74,7 @@ describe('Jobs getters', function() {
 
   it('should get active jobs', async function() {
     let processor;
-    const processing = new Promise(resolve => {
+    const processing = new Promise<void>(resolve => {
       processor = async (job: Job) => {
         const jobs = await queue.getActive();
         expect(jobs).to.be.a('array');
@@ -85,7 +108,7 @@ describe('Jobs getters', function() {
     const worker = new Worker(queueName, async job => {});
     let counter = 2;
 
-    const completed = new Promise(resolve => {
+    const completed = new Promise<void>(resolve => {
       worker.on('completed', async function() {
         counter--;
 
@@ -114,7 +137,7 @@ describe('Jobs getters', function() {
 
     let counter = 2;
 
-    const failed = new Promise(resolve => {
+    const failed = new Promise<void>(resolve => {
       worker.on('failed', async function() {
         counter--;
 
@@ -130,6 +153,40 @@ describe('Jobs getters', function() {
 
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { baz: 'qux' });
+
+    await failed;
+  });
+
+  it('should get all failed jobs when no range is provided', async () => {
+    const worker = new Worker(queueName, async job => {
+      throw new Error('Forced error');
+    });
+
+    const counter = 4;
+
+    const failed = new Promise<void>(resolve => {
+      worker.on(
+        'failed',
+        after(counter, async () => {
+          const jobsWithoutProvidingRange = await queue.getFailed();
+          const allJobs = await queue.getFailed(0, -1);
+
+          expect(allJobs).to.be.a('array');
+          expect(allJobs).to.have.length(4);
+          expect(jobsWithoutProvidingRange).to.be.a('array');
+          expect(jobsWithoutProvidingRange).to.have.length(allJobs.length);
+          await worker.close();
+          resolve();
+        }),
+      );
+    });
+
+    await Promise.all([
+      queue.add('test', { foo: 'bar' }),
+      queue.add('test', { baz: 'qux' }),
+      queue.add('test', { bar: 'qux' }),
+      queue.add('test', { baz: 'xuq' }),
+    ]);
 
     await failed;
   });

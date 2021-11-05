@@ -1,6 +1,6 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
-import { values, flatten } from 'lodash';
+import { flatten } from 'lodash';
 import * as getPort from 'get-port';
 import * as fs from 'fs';
 import { promisify } from 'util';
@@ -32,6 +32,9 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   return standard.concat(convertedArgs);
 };
 
+/**
+ * @see https://nodejs.org/api/process.html#process_exit_codes
+ */
 const exitCodesErrors: { [index: number]: string } = {
   1: 'Uncaught Fatal Exception',
   2: 'Unused',
@@ -52,8 +55,10 @@ async function initChild(child: ChildProcess, processFile: string) {
     const onMessageHandler = (msg: any) => {
       if (msg.cmd === 'init-complete') {
         resolve();
-        child.off('message', onMessageHandler);
+      } else if (msg.cmd === 'init-failed') {
+        reject(new Error(msg.err));
       }
+      child.off('message', onMessageHandler);
     };
     child.on('message', onMessageHandler);
     child.on('close', (code, signal) => {
@@ -102,9 +107,8 @@ export class ChildPool {
 
     child.on('exit', _this.remove.bind(_this, child));
 
-    child.stdout.on('data', function(data) {
-      console.log(data.toString());
-    });
+    child.stdout.pipe(process.stdout);
+    child.stderr.pipe(process.stderr);
 
     await initChild(child, child.processFile);
     return child;
@@ -132,7 +136,7 @@ export class ChildPool {
   }
 
   async clean() {
-    const children = values(this.retained).concat(this.getAllFree());
+    const children = Object.values(this.retained).concat(this.getAllFree());
     this.retained = {};
     this.free = {};
 
@@ -144,6 +148,6 @@ export class ChildPool {
   }
 
   getAllFree() {
-    return flatten(values(this.free));
+    return flatten(Object.values(this.free));
   }
 }

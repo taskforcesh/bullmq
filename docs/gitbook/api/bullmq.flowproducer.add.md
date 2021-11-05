@@ -4,21 +4,22 @@
 
 ## FlowProducer.add() method
 
- add Adds a flow.
+Adds a flow.
 
 This call would be atomic, either it fails and no jobs will be added to the queues, or it succeeds and all jobs will be added.
 
 <b>Signature:</b>
 
 ```typescript
-add(flow: FlowJob): Promise<JobNode>;
+add(flow: FlowJob, opts?: FlowOpts): Promise<JobNode>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  flow | [FlowJob](./bullmq.flowjob.md) | An object with a tree-like structure where children jobs will be processed before their parents. |
+|  flow | [FlowJob](./bullmq.flowjob.md) | an object with a tree-like structure where children jobs will be processed before their parents. |
+|  opts | [FlowOpts](./bullmq.flowopts.md) | options that will be applied to the flow object. |
 
 <b>Returns:</b>
 

@@ -4,7 +4,7 @@
 
 ## Job.getDependencies() method
 
- getDependencies Get children job keys if this job is a parent and has children.
+Get children job keys if this job is a parent and has children.
 
 <b>Signature:</b>
 

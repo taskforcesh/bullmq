@@ -5,7 +5,7 @@ import { Scripts } from './scripts';
 import { StreamReadRaw } from '../interfaces/redis-streams';
 import { RedisClient } from './redis-connection';
 
-export declare interface QueueScheduler {
+export interface QueueSchedulerDeclaration {
   on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
   on(
     event: 'failed',
@@ -30,7 +30,10 @@ export declare interface QueueScheduler {
  * jobs, etc, will not work correctly or at all.
  *
  */
-export class QueueScheduler extends QueueBase {
+export class QueueScheduler
+  extends QueueBase
+  implements QueueSchedulerDeclaration
+{
   private workerCleanerTimeout: number;
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
@@ -38,7 +41,7 @@ export class QueueScheduler extends QueueBase {
 
   constructor(
     name: string,
-    { connection, ...opts }: QueueSchedulerOptions = {},
+    { connection, autorun = true, ...opts }: QueueSchedulerOptions = {},
   ) {
     super(name, {
       maxStalledCount: 1,
@@ -47,6 +50,7 @@ export class QueueScheduler extends QueueBase {
       connection: isRedisInstance(connection)
         ? (<RedisClient>connection).duplicate()
         : connection,
+      sharedConnection: false,
     });
 
     this.workerCleanerTimeout = opts.workerCleanerTimeout || 30000;
@@ -55,93 +59,103 @@ export class QueueScheduler extends QueueBase {
       throw new Error('Stalled interval cannot be zero or undefined');
     }
 
-    this.run().catch(error => {
-      this.running = false;
-      console.error(error);
-    });
+    if (autorun) {
+      this.run().catch(error => {
+        console.error(error);
+      });
+    }
   }
 
-  private async run() {
-    const client = await this.waitUntilReady();
+  async run(): Promise<void> {
+    if (!this.running) {
+      try {
+        this.running = true;
+        const client = await this.waitUntilReady();
 
-    const key = this.keys.delay;
-    const opts = this.opts as QueueSchedulerOptions;
+        const key = this.keys.delay;
+        const opts = this.opts as QueueSchedulerOptions;
 
-    const [nextTimestamp, streamId = '0-0'] = await this.updateDelaySet(
-      Date.now(),
-    );
-    let streamLastId = streamId;
+        const [nextTimestamp, streamId = '0-0'] = await this.updateDelaySet(
+          Date.now(),
+        );
+        let streamLastId = streamId;
 
-    if (nextTimestamp) {
-      this.nextTimestamp = nextTimestamp;
-    }
-
-    while (!this.closing) {
-      this.running = true;
-      // Check if at least the min stalled check time has passed.
-      await this.moveStalledJobsToWait();
-
-      await client.zremrangebyscore(
-        this.keys.workers,
-        '-inf',
-        Date.now() - this.workerCleanerTimeout,
-      );
-
-      // Listen to the delay event stream from lastDelayStreamTimestamp
-      // Can we use XGROUPS to reduce redundancy?
-      const nextDelay = this.nextTimestamp - Date.now();
-
-      const blockTime = Math.round(
-        Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
-      );
-
-      const data = await this.readDelayedData(
-        client,
-        key,
-        streamLastId,
-        blockTime,
-      );
-
-      if (data && data[0]) {
-        const stream = data[0];
-        const events = stream[1];
-
-        for (let i = 0; i < events.length; i++) {
-          streamLastId = events[i][0];
-          const args = array2obj(events[i][1]);
-          const nextTimestamp: number = parseInt(args.nextTimestamp);
-
-          if (nextTimestamp < this.nextTimestamp) {
-            this.nextTimestamp = nextTimestamp;
-          }
-        }
-
-        //
-        // We trim to a length of 100, which should be a very safe value
-        // for all kind of scenarios.
-        //
-        if (!this.closing) {
-          await client.xtrim(key, 'MAXLEN', '~', 100);
-        }
-      }
-
-      const now = Date.now();
-      const delay = this.nextTimestamp - now;
-
-      if (delay <= 0) {
-        const [nextTimestamp, id] = await this.updateDelaySet(now);
         if (nextTimestamp) {
           this.nextTimestamp = nextTimestamp;
-          streamLastId = id;
-        } else {
-          this.nextTimestamp = Number.MAX_VALUE;
         }
+
+        while (!this.closing) {
+          // Check if at least the min stalled check time has passed.
+          await this.moveStalledJobsToWait();
+
+          await client.zremrangebyscore(
+            this.keys.workers,
+            '-inf',
+            Date.now() - this.workerCleanerTimeout,
+          );
+
+          // Listen to the delay event stream from lastDelayStreamTimestamp
+          // Can we use XGROUPS to reduce redundancy?
+          const nextDelay = this.nextTimestamp - Date.now();
+
+          const blockTime = Math.round(
+            Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
+          );
+
+          const data = await this.readDelayedData(
+            client,
+            key,
+            streamLastId,
+            blockTime,
+          );
+
+          if (data && data[0]) {
+            const stream = data[0];
+            const events = stream[1];
+
+            for (let i = 0; i < events.length; i++) {
+              streamLastId = events[i][0];
+              const args = array2obj(events[i][1]);
+              const nextTimestamp: number = parseInt(args.nextTimestamp);
+
+              if (nextTimestamp < this.nextTimestamp) {
+                this.nextTimestamp = nextTimestamp;
+              }
+            }
+
+            //
+            // We trim to a length of 100, which should be a very safe value
+            // for all kind of scenarios.
+            //
+            if (!this.closing) {
+              await client.xtrim(key, 'MAXLEN', '~', 100);
+            }
+          }
+
+          const now = Date.now();
+          const delay = this.nextTimestamp - now;
+
+          if (delay <= 0) {
+            const [nextTimestamp, id] = await this.updateDelaySet(now);
+            if (nextTimestamp) {
+              this.nextTimestamp = nextTimestamp;
+              streamLastId = id;
+            } else {
+              this.nextTimestamp = Number.MAX_VALUE;
+            }
+          }
+        }
+        this.running = false;
+      } catch (error) {
+        this.running = false;
+        throw error;
       }
+    } else {
+      throw new Error('Queue Scheduler is already running.');
     }
-    this.running = false;
   }
 
-  isRunning() {
+  isRunning(): boolean {
     return this.running;
   }
 
@@ -203,7 +217,7 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  async close() {
+  close(): Promise<void> {
     if (this.closing) {
       return this.closing;
     }

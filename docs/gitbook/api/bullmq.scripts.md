@@ -18,10 +18,12 @@ export declare class Scripts
 |  [changeDelay(queue, jobId, delay)](./bullmq.scripts.changedelay.md) | <code>static</code> |  |
 |  [changeDelayArgs(queue, jobId, timestamp)](./bullmq.scripts.changedelayargs.md) | <code>static</code> |  |
 |  [cleanJobsInSet(queue, set, timestamp, limit)](./bullmq.scripts.cleanjobsinset.md) | <code>static</code> |  |
+|  [drain(queue, delayed)](./bullmq.scripts.drain.md) | <code>static</code> |  |
+|  [drainArgs(queue, delayed)](./bullmq.scripts.drainargs.md) | <code>static</code> |  |
 |  [extendLock(queue, jobId, token, duration)](./bullmq.scripts.extendlock.md) | <code>static</code> |  |
 |  [finishedErrors(code, jobId, command, state)](./bullmq.scripts.finishederrors.md) | <code>static</code> |  |
 |  [getState(queue, jobId)](./bullmq.scripts.getstate.md) | <code>static</code> |  |
-|  [isFinished(queue, jobId)](./bullmq.scripts.isfinished.md) | <code>static</code> |  |
+|  [isFinished(queue, jobId, returnValue)](./bullmq.scripts.isfinished.md) | <code>static</code> |  |
 |  [isJobInList(queue, listKey, jobId)](./bullmq.scripts.isjobinlist.md) | <code>static</code> |  |
 |  [moveStalledJobsToWait(queue)](./bullmq.scripts.movestalledjobstowait.md) | <code>static</code> |  |
 |  [moveToActive(worker, token, jobId)](./bullmq.scripts.movetoactive.md) | <code>static</code> |  |
@@ -31,7 +33,7 @@ export declare class Scripts
 |  [moveToFailedArgs(queue, job, failedReason, removeOnFailed, token, fetchNext)](./bullmq.scripts.movetofailedargs.md) | <code>static</code> |  |
 |  [moveToFinished(queue, job, val, propVal, shouldRemove, target, token, fetchNext)](./bullmq.scripts.movetofinished.md) | <code>static</code> |  |
 |  [moveToFinishedArgs(queue, job, val, propVal, shouldRemove, target, token, fetchNext)](./bullmq.scripts.movetofinishedargs.md) | <code>static</code> |  |
-|  [moveToWaitingChildren(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildren.md) | <code>static</code> |  |
+|  [moveToWaitingChildren(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildren.md) | <code>static</code> | Move parent job to waiting-children state. |
 |  [moveToWaitingChildrenArgs(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildrenargs.md) | <code>static</code> |  |
 |  [obliterate(queue, opts)](./bullmq.scripts.obliterate.md) | <code>static</code> |  |
 |  [pause(queue, pause)](./bullmq.scripts.pause.md) | <code>static</code> |  |

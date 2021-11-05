@@ -14,9 +14,9 @@ export interface NodeOpts
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [depth?](./bullmq.nodeopts.depth.md) | number | <i>(Optional)</i> |
-|  [id](./bullmq.nodeopts.id.md) | string |  |
-|  [maxChildren?](./bullmq.nodeopts.maxchildren.md) | number | <i>(Optional)</i> |
-|  [prefix?](./bullmq.nodeopts.prefix.md) | string | <i>(Optional)</i> |
-|  [queueName](./bullmq.nodeopts.queuename.md) | string |  |
+|  [depth?](./bullmq.nodeopts.depth.md) | number | <i>(Optional)</i> Maximum depth or levels to visit in the tree. |
+|  [id](./bullmq.nodeopts.id.md) | string | Root job id. |
+|  [maxChildren?](./bullmq.nodeopts.maxchildren.md) | number | <i>(Optional)</i> Maximum quantity of children per type (processed, unprocessed). |
+|  [prefix?](./bullmq.nodeopts.prefix.md) | string | <i>(Optional)</i> Prefix included in job key. |
+|  [queueName](./bullmq.nodeopts.queuename.md) | string | Root job queue name. |
 

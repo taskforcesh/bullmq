@@ -2,26 +2,31 @@
 
 [Home](./index.md) &gt; [bullmq](./bullmq.md) &gt; [QueueEvents](./bullmq.queueevents.md)
 
-## QueueEvents interface
+## QueueEvents class
+
+The QueueEvents class is used for listening to the global events emitted by a given queue.
+
+This class requires a dedicated redis connection.
 
 <b>Signature:</b>
 
 ```typescript
-export declare interface QueueEvents 
+export declare class QueueEvents extends QueueBase implements QueueEventsDeclaration 
 ```
+<b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
+
+<b>Implements:</b> [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md)
+
+## Constructors
+
+|  Constructor | Modifiers | Description |
+|  --- | --- | --- |
+|  [(constructor)(name, { connection, autorun, ...opts }, Connection)](./bullmq.queueevents._constructor_.md) |  | Constructs a new instance of the <code>QueueEvents</code> class |
 
 ## Methods
 
-|  Method | Description |
-|  --- | --- |
-|  [on(event, listener)](./bullmq.queueevents.on.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_9.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_1.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_2.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_3.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_4.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_5.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_6.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_7.md) |  |
-|  [on(event, listener)](./bullmq.queueevents.on_8.md) |  |
+|  Method | Modifiers | Description |
+|  --- | --- | --- |
+|  [close()](./bullmq.queueevents.close.md) |  |  |
+|  [run()](./bullmq.queueevents.run.md) |  |  |
 

@@ -4,7 +4,7 @@
 
 ## Job.changeDelay() method
 
- changeDelay Change delay of a delayed job.
+Change delay of a delayed job.
 
 <b>Signature:</b>
 
@@ -16,10 +16,11 @@ changeDelay(delay: number): Promise<void>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  delay | number |  |
+|  delay | number | milliseconds to be added to current time. |
 
 <b>Returns:</b>
 
 Promise&lt;void&gt;
 
+void
 

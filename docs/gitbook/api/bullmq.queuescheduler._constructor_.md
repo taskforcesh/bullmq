@@ -9,7 +9,7 @@ Constructs a new instance of the `QueueScheduler` class
 <b>Signature:</b>
 
 ```typescript
-constructor(name: string, { connection, ...opts }?: QueueSchedulerOptions);
+constructor(name: string, { connection, autorun, ...opts }?: QueueSchedulerOptions);
 ```
 
 ## Parameters
@@ -17,5 +17,5 @@ constructor(name: string, { connection, ...opts }?: QueueSchedulerOptions);
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  name | string |  |
-|  { connection, ...opts } | [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) |  |
+|  { connection, autorun, ...opts } | [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) |  |
 

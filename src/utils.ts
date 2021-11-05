@@ -1,5 +1,12 @@
-import { RedisClient } from './classes';
 import { Cluster } from 'ioredis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
+import { v4 } from 'uuid';
+import { get } from 'lodash';
+import { RedisClient } from './classes/redis-connection';
+import { JobsOptions } from './interfaces/jobs-options';
+import { QueueOptions } from './interfaces/queue-options';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -14,8 +21,8 @@ export function tryCatch(fn: (...args: any) => any, ctx: any, args: any[]) {
 
 /**
  * Checks the size of string for ascii/non-ascii characters
- * (Reference: https://stackoverflow.com/a/23318053/1347170)
- * @param {string} str
+ * @see https://stackoverflow.com/a/23318053/1347170
+ * @param str -
  */
 export function lengthInUtf8Bytes(str: string): number {
   return Buffer.byteLength(str, 'utf8');
@@ -56,7 +63,7 @@ export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
   prefix = 'bull',
-) {
+): Promise<void | boolean> {
   if (client instanceof Cluster) {
     // todo compat with cluster ?
     // @see https://github.com/luin/ioredis/issues/175
@@ -87,4 +94,33 @@ export function getParentKey(opts: { id: string; queue: string }): string {
   if (opts) {
     return `${opts.queue}:${opts.id}`;
   }
+}
+
+export function jobIdForGroup(
+  jobOpts: JobsOptions,
+  data: any,
+  queueOpts: QueueOptions,
+): string {
+  const jobId = jobOpts?.jobId;
+  const groupKeyPath = get(queueOpts, 'limiter.groupKey');
+  const groupKey = get(data, groupKeyPath);
+  if (groupKeyPath && !(typeof groupKey === 'undefined')) {
+    return `${jobId || v4()}:${groupKey}`;
+  }
+  return jobId;
+}
+
+export const clientCommandMessageReg =
+  /ERR unknown command ['`]\s*client\s*['`]/;
+
+export const DELAY_TIME_5 = 5000;
+
+export const DELAY_TIME_1 = 100;
+
+export function isNotConnectionError(error: Error): boolean {
+  const errorMessage = `${(error as Error).message}`;
+  return (
+    errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
+    !errorMessage.includes('ECONNREFUSED')
+  );
 }

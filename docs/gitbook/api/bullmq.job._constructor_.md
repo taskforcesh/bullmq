@@ -10,8 +10,8 @@ Constructs a new instance of the `Job` class
 
 ```typescript
 constructor(queue: MinimalQueue, 
-    name: N, 
-    data: T, 
+    name: NameType, 
+    data: DataType, 
     opts?: JobsOptions, id?: string);
 ```
 
@@ -20,8 +20,8 @@ constructor(queue: MinimalQueue,
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  name | N |  |
-|  data | T |  |
+|  name | NameType |  |
+|  data | DataType |  |
 |  opts | [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  id | string |  |
 

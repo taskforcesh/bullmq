@@ -4,6 +4,10 @@
 
 ## Queue.resume() method
 
+Resumes the processing of this queue globally.
+
+The method reverses the pause operation by resuming the processing of the queue.
+
 <b>Signature:</b>
 
 ```typescript

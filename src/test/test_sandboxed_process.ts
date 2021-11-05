@@ -1,14 +1,11 @@
-import * as chai from 'chai';
-import * as chaiAsPromised from 'chai-as-promised';
+import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
-import { Queue, QueueEvents, Worker } from '../classes';
+import { Queue, QueueEvents, Worker, Job, ChildProcessExt } from '../classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../utils';
-
-chai.use(chaiAsPromised);
-const expect = chai.expect;
+const { stdout, stderr } = require('test-console');
 
 describe('sandboxed process', () => {
   let queue: Queue;
@@ -22,7 +19,7 @@ describe('sandboxed process', () => {
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async () => {
+  afterEach(async function() {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
@@ -35,8 +32,8 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completing = new Promise((resolve, reject) => {
-      worker.on('completed', async (job, value) => {
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(42);
@@ -58,14 +55,84 @@ describe('sandboxed process', () => {
     await worker.close();
   });
 
+  describe('when there is an output from stdout', () => {
+    it('uses the parent stdout', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_stdout.js';
+
+      const worker = new Worker(queueName, processFile, {
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          expect(job.data).to.be.eql({ foo: 'bar' });
+          expect(value).to.be.eql(1);
+          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          resolve();
+        });
+      });
+      const inspect = stdout.inspect();
+
+      await queue.add('test', { foo: 'bar' });
+
+      let output = '';
+      inspect.on('data', (chunk: string) => {
+        output += chunk;
+      });
+
+      await completing;
+      inspect.restore();
+
+      expect(output).to.be.equal('message\n');
+
+      await worker.close();
+    });
+  });
+
+  describe('when there is an output from stderr', () => {
+    it('uses the parent stderr', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_stderr.js';
+
+      const worker = new Worker(queueName, processFile, {
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          expect(job.data).to.be.eql({ foo: 'bar' });
+          expect(value).to.be.eql(1);
+          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          resolve();
+        });
+      });
+      const inspect = stderr.inspect();
+
+      await queue.add('test', { foo: 'bar' });
+
+      let output = '';
+      inspect.on('data', (chunk: string) => {
+        output += chunk;
+      });
+
+      await completing;
+      inspect.restore();
+
+      expect(output).to.be.equal('error message\n');
+
+      await worker.close();
+    });
+  });
+
   it('should process with named processor', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor.js';
     const worker = new Worker(queueName, processFile, {
       drainDelay: 1,
     });
 
-    const completing = new Promise((resolve, reject) => {
-      worker.on('completed', async (job, value) => {
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(42);
@@ -101,13 +168,13 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       const after4 = after(4, () => {
         expect(worker['childPool'].getAllFree().length).to.eql(4);
         resolve();
       });
 
-      worker.on('completed', async (job, value) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(value).to.be.eql(42);
           expect(
@@ -142,14 +209,14 @@ describe('sandboxed process', () => {
       queue.add('4', { foo: 'bar4' }),
     ]);
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       const after4 = after(4, async () => {
         expect(worker['childPool'].getAllFree().length).to.eql(1);
         await worker.close();
         resolve();
       });
 
-      worker.on('completed', async (job, value) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(value).to.be.eql(42);
           expect(
@@ -176,8 +243,8 @@ describe('sandboxed process', () => {
 
     const progresses: any[] = [];
 
-    const completing = new Promise((resolve, reject) => {
-      worker.on('completed', async (job, value) => {
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, value: any) => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(37);
@@ -207,6 +274,40 @@ describe('sandboxed process', () => {
     await worker.close();
   });
 
+  describe('when env variables are provided', () => {
+    it('shares env variables', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_env.js';
+
+      const worker = new Worker(queueName, processFile, {
+        drainDelay: 1,
+      });
+
+      process.env.variable = 'variable';
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql('variable');
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await completing;
+      process.env.variable = undefined;
+      await worker.close();
+    });
+  });
+
   it('should process and fail', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_fail.js';
 
@@ -214,7 +315,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const failing = new Promise((resolve, reject) => {
+    const failing = new Promise<void>((resolve, reject) => {
       worker.on('failed', async (job, err) => {
         try {
           expect(job.data).eql({ foo: 'bar' });
@@ -308,7 +409,7 @@ describe('sandboxed process', () => {
     const job = await queue.add('test', { exitCode: 1 });
 
     await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
-      'Error initializing child: Internal Exception Handler Run-Time Failure',
+      'Broken file processor',
     );
   });
 
@@ -319,7 +420,7 @@ describe('sandboxed process', () => {
       drainDelay: 1,
     });
 
-    const completing = new Promise((resolve, reject) => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async () => {
         try {
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
@@ -363,7 +464,9 @@ describe('sandboxed process', () => {
 
     expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(1);
     expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
-    const child = Object.values(worker['childPool'].retained)[0];
+    const child = Object.values(
+      worker['childPool'].retained,
+    )[0] as ChildProcessExt;
 
     expect(child).to.equal(initializedChild);
     expect(child.exitCode).to.equal(null);

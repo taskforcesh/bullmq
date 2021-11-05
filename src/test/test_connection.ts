@@ -1,34 +1,51 @@
 import * as IORedis from 'ioredis';
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { Queue, Job, Worker } from '../classes';
-import { v4 } from 'uuid';
-import * as chai from 'chai';
-import * as chaiAsPromised from 'chai-as-promised';
-import { removeAllQueueData } from '../utils';
+import { Queue, Job, Worker, QueueBase } from '../classes';
+import { RedisClient } from '../classes/redis-connection';
 
-chai.use(chaiAsPromised);
-const expect = chai.expect;
+import { v4 } from 'uuid';
+import { expect } from 'chai';
+import { removeAllQueueData } from '../utils';
 
 describe('connection', () => {
   let queue: Queue;
   let queueName: string;
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
-    queue = new Queue(queueName);
+    queueName = `test-${v4()}`;
+    queue = new Queue(queueName, { connection: { host: 'localhost' } });
   });
 
-  afterEach(async () => {
+  afterEach(async function() {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
+  });
+
+  it('should override maxRetriesPerRequest: null and enableReadyCheck: false as redis options', async () => {
+    const opts = {
+      connection: {
+        host: 'localhost',
+        maxRetriesPerRequest: 20,
+        enableReadyCheck: true,
+      },
+    };
+
+    function checkOptions(client: RedisClient) {
+      expect(
+        (<IORedis.RedisOptions>client.options).maxRetriesPerRequest,
+      ).to.be.equal(null);
+      expect(
+        (<IORedis.RedisOptions>client.options).enableReadyCheck,
+      ).to.be.equal(false);
+    }
+
+    const queue = new QueueBase(queueName, opts);
+    checkOptions(await queue.client);
   });
 
   it('should recover from a connection loss', async () => {
     let processor;
 
-    const processing = new Promise(resolve => {
+    const processing = new Promise<void>(resolve => {
       processor = async (job: Job) => {
         expect(job.data.foo).to.be.equal('bar');
         resolve();
@@ -41,7 +58,7 @@ describe('connection', () => {
       // error event has to be observed or the exception will bubble up
     });
 
-    queue.on('error', err => {
+    queue.on('error', (err: Error) => {
       // error event has to be observed or the exception will bubble up
     });
 
@@ -66,7 +83,7 @@ describe('connection', () => {
     let count = 0;
     let processor;
 
-    const processing = new Promise((resolve, reject) => {
+    const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
         try {
           if (count == 0) {
@@ -87,7 +104,7 @@ describe('connection', () => {
       // error event has to be observed or the exception will bubble up
     });
 
-    queue.on('error', err => {
+    queue.on('error', (err: Error) => {
       // error event has to be observed or the exception will bubble up
     });
 
@@ -161,8 +178,27 @@ describe('connection', () => {
     });
 
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
-      'Connection is closed.',
+      'connect ECONNREFUSED 127.0.0.1:1234',
     );
+  });
+
+  it('should emit error if redis connection fails', async () => {
+    const queueFail = new Queue('connection fail port', {
+      connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
+    });
+
+    const waitingErrorEvent = new Promise<void>((resolve, reject) => {
+      queueFail.on('error', (err: Error) => {
+        try {
+          expect(err.message).to.equal('connect ECONNREFUSED 127.0.0.1:1234');
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await waitingErrorEvent;
   });
 
   it('should close if connection has failed', async () => {
@@ -170,8 +206,10 @@ describe('connection', () => {
       connection: { port: 1234, host: '127.0.0.1', retryStrategy: () => null },
     });
 
-    await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
-      'Connection is closed.',
+    queueFail.on('error', () => {});
+
+    await expect(queueFail.waitUntilReady()).to.be.rejectedWith(
+      'connect ECONNREFUSED 127.0.0.1:1234',
     );
 
     await expect(queueFail.close()).to.be.eventually.equal(undefined);
@@ -189,7 +227,7 @@ describe('connection', () => {
     await expect(queueFail.close()).to.be.eventually.equal(undefined);
 
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
-      CONNECTION_CLOSED_ERROR_MSG,
+      'connect ECONNREFUSED 127.0.0.1:1234',
     );
   });
 });

@@ -9,5 +9,5 @@ The payload for this job.
 <b>Signature:</b>
 
 ```typescript
-data: T;
+data: DataType;
 ```

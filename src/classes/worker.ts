@@ -1,23 +1,28 @@
 import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
+import { v4 } from 'uuid';
 import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
-import { QueueBase, Repeat } from './';
+import {
+  clientCommandMessageReg,
+  delay,
+  DELAY_TIME_1,
+  isNotConnectionError,
+  isRedisInstance,
+} from '../utils';
+import { QueueBase } from './queue-base';
+import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
 import { RedisConnection, RedisClient } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
-import { v4 } from 'uuid';
 import { TimerManager } from './timer-manager';
-import { isRedisInstance, delay } from '../utils';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
-
-export declare interface Worker {
+export interface WorkerDeclaration {
   on(event: 'active', listener: (job: Job, prev: string) => void): this;
   on(event: 'completed', listener: (job: Job) => void): this;
   on(event: 'drained', listener: () => void): this;
@@ -37,10 +42,13 @@ export declare interface Worker {
  *
  */
 export class Worker<
-  T = any,
-  R = any,
-  N extends string = string
-> extends QueueBase {
+    DataType = any,
+    ResultType = any,
+    NameType extends string = string,
+  >
+  extends QueueBase
+  implements WorkerDeclaration
+{
   opts: WorkerOptions;
 
   id: string;
@@ -48,7 +56,7 @@ export class Worker<
   private drained: boolean;
   private waiting = false;
   private running = false;
-  private processFn: Processor<T, R, N>;
+  private processFn: Processor<DataType, ResultType, NameType>;
 
   private resumeWorker: () => void;
   private paused: Promise<void>;
@@ -58,21 +66,29 @@ export class Worker<
 
   private blockingConnection: RedisConnection;
 
-  private processing: Map<Promise<Job<T, R, N> | string>, string>; // { [index: number]: Promise<Job | void> } = {};
+  private processing: Map<
+    Promise<Job<DataType, ResultType, NameType> | string>,
+    string
+  >;
   constructor(
     name: string,
-    processor?: string | Processor<T, R, N>,
+    processor?: string | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
+    Connection?: typeof RedisConnection,
   ) {
-    super(name, opts);
+    super(
+      name,
+      { ...opts, sharedConnection: isRedisInstance(opts.connection) },
+      Connection,
+    );
 
     this.id = v4();
     this.opts = {
-      // settings: {},
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
       runRetryDelay: 15000,
+      autorun: true,
       ...this.opts,
     };
 
@@ -104,14 +120,16 @@ export class Worker<
         }
 
         this.childPool = this.childPool || new ChildPool();
-        this.processFn = sandbox<T, R, N>(processor, this.childPool).bind(this);
+        this.processFn = sandbox<DataType, ResultType, NameType>(
+          processor,
+          this.childPool,
+        ).bind(this);
       }
       this.timerManager = new TimerManager();
 
-      this.run().catch(error => {
-        this.running = false;
-        console.error(error);
-      });
+      if (this.opts.autorun) {
+        this.run().catch(error => this.emit('error', error));
+      }
     }
 
     this.on('error', err => console.error(err));
@@ -128,7 +146,7 @@ export class Worker<
     return this.blockingConnection.client;
   }
 
-  get repeat() {
+  get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
         const connection = await this.client;
@@ -142,91 +160,106 @@ export class Worker<
     });
   }
 
-  private async run() {
-    const client = await this.blockingConnection.client;
+  async run() {
+    if (this.processFn) {
+      if (!this.running) {
+        try {
+          this.running = true;
+          const client = await this.blockingConnection.client;
 
-    if (this.closing) {
-      return;
-    }
+          if (this.closing) {
+            return;
+          }
 
-    // IDEA, How to store metadata associated to a worker.
-    // create a key from the worker ID associated to the given name.
-    // We keep a hash table bull:myqueue:workers where
-    // every worker is a hash key workername:workerId with json holding
-    // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
-    //
-    try {
-      await client.client('setname', this.clientName());
-    } catch (err) {
-      if (!clientCommandMessageReg.test(err.message)) {
-        throw err;
-      }
-    }
+          // IDEA, How to store metadata associated to a worker.
+          // create a key from the worker ID associated to the given name.
+          // We keep a hash table bull:myqueue:workers where
+          // every worker is a hash key workername:workerId with json holding
+          // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
+          //
+          try {
+            await client.client('setname', this.clientName());
+          } catch (err) {
+            if (!clientCommandMessageReg.test(err.message)) {
+              throw err;
+            }
+          }
 
-    const opts: WorkerOptions = <WorkerOptions>this.opts;
+          const opts: WorkerOptions = <WorkerOptions>this.opts;
 
-    const processing = (this.processing = new Map());
+          const processing = (this.processing = new Map());
 
-    const tokens: string[] = Array.from({ length: opts.concurrency }, () =>
-      v4(),
-    );
-    let lastWorkerInfoUpdate = Date.now();
+          const tokens: string[] = Array.from(
+            { length: opts.concurrency },
+            () => v4(),
+          );
 
-    await this.saveWorkerInfo(lastWorkerInfoUpdate);
-    while (!this.closing) {
-      this.running = true;
+          let lastWorkerInfoUpdate = Date.now();
 
-      const currentTime = Date.now();
-      if (currentTime - lastWorkerInfoUpdate > 30000) {
-        lastWorkerInfoUpdate = currentTime;
-        await this.saveWorkerInfo(lastWorkerInfoUpdate);
-      }
+          await this.saveWorkerInfo(lastWorkerInfoUpdate);
+          while (!this.closing) {
+            const currentTime = Date.now();
+            if (currentTime - lastWorkerInfoUpdate > 30000) {
+              lastWorkerInfoUpdate = currentTime;
+              await this.saveWorkerInfo(lastWorkerInfoUpdate);
+            }
 
-      if (processing.size < opts.concurrency) {
-        const token = tokens.pop();
-        processing.set(
-          this.retryIfFailed<Job<any, any, string>>(
-            () => this.getNextJob(token),
-            this.opts.runRetryDelay,
-          ),
-          token,
-        );
-      }
+            if (processing.size < opts.concurrency) {
+              const token = tokens.pop();
+              processing.set(
+                this.retryIfFailed<Job<any, any, string>>(
+                  () => this.getNextJob(token),
+                  this.opts.runRetryDelay,
+                ),
+                token,
+              );
+            }
 
-      /*
-       * Get the first promise that completes
-       */
-      const promises = [...processing.keys()];
-      const completedIdx = await Promise.race(
-        promises.map((p, idx) => p.then(() => idx)),
-      );
+            /*
+             * Get the first promise that completes
+             */
+            const promises = [...processing.keys()];
+            const completedIdx = await Promise.race(
+              promises.map((p, idx) => p.then(() => idx)),
+            );
 
-      const completed = promises[completedIdx];
+            const completed = promises[completedIdx];
 
-      const token = processing.get(completed);
-      processing.delete(completed);
+            const token = processing.get(completed);
+            processing.delete(completed);
 
-      const job = await completed;
-      if (job) {
-        // reuse same token if next job is available to process
-        processing.set(
-          this.retryIfFailed<void | Job<any, any, string>>(
-            () => this.processJob(job, token),
-            this.opts.runRetryDelay,
-          ),
-          token,
-        );
+            const job = await completed;
+            if (job) {
+              // reuse same token if next job is available to process
+              processing.set(
+                this.retryIfFailed<void | Job<any, any, string>>(
+                  () => this.processJob(job, token),
+                  this.opts.runRetryDelay,
+                ),
+                token,
+              );
+            } else {
+              tokens.push(token);
+            }
+          }
+          this.running = false;
+          return Promise.all([...processing.keys()]);
+        } catch (error) {
+          this.running = false;
+
+          throw error;
+        }
       } else {
-        tokens.push(token);
+        throw new Error('Worker is already running.');
       }
+    } else {
+      throw new Error('No process function is defined.');
     }
-    this.running = false;
-    return Promise.all(processing.keys());
   }
 
   /**
    * Returns a promise that resolves to the next job in queue.
-   * @param token worker token to be assigned to retrieved job
+   * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
@@ -297,10 +330,23 @@ export class Worker<
         this.keys.active,
         opts.drainDelay,
       );
+    } catch (error) {
+      if (isNotConnectionError(error)) {
+        this.emit('error', error);
+      }
+      await this.delay();
     } finally {
       this.waiting = false;
     }
     return jobId;
+  }
+
+  /**
+   *
+   * This function is exposed only for testing purposes.
+   */
+  async delay(): Promise<void> {
+    await delay(DELAY_TIME_1);
   }
 
   private async nextJobFromJobData(
@@ -333,7 +379,7 @@ export class Worker<
     }
   }
 
-  async processJob(job: Job<T, R, N>, token: string) {
+  async processJob(job: Job<DataType, ResultType, NameType>, token: string) {
     if (!job || this.closing || this.paused) {
       return;
     }
@@ -378,7 +424,7 @@ export class Worker<
 
     // end copy-paste from Bull3
 
-    const handleCompleted = async (result: R) => {
+    const handleCompleted = async (result: ResultType) => {
       const jobData = await job.moveToCompleted(
         result,
         token,
@@ -460,7 +506,7 @@ export class Worker<
    *
    * @returns true if worker is paused, false otherwise.
    */
-  isPaused() {
+  isPaused(): boolean {
     return !!this.paused;
   }
 
@@ -469,9 +515,8 @@ export class Worker<
    * Checks if worker is currently running.
    *
    * @returns true if worker is running, false otherwise.
-   *
    */
-  isRunning() {
+  isRunning(): boolean {
     return this.running;
   }
 
@@ -481,7 +526,7 @@ export class Worker<
    *
    * This method waits for current jobs to finalize before returning.
    *
-   * @param force Use force boolean parameter if you do not want to wait for
+   * @param force - Use force boolean parameter if you do not want to wait for
    * current jobs to be processed.
    *
    * @returns Promise that resolves when the worker has been closed.
@@ -524,7 +569,7 @@ export class Worker<
   /**
    * Returns a promise that resolves when active jobs are cleared
    *
-   * @returns {Promise}
+   * @returns
    */
   private async whenCurrentJobsFinished(reconnect = true) {
     //

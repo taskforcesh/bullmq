@@ -1,10 +1,10 @@
-import { Queue, QueueEvents, Worker } from '../classes';
-import { delay, removeAllQueueData } from '../utils';
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
+import { Queue, QueueEvents, Worker } from '../classes';
+import { delay, removeAllQueueData } from '../utils';
 
 describe('Cleaner', () => {
   let queue: Queue;
@@ -18,7 +18,7 @@ describe('Cleaner', () => {
     await queueEvents.waitUntilReady();
   });
 
-  afterEach(async () => {
+  afterEach(async function() {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
@@ -27,7 +27,7 @@ describe('Cleaner', () => {
   it('should clean an empty queue', async () => {
     await queue.waitUntilReady();
 
-    const waitCleaned = new Promise(resolve => {
+    const waitCleaned = new Promise<void>(resolve => {
       queue.on('cleaned', (jobs, type) => {
         expect(type).to.be.eql('completed');
         expect(jobs.length).to.be.eql(0);
@@ -72,6 +72,8 @@ describe('Cleaner', () => {
     await delay(100);
     const jobs = await queue.getCompleted();
     expect(jobs.length).to.be.eql(1);
+
+    await worker.close();
   });
 
   it('should clean all failed jobs', async () => {
@@ -88,6 +90,8 @@ describe('Cleaner', () => {
     expect(jobs.length).to.be.eql(2);
     const count = await queue.count();
     expect(count).to.be.eql(0);
+
+    await worker.close();
   });
 
   it('should clean all waiting jobs', async () => {
@@ -138,5 +142,7 @@ describe('Cleaner', () => {
     expect(jobs.length).to.be.eql(2);
     const failed = await queue.getFailed();
     expect(failed.length).to.be.eql(0);
+
+    await worker.close();
   });
 });
