@@ -88,6 +88,7 @@ export class QueueScheduler
           // Check if at least the min stalled check time has passed.
           await this.moveStalledJobsToWait();
 
+          // Removes workers info by cleaner timeout
           await client.zremrangebyscore(
             this.keys.workers,
             '-inf',
