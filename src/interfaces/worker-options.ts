@@ -16,6 +16,10 @@ export interface WorkerOptions extends QueueBaseOptions {
    */
   autorun?: boolean;
   /**
+   * Seconds to wait before expiring worker info.
+   */
+  infoDuration?: number;
+  /**
    * Amount of jobs that a single worker is allowed to work on
    * in parallel.
    *

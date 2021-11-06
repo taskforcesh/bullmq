@@ -233,15 +233,6 @@ export class QueueGetters extends QueueBase {
     }
   }
 
-  async getWorkersInfo(start = 0, end = 1, asc = false): Promise<string[]> {
-    const client = await this.client;
-    if (asc) {
-      return client.zrange(this.keys.workers, start, end);
-    } else {
-      return client.zrevrange(this.keys.workers, start, end);
-    }
-  }
-
   private parseClientList(list: string) {
     const lines = list.split('\n');
     const clients: { [index: string]: string }[] = [];

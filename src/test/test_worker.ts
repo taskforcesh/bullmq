@@ -50,6 +50,41 @@ describe('workers', function() {
     await worker2.close();
   });
 
+  it('should delete expired worker keys', async function() {
+    this.timeout(8000);
+    const queue2 = new Queue(queueName, { workerCleanTimeout: 4 });
+
+    const worker = new Worker(queueName, async job => {}, {
+      infoDuration: 4,
+    });
+    await worker.waitUntilReady();
+    await delay(10);
+
+    const workers = await queue2.getWorkersInfo();
+    expect(workers).to.have.length(1);
+
+    const worker2 = new Worker(queueName, async job => {}, {
+      infoDuration: 5,
+    });
+    await worker2.waitUntilReady();
+
+    await delay(2000);
+
+    const workerKeys = await queue2.getWorkersInfo();
+
+    expect(workerKeys).to.have.length(2);
+
+    await worker.close();
+    await worker2.close();
+
+    await delay(2000);
+
+    const workerKeys2 = await queue2.getWorkersInfo();
+
+    expect(workerKeys2).to.have.length(1);
+    await queue2.close();
+  });
+
   it('should get only workers related only to one queue', async function() {
     const queueName2 = `${queueName}2`;
     const queue2 = new Queue(queueName2);

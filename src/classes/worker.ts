@@ -89,6 +89,7 @@ export class Worker<
       lockDuration: 30000,
       runRetryDelay: 15000,
       autorun: true,
+      infoDuration: 30,
       ...this.opts,
     };
 
@@ -197,9 +198,13 @@ export class Worker<
           let lastWorkerInfoUpdate = Date.now();
 
           await this.saveWorkerInfo(lastWorkerInfoUpdate);
+
           while (!this.closing) {
             const currentTime = Date.now();
-            if (currentTime - lastWorkerInfoUpdate > 30000) {
+            if (
+              currentTime - lastWorkerInfoUpdate >
+              this.opts.infoDuration * 1000
+            ) {
               lastWorkerInfoUpdate = currentTime;
               await this.saveWorkerInfo(lastWorkerInfoUpdate);
             }
@@ -309,7 +314,7 @@ export class Worker<
     const multi = client.multi();
     multi.zadd(this.keys.workers, now, workerKey);
     multi.hmset(workerKey, 'name', this.workerName, 'queueName', this.name);
-    multi.expire(workerKey, 30);
+    multi.expire(workerKey, this.opts.infoDuration);
     return multi.exec();
   }
 

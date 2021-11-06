@@ -57,6 +57,8 @@ export interface QueueOptions extends QueueBaseOptions {
       maxLen: number;
     };
   };
+
+  workerCleanTimeout?: number;
 }
 
 /**

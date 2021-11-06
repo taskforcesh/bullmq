@@ -30,6 +30,7 @@ export class Queue<
   limiter: {
     groupKey: string;
   } = null;
+  private workerCleanTimeout: number;
   private _repeat: Repeat;
 
   constructor(
@@ -48,6 +49,7 @@ export class Queue<
 
     this.jobsOpts = get(opts, 'defaultJobOptions');
     this.limiter = get(opts, 'limiter');
+    this.workerCleanTimeout = get(opts, 'workerCleanTimeout', 30);
 
     this.waitUntilReady()
       .then(client => {
@@ -165,6 +167,23 @@ export class Queue<
   async resume(): Promise<void> {
     await Scripts.pause(this, false);
     this.emit('resumed');
+  }
+
+  async getWorkersInfo(start = 0, end = 1, asc = false): Promise<string[]> {
+    const client = await this.client;
+
+    // Removes workers info by cleaner timeout
+    await client.zremrangebyscore(
+      this.keys.workers,
+      '-inf',
+      Date.now() - this.workerCleanTimeout * 1000,
+    );
+
+    if (asc) {
+      return client.zrange(this.keys.workers, start, end);
+    } else {
+      return client.zrevrange(this.keys.workers, start, end);
+    }
   }
 
   /**
