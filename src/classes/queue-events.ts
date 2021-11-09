@@ -41,6 +41,18 @@ export interface QueueEventsDeclaration {
   ): this;
 
   /**
+   * Listen to 'cleaned' event.
+   *
+   * This event is triggered when a cleaned method is triggered.
+   *
+   * @param event -
+   */
+  on(
+    event: 'cleaned',
+    listener: (args: { count: string }, id: string) => void,
+  ): this;
+
+  /**
    * Listen to 'completed' event.
    *
    * This event is triggered when a job has successfully completed.

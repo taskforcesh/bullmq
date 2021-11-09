@@ -547,6 +547,7 @@ export class Scripts {
 
     return (<any>client).cleanJobsInSet([
       queue.toKey(set),
+      queue.toKey('events'),
       queue.toKey(''),
       timestamp,
       limit,
