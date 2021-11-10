@@ -231,6 +231,7 @@ export class Queue<
    * @param The - Max number of jobs to clean
    * @param {string} [type=completed] - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
+   * @returns Id jobs from the deleted records
    */
   async clean(
     grace: number,
