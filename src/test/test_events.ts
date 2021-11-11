@@ -71,8 +71,11 @@ describe('events', function() {
   });
 
   it('should emit waiting when a job has been added', async function() {
-    const waiting = new Promise(resolve => {
-      queue.on('waiting', resolve);
+    const waiting = new Promise<void>(resolve => {
+      queue.on('waiting', job => {
+        expect(job.id).to.be.string;
+        resolve();
+      });
     });
 
     await queue.add('test', { foo: 'bar' });
@@ -82,7 +85,7 @@ describe('events', function() {
 
   it('should emit global waiting event when a job has been added', async function() {
     const waiting = new Promise(resolve => {
-      queue.on('waiting', resolve);
+      queueEvents.on('waiting', resolve);
     });
 
     await queue.add('test', { foo: 'bar' });
