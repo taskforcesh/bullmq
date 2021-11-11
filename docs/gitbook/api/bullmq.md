@@ -63,8 +63,8 @@
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
-|  [Queue](./bullmq.queue.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
+|  [QueueDeclaration](./bullmq.queuedeclaration.md) |  |
 |  [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
 |  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |

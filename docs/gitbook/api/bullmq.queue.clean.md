@@ -24,3 +24,5 @@ clean(grace: number, limit: number, type?: 'completed' | 'wait' | 'active' | 'pa
 
 Promise&lt;string\[\]&gt;
 
+Id jobs from the deleted records
+
