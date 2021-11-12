@@ -18,7 +18,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "npm-run-all tsc copy:lua copy:includes:lua",
+    "build": "npm-run-all tsc copy:lua copy:includes:lua clean:temp:files",
+    "clean:temp:files": "rimraf dist/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
     "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/commands/includes",
     "coverage": "nyc --reporter=text npm run test",
@@ -96,6 +97,7 @@
     "nyc": "^14.1.1",
     "prettier": "^2.4.1",
     "pretty-quick": "^3.1.1",
+    "rimraf": "^3.0.2",
     "semantic-release": "^17.4.7",
     "sinon": "^7.5.0",
     "test-console": "^2.0.0",
