@@ -23,11 +23,63 @@ import { TimerManager } from './timer-manager';
 // for better resource utilization.
 
 export interface WorkerDeclaration {
+  /**
+   * Listen to 'active' event.
+   *
+   * This event is triggered when a job enters the 'active' state.
+   *
+   * @param event -
+   */
   on(event: 'active', listener: (job: Job, prev: string) => void): this;
+  
+  /**
+   * Listen to 'completed' event.
+   *
+   * This event is triggered when a job has successfully completed.
+   *
+   * @param event -
+   */
   on(event: 'completed', listener: (job: Job) => void): this;
+  
+  /**
+   * Listen to 'drained' event.
+   *
+   * This event is triggered when the queue has drained the waiting list.
+   * Note that there could still be delayed jobs waiting their timers to expire
+   * and this event will still be triggered as long as the waiting list has emptied.
+   *
+   * @param event -
+   */
   on(event: 'drained', listener: () => void): this;
+  
+  /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an error is throw.
+   *
+   * @param event -
+   */
   on(event: 'error', listener: (failedReason: Error) => void): this;
+  
+  /**
+   * Listen to 'failed' event.
+   *
+   * This event is triggered when a job has thrown an exception.
+   *
+   * @param event -
+   */
   on(event: 'failed', listener: (job: Job, error: Error) => void): this;
+  
+  /**
+   * Listen to 'progress' event.
+   *
+   * This event is triggered when a job updates it progress, i.e. the
+   * Job##updateProgress() method is called. This is useful to notify
+   * progress or any other data from within a processor to the rest of the
+   * world.
+   *
+   * @param event -
+   */
   on(
     event: 'progress',
     listener: (job: Job, progress: number | object) => void,
@@ -54,13 +106,13 @@ export class Worker<
   private drained: boolean;
   private waiting = false;
   private running = false;
-  private processFn: Processor<DataType, ResultType, NameType>;
+  protected processFn: Processor<DataType, ResultType, NameType>;
 
   private resumeWorker: () => void;
-  private paused: Promise<void>;
+  protected paused: Promise<void>;
   private _repeat: Repeat;
   private childPool: ChildPool;
-  private timerManager: TimerManager;
+  protected timerManager: TimerManager;
 
   private blockingConnection: RedisConnection;
 
@@ -325,7 +377,7 @@ export class Worker<
     await delay(DELAY_TIME_1);
   }
 
-  private async nextJobFromJobData(
+  protected async nextJobFromJobData(
     jobData?: JobJsonRaw | number,
     jobId?: string,
   ) {
