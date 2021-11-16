@@ -60,6 +60,6 @@ for _, job in ipairs(jobs) do
   end
 end
 
-redis.call("XADD", KEYS[2], "*", "event", "cleaned", "count", deletedCount)
+rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", deletedCount)
 
 return deleted
