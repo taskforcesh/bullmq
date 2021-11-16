@@ -94,12 +94,13 @@ describe('events', function() {
   });
 
   it('emits cleaned global event when jobs were cleaned', async function() {
-    await queue.add('test', { foo: 'bar' });
-    await queue.add('test', { foo: 'baz' });
+    for (let i = 0; i < 20; i++) {
+      await queue.add('test', { foo: 'bar' });
+    }
 
     const cleaned = new Promise<void>(resolve => {
       queueEvents.once('cleaned', ({ count }) => {
-        expect(count).to.be.eql('2');
+        expect(count).to.be.eql('20');
         resolve();
       });
     });
