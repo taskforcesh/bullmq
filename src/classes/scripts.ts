@@ -246,7 +246,7 @@ export class Scripts {
     target: string,
     token: string,
     fetchNext: boolean,
-  ) {
+  ): Promise<[JobJsonRaw, string] | []> {
     const client = await queue.client;
     const args = this.moveToFinishedArgs(
       queue,
@@ -318,7 +318,7 @@ export class Scripts {
     removeOnComplete: boolean | number,
     token: string,
     fetchNext: boolean,
-  ) {
+  ): Promise<[JobJsonRaw, string] | []> {
     return this.moveToFinished(
       queue,
       job,
@@ -434,7 +434,7 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
-  ) {
+  ): string[] {
     //
     // Bake in the job id first 12 bits into the timestamp
     // to guarantee correct execution order of delayed jobs
@@ -461,7 +461,7 @@ export class Scripts {
     jobId: string,
     token: string,
     opts?: MoveToChildrenOpts,
-  ) {
+  ): string[] {
     let timestamp = Math.max(0, opts.timestamp ?? 0);
 
     const childKey = getParentKey(opts.child);
@@ -537,12 +537,17 @@ export class Scripts {
     }
   }
 
+  /**
+   * Remove jobs in a specific state.
+   *
+   * @returns Id jobs from the deleted records.
+   */
   static async cleanJobsInSet(
     queue: MinimalQueue,
     set: string,
     timestamp: number,
     limit = 0,
-  ) {
+  ): Promise<string[]> {
     const client = await queue.client;
 
     return (<any>client).cleanJobsInSet([

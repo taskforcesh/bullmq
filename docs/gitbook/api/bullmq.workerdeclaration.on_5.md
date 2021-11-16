@@ -4,6 +4,10 @@
 
 ## WorkerDeclaration.on() method
 
+Listen to 'progress' event.
+
+This event is triggered when a job updates it progress, i.e. the Job\#\#updateProgress() method is called. This is useful to notify progress or any other data from within a processor to the rest of the world.
+
 <b>Signature:</b>
 
 ```typescript

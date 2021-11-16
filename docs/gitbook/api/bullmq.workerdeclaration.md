@@ -14,11 +14,11 @@ export interface WorkerDeclaration
 
 |  Method | Description |
 |  --- | --- |
-|  [on(event, listener)](./bullmq.workerdeclaration.on.md) |  |
-|  [on(event, listener)](./bullmq.workerdeclaration.on_1.md) |  |
-|  [on(event, listener)](./bullmq.workerdeclaration.on_2.md) |  |
-|  [on(event, listener)](./bullmq.workerdeclaration.on_3.md) |  |
-|  [on(event, listener)](./bullmq.workerdeclaration.on_4.md) |  |
-|  [on(event, listener)](./bullmq.workerdeclaration.on_5.md) |  |
+|  [on(event, listener)](./bullmq.workerdeclaration.on.md) | Listen to 'active' event.<!-- -->This event is triggered when a job enters the 'active' state. |
+|  [on(event, listener)](./bullmq.workerdeclaration.on_1.md) | Listen to 'completed' event.<!-- -->This event is triggered when a job has successfully completed. |
+|  [on(event, listener)](./bullmq.workerdeclaration.on_2.md) | Listen to 'drained' event.<!-- -->This event is triggered when the queue has drained the waiting list. Note that there could still be delayed jobs waiting their timers to expire and this event will still be triggered as long as the waiting list has emptied. |
+|  [on(event, listener)](./bullmq.workerdeclaration.on_3.md) | Listen to 'error' event.<!-- -->This event is triggered when an error is throw. |
+|  [on(event, listener)](./bullmq.workerdeclaration.on_4.md) | Listen to 'failed' event.<!-- -->This event is triggered when a job has thrown an exception. |
+|  [on(event, listener)](./bullmq.workerdeclaration.on_5.md) | Listen to 'progress' event.<!-- -->This event is triggered when a job updates it progress, i.e. the Job\#\#updateProgress() method is called. This is useful to notify progress or any other data from within a processor to the rest of the world. |
 |  [on(event, listener)](./bullmq.workerdeclaration.on_6.md) |  |
 

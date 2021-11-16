@@ -120,6 +120,7 @@ describe('workers', function() {
       await new Promise<void>(resolve => {
         worker.once('completed', async (job, err) => {
           expect(job).to.be.ok;
+          expect(job.finishedOn).to.be.string;
           expect(job.data.foo).to.be.eql('bar');
           resolve();
         });
@@ -150,6 +151,7 @@ describe('workers', function() {
       const completed = new Promise<void>((resolve, reject) => {
         worker.on('completed', async (job: Job) => {
           try {
+            expect(job.finishedOn).to.be.string;
             const gotJob = await queue.getJob(job.id);
             expect(gotJob).to.be.equal(undefined);
             const counts = await queue.getJobCounts('completed');

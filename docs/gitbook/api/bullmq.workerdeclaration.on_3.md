@@ -4,6 +4,10 @@
 
 ## WorkerDeclaration.on() method
 
+Listen to 'error' event.
+
+This event is triggered when an error is throw.
+
 <b>Signature:</b>
 
 ```typescript

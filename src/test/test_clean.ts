@@ -76,6 +76,25 @@ describe('Cleaner', () => {
     await worker.close();
   });
 
+  it('should not clean anything if all jobs are in grace period', async () => {
+    await queue.add('test', { some: 'data' });
+    await queue.add('test', { some: 'data' });
+
+    const count1 = await queue.count();
+
+    expect(count1).to.be.eql(2);
+
+    const cleaned = await queue.clean(5000, 2, 'wait');
+    expect(cleaned.length).to.be.eql(0);
+
+    const cleaned2 = await queue.clean(5000, 2, 'wait');
+    expect(cleaned2.length).to.be.eql(0);
+
+    const count2 = await queue.count();
+
+    expect(count2).to.be.eql(2);
+  });
+
   it('should clean all failed jobs', async () => {
     const worker = new Worker(queueName, async job => {
       throw new Error('It failed');

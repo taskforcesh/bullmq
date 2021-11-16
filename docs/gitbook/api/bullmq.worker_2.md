@@ -26,7 +26,10 @@ export declare class Worker<DataType = any, ResultType = any, NameType extends s
 |  Property | Modifiers | Type | Description |
 |  --- | --- | --- | --- |
 |  [opts](./bullmq.worker_2.opts.md) |  | WorkerOptions |  |
+|  [paused](./bullmq.worker_2.paused.md) |  | Promise&lt;void&gt; |  |
+|  [processFn](./bullmq.worker_2.processfn.md) |  | [Processor](./bullmq.processor.md)<!-- -->&lt;DataType, ResultType, NameType&gt; |  |
 |  [repeat](./bullmq.worker_2.repeat.md) |  | Promise&lt;[Repeat](./bullmq.repeat.md)<!-- -->&gt; |  |
+|  [timerManager](./bullmq.worker_2.timermanager.md) |  | TimerManager |  |
 
 ## Methods
 
@@ -37,6 +40,7 @@ export declare class Worker<DataType = any, ResultType = any, NameType extends s
 |  [getNextJob(token, { block })](./bullmq.worker_2.getnextjob.md) |  | Returns a promise that resolves to the next job in queue. |
 |  [isPaused()](./bullmq.worker_2.ispaused.md) |  | Checks if worker is paused. |
 |  [isRunning()](./bullmq.worker_2.isrunning.md) |  | Checks if worker is currently running. |
+|  [nextJobFromJobData(jobData, jobId)](./bullmq.worker_2.nextjobfromjobdata.md) |  |  |
 |  [pause(doNotWaitActive)](./bullmq.worker_2.pause.md) |  | Pauses the processing of this queue only for this worker. |
 |  [processJob(job, token)](./bullmq.worker_2.processjob.md) |  |  |
 |  [resume()](./bullmq.worker_2.resume.md) |  | Resumes processing of this worker (if paused). |

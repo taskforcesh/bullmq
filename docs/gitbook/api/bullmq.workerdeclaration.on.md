@@ -4,6 +4,10 @@
 
 ## WorkerDeclaration.on() method
 
+Listen to 'active' event.
+
+This event is triggered when a job enters the 'active' state.
+
 <b>Signature:</b>
 
 ```typescript
