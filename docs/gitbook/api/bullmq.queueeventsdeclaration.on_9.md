@@ -4,15 +4,17 @@
 
 ## QueueEventsDeclaration.on() method
 
-Listen to 'removed' event.
+Listen to 'failed' event.
 
-This event is triggered when a job has been manually removed from the queue.
+This event is triggered when a job has thrown an exception.
 
 <b>Signature:</b>
 
 ```typescript
-on(event: 'removed', listener: (args: {
+on(event: 'failed', listener: (args: {
         jobId: string;
+        failedReason: string;
+        prev?: string;
     }, id: string) => void): this;
 ```
 
@@ -20,8 +22,8 @@ on(event: 'removed', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'removed' |  listener |
-|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
+|  event | 'failed' |  listener |
+|  listener | (args: { jobId: string; failedReason: string; prev?: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

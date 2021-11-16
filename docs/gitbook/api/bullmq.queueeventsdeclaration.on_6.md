@@ -4,15 +4,16 @@
 
 ## QueueEventsDeclaration.on() method
 
-Listen to 'waiting' event.
+Listen to 'progress' event.
 
-This event is triggered when a job enters the 'waiting' state.
+This event is triggered when a job updates it progress, i.e. the Job\#\#updateProgress() method is called. This is useful to notify progress or any other data from within a processor to the rest of the world.
 
 <b>Signature:</b>
 
 ```typescript
-on(event: 'waiting', listener: (args: {
+on(event: 'progress', listener: (args: {
         jobId: string;
+        data: number | object;
     }, id: string) => void): this;
 ```
 
@@ -20,8 +21,8 @@ on(event: 'waiting', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'waiting' |  listener |
-|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
+|  event | 'progress' |  listener |
+|  listener | (args: { jobId: string; data: number \| object; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

@@ -4,14 +4,14 @@
 
 ## QueueEventsDeclaration.on() method
 
-Listen to 'waiting-children' event.
+Listen to 'removed' event.
 
-This event is triggered when a job enters the 'waiting-children' state.
+This event is triggered when a job has been manually removed from the queue.
 
 <b>Signature:</b>
 
 ```typescript
-on(event: 'waiting-children', listener: (args: {
+on(event: 'removed', listener: (args: {
         jobId: string;
     }, id: string) => void): this;
 ```
@@ -20,7 +20,7 @@ on(event: 'waiting-children', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'waiting-children' |  listener |
+|  event | 'removed' |  listener |
 |  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>

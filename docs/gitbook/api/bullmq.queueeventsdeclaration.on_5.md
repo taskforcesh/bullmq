@@ -4,25 +4,22 @@
 
 ## QueueEventsDeclaration.on() method
 
-Listen to 'progress' event.
+Listen to 'drained' event.
 
-This event is triggered when a job updates it progress, i.e. the Job\#\#updateProgress() method is called. This is useful to notify progress or any other data from within a processor to the rest of the world.
+This event is triggered when the queue has drained the waiting list. Note that there could still be delayed jobs waiting their timers to expire and this event will still be triggered as long as the waiting list has emptied.
 
 <b>Signature:</b>
 
 ```typescript
-on(event: 'progress', listener: (args: {
-        jobId: string;
-        data: number | object;
-    }, id: string) => void): this;
+on(event: 'drained', listener: (id: string) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'progress' |  listener |
-|  listener | (args: { jobId: string; data: number \| object; }, id: string) =&gt; void |  |
+|  event | 'drained' |  listener |
+|  listener | (id: string) =&gt; void |  |
 
 <b>Returns:</b>
 
