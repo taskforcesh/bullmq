@@ -93,7 +93,27 @@ describe('events', function() {
     await waiting;
   });
 
-  it('emits drained global drained event when all jobs have been processed', async function() {
+  it('emits cleaned global event when jobs were cleaned', async function() {
+    for (let i = 0; i < 20; i++) {
+      await queue.add('test', { foo: 'bar' });
+    }
+
+    const cleaned = new Promise<void>(resolve => {
+      queueEvents.once('cleaned', ({ count }) => {
+        expect(count).to.be.eql('20');
+        resolve();
+      });
+    });
+
+    queue.clean(0, 0, 'wait');
+
+    await cleaned;
+
+    const count = await queue.count();
+    expect(count).to.be.equal(0);
+  });
+
+  it('emits drained global event when all jobs have been processed', async function() {
     const worker = new Worker(queueName, async job => {}, {
       drainDelay: 1,
     });

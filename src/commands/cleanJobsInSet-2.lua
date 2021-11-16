@@ -3,13 +3,12 @@
 
   Input:
     KEYS[1]  set key,
+    KEYS[2]  events stream key
 
     ARGV[1]  jobId
     ARGV[2]  timestamp
     ARGV[3]  limit the number of jobs to be removed. 0 is unlimited
     ARGV[4]  set name, can be any of 'wait', 'active', 'paused', 'delayed', 'completed', or 'failed'
-
-    TODO: emit a "cleaned" global event.
 ]]
 local rcall = redis.call
 local command = "ZRANGE"
@@ -60,5 +59,7 @@ for _, job in ipairs(jobs) do
     end
   end
 end
+
+rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", deletedCount)
 
 return deleted
