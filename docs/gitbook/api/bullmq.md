@@ -86,6 +86,7 @@
 |  [DELAY\_TIME\_5](./bullmq.delay_time_5.md) |  |
 |  [errorObject](./bullmq.errorobject.md) |  |
 |  [load](./bullmq.load.md) |  |
+|  [loadIncludes](./bullmq.loadincludes.md) |  |
 
 ## Type Aliases
 
