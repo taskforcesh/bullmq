@@ -5,7 +5,7 @@ import { Cluster, Redis } from 'ioredis';
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
-import { load } from '../commands';
+import { load, loadIncludes } from '../commands';
 import { ConnectionOptions, RedisOptions } from '../interfaces';
 import { isRedisInstance, isNotConnectionError } from '../utils';
 
@@ -121,8 +121,12 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands() {
+  protected loadCommands(): Promise<void> {
     return load(this._client, path.join(__dirname, '../commands'));
+  }
+
+  protected loadIncludes(): Promise<{ [index: string]: string }> {
+    return loadIncludes(path.join(__dirname, '../commands'));
   }
 
   private async init() {
