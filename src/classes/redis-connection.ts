@@ -80,7 +80,7 @@ export class RedisConnection extends EventEmitter {
    * Waits for a redis client to be ready.
    * @param redis - client
    */
-  static async waitUntilReady(client: RedisClient) {
+  static async waitUntilReady(client: RedisClient): Promise<void> {
     if (client.status === 'ready') {
       return;
     }
@@ -125,7 +125,7 @@ export class RedisConnection extends EventEmitter {
     return load(this._client, path.join(__dirname, '../commands'));
   }
 
-  protected loadIncludes(): Promise<{ [index: string]: string }> {
+  protected loadIncludes(): Promise<Record<string, string>> {
     return loadIncludes(path.join(__dirname, '../commands'));
   }
 
@@ -151,7 +151,7 @@ export class RedisConnection extends EventEmitter {
     return this._client;
   }
 
-  async disconnect() {
+  async disconnect(): Promise<void> {
     const client = await this.client;
     if (client.status !== 'end') {
       let _resolve, _reject;
@@ -174,7 +174,7 @@ export class RedisConnection extends EventEmitter {
     }
   }
 
-  async reconnect() {
+  async reconnect(): Promise<void> {
     const client = await this.client;
     return client.connect();
   }

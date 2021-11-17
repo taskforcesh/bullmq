@@ -33,7 +33,7 @@ interface Command {
 export const load = async function(
   client: RedisClient,
   pathname: string,
-  extraIncludes?: { [index: string]: string },
+  extraIncludes?: Record<string, string>,
 ): Promise<void> {
   const scripts = await loadScripts(pathname, extraIncludes);
 
@@ -47,14 +47,11 @@ export const load = async function(
 
 async function loadScripts(
   dir: string,
-  extraIncludes?: { [index: string]: string },
+  extraIncludes?: Record<string, string>,
 ): Promise<Command[]> {
   const files = await readdir(dir);
 
-  const includes: { [index: string]: string } = await loadIncludes(
-    dir,
-    extraIncludes,
-  );
+  const includes = await loadIncludes(dir, extraIncludes);
 
   const luaFiles = files.filter(
     (file: string) => path.extname(file) === '.lua',
@@ -92,9 +89,9 @@ async function loadScripts(
 
 export const loadIncludes = async function(
   dir: string,
-  extraIncludes?: { [index: string]: string },
-): Promise<{ [index: string]: string }> {
-  const includes: { [index: string]: string } = extraIncludes || {};
+  extraIncludes?: Record<string, string>,
+): Promise<Record<string, string>> {
+  const includes = extraIncludes || {};
   const includesDir = path.join(dir, 'includes');
 
   if (await exists(includesDir)) {
