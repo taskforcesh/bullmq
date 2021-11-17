@@ -1,6 +1,7 @@
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
+import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
@@ -94,23 +95,27 @@ describe('events', function() {
   });
 
   it('emits cleaned global event when jobs were cleaned', async function() {
-    for (let i = 0; i < 20; i++) {
+    const worker = new Worker(queueName, async job => {});
+
+    worker.on(
+      'completed',
+      after(50, async function() {
+        await queue.clean(0, 0, 'completed');
+      }),
+    );
+
+    for (let i = 0; i < 50; i++) {
       await queue.add('test', { foo: 'bar' });
     }
 
-    const cleaned = new Promise<void>(resolve => {
-      queueEvents.once('cleaned', ({ count }) => {
-        expect(count).to.be.eql('20');
+    await new Promise<void>(resolve => {
+      queueEvents.once('cleaned', async ({ count }) => {
+        expect(count).to.be.eql('50');
+        const actualCount = await queue.count();
+        expect(actualCount).to.be.equal(0);
         resolve();
       });
     });
-
-    queue.clean(0, 0, 'wait');
-
-    await cleaned;
-
-    const count = await queue.count();
-    expect(count).to.be.equal(0);
   });
 
   it('emits drained global event when all jobs have been processed', async function() {
