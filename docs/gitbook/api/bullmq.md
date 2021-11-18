@@ -63,18 +63,18 @@
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
-|  [Queue](./bullmq.queue.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
-|  [QueueEvents](./bullmq.queueevents.md) |  |
+|  [QueueDeclaration](./bullmq.queuedeclaration.md) |  |
+|  [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
 |  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |
-|  [QueueScheduler](./bullmq.queuescheduler.md) |  |
+|  [QueueSchedulerDeclaration](./bullmq.queueschedulerdeclaration.md) |  |
 |  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
 |  [RateLimiterOptions](./bullmq.ratelimiteroptions.md) |  |
 |  [RepeatOptions](./bullmq.repeatoptions.md) | Settings for repeatable jobs |
 |  [SandboxedJob](./bullmq.sandboxedjob.md) |  |
 |  [Strategies](./bullmq.strategies.md) |  |
-|  [Worker\_2](./bullmq.worker_2.md) |  |
+|  [WorkerDeclaration](./bullmq.workerdeclaration.md) |  |
 |  [WorkerOptions\_2](./bullmq.workeroptions_2.md) |  |
 
 ## Variables
@@ -86,6 +86,7 @@
 |  [DELAY\_TIME\_5](./bullmq.delay_time_5.md) |  |
 |  [errorObject](./bullmq.errorobject.md) |  |
 |  [load](./bullmq.load.md) |  |
+|  [loadIncludes](./bullmq.loadincludes.md) |  |
 
 ## Type Aliases
 

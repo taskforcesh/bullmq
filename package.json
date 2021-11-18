@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "1.51.1",
+  "version": "1.54.0",
   "description": "Queue for messages and jobs based on Redis",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -18,7 +18,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "npm-run-all tsc copy:lua copy:includes:lua",
+    "build": "npm-run-all tsc copy:lua copy:includes:lua clean:temp:files",
+    "clean:temp:files": "rimraf dist/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
     "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/commands/includes",
     "coverage": "nyc --reporter=text npm run test",
@@ -61,7 +62,7 @@
     "@semantic-release/commit-analyzer": "^8.0.1",
     "@semantic-release/exec": "^5.0.0",
     "@semantic-release/git": "^9.0.1",
-    "@semantic-release/github": "^7.2.0",
+    "@semantic-release/github": "^8.0.2",
     "@semantic-release/npm": "^7.0.9",
     "@semantic-release/release-notes-generator": "^9.0.3",
     "@types/chai": "^4.2.22",
@@ -96,6 +97,7 @@
     "nyc": "^14.1.1",
     "prettier": "^2.4.1",
     "pretty-quick": "^3.1.1",
+    "rimraf": "^3.0.2",
     "semantic-release": "^17.4.7",
     "sinon": "^7.5.0",
     "test-console": "^2.0.0",

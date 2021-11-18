@@ -17,7 +17,7 @@ export declare class Scripts
 |  [addJob(client, queue, job, opts, jobId, parentOpts)](./bullmq.scripts.addjob.md) | <code>static</code> |  |
 |  [changeDelay(queue, jobId, delay)](./bullmq.scripts.changedelay.md) | <code>static</code> |  |
 |  [changeDelayArgs(queue, jobId, timestamp)](./bullmq.scripts.changedelayargs.md) | <code>static</code> |  |
-|  [cleanJobsInSet(queue, set, timestamp, limit)](./bullmq.scripts.cleanjobsinset.md) | <code>static</code> |  |
+|  [cleanJobsInSet(queue, set, timestamp, limit)](./bullmq.scripts.cleanjobsinset.md) | <code>static</code> | Remove jobs in a specific state. |
 |  [drain(queue, delayed)](./bullmq.scripts.drain.md) | <code>static</code> |  |
 |  [drainArgs(queue, delayed)](./bullmq.scripts.drainargs.md) | <code>static</code> |  |
 |  [extendLock(queue, jobId, token, duration)](./bullmq.scripts.extendlock.md) | <code>static</code> |  |

@@ -2,18 +2,52 @@
 
 [Home](./index.md) &gt; [bullmq](./bullmq.md) &gt; [Queue](./bullmq.queue.md)
 
-## Queue interface
+## Queue class
+
+Queue
+
+This class provides methods to add jobs to a queue and some othe high-level administration such as pausing or deleting queues.
 
 <b>Signature:</b>
 
 ```typescript
-export declare interface Queue 
+export declare class Queue<DataType = any, ResultType = any, NameType extends string = string> extends QueueGetters implements QueueDeclaration<DataType, ResultType, NameType> 
 ```
+<b>Extends:</b> [QueueGetters](./bullmq.queuegetters.md)
+
+<b>Implements:</b> [QueueDeclaration](./bullmq.queuedeclaration.md)<!-- -->&lt;DataType, ResultType, NameType&gt;
+
+## Constructors
+
+|  Constructor | Modifiers | Description |
+|  --- | --- | --- |
+|  [(constructor)(name, opts, Connection)](./bullmq.queue._constructor_.md) |  | Constructs a new instance of the <code>Queue</code> class |
+
+## Properties
+
+|  Property | Modifiers | Type | Description |
+|  --- | --- | --- | --- |
+|  [defaultJobOptions](./bullmq.queue.defaultjoboptions.md) |  | [JobsOptions](./bullmq.jobsoptions.md) | Returns this instance current default job options. |
+|  [jobsOpts](./bullmq.queue.jobsopts.md) |  | [JobsOptions](./bullmq.jobsoptions.md) |  |
+|  [limiter](./bullmq.queue.limiter.md) |  | { groupKey: string; } |  |
+|  [repeat](./bullmq.queue.repeat.md) |  | Promise&lt;[Repeat](./bullmq.repeat.md)<!-- -->&gt; |  |
+|  [token](./bullmq.queue.token.md) |  | string |  |
 
 ## Methods
 
-|  Method | Description |
-|  --- | --- |
-|  [on(event, listener)](./bullmq.queue.on.md) |  |
-|  [on(event, listener)](./bullmq.queue.on_1.md) |  |
+|  Method | Modifiers | Description |
+|  --- | --- | --- |
+|  [add(name, data, opts)](./bullmq.queue.add.md) |  | Adds a new job to the queue. |
+|  [addBulk(jobs)](./bullmq.queue.addbulk.md) |  | Adds an array of jobs to the queue. |
+|  [clean(grace, limit, type)](./bullmq.queue.clean.md) |  | Cleans jobs from a queue. Similar to drain but keeps jobs within a certain grace period. |
+|  [drain(delayed)](./bullmq.queue.drain.md) |  | Drains the queue, i.e., removes all jobs that are waiting or delayed, but not active, completed or failed. |
+|  [getRepeatableJobs(start, end, asc)](./bullmq.queue.getrepeatablejobs.md) |  | Get all repeatable meta jobs. |
+|  [isPaused()](./bullmq.queue.ispaused.md) |  | Returns true if the queue is currently paused. |
+|  [obliterate(opts)](./bullmq.queue.obliterate.md) |  | Completely destroys the queue and all of its contents irreversibly. This method will the \*pause\* the queue and requires that there are no active jobs. It is possible to bypass this requirement, i.e. not having active jobs using the "force" option.<!-- -->Note: This operation requires to iterate on all the jobs stored in the queue and can be slow for very large queues. |
+|  [pause()](./bullmq.queue.pause.md) |  | Pauses the processing of this queue globally.<!-- -->We use an atomic RENAME operation on the wait queue. Since we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue is renamed to 'paused', no new jobs will be processed (the current ones will run until finalized).<!-- -->Adding jobs requires a LUA script to check first if the paused list exist and in that case it will add it there instead of the wait list. |
+|  [remove(jobId)](./bullmq.queue.remove.md) |  | Removes the given job from the queue as well as all its dependencies. |
+|  [removeRepeatable(name, repeatOpts, jobId)](./bullmq.queue.removerepeatable.md) |  |  |
+|  [removeRepeatableByKey(key)](./bullmq.queue.removerepeatablebykey.md) |  |  |
+|  [resume()](./bullmq.queue.resume.md) |  | Resumes the processing of this queue globally.<!-- -->The method reverses the pause operation by resuming the processing of the queue. |
+|  [trimEvents(maxLength)](./bullmq.queue.trimevents.md) |  | Trim the event stream to an approximately maxLength. |
 

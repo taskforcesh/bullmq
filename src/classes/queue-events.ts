@@ -10,7 +10,7 @@ import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisClient, RedisConnection } from './redis-connection';
 
-interface QueueEventsDeclaration {
+export interface QueueEventsDeclaration {
   /**
    * Listen to 'active' event.
    *
@@ -38,6 +38,18 @@ interface QueueEventsDeclaration {
       args: { jobId: string; name: string; data: string; opts: string },
       id: string,
     ) => void,
+  ): this;
+
+  /**
+   * Listen to 'cleaned' event.
+   *
+   * This event is triggered when a cleaned method is triggered.
+   *
+   * @param event -
+   */
+  on(
+    event: 'cleaned',
+    listener: (args: { count: string }, id: string) => void,
   ): this;
 
   /**

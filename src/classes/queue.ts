@@ -8,8 +8,16 @@ import { Repeat } from './repeat';
 import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
 
-export declare interface Queue {
+export interface QueueDeclaration<
+  DataType,
+  ResultType,
+  NameType extends string,
+> {
   on(event: 'cleaned', listener: (jobs: string[], type: string) => void): this;
+  on(
+    event: 'waiting',
+    listener: (job: Job<DataType, ResultType, NameType>) => void,
+  ): this;
   on(event: string, listener: Function): this;
 }
 
@@ -21,10 +29,13 @@ export declare interface Queue {
  *
  */
 export class Queue<
-  DataType = any,
-  ResultType = any,
-  NameType extends string = string,
-> extends QueueGetters {
+    DataType = any,
+    ResultType = any,
+    NameType extends string = string,
+  >
+  extends QueueGetters
+  implements QueueDeclaration<DataType, ResultType, NameType>
+{
   token = v4();
   jobsOpts: JobsOptions;
   limiter: {
@@ -231,6 +242,7 @@ export class Queue<
    * @param The - Max number of jobs to clean
    * @param {string} [type=completed] - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
+   * @returns Id jobs from the deleted records
    */
   async clean(
     grace: number,
