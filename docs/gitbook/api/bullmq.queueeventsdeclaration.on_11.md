@@ -4,18 +4,24 @@
 
 ## QueueEventsDeclaration.on() method
 
+Listen to 'waiting-children' event.
+
+This event is triggered when a job enters the 'waiting-children' state.
+
 <b>Signature:</b>
 
 ```typescript
-on(event: string, listener: Function): this;
+on(event: 'waiting-children', listener: (args: {
+        jobId: string;
+    }, id: string) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | string |  |
-|  listener | Function |  |
+|  event | 'waiting-children' |  listener |
+|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

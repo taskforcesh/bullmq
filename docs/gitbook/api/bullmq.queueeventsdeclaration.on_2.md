@@ -4,17 +4,15 @@
 
 ## QueueEventsDeclaration.on() method
 
-Listen to 'completed' event.
+Listen to 'cleaned' event.
 
-This event is triggered when a job has successfully completed.
+This event is triggered when a cleaned method is triggered.
 
 <b>Signature:</b>
 
 ```typescript
-on(event: 'completed', listener: (args: {
-        jobId: string;
-        returnvalue: string;
-        prev?: string;
+on(event: 'cleaned', listener: (args: {
+        count: string;
     }, id: string) => void): this;
 ```
 
@@ -22,8 +20,8 @@ on(event: 'completed', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'completed' |  listener |
-|  listener | (args: { jobId: string; returnvalue: string; prev?: string; }, id: string) =&gt; void |  |
+|  event | 'cleaned' |  |
+|  listener | (args: { count: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

@@ -4,6 +4,10 @@
 
 ## WorkerDeclaration.on() method
 
+Listen to 'completed' event.
+
+This event is triggered when a job has successfully completed.
+
 <b>Signature:</b>
 
 ```typescript

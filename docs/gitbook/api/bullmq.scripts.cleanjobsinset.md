@@ -4,10 +4,12 @@
 
 ## Scripts.cleanJobsInSet() method
 
+Remove jobs in a specific state.
+
 <b>Signature:</b>
 
 ```typescript
-static cleanJobsInSet(queue: MinimalQueue, set: string, timestamp: number, limit?: number): Promise<any>;
+static cleanJobsInSet(queue: MinimalQueue, set: string, timestamp: number, limit?: number): Promise<string[]>;
 ```
 
 ## Parameters
@@ -21,5 +23,7 @@ static cleanJobsInSet(queue: MinimalQueue, set: string, timestamp: number, limit
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;string\[\]&gt;
+
+Id jobs from the deleted records.
 

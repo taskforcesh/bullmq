@@ -7,5 +7,5 @@
 <b>Signature:</b>
 
 ```typescript
-load: (client: RedisClient, pathname: string) => Promise<void>
+load: (client: RedisClient, pathname: string, extraIncludes?: Record<string, string>) => Promise<void>
 ```

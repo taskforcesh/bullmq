@@ -4,6 +4,10 @@
 
 ## WorkerDeclaration.on() method
 
+Listen to 'failed' event.
+
+This event is triggered when a job has thrown an exception.
+
 <b>Signature:</b>
 
 ```typescript

@@ -4,22 +4,25 @@
 
 ## QueueEventsDeclaration.on() method
 
-Listen to 'drained' event.
+Listen to 'delayed' event.
 
-This event is triggered when the queue has drained the waiting list. Note that there could still be delayed jobs waiting their timers to expire and this event will still be triggered as long as the waiting list has emptied.
+This event is triggered when a job is delayed.
 
 <b>Signature:</b>
 
 ```typescript
-on(event: 'drained', listener: (id: string) => void): this;
+on(event: 'delayed', listener: (args: {
+        jobId: string;
+        delay: number;
+    }, id: string) => void): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'drained' |  listener |
-|  listener | (id: string) =&gt; void |  |
+|  event | 'delayed' |  listener |
+|  listener | (args: { jobId: string; delay: number; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

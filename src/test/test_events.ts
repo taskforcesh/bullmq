@@ -1,6 +1,7 @@
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
+import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../classes';
 import { delay, removeAllQueueData } from '../utils';
@@ -71,8 +72,11 @@ describe('events', function() {
   });
 
   it('should emit waiting when a job has been added', async function() {
-    const waiting = new Promise(resolve => {
-      queue.on('waiting', resolve);
+    const waiting = new Promise<void>(resolve => {
+      queue.on('waiting', job => {
+        expect(job.id).to.be.string;
+        resolve();
+      });
     });
 
     await queue.add('test', { foo: 'bar' });
@@ -82,7 +86,7 @@ describe('events', function() {
 
   it('should emit global waiting event when a job has been added', async function() {
     const waiting = new Promise(resolve => {
-      queue.on('waiting', resolve);
+      queueEvents.on('waiting', resolve);
     });
 
     await queue.add('test', { foo: 'bar' });
@@ -90,7 +94,31 @@ describe('events', function() {
     await waiting;
   });
 
-  it('emits drained global drained event when all jobs have been processed', async function() {
+  it('emits cleaned global event when jobs were cleaned', async function() {
+    const worker = new Worker(queueName, async job => {});
+
+    worker.on(
+      'completed',
+      after(50, async function() {
+        await queue.clean(0, 0, 'completed');
+      }),
+    );
+
+    for (let i = 0; i < 50; i++) {
+      await queue.add('test', { foo: 'bar' });
+    }
+
+    await new Promise<void>(resolve => {
+      queueEvents.once('cleaned', async ({ count }) => {
+        expect(count).to.be.eql('50');
+        const actualCount = await queue.count();
+        expect(actualCount).to.be.equal(0);
+        resolve();
+      });
+    });
+  });
+
+  it('emits drained global event when all jobs have been processed', async function() {
     const worker = new Worker(queueName, async job => {}, {
       drainDelay: 1,
     });

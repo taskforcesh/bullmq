@@ -4,6 +4,10 @@
 
 ## WorkerDeclaration.on() method
 
+Listen to 'drained' event.
+
+This event is triggered when the queue has drained the waiting list. Note that there could still be delayed jobs waiting their timers to expire and this event will still be triggered as long as the waiting list has emptied.
+
 <b>Signature:</b>
 
 ```typescript

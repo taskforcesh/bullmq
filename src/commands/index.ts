@@ -30,8 +30,12 @@ interface Command {
   };
 }
 
-export const load = async function(client: RedisClient, pathname: string) {
-  const scripts = await loadScripts(pathname);
+export const load = async function(
+  client: RedisClient,
+  pathname: string,
+  extraIncludes?: Record<string, string>,
+): Promise<void> {
+  const scripts = await loadScripts(pathname, extraIncludes);
 
   scripts.forEach((command: Command) => {
     // Only define the command if not already defined
@@ -41,22 +45,13 @@ export const load = async function(client: RedisClient, pathname: string) {
   });
 };
 
-async function loadScripts(dir: string): Promise<Command[]> {
+async function loadScripts(
+  dir: string,
+  extraIncludes?: Record<string, string>,
+): Promise<Command[]> {
   const files = await readdir(dir);
 
-  const includes: { [index: string]: string } = {};
-  const includesDir = path.join(dir, 'includes');
-
-  if (await exists(includesDir)) {
-    const includesFiles = await readdir(includesDir);
-
-    for (let i = 0; i < includesFiles.length; i++) {
-      const file = includesFiles[i];
-      const lua = await readFile(path.join(includesDir, file));
-      const name = path.basename(file, '.lua');
-      includes[name] = lua.toString();
-    }
-  }
+  const includes = await loadIncludes(dir, extraIncludes);
 
   const luaFiles = files.filter(
     (file: string) => path.extname(file) === '.lua',
@@ -91,3 +86,24 @@ async function loadScripts(dir: string): Promise<Command[]> {
 
   return commands;
 }
+
+export const loadIncludes = async function(
+  dir: string,
+  extraIncludes?: Record<string, string>,
+): Promise<Record<string, string>> {
+  const includes = extraIncludes || {};
+  const includesDir = path.join(dir, 'includes');
+
+  if (await exists(includesDir)) {
+    const includesFiles = await readdir(includesDir);
+
+    for (let i = 0; i < includesFiles.length; i++) {
+      const file = includesFiles[i];
+      const lua = await readFile(path.join(includesDir, file));
+      const name = path.basename(file, '.lua');
+      includes[name] = lua.toString();
+    }
+  }
+
+  return includes;
+};
