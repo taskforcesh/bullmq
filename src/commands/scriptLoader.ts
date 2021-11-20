@@ -11,7 +11,7 @@ const readdir = promisify(fs.readdir);
 
 const GLOB_OPTS = { dot: true, silent: false };
 const RE_INCLUDE = /^[-]{2,3}[ \t]*@include[ \t]+(["'])(.+?)\1[; \t\n]*$/m;
-const RE_EMPTY_LINE = /^\s+$/gm;
+const RE_EMPTY_LINE = /^\s*[\r\n]/gm;
 
 export interface Command {
   name: string;
