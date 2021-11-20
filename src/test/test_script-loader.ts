@@ -9,7 +9,8 @@ import {
   ScriptLoaderError,
 } from '../commands/scriptLoader';
 
-describe('scriptLoader', () => {
+// eslint-disable-next-line mocha/no-exclusive-tests
+describe.only('scriptLoader', () => {
   function getRootPath() {
     return path.resolve(path.join(__dirname, '../../'));
   }

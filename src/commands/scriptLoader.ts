@@ -1,6 +1,6 @@
 import { RedisClient } from '../classes';
 import { createHash } from 'crypto';
-import { sync as globSync } from 'glob';
+import { sync as globSync, hasMagic } from 'glob';
 import * as path from 'path';
 import * as fs from 'fs';
 import { promisify } from 'util';
@@ -148,6 +148,7 @@ export function addScriptPathMapping(name: string, relativePath: string): void {
 }
 
 const possiblyMapped = (path: string) => path && ['~', '<'].includes(path[0]);
+const isGlob = (path: string) => hasMagic(path, GLOB_OPTS);
 
 /**
  * Resolve the script path considering path mappings
@@ -249,57 +250,70 @@ async function collectFilesInternal(
   }
   stack.push(file.path);
 
-  let res;
+  function raiseError(msg: string, match: string): void {
+    const pos = findPos(file.content, match);
+    throw new ScriptLoaderError(msg, file.path, stack, pos.line, pos.column);
+  }
 
+  let res;
   let content = file.content;
 
   while ((res = RE_INCLUDE.exec(content)) !== null) {
     const [match, , reference] = res;
 
     const pattern = possiblyMapped(reference)
-      ? resolvePath(reference, stack)
+      ? resolvePath(ensureExt(reference), stack)
       : path.resolve(path.dirname(file.path), ensureExt(reference));
 
-    const refPaths = globSync(pattern, GLOB_OPTS)
-      .map((x: string) => path.resolve(x))
-      .filter((file: string) => path.extname(file) === '.lua');
+    let refPaths: string[];
+
+    if (isGlob(pattern)) {
+      refPaths = globSync(pattern, GLOB_OPTS).map((x: string) =>
+        path.resolve(x),
+      );
+    } else {
+      refPaths = [pattern];
+    }
+
+    refPaths = refPaths.filter((file: string) => path.extname(file) === '.lua');
 
     if (refPaths.length === 0) {
-      const pos = findPos(file.content, match);
-      throw new ScriptLoaderError(
-        `include not found: "${reference}"`,
-        file.path,
-        stack,
-        pos.line,
-        pos.column,
-      );
+      raiseError(`include not found: "${reference}"`, match);
     }
 
     const tokens: string[] = [];
 
     for (let i = 0; i < refPaths.length; i++) {
-      const path: string = refPaths[i];
+      const path = refPaths[i];
+
       const hasDependent = file.includes.find(
         (x: ScriptInfo) => x.path === path,
       );
+
       if (hasDependent) {
-        const pos = findPos(file.content, match);
-        throw new ScriptLoaderError(
+        raiseError(
           `file "${reference}" already included in "${file.path}"`,
-          file.path,
-          stack,
-          pos.line,
-          pos.column,
+          match,
         );
       }
+
       let dependent = cache.get(path);
       let token: string;
 
       if (!dependent) {
         const { name, numberOfKeys } = splitFilename(path);
-        const buf = await readFile(path, { flag: 'r' });
-        let childContent = buf.toString();
-        childContent = childContent.replace(RE_EMPTY_LINE, '');
+        let childContent: string;
+        try {
+          const buf = await readFile(path, { flag: 'r' });
+          childContent = buf.toString();
+          childContent = childContent.replace(RE_EMPTY_LINE, '');
+        } catch (err) {
+          if ((err as any).code === 'ENOENT') {
+            raiseError(`include not found: "${reference}"`, match);
+          } else {
+            throw err;
+          }
+        }
         // this represents a normalized version of the path to make replacement easy
         token = getReplacementToken(path);
         dependent = {
