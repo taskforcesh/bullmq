@@ -1,6 +1,6 @@
 import { RedisClient } from '../classes';
 import { createHash } from 'crypto';
-import { sync as globSync, hasMagic } from 'glob';
+import { glob, hasMagic } from 'glob';
 import * as path from 'path';
 import * as fs from 'fs';
 import { promisify } from 'util';
@@ -9,7 +9,7 @@ import CallSite = NodeJS.CallSite;
 const readFile = promisify(fs.readFile);
 const readdir = promisify(fs.readdir);
 
-const GLOB_OPTS = { dot: true, silent: false, sync: true };
+const GLOB_OPTS = { dot: true, silent: false };
 const RE_INCLUDE = /^[-]{2,3}[ \t]*@include[ \t]+(["'])(.+?)\1[; \t\n]*$/m;
 const RE_EMPTY_LINE = /^\s+$/gm;
 
@@ -229,6 +229,14 @@ function splitFilename(filePath: string): {
   return { name, numberOfKeys };
 }
 
+async function handleGlob(pattern: string): Promise<string[]> {
+  return new Promise<string[]>((resolve, reject) => {
+    glob(pattern, GLOB_OPTS, (err, files) => {
+      return err ? reject(err) : resolve(files);
+    });
+  });
+}
+
 /**
  * Recursively collect all scripts included in a file
  * @param file - the parent file
@@ -268,9 +276,8 @@ async function collectFilesInternal(
     let refPaths: string[];
 
     if (isGlob(pattern)) {
-      refPaths = globSync(pattern, GLOB_OPTS).map((x: string) =>
-        path.resolve(x),
-      );
+      const globbed = await handleGlob(pattern);
+      refPaths = globbed.map((x: string) => path.resolve(x));
     } else {
       refPaths = [pattern];
     }
