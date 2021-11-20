@@ -43,11 +43,40 @@ describe.only('scriptLoader', () => {
       expect(getPkgJsonDir()).to.be.eql(expected);
     });
 
-    it('considers paths to be relative to the caller', () => {
+    it('relative paths are relative to the caller of "addScriptPathMapping"', () => {
       const expectedPath = path.join(__dirname, '../actual.lua');
       addScriptPathMapping('test', '../');
       const actual = resolvePath('<test>/actual.lua');
       expect(expectedPath).to.be.eql(actual);
+    });
+
+    it('mappings can be absolute based on project root', () => {
+      const expectedPath = path.join(
+        getRootPath(),
+        '/scripts/metrics/actual.lua',
+      );
+      addScriptPathMapping('test', '~/scripts/metrics');
+      const actual = resolvePath('<test>/actual.lua');
+      expect(expectedPath).to.be.eql(actual);
+    });
+
+    it('mappings can be based on other mapped paths', () => {
+      const basePath = path.join(__dirname, '../');
+      const childPath = path.join(basePath, '/child');
+      const grandChildPath = path.join(basePath, '/child/grandchild');
+
+      addScriptPathMapping('parent', '../');
+      addScriptPathMapping('child', '<parent>/child');
+      addScriptPathMapping('grandchild', '<child>/grandchild');
+
+      let p = resolvePath('<grandchild>/actual.lua');
+      expect(p.startsWith(grandChildPath)).to.be.true;
+      expect(p.startsWith(childPath)).to.be.true;
+      expect(p.startsWith(basePath)).to.be.true;
+
+      p = resolvePath('<child>/actual.lua');
+      expect(p.startsWith(childPath)).to.be.true;
+      expect(p.startsWith(basePath)).to.be.true;
     });
 
     it('substitutes mapped paths', () => {

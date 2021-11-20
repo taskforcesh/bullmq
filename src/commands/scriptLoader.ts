@@ -129,26 +129,34 @@ function initMapping() {
   }
 }
 
+const possiblyMapped = (path: string) => path && ['~', '<'].includes(path[0]);
+const isGlob = (path: string) => hasMagic(path, GLOB_OPTS);
+
 /**
  * Add a script path mapping. Allows includes of the form "<includes>/utils.lua" where `includes` is a user
  * defined path
  * @param name - the name of the mapping. Note: do not include angle brackets
- * @param relativePath - the relative path from the *caller* of this function. A relative path is
- * necessary for mapping to work consistently between dev and deployment
+ * @param mappedPath - if a relative path is passed, it's relative to the *caller* of this function.
+ * Mapped paths are also accepted, e.g. "~/server/scripts/lua" or "<base>/includes"
  */
-export function addScriptPathMapping(name: string, relativePath: string): void {
+export function addScriptPathMapping(name: string, mappedPath: string): void {
   initMapping();
-  const caller = _getCallerFile();
-  const callerPath = path.dirname(caller);
-  let resolved = path.normalize(path.resolve(callerPath, relativePath));
+  let resolved: string;
+
+  if (possiblyMapped(mappedPath)) {
+    resolved = resolvePath(mappedPath);
+  } else {
+    const caller = _getCallerFile();
+    const callerPath = path.dirname(caller);
+    resolved = path.normalize(path.resolve(callerPath, mappedPath));
+  }
+
   if (resolved[resolved.length - 1] === path.sep) {
     resolved = resolved.substr(0, resolved.length - 1);
   }
+
   pathMapper.set(name, resolved);
 }
-
-const possiblyMapped = (path: string) => path && ['~', '<'].includes(path[0]);
-const isGlob = (path: string) => hasMagic(path, GLOB_OPTS);
 
 /**
  * Resolve the script path considering path mappings
