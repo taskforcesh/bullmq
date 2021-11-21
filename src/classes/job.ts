@@ -119,12 +119,12 @@ export class Job<
    */
   parentKey?: string;
 
-  private toKey: (type: string) => string;
+  protected toKey: (type: string) => string;
 
   private discarded: boolean;
 
   constructor(
-    private queue: MinimalQueue,
+    protected queue: MinimalQueue,
     /**
      * The name of the Job
      */
@@ -175,7 +175,7 @@ export class Job<
   ) {
     const client = await queue.client;
 
-    const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
+    const job = new this<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
     job.id = await job.addJob(client, {
       parentKey: job.parentKey,
@@ -206,7 +206,7 @@ export class Job<
 
     const jobInstances = jobs.map(
       job =>
-        new Job<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
+        new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
     const multi = client.multi();
@@ -237,11 +237,15 @@ export class Job<
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
    * @returns
    */
-  static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string) {
+  static fromJSON(
+    queue: MinimalQueue,
+    json: JobJsonRaw,
+    jobId?: string,
+  ): Job<any, any, string> {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
-    const job = new Job(queue, json.name, data, opts, json.id || jobId);
+    const job = new this(queue, json.name, data, opts, json.id || jobId);
 
     job.progress = JSON.parse(json.progress || '0');
 
@@ -328,7 +332,7 @@ export class Job<
     const client = await this.queue.client;
 
     this.data = data;
-    await client.hset(this.queue.toKey(this.id), 'data', JSON.stringify(data));
+    await client.hset(this.toKey(this.id), 'data', JSON.stringify(data));
   }
 
   /**
@@ -346,7 +350,7 @@ export class Job<
    *
    * @param logRow - string with log data to be logged.
    */
-  async log(logRow: string) {
+  async log(logRow: string): Promise<number> {
     const client = await this.queue.client;
     const logsKey = this.toKey(this.id) + ':logs';
     return client.rpush(logsKey, logRow);

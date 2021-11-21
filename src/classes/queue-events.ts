@@ -113,19 +113,6 @@ export interface QueueEventsDeclaration {
   ): this;
 
   /**
-   * Listen to 'waiting' event.
-   *
-   * This event is triggered when a job enters the 'waiting' state.
-   *
-   * @param {'waiting'} event
-   * @callback listener
-   */
-  on(
-    event: 'waiting',
-    listener: (args: { jobId: string }, id: string) => void,
-  ): this;
-
-  /**
    * Listen to 'stalled' event.
    *
    * This event is triggered when a job has been moved from 'active' back
@@ -167,6 +154,19 @@ export interface QueueEventsDeclaration {
    */
   on(
     event: 'removed',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+
+  /**
+   * Listen to 'waiting' event.
+   *
+   * This event is triggered when a job enters the 'waiting' state.
+   *
+   * @param {'waiting'} event
+   * @callback listener
+   */
+  on(
+    event: 'waiting',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
 
