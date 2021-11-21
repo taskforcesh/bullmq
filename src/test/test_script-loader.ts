@@ -4,6 +4,7 @@ import {
   addScriptPathMapping,
   getPkgJsonDir,
   loadScript,
+  loadScripts,
   resolvePath,
   ScriptInfo,
   ScriptLoaderError,
@@ -259,6 +260,39 @@ describe.only('scriptLoader', () => {
 
       expect(didThrow).to.eql(true);
       expect(error.message).to.have.string('includes/utils');
+    });
+
+    it('loads all files in a directory', async () => {
+      const dirname = __dirname + '/fixtures/scripts/dir-test';
+      const commands = await loadScripts(dirname);
+      ['one', 'two', 'three'].forEach(name => {
+        expect(!!commands.find(x => x.name === name)).to.be.true;
+      });
+    });
+
+    it('errors if no files are found in a directory', async () => {
+      const dirname = __dirname + '/fixtures/scripts/dir-test/empty';
+
+      let didThrow = false;
+      let error: Error;
+      try {
+        await loadScripts(dirname);
+      } catch (err) {
+        error = <Error>err;
+        didThrow = true;
+      }
+
+      expect(didThrow).to.eql(true);
+      expect(error.message).to.have.string('No .lua files found!');
+    });
+
+    it('does not load non .lua files', async () => {
+      const dirname = __dirname + '/fixtures/scripts/dir-test/non-lua';
+
+      const commands = await loadScripts(dirname);
+
+      expect(commands.length).to.eql(1);
+      expect(commands[0].name).to.eql('test');
     });
   });
 });
