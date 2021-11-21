@@ -465,7 +465,10 @@ export async function loadCommand(filePath: string): Promise<Command> {
  * moveToFinish-3.lua
  *
  */
-export async function loadScripts(dir?: string): Promise<Command[]> {
+export async function loadScripts(
+  dir?: string,
+  cache?: Map<string, ScriptInfo>,
+): Promise<Command[]> {
   dir = dir || __dirname;
   const files = await readdir(dir);
 
@@ -482,7 +485,7 @@ export async function loadScripts(dir?: string): Promise<Command[]> {
   }
 
   const commands: Command[] = [];
-  const cache = new Map<string, ScriptInfo>();
+  cache = cache ?? new Map<string, ScriptInfo>();
 
   for (let i = 0; i < luaFiles.length; i++) {
     const file = path.join(dir, luaFiles[i]);
@@ -498,6 +501,7 @@ const clientPaths = new WeakMap<RedisClient, Set<string>>();
 export const load = async function(
   client: RedisClient,
   pathname: string,
+  cache?: Map<string, ScriptInfo>,
 ): Promise<void> {
   let paths: Set<string> = clientPaths.get(client);
   if (!paths) {
@@ -507,7 +511,7 @@ export const load = async function(
   if (!paths.has(pathname)) {
     paths.add(pathname);
 
-    const scripts = await loadScripts(pathname);
+    const scripts = await loadScripts(pathname, cache);
     scripts.forEach((command: Command) => {
       // Only define the command if not already defined
       if (!(client as any)[command.name]) {
