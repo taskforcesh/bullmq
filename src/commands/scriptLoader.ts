@@ -429,6 +429,7 @@ export async function loadScript(
   filename: string,
   cache?: Map<string, ScriptInfo>,
 ): Promise<string> {
+  filename = path.normalize(filename);
   const buf = await readFile(filename);
   const content = buf.toString();
   return processScript(filename, content, cache);
