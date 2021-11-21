@@ -125,6 +125,13 @@ describe.only('scriptLoader', () => {
       expect(script).to.not.eql(undefined);
     });
 
+    it('normalizes path before loading', async () => {
+      const path =
+        __dirname + '/fixtures/scripts/includes/../fixture_simple_include.lua';
+      const script = await loadScript(path);
+      expect(script).to.not.eql(undefined);
+    });
+
     it('removes the @include tag from the resulting script', async () => {
       const fixture =
         __dirname + '/fixtures/scripts/fixture_simple_include.lua';
