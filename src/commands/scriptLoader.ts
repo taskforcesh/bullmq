@@ -465,6 +465,7 @@ export async function loadCommand(filePath: string): Promise<Command> {
  *
  */
 export async function loadScripts(dir?: string): Promise<Command[]> {
+  dir = dir || __dirname;
   const files = await readdir(dir);
 
   const luaFiles = files.filter(
@@ -483,7 +484,7 @@ export async function loadScripts(dir?: string): Promise<Command[]> {
   const cache = new Map<string, ScriptInfo>();
 
   for (let i = 0; i < luaFiles.length; i++) {
-    const file = luaFiles[i];
+    const file = path.join(dir, luaFiles[i]);
     const command = await _loadCommand(file, cache);
     commands.push(command);
   }
