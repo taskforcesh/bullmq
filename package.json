@@ -32,7 +32,6 @@
     "eslint:fix": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore --fix",
     "lint": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore",
     "lint:staged": "./node_modules/.bin/lint-staged",
-    "precommit": "npm-run-all pretty:quick lint:staged",
     "prepare": "yarn build",
     "prettier": "prettier --config package.json src/**/*.ts",
     "pretty:quick": "./node_modules/.bin/pretty-quick --ignore-path ./.eslintignore --staged",
@@ -131,7 +130,8 @@
   },
   "husky": {
     "hooks": {
-      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS",
+      "pre-commit": "npm-run-all pretty:quick lint:staged"
     }
   },
   "repository": {
