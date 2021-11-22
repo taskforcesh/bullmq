@@ -2,7 +2,12 @@ import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
-import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
+import {
+  Processor,
+  WorkerOptions,
+  GetNextJobOptions,
+  RedisClient,
+} from '../interfaces';
 import {
   clientCommandMessageReg,
   delay,
@@ -14,7 +19,7 @@ import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
-import { RedisConnection, RedisClient } from './redis-connection';
+import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import { TimerManager } from './timer-manager';
@@ -162,11 +167,18 @@ export class Worker<
           (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
 
         if (!fs.existsSync(processorFile)) {
-          // TODO are we forced to use sync api here?
           throw new Error(`File ${processorFile} does not exist`);
         }
 
-        this.childPool = this.childPool || new ChildPool();
+        let masterFile = path.join(__dirname, './master.js');
+        try {
+          fs.statSync(masterFile); // would throw if file not exists
+        } catch (_) {
+          masterFile = path.join(process.cwd(), 'dist/classes/master.js');
+          fs.statSync(masterFile);
+        }
+
+        this.childPool = new ChildPool(masterFile);
         this.processFn = sandbox<DataType, ResultType, NameType>(
           processor,
           this.childPool,
@@ -234,7 +246,7 @@ export class Worker<
           try {
             await client.client('setname', this.clientName());
           } catch (err) {
-            if (!clientCommandMessageReg.test(err.message)) {
+            if (!clientCommandMessageReg.test((<Error>err).message)) {
               throw err;
             }
           }
@@ -332,7 +344,7 @@ export class Worker<
         if (
           !(
             (this.paused || this.closing) &&
-            err.message === 'Connection is closed.'
+            (<Error>err).message === 'Connection is closed.'
           )
         ) {
           throw err;
@@ -366,7 +378,7 @@ export class Worker<
         opts.drainDelay,
       );
     } catch (error) {
-      if (isNotConnectionError(error)) {
+      if (isNotConnectionError(<Error>error)) {
         this.emit('error', error);
       }
       await this.delay();
@@ -491,22 +503,10 @@ export class Worker<
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
-      return handleFailed(err);
+      return handleFailed(<Error>err);
     } finally {
       stopTimer();
     }
-
-    /*
-      var timeoutMs = job.opts.timeout;
-
-      if (timeoutMs) {
-        jobPromise = jobPromise.timeout(timeoutMs);
-      }
-    */
-    // Local event with jobPromise so that we can cancel job.
-    // this.emit('active', job, jobPromise, 'waiting');
-
-    // return jobPromise.then(handleCompleted).catch(handleFailed);
   }
 
   /**
@@ -516,7 +516,7 @@ export class Worker<
   async pause(doNotWaitActive?: boolean): Promise<void> {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
-        this.resumeWorker = function() {
+        this.resumeWorker = function () {
           resolve();
           this.paused = null; // Allow pause to be checked externally for paused state.
           this.resumeWorker = null;
