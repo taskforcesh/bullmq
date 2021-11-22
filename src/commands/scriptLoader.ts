@@ -194,19 +194,6 @@ function getReplacementToken(normalizedPath: string): string {
   return `--- @${calcSha1(normalizedPath)}`;
 }
 
-function bannerize(fileName: string, baseDir: string, content: string): string {
-  if (!content) {
-    return '';
-  }
-  let name = fileName.substr(baseDir.length);
-  if (name[0] == path.sep) {
-    name = name.substr(1);
-  }
-  const header = '---[START ' + name + ' ]---';
-  const footer = '---[END   ' + name + ' ]---';
-  return `${header}\n${content}\n${footer}`;
-}
-
 function findPos(content: string, match: string) {
   const pos = content.indexOf(match);
   const arr = content.slice(0, pos).split('\n');
@@ -381,8 +368,7 @@ function mergeInternal(
   file.includes.forEach((dependent: ScriptInfo) => {
     const emitted = cache.has(dependent.path);
     const fragment = mergeInternal(dependent, baseDir, cache);
-    const replacement =
-      emitted || !fragment ? '' : bannerize(dependent.path, baseDir, fragment);
+    const replacement = emitted ? '' : fragment;
 
     if (!replacement) {
       content = content.replaceAll(dependent.token, '');
