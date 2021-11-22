@@ -182,6 +182,13 @@ export class Worker<
     this.on('error', err => console.error(err));
   }
 
+  protected callProcessJob(
+    job: Job<DataType, ResultType, NameType>,
+    token: string,
+  ) {
+    return this.processFn(job, token);
+  }
+
   /**
    *
    * Waits until the worker is ready to start processing jobs.
@@ -481,7 +488,7 @@ export class Worker<
 
     lockExtender();
     try {
-      const result = await this.processFn(job, token);
+      const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
       return handleFailed(err);
