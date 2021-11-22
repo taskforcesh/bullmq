@@ -4,9 +4,14 @@ import { Cluster } from 'ioredis';
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
 import { get } from 'lodash';
-import { RedisClient } from './classes/redis-connection';
-import { JobsOptions } from './interfaces/jobs-options';
-import { QueueOptions } from './interfaces/queue-options';
+import {
+  RedisClient,
+  JobsOptions,
+  QueueOptions,
+  ChildMessage,
+  ParentMessage,
+} from './interfaces';
+import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -124,3 +129,33 @@ export function isNotConnectionError(error: Error): boolean {
     !errorMessage.includes('ECONNREFUSED')
   );
 }
+
+export const childSend = (
+  proc: NodeJS.Process,
+  msg: ChildMessage,
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    proc.send(msg, (err: Error) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+};
+
+export const parentSend = (
+  child: ChildProcess,
+  msg: ParentMessage,
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    child.send(msg, (err: Error) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+};

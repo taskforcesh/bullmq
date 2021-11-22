@@ -1,6 +1,11 @@
 import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
-import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
+import {
+  BackoffOptions,
+  JobsOptions,
+  WorkerOptions,
+  RedisClient,
+} from '../interfaces';
 import {
   errorObject,
   isEmpty,
@@ -12,7 +17,6 @@ import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 import { fromPairs } from 'lodash';
-import { RedisClient } from './redis-connection';
 
 const logger = debuglog('bull');
 

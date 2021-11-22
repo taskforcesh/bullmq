@@ -1,33 +1,38 @@
 import { Job } from './job';
+import { ChildCommand, ChildMessage, ParentCommand } from '../interfaces';
+import { ChildPool } from '../classes';
 
-const sandbox = <T, R, N extends string>(processFile: any, childPool: any) => {
+const sandbox = <T, R, N extends string>(
+  processFile: any,
+  childPool: ChildPool,
+) => {
   return async function process(job: Job<T, R, N>): Promise<R> {
     const child = await childPool.retain(processFile);
     let msgHandler: any;
     let exitHandler: any;
 
     child.send({
-      cmd: 'start',
+      cmd: ChildCommand.Start,
       job: job.asJSON(),
     });
 
     const done: Promise<R> = new Promise((resolve, reject) => {
-      msgHandler = async (msg: any) => {
+      msgHandler = async (msg: ChildMessage) => {
         switch (msg.cmd) {
-          case 'completed':
+          case ParentCommand.Completed:
             resolve(msg.value);
             break;
-          case 'failed':
-          case 'error': {
+          case ParentCommand.Failed:
+          case ParentCommand.Error: {
             const err = new Error();
             Object.assign(err, msg.value);
             reject(err);
             break;
           }
-          case 'progress':
+          case ParentCommand.Progress:
             await job.updateProgress(msg.value);
             break;
-          case 'log':
+          case ParentCommand.Log:
             await job.log(msg.value);
             break;
         }
@@ -50,7 +55,7 @@ const sandbox = <T, R, N extends string>(processFile: any, childPool: any) => {
       child.removeListener('message', msgHandler);
       child.removeListener('exit', exitHandler);
 
-      if (child.exitCode !== null || /SIG.*/.test(child.signalCode)) {
+      if (child.exitCode !== null || /SIG.*/.test(`${child.signalCode}`)) {
         childPool.remove(child);
       } else {
         childPool.release(child);
