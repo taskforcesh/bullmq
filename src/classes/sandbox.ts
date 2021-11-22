@@ -1,6 +1,7 @@
 import { Job } from './job';
 import { ChildCommand, ChildMessage, ParentCommand } from '../interfaces';
 import { ChildPool } from '../classes';
+import { parentSend } from '../utils';
 
 const sandbox = <T, R, N extends string>(
   processFile: any,
@@ -11,7 +12,7 @@ const sandbox = <T, R, N extends string>(
     let msgHandler: any;
     let exitHandler: any;
 
-    child.send({
+    await parentSend(child, {
       cmd: ChildCommand.Start,
       job: job.asJSON(),
     });
