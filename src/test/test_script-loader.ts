@@ -16,10 +16,8 @@ describe.only('scriptLoader', () => {
     return path.resolve(path.join(__dirname, '../../'));
   }
 
-  // reading the end banner tags will give us the correct include order
   function parseIncludedFiles(script: string): string[] {
-    const LEFT = '---[END';
-    const RIGHT = ']---';
+    const LEFT = '--- file:';
     const lines = script.split('\n');
     const res: string[] = [];
 
@@ -27,11 +25,8 @@ describe.only('scriptLoader', () => {
       const line = lines[i];
       const p = line.indexOf(LEFT);
       if (p >= 0) {
-        const q = line.indexOf(RIGHT, p);
-        if (q > p) {
-          const filename = line.substring(p + LEFT.length, q - 1).trim();
-          res.push(filename);
-        }
+        const filename = line.substring(p + LEFT.length).trim();
+        res.push(filename);
       }
     }
 
@@ -145,7 +140,7 @@ describe.only('scriptLoader', () => {
       const script = await loadScript(fixture);
       const includes = parseIncludedFiles(script);
       const count = includes.reduce(
-        (res, include) => res + (include === 'includes/strings.lua' ? 1 : 0),
+        (res, include) => res + (include === 'strings.lua' ? 1 : 0),
         0,
       );
       expect(count).to.eql(1);
@@ -156,11 +151,13 @@ describe.only('scriptLoader', () => {
         __dirname + '/fixtures/scripts/fixture_recursive_parent.lua';
       const script = await loadScript(fixture);
       const includes = parseIncludedFiles(script);
+
       const expected = [
-        'includes/strings.lua',
-        'includes/fixture_recursive_great_grandchild.lua',
-        'includes/fixture_recursive_grandchild.lua',
-        'includes/fixture_recursive_child.lua',
+        'fixture_recursive_parent.lua',
+        'strings.lua',
+        'fixture_recursive_great_grandchild.lua',
+        'fixture_recursive_grandchild.lua',
+        'fixture_recursive_child.lua',
       ];
       expect(includes).to.eql(expected);
     });
@@ -172,8 +169,8 @@ describe.only('scriptLoader', () => {
       const includes = parseIncludedFiles(script);
 
       const expected = [
-        'includes/fixture_glob_include_1.lua',
-        'includes/fixture_glob_include_2.lua',
+        'fixture_glob_include_1.lua',
+        'fixture_glob_include_2.lua',
       ];
       expected.forEach(include => {
         expect(includes).to.include(include);
