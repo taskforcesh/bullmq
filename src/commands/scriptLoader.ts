@@ -308,7 +308,6 @@ async function collectFilesInternal(
         try {
           const buf = await readFile(path, { flag: 'r' });
           childContent = buf.toString();
-          childContent = childContent.replace(RE_EMPTY_LINE, '');
         } catch (err) {
           if ((err as any).code === 'ENOENT') {
             raiseError(`include not found: "${reference}"`, match);
@@ -382,7 +381,7 @@ function mergeInternal(
     cache.add(dependent.path);
   });
 
-  return content;
+  return content.replaceAll(RE_EMPTY_LINE, '');
 }
 
 function getFullDirname(filename: string): string {

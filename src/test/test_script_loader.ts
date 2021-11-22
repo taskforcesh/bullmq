@@ -153,11 +153,11 @@ describe.only('scriptLoader', () => {
       const includes = parseIncludedFiles(script);
 
       const expected = [
-        'fixture_recursive_parent.lua',
         'strings.lua',
         'fixture_recursive_great_grandchild.lua',
         'fixture_recursive_grandchild.lua',
         'fixture_recursive_child.lua',
+        'fixture_recursive_parent.lua',
       ];
       expect(includes).to.eql(expected);
     });
