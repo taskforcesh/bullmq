@@ -34,7 +34,7 @@ if limit > 0 then
   rangeEnd = -1
 end
 
-local jobs = rcall(command, KEYS[1], 0, -1)
+local jobs = rcall(command, KEYS[1], rangeStart, rangeEnd)
 local deleted = {}
 local deletedCount = 0
 local jobTS
