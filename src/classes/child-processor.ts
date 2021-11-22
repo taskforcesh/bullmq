@@ -1,4 +1,3 @@
-
 import { promisify } from 'util';
 import { JobJson } from './job';
 import { SandboxedJob, ParentCommand } from '../interfaces';
@@ -44,7 +43,7 @@ export class ChildProcessor {
       processor = promisify(processor);
     } else {
       const origProcessor = processor;
-      processor = function (...args: any[]) {
+      processor = function(...args: any[]) {
         try {
           return Promise.resolve(origProcessor(...args));
         } catch (err) {
@@ -61,8 +60,8 @@ export class ChildProcessor {
 
   public async start(jobJson: JobJson) {
     if (this.status !== ChildStatus.Idle) {
-      return process.send({
-        cmd: 'error',
+      return childSend(process, {
+        cmd: ParentCommand.Error,
         err: new Error('cannot start a not idling child process'),
       });
     }
@@ -102,11 +101,11 @@ export class ChildProcessor {
 // https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
 if (!('toJSON' in Error.prototype)) {
   Object.defineProperty(Error.prototype, 'toJSON', {
-    value: function () {
+    value: function() {
       const alt: any = {};
       const _this = this;
 
-      Object.getOwnPropertyNames(_this).forEach(function (key) {
+      Object.getOwnPropertyNames(_this).forEach(function(key) {
         alt[key] = _this[key];
       }, this);
 
