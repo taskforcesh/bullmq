@@ -354,19 +354,14 @@ async function collectFiles(file: ScriptInfo, cache: Map<string, ScriptInfo>) {
 /**
  * Construct the final version of a file by interpolating its includes in dependency order.
  * @param file - the file whose content we want to construct
- * @param baseDir - the base directory of the file. Used only to massage the filename for the banner
  * @param cache - a cache to keep track of which includes have already been processed
  */
-function mergeInternal(
-  file: ScriptInfo,
-  baseDir: string,
-  cache?: Set<string>,
-): string {
+function mergeInternal(file: ScriptInfo, cache?: Set<string>): string {
   cache = cache || new Set<string>();
   let content = file.content;
   file.includes.forEach((dependent: ScriptInfo) => {
     const emitted = cache.has(dependent.path);
-    const fragment = mergeInternal(dependent, baseDir, cache);
+    const fragment = mergeInternal(dependent, cache);
     const replacement = emitted ? '' : fragment;
 
     if (!replacement) {
@@ -381,12 +376,7 @@ function mergeInternal(
     cache.add(dependent.path);
   });
 
-  return content.replaceAll(RE_EMPTY_LINE, '');
-}
-
-function getFullDirname(filename: string): string {
-  const parts = filename.split(path.sep);
-  return parts.splice(0, parts.length - 1).join(path.sep);
+  return content;
 }
 
 export async function processScript(
@@ -406,8 +396,8 @@ export async function processScript(
   };
 
   await collectFiles(fileInfo, cache);
-  const baseDir = getFullDirname(filename);
-  return mergeInternal(fileInfo, baseDir);
+  const res = mergeInternal(fileInfo);
+  return res.replaceAll(RE_EMPTY_LINE, '');
 }
 
 export async function loadScript(
