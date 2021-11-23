@@ -1,14 +1,17 @@
 import { expect } from 'chai';
+import { RedisConnection, RedisClient } from '../classes/redis-connection';
 import * as path from 'path';
 import {
   addScriptPathMapping,
   getPkgJsonDir,
+  load,
   loadScript,
   loadScripts,
   resolvePath,
   ScriptInfo,
   ScriptLoaderError,
 } from '../commands/scriptLoader';
+import { v4 } from 'uuid';
 
 // eslint-disable-next-line mocha/no-exclusive-tests
 describe.only('scriptLoader', () => {
@@ -297,6 +300,26 @@ describe.only('scriptLoader', () => {
 
       expect(commands.length).to.eql(1);
       expect(commands[0].name).to.eql('test');
+    });
+  });
+
+  describe('when initializing a RedisClient', () => {
+    const path = __dirname + '/fixtures/scripts/load';
+    let client: RedisClient;
+    let connection: RedisConnection;
+
+    beforeEach(async () => {
+      connection = new RedisConnection();
+      client = await connection.client;
+    });
+
+    afterEach(async () => {
+      connection.disconnect();
+    });
+
+    it('properly sets commands on the instance', async () => {
+      await load(client, path);
+      expect((client as any).broadcastEvent).to.not.be.undefined;
     });
   });
 });
