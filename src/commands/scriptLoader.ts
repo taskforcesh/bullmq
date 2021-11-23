@@ -91,7 +91,7 @@ export function getPkgJsonDir(): string {
 
 // https://stackoverflow.com/a/66842927
 // some dark magic here :-)
-function _getCallerFile() {
+function getCallerFile() {
   const originalFunc = Error.prepareStackTrace;
 
   let callerFile;
@@ -146,7 +146,7 @@ export function addScriptPathMapping(name: string, mappedPath: string): void {
   if (possiblyMapped(mappedPath)) {
     resolved = resolvePath(mappedPath);
   } else {
-    const caller = _getCallerFile();
+    const caller = getCallerFile();
     const callerPath = path.dirname(caller);
     resolved = path.normalize(path.resolve(callerPath, mappedPath));
   }
@@ -239,7 +239,7 @@ async function handleGlob(pattern: string): Promise<string[]> {
  * multiple times, we make sure to load it only once.
  * @param stack - internal stack to prevent circular references
  */
-async function collectFilesInternal(
+async function resolveDependencies(
   file: ScriptInfo,
   cache: Map<string, ScriptInfo>,
   stack: string[],
@@ -333,7 +333,7 @@ async function collectFilesInternal(
       tokens.push(token);
 
       file.includes.push(dependent);
-      await collectFilesInternal(dependent, cache, stack);
+      await resolveDependencies(dependent, cache, stack);
     }
 
     const substitution = tokens.join('\n');
@@ -346,9 +346,25 @@ async function collectFilesInternal(
   stack.pop();
 }
 
-async function collectFiles(file: ScriptInfo, cache: Map<string, ScriptInfo>) {
+async function parseScript(
+  filename: string,
+  content: string,
+  cache?: Map<string, ScriptInfo>,
+): Promise<ScriptInfo> {
+  cache = cache ?? new Map<string, ScriptInfo>();
+  const { name, numberOfKeys } = splitFilename(filename);
+  const fileInfo: ScriptInfo = {
+    path: filename,
+    token: getReplacementToken(filename),
+    content,
+    name,
+    numberOfKeys,
+    includes: [],
+  };
+
   initMapping();
-  return collectFilesInternal(file, cache, []);
+  await resolveDependencies(fileInfo, cache, []);
+  return fileInfo;
 }
 
 /**
@@ -356,12 +372,12 @@ async function collectFiles(file: ScriptInfo, cache: Map<string, ScriptInfo>) {
  * @param file - the file whose content we want to construct
  * @param cache - a cache to keep track of which includes have already been processed
  */
-function mergeInternal(file: ScriptInfo, cache?: Set<string>): string {
+function interpolate(file: ScriptInfo, cache?: Set<string>): string {
   cache = cache || new Set<string>();
   let content = file.content;
   file.includes.forEach((dependent: ScriptInfo) => {
     const emitted = cache.has(dependent.path);
-    const fragment = mergeInternal(dependent, cache);
+    const fragment = interpolate(dependent, cache);
     const replacement = emitted ? '' : fragment;
 
     if (!replacement) {
@@ -379,48 +395,29 @@ function mergeInternal(file: ScriptInfo, cache?: Set<string>): string {
   return content;
 }
 
-export async function processScript(
+async function loadCommand(
   filename: string,
-  content: string,
   cache?: Map<string, ScriptInfo>,
-): Promise<string> {
-  cache = cache ?? new Map<string, ScriptInfo>();
-  const { name, numberOfKeys } = splitFilename(filename);
-  const fileInfo: ScriptInfo = {
-    path: filename,
-    token: '',
-    content,
-    name,
-    numberOfKeys,
-    includes: [],
-  };
+): Promise<Command> {
+  filename = path.normalize(filename);
+  const buf = await readFile(filename);
+  const content = buf.toString();
+  const script = await parseScript(filename, content, cache);
+  const lua = interpolate(script);
+  const { name, numberOfKeys } = script;
 
-  await collectFiles(fileInfo, cache);
-  const res = mergeInternal(fileInfo);
-  return res.replaceAll(RE_EMPTY_LINE, '');
+  return {
+    name,
+    options: { numberOfKeys, lua: lua.replaceAll(RE_EMPTY_LINE, '') },
+  };
 }
 
 export async function loadScript(
   filename: string,
   cache?: Map<string, ScriptInfo>,
 ): Promise<string> {
-  filename = path.normalize(filename);
-  const buf = await readFile(filename);
-  const content = buf.toString();
-  return processScript(filename, content, cache);
-}
-
-async function _loadCommand(
-  filePath: string,
-  cache?: Map<string, ScriptInfo>,
-): Promise<Command> {
-  const { name, numberOfKeys } = splitFilename(filePath);
-  const content = await loadScript(filePath, cache);
-
-  return {
-    name,
-    options: { numberOfKeys, lua: content },
-  };
+  const command = await loadCommand(filename, cache);
+  return command.options.lua;
 }
 
 /**
@@ -459,7 +456,8 @@ export async function loadScripts(
 
   for (let i = 0; i < luaFiles.length; i++) {
     const file = path.join(dir, luaFiles[i]);
-    const command = await _loadCommand(file, cache);
+
+    const command = await loadCommand(file, cache);
     commands.push(command);
   }
 
@@ -480,7 +478,6 @@ export const load = async function(
   }
   if (!paths.has(pathname)) {
     paths.add(pathname);
-
     const scripts = await loadScripts(pathname, cache);
     scripts.forEach((command: Command) => {
       // Only define the command if not already defined
