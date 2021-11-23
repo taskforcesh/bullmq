@@ -17,10 +17,9 @@ import {
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
-import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
 import { RedisConnection } from './redis-connection';
-import sandbox from './sandbox';
+import { Sandbox } from './sandbox';
 import { Scripts } from './scripts';
 import { TimerManager } from './timer-manager';
 
@@ -111,13 +110,9 @@ export class Worker<
   private drained: boolean;
   private waiting = false;
   private running = false;
-  protected processFn: Processor<DataType, ResultType, NameType>;
 
   private resumeWorker: () => void;
-  protected paused: Promise<void>;
   private _repeat: Repeat;
-  private childPool: ChildPool;
-  protected timerManager: TimerManager;
 
   private blockingConnection: RedisConnection;
 
@@ -125,11 +120,19 @@ export class Worker<
     Promise<Job<DataType, ResultType, NameType> | string>,
     string
   >;
+
+  private sandbox: Sandbox<DataType, ResultType, NameType>;
+
+  protected processFn: Processor<DataType, ResultType, NameType>;
+  protected timerManager: TimerManager;
+  protected paused: Promise<void>;
+
   constructor(
     name: string,
     processor?: string | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
     Connection?: typeof RedisConnection,
+    SandboxClass?: typeof Sandbox,
   ) {
     super(
       name,
@@ -169,20 +172,8 @@ export class Worker<
         if (!fs.existsSync(processorFile)) {
           throw new Error(`File ${processorFile} does not exist`);
         }
-
-        let masterFile = path.join(__dirname, './master.js');
-        try {
-          fs.statSync(masterFile); // would throw if file not exists
-        } catch (_) {
-          masterFile = path.join(process.cwd(), 'dist/classes/master.js');
-          fs.statSync(masterFile);
-        }
-
-        this.childPool = new ChildPool(masterFile);
-        this.processFn = sandbox<DataType, ResultType, NameType>(
-          processor,
-          this.childPool,
-        ).bind(this);
+        this.sandbox = new SandboxClass(processor);
+        this.processFn = this.sandbox.getProcessFn().bind(this.sandbox);
       }
       this.timerManager = new TimerManager();
 
@@ -516,7 +507,7 @@ export class Worker<
   async pause(doNotWaitActive?: boolean): Promise<void> {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
-        this.resumeWorker = function () {
+        this.resumeWorker = function() {
           resolve();
           this.paused = null; // Allow pause to be checked externally for paused state.
           this.resumeWorker = null;
@@ -584,7 +575,7 @@ export class Worker<
           return force || this.whenCurrentJobsFinished(false);
         })
         .finally(() => {
-          const closePoolPromise = this.childPool?.clean();
+          const closePoolPromise = this.sandbox?.clean();
 
           if (force) {
             // since we're not waiting for the job to end attach

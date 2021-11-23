@@ -1,6 +1,11 @@
-import { promisify } from 'util';
+import { toString } from 'lodash';
 import { JobJson } from './job';
-import { SandboxedJob, ParentCommand } from '../interfaces';
+import {
+  SandboxedJob,
+  ParentCommand,
+  ParentMessage,
+  ChildCommand,
+} from '../interfaces';
 
 import { childSend } from '../utils';
 
@@ -11,22 +16,67 @@ enum ChildStatus {
   Errored,
 }
 
-/**
+/*
  * ChildProcessor
  *
- * This class acts as the interface between a child process and it parent process
+ * This class acts as the interface between a child process and its parent process
  * so that jobs can be processed in different processes than the parent.
  *
  */
 export class ChildProcessor {
   public status: ChildStatus;
-  public processor: any;
+  public processor: (job: SandboxedJob, token?: string) => Promise<any>;
   public currentJobPromise: Promise<unknown> | undefined;
 
+  protected callProcessJob(job: SandboxedJob, token?: string) {
+    return this.processor(job, token);
+  }
+
+  public run() {
+    process.on('message', this.messageHandler.bind(this));
+
+    process.on('SIGTERM', () => this.waitForCurrentJobAndExit());
+    process.on('SIGINT', () => this.waitForCurrentJobAndExit());
+
+    process.on('uncaughtException', async (err: Error) => {
+      if (!err.message) {
+        err = new Error(toString(err));
+      }
+      await childSend(process, {
+        cmd: ParentCommand.Failed,
+        value: err,
+      });
+
+      throw err;
+    });
+  }
+
+  protected async messageHandler(msg: ParentMessage) {
+    {
+      try {
+        switch (msg.cmd) {
+          case ChildCommand.Init:
+            await this.init(msg.value);
+            break;
+          case ChildCommand.Start:
+            await this.start(msg.job);
+            break;
+          case ChildCommand.Stop:
+            break;
+        }
+      } catch (err) {
+        console.error('Error handling parent message');
+      }
+    }
+  }
+
   public async init(processorFile: string) {
-    let processor;
+    let required:
+      | { default?: (job: SandboxedJob, token: string) => Promise<any> }
+      | ((job: SandboxedJob, token: string) => Promise<any>);
+
     try {
-      processor = require(processorFile);
+      required = require(processorFile);
     } catch (err) {
       this.status = ChildStatus.Errored;
       return childSend(process, {
@@ -35,23 +85,13 @@ export class ChildProcessor {
       });
     }
 
-    if (processor.default) {
+    if (typeof required == 'object') {
       // support es2015 module.
-      processor = processor.default;
-    }
-    if (processor.length > 1) {
-      processor = promisify(processor);
+      this.processor = required.default;
     } else {
-      const origProcessor = processor;
-      processor = function(...args: any[]) {
-        try {
-          return Promise.resolve(origProcessor(...args));
-        } catch (err) {
-          return Promise.reject(err);
-        }
-      };
+      this.processor = required;
     }
-    this.processor = processor;
+
     this.status = ChildStatus.Idle;
     await childSend(process, {
       cmd: ParentCommand.InitCompleted,
@@ -69,7 +109,7 @@ export class ChildProcessor {
     this.currentJobPromise = (async () => {
       try {
         const job = wrapJob(jobJson);
-        const result = (await this.processor(job)) || {};
+        const result = await this.callProcessJob(job);
         await childSend(process, {
           cmd: ParentCommand.Completed,
           value: result,

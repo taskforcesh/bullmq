@@ -1,14 +1,11 @@
 import { ChildProcess, fork } from 'child_process';
+import * as fs from 'fs';
 import * as path from 'path';
 import { flatten } from 'lodash';
 import * as getPort from 'get-port';
-import * as fs from 'fs';
-import { promisify } from 'util';
 import { killAsync } from './process-utils';
 import { ParentCommand, ChildCommand } from '../interfaces';
 import { parentSend } from '../utils';
-
-const stat = promisify(fs.stat);
 
 const CHILD_KILL_TIMEOUT = 30_000;
 
@@ -89,14 +86,34 @@ async function initChild(child: ChildProcess, processFile: string) {
   await onComplete;
 }
 
+let masterFile = path.join(__dirname, './master.js');
+try {
+  fs.statSync(masterFile); // would throw if file not exists
+} catch (_) {
+  masterFile = path.join(process.cwd(), 'dist/classes/master.js');
+  fs.statSync(masterFile);
+}
+
 export class ChildPool {
   retained: { [key: number]: ChildProcessExt } = {};
   free: { [key: string]: ChildProcessExt[] } = {};
 
   constructor(
-    private masterFile = path.join(process.cwd(), 'dist/classes/master.js'),
+    public code: string = `
+  const { ChildProcessor } = require('./child-processor');
+  const childProcessor = new ChildProcessor();
+  childProcessor.run();
+`,
   ) {}
 
+  /**
+   * Retains a child process to be used to process a job.
+   * If there are no free child process to pick from, forks a new
+   * child process which willl be reused when the worker using it has
+   * completed the job processing.
+   *
+   * @param processFile
+   */
   async retain(processFile: string): Promise<ChildProcessExt> {
     const _this = this;
     let child = _this.getFree(processFile).pop();
@@ -108,7 +125,7 @@ export class ChildPool {
 
     const execArgv = await convertExecArgv(process.execArgv);
 
-    child = fork(this.masterFile, [], { execArgv, stdio: 'pipe' });
+    child = fork(masterFile, [this.code], { execArgv, stdio: 'pipe' });
     child.processFile = processFile;
 
     _this.retained[child.pid] = child;
@@ -122,6 +139,11 @@ export class ChildPool {
     return child;
   }
 
+  /**
+   * Releases as child process so that it can be reused by other workers.
+   *
+   * @param child
+   */
   release(child: ChildProcessExt) {
     delete this.retained[child.pid];
     this.getFree(child.processFile).push(child);
