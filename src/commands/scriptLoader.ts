@@ -423,11 +423,6 @@ async function _loadCommand(
   };
 }
 
-export async function loadCommand(filePath: string): Promise<Command> {
-  const cache = new Map<string, ScriptInfo>();
-  return _loadCommand(filePath, cache);
-}
-
 /**
  * Load redis lua scripts.
  * The name of the script must have the following format:
