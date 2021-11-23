@@ -132,7 +132,7 @@ export class Worker<
     processor?: string | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
     Connection?: typeof RedisConnection,
-    SandboxClass?: typeof Sandbox,
+    SandboxClass: typeof Sandbox = Sandbox,
   ) {
     super(
       name,

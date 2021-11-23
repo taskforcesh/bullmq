@@ -37,8 +37,12 @@ describe('sandboxed process', () => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(42);
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          expect(
+            Object.keys(worker['sandbox']['childPool'].retained),
+          ).to.have.lengthOf(0);
+          expect(
+            worker['sandbox']['childPool'].free[processFile],
+          ).to.have.lengthOf(1);
           await worker.close();
           resolve();
         } catch (err) {
@@ -67,8 +71,12 @@ describe('sandboxed process', () => {
         worker.on('completed', async (job: Job, value: any) => {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(1);
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          expect(
+            Object.keys(worker['sandbox']['childPool'].retained),
+          ).to.have.lengthOf(0);
+          expect(
+            worker['sandbox']['childPool'].free[processFile],
+          ).to.have.lengthOf(1);
           resolve();
         });
       });
@@ -102,8 +110,12 @@ describe('sandboxed process', () => {
         worker.on('completed', async (job: Job, value: any) => {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(1);
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          expect(
+            Object.keys(worker['sandbox']['childPool'].retained),
+          ).to.have.lengthOf(0);
+          expect(
+            worker['sandbox']['childPool'].free[processFile],
+          ).to.have.lengthOf(1);
           resolve();
         });
       });
@@ -136,8 +148,12 @@ describe('sandboxed process', () => {
         try {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(42);
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          expect(
+            Object.keys(worker['sandbox']['childPool'].retained),
+          ).to.have.lengthOf(0);
+          expect(
+            worker['sandbox']['childPool'].free[processFile],
+          ).to.have.lengthOf(1);
           await worker.close();
           resolve();
         } catch (err) {
@@ -170,7 +186,7 @@ describe('sandboxed process', () => {
 
     const completing = new Promise<void>((resolve, reject) => {
       const after4 = after(4, () => {
-        expect(worker['childPool'].getAllFree().length).to.eql(4);
+        expect(worker['sandbox']['childPool'].getAllFree().length).to.eql(4);
         resolve();
       });
 
@@ -178,8 +194,8 @@ describe('sandboxed process', () => {
         try {
           expect(value).to.be.eql(42);
           expect(
-            Object.keys(worker['childPool'].retained).length +
-              worker['childPool'].getAllFree().length,
+            Object.keys(worker['sandbox']['childPool'].retained).length +
+              worker['sandbox']['childPool'].getAllFree().length,
           ).to.eql(4);
           after4();
         } catch (err) {
@@ -211,7 +227,7 @@ describe('sandboxed process', () => {
 
     const completing = new Promise<void>((resolve, reject) => {
       const after4 = after(4, async () => {
-        expect(worker['childPool'].getAllFree().length).to.eql(1);
+        expect(worker['sandbox']['childPool'].getAllFree().length).to.eql(1);
         await worker.close();
         resolve();
       });
@@ -220,8 +236,8 @@ describe('sandboxed process', () => {
         try {
           expect(value).to.be.eql(42);
           expect(
-            Object.keys(worker['childPool'].retained).length +
-              worker['childPool'].getAllFree().length,
+            Object.keys(worker['sandbox']['childPool'].retained).length +
+              worker['sandbox']['childPool'].getAllFree().length,
           ).to.eql(1);
           await after4();
         } catch (err) {
@@ -250,8 +266,12 @@ describe('sandboxed process', () => {
           expect(value).to.be.eql(37);
           expect(job.progress).to.be.eql(100);
           expect(progresses).to.be.eql([10, 27, 78, 100]);
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+          expect(
+            Object.keys(worker['sandbox']['childPool'].retained),
+          ).to.have.lengthOf(0);
+          expect(worker['sandbox']['childPool'].getAllFree()).to.have.lengthOf(
+            1,
+          );
           const logs = await queue.getJobLogs(job.id);
           expect(logs).to.be.eql({
             logs: ['10', '27', '78', '100'],
@@ -289,10 +309,12 @@ describe('sandboxed process', () => {
           try {
             expect(job.data).to.be.eql({ foo: 'bar' });
             expect(value).to.be.eql('variable');
-            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
-              0,
-            );
-            expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+            expect(
+              Object.keys(worker['sandbox']['childPool'].retained),
+            ).to.have.lengthOf(0);
+            expect(
+              worker['sandbox']['childPool'].getAllFree(),
+            ).to.have.lengthOf(1);
             resolve();
           } catch (err) {
             reject(err);
@@ -322,8 +344,12 @@ describe('sandboxed process', () => {
           expect(job.failedReason).eql('Manually failed processor');
           expect(err.message).eql('Manually failed processor');
           expect(err.stack).include('fixture_processor_fail.js');
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+          expect(
+            Object.keys(worker['sandbox']['childPool'].retained),
+          ).to.have.lengthOf(0);
+          expect(worker['sandbox']['childPool'].getAllFree()).to.have.lengthOf(
+            1,
+          );
 
           resolve();
         } catch (err) {
@@ -423,11 +449,19 @@ describe('sandboxed process', () => {
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async () => {
         try {
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+          expect(
+            Object.keys(worker['sandbox']['childPool'].retained),
+          ).to.have.lengthOf(0);
+          expect(worker['sandbox']['childPool'].getAllFree()).to.have.lengthOf(
+            1,
+          );
           await delay(500);
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+          expect(
+            Object.keys(worker['sandbox']['childPool'].retained),
+          ).to.have.lengthOf(0);
+          expect(worker['sandbox']['childPool'].getAllFree()).to.have.lengthOf(
+            0,
+          );
           resolve();
         } catch (err) {
           reject(err);
@@ -448,8 +482,10 @@ describe('sandboxed process', () => {
     const worker = new Worker(queueName, processFile);
 
     // acquire and release a child here so we know it has it's full termination handler setup
-    const initializedChild = await worker['childPool'].retain(processFile);
-    await worker['childPool'].release(initializedChild);
+    const initializedChild = await worker['sandbox']['childPool'].retain(
+      processFile,
+    );
+    await worker['sandbox']['childPool'].release(initializedChild);
 
     // await this After we've added the job
     const onJobActive = new Promise<void>(resolve => {
@@ -462,10 +498,12 @@ describe('sandboxed process', () => {
     const jobAdd = queue.add('foo', {});
     await onJobActive;
 
-    expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(1);
-    expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+    expect(
+      Object.keys(worker['sandbox']['childPool'].retained),
+    ).to.have.lengthOf(1);
+    expect(worker['sandbox']['childPool'].getAllFree()).to.have.lengthOf(0);
     const child = Object.values(
-      worker['childPool'].retained,
+      worker['sandbox']['childPool'].retained,
     )[0] as ChildProcessExt;
 
     expect(child).to.equal(initializedChild);
@@ -478,8 +516,10 @@ describe('sandboxed process', () => {
 
     // ensure the child did get cleaned up
     expect(!!child.killed).to.eql(true);
-    expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-    expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+    expect(
+      Object.keys(worker['sandbox']['childPool'].retained),
+    ).to.have.lengthOf(0);
+    expect(worker['sandbox']['childPool'].getAllFree()).to.have.lengthOf(0);
 
     const job = await jobAdd;
     // check that the job did finish successfully
