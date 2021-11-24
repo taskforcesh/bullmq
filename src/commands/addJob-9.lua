@@ -61,8 +61,8 @@ end
 local jobCounter = rcall("INCR", KEYS[4])
 
 -- Includes
-<%= updateParentDepsIfNeeded %>
-<%= destructureJobKey %>
+--- @include "includes/updateParentDepsIfNeeded"
+--- @include "includes/destructureJobKey"
 
 local parentDependenciesKey = args[7]
 if args[2] == "" then
@@ -85,7 +85,7 @@ else
       end
       rcall("HMSET", jobIdKey, "parentKey", parentKey)
     end
-    return jobId .. "" -- convert to string        
+    return jobId .. "" -- convert to string
   end
 end
 
