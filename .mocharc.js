@@ -1,6 +1,6 @@
 module.exports = {
   exit: true,
   file: ['./mocha.setup.ts'],
-  spec: ['./src/**/test_*.ts'],
+  spec: ['./bullmq-tests/test_*.ts'],
   timeout: 4000,
 };
