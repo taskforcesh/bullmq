@@ -10,11 +10,9 @@ import {
   resolvePath,
   ScriptInfo,
   ScriptLoaderError,
-} from '../commands/scriptLoader';
-import { v4 } from 'uuid';
+} from '../commands';
 
-// eslint-disable-next-line mocha/no-exclusive-tests
-describe.only('scriptLoader', () => {
+describe('scriptLoader', () => {
   function getRootPath() {
     return path.resolve(path.join(__dirname, '../../'));
   }
