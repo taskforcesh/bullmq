@@ -131,7 +131,7 @@ export class Scripts {
     return result;
   }
 
-  static async pause(queue: MinimalQueue, pause: boolean) {
+  static async pause(queue: MinimalQueue, pause: boolean): Promise<void> {
     const client = await queue.client;
 
     let src = 'wait',
@@ -358,7 +358,7 @@ export class Scripts {
   ): Promise<number | [number, string]> {
     const client = await queue.client;
 
-    const keys = ['completed', 'failed', jobId].map(function (key: string) {
+    const keys = ['completed', 'failed', jobId].map(function(key: string) {
       return queue.toKey(key);
     });
 
@@ -378,7 +378,7 @@ export class Scripts {
       'wait',
       'paused',
       'waiting-children',
-    ].map(function (key: string) {
+    ].map(function(key: string) {
       return queue.toKey(key);
     });
 
@@ -421,7 +421,7 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['delayed', jobId].map(function (name) {
+    const keys = ['delayed', jobId].map(function(name) {
       return queue.toKey(name);
     });
     keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
@@ -448,7 +448,7 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['active', 'delayed', jobId].map(function (name) {
+    const keys = ['active', 'delayed', jobId].map(function(name) {
       return queue.toKey(name);
     });
     keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
@@ -471,7 +471,7 @@ export class Scripts {
     }
 
     const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      function (name) {
+      function(name) {
         return queue.toKey(name);
       },
     );
@@ -563,7 +563,7 @@ export class Scripts {
   static retryJobArgs(queue: MinimalQueue, job: Job) {
     const jobId = job.id;
 
-    const keys = ['active', 'wait', jobId].map(function (name) {
+    const keys = ['active', 'wait', jobId].map(function(name) {
       return queue.toKey(name);
     });
 
@@ -727,7 +727,7 @@ export class Scripts {
   static async obliterate(
     queue: MinimalQueue,
     opts: { force: boolean; count: number },
-  ) {
+  ): Promise<number> {
     const client = await queue.client;
 
     const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];

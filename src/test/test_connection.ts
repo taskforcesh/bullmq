@@ -1,21 +1,20 @@
+import { expect } from 'chai';
 import * as IORedis from 'ioredis';
+import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueBase } from '../classes';
 import { RedisClient } from '../interfaces';
-
-import { v4 } from 'uuid';
-import { expect } from 'chai';
 import { removeAllQueueData } from '../utils';
 
 describe('connection', () => {
   let queue: Queue;
   let queueName: string;
 
-  beforeEach(async function () {
+  beforeEach(async function() {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection: { host: 'localhost' } });
   });
 
-  afterEach(async function () {
+  afterEach(async function() {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
   });

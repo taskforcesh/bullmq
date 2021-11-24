@@ -197,7 +197,7 @@ export class Worker<
   protected callProcessJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
-  ) {
+  ): Promise<ResultType> {
     return this.processFn(job, token);
   }
 
@@ -516,7 +516,7 @@ export class Worker<
   async pause(doNotWaitActive?: boolean): Promise<void> {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
-        this.resumeWorker = function () {
+        this.resumeWorker = function() {
           resolve();
           this.paused = null; // Allow pause to be checked externally for paused state.
           this.resumeWorker = null;
