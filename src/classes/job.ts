@@ -176,7 +176,7 @@ export class Job<
     name: N,
     data: T,
     opts?: JobsOptions,
-  ) {
+  ): Promise<Job<T, R, N>> {
     const client = await queue.client;
 
     const job = new this<T, R, N>(queue, name, data, opts, opts && opts.jobId);
