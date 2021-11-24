@@ -140,6 +140,13 @@ function wrapJob(job: JobJson): SandboxedJob {
   };
 
   const progress = (progress?: number | object) => {
+    console.warn(
+      [
+        'BullMQ: DEPRECATION WARNING! progress function in sandboxed processor is deprecated. This will',
+        'be removed in the next major release, you should use updateProgress method instead.',
+      ].join(' '),
+    );
+
     if (progress) {
       return updateProgress(progress);
     } else {
