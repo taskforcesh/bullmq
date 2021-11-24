@@ -35,6 +35,7 @@ export declare class Worker<DataType = any, ResultType = any, NameType extends s
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
+|  [callProcessJob(job, token)](./bullmq.worker_2.callprocessjob.md) |  |  |
 |  [close(force)](./bullmq.worker_2.close.md) |  | Closes the worker and related redis connections.<!-- -->This method waits for current jobs to finalize before returning. |
 |  [delay()](./bullmq.worker_2.delay.md) |  | This function is exposed only for testing purposes. |
 |  [getNextJob(token, { block })](./bullmq.worker_2.getnextjob.md) |  | Returns a promise that resolves to the next job in queue. |

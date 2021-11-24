@@ -26,8 +26,10 @@
 
 |  Enumeration | Description |
 |  --- | --- |
+|  [ChildCommand](./bullmq.childcommand.md) |  |
 |  [ClientType](./bullmq.clienttype.md) |  |
 |  [ErrorCodes](./bullmq.errorcodes.md) |  |
+|  [ParentCommand](./bullmq.parentcommand.md) |  |
 
 ## Functions
 
@@ -52,17 +54,21 @@
 |  [AddNodeOpts](./bullmq.addnodeopts.md) |  |
 |  [AdvancedOptions](./bullmq.advancedoptions.md) |  |
 |  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
+|  [ChildMessage](./bullmq.childmessage.md) |  |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
 |  [DependenciesOpts](./bullmq.dependenciesopts.md) |  |
 |  [FlowJob](./bullmq.flowjob.md) |  |
 |  [FlowOpts](./bullmq.flowopts.md) |  |
 |  [GetNextJobOptions](./bullmq.getnextjoboptions.md) |  |
+|  [IConnection](./bullmq.iconnection.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  [JobNode](./bullmq.jobnode.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
+|  [Parent](./bullmq.parent.md) | Describes the parent for a Job. |
+|  [ParentMessage](./bullmq.parentmessage.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
 |  [QueueDeclaration](./bullmq.queuedeclaration.md) |  |
 |  [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md) |  |
@@ -81,12 +87,14 @@
 
 |  Variable | Description |
 |  --- | --- |
+|  [childSend](./bullmq.childsend.md) |  |
 |  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
 |  [DELAY\_TIME\_1](./bullmq.delay_time_1.md) |  |
 |  [DELAY\_TIME\_5](./bullmq.delay_time_5.md) |  |
 |  [errorObject](./bullmq.errorobject.md) |  |
 |  [load](./bullmq.load.md) |  |
 |  [loadIncludes](./bullmq.loadincludes.md) |  |
+|  [parentSend](./bullmq.parentsend.md) |  |
 
 ## Type Aliases
 
@@ -95,6 +103,8 @@
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
 |  [BulkJobOptions](./bullmq.bulkjoboptions.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
+|  [EntryId](./bullmq.entryid.md) |  |
+|  [EntryRaw](./bullmq.entryraw.md) |  |
 |  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  [ParentOpts](./bullmq.parentopts.md) |  |
@@ -102,4 +112,6 @@
 |  [RedisClient](./bullmq.redisclient.md) |  |
 |  [RedisOptions](./bullmq.redisoptions.md) |  |
 |  [SandboxedJobProcessor](./bullmq.sandboxedjobprocessor.md) |  |
+|  [StreamName](./bullmq.streamname.md) |  |
+|  [StreamReadRaw](./bullmq.streamreadraw.md) |  |
 
