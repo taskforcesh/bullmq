@@ -15,7 +15,11 @@ import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
-export function tryCatch(fn: (...args: any) => any, ctx: any, args: any[]) {
+export function tryCatch(
+  fn: (...args: any) => any,
+  ctx: any,
+  args: any[],
+): any {
   try {
     return fn.apply(ctx, args);
   } catch (e) {
@@ -42,7 +46,7 @@ export function isEmpty(obj: object): boolean {
   return true;
 }
 
-export function array2obj(arr: string[]) {
+export function array2obj(arr: string[]): Record<string, string> {
   const obj: { [index: string]: string } = {};
   for (let i = 0; i < arr.length; i += 2) {
     obj[arr[i]] = arr[i + 1];
