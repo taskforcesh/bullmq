@@ -8,9 +8,10 @@ jobs:
     name: Release
     runs-on: ubuntu-18.04
     steps:
-      - name: Checkout
+      - name: Checkout repository and submodules
         uses: actions/checkout@v2
         with:
+          submodules: recursive
           fetch-depth: 0
       - name: Setup Node.js
         uses: actions/setup-node@v1
