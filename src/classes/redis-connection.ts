@@ -1,6 +1,5 @@
 import { EventEmitter } from 'events';
 import * as IORedis from 'ioredis';
-import { Cluster, Redis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
@@ -42,7 +41,7 @@ export class RedisConnection extends EventEmitter {
       this.opts = {
         port: 6379,
         host: '127.0.0.1',
-        retryStrategy: function (times: number) {
+        retryStrategy: function(times: number) {
           return Math.min(Math.exp(times), 20000);
         },
         ...opts,
