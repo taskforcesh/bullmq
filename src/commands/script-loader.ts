@@ -347,12 +347,12 @@ export class ScriptLoader {
       const replacement = emitted ? '' : fragment;
 
       if (!replacement) {
-        content = content.replaceAll(child.token, '');
+        content = replaceAll(content, child.token, '');
       } else {
         // replace the first instance with the dependency
         content = content.replace(child.token, replacement);
         // remove the rest
-        content = content.replaceAll(child.token, '');
+        content = replaceAll(content, child.token, '');
       }
 
       processed.add(child.path);
@@ -373,7 +373,7 @@ export class ScriptLoader {
       script = await this.parseScript(filename, content, cache);
     }
 
-    const lua = this.interpolate(script).replaceAll(EmptyLineRegex, '');
+    const lua = removeEmptyLines(this.interpolate(script));
     const { name, numberOfKeys } = script;
 
     return {
@@ -543,6 +543,13 @@ function sha1(data: string): string {
 }
 
 function getPathHash(normalizedPath: string): string {
-  // formatted so that it's a valid lua comment
-  return `--- @${sha1(normalizedPath)}`;
+  return `@@${sha1(normalizedPath)}`;
+}
+
+function replaceAll(str: string, find: string, replace: string): string {
+  return str.replace(new RegExp(find, 'g'), replace);
+}
+
+function removeEmptyLines(str: string): string {
+  return str.replace(EmptyLineRegex, '');
 }
