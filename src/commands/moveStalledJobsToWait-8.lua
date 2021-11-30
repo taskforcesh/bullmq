@@ -75,8 +75,8 @@ if (#stalling > 0) then
                 if (stalledCount > MAX_STALLED_JOB_COUNT) then
                     local failedReason = "job stalled more than allowable limit" 
                     rcall("ZADD", KEYS[4], ARGV[3], jobId)
-                    rcall("HSET", jobKey, "failedReason",
-                          failedReason)
+                    rcall("HMSET", jobKey, "failedReason",
+                          failedReason, "finishedOn", ARGV[3])
                     rcall("XADD", KEYS[8], "*", "event", "failed", "jobId",
                           jobId, 'prev', 'active', 'failedReason',
                           failedReason)
