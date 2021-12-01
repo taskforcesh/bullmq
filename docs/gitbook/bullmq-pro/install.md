@@ -7,9 +7,10 @@ With the token at hand just update or create a ._**npmrc**_ file in your app rep
 ```
 @taskforcesh:registry=https://npm.taskforce.sh/
 //npm.taskforce.sh/:_authToken=${NPM_TASKFORCESH_TOKEN}
+always-auth=true
 ```
 
-"NPM\__TASKFORCESH\__TOKEN" is an environment variable pointing to your token.
+"NPM\_\_TASKFORCESH\_\_TOKEN" is an environment variable pointing to your token.
 
 Then just install the @taskforcesh/bullmq-pro package as you would install any other package, with npm, yarn or pnpm:
 
@@ -20,7 +21,7 @@ yarn add @taskforcesh/bullmq-pro
 In order to use BullMQ Pro just import the _Pro_ versions of the classes. These classes are subclasses of the open source BullMQ library with new functionality:
 
 ```typescript
-import { QueuePro, WorkerPro } from 'bullmq-pro'
+import { QueuePro, WorkerPro } from 'bullmq-pro';
 
 const queue = new QueuePro('myQueue');
 
