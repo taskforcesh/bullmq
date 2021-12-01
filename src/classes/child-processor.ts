@@ -23,7 +23,7 @@ export class ChildProcessor {
   public processor: any;
   public currentJobPromise: Promise<unknown> | undefined;
 
-  public async init(processorFile: string) {
+  public async init(processorFile: string): Promise<void> {
     let processor;
     try {
       processor = require(processorFile);
@@ -43,7 +43,7 @@ export class ChildProcessor {
       processor = promisify(processor);
     } else {
       const origProcessor = processor;
-      processor = function(...args: any[]) {
+      processor = function (...args: any[]) {
         try {
           return Promise.resolve(origProcessor(...args));
         } catch (err) {
@@ -58,7 +58,7 @@ export class ChildProcessor {
     });
   }
 
-  public async start(jobJson: JobJson) {
+  public async start(jobJson: JobJson): Promise<void> {
     if (this.status !== ChildStatus.Idle) {
       return childSend(process, {
         cmd: ParentCommand.Error,
@@ -101,11 +101,11 @@ export class ChildProcessor {
 // https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
 if (!('toJSON' in Error.prototype)) {
   Object.defineProperty(Error.prototype, 'toJSON', {
-    value: function() {
+    value: function () {
       const alt: any = {};
       const _this = this;
 
-      Object.getOwnPropertyNames(_this).forEach(function(key) {
+      Object.getOwnPropertyNames(_this).forEach(function (key) {
         alt[key] = _this[key];
       }, this);
 

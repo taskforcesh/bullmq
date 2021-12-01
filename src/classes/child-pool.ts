@@ -2,13 +2,9 @@ import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
 import { flatten } from 'lodash';
 import * as getPort from 'get-port';
-import * as fs from 'fs';
-import { promisify } from 'util';
 import { killAsync } from './process-utils';
 import { ParentCommand, ChildCommand } from '../interfaces';
 import { parentSend } from '../utils';
-
-const stat = promisify(fs.stat);
 
 const CHILD_KILL_TIMEOUT = 30_000;
 
@@ -122,12 +118,12 @@ export class ChildPool {
     return child;
   }
 
-  release(child: ChildProcessExt) {
+  release(child: ChildProcessExt): void {
     delete this.retained[child.pid];
     this.getFree(child.processFile).push(child);
   }
 
-  remove(child: ChildProcessExt) {
+  remove(child: ChildProcessExt): void {
     delete this.retained[child.pid];
 
     const free = this.getFree(child.processFile);
@@ -138,12 +134,15 @@ export class ChildPool {
     }
   }
 
-  async kill(child: ChildProcess, signal: 'SIGTERM' | 'SIGKILL' = 'SIGKILL') {
+  async kill(
+    child: ChildProcess,
+    signal: 'SIGTERM' | 'SIGKILL' = 'SIGKILL',
+  ): Promise<void> {
     this.remove(child);
     await killAsync(child, signal, CHILD_KILL_TIMEOUT);
   }
 
-  async clean() {
+  async clean(): Promise<void> {
     const children = Object.values(this.retained).concat(this.getAllFree());
     this.retained = {};
     this.free = {};
@@ -155,7 +154,7 @@ export class ChildPool {
     return (this.free[id] = this.free[id] || []);
   }
 
-  getAllFree() {
+  getAllFree(): ChildProcessExt[] {
     return flatten(Object.values(this.free));
   }
 }
