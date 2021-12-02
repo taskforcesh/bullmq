@@ -4,13 +4,22 @@ import { Cluster } from 'ioredis';
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
 import { get } from 'lodash';
-import { RedisClient } from './classes/redis-connection';
-import { JobsOptions } from './interfaces/jobs-options';
-import { QueueOptions } from './interfaces/queue-options';
+import {
+  RedisClient,
+  JobsOptions,
+  QueueOptions,
+  ChildMessage,
+  ParentMessage,
+} from './interfaces';
+import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
-export function tryCatch(fn: (...args: any) => any, ctx: any, args: any[]) {
+export function tryCatch(
+  fn: (...args: any) => any,
+  ctx: any,
+  args: any[],
+): any {
   try {
     return fn.apply(ctx, args);
   } catch (e) {
@@ -37,7 +46,7 @@ export function isEmpty(obj: object): boolean {
   return true;
 }
 
-export function array2obj(arr: string[]) {
+export function array2obj(arr: string[]): Record<string, string> {
   const obj: { [index: string]: string } = {};
   for (let i = 0; i < arr.length; i += 2) {
     obj[arr[i]] = arr[i + 1];
@@ -124,3 +133,33 @@ export function isNotConnectionError(error: Error): boolean {
     !errorMessage.includes('ECONNREFUSED')
   );
 }
+
+export const childSend = (
+  proc: NodeJS.Process,
+  msg: ChildMessage,
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    proc.send(msg, (err: Error) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+};
+
+export const parentSend = (
+  child: ChildProcess,
+  msg: ParentMessage,
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    child.send(msg, (err: Error) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve();
+      }
+    });
+  });
+};

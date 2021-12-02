@@ -1,9 +1,11 @@
-import { QueueSchedulerOptions } from '../interfaces';
+import {
+  QueueSchedulerOptions,
+  RedisClient,
+  StreamReadRaw,
+} from '../interfaces';
 import { array2obj, isRedisInstance } from '../utils';
 import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
-import { StreamReadRaw } from '../interfaces/redis-streams';
-import { RedisClient } from './redis-connection';
 
 export interface QueueSchedulerDeclaration {
   on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
