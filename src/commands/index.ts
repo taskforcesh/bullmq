@@ -12,7 +12,7 @@
  */
 'use strict';
 import { template } from 'lodash';
-import { RedisClient } from '../classes';
+import { RedisClient } from '../interfaces';
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -30,7 +30,7 @@ interface Command {
   };
 }
 
-export const load = async function(
+export const load = async function (
   client: RedisClient,
   pathname: string,
   extraIncludes?: Record<string, string>,
@@ -87,7 +87,7 @@ async function loadScripts(
   return commands;
 }
 
-export const loadIncludes = async function(
+export const loadIncludes = async function (
   dir: string,
   extraIncludes?: Record<string, string>,
 ): Promise<Record<string, string>> {

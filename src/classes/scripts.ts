@@ -18,6 +18,7 @@ import {
   JobsOptions,
   QueueSchedulerOptions,
   WorkerOptions,
+  RedisClient,
 } from '../interfaces';
 import { ErrorCodes } from '../enums';
 import { array2obj, getParentKey } from '../utils';
@@ -25,7 +26,6 @@ import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
 import { Job, JobJson, JobJsonRaw, MoveToChildrenOpts } from './job';
-import { RedisClient } from './redis-connection';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -131,7 +131,7 @@ export class Scripts {
     return result;
   }
 
-  static async pause(queue: MinimalQueue, pause: boolean) {
+  static async pause(queue: MinimalQueue, pause: boolean): Promise<void> {
     const client = await queue.client;
 
     let src = 'wait',
@@ -727,7 +727,7 @@ export class Scripts {
   static async obliterate(
     queue: MinimalQueue,
     opts: { force: boolean; count: number },
-  ) {
+  ): Promise<number> {
     const client = await queue.client;
 
     const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];

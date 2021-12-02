@@ -6,12 +6,10 @@ import { Cluster, Redis } from 'ioredis';
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
 import { load, loadIncludes } from '../commands';
-import { ConnectionOptions, RedisOptions } from '../interfaces';
+import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import { isRedisInstance, isNotConnectionError } from '../utils';
 
 import * as path from 'path';
-
-export type RedisClient = Redis | Cluster;
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false',
@@ -44,7 +42,7 @@ export class RedisConnection extends EventEmitter {
       this.opts = {
         port: 6379,
         host: '127.0.0.1',
-        retryStrategy: function(times: number) {
+        retryStrategy: function (times: number) {
           return Math.min(Math.exp(times), 20000);
         },
         ...opts,

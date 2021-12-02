@@ -1,14 +1,13 @@
-import { QueueEventsOptions } from '../interfaces';
+import { QueueEventsOptions, RedisClient, StreamReadRaw } from '../interfaces';
 import {
   array2obj,
   delay,
   isNotConnectionError,
   isRedisInstance,
 } from '../utils';
-import { StreamReadRaw } from '../interfaces/redis-streams';
 import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
-import { RedisClient, RedisConnection } from './redis-connection';
+import { RedisConnection } from './redis-connection';
 
 export interface QueueEventsDeclaration {
   /**

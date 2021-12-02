@@ -1,6 +1,11 @@
 import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
-import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
+import {
+  BackoffOptions,
+  JobsOptions,
+  WorkerOptions,
+  RedisClient,
+} from '../interfaces';
 import {
   errorObject,
   isEmpty,
@@ -12,7 +17,6 @@ import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 import { fromPairs } from 'lodash';
-import { RedisClient } from './redis-connection';
 
 const logger = debuglog('bull');
 
@@ -172,10 +176,10 @@ export class Job<
     name: N,
     data: T,
     opts?: JobsOptions,
-  ) {
+  ): Promise<Job<T, R, N>> {
     const client = await queue.client;
 
-    const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
+    const job = new this<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
     job.id = await job.addJob(client, {
       parentKey: job.parentKey,
@@ -206,7 +210,7 @@ export class Job<
 
     const jobInstances = jobs.map(
       job =>
-        new Job<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
+        new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
     const multi = client.multi();
@@ -245,7 +249,7 @@ export class Job<
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
-    const job = new Job(queue, json.name, data, opts, json.id || jobId);
+    const job = new this(queue, json.name, data, opts, json.id || jobId);
 
     job.progress = JSON.parse(json.progress || '0');
 
