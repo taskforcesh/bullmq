@@ -44,6 +44,7 @@
   "dependencies": {
     "cron-parser": "^2.18.0",
     "get-port": "^5.1.1",
+    "glob": "^7.2.0",
     "ioredis": "^4.27.9",
     "lodash": "^4.17.21",
     "msgpackr": "^1.4.6",
@@ -66,6 +67,7 @@
     "@semantic-release/release-notes-generator": "^10.0.3",
     "@types/chai": "^4.2.22",
     "@types/chai-as-promised": "^7.1.4",
+    "@types/glob": "^7.2.0",
     "@types/ioredis": "^4.27.4",
     "@types/lodash": "^4.14.173",
     "@types/mocha": "^5.2.7",
