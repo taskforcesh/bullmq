@@ -15,8 +15,8 @@ export interface QueueEventsDeclaration
 |  Method | Description |
 |  --- | --- |
 |  [on(event, listener)](./bullmq.queueeventsdeclaration.on.md) | Listen to 'active' event.<!-- -->This event is triggered when a job enters the 'active' state. |
-|  [on(event, listener)](./bullmq.queueeventsdeclaration.on_9.md) | Listen to 'failed' event.<!-- -->This event is triggered when a job has thrown an exception. |
-|  [on(event, listener)](./bullmq.queueeventsdeclaration.on_10.md) | Listen to 'removed' event.<!-- -->This event is triggered when a job has been manually removed from the queue. |
+|  [on(event, listener)](./bullmq.queueeventsdeclaration.on_9.md) | Listen to 'removed' event.<!-- -->This event is triggered when a job has been manually removed from the queue. |
+|  [on(event, listener)](./bullmq.queueeventsdeclaration.on_10.md) | Listen to 'waiting' event.<!-- -->This event is triggered when a job enters the 'waiting' state. |
 |  [on(event, listener)](./bullmq.queueeventsdeclaration.on_11.md) | Listen to 'waiting-children' event.<!-- -->This event is triggered when a job enters the 'waiting-children' state. |
 |  [on(event, listener)](./bullmq.queueeventsdeclaration.on_12.md) |  |
 |  [on(event, listener)](./bullmq.queueeventsdeclaration.on_1.md) | Listen to 'added' event.<!-- -->This event is triggered when a job is created. |
@@ -25,6 +25,6 @@ export interface QueueEventsDeclaration
 |  [on(event, listener)](./bullmq.queueeventsdeclaration.on_4.md) | Listen to 'delayed' event.<!-- -->This event is triggered when a job is delayed. |
 |  [on(event, listener)](./bullmq.queueeventsdeclaration.on_5.md) | Listen to 'drained' event.<!-- -->This event is triggered when the queue has drained the waiting list. Note that there could still be delayed jobs waiting their timers to expire and this event will still be triggered as long as the waiting list has emptied. |
 |  [on(event, listener)](./bullmq.queueeventsdeclaration.on_6.md) | Listen to 'progress' event.<!-- -->This event is triggered when a job updates it progress, i.e. the Job\#\#updateProgress() method is called. This is useful to notify progress or any other data from within a processor to the rest of the world. |
-|  [on(event, listener)](./bullmq.queueeventsdeclaration.on_7.md) | Listen to 'waiting' event.<!-- -->This event is triggered when a job enters the 'waiting' state. |
-|  [on(event, listener)](./bullmq.queueeventsdeclaration.on_8.md) | Listen to 'stalled' event.<!-- -->This event is triggered when a job has been moved from 'active' back to 'waiting'/'failed' due to the processor not being able to renew the lock on the said job. |
+|  [on(event, listener)](./bullmq.queueeventsdeclaration.on_7.md) | Listen to 'stalled' event.<!-- -->This event is triggered when a job has been moved from 'active' back to 'waiting'/'failed' due to the processor not being able to renew the lock on the said job. |
+|  [on(event, listener)](./bullmq.queueeventsdeclaration.on_8.md) | Listen to 'failed' event.<!-- -->This event is triggered when a job has thrown an exception. |
 

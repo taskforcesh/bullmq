@@ -31,7 +31,7 @@ export interface WorkerDeclaration {
    * @param event -
    */
   on(event: 'active', listener: (job: Job, prev: string) => void): this;
-  
+
   /**
    * Listen to 'completed' event.
    *
@@ -40,7 +40,7 @@ export interface WorkerDeclaration {
    * @param event -
    */
   on(event: 'completed', listener: (job: Job) => void): this;
-  
+
   /**
    * Listen to 'drained' event.
    *
@@ -51,7 +51,7 @@ export interface WorkerDeclaration {
    * @param event -
    */
   on(event: 'drained', listener: () => void): this;
-  
+
   /**
    * Listen to 'error' event.
    *
@@ -60,7 +60,7 @@ export interface WorkerDeclaration {
    * @param event -
    */
   on(event: 'error', listener: (failedReason: Error) => void): this;
-  
+
   /**
    * Listen to 'failed' event.
    *
@@ -69,7 +69,7 @@ export interface WorkerDeclaration {
    * @param event -
    */
   on(event: 'failed', listener: (job: Job, error: Error) => void): this;
-  
+
   /**
    * Listen to 'progress' event.
    *
@@ -380,7 +380,7 @@ export class Worker<
   protected async nextJobFromJobData(
     jobData?: JobJsonRaw | number,
     jobId?: string,
-  ) {
+  ): Promise<Job<any, any, string>> {
     if (jobData) {
       this.drained = false;
 
@@ -407,7 +407,10 @@ export class Worker<
     }
   }
 
-  async processJob(job: Job<DataType, ResultType, NameType>, token: string) {
+  async processJob(
+    job: Job<DataType, ResultType, NameType>,
+    token: string,
+  ): Promise<void | Job<any, any, string>> {
     if (!job || this.closing || this.paused) {
       return;
     }
@@ -503,7 +506,7 @@ export class Worker<
    *
    * Pauses the processing of this queue only for this worker.
    */
-  async pause(doNotWaitActive?: boolean) {
+  async pause(doNotWaitActive?: boolean): Promise<void> {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
         this.resumeWorker = function() {

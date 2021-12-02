@@ -4,14 +4,14 @@
 
 ## QueueEventsDeclaration.on() method
 
-Listen to 'waiting' event.
+Listen to 'stalled' event.
 
-This event is triggered when a job enters the 'waiting' state.
+This event is triggered when a job has been moved from 'active' back to 'waiting'/'failed' due to the processor not being able to renew the lock on the said job.
 
 <b>Signature:</b>
 
 ```typescript
-on(event: 'waiting', listener: (args: {
+on(event: 'stalled', listener: (args: {
         jobId: string;
     }, id: string) => void): this;
 ```
@@ -20,7 +20,7 @@ on(event: 'waiting', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'waiting' |  listener |
+|  event | 'stalled' |  listener |
 |  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
