@@ -335,10 +335,7 @@ export class Worker<
     if (this.drained && block) {
       try {
         const jobId = await this.waitForJob();
-
-        if (jobId) {
-          return this.moveToActive(token, jobId);
-        }
+        return this.moveToActive(token, jobId);
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
         if (
@@ -516,7 +513,7 @@ export class Worker<
   async pause(doNotWaitActive?: boolean): Promise<void> {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
-        this.resumeWorker = function() {
+        this.resumeWorker = function () {
           resolve();
           this.paused = null; // Allow pause to be checked externally for paused state.
           this.resumeWorker = null;
