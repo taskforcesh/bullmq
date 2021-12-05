@@ -81,9 +81,11 @@ describe('queues', function () {
   let queue: Queue;
   let queueName: string;
 
+  const connection = { host: 'localhost' };
+
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
+    queue = new Queue(queueName, { connection });
     await queue.waitUntilReady();
   });
 
@@ -117,7 +119,7 @@ describe('queues', function () {
         const added = [];
         const delayed = [];
 
-        const queueScheduler = new QueueScheduler(queueName);
+        const queueScheduler = new QueueScheduler(queueName, { connection });
         await queueScheduler.waitUntilReady();
 
         for (let i = 1; i <= maxJobs; i++) {
@@ -148,7 +150,7 @@ describe('queues', function () {
         const added = [];
         const delayed = [];
 
-        const queueScheduler = new QueueScheduler(queueName);
+        const queueScheduler = new QueueScheduler(queueName, { connection });
         await queueScheduler.waitUntilReady();
 
         for (let i = 1; i <= maxJobs; i++) {

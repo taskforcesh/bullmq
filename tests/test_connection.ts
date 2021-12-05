@@ -8,6 +8,7 @@ import { removeAllQueueData } from '../src/utils';
 describe('connection', () => {
   let queue: Queue;
   let queueName: string;
+  const connection = { host: 'localhost' };
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -51,7 +52,7 @@ describe('connection', () => {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up
@@ -97,7 +98,7 @@ describe('connection', () => {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up

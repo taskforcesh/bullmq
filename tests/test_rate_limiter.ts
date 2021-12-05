@@ -11,10 +11,12 @@ describe('Rate Limiter', function () {
   let queueName: string;
   let queueEvents: QueueEvents;
 
+  const connection = { host: 'localhost' };
+
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
-    queueEvents = new QueueEvents(queueName);
+    queue = new Queue(queueName, { connection });
+    queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
   });
 
@@ -26,6 +28,7 @@ describe('Rate Limiter', function () {
 
   it('should put a job into the delayed queue when limit is hit', async function () {
     const worker = new Worker(queueName, async job => {}, {
+      connection,
       limiter: {
         max: 1,
         duration: 1000,
@@ -61,10 +64,11 @@ describe('Rate Limiter', function () {
     const numJobs = 4;
     const startTime = new Date().getTime();
 
-    const queueScheduler = new QueueScheduler(queueName);
+    const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
     const worker = new Worker(queueName, async job => {}, {
+      connection,
       limiter: {
         max: 1,
         duration: 1000,
@@ -109,10 +113,11 @@ describe('Rate Limiter', function () {
     const numJobs = 4;
     const startTime = new Date().getTime();
 
-    const queueScheduler = new QueueScheduler(queueName);
+    const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
     const worker = new Worker(queueName, async job => {}, {
+      connection,
       limiter: {
         max: 1,
         duration: 1000,
@@ -159,16 +164,18 @@ describe('Rate Limiter', function () {
     const numJobs = 20;
     const startTime = Date.now();
 
-    const queueScheduler = new QueueScheduler(queueName);
+    const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
     const rateLimitedQueue = new Queue(queueName, {
+      connection,
       limiter: {
         groupKey: 'accountId',
       },
     });
 
     const worker = new Worker(queueName, async job => {}, {
+      connection,
       limiter: {
         max: 1,
         duration: 1000,
@@ -229,16 +236,18 @@ describe('Rate Limiter', function () {
     const numJobs = 20;
     const startTime = Date.now();
 
-    const queueScheduler = new QueueScheduler(queueName);
+    const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
     const rateLimitedQueue = new Queue(queueName, {
+      connection,
       limiter: {
         groupKey: 'accountId',
       },
     });
 
     const worker = new Worker(queueName, async job => {}, {
+      connection,
       limiter: {
         max: 1,
         duration: 1000,
@@ -321,7 +330,7 @@ describe('Rate Limiter', function () {
     }
 
     const priorityBucketsBefore = { ...priorityBuckets };
-    const queueScheduler = new QueueScheduler(queueName);
+    const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
     const worker = new Worker(
@@ -345,6 +354,7 @@ describe('Rate Limiter', function () {
         return Promise.resolve();
       },
       {
+        connection,
         limiter: {
           max: 1,
           duration: 10,
