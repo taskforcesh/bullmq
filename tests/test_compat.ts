@@ -11,13 +11,15 @@ import { Queue3 } from '../src/classes/compat';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Compat', function () {
+  const connection = { host: 'localhost' };
+
   describe('jobs getters', function () {
     let queue: Queue3;
     let queueName: string;
 
     beforeEach(async function () {
       queueName = `test-${v4()}`;
-      queue = new Queue3(queueName);
+      queue = new Queue3(queueName, { connection });
     });
 
     afterEach(async function () {
@@ -305,7 +307,7 @@ describe('Compat', function () {
 
     beforeEach(async function () {
       queueName = `test-${v4()}`;
-      queue = new Queue3(queueName);
+      queue = new Queue3(queueName, { connection });
     });
 
     afterEach(async function () {
@@ -461,7 +463,7 @@ describe('Compat', function () {
 
     beforeEach(async function () {
       queueName = `test-${v4()}`;
-      queue = new Queue3(queueName);
+      queue = new Queue3(queueName, { connection });
     });
 
     afterEach(async function () {
@@ -639,10 +641,10 @@ describe('Compat', function () {
         };
       });
 
-      const worker1 = new Worker(queueName, process1);
+      const worker1 = new Worker(queueName, process1, { connection });
       await worker1.waitUntilReady();
 
-      const worker2 = new Worker(queueName, process2);
+      const worker2 = new Worker(queueName, process2, { connection });
       await worker2.waitUntilReady();
 
       queue.add('test', 1);

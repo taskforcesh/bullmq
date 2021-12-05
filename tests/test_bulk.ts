@@ -8,10 +8,11 @@ import { removeAllQueueData } from '../src/utils';
 describe('bulk jobs', () => {
   let queue: Queue;
   let queueName: string;
+  const connection = { host: 'localhost' };
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
+    queue = new Queue(queueName, { connection });
   });
 
   afterEach(async function () {
@@ -34,7 +35,7 @@ describe('bulk jobs', () => {
           }
         }),
     );
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     const jobs = await queue.addBulk([
@@ -55,10 +56,10 @@ describe('bulk jobs', () => {
   it('should allow to pass parent option', async () => {
     const name = 'test';
     const parentQueueName = `parent-queue-${v4()}`;
-    const parentQueue = new Queue(parentQueueName);
+    const parentQueue = new Queue(parentQueueName, { connection });
 
-    const parentWorker = new Worker(parentQueueName);
-    const childrenWorker = new Worker(queueName);
+    const parentWorker = new Worker(parentQueueName, null, { connection });
+    const childrenWorker = new Worker(queueName, null, { connection });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
@@ -119,7 +120,7 @@ describe('bulk jobs', () => {
           }
         }),
     );
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     const jobs = await queue.addBulk([

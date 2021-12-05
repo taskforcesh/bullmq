@@ -17,9 +17,11 @@ describe('Delayed jobs', function () {
   let queue: Queue;
   let queueName: string;
 
+  const connection = { host: 'localhost' };
+
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
+    queue = new Queue(queueName, { connection });
   });
 
   afterEach(async function () {
@@ -29,12 +31,12 @@ describe('Delayed jobs', function () {
 
   it('should process a delayed job only after delayed time', async function () {
     const delay = 1000;
-    const queueScheduler = new QueueScheduler(queueName);
+    const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
-    const queueEvents = new QueueEvents(queueName);
+    const queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
 
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async job => {}, { connection });
 
     const timestamp = Date.now();
     let publishHappened = false;
@@ -80,12 +82,15 @@ describe('Delayed jobs', function () {
   describe('when autorun option is provided as false', function () {
     it('should process a delayed job only after delayed time', async function () {
       const delay = 1000;
-      const queueScheduler = new QueueScheduler(queueName, { autorun: false });
+      const queueScheduler = new QueueScheduler(queueName, {
+        connection,
+        autorun: false,
+      });
       await queueScheduler.waitUntilReady();
-      const queueEvents = new QueueEvents(queueName);
+      const queueEvents = new QueueEvents(queueName, { connection });
       await queueEvents.waitUntilReady();
 
-      const worker = new Worker(queueName, async job => {});
+      const worker = new Worker(queueName, async job => {}, { connection });
 
       const timestamp = Date.now();
       let publishHappened = false;
@@ -134,11 +139,12 @@ describe('Delayed jobs', function () {
         const delay = 1000;
         const maxJobs = 10;
         const queueScheduler = new QueueScheduler(queueName, {
+          connection,
           autorun: false,
         });
         await queueScheduler.waitUntilReady();
 
-        const worker = new Worker(queueName, async job => {});
+        const worker = new Worker(queueName, async job => {}, { connection });
         queueScheduler.run();
 
         for (let i = 1; i <= maxJobs; i++) {
@@ -158,7 +164,7 @@ describe('Delayed jobs', function () {
   it('should process delayed jobs in correct order', async function () {
     this.timeout(2000);
     let order = 0;
-    const queueScheduler = new QueueScheduler(queueName);
+    const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
     let processor;
@@ -177,7 +183,7 @@ describe('Delayed jobs', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
 
     worker.on('failed', function (job, err) {});
 
@@ -207,30 +213,36 @@ describe('Delayed jobs', function () {
     let order = 1;
 
     let secondQueueScheduler: QueueScheduler;
-    const firstQueueScheduler = new QueueScheduler(queueName);
+    const firstQueueScheduler = new QueueScheduler(queueName, { connection });
     await firstQueueScheduler.waitUntilReady();
 
-    queue = new Queue(queueName);
+    queue = new Queue(queueName, { connection });
 
     const processing = new Promise<void>((resolve, reject) => {
-      worker = new Worker(queueName, async (job: Job) => {
-        try {
-          expect(order).to.be.equal(job.data.order);
+      worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          try {
+            expect(order).to.be.equal(job.data.order);
 
-          if (order === 1) {
-            await firstQueueScheduler.close();
-            secondQueueScheduler = new QueueScheduler(queueName);
-            await secondQueueScheduler.waitUntilReady();
-          }
+            if (order === 1) {
+              await firstQueueScheduler.close();
+              secondQueueScheduler = new QueueScheduler(queueName, {
+                connection,
+              });
+              await secondQueueScheduler.waitUntilReady();
+            }
 
-          if (order === 4) {
-            resolve();
+            if (order === 4) {
+              resolve();
+            }
+            order++;
+          } catch (err) {
+            reject(err);
           }
-          order++;
-        } catch (err) {
-          reject(err);
-        }
-      });
+        },
+        { connection },
+      );
     });
 
     await Promise.all([
@@ -250,24 +262,28 @@ describe('Delayed jobs', function () {
   it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function () {
     let order = 1;
 
-    const queueScheduler = new QueueScheduler(queueName);
+    const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
     let worker: Worker;
     const processing = new Promise((resolve, reject) => {
-      worker = new Worker(queueName, async (job: Job) => {
-        try {
-          expect(order).to.be.equal(job.data.order);
+      worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          try {
+            expect(order).to.be.equal(job.data.order);
 
-          if (order === 12) {
-            resolve(worker.close());
+            if (order === 12) {
+              resolve(worker.close());
+            }
+          } catch (err) {
+            reject(err);
           }
-        } catch (err) {
-          reject(err);
-        }
 
-        order++;
-      });
+          order++;
+        },
+        { connection },
+      );
     });
 
     worker.on('failed', function (job, err) {});

@@ -10,6 +10,8 @@ describe('stalled jobs', function () {
   let queue: Queue;
   let queueName: string;
 
+  const connection = { host: 'localhost' };
+
   beforeEach(async function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName);
@@ -23,7 +25,7 @@ describe('stalled jobs', function () {
   it('process stalled jobs when starting a queue', async function () {
     this.timeout(10000);
 
-    const queueEvents = new QueueEvents(queueName);
+    const queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
 
     const concurrency = 4;
@@ -34,6 +36,7 @@ describe('stalled jobs', function () {
         return delay(10000);
       },
       {
+        connection,
         lockDuration: 1000,
         concurrency,
       },
@@ -55,6 +58,7 @@ describe('stalled jobs', function () {
     await allActive;
 
     const queueScheduler = new QueueScheduler(queueName, {
+      connection,
       stalledInterval: 100,
     });
     await queueScheduler.waitUntilReady();
@@ -77,7 +81,10 @@ describe('stalled jobs', function () {
     await allStalled;
     await allStalledGlobalEvent;
 
-    const worker2 = new Worker(queueName, async job => {}, { concurrency });
+    const worker2 = new Worker(queueName, async job => {}, {
+      connection,
+      concurrency,
+    });
 
     const allCompleted = new Promise(resolve => {
       worker2.on('completed', after(concurrency, resolve));
@@ -93,7 +100,7 @@ describe('stalled jobs', function () {
   it('fail stalled jobs that stall more than allowable stalled limit', async function () {
     this.timeout(6000);
 
-    const queueEvents = new QueueEvents(queueName);
+    const queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
 
     const concurrency = 4;
@@ -104,6 +111,7 @@ describe('stalled jobs', function () {
         return delay(10000);
       },
       {
+        connection,
         lockDuration: 1000,
         concurrency,
       },
@@ -125,6 +133,7 @@ describe('stalled jobs', function () {
     await allActive;
 
     const queueScheduler = new QueueScheduler(queueName, {
+      connection,
       stalledInterval: 100,
       maxStalledCount: 0,
     });
@@ -171,6 +180,7 @@ describe('stalled jobs', function () {
         return delay(4000);
       },
       {
+        connection,
         lockDuration: 100, // lockRenewTime would be half of it i.e. 500
         concurrency,
       },
@@ -190,6 +200,7 @@ describe('stalled jobs', function () {
     await allActive;
 
     const queueScheduler = new QueueScheduler(queueName, {
+      connection,
       stalledInterval: 50,
     });
 

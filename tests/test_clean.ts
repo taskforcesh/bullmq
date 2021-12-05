@@ -10,11 +10,12 @@ describe('Cleaner', () => {
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
+  const connection = { host: 'localhost' };
 
   beforeEach(async () => {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
-    queueEvents = new QueueEvents(queueName);
+    queue = new Queue(queueName, { connection });
+    queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
   });
 
@@ -46,7 +47,7 @@ describe('Cleaner', () => {
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
 
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async job => {}, { connection });
     await worker.waitUntilReady();
 
     queue.on(
@@ -61,7 +62,7 @@ describe('Cleaner', () => {
   });
 
   it('should only remove a job outside of the grace period', async () => {
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async job => {}, { connection });
     await worker.waitUntilReady();
 
     await queue.add('test', { some: 'data' });
@@ -96,9 +97,13 @@ describe('Cleaner', () => {
   });
 
   it('should clean all failed jobs', async () => {
-    const worker = new Worker(queueName, async job => {
-      throw new Error('It failed');
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        throw new Error('It failed');
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     await queue.add('test', { some: 'data' });
@@ -145,9 +150,13 @@ describe('Cleaner', () => {
   });
 
   it('should clean a job without a timestamp', async () => {
-    const worker = new Worker(queueName, async job => {
-      throw new Error('It failed');
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        throw new Error('It failed');
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const client = new IORedis();

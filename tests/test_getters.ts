@@ -12,10 +12,11 @@ import { removeAllQueueData } from '../src/utils';
 describe('Jobs getters', function () {
   let queue: Queue;
   let queueName: string;
+  const connection = { host: 'localhost' };
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
+    queue = new Queue(queueName, { connection });
   });
 
   afterEach(async function () {
@@ -83,7 +84,7 @@ describe('Jobs getters', function () {
         resolve();
       };
     });
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
 
     await queue.add('test', { foo: 'bar' });
     await processing;
@@ -105,7 +106,7 @@ describe('Jobs getters', function () {
   });
 
   it('should get completed jobs', async () => {
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async job => {}, { connection });
     let counter = 2;
 
     const completed = new Promise<void>(resolve => {
@@ -131,9 +132,13 @@ describe('Jobs getters', function () {
   });
 
   it('should get failed jobs', async () => {
-    const worker = new Worker(queueName, async job => {
-      throw new Error('Forced error');
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        throw new Error('Forced error');
+      },
+      { connection },
+    );
 
     let counter = 2;
 
@@ -158,9 +163,13 @@ describe('Jobs getters', function () {
   });
 
   it('should get all failed jobs when no range is provided', async () => {
-    const worker = new Worker(queueName, async job => {
-      throw new Error('Forced error');
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        throw new Error('Forced error');
+      },
+      { connection },
+    );
 
     const counter = 4;
 
@@ -217,7 +226,7 @@ describe('Jobs getters', function () {
   */
 
   it('should return all completed jobs when not setting start/end', function (done) {
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async job => {}, { connection });
 
     worker.on(
       'completed',
@@ -248,9 +257,13 @@ describe('Jobs getters', function () {
   });
 
   it('should return all failed jobs when not setting start/end', function (done) {
-    const worker = new Worker(queueName, async job => {
-      throw new Error('error');
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        throw new Error('error');
+      },
+      { connection },
+    );
 
     worker.on(
       'failed',
@@ -280,7 +293,7 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when setting positive range', function (done) {
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async job => {}, { connection });
 
     worker.on(
       'completed',
@@ -308,7 +321,7 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when setting a negative range', function (done) {
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async job => {}, { connection });
 
     worker.on(
       'completed',
@@ -333,7 +346,7 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when range overflows', function (done) {
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async job => {}, { connection });
 
     worker.on(
       'completed',
@@ -359,13 +372,17 @@ describe('Jobs getters', function () {
 
   it('should return jobs for multiple types', function (done) {
     let counter = 0;
-    const worker = new Worker(queueName, async job => {
-      counter++;
-      if (counter == 2) {
-        await queue.add('test', { foo: 3 });
-        return queue.pause();
-      }
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        counter++;
+        if (counter == 2) {
+          await queue.add('test', { foo: 3 });
+          return queue.pause();
+        }
+      },
+      { connection },
+    );
 
     worker.on(
       'completed',

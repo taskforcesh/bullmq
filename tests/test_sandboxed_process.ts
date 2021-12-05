@@ -18,10 +18,12 @@ describe('sandboxed process', () => {
   let queueEvents: QueueEvents;
   let queueName: string;
 
+  const connection = { host: 'localhost' };
+
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
-    queueEvents = new QueueEvents(queueName);
+    queue = new Queue(queueName, { connection });
+    queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
   });
 
@@ -35,6 +37,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor.js';
 
     const worker = new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -66,6 +69,7 @@ describe('sandboxed process', () => {
       const processFile = __dirname + '/fixtures/fixture_processor_stdout.js';
 
       const worker = new Worker(queueName, processFile, {
+        connection,
         drainDelay: 1,
       });
 
@@ -101,6 +105,7 @@ describe('sandboxed process', () => {
       const processFile = __dirname + '/fixtures/fixture_processor_stderr.js';
 
       const worker = new Worker(queueName, processFile, {
+        connection,
         drainDelay: 1,
       });
 
@@ -134,6 +139,7 @@ describe('sandboxed process', () => {
   it('should process with named processor', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor.js';
     const worker = new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -170,6 +176,7 @@ describe('sandboxed process', () => {
 
     const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
     const worker = new Worker(queueName, processFile, {
+      connection,
       concurrency: 4,
       drainDelay: 1,
     });
@@ -204,6 +211,7 @@ describe('sandboxed process', () => {
 
     const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
     const worker = new Worker(queueName, processFile, {
+      connection,
       concurrency: 1,
       drainDelay: 1,
     });
@@ -244,6 +252,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_progress.js';
 
     const worker = new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -285,6 +294,7 @@ describe('sandboxed process', () => {
       const processFile = __dirname + '/fixtures/fixture_processor_env.js';
 
       const worker = new Worker(queueName, processFile, {
+        connection,
         drainDelay: 1,
       });
 
@@ -318,6 +328,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_fail.js';
 
     const worker = new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -351,7 +362,7 @@ describe('sandboxed process', () => {
     let didThrow = false;
     try {
       const missingProcessFile = __dirname + '/fixtures/missing_processor.js';
-      worker = new Worker(queueName, missingProcessFile, {});
+      worker = new Worker(queueName, missingProcessFile, { connection });
     } catch (err) {
       didThrow = true;
     }
@@ -367,6 +378,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
     new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -381,6 +393,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
     new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -395,6 +408,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
     new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -409,6 +423,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_broken.js';
 
     new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -423,6 +438,7 @@ describe('sandboxed process', () => {
     const processFile = __dirname + '/fixtures/fixture_processor_exit.js';
 
     const worker = new Worker(queueName, processFile, {
+      connection,
       drainDelay: 1,
     });
 
@@ -451,7 +467,7 @@ describe('sandboxed process', () => {
   it('should allow the job to complete and then exit on worker close', async function () {
     this.timeout(1500000);
     const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
-    const worker = new Worker(queueName, processFile);
+    const worker = new Worker(queueName, processFile, { connection });
 
     // acquire and release a child here so we know it has it's full termination handler setup
     const initializedChild = await worker['childPool'].retain(processFile);
