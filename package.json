@@ -38,7 +38,7 @@
     "semantic-release": "semantic-release",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "tsc && ts-mocha --config ./.mocharc.js",
-    "test:watch": "ts-mocha --paths 'bullmq-tests/test_*.ts' -w --watch-extensions ts",
+    "test:watch": "ts-mocha --paths 'tests/test_*.ts' -w --watch-extensions ts",
     "tsc": "tsc"
   },
   "dependencies": {
