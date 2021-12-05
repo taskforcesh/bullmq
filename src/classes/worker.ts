@@ -352,7 +352,7 @@ export class Worker<
     }
   }
 
-  private async moveToActive(token: string, jobId?: string) {
+  protected async moveToActive(token: string, jobId?: string) {
     const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
@@ -404,6 +404,10 @@ export class Worker<
       // Check if the queue is rate limited. jobData will be the amount
       // of rate limited jobs.
       //
+
+      // NOTE: This is not really optimal in all cases since a new job would could arrive at the wait
+      // list and this worker will not start processing it directly.
+      // Best would be to emit drain and block for rateKeyExpirationTime
       if (typeof jobData === 'number') {
         if (this.opts.limiter.workerDelay) {
           const rateKeyExpirationTime = jobData;
@@ -472,13 +476,14 @@ export class Worker<
     // end copy-paste from Bull3
 
     const handleCompleted = async (result: ResultType) => {
-      const jobData = await job.moveToCompleted(
+      const completed = await job.moveToCompleted(
         result,
         token,
         !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
-      return jobData ? this.nextJobFromJobData(jobData[0], jobData[1]) : null;
+      const [jobData, jobId] = completed || [];
+      return this.nextJobFromJobData(jobData, jobId);
     };
 
     const handleFailed = async (err: Error) => {

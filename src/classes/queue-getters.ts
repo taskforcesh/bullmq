@@ -66,7 +66,7 @@ export class QueueGetters extends QueueBase {
     const client = await this.client;
     const multi = client.multi();
 
-    this.commandByType(types, true, function(key, command) {
+    this.commandByType(types, true, function (key, command) {
       (<any>multi)[command](key);
     });
 
@@ -227,7 +227,7 @@ export class QueueGetters extends QueueBase {
       const list = this.parseClientList(clients);
       return list;
     } catch (err) {
-      if (!clientCommandMessageReg.test(err.message)) {
+      if (!clientCommandMessageReg.test((<Error>err).message)) {
         throw err;
       }
     }
@@ -240,7 +240,7 @@ export class QueueGetters extends QueueBase {
     lines.forEach((line: string) => {
       const client: { [index: string]: string } = {};
       const keyValues = line.split(' ');
-      keyValues.forEach(function(keyValue) {
+      keyValues.forEach(function (keyValue) {
         const index = keyValue.indexOf('=');
         const key = keyValue.substring(0, index);
         const value = keyValue.substring(index + 1);

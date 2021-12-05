@@ -172,7 +172,7 @@ export class QueueScheduler
           );
         } catch (err) {
           // We can ignore closed connection errors
-          if (err.message !== 'Connection is closed.') {
+          if ((<Error>err).message !== 'Connection is closed.') {
             throw err;
           }
         } finally {
