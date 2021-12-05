@@ -231,7 +231,7 @@ export class Worker<
       if (!this.running) {
         try {
           this.running = true;
-          const client = await this.blockingConnection.client;
+          const client = await this.client;
 
           if (this.closing) {
             return;
