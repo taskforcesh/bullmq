@@ -22,5 +22,5 @@
     "lib": ["esnext", "dom"]
   },
   "include": ["src"],
-  "exclude": ["node_modules", "dist", "bullmq-tests/*"]
+  "exclude": ["node_modules", "dist", "tests/*"]
 }
