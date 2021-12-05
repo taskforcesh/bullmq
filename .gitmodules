@@ -1,3 +1,0 @@
-[submodule "bullmq-tests"]
-	path = bullmq-tests
-	url = git@github.com:taskforcesh/bullmq-tests.git
