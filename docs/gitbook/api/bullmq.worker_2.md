@@ -41,6 +41,7 @@ export declare class Worker<DataType = any, ResultType = any, NameType extends s
 |  [getNextJob(token, { block })](./bullmq.worker_2.getnextjob.md) |  | Returns a promise that resolves to the next job in queue. |
 |  [isPaused()](./bullmq.worker_2.ispaused.md) |  | Checks if worker is paused. |
 |  [isRunning()](./bullmq.worker_2.isrunning.md) |  | Checks if worker is currently running. |
+|  [moveToActive(token, jobId)](./bullmq.worker_2.movetoactive.md) |  |  |
 |  [nextJobFromJobData(jobData, jobId)](./bullmq.worker_2.nextjobfromjobdata.md) |  |  |
 |  [pause(doNotWaitActive)](./bullmq.worker_2.pause.md) |  | Pauses the processing of this queue only for this worker. |
 |  [processJob(job, token)](./bullmq.worker_2.processjob.md) |  |  |
