@@ -4,15 +4,17 @@
 
 ## QueueEventsDeclaration.on() method
 
-Listen to 'stalled' event.
+Listen to 'failed' event.
 
-This event is triggered when a job has been moved from 'active' back to 'waiting'/'failed' due to the processor not being able to renew the lock on the said job.
+This event is triggered when a job has thrown an exception.
 
 <b>Signature:</b>
 
 ```typescript
-on(event: 'stalled', listener: (args: {
+on(event: 'failed', listener: (args: {
         jobId: string;
+        failedReason: string;
+        prev?: string;
     }, id: string) => void): this;
 ```
 
@@ -20,8 +22,8 @@ on(event: 'stalled', listener: (args: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'stalled' |  listener |
-|  listener | (args: { jobId: string; }, id: string) =&gt; void |  |
+|  event | 'failed' |  listener |
+|  listener | (args: { jobId: string; failedReason: string; prev?: string; }, id: string) =&gt; void |  |
 
 <b>Returns:</b>
 

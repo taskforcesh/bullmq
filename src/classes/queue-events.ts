@@ -1,14 +1,13 @@
-import { QueueEventsOptions } from '../interfaces';
+import { QueueEventsOptions, RedisClient, StreamReadRaw } from '../interfaces';
 import {
   array2obj,
   delay,
   isNotConnectionError,
   isRedisInstance,
 } from '../utils';
-import { StreamReadRaw } from '../interfaces/redis-streams';
 import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
-import { RedisClient, RedisConnection } from './redis-connection';
+import { RedisConnection } from './redis-connection';
 
 export interface QueueEventsDeclaration {
   /**
@@ -113,19 +112,6 @@ export interface QueueEventsDeclaration {
   ): this;
 
   /**
-   * Listen to 'waiting' event.
-   *
-   * This event is triggered when a job enters the 'waiting' state.
-   *
-   * @param {'waiting'} event
-   * @callback listener
-   */
-  on(
-    event: 'waiting',
-    listener: (args: { jobId: string }, id: string) => void,
-  ): this;
-
-  /**
    * Listen to 'stalled' event.
    *
    * This event is triggered when a job has been moved from 'active' back
@@ -167,6 +153,19 @@ export interface QueueEventsDeclaration {
    */
   on(
     event: 'removed',
+    listener: (args: { jobId: string }, id: string) => void,
+  ): this;
+
+  /**
+   * Listen to 'waiting' event.
+   *
+   * This event is triggered when a job enters the 'waiting' state.
+   *
+   * @param {'waiting'} event
+   * @callback listener
+   */
+  on(
+    event: 'waiting',
     listener: (args: { jobId: string }, id: string) => void,
   ): this;
 
