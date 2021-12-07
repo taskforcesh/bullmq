@@ -80,16 +80,19 @@ export class Job<
 > {
   /**
    * The progress a job has performed so far.
+   * @defaultValue 0
    */
   progress: number | object = 0;
 
   /**
    * The value returned by the processor when processing this job.
+   * @defaultValue null
    */
   returnvalue: ReturnType = null;
 
   /**
    * Stacktrace for the error (for failed jobs).
+   * @defaultValue null
    */
   stacktrace: string[] = null;
 
@@ -100,6 +103,7 @@ export class Job<
 
   /**
    * Number of attempts after the job has failed.
+   * @defaultValue 0
    */
   attemptsMade = 0;
 

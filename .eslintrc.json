@@ -25,7 +25,7 @@
     "@typescript-eslint/no-explicit-any": "off",
 
     "@typescript-eslint/ban-types": [
-      "error",
+      1,
       {
         "extendDefaults": true,
         "types": {
@@ -42,7 +42,7 @@
     "space-before-function-paren": [
       "error",
       {
-        "anonymous": "never",
+        "anonymous": "ignore",
         "named": "never",
         "asyncArrow": "always"
       }

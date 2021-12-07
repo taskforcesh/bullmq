@@ -358,7 +358,7 @@ export class Scripts {
   ): Promise<number | [number, string]> {
     const client = await queue.client;
 
-    const keys = ['completed', 'failed', jobId].map(function(key: string) {
+    const keys = ['completed', 'failed', jobId].map(function (key: string) {
       return queue.toKey(key);
     });
 
@@ -378,7 +378,7 @@ export class Scripts {
       'wait',
       'paused',
       'waiting-children',
-    ].map(function(key: string) {
+    ].map(function (key: string) {
       return queue.toKey(key);
     });
 
@@ -421,7 +421,7 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['delayed', jobId].map(function(name) {
+    const keys = ['delayed', jobId].map(function (name) {
       return queue.toKey(name);
     });
     keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
@@ -448,7 +448,7 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['active', 'delayed', jobId].map(function(name) {
+    const keys = ['active', 'delayed', jobId].map(function (name) {
       return queue.toKey(name);
     });
     keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
@@ -471,7 +471,7 @@ export class Scripts {
     }
 
     const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      function(name) {
+      function (name) {
         return queue.toKey(name);
       },
     );
@@ -563,7 +563,7 @@ export class Scripts {
   static retryJobArgs(queue: MinimalQueue, job: Job) {
     const jobId = job.id;
 
-    const keys = ['active', 'wait', jobId].map(function(name) {
+    const keys = ['active', 'wait', jobId].map(function (name) {
       return queue.toKey(name);
     });
 
@@ -623,13 +623,16 @@ export class Scripts {
     const opts = worker.opts;
 
     const queueKeys = worker.keys;
-    const keys = [queueKeys.wait, queueKeys.active, queueKeys.priority];
-
-    keys[3] = queueKeys.events;
-    keys[4] = queueKeys.stalled;
-    keys[5] = queueKeys.limiter;
-    keys[6] = queueKeys.delayed;
-    keys[7] = queueKeys.delay;
+    const keys = [
+      queueKeys.wait,
+      queueKeys.active,
+      queueKeys.priority,
+      queueKeys.events,
+      queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.delay,
+    ];
 
     const args: (string | number | boolean)[] = [
       queueKeys[''],
