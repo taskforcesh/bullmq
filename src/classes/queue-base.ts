@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions } from '../interfaces';
-import { RedisClient, RedisConnection } from './redis-connection';
+import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 
 export class QueueBase extends EventEmitter {

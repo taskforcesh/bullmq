@@ -18,6 +18,7 @@ import {
   JobsOptions,
   QueueSchedulerOptions,
   WorkerOptions,
+  RedisClient,
 } from '../interfaces';
 import { ErrorCodes } from '../enums';
 import { array2obj, getParentKey } from '../utils';
@@ -25,7 +26,6 @@ import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
 import { Job, JobJson, JobJsonRaw, MoveToChildrenOpts } from './job';
-import { RedisClient } from './redis-connection';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -131,7 +131,7 @@ export class Scripts {
     return result;
   }
 
-  static async pause(queue: MinimalQueue, pause: boolean) {
+  static async pause(queue: MinimalQueue, pause: boolean): Promise<void> {
     const client = await queue.client;
 
     let src = 'wait',
@@ -246,7 +246,7 @@ export class Scripts {
     target: string,
     token: string,
     fetchNext: boolean,
-  ) {
+  ): Promise<[JobJsonRaw, string] | []> {
     const client = await queue.client;
     const args = this.moveToFinishedArgs(
       queue,
@@ -318,7 +318,7 @@ export class Scripts {
     removeOnComplete: boolean | number,
     token: string,
     fetchNext: boolean,
-  ) {
+  ): Promise<[JobJsonRaw, string] | []> {
     return this.moveToFinished(
       queue,
       job,
@@ -358,7 +358,7 @@ export class Scripts {
   ): Promise<number | [number, string]> {
     const client = await queue.client;
 
-    const keys = ['completed', 'failed', jobId].map(function(key: string) {
+    const keys = ['completed', 'failed', jobId].map(function (key: string) {
       return queue.toKey(key);
     });
 
@@ -378,7 +378,7 @@ export class Scripts {
       'wait',
       'paused',
       'waiting-children',
-    ].map(function(key: string) {
+    ].map(function (key: string) {
       return queue.toKey(key);
     });
 
@@ -421,7 +421,7 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['delayed', jobId].map(function(name) {
+    const keys = ['delayed', jobId].map(function (name) {
       return queue.toKey(name);
     });
     keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
@@ -434,7 +434,7 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
-  ) {
+  ): string[] {
     //
     // Bake in the job id first 12 bits into the timestamp
     // to guarantee correct execution order of delayed jobs
@@ -448,7 +448,7 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['active', 'delayed', jobId].map(function(name) {
+    const keys = ['active', 'delayed', jobId].map(function (name) {
       return queue.toKey(name);
     });
     keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
@@ -461,7 +461,7 @@ export class Scripts {
     jobId: string,
     token: string,
     opts?: MoveToChildrenOpts,
-  ) {
+  ): string[] {
     let timestamp = Math.max(0, opts.timestamp ?? 0);
 
     const childKey = getParentKey(opts.child);
@@ -471,7 +471,7 @@ export class Scripts {
     }
 
     const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      function(name) {
+      function (name) {
         return queue.toKey(name);
       },
     );
@@ -537,16 +537,22 @@ export class Scripts {
     }
   }
 
+  /**
+   * Remove jobs in a specific state.
+   *
+   * @returns Id jobs from the deleted records.
+   */
   static async cleanJobsInSet(
     queue: MinimalQueue,
     set: string,
     timestamp: number,
     limit = 0,
-  ) {
+  ): Promise<string[]> {
     const client = await queue.client;
 
     return (<any>client).cleanJobsInSet([
       queue.toKey(set),
+      queue.toKey('events'),
       queue.toKey(''),
       timestamp,
       limit,
@@ -557,7 +563,7 @@ export class Scripts {
   static retryJobArgs(queue: MinimalQueue, job: Job) {
     const jobId = job.id;
 
-    const keys = ['active', 'wait', jobId].map(function(name) {
+    const keys = ['active', 'wait', jobId].map(function (name) {
       return queue.toKey(name);
     });
 
@@ -617,13 +623,16 @@ export class Scripts {
     const opts = worker.opts;
 
     const queueKeys = worker.keys;
-    const keys = [queueKeys.wait, queueKeys.active, queueKeys.priority];
-
-    keys[3] = queueKeys.events;
-    keys[4] = queueKeys.stalled;
-    keys[5] = queueKeys.limiter;
-    keys[6] = queueKeys.delayed;
-    keys[7] = queueKeys.delay;
+    const keys = [
+      queueKeys.wait,
+      queueKeys.active,
+      queueKeys.priority,
+      queueKeys.events,
+      queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.delay,
+    ];
 
     const args: (string | number | boolean)[] = [
       queueKeys[''],
@@ -721,7 +730,7 @@ export class Scripts {
   static async obliterate(
     queue: MinimalQueue,
     opts: { force: boolean; count: number },
-  ) {
+  ): Promise<number> {
     const client = await queue.client;
 
     const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];

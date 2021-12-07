@@ -17,7 +17,7 @@ export declare class QueueScheduler extends QueueBase implements QueueSchedulerD
 ```
 <b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
 
-<b>Implements:</b> QueueSchedulerDeclaration
+<b>Implements:</b> [QueueSchedulerDeclaration](./bullmq.queueschedulerdeclaration.md)
 
 ## Constructors
 

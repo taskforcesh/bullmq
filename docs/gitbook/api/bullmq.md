@@ -19,6 +19,8 @@
 |  [QueueScheduler](./bullmq.queuescheduler.md) | This class is just used for some automatic bookkeeping of the queue, such as updating the delay set as well as moving stalled jobs back to the waiting list.<!-- -->Jobs are checked for stallness once every "visibility window" seconds. Jobs are then marked as candidates for being stalled, in the next check, the candidates are marked as stalled and moved to wait. Workers need to clean the candidate list with the jobs that they are working on, failing to update the list results in the job ending being stalled.<!-- -->This class requires a dedicated redis connection, and at least one is needed to be running at a given time, otherwise delays, stalled jobs, retries, repeatable jobs, etc, will not work correctly or at all. |
 |  [RedisConnection](./bullmq.redisconnection.md) |  |
 |  [Repeat](./bullmq.repeat.md) |  |
+|  [ScriptLoader](./bullmq.scriptloader.md) | Lua script loader with include support |
+|  [ScriptLoaderError](./bullmq.scriptloadererror.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
 |  [Worker\_2](./bullmq.worker_2.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
@@ -26,8 +28,10 @@
 
 |  Enumeration | Description |
 |  --- | --- |
+|  [ChildCommand](./bullmq.childcommand.md) |  |
 |  [ClientType](./bullmq.clienttype.md) |  |
 |  [ErrorCodes](./bullmq.errorcodes.md) |  |
+|  [ParentCommand](./bullmq.parentcommand.md) |  |
 
 ## Functions
 
@@ -52,37 +56,48 @@
 |  [AddNodeOpts](./bullmq.addnodeopts.md) |  |
 |  [AdvancedOptions](./bullmq.advancedoptions.md) |  |
 |  [BackoffOptions](./bullmq.backoffoptions.md) | Settings for backing off failed jobs. |
+|  [ChildMessage](./bullmq.childmessage.md) |  |
 |  [ChildProcessExt](./bullmq.childprocessext.md) |  |
+|  [Command](./bullmq.command.md) |  |
 |  [DependenciesOpts](./bullmq.dependenciesopts.md) |  |
 |  [FlowJob](./bullmq.flowjob.md) |  |
 |  [FlowOpts](./bullmq.flowopts.md) |  |
 |  [GetNextJobOptions](./bullmq.getnextjoboptions.md) |  |
+|  [IConnection](./bullmq.iconnection.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  [JobNode](./bullmq.jobnode.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
-|  [Queue](./bullmq.queue.md) |  |
+|  [Parent](./bullmq.parent.md) | Describes the parent for a Job. |
+|  [ParentMessage](./bullmq.parentmessage.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
+|  [QueueDeclaration](./bullmq.queuedeclaration.md) |  |
+|  [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
 |  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |
+|  [QueueSchedulerDeclaration](./bullmq.queueschedulerdeclaration.md) |  |
 |  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
 |  [RateLimiterOptions](./bullmq.ratelimiteroptions.md) |  |
 |  [RepeatOptions](./bullmq.repeatoptions.md) | Settings for repeatable jobs |
 |  [SandboxedJob](./bullmq.sandboxedjob.md) |  |
+|  [ScriptMetadata](./bullmq.scriptmetadata.md) | Script metadata |
 |  [Strategies](./bullmq.strategies.md) |  |
+|  [WorkerDeclaration](./bullmq.workerdeclaration.md) |  |
 |  [WorkerOptions\_2](./bullmq.workeroptions_2.md) |  |
 
 ## Variables
 
 |  Variable | Description |
 |  --- | --- |
+|  [childSend](./bullmq.childsend.md) |  |
 |  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
 |  [DELAY\_TIME\_1](./bullmq.delay_time_1.md) |  |
 |  [DELAY\_TIME\_5](./bullmq.delay_time_5.md) |  |
 |  [errorObject](./bullmq.errorobject.md) |  |
-|  [load](./bullmq.load.md) |  |
+|  [parentSend](./bullmq.parentsend.md) |  |
+|  [scriptLoader](./bullmq.scriptloader.md) |  |
 
 ## Type Aliases
 
@@ -91,6 +106,8 @@
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
 |  [BulkJobOptions](./bullmq.bulkjoboptions.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
+|  [EntryId](./bullmq.entryid.md) |  |
+|  [EntryRaw](./bullmq.entryraw.md) |  |
 |  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  [ParentOpts](./bullmq.parentopts.md) |  |
@@ -98,4 +115,6 @@
 |  [RedisClient](./bullmq.redisclient.md) |  |
 |  [RedisOptions](./bullmq.redisoptions.md) |  |
 |  [SandboxedJobProcessor](./bullmq.sandboxedjobprocessor.md) |  |
+|  [StreamName](./bullmq.streamname.md) |  |
+|  [StreamReadRaw](./bullmq.streamreadraw.md) |  |
 
