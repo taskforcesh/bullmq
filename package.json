@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "1.55.0",
+  "version": "1.56.0",
   "description": "Queue for messages and jobs based on Redis",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -38,7 +38,7 @@
     "semantic-release": "semantic-release",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "tsc && ts-mocha --config ./.mocharc.js",
-    "test:watch": "ts-mocha --paths 'bullmq-tests/test_*.ts' -w --watch-extensions ts",
+    "test:watch": "ts-mocha --paths 'tests/test_*.ts' -w --watch-extensions ts",
     "tsc": "tsc"
   },
   "dependencies": {
@@ -104,7 +104,7 @@
     "test-console": "^2.0.0",
     "ts-mocha": "^8.0.0",
     "ts-node": "^8.10.2",
-    "typescript": "^3.9.10"
+    "typescript": "^4.5.2"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",

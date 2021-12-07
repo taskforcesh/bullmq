@@ -92,15 +92,13 @@ export class ScriptLoader {
    * Cache commands by dir
    */
   private commandCache = new Map<string, Command[]>();
-  private _rootPath: string;
+  private rootPath: string;
 
-  private initMapping() {
-    if (!this._rootPath) {
-      this._rootPath = getPkgJsonDir();
-      this.pathMapper.set('~', this._rootPath);
-      this.pathMapper.set('rootDir', this._rootPath);
-      this.pathMapper.set('base', __dirname);
-    }
+  constructor() {
+    this.rootPath = getPkgJsonDir();
+    this.pathMapper.set('~', this.rootPath);
+    this.pathMapper.set('rootDir', this.rootPath);
+    this.pathMapper.set('base', __dirname);
   }
 
   /**
@@ -130,25 +128,14 @@ export class ScriptLoader {
   }
 
   /**
-   * Path to the project root (directory containing package.json)
-   */
-  get rootPath(): string {
-    this.initMapping();
-    return this._rootPath;
-  }
-
-  /**
    * Resolve the script path considering path mappings
    * @param scriptName - the name of the script
    * @param stack - the include stack, for nicer errors
    */
   resolvePath(scriptName: string, stack: string[] = []): string {
-    // initialize map, if not setup already
-    this.initMapping();
-
     const first = scriptName[0];
     if (first === '~') {
-      scriptName = path.join(this._rootPath, scriptName.substr(2));
+      scriptName = path.join(this.rootPath, scriptName.substr(2));
     } else if (first === '<') {
       const p = scriptName.indexOf('>');
       if (p > 0) {

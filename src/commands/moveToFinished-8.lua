@@ -71,6 +71,14 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
       return -3
     end
 
+
+    -- Trim events before emiting them to avoid trimming events emitted in this script
+    local maxEvents = rcall("HGET", KEYS[7], "opts.maxLenEvents")
+    if (maxEvents == false) then
+       maxEvents = 10000
+    end
+    rcall("XTRIM", KEYS[6], "MAXLEN", "~", maxEvents)
+
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
     -- 2) move the job Id to parent "processed" set
@@ -140,14 +148,10 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
             rcall("HSET", jobKey, "processedOn", ARGV[2])
 
             return {rcall("HGETALL", jobKey), jobId} -- get job data
+        else
+          rcall("XADD", KEYS[6], "*", "event", "drained");
         end
     end
-
-    local maxEvents = rcall("HGET", KEYS[7], "opts.maxLenEvents")
-    if (maxEvents == false) then
-      maxEvents = 10000
-    end
-    rcall("XTRIM", KEYS[6], "MAXLEN", "~", maxEvents)
 
     return 0
 else
