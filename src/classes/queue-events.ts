@@ -136,18 +136,6 @@ export interface QueueEventsList {
   'waiting-children': (args: { jobId: string }, id: string) => void;
 }
 
-export interface QueueEventsDeclaration {
-  on<U extends keyof QueueEventsList>(
-    event: U,
-    listener: QueueEventsList[U],
-  ): this;
-
-  emit<U extends keyof QueueEventsList>(
-    event: U,
-    ...args: Parameters<QueueEventsList[U]>
-  ): boolean;
-}
-
 /**
  * The QueueEvents class is used for listening to the global events
  * emitted by a given queue.
@@ -155,7 +143,7 @@ export interface QueueEventsDeclaration {
  * This class requires a dedicated redis connection.
  *
  */
-export class QueueEvents extends QueueBase implements QueueEventsDeclaration {
+export class QueueEvents extends QueueBase {
   private running = false;
 
   emit<U extends keyof QueueEventsList>(
@@ -177,7 +165,7 @@ export class QueueEvents extends QueueBase implements QueueEventsDeclaration {
     event: U,
     listener: QueueEventsList[U],
   ): this {
-    super.on(event, listener);
+    super.once(event, listener);
     return this;
   }
 
