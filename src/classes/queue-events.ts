@@ -9,7 +9,7 @@ import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
-export interface QueueEventsList {
+export interface QueueEventsListener {
   /**
    * Listen to 'active' event.
    *
@@ -146,24 +146,32 @@ export interface QueueEventsList {
 export class QueueEvents extends QueueBase {
   private running = false;
 
-  emit<U extends keyof QueueEventsList>(
+  emit<U extends keyof QueueEventsListener>(
     event: U,
-    ...args: Parameters<QueueEventsList[U]>
+    ...args: Parameters<QueueEventsListener[U]>
   ): boolean {
     return super.emit(event, ...args);
   }
 
-  on<U extends keyof QueueEventsList>(
+  off<U extends keyof QueueEventsListener>(
+    eventName: U,
+    listener: QueueEventsListener[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof QueueEventsListener>(
     event: U,
-    listener: QueueEventsList[U],
+    listener: QueueEventsListener[U],
   ): this {
     super.on(event, listener);
     return this;
   }
 
-  once<U extends keyof QueueEventsList>(
+  once<U extends keyof QueueEventsListener>(
     event: U,
-    listener: QueueEventsList[U],
+    listener: QueueEventsListener[U],
   ): this {
     super.once(event, listener);
     return this;
