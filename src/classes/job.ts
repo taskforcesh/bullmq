@@ -780,8 +780,8 @@ export class Job<
       const completedEvent = `completed:${jobId}`;
       const failedEvent = `failed:${jobId}`;
 
-      queueEvents.on(completedEvent, onCompleted);
-      queueEvents.on(failedEvent, onFailed);
+      queueEvents.on(completedEvent as any, onCompleted);
+      queueEvents.on(failedEvent as any, onFailed);
       this.queue.on('closing', onFailed);
 
       const removeListeners = () => {
