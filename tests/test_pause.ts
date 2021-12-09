@@ -128,12 +128,16 @@ describe('Pause', function () {
 
     new Worker(queueName, process, { connection });
 
-    queueEvents.on('paused', async () => {
+    queueEvents.on('paused', async (args, eventId) => {
       isPaused = false;
+      expect(args).to.be.empty;
+      expect(eventId).to.be.a.string;
       await queue.resume();
     });
 
-    queueEvents.on('resumed', () => {
+    queueEvents.on('resumed', (args, eventId) => {
+      expect(args).to.be.empty;
+      expect(eventId).to.be.a.string;
       isResumed = true;
     });
 
