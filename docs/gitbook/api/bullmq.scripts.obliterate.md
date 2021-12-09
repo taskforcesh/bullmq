@@ -10,7 +10,7 @@
 static obliterate(queue: MinimalQueue, opts: {
         force: boolean;
         count: number;
-    }): Promise<any>;
+    }): Promise<number>;
 ```
 
 ## Parameters
@@ -22,5 +22,5 @@ static obliterate(queue: MinimalQueue, opts: {
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;number&gt;
 

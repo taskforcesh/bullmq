@@ -1,6 +1,11 @@
 import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
-import { BackoffOptions, JobsOptions, WorkerOptions } from '../interfaces';
+import {
+  BackoffOptions,
+  JobsOptions,
+  WorkerOptions,
+  RedisClient,
+} from '../interfaces';
 import {
   errorObject,
   isEmpty,
@@ -12,7 +17,6 @@ import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts } from './scripts';
 import { fromPairs } from 'lodash';
-import { RedisClient } from './redis-connection';
 
 const logger = debuglog('bull');
 
@@ -76,16 +80,19 @@ export class Job<
 > {
   /**
    * The progress a job has performed so far.
+   * @defaultValue 0
    */
   progress: number | object = 0;
 
   /**
    * The value returned by the processor when processing this job.
+   * @defaultValue null
    */
   returnvalue: ReturnType = null;
 
   /**
    * Stacktrace for the error (for failed jobs).
+   * @defaultValue null
    */
   stacktrace: string[] = null;
 
@@ -96,6 +103,7 @@ export class Job<
 
   /**
    * Number of attempts after the job has failed.
+   * @defaultValue 0
    */
   attemptsMade = 0;
 
@@ -119,12 +127,12 @@ export class Job<
    */
   parentKey?: string;
 
-  private toKey: (type: string) => string;
+  protected toKey: (type: string) => string;
 
   private discarded: boolean;
 
   constructor(
-    private queue: MinimalQueue,
+    protected queue: MinimalQueue,
     /**
      * The name of the Job
      */
@@ -172,10 +180,10 @@ export class Job<
     name: N,
     data: T,
     opts?: JobsOptions,
-  ) {
+  ): Promise<Job<T, R, N>> {
     const client = await queue.client;
 
-    const job = new Job<T, R, N>(queue, name, data, opts, opts && opts.jobId);
+    const job = new this<T, R, N>(queue, name, data, opts, opts && opts.jobId);
 
     job.id = await job.addJob(client, {
       parentKey: job.parentKey,
@@ -206,7 +214,7 @@ export class Job<
 
     const jobInstances = jobs.map(
       job =>
-        new Job<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
+        new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
     const multi = client.multi();
@@ -237,11 +245,15 @@ export class Job<
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
    * @returns
    */
-  static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string) {
+  static fromJSON(
+    queue: MinimalQueue,
+    json: JobJsonRaw,
+    jobId?: string,
+  ): Job<any, any, string> {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
-    const job = new Job(queue, json.name, data, opts, json.id || jobId);
+    const job = new this(queue, json.name, data, opts, json.id || jobId);
 
     job.progress = JSON.parse(json.progress || '0');
 
@@ -328,7 +340,7 @@ export class Job<
     const client = await this.queue.client;
 
     this.data = data;
-    await client.hset(this.queue.toKey(this.id), 'data', JSON.stringify(data));
+    await client.hset(this.toKey(this.id), 'data', JSON.stringify(data));
   }
 
   /**
@@ -346,7 +358,7 @@ export class Job<
    *
    * @param logRow - string with log data to be logged.
    */
-  async log(logRow: string) {
+  async log(logRow: string): Promise<number> {
     const client = await this.queue.client;
     const logsKey = this.toKey(this.id) + ':logs';
     return client.rpush(logsKey, logRow);
@@ -488,12 +500,10 @@ export class Job<
       command = 'failed';
     }
 
-    if (!this.queue.closing) {
-      const results = await multi.exec();
-      const code = results[results.length - 1][1];
-      if (code < 0) {
-        throw Scripts.finishedErrors(code, this.id, command, 'active');
-      }
+    const results = await multi.exec();
+    const code = results[results.length - 1][1];
+    if (code < 0) {
+      throw Scripts.finishedErrors(code, this.id, command, 'active');
     }
   }
 
@@ -770,8 +780,8 @@ export class Job<
       const completedEvent = `completed:${jobId}`;
       const failedEvent = `failed:${jobId}`;
 
-      queueEvents.on(completedEvent, onCompleted);
-      queueEvents.on(failedEvent, onFailed);
+      queueEvents.on(completedEvent as any, onCompleted);
+      queueEvents.on(failedEvent as any, onFailed);
       this.queue.on('closing', onFailed);
 
       const removeListeners = () => {

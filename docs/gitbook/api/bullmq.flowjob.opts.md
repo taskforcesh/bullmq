@@ -7,5 +7,5 @@
 <b>Signature:</b>
 
 ```typescript
-opts?: Omit<JobsOptions, 'parent'>;
+opts?: Omit<JobsOptions, 'parent' | 'repeat'>;
 ```

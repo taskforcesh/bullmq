@@ -8,7 +8,7 @@ Groups resolves this problem since jobs will be processed in a "[round-robin](ht
 
 ![](<../.gitbook/assets/image (1).png>)
 
-If you have several workers or a concur
+If you have several workers or a concurrency factor larger than one, jobs will be processed in parallel, but they will be picked up from the groups as mentioned before following a round-robin ordering.
 
 Of course you can have as many workers as you want and also scale up/down the amount of workers depending on how many jobs you have waiting in the queue.
 
@@ -23,7 +23,7 @@ Another way to see groups is like "virtual" queues. So instead of having one que
 In order to use the group functionality just use the group property in the job options when adding a job:
 
 ```typescript
-  import { QueuePro } from 'bullmq-pro'
+  import { QueuePro } from '@taskforcesh/bullmq-pro'
   
   const queue = new QueuePro();
 
@@ -44,7 +44,7 @@ In order to use the group functionality just use the group property in the job o
 In order to process the jobs, just use a pro worker as you normally do with standard workers:
 
 ```typescript
-import { WorkerPro } from 'bullmq-pro'
+import { WorkerPro } from '@taskforcesh/bullmq-pro'
 
 const worker = new WorkerPro('test', async job => {
   // Do something usefull.
