@@ -60,8 +60,12 @@ describe('bulk jobs', () => {
     const parentQueueName = `parent-queue-${v4()}`;
     const parentQueue = new Queue(parentQueueName, { connection });
 
-    const parentWorker = new Worker(parentQueueName, null, { connection });
-    const childrenWorker = new Worker(queueName, null, { connection });
+    const parentWorker = new Worker(parentQueueName, async job => {}, {
+      connection,
+    });
+    const childrenWorker = new Worker(queueName, async job => {}, {
+      connection,
+    });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
