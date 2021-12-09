@@ -23,7 +23,7 @@ export interface QueueEventsListener {
    * This event is triggered when a job is created.
    */
   added: (
-    args: { jobId: string; name: string; data: string; opts: string },
+    args: { jobId: string; name: string; },
     id: string,
   ) => void;
 
