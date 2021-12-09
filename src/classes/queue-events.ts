@@ -9,76 +9,47 @@ import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
-export interface QueueEventsDeclaration {
+export interface QueueEventsListener {
   /**
    * Listen to 'active' event.
    *
    * This event is triggered when a job enters the 'active' state.
-   *
-   * @param {'active'} event
-   * @callback listener
    */
-  on(
-    event: 'active',
-    listener: (args: { jobId: string; prev?: string }, id: string) => void,
-  ): this;
+  active: (args: { jobId: string; prev?: string }, id: string) => void;
 
   /**
    * Listen to 'added' event.
    *
    * This event is triggered when a job is created.
-   *
-   * @param {'added'} event
-   * @callback listener
    */
-  on(
-    event: 'added',
-    listener: (
-      args: { jobId: string; name: string; data: string; opts: string },
-      id: string,
-    ) => void,
-  ): this;
+  added: (
+    args: { jobId: string; name: string; data: string; opts: string },
+    id: string,
+  ) => void;
 
   /**
    * Listen to 'cleaned' event.
    *
    * This event is triggered when a cleaned method is triggered.
-   *
-   * @param event -
    */
-  on(
-    event: 'cleaned',
-    listener: (args: { count: string }, id: string) => void,
-  ): this;
+  cleaned: (args: { count: string }, id: string) => void;
 
   /**
    * Listen to 'completed' event.
    *
    * This event is triggered when a job has successfully completed.
-   *
-   * @param {'completed'} event
-   * @callback listener
    */
-  on(
-    event: 'completed',
-    listener: (
-      args: { jobId: string; returnvalue: string; prev?: string },
-      id: string,
-    ) => void,
-  ): this;
+  completed: (
+    args: { jobId: string; returnvalue: string; prev?: string },
+    id: string,
+  ) => void;
 
   /**
    * Listen to 'delayed' event.
    *
    * This event is triggered when a job is delayed.
-   *
-   * @param {'delayed'} event
-   * @callback listener
    */
-  on(
-    event: 'delayed',
-    listener: (args: { jobId: string; delay: number }, id: string) => void,
-  ): this;
+  delayed: (args: { jobId: string; delay: number }, id: string) => void;
 
   /**
    * Listen to 'drained' event.
@@ -86,11 +57,32 @@ export interface QueueEventsDeclaration {
    * This event is triggered when the queue has drained the waiting list.
    * Note that there could still be delayed jobs waiting their timers to expire
    * and this event will still be triggered as long as the waiting list has emptied.
-   *
-   * @param {'drained'} event
-   * @callback listener
    */
-  on(event: 'drained', listener: (id: string) => void): this;
+  drained: (id: string) => void;
+
+  /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an exception is thrown.
+   */
+  error: (args: Error) => void;
+
+  /**
+   * Listen to 'failed' event.
+   *
+   * This event is triggered when a job has thrown an exception.
+   */
+  failed: (
+    args: { jobId: string; failedReason: string; prev?: string },
+    id: string,
+  ) => void;
+
+  /**
+   * Listen to 'paused' event.
+   *
+   * This event is triggered when a queue is paused.
+   */
+  paused: (args: {}, id: string) => void;
 
   /**
    * Listen to 'progress' event.
@@ -99,17 +91,26 @@ export interface QueueEventsDeclaration {
    * Job##updateProgress() method is called. This is useful to notify
    * progress or any other data from within a processor to the rest of the
    * world.
-   *
-   * @param {'progress'} event
-   * @callback listener
    */
-  on(
-    event: 'progress',
-    listener: (
-      args: { jobId: string; data: number | object },
-      id: string,
-    ) => void,
-  ): this;
+  progress: (
+    args: { jobId: string; data: number | object },
+    id: string,
+  ) => void;
+
+  /**
+   * Listen to 'removed' event.
+   *
+   * This event is triggered when a job has been manually
+   * removed from the queue.
+   */
+  removed: (args: { jobId: string }, id: string) => void;
+
+  /**
+   * Listen to 'resumed' event.
+   *
+   * This event is triggered when a queue is resumed.
+   */
+  resumed: (args: {}, id: string) => void;
 
   /**
    * Listen to 'stalled' event.
@@ -117,72 +118,22 @@ export interface QueueEventsDeclaration {
    * This event is triggered when a job has been moved from 'active' back
    * to 'waiting'/'failed' due to the processor not being able to renew
    * the lock on the said job.
-   *
-   * @param {'stalled'} event
-   * @callback listener
    */
-  on(
-    event: 'stalled',
-    listener: (args: { jobId: string }, id: string) => void,
-  ): this;
-
-  /**
-   * Listen to 'failed' event.
-   *
-   * This event is triggered when a job has thrown an exception.
-   *
-   * @param {'failed'} event
-   * @callback listener
-   */
-  on(
-    event: 'failed',
-    listener: (
-      args: { jobId: string; failedReason: string; prev?: string },
-      id: string,
-    ) => void,
-  ): this;
-
-  /**
-   * Listen to 'removed' event.
-   *
-   * This event is triggered when a job has been manually
-   * removed from the queue.
-   *
-   * @param {'removed'} event
-   * @callback listener
-   */
-  on(
-    event: 'removed',
-    listener: (args: { jobId: string }, id: string) => void,
-  ): this;
+  stalled: (args: { jobId: string }, id: string) => void;
 
   /**
    * Listen to 'waiting' event.
    *
    * This event is triggered when a job enters the 'waiting' state.
-   *
-   * @param {'waiting'} event
-   * @callback listener
    */
-  on(
-    event: 'waiting',
-    listener: (args: { jobId: string }, id: string) => void,
-  ): this;
+  waiting: (args: { jobId: string }, id: string) => void;
 
   /**
    * Listen to 'waiting-children' event.
    *
    * This event is triggered when a job enters the 'waiting-children' state.
-   *
-   * @param {'waiting-children'} event
-   * @callback listener
    */
-  on(
-    event: 'waiting-children',
-    listener: (args: { jobId: string }, id: string) => void,
-  ): this;
-
-  on(event: string, listener: Function): this;
+  'waiting-children': (args: { jobId: string }, id: string) => void;
 }
 
 /**
@@ -192,8 +143,39 @@ export interface QueueEventsDeclaration {
  * This class requires a dedicated redis connection.
  *
  */
-export class QueueEvents extends QueueBase implements QueueEventsDeclaration {
+export class QueueEvents extends QueueBase {
   private running = false;
+
+  emit<U extends keyof QueueEventsListener>(
+    event: U,
+    ...args: Parameters<QueueEventsListener[U]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  off<U extends keyof QueueEventsListener>(
+    eventName: U,
+    listener: QueueEventsListener[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof QueueEventsListener>(
+    event: U,
+    listener: QueueEventsListener[U],
+  ): this {
+    super.on(event, listener);
+    return this;
+  }
+
+  once<U extends keyof QueueEventsListener>(
+    event: U,
+    listener: QueueEventsListener[U],
+  ): this {
+    super.once(event, listener);
+    return this;
+  }
 
   constructor(
     name: string,
@@ -281,8 +263,8 @@ export class QueueEvents extends QueueBase implements QueueEventsDeclaration {
             if (event === 'drained') {
               this.emit(event, id);
             } else {
-              this.emit(event, restArgs, id);
-              this.emit(`${event}:${restArgs.jobId}`, restArgs, id);
+              this.emit(event as any, restArgs, id);
+              this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);
             }
           }
         }
