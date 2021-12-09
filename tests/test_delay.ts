@@ -82,8 +82,8 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
-  describe('when run method is called when queue-scheduler is running', function() {
-    it('throws an error', async function() {
+  describe('when run method is called when queue-scheduler is running', function () {
+    it('throws an error', async function () {
       const delay = 1000;
       const maxJobs = 10;
       const queueScheduler = new QueueScheduler(queueName);
@@ -178,6 +178,7 @@ describe('Delayed jobs', function () {
                 connection,
               });
               await secondQueueScheduler.waitUntilReady();
+              secondQueueScheduler.run();
             }
 
             if (order === 4) {
@@ -205,7 +206,7 @@ describe('Delayed jobs', function () {
     await processing;
 
     await queue.close();
-    worker && (await worker.close());
+    await worker.close();
     secondQueueScheduler && (await secondQueueScheduler.close());
   });
 

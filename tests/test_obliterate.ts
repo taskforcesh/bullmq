@@ -232,6 +232,7 @@ describe('Obliterate', function () {
     );
     await worker.waitUntilReady();
 
+    queueEvents.run();
     worker.run();
 
     await job.waitUntilFinished(queueEvents);

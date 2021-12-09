@@ -93,6 +93,7 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -127,6 +128,7 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -712,7 +714,7 @@ describe('workers', function () {
     await worker.close();
   });
 
-  describe('when process function is not defined', function() {
+  describe('when process function is not defined', function () {
     it('throws error', async () => {
       const worker = new Worker(queueName, undefined);
       await worker.waitUntilReady();
@@ -725,7 +727,7 @@ describe('workers', function () {
     });
   });
 
-  describe('when run method is called when worker is running', function() {
+  describe('when run method is called when worker is running', function () {
     it('throws error', async () => {
       const maxJobs = 10;
       const worker = new Worker(queueName, async (job: Job) => {});

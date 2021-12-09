@@ -34,14 +34,10 @@ describe('events', function () {
 
     await queue.add('test', { foo: 'bar' });
 
-    const running = queueEvents.run();
-
     await waiting;
-
-    await expect(running).to.have.been.fulfilled;
   });
 
-  describe('when run method is called when queueEvent is running', function() {
+  describe('when run method is called when queueEvent is running', function () {
     it('throws error', async () => {
       const running = queueEvents.run();
 
@@ -96,7 +92,9 @@ describe('events', function () {
       await queue.add('test', { foo: 'bar' });
     }
 
-    await new Promise<void>(resolve => {
+    worker.run();
+
+    const cleaned = new Promise<void>(resolve => {
       queueEvents.once('cleaned', async ({ count }) => {
         expect(count).to.be.eql('50');
         const actualCount = await queue.count();
@@ -104,6 +102,10 @@ describe('events', function () {
         resolve();
       });
     });
+
+    queueEvents.run();
+
+    await cleaned;
   });
 
   it('emits drained global event when all jobs have been processed', async function () {
@@ -326,6 +328,7 @@ describe('events', function () {
       queueEvents.on('drained', resolve);
     });
 
+    worker.run();
     queueEvents.run();
 
     await waitForCompletion;
