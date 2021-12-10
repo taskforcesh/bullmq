@@ -42,6 +42,27 @@ describe('connection', () => {
     checkOptions(await queue.client);
   });
 
+  describe('when maxmemory-policy is different than noeviction in Redis', () => {
+    it('throws an error', async () => {
+      const opts = {
+        connection: {
+          host: 'localhost',
+        },
+      };
+
+      const queue = new QueueBase(queueName, opts);
+      const client = await queue.client;
+      await client.config('SET', 'maxmemory-policy', 'volatile-lru');
+
+      const queue2 = new QueueBase(`${queueName}2`, opts);
+
+      await expect(queue2.client).to.be.eventually.rejectedWith(
+        'Eviction policy is volatile-lru. It should be "noeviction"',
+      );
+      await client.config('SET', 'maxmemory-policy', 'noeviction');
+    });
+  });
+
   it('should recover from a connection loss', async () => {
     let processor;
 
