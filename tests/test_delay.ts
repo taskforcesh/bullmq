@@ -90,7 +90,7 @@ describe('Delayed jobs', function () {
       await queueScheduler.waitUntilReady();
 
       const worker = new Worker(queueName, async job => {});
-      queueScheduler.run();
+      const running = queueScheduler.run();
 
       for (let i = 1; i <= maxJobs; i++) {
         await queue.add('test', { foo: 'bar', num: i }, { delay });
@@ -101,6 +101,7 @@ describe('Delayed jobs', function () {
       );
 
       await queueScheduler.close();
+      await expect(running).to.have.been.fulfilled;
       await worker.close();
     });
   });

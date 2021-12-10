@@ -39,11 +39,17 @@ describe('events', function () {
 
   describe('when run method is called when queueEvent is running', function () {
     it('throws error', async function () {
-      queueEvents.run();
+      const queueEvents2 = new QueueEvents(queueName, { connection });
+      await queueEvents2.waitUntilReady();
+      const running = queueEvents2.run();
 
-      await expect(queueEvents.run()).to.be.rejectedWith(
+      await expect(queueEvents2.run()).to.be.rejectedWith(
         'Queue Events is already running.',
       );
+
+      await queueEvents2.close();
+
+      await expect(running).to.have.been.fulfilled;
     });
   });
 
