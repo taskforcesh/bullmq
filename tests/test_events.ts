@@ -38,16 +38,12 @@ describe('events', function () {
   });
 
   describe('when run method is called when queueEvent is running', function () {
-    it('throws error', async () => {
-      const running = queueEvents.run();
-
-      await queue.add('test', { foo: 'bar' });
+    it('throws error', async function () {
+      queueEvents.run();
 
       await expect(queueEvents.run()).to.be.rejectedWith(
         'Queue Events is already running.',
       );
-
-      await expect(running).to.have.been.fulfilled;
     });
   });
 
@@ -106,6 +102,8 @@ describe('events', function () {
     queueEvents.run();
 
     await cleaned;
+
+    await worker.close();
   });
 
   it('emits drained global event when all jobs have been processed', async function () {
