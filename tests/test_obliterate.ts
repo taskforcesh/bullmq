@@ -17,6 +17,7 @@ describe('Obliterate', function () {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -58,6 +59,8 @@ describe('Obliterate', function () {
     );
     await worker.waitUntilReady();
 
+    worker.run();
+
     await job.waitUntilFinished(queueEvents);
 
     await queue.obliterate();
@@ -94,6 +97,8 @@ describe('Obliterate', function () {
       const failing = new Promise((resolve, reject) => {
         worker.on('failed', resolve);
       });
+
+      worker.run();
 
       const flow = new FlowProducer({ connection });
       await flow.add({
@@ -143,6 +148,8 @@ describe('Obliterate', function () {
     );
     await worker.waitUntilReady();
 
+    worker.run();
+
     await job.waitUntilFinished(queueEvents);
 
     await expect(queue.obliterate()).to.be.rejectedWith(
@@ -177,6 +184,8 @@ describe('Obliterate', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await job.waitUntilFinished(queueEvents);
     await queue.obliterate({ force: true });
@@ -223,6 +232,9 @@ describe('Obliterate', function () {
     );
     await worker.waitUntilReady();
 
+    queueEvents.run();
+    worker.run();
+
     await job.waitUntilFinished(queueEvents);
 
     await queue.obliterate({ force: true });
@@ -251,6 +263,8 @@ describe('Obliterate', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await lastCompletedJob.waitUntilFinished(queueEvents);
 

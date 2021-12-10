@@ -8,10 +8,6 @@ import { QueueBaseOptions } from '../interfaces';
  */
 export interface QueueSchedulerOptions extends QueueBaseOptions {
   /**
-   * Condition to start scheduler at instance creation.
-   */
-  autorun?: boolean;
-  /**
    * Amount of times a job can be recovered from a stalled state
    * to the `wait` state. If this is exceeded, the job is moved
    * to `failed`.

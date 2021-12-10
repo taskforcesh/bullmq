@@ -179,7 +179,7 @@ export class QueueEvents extends QueueBase {
 
   constructor(
     name: string,
-    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+    { connection, ...opts }: QueueEventsOptions = {},
     Connection?: typeof RedisConnection,
   ) {
     super(
@@ -199,10 +199,6 @@ export class QueueEvents extends QueueBase {
       },
       this.opts,
     );
-
-    if (autorun) {
-      this.run().catch(error => this.emit('error', error));
-    }
   }
 
   async run(): Promise<void> {

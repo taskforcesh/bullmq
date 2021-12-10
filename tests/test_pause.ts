@@ -23,6 +23,7 @@ describe('Pause', function () {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -38,6 +39,8 @@ describe('Pause', function () {
     const queueScheduler = new QueueScheduler(queueName);
     await queueScheduler.waitUntilReady();
 
+    queueScheduler.run();
+
     let processed = false;
 
     const worker = new Worker(
@@ -48,6 +51,8 @@ describe('Pause', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.pause();
     await queue.add('test', {}, { delay: 200 });
@@ -86,6 +91,8 @@ describe('Pause', function () {
 
     const worker = new Worker(queueName, process, { connection });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.pause();
     isPaused = true;
@@ -126,7 +133,7 @@ describe('Pause', function () {
       };
     });
 
-    new Worker(queueName, process, { connection });
+    const worker = new Worker(queueName, process, { connection });
 
     queueEvents.on('paused', async (args, eventId) => {
       isPaused = false;
@@ -140,6 +147,8 @@ describe('Pause', function () {
       expect(eventId).to.be.a.string;
       isResumed = true;
     });
+
+    worker.run();
 
     await queue.add('test', { foo: 'paused' });
     await queue.add('test', { foo: 'paused' });
@@ -164,6 +173,8 @@ describe('Pause', function () {
 
     worker = new Worker(queueName, process, { connection });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await worker.pause();
 
@@ -194,6 +205,8 @@ describe('Pause', function () {
 
     const worker = new Worker(queueName, process, { connection });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const jobs: Promise<Job | void>[] = [];
     for (let i = 0; i < 10; i++) {
@@ -249,6 +262,9 @@ describe('Pause', function () {
     const worker2 = new Worker(queueName, process2, { connection });
     await worker2.waitUntilReady();
 
+    worker1.run();
+    worker2.run();
+
     await Promise.all([
       queue.add('test', 1),
       queue.add('test', 2),
@@ -280,6 +296,8 @@ describe('Pause', function () {
     const worker = new Worker(queueName, process, { connection });
     await worker.waitUntilReady();
 
+    worker.run();
+
     await queue.add('test', 1);
     await startProcessing;
     await worker.pause();
@@ -298,6 +316,8 @@ describe('Pause', function () {
       connection,
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.add('test', {});
 
