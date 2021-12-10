@@ -15,7 +15,7 @@ import {
 } from '../utils';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
-import { MinimalQueue, ParentOpts, Scripts } from './scripts';
+import { MinimalQueue, ParentOpts, Scripts, JobData } from './scripts';
 import { fromPairs } from 'lodash';
 
 const logger = debuglog('bull');
@@ -406,7 +406,7 @@ export class Job<
     returnValue: ReturnType,
     token: string,
     fetchNext = true,
-  ): Promise<[JobJsonRaw, string] | []> {
+  ): Promise<JobData | []> {
     await this.queue.waitUntilReady();
 
     this.returnvalue = returnValue || void 0;

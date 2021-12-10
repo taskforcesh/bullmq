@@ -111,6 +111,8 @@ export class Worker<
   private drained: boolean;
   private waiting = false;
   private running = false;
+  private blockTimeout = 0;
+
   protected processFn: Processor<DataType, ResultType, NameType>;
 
   private resumeWorker: () => void;
@@ -199,6 +201,10 @@ export class Worker<
     token: string,
   ): Promise<ResultType> {
     return this.processFn(job, token);
+  }
+
+  protected createJob(data: JobJsonRaw, jobId: string) {
+    return Job.fromJSON(this, data, jobId);
   }
 
   /**
@@ -369,10 +375,16 @@ export class Worker<
 
     try {
       this.waiting = true;
+
+      const blockTimeout = Math.max(
+        this.blockTimeout ? this.blockTimeout / 1000 : opts.drainDelay,
+        0.01,
+      );
+
       jobId = await client.brpoplpush(
         this.keys.wait,
         this.keys.active,
-        opts.drainDelay,
+        blockTimeout,
       );
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
@@ -397,31 +409,33 @@ export class Worker<
     jobData?: JobJsonRaw | number,
     jobId?: string,
   ): Promise<Job<any, any, string>> {
-    if (jobData) {
-      this.drained = false;
-
-      //
-      // Check if the queue is rate limited. jobData will be the amount
-      // of rate limited jobs.
-      //
-
-      // NOTE: This is not really optimal in all cases since a new job would could arrive at the wait
-      // list and this worker will not start processing it directly.
-      // Best would be to emit drain and block for rateKeyExpirationTime
-      if (typeof jobData === 'number') {
-        if (this.opts.limiter.workerDelay) {
-          const rateKeyExpirationTime = jobData;
-          await delay(rateKeyExpirationTime);
-        }
-      } else {
-        const job = Job.fromJSON(this, jobData, jobId);
-        if (job.opts.repeat) {
-          const repeat = await this.repeat;
-          await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
-        }
-        return job;
+    // NOTE: This is not really optimal in all cases since a new job would could arrive at the wait
+    // list and this worker will not start processing it directly.
+    // Best would be to emit drain and block for rateKeyExpirationTime
+    if (typeof jobData === 'number') {
+      if (!this.drained) {
+        this.emit('drained');
+        this.drained = true;
       }
+
+      // workerDelay left for backwards compatibility although not recommended to use.
+      if (this.opts?.limiter?.workerDelay) {
+        const rateKeyExpirationTime = jobData;
+        await delay(rateKeyExpirationTime);
+      } else {
+        this.blockTimeout = jobData;
+      }
+    } else if (jobData) {
+      this.drained = false;
+      const job = this.createJob(jobData, jobId);
+      if (job.opts.repeat) {
+        const repeat = await this.repeat;
+        await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
+      }
+      return job;
     } else if (!this.drained) {
+      this.blockTimeout = 0;
+
       this.emit('drained');
       this.drained = true;
     }
@@ -488,7 +502,7 @@ export class Worker<
 
     const handleFailed = async (err: Error) => {
       try {
-        await job.moveToFailed(err, token);
+        const failed = await job.moveToFailed(err, token);
         this.emit('failed', job, err, 'active');
       } catch (err) {
         this.emit('error', err);
@@ -505,6 +519,7 @@ export class Worker<
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
+      console.error(err);
       return handleFailed(<Error>err);
     } finally {
       stopTimer();
