@@ -519,7 +519,7 @@ describe('repeat', function () {
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {
-    this.timeout(200000);
+    this.timeout(220000);
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
@@ -527,6 +527,7 @@ describe('repeat', function () {
     this.clock.setSystemTime(date);
 
     const worker = new Worker(queueName, async job => {}, { connection });
+    await worker.waitUntilReady();
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     queueScheduler.run();
