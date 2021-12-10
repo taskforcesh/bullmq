@@ -74,7 +74,7 @@
 |  [ParentMessage](./bullmq.parentmessage.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
 |  [QueueDeclaration](./bullmq.queuedeclaration.md) |  |
-|  [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md) |  |
+|  [QueueEventsListener](./bullmq.queueeventslistener.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
 |  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |
 |  [QueueSchedulerDeclaration](./bullmq.queueschedulerdeclaration.md) |  |

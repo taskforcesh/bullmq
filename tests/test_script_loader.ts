@@ -38,11 +38,6 @@ describe('scriptLoader', () => {
   });
 
   describe('when using path mappings', () => {
-    it('correctly determines the path to the project root', () => {
-      const expected = getRootPath();
-      expect(loader.rootPath).to.be.eql(expected);
-    });
-
     it('relative paths are relative to the caller of "addScriptPathMapping"', () => {
       const expectedPath = path.join(__dirname, '../actual.lua');
       loader.addPathMapping('test', '../');
