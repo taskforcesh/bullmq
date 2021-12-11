@@ -18,11 +18,13 @@ export interface JobsOptions {
    * An amount of milliseconds to wait until this job can be processed.
    * Note that for accurate delays, worker and producers
    * should have their clocks synchronized.
+   * @defaultValue 0
    */
   delay?: number;
 
   /**
    * The total number of attempts to try the job until it completes.
+   * @defaultValue 0
    */
   attempts?: number;
 

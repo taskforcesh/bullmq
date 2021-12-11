@@ -1,0 +1,5 @@
+---
+--- Expects a path mapping of map-glob to be set in the test file
+--- addScriptPathMapping('map-glob', './fixtures/mapped');
+---
+--- @include "<map-glob>/fixture_mapped*.lua"

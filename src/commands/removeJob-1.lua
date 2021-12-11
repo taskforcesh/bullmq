@@ -13,7 +13,7 @@
 local rcall = redis.call
 
 -- Includes
-<%= destructureJobKey %>
+--- @include "includes/destructureJobKey"
 
 -- recursively check if there are no locks on the
 -- jobs to be removed.
@@ -45,7 +45,7 @@ local function removeJob( prefix, jobId)
     local jobKey = prefix .. jobId;
 
     -- Check if this job has a parent. If so we will just remove it from
-    -- the parent child list, but if it is the last child we should move the parent to "wait/paused" 
+    -- the parent child list, but if it is the last child we should move the parent to "wait/paused"
     -- which requires code from "moveToFinished"
     local parent = rcall("HGET", jobKey, "parent")
     local parentData

@@ -1,11 +1,13 @@
-import { QueueSchedulerOptions } from '../interfaces';
+import {
+  QueueSchedulerOptions,
+  RedisClient,
+  StreamReadRaw,
+} from '../interfaces';
 import { array2obj, isRedisInstance } from '../utils';
 import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
-import { StreamReadRaw } from '../interfaces/redis-streams';
-import { RedisClient } from './redis-connection';
 
-interface QueueSchedulerDeclaration {
+export interface QueueSchedulerDeclaration {
   on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
   on(
     event: 'failed',
@@ -40,7 +42,7 @@ export class QueueScheduler
 
   constructor(
     name: string,
-    { connection, autorun = true, ...opts }: QueueSchedulerOptions = {},
+    { connection, ...opts }: QueueSchedulerOptions = {},
   ) {
     super(name, {
       maxStalledCount: 1,
@@ -54,12 +56,6 @@ export class QueueScheduler
 
     if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
-    }
-
-    if (autorun) {
-      this.run().catch(error => {
-        console.error(error);
-      });
     }
   }
 
@@ -170,7 +166,7 @@ export class QueueScheduler
           );
         } catch (err) {
           // We can ignore closed connection errors
-          if (err.message !== 'Connection is closed.') {
+          if ((<Error>err).message !== 'Connection is closed.') {
             throw err;
           }
         } finally {

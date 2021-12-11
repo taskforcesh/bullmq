@@ -2,7 +2,12 @@ import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
-import { Processor, WorkerOptions, GetNextJobOptions } from '../interfaces';
+import {
+  Processor,
+  WorkerOptions,
+  GetNextJobOptions,
+  RedisClient,
+} from '../interfaces';
 import {
   clientCommandMessageReg,
   delay,
@@ -14,7 +19,7 @@ import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
 import { Job, JobJsonRaw } from './job';
-import { RedisConnection, RedisClient } from './redis-connection';
+import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
 import { TimerManager } from './timer-manager';
@@ -22,12 +27,64 @@ import { TimerManager } from './timer-manager';
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-interface WorkerDeclaration {
+export interface WorkerDeclaration {
+  /**
+   * Listen to 'active' event.
+   *
+   * This event is triggered when a job enters the 'active' state.
+   *
+   * @param event -
+   */
   on(event: 'active', listener: (job: Job, prev: string) => void): this;
+
+  /**
+   * Listen to 'completed' event.
+   *
+   * This event is triggered when a job has successfully completed.
+   *
+   * @param event -
+   */
   on(event: 'completed', listener: (job: Job) => void): this;
+
+  /**
+   * Listen to 'drained' event.
+   *
+   * This event is triggered when the queue has drained the waiting list.
+   * Note that there could still be delayed jobs waiting their timers to expire
+   * and this event will still be triggered as long as the waiting list has emptied.
+   *
+   * @param event -
+   */
   on(event: 'drained', listener: () => void): this;
+
+  /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an error is throw.
+   *
+   * @param event -
+   */
   on(event: 'error', listener: (failedReason: Error) => void): this;
+
+  /**
+   * Listen to 'failed' event.
+   *
+   * This event is triggered when a job has thrown an exception.
+   *
+   * @param event -
+   */
   on(event: 'failed', listener: (job: Job, error: Error) => void): this;
+
+  /**
+   * Listen to 'progress' event.
+   *
+   * This event is triggered when a job updates it progress, i.e. the
+   * Job##updateProgress() method is called. This is useful to notify
+   * progress or any other data from within a processor to the rest of the
+   * world.
+   *
+   * @param event -
+   */
   on(
     event: 'progress',
     listener: (job: Job, progress: number | object) => void,
@@ -54,13 +111,13 @@ export class Worker<
   private drained: boolean;
   private waiting = false;
   private running = false;
-  private processFn: Processor<DataType, ResultType, NameType>;
+  protected processFn: Processor<DataType, ResultType, NameType>;
 
   private resumeWorker: () => void;
-  private paused: Promise<void>;
+  protected paused: Promise<void>;
   private _repeat: Repeat;
   private childPool: ChildPool;
-  private timerManager: TimerManager;
+  protected timerManager: TimerManager;
 
   private blockingConnection: RedisConnection;
 
@@ -85,7 +142,6 @@ export class Worker<
       concurrency: 1,
       lockDuration: 30000,
       runRetryDelay: 15000,
-      autorun: true,
       ...this.opts,
     };
 
@@ -110,24 +166,34 @@ export class Worker<
           (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
 
         if (!fs.existsSync(processorFile)) {
-          // TODO are we forced to use sync api here?
           throw new Error(`File ${processorFile} does not exist`);
         }
 
-        this.childPool = this.childPool || new ChildPool();
+        let masterFile = path.join(__dirname, './master.js');
+        try {
+          fs.statSync(masterFile); // would throw if file not exists
+        } catch (_) {
+          masterFile = path.join(process.cwd(), 'dist/classes/master.js');
+          fs.statSync(masterFile);
+        }
+
+        this.childPool = new ChildPool(masterFile);
         this.processFn = sandbox<DataType, ResultType, NameType>(
           processor,
           this.childPool,
         ).bind(this);
       }
       this.timerManager = new TimerManager();
-
-      if (this.opts.autorun) {
-        this.run().catch(error => this.emit('error', error));
-      }
     }
 
     this.on('error', err => console.error(err));
+  }
+
+  protected callProcessJob(
+    job: Job<DataType, ResultType, NameType>,
+    token: string,
+  ): Promise<ResultType> {
+    return this.processFn(job, token);
   }
 
   /**
@@ -141,7 +207,7 @@ export class Worker<
     return this.blockingConnection.client;
   }
 
-  get repeat() {
+  get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
         const connection = await this.client;
@@ -160,7 +226,7 @@ export class Worker<
       if (!this.running) {
         try {
           this.running = true;
-          const client = await this.blockingConnection.client;
+          const client = await this.client;
 
           if (this.closing) {
             return;
@@ -175,7 +241,7 @@ export class Worker<
           try {
             await client.client('setname', this.clientName());
           } catch (err) {
-            if (!clientCommandMessageReg.test(err.message)) {
+            if (!clientCommandMessageReg.test((<Error>err).message)) {
               throw err;
             }
           }
@@ -264,16 +330,13 @@ export class Worker<
     if (this.drained && block) {
       try {
         const jobId = await this.waitForJob();
-
-        if (jobId) {
-          return this.moveToActive(token, jobId);
-        }
+        return this.moveToActive(token, jobId);
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
         if (
           !(
             (this.paused || this.closing) &&
-            err.message === 'Connection is closed.'
+            (<Error>err).message === 'Connection is closed.'
           )
         ) {
           throw err;
@@ -284,7 +347,7 @@ export class Worker<
     }
   }
 
-  private async moveToActive(token: string, jobId?: string) {
+  protected async moveToActive(token: string, jobId?: string) {
     const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
@@ -307,7 +370,7 @@ export class Worker<
         opts.drainDelay,
       );
     } catch (error) {
-      if (isNotConnectionError(error)) {
+      if (isNotConnectionError(<Error>error)) {
         this.emit('error', error);
       }
       await this.delay();
@@ -325,10 +388,10 @@ export class Worker<
     await delay(DELAY_TIME_1);
   }
 
-  private async nextJobFromJobData(
+  protected async nextJobFromJobData(
     jobData?: JobJsonRaw | number,
     jobId?: string,
-  ) {
+  ): Promise<Job<any, any, string>> {
     if (jobData) {
       this.drained = false;
 
@@ -336,6 +399,10 @@ export class Worker<
       // Check if the queue is rate limited. jobData will be the amount
       // of rate limited jobs.
       //
+
+      // NOTE: This is not really optimal in all cases since a new job would could arrive at the wait
+      // list and this worker will not start processing it directly.
+      // Best would be to emit drain and block for rateKeyExpirationTime
       if (typeof jobData === 'number') {
         if (this.opts.limiter.workerDelay) {
           const rateKeyExpirationTime = jobData;
@@ -355,7 +422,10 @@ export class Worker<
     }
   }
 
-  async processJob(job: Job<DataType, ResultType, NameType>, token: string) {
+  async processJob(
+    job: Job<DataType, ResultType, NameType>,
+    token: string,
+  ): Promise<void | Job<any, any, string>> {
     if (!job || this.closing || this.paused) {
       return;
     }
@@ -401,13 +471,14 @@ export class Worker<
     // end copy-paste from Bull3
 
     const handleCompleted = async (result: ResultType) => {
-      const jobData = await job.moveToCompleted(
+      const completed = await job.moveToCompleted(
         result,
         token,
         !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
-      return jobData ? this.nextJobFromJobData(jobData[0], jobData[1]) : null;
+      const [jobData, jobId] = completed || [];
+      return this.nextJobFromJobData(jobData, jobId);
     };
 
     const handleFailed = async (err: Error) => {
@@ -426,35 +497,23 @@ export class Worker<
 
     lockExtender();
     try {
-      const result = await this.processFn(job, token);
+      const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
-      return handleFailed(err);
+      return handleFailed(<Error>err);
     } finally {
       stopTimer();
     }
-
-    /*
-      var timeoutMs = job.opts.timeout;
-
-      if (timeoutMs) {
-        jobPromise = jobPromise.timeout(timeoutMs);
-      }
-    */
-    // Local event with jobPromise so that we can cancel job.
-    // this.emit('active', job, jobPromise, 'waiting');
-
-    // return jobPromise.then(handleCompleted).catch(handleFailed);
   }
 
   /**
    *
    * Pauses the processing of this queue only for this worker.
    */
-  async pause(doNotWaitActive?: boolean) {
+  async pause(doNotWaitActive?: boolean): Promise<void> {
     if (!this.paused) {
       this.paused = new Promise(resolve => {
-        this.resumeWorker = function() {
+        this.resumeWorker = function () {
           resolve();
           this.paused = null; // Allow pause to be checked externally for paused state.
           this.resumeWorker = null;

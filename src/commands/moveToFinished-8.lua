@@ -41,8 +41,8 @@
 local rcall = redis.call
 local parentKey
 -- Includes
-<%= updateParentDepsIfNeeded %>
-<%= destructureJobKey %>
+--- @include "includes/updateParentDepsIfNeeded"
+--- @include "includes/destructureJobKey"
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
@@ -69,8 +69,16 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     if(numRemovedElements < 1) then
       return -3
     end
-    
-    -- If job has a parent we need to 
+
+
+    -- Trim events before emiting them to avoid trimming events emitted in this script
+    local maxEvents = rcall("HGET", KEYS[7], "opts.maxLenEvents")
+    if (maxEvents == false) then
+       maxEvents = 10000
+    end
+    rcall("XTRIM", KEYS[6], "MAXLEN", "~", maxEvents)
+
+    -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
     -- 2) move the job Id to parent "processed" set
     -- 3) push the results into parent "results" list
@@ -82,11 +90,11 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
         local parentKey =  parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
-        if result == 1 then 
+        if result == 1 then
           updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet, parentId, jobIdKey, ARGV[4])
         end
     end
-    
+
     -- Remove job?
     local removeJobs = tonumber(ARGV[6])
     if removeJobs ~= 1 then
@@ -135,14 +143,10 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
             rcall("HSET", jobKey, "processedOn", ARGV[2])
 
             return {rcall("HGETALL", jobKey), jobId} -- get job data
+        else
+          rcall("XADD", KEYS[6], "*", "event", "drained");
         end
     end
-
-    local maxEvents = rcall("HGET", KEYS[7], "opts.maxLenEvents")
-    if (maxEvents == false) then
-      maxEvents = 10000
-    end
-    rcall("XTRIM", KEYS[6], "MAXLEN", "~", maxEvents)
 
     return 0
 else
