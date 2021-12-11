@@ -42,6 +42,32 @@ describe('connection', () => {
     checkOptions(await queue.client);
   });
 
+  describe('when reusing connection with enableReadyCheck as true', () => {
+    it('throws an error', async () => {
+      const connection = new IORedis({
+        maxRetriesPerRequest: null,
+        enableReadyCheck: true,
+      });
+
+      expect(() => new QueueBase(queueName, { connection })).to
+        .throw(`Using a redis instance with enableReadyCheck or maxRetriesPerRequest is not permitted.
+See https://https://github.com/OptimalBits/bull/issues/1873`);
+    });
+  });
+
+  describe('when reusing connection with maxRetriesPerRequest different than null', () => {
+    it('throws an error', async () => {
+      const connection = new IORedis({
+        maxRetriesPerRequest: 1,
+        enableReadyCheck: false,
+      });
+
+      expect(() => new QueueBase(queueName, { connection })).to
+        .throw(`Using a redis instance with enableReadyCheck or maxRetriesPerRequest is not permitted.
+See https://https://github.com/OptimalBits/bull/issues/1873`);
+    });
+  });
+
   describe('when maxmemory-policy is different than noeviction in Redis', () => {
     it('throws an error', async () => {
       const opts = {

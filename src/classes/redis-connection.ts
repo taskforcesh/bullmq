@@ -12,13 +12,11 @@ import * as path from 'path';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false',
-  'and will be overrided by BullMQ.',
+  'and will be overridden by BullMQ.',
 ].join(' ');
 
-const deprecationMessage = [
-  'BullMQ: DEPRECATION WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false.',
-  'On the next versions having this settings will throw an exception',
-].join(' ');
+const connectionErrorMessage = `Using a redis instance with enableReadyCheck or maxRetriesPerRequest is not permitted.
+See https://https://github.com/OptimalBits/bull/issues/1873`;
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -50,12 +48,11 @@ export class RedisConnection extends EventEmitter {
       };
     } else {
       this._client = <RedisClient>opts;
-      this.checkOptions(deprecationMessage, this._client.options);
       if (
-        (<RedisOptions>opts).maxRetriesPerRequest ||
-        (<RedisOptions>opts).enableReadyCheck
+        (<RedisOptions>this._client.options).maxRetriesPerRequest ||
+        this._client.options.enableReadyCheck
       ) {
-        console.error(deprecationMessage);
+        throw new Error(connectionErrorMessage);
       }
     }
 
