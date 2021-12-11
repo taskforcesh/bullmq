@@ -798,10 +798,10 @@
     "@types/minimatch" "*"
     "@types/node" "*"
 
-"@types/ioredis@^4.27.4":
-  version "4.27.4"
-  resolved "https://registry.yarnpkg.com/@types/ioredis/-/ioredis-4.27.4.tgz#2caf9d0222640c9d7ce278fca2f9892c1323f9c8"
-  integrity sha512-uTAA/woL//GxXQI1e9FuUoDZCpP8yn5LXQdea1IEFyLtb8GP2w3HfOE+SqglF6QSAp/3cZLWzrMhHqWSYI3bfg==
+"@types/ioredis@^4.28.2":
+  version "4.28.2"
+  resolved "https://registry.yarnpkg.com/@types/ioredis/-/ioredis-4.28.2.tgz#7ff68944cbb58afefb2a1d8b250ebf48760e93c9"
+  integrity sha512-kOCG4ExodOAoslFjsUzwAK1fxqVRx3JX5m7lm3MkWf5WkDwNTtXBtlBig6cQyFwS7P7TPaTWRreQaMwl7e1FFA==
   dependencies:
     "@types/node" "*"
 
@@ -3354,10 +3354,10 @@ into-stream@^6.0.0:
     from2 "^2.3.0"
     p-is-promise "^3.0.0"
 
-ioredis@^4.27.9:
-  version "4.27.9"
-  resolved "https://registry.yarnpkg.com/ioredis/-/ioredis-4.27.9.tgz#c27bbade9724f0b8f84c279fb1d567be785ba33d"
-  integrity sha512-hAwrx9F+OQ0uIvaJefuS3UTqW+ByOLyLIV+j0EH8ClNVxvFyH9Vmb08hCL4yje6mDYT5zMquShhypkd50RRzkg==
+ioredis@^4.28.2:
+  version "4.28.2"
+  resolved "https://registry.yarnpkg.com/ioredis/-/ioredis-4.28.2.tgz#493ccd5d869fd0ec86c96498192718171f6c9203"
+  integrity sha512-kQ+Iv7+c6HsDdPP2XUHaMv8DhnSeAeKEwMbaoqsXYbO+03dItXt7+5jGQDRyjdRUV2rFJbzg7P4Qt1iX2tqkOg==
   dependencies:
     cluster-key-slot "^1.1.0"
     debug "^4.3.1"
