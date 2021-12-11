@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static moveToActive<T, R, N extends string>(worker: Worker<T, R, N>, token: string, jobId?: string): Promise<[] | [number, undefined] | [JobJsonRaw, string]>;
+static moveToActive<T, R, N extends string>(worker: Worker<T, R, N>, token: string, jobId?: string): Promise<[] | [number | JobJsonRaw, string?]>;
 ```
 
 ## Parameters
@@ -20,5 +20,5 @@ static moveToActive<T, R, N extends string>(worker: Worker<T, R, N>, token: stri
 
 <b>Returns:</b>
 
-Promise&lt;\[\] \| \[number, undefined\] \| \[[JobJsonRaw](./bullmq.jobjsonraw.md)<!-- -->, string\]&gt;
+Promise&lt;\[\] \| \[number \| [JobJsonRaw](./bullmq.jobjsonraw.md)<!-- -->, string?\]&gt;
 

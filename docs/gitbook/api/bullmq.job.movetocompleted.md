@@ -9,7 +9,7 @@ Moves a job to the completed queue. Returned job to be used with Queue.prototype
 <b>Signature:</b>
 
 ```typescript
-moveToCompleted(returnValue: ReturnType, token: string, fetchNext?: boolean): Promise<[JobJsonRaw, string] | []>;
+moveToCompleted(returnValue: ReturnType, token: string, fetchNext?: boolean): Promise<JobData | []>;
 ```
 
 ## Parameters
@@ -22,7 +22,7 @@ moveToCompleted(returnValue: ReturnType, token: string, fetchNext?: boolean): Pr
 
 <b>Returns:</b>
 
-Promise&lt;\[[JobJsonRaw](./bullmq.jobjsonraw.md)<!-- -->, string\] \| \[\]&gt;
+Promise&lt;[JobData](./bullmq.jobdata.md) \| \[\]&gt;
 
 Returns the jobData of the next job in the waiting queue.
 
