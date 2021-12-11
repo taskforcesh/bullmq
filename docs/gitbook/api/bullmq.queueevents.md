@@ -11,11 +11,9 @@ This class requires a dedicated redis connection.
 <b>Signature:</b>
 
 ```typescript
-export declare class QueueEvents extends QueueBase implements QueueEventsDeclaration 
+export declare class QueueEvents extends QueueBase 
 ```
 <b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
-
-<b>Implements:</b> [QueueEventsDeclaration](./bullmq.queueeventsdeclaration.md)
 
 ## Constructors
 
@@ -28,5 +26,9 @@ export declare class QueueEvents extends QueueBase implements QueueEventsDeclara
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
 |  [close()](./bullmq.queueevents.close.md) |  |  |
+|  [emit(event, args)](./bullmq.queueevents.emit.md) |  |  |
+|  [off(eventName, listener)](./bullmq.queueevents.off.md) |  |  |
+|  [on(event, listener)](./bullmq.queueevents.on.md) |  |  |
+|  [once(event, listener)](./bullmq.queueevents.once.md) |  |  |
 |  [run()](./bullmq.queueevents.run.md) |  |  |
 

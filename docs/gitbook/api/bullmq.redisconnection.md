@@ -33,7 +33,6 @@ export declare class RedisConnection extends EventEmitter
 |  [close()](./bullmq.redisconnection.close.md) |  |  |
 |  [disconnect()](./bullmq.redisconnection.disconnect.md) |  |  |
 |  [loadCommands()](./bullmq.redisconnection.loadcommands.md) |  |  |
-|  [loadIncludes()](./bullmq.redisconnection.loadincludes.md) |  |  |
 |  [reconnect()](./bullmq.redisconnection.reconnect.md) |  |  |
 |  [waitUntilReady(client)](./bullmq.redisconnection.waituntilready.md) | <code>static</code> | Waits for a redis client to be ready. |
 

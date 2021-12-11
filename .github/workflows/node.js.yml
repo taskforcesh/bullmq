@@ -47,7 +47,10 @@ jobs:
         node-version: [10.x, 12.x, 14.x, 16.x]
 
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout repository and submodules
+        uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - uses: actions/download-artifact@v2
         with:
           name: my-artifact

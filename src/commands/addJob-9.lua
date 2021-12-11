@@ -56,7 +56,7 @@ local parentQueueKey
 local parentData
 
 -- Includes
-<%= destructureJobKey %>
+--- @include "includes/destructureJobKey"
 
 if parentKey ~= nil then
   if rcall("EXISTS", parentKey) ~= 1 then
@@ -74,7 +74,7 @@ end
 local jobCounter = rcall("INCR", KEYS[4])
 
 -- Includes
-<%= updateParentDepsIfNeeded %>
+--- @include "includes/updateParentDepsIfNeeded"
 
 local parentDependenciesKey = args[7]
 if args[2] == "" then
@@ -95,7 +95,7 @@ else
       end
       rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
     end
-    return jobId .. "" -- convert to string        
+    return jobId .. "" -- convert to string
   end
 end
 

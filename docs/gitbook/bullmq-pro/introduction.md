@@ -8,5 +8,8 @@ There is a growing number of features that will be implemented in BullMQ Pro, yo
 
 
 
+### Pricing
 
+BullMQ Pro is licensed per organization with unlimited use on any projects. The current price is 95$/mo or 950$/year. You can try it for free by generating a new token on the "BullMQ Pro" tab in your account:
 
+![](<../.gitbook/assets/image (2).png>)

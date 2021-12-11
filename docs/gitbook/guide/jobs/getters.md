@@ -20,7 +20,7 @@ const counts = await myQueue.getJobCounts('wait', 'completed', 'failed');
 // Returns an object like this { wait: number, completed: number, failed: number }
 ```
 
-The available status are: _completed, failed, delayed, active, wait, paused _and_ repeat._
+The available status are: _completed, failed, delayed, active, wait, paused_ and _repeat._
 
 #### Get Jobs
 
