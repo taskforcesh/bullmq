@@ -80,7 +80,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`,
+            queueKey: `bull:${parentQueueName}`,
           },
         },
       },
@@ -90,7 +90,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`,
+            queueKey: `bull:${parentQueueName}`,
           },
         },
       },

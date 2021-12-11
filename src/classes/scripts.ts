@@ -43,9 +43,10 @@ export type MinimalQueue = Pick<
 >;
 
 export type ParentOpts = {
+  id?: string;
+  queueKey?: string;
   waitChildrenKey?: string;
   parentDependenciesKey?: string;
-  parentKey?: string;
 };
 
 export class Scripts {
@@ -71,9 +72,10 @@ export class Scripts {
     opts: JobsOptions,
     jobId: string,
     parentOpts: ParentOpts = {
-      parentKey: null,
-      waitChildrenKey: null,
+      id: null,
+      queueKey: null,
       parentDependenciesKey: null,
+      waitChildrenKey: null,
     },
   ): Promise<string> {
     const queueKeys = queue.keys;
@@ -94,7 +96,8 @@ export class Scripts {
       typeof jobId !== 'undefined' ? jobId : '',
       job.name,
       job.timestamp,
-      parentOpts.parentKey || null,
+      parentOpts.id || null,
+      parentOpts.queueKey || null,
       parentOpts.waitChildrenKey || null,
       parentOpts.parentDependenciesKey || null,
     ];
@@ -125,7 +128,11 @@ export class Scripts {
     const result = await (<any>client).addJob(keys);
 
     if (result < 0) {
-      throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
+      throw this.finishedErrors(
+        result,
+        getParentKey({ id: parentOpts.id, queueKey: parentOpts.queueKey }),
+        'addJob',
+      );
     }
 
     return result;
@@ -229,9 +236,8 @@ export class Scripts {
       queueKeys[''],
       token,
       opts.lockDuration,
-      job.opts?.parent?.id,
-      job.opts?.parent?.queue,
-      job.parentKey,
+      job?.parent?.id,
+      job?.parent?.queueKey,
     ];
 
     return keys.concat(args);

@@ -47,23 +47,30 @@ local function removeJob( prefix, jobId)
     -- Check if this job has a parent. If so we will just remove it from
     -- the parent child list, but if it is the last child we should move the parent to "wait/paused"
     -- which requires code from "moveToFinished"
-    local parentKey = rcall("HGET", jobKey, "parentKey")
-    if( (type(parentKey) == "string") and parentKey ~= "" and (rcall("EXISTS", parentKey) == 1)) then
+    local parent = rcall("HGET", jobKey, "parent")
+    local parentData
+    local parentKey
+
+    if type(parent) == "string" then
+        parentData = cjson.decode(parent)
+        parentKey = parentData['queueKey'] .. ":" .. parentData['id']
+    end
+    if( parentData ~= nil and (rcall("EXISTS", parentKey) == 1)) then
         local parentDependenciesKey = parentKey .. ":dependencies"
         local result = rcall("SREM", parentDependenciesKey, jobKey)
-        if rcall("SCARD", parentDependenciesKey) == 0 then
-            local parentId = getJobIdFromKey(parentKey)
-            local parentPrefix = getJobKeyPrefix(parentKey, parentId)
+        if rcall("SCARD", parentDependenciesKey) == 0 then 
+            local parentId = parentData['id']
+            local parentQueueKey = parentData['queueKey']
 
-            rcall("ZREM", parentPrefix .. "waiting-children", parentId)
+            rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
 
-            if rcall("HEXISTS", parentPrefix .. "meta", "paused") ~= 1 then
-                rcall("RPUSH", parentPrefix .. "wait", parentId)
+            if rcall("HEXISTS", parentQueueKey .. ":meta", "paused") ~= 1 then
+                rcall("RPUSH", parentQueueKey .. ":wait", parentId)
             else
-                rcall("RPUSH", parentPrefix .. "parentPrefixpaused", parentId)
+                rcall("RPUSH", parentQueueKey .. ":parentPrefixpaused", parentId)
             end
 
-            local parentEventStream = parentPrefix .. "events"
+            local parentEventStream = parentQueueKey .. ":events"
             rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
         end
     end

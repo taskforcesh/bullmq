@@ -2173,19 +2173,19 @@ describe('workers', function () {
         await Job.create(queue, 'testJob1', values[0], {
           parent: {
             id: parent.id,
-            queue: 'bull:' + parentQueueName,
+            queueKey: 'bull:' + parentQueueName,
           },
         });
         await Job.create(queue, 'testJob2', values[1], {
           parent: {
             id: parent.id,
-            queue: 'bull:' + parentQueueName,
+            queueKey: 'bull:' + parentQueueName,
           },
         });
         await Job.create(queue, 'testJob3', values[2], {
           parent: {
             id: parent.id,
-            queue: 'bull:' + parentQueueName,
+            queueKey: 'bull:' + parentQueueName,
           },
         });
         const { unprocessed: unprocessed1 } = await parent.getDependencies();
@@ -2207,7 +2207,7 @@ describe('workers', function () {
           {
             child: {
               id: child3.id,
-              queue: 'bull:' + queueName,
+              queueKey: 'bull:' + queueName,
             },
           },
         );
@@ -2291,7 +2291,7 @@ describe('workers', function () {
           await Job.create(queue, 'testJob1', values[0], {
             parent: {
               id: parent.id,
-              queue: 'bull:' + parentQueueName,
+              queueKey: 'bull:' + parentQueueName,
             },
           });
           const { unprocessed: unprocessed1 } = await parent.getDependencies();
@@ -2306,7 +2306,7 @@ describe('workers', function () {
           await parent.moveToWaitingChildren(parentToken, {
             child: {
               id: child1.id,
-              queue: 'bull:' + queueName,
+              queueKey: 'bull:' + queueName,
             },
           });
           const waitingChildren = await parentQueue.getWaitingChildren();
@@ -2319,7 +2319,7 @@ describe('workers', function () {
             parent.moveToWaitingChildren(parentToken, {
               child: {
                 id: child1.id,
-                queue: 'bull:' + queueName,
+                queueKey: 'bull:' + queueName,
               },
             }),
           ).to.be.rejectedWith(
@@ -2361,7 +2361,7 @@ describe('workers', function () {
             {
               parent: {
                 id: parent.id,
-                queue: 'bull:' + parentQueueName,
+                queueKey: 'bull:' + parentQueueName,
               },
             },
           );

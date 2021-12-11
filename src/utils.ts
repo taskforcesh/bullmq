@@ -99,9 +99,9 @@ export async function removeAllQueueData(
   });
 }
 
-export function getParentKey(opts: { id: string; queue: string }): string {
+export function getParentKey(opts: { id: string; queueKey: string }): string {
   if (opts) {
-    return `${opts.queue}:${opts.id}`;
+    return `${opts.queueKey}:${opts.id}`;
   }
 }
 
