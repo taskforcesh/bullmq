@@ -52,6 +52,7 @@ export interface JobJsonRaw {
   stacktrace: string[];
   returnvalue: string;
   parentKey?: string;
+  parent?: string;
 }
 
 export interface MoveToChildrenOpts {
@@ -126,6 +127,7 @@ export class Job<
    * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
   parentKey?: string;
+  parent?: { id: string; queueKey: string };
 
   protected toKey: (type: string) => string;
 
@@ -162,6 +164,10 @@ export class Job<
     this.opts.backoff = Backoffs.normalize(opts.backoff);
 
     this.parentKey = getParentKey(opts.parent);
+
+    this.parent = opts.parent
+      ? { id: opts.parent.id, queueKey: opts.parent.queue }
+      : undefined;
 
     this.toKey = queue.toKey.bind(queue);
   }
@@ -279,6 +285,10 @@ export class Job<
 
     if (json.parentKey) {
       job.parentKey = json.parentKey;
+    }
+
+    if (json.parent) {
+      job.parent = JSON.parse(json.parent);
     }
 
     return job;
