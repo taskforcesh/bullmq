@@ -52,8 +52,8 @@ export class RedisConnection extends EventEmitter {
       this._client = <RedisClient>opts;
       this.checkOptions(deprecationMessage, this._client.options);
       if (
-        (<RedisOptions>this._client.options).maxRetriesPerRequest ||
-        this._client.options.enableReadyCheck
+        (<RedisOptions>this._client.options)?.maxRetriesPerRequest ||
+        this._client.options?.enableReadyCheck
       ) {
         console.error(deprecationMessage);
       }
