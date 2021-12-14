@@ -56,9 +56,6 @@ export class RedisConnection extends EventEmitter {
       }
 
       this.checkOptions(deprecationMessage, options);
-      if (((<IORedis.RedisOptions>options)?.maxRetriesPerRequest || options.enableReadyCheck)) {
-        console.error(deprecationMessage);
-      }
     }
 
     this.handleClientError = (err: Error): void => {
