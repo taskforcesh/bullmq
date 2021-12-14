@@ -69,10 +69,10 @@ export class RedisConnection extends EventEmitter {
     this.initializing.catch(err => this.emit('error', err));
   }
 
-  private checkOptions(msg: string, options?: RedisOptions) {
+  private checkOptions(msg: string, options?: IORedis.RedisOptions) {
     if (
       options &&
-      ((<IORedis.RedisOptions>options)?.maxRetriesPerRequest || options.enableReadyCheck)
+      (options.maxRetriesPerRequest || options.enableReadyCheck)
     ) {
       console.error(msg);
     }
