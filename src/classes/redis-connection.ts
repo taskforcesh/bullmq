@@ -50,13 +50,12 @@ export class RedisConnection extends EventEmitter {
       };
     } else {
       this._client = <RedisClient>opts;
-      this.checkOptions(deprecationMessage, this._client.options);
-      if (
-        (<RedisOptions>this._client.options).maxRetriesPerRequest ||
-        this._client.options.enableReadyCheck
-      ) {
-        console.error(deprecationMessage);
+      let options = this._client.options;
+      if((<IORedis.ClusterOptions>options)?.redisOptions){
+        options = (<IORedis.ClusterOptions>options).redisOptions;
       }
+
+      this.checkOptions(deprecationMessage, options);
     }
 
     this.handleClientError = (err: Error): void => {
@@ -67,8 +66,11 @@ export class RedisConnection extends EventEmitter {
     this.initializing.catch(err => this.emit('error', err));
   }
 
-  private checkOptions(msg: string, options?: RedisOptions) {
-    if (options && (options.maxRetriesPerRequest || options.enableReadyCheck)) {
+  private checkOptions(msg: string, options?: IORedis.RedisOptions) {
+    if (
+      options &&
+      (options.maxRetriesPerRequest || options.enableReadyCheck)
+    ) {
       console.error(msg);
     }
   }
