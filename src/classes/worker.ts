@@ -519,7 +519,6 @@ export class Worker<
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
-      console.error(err);
       return handleFailed(<Error>err);
     } finally {
       stopTimer();
