@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-export declare type RedisOptions = BaseRedisOptions & {
+export declare type RedisOptions = (BaseRedisOptions | ClusterOptions) & {
     skipVersionCheck?: boolean;
 };
 ```
