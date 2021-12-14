@@ -50,11 +50,13 @@ export class RedisConnection extends EventEmitter {
       };
     } else {
       this._client = <RedisClient>opts;
-      this.checkOptions(deprecationMessage, this._client.options);
-      if (
-        ((<IORedis.RedisOptions>this._client.options)?.maxRetriesPerRequest || this._client.options.enableReadyCheck) &&
-        ((<IORedis.ClusterOptions>this._client.options)?.redisOptions.maxRetriesPerRequest || (<IORedis.ClusterOptions>this._client.options)?.redisOptions.enableReadyCheck)
-      ) {
+      let options = this._client.options;
+      if((<IORedis.ClusterOptions>options)?.redisOptions){
+        options = (<IORedis.ClusterOptions>options).redisOptions;
+      }
+
+      this.checkOptions(deprecationMessage, options);
+      if (((<IORedis.RedisOptions>options)?.maxRetriesPerRequest || options.enableReadyCheck)) {
         console.error(deprecationMessage);
       }
     }
@@ -70,8 +72,7 @@ export class RedisConnection extends EventEmitter {
   private checkOptions(msg: string, options?: RedisOptions) {
     if (
       options &&
-      ((<IORedis.RedisOptions>options)?.maxRetriesPerRequest || options.enableReadyCheck) &&
-      ((<IORedis.ClusterOptions>options)?.redisOptions.maxRetriesPerRequest || (<IORedis.ClusterOptions>options)?.redisOptions.enableReadyCheck)
+      ((<IORedis.RedisOptions>options)?.maxRetriesPerRequest || options.enableReadyCheck)
     ) {
       console.error(msg);
     }
