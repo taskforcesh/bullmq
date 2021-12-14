@@ -98,7 +98,7 @@ export class ChildProcessor {
     });
   }
 
-  public async start(jobJson: JobJson) {
+  public async start(jobJson: JobJson): Promise<void> {
     if (this.status !== ChildStatus.Idle) {
       return childSend(process, {
         cmd: ParentCommand.Error,
@@ -141,11 +141,11 @@ export class ChildProcessor {
 // https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
 if (!('toJSON' in Error.prototype)) {
   Object.defineProperty(Error.prototype, 'toJSON', {
-    value: function() {
+    value: function () {
       const alt: any = {};
       const _this = this;
 
-      Object.getOwnPropertyNames(_this).forEach(function(key) {
+      Object.getOwnPropertyNames(_this).forEach(function (key) {
         alt[key] = _this[key];
       }, this);
 
@@ -180,6 +180,13 @@ function wrapJob(job: JobJson): SandboxedJob {
   };
 
   const progress = (progress?: number | object) => {
+    console.warn(
+      [
+        'BullMQ: DEPRECATION WARNING! progress function in sandboxed processor is deprecated. This will',
+        'be removed in the next major release, you should use updateProgress method instead.',
+      ].join(' '),
+    );
+
     if (progress) {
       return updateProgress(progress);
     } else {

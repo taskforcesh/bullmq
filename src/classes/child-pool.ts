@@ -144,12 +144,12 @@ export class ChildPool {
    *
    * @param child
    */
-  release(child: ChildProcessExt) {
+  release(child: ChildProcessExt): void {
     delete this.retained[child.pid];
     this.getFree(child.processFile).push(child);
   }
 
-  remove(child: ChildProcessExt) {
+  remove(child: ChildProcessExt): void {
     delete this.retained[child.pid];
 
     const free = this.getFree(child.processFile);
@@ -160,12 +160,15 @@ export class ChildPool {
     }
   }
 
-  async kill(child: ChildProcess, signal: 'SIGTERM' | 'SIGKILL' = 'SIGKILL') {
+  async kill(
+    child: ChildProcess,
+    signal: 'SIGTERM' | 'SIGKILL' = 'SIGKILL',
+  ): Promise<void> {
     this.remove(child);
     await killAsync(child, signal, CHILD_KILL_TIMEOUT);
   }
 
-  async clean() {
+  async clean(): Promise<void> {
     const children = Object.values(this.retained).concat(this.getAllFree());
     this.retained = {};
     this.free = {};
@@ -177,7 +180,7 @@ export class ChildPool {
     return (this.free[id] = this.free[id] || []);
   }
 
-  getAllFree() {
+  getAllFree(): ChildProcessExt[] {
     return flatten(Object.values(this.free));
   }
 }

@@ -15,7 +15,7 @@ import {
 } from '../utils';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
-import { MinimalQueue, ParentOpts, Scripts } from './scripts';
+import { MinimalQueue, ParentOpts, Scripts, JobData } from './scripts';
 import { fromPairs } from 'lodash';
 
 const logger = debuglog('bull');
@@ -52,6 +52,7 @@ export interface JobJsonRaw {
   stacktrace: string[];
   returnvalue: string;
   parentKey?: string;
+  parent?: string;
 }
 
 export interface MoveToChildrenOpts {
@@ -80,16 +81,19 @@ export class Job<
 > {
   /**
    * The progress a job has performed so far.
+   * @defaultValue 0
    */
   progress: number | object = 0;
 
   /**
    * The value returned by the processor when processing this job.
+   * @defaultValue null
    */
   returnvalue: ReturnType = null;
 
   /**
    * Stacktrace for the error (for failed jobs).
+   * @defaultValue null
    */
   stacktrace: string[] = null;
 
@@ -100,6 +104,7 @@ export class Job<
 
   /**
    * Number of attempts after the job has failed.
+   * @defaultValue 0
    */
   attemptsMade = 0;
 
@@ -122,6 +127,7 @@ export class Job<
    * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
   parentKey?: string;
+  parent?: { id: string; queueKey: string };
 
   protected toKey: (type: string) => string;
 
@@ -159,6 +165,10 @@ export class Job<
 
     this.parentKey = getParentKey(opts.parent);
 
+    this.parent = opts.parent
+      ? { id: opts.parent.id, queueKey: opts.parent.queue }
+      : undefined;
+
     this.toKey = queue.toKey.bind(queue);
   }
 
@@ -176,7 +186,7 @@ export class Job<
     name: N,
     data: T,
     opts?: JobsOptions,
-  ) {
+  ): Promise<Job<T, R, N>> {
     const client = await queue.client;
 
     const job = new this<T, R, N>(queue, name, data, opts, opts && opts.jobId);
@@ -275,6 +285,10 @@ export class Job<
 
     if (json.parentKey) {
       job.parentKey = json.parentKey;
+    }
+
+    if (json.parent) {
+      job.parent = JSON.parse(json.parent);
     }
 
     return job;
@@ -402,7 +416,7 @@ export class Job<
     returnValue: ReturnType,
     token: string,
     fetchNext = true,
-  ): Promise<[JobJsonRaw, string] | []> {
+  ): Promise<JobData | []> {
     await this.queue.waitUntilReady();
 
     this.returnvalue = returnValue || void 0;
@@ -776,8 +790,8 @@ export class Job<
       const completedEvent = `completed:${jobId}`;
       const failedEvent = `failed:${jobId}`;
 
-      queueEvents.on(completedEvent, onCompleted);
-      queueEvents.on(failedEvent, onFailed);
+      queueEvents.on(completedEvent as any, onCompleted);
+      queueEvents.on(failedEvent as any, onFailed);
       this.queue.on('closing', onFailed);
 
       const removeListeners = () => {

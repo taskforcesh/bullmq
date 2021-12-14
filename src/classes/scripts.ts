@@ -48,6 +48,8 @@ export type ParentOpts = {
   parentKey?: string;
 };
 
+export type JobData = [JobJsonRaw | number, string?];
+
 export class Scripts {
   static async isJobInList(
     queue: MinimalQueue,
@@ -131,7 +133,7 @@ export class Scripts {
     return result;
   }
 
-  static async pause(queue: MinimalQueue, pause: boolean) {
+  static async pause(queue: MinimalQueue, pause: boolean): Promise<void> {
     const client = await queue.client;
 
     let src = 'wait',
@@ -237,7 +239,7 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async moveToFinished(
+  private static async moveToFinished(
     queue: MinimalQueue,
     job: Job,
     val: any,
@@ -246,7 +248,7 @@ export class Scripts {
     target: string,
     token: string,
     fetchNext: boolean,
-  ): Promise<[JobJsonRaw, string] | []> {
+  ): Promise<JobData | []> {
     const client = await queue.client;
     const args = this.moveToFinishedArgs(
       queue,
@@ -318,7 +320,7 @@ export class Scripts {
     removeOnComplete: boolean | number,
     token: string,
     fetchNext: boolean,
-  ): Promise<[JobJsonRaw, string] | []> {
+  ): Promise<JobData | []> {
     return this.moveToFinished(
       queue,
       job,
@@ -623,13 +625,16 @@ export class Scripts {
     const opts = worker.opts;
 
     const queueKeys = worker.keys;
-    const keys = [queueKeys.wait, queueKeys.active, queueKeys.priority];
-
-    keys[3] = queueKeys.events;
-    keys[4] = queueKeys.stalled;
-    keys[5] = queueKeys.limiter;
-    keys[6] = queueKeys.delayed;
-    keys[7] = queueKeys.delay;
+    const keys = [
+      queueKeys.wait,
+      queueKeys.active,
+      queueKeys.priority,
+      queueKeys.events,
+      queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.delay,
+    ];
 
     const args: (string | number | boolean)[] = [
       queueKeys[''],
@@ -727,7 +732,7 @@ export class Scripts {
   static async obliterate(
     queue: MinimalQueue,
     opts: { force: boolean; count: number },
-  ) {
+  ): Promise<number> {
     const client = await queue.client;
 
     const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];
@@ -777,7 +782,10 @@ export class Scripts {
   */
 }
 
-function raw2jobData(raw: any[]): [JobJsonRaw, string] | [] {
+export function raw2jobData(raw: any[]): [JobJsonRaw | number, string?] | [] {
+  if (typeof raw === 'number') {
+    return [raw, void 0] as [number, undefined];
+  }
   if (raw) {
     const jobData = raw[0];
     if (jobData.length) {
