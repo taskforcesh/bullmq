@@ -51,18 +51,30 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
+local parentId
+local parentQueueKey
+local parentData
+
+-- Includes
+--- @include "includes/destructureJobKey"
 
 if parentKey ~= nil then
   if rcall("EXISTS", parentKey) ~= 1 then
     return -5
   end
+
+  parentId = getJobIdFromKey(parentKey)
+  parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
+  local parent = {}
+  parent['id'] = parentId
+  parent['queueKey'] = parentQueueKey
+  parentData = cjson.encode(parent)
 end
 
 local jobCounter = rcall("INCR", KEYS[4])
 
 -- Includes
 --- @include "includes/updateParentDepsIfNeeded"
---- @include "includes/destructureJobKey"
 
 local parentDependenciesKey = args[7]
 if args[2] == "" then
@@ -75,15 +87,13 @@ else
     if parentKey ~= nil then
       if rcall("ZSCORE", KEYS[7], jobId) ~= false then
         local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
-        local parentId = getJobIdFromKey(parentKey)
-        local parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
         updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue)
       else
         if parentDependenciesKey ~= nil then
           rcall("SADD", parentDependenciesKey, jobIdKey)
         end
       end
-      rcall("HMSET", jobIdKey, "parentKey", parentKey)
+      rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
     end
     return jobId .. "" -- convert to string
   end
@@ -96,10 +106,10 @@ local priority = opts['priority'] or 0
 local timestamp = args[4]
 
 if parentKey ~= nil then
-    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-        "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey)
+  rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+    "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey, "parent", parentData)
 else
-    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+  rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
     "timestamp", timestamp, "delay", delay, "priority", priority )
 end
 

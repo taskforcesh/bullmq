@@ -112,6 +112,10 @@ describe('flows', () => {
 
     expect(children[0].job.id).to.be.ok;
     expect(children[0].job.data.foo).to.be.eql('bar');
+    expect(children[0].job.parent).to.deep.equal({
+      id: job.id,
+      queueKey: `bull:${parentQueueName}`,
+    });
     expect(children[1].job.id).to.be.ok;
     expect(children[1].job.data.foo).to.be.eql('baz');
     expect(children[2].job.id).to.be.ok;
@@ -1569,6 +1573,15 @@ describe('flows', () => {
       expect(await tree.children[1].children[0].job.getState()).to.be.equal(
         'waiting',
       );
+
+      for (let i = 0; i < tree.children.length; i++) {
+        const child = tree.children[i];
+        const childJob = await Job.fromId(queue, child.job.id);
+        expect(childJob.parent).to.deep.equal({
+          id: tree.job.id,
+          queueKey: `bull:${parentQueueName}`,
+        });
+      }
 
       await tree.job.remove();
 

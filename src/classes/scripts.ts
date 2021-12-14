@@ -48,6 +48,8 @@ export type ParentOpts = {
   parentKey?: string;
 };
 
+export type JobData = [JobJsonRaw | number, string?];
+
 export class Scripts {
   static async isJobInList(
     queue: MinimalQueue,
@@ -237,7 +239,7 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async moveToFinished(
+  private static async moveToFinished(
     queue: MinimalQueue,
     job: Job,
     val: any,
@@ -246,7 +248,7 @@ export class Scripts {
     target: string,
     token: string,
     fetchNext: boolean,
-  ): Promise<[JobJsonRaw, string] | []> {
+  ): Promise<JobData | []> {
     const client = await queue.client;
     const args = this.moveToFinishedArgs(
       queue,
@@ -318,7 +320,7 @@ export class Scripts {
     removeOnComplete: boolean | number,
     token: string,
     fetchNext: boolean,
-  ): Promise<[JobJsonRaw, string] | []> {
+  ): Promise<JobData | []> {
     return this.moveToFinished(
       queue,
       job,
@@ -780,7 +782,10 @@ export class Scripts {
   */
 }
 
-function raw2jobData(raw: any[]): [JobJsonRaw, string] | [] {
+export function raw2jobData(raw: any[]): [JobJsonRaw | number, string?] | [] {
+  if (typeof raw === 'number') {
+    return [raw, void 0] as [number, undefined];
+  }
   if (raw) {
     const jobData = raw[0];
     if (jobData.length) {
