@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { JobsOptions, RepeatOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
+import { Scripts } from './scripts';
 
 const parser = require('cron-parser');
 
@@ -124,14 +125,10 @@ export class Repeat extends QueueBase {
       jobId || repeat.jobId,
     );
 
-    const queueKey = this.keys[''];
-
-    return (<any>client).removeRepeatable(
-      this.keys.repeat,
-      this.keys.delayed,
+    return Scripts.removeRepeatable(
+      this,
       repeatJobId,
       repeatJobKey,
-      queueKey,
     );
   }
 
@@ -148,12 +145,10 @@ export class Repeat extends QueueBase {
       data.id,
     );
 
-    return (<any>client).removeRepeatable(
-      this.keys.repeat,
-      this.keys.delayed,
+    return Scripts.removeRepeatable(
+      this,
       repeatJobId,
       repeatJobKey,
-      queueKey,
     );
   }
 
