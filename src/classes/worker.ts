@@ -354,8 +354,14 @@ export class Worker<
   }
 
   protected async moveToActive(token: string, jobId?: string) {
-    const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
-    return this.nextJobFromJobData(jobData, id);
+    try {
+      const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
+      return await this.nextJobFromJobData(jobData, id);
+    } catch (error) {
+      if (isNotConnectionError(<Error>error)) {
+        this.emit('error', error);
+      }
+    }
   }
 
   private async waitForJob() {
@@ -514,7 +520,6 @@ export class Worker<
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
-      console.error(err);
       return handleFailed(<Error>err);
     } finally {
       stopTimer();

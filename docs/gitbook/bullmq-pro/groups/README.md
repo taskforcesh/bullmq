@@ -4,9 +4,9 @@ Groups allows you to use only one queue yet distribute the jobs among groups so 
 
 For example, imagine that you have 1 queue for processing video transcoding for all your users, you may have thousands of users in your application. You need to offload the transcoding operation since it is lengthy and CPU consuming. If you have many users that want to transcode many files, then in a non-grouped queue one user could fill the queue with jobs and the rest of the users will need to wait for that user to complete all its jobs before their jobs get processed.
 
-Groups resolves this problem since jobs will be processed in a "[round-robin](https://en.wikipedia.org/wiki/Round-robin_item_allocation)" fashion among all the users.&#x20;
+Groups resolves this problem since jobs will be processed in a "[round-robin](https://en.wikipedia.org/wiki/Round-robin\_item\_allocation)" fashion among all the users.
 
-![](<../.gitbook/assets/image (1).png>)
+![](<../../.gitbook/assets/image (1).png>)
 
 If you have several workers or a concurrency factor larger than one, jobs will be processed in parallel, but they will be picked up from the groups as mentioned before following a round-robin ordering.
 

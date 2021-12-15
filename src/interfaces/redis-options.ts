@@ -1,6 +1,6 @@
-import { Redis, RedisOptions as BaseRedisOptions, Cluster } from 'ioredis';
+import { Redis, RedisOptions as BaseRedisOptions, ClusterOptions, Cluster } from 'ioredis';
 
-export type RedisOptions = BaseRedisOptions & {
+export type RedisOptions = (BaseRedisOptions | ClusterOptions) & {
   skipVersionCheck?: boolean;
 };
 
