@@ -111,12 +111,10 @@ export interface WorkerListener {
  *
  */
 export class Worker<
-    DataType = any,
-    ResultType = any,
-    NameType extends string = string,
-  >
-  extends QueueBase
-{
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
+> extends QueueBase {
   opts: WorkerOptions;
 
   private drained: boolean;
@@ -167,7 +165,7 @@ export class Worker<
         ? (<Redis>opts.connection).duplicate()
         : opts.connection,
     );
-    this.blockingConnection.on('error', (error) => this.emit('error', error));
+    this.blockingConnection.on('error', error => this.emit('error', error));
 
     if (processor) {
       if (typeof processor === 'function') {
