@@ -27,24 +27,34 @@ import { TimerManager } from './timer-manager';
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-export interface WorkerDeclaration {
+export interface WorkerListener {
   /**
    * Listen to 'active' event.
    *
    * This event is triggered when a job enters the 'active' state.
-   *
-   * @param event -
    */
-  on(event: 'active', listener: (job: Job, prev: string) => void): this;
+  active: (job: Job, prev: string) => void;
+
+  /**
+   * Listen to 'closing' event.
+   *
+   * This event is triggered when the worker is closed.
+   */
+  closed: () => void;
+
+  /**
+   * Listen to 'closing' event.
+   *
+   * This event is triggered when the worker is closing.
+   */
+  closing: (msg: string) => void;
 
   /**
    * Listen to 'completed' event.
    *
    * This event is triggered when a job has successfully completed.
-   *
-   * @param event -
    */
-  on(event: 'completed', listener: (job: Job) => void): this;
+  completed: (job: Job, result: any, prev: string) => void;
 
   /**
    * Listen to 'drained' event.
@@ -52,28 +62,29 @@ export interface WorkerDeclaration {
    * This event is triggered when the queue has drained the waiting list.
    * Note that there could still be delayed jobs waiting their timers to expire
    * and this event will still be triggered as long as the waiting list has emptied.
-   *
-   * @param event -
    */
-  on(event: 'drained', listener: () => void): this;
+  drained: () => void;
 
   /**
    * Listen to 'error' event.
    *
    * This event is triggered when an error is throw.
-   *
-   * @param event -
    */
-  on(event: 'error', listener: (failedReason: Error) => void): this;
+  error: (failedReason: Error) => void;
 
   /**
    * Listen to 'failed' event.
    *
    * This event is triggered when a job has thrown an exception.
-   *
-   * @param event -
    */
-  on(event: 'failed', listener: (job: Job, error: Error) => void): this;
+  failed: (job: Job, error: Error, prev: string) => void;
+
+  /**
+   * Listen to 'paused' event.
+   *
+   * This event is triggered when the queue is paused.
+   */
+  paused: () => void;
 
   /**
    * Listen to 'progress' event.
@@ -82,14 +93,15 @@ export interface WorkerDeclaration {
    * Job##updateProgress() method is called. This is useful to notify
    * progress or any other data from within a processor to the rest of the
    * world.
-   *
-   * @param event -
    */
-  on(
-    event: 'progress',
-    listener: (job: Job, progress: number | object) => void,
-  ): this;
-  on(event: string, listener: Function): this;
+  progress: (job: Job, progress: number | object) => void;
+
+  /**
+   * Listen to 'resumed' event.
+   *
+   * This event is triggered when the queue is resumed.
+   */
+  resumed: () => void;
 }
 
 /**
@@ -99,13 +111,10 @@ export interface WorkerDeclaration {
  *
  */
 export class Worker<
-    DataType = any,
-    ResultType = any,
-    NameType extends string = string,
-  >
-  extends QueueBase
-  implements WorkerDeclaration
-{
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
+> extends QueueBase {
   opts: WorkerOptions;
 
   private drained: boolean;
@@ -156,7 +165,7 @@ export class Worker<
         ? (<Redis>opts.connection).duplicate()
         : opts.connection,
     );
-    this.blockingConnection.on('error', this.emit.bind(this, 'error'));
+    this.blockingConnection.on('error', error => this.emit('error', error));
 
     if (processor) {
       if (typeof processor === 'function') {
@@ -194,6 +203,37 @@ export class Worker<
     }
 
     this.on('error', err => console.error(err));
+  }
+
+  emit<U extends keyof WorkerListener>(
+    event: U,
+    ...args: Parameters<WorkerListener[U]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  off<U extends keyof WorkerListener>(
+    eventName: U,
+    listener: WorkerListener[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof WorkerListener>(
+    event: U,
+    listener: WorkerListener[U],
+  ): this {
+    super.on(event, listener);
+    return this;
+  }
+
+  once<U extends keyof WorkerListener>(
+    event: U,
+    listener: WorkerListener[U],
+  ): this {
+    super.once(event, listener);
+    return this;
   }
 
   protected callProcessJob(
@@ -364,7 +404,7 @@ export class Worker<
       return await this.nextJobFromJobData(jobData, id);
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
-        this.emit('error', error);
+        this.emit('error', <Error>error);
       }
     }
   }
@@ -394,7 +434,7 @@ export class Worker<
       );
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
-        this.emit('error', error);
+        this.emit('error', <Error>error);
       }
       await this.delay();
     } finally {
@@ -508,10 +548,10 @@ export class Worker<
 
     const handleFailed = async (err: Error) => {
       try {
-        const failed = await job.moveToFailed(err, token);
+        await job.moveToFailed(err, token);
         this.emit('failed', job, err, 'active');
       } catch (err) {
-        this.emit('error', err);
+        this.emit('error', <Error>err);
         // It probably means that the job has lost the lock before completion
         // The QueueScheduler will (or already has) moved the job back
         // to the waiting list (as stalled)
