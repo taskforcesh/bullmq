@@ -150,6 +150,38 @@ export class Scripts {
     return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
 
+  static removeRepeatableArgs(
+    queue: MinimalQueue,
+    repeatJobId: string,
+    repeatJobKey: string,
+  ) {
+    const queueKeys = queue.keys;
+
+    const keys = [
+      queueKeys.repeat,
+      queueKeys.delayed,
+    ];
+
+    const args = [
+      repeatJobId,
+      repeatJobKey,
+      queueKeys[''],
+    ];
+
+    return keys.concat(args);
+  }
+
+  static async removeRepeatable(queue: MinimalQueue, repeatJobId: string, repeatJobKey: string): Promise<void> {
+    const client = await queue.client;
+    const args = this.removeRepeatableArgs(
+      queue,
+      repeatJobId,
+      repeatJobKey
+    );
+
+    return (<any>client).removeRepeatable(args);
+  }
+
   static async remove(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
