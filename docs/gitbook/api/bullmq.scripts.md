@@ -38,6 +38,8 @@ export declare class Scripts
 |  [pause(queue, pause)](./bullmq.scripts.pause.md) | <code>static</code> |  |
 |  [promote(queue, jobId)](./bullmq.scripts.promote.md) | <code>static</code> |  |
 |  [remove(queue, jobId)](./bullmq.scripts.remove.md) | <code>static</code> |  |
+|  [removeRepeatable(queue, repeatJobId, repeatJobKey)](./bullmq.scripts.removerepeatable.md) | <code>static</code> |  |
+|  [removeRepeatableArgs(queue, repeatJobId, repeatJobKey)](./bullmq.scripts.removerepeatableargs.md) | <code>static</code> |  |
 |  [reprocessJob(queue, job, state)](./bullmq.scripts.reprocessjob.md) | <code>static</code> | Attempts to reprocess a job |
 |  [retryJobArgs(queue, job)](./bullmq.scripts.retryjobargs.md) | <code>static</code> |  |
 |  [updateDelaySet(queue, delayedTimestamp)](./bullmq.scripts.updatedelayset.md) | <code>static</code> |  |
