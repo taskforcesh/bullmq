@@ -115,8 +115,6 @@ export class Repeat extends QueueBase {
   }
 
   async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {
-    const client = await this.client;
-
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
     const repeatJobId = getRepeatJobId(
       name,
@@ -133,10 +131,7 @@ export class Repeat extends QueueBase {
   }
 
   async removeRepeatableByKey(repeatJobKey: string) {
-    const client = await this.client;
-
     const data = this.keyToData(repeatJobKey);
-    const queueKey = this.keys[''];
 
     const repeatJobId = getRepeatJobId(
       data.name,
