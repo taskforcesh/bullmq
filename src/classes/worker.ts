@@ -162,7 +162,7 @@ export class Worker<
         this.processFn = processor;
       } else {
         // SANDBOXED
-        const supportedFileTypes = ['.js', '.ts', '.flow'];
+        const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs', '.mjs'];
         const processorFile =
           processor +
           (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');

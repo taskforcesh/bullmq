@@ -25,7 +25,7 @@ export class ChildProcessor {
   public async init(processorFile: string): Promise<void> {
     let processor;
     try {
-      processor = require(processorFile);
+      processor = await import(processorFile);
     } catch (err) {
       this.status = ChildStatus.Errored;
       return childSend(process, {
