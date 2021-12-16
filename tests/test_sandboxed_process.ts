@@ -14,7 +14,7 @@ import { delay, removeAllQueueData } from '../src/utils';
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 const { stdout, stderr } = require('test-console');
 
-describe.only('sandboxed process', () => {
+describe('sandboxed process', () => {
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -144,7 +144,7 @@ describe.only('sandboxed process', () => {
     });
   });
 
-  it.only('should process with named processor', async () => {
+  it('should process with named processor', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor.js';
     const worker = new Worker(queueName, processFile, {
       connection,
