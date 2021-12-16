@@ -49,7 +49,9 @@
 
 * [Introduction](bullmq-pro/introduction.md)
 * [Install](bullmq-pro/install.md)
-* [Groups](bullmq-pro/groups.md)
+* [Observables](bullmq-pro/observables.md)
+* [Groups](bullmq-pro/groups/README.md)
+  * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
 
 ## Bull
 
