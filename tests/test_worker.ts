@@ -654,7 +654,10 @@ describe('workers', function () {
 
   describe('when sharing a redis connection between workers', function () {
     it('should not close the connection', async () => {
-      const connection = new IORedis();
+      const connection = new IORedis({
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+      });
 
       return new Promise((resolve, reject) => {
         connection.on('ready', async () => {
