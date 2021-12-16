@@ -21,6 +21,7 @@ export interface JobJsonRaw
 |  [id](./bullmq.jobjsonraw.id.md) | string |  |
 |  [name](./bullmq.jobjsonraw.name.md) | string |  |
 |  [opts](./bullmq.jobjsonraw.opts.md) | string |  |
+|  [parent?](./bullmq.jobjsonraw.parent.md) | string | <i>(Optional)</i> |
 |  [parentKey?](./bullmq.jobjsonraw.parentkey.md) | string | <i>(Optional)</i> |
 |  [processedOn?](./bullmq.jobjsonraw.processedon.md) | string | <i>(Optional)</i> |
 |  [progress](./bullmq.jobjsonraw.progress.md) | string |  |

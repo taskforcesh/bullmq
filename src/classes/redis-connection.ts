@@ -48,9 +48,14 @@ export class RedisConnection extends EventEmitter {
       };
     } else {
       this._client = <RedisClient>opts;
+      let options = this._client.options;
+      if((<IORedis.ClusterOptions>options)?.redisOptions){
+        options = (<IORedis.ClusterOptions>options).redisOptions;
+      }
+
       if (
-        (<RedisOptions>this._client.options).maxRetriesPerRequest ||
-        this._client.options.enableReadyCheck
+        (<IORedis.RedisOptions>options).maxRetriesPerRequest ||
+        options.enableReadyCheck
       ) {
         throw new Error(connectionErrorMessage);
       }
@@ -64,8 +69,11 @@ export class RedisConnection extends EventEmitter {
     this.initializing.catch(err => this.emit('error', err));
   }
 
-  private checkOptions(msg: string, options?: RedisOptions) {
-    if (options && (options.maxRetriesPerRequest || options.enableReadyCheck)) {
+  private checkOptions(msg: string, options?: IORedis.RedisOptions) {
+    if (
+      options &&
+      (options.maxRetriesPerRequest || options.enableReadyCheck)
+    ) {
       console.error(msg);
     }
   }
