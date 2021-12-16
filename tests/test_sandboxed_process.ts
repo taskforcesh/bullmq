@@ -174,7 +174,7 @@ describe('sandboxed process', () => {
     await completing;
   });
 
-  it('should process and complete (CommonJS)', async() => {
+  it('should process and complete (CommonJS)', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor.cjs';
     const worker = new Worker(queueName, processFile, {
       connection,
@@ -204,7 +204,7 @@ describe('sandboxed process', () => {
     await completing;
   });
 
-  it('should process and complete (ESM)', async() => {
+  it('should process and complete (ESM)', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor.mjs';
     const worker = new Worker(queueName, processFile, {
       connection,
