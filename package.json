@@ -20,9 +20,9 @@
   ],
   "scripts": {
     "build": "npm-run-all tsc:all copy:lua copy:includes:lua clean:temp:files",
-    "clean:temp:files": "rimraf dist/bullmq.d.ts dist/tsdoc-metadata.json",
-    "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
-    "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/commands/includes",
+    "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
+    "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/cjs/commands && copyfiles -f ./src/commands/*.lua ./dist/esm/commands",
+    "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/cjs/commands/includes && copyfiles -f ./src/commands/includes/*.lua ./dist/esm/commands/includes",
     "coverage": "nyc --reporter=text npm run test",
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
     "cm": "git cz",
