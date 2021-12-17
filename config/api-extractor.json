@@ -1,4 +1,3 @@
-
 {
   "$schema": "https://developer.microsoft.com/json-schemas/api-extractor/v7/api-extractor.schema.json",
 
@@ -43,7 +42,7 @@
    *
    * SUPPORTED TOKENS: <projectFolder>, <packageName>, <unscopedPackageName>
    */
-  "mainEntryPointFilePath": "<projectFolder>/dist/index.d.ts",
+  "mainEntryPointFilePath": "<projectFolder>/dist/esm/index.d.ts",
 
   /**
    * A list of NPM package names whose exports should be treated as part of this package.
