@@ -90,7 +90,7 @@ export class ChildPool {
   free: { [key: string]: ChildProcessExt[] } = {};
 
   constructor(
-    private masterFile = path.join(process.cwd(), 'dist/classes/master.js'),
+    private masterFile = path.join(process.cwd(), 'dist/cjs/classes/master.js'),
   ) {}
 
   async retain(processFile: string): Promise<ChildProcessExt> {

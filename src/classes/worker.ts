@@ -185,7 +185,7 @@ export class Worker<
         try {
           fs.statSync(masterFile); // would throw if file not exists
         } catch (_) {
-          masterFile = path.join(process.cwd(), 'dist/classes/master.js');
+          masterFile = path.join(process.cwd(), 'dist/cjs/classes/master.js');
           fs.statSync(masterFile);
         }
 
