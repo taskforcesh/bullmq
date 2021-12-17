@@ -25,7 +25,7 @@ worker.on('failed', (job: Job, failedReason: string) => {
   console.error('worker fail painting',job, failedReason, new Date());
 });
 
-// Add only one job that will be delayed at least 5 seconds.
+// Add only one job that will be delayed at least 1 second.
 myQueue.add('house', { color: 'white' }, { delay: 1000, jobId: "house" });
 myQueue.add('house', { color: 'white' }, { delay: 1000, jobId: "house" });
 myQueue.add('house', { color: 'white' }, { delay: 1000, jobId: "house" });
