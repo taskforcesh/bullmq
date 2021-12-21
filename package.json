@@ -107,7 +107,7 @@
     "test-console": "^2.0.0",
     "ts-mocha": "^8.0.0",
     "ts-node": "^8.10.2",
-    "typescript": "^4.5.2"
+    "typescript": "3.9.10"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",
