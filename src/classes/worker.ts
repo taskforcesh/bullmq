@@ -309,6 +309,7 @@ export class Worker<
           while (!this.closing) {
             if (processing.size < opts.concurrency) {
               const token = tokens.pop();
+
               processing.set(
                 this.retryIfFailed<Job<any, any, string>>(
                   () => this.getNextJob(token),
@@ -399,14 +400,8 @@ export class Worker<
   }
 
   protected async moveToActive(token: string, jobId?: string) {
-    try {
-      const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
-      return await this.nextJobFromJobData(jobData, id);
-    } catch (error) {
-      if (isNotConnectionError(<Error>error)) {
-        this.emit('error', <Error>error);
-      }
-    }
+    const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
+    return this.nextJobFromJobData(jobData, id);
   }
 
   private async waitForJob() {
@@ -694,6 +689,7 @@ export class Worker<
       try {
         return await fn();
       } catch (err) {
+        this.emit('error', <Error>err);
         if (delayInMs) {
           await delay(delayInMs);
         } else {
