@@ -42,6 +42,8 @@
     "test": "ts-mocha -p tsconfig-cjs.json --config ./.mocharc.js",
     "test:watch": "ts-mocha -p tsconfig-cjs.json --paths 'tests/test_*.ts' -w --watch-extensions ts",
     "tsc": "tsc",
+    "transform:commands": "node ./commandTransform.js ./commands ./src/commands",
+    "transform:includes": "node ./commandTransform.js ./commands/includes ./src/commands/includes",
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
