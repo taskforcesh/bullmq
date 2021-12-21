@@ -1,3 +1,9 @@
+import { ScriptLoader } from './script-loader';
+export { ScriptMetadata, Command, ScriptLoaderError } from './script-loader';
+
+const scriptLoader = new ScriptLoader();
+
+export { ScriptLoader, scriptLoader };
 export * from './backoffs';
 export * from './job';
 export * from './queue-base';

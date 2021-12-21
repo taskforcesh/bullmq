@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+/*import { expect } from 'chai';
 import * as path from 'path';
 import * as sinon from 'sinon';
 import {
@@ -9,7 +9,7 @@ import {
 import { RedisConnection } from '../src/classes';
 import { RedisClient } from '../src/interfaces';
 
-describe('scriptLoader', () => {
+describe.skip('scriptLoader', () => {
   let loader: ScriptLoader;
 
   function getRootPath() {
@@ -382,3 +382,4 @@ describe('scriptLoader', () => {
     });
   });
 });
+*/
