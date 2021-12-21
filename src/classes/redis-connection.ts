@@ -41,7 +41,7 @@ export class RedisConnection extends EventEmitter {
       this.opts = {
         port: 6379,
         host: '127.0.0.1',
-        retryStrategy: function(times: number) {
+        retryStrategy: function (times: number) {
           return Math.min(Math.exp(times), 20000);
         },
         ...opts,
@@ -51,7 +51,7 @@ export class RedisConnection extends EventEmitter {
     } else {
       this._client = <RedisClient>opts;
       let options = this._client.options;
-      if((<IORedis.ClusterOptions>options)?.redisOptions){
+      if ((<IORedis.ClusterOptions>options)?.redisOptions) {
         options = (<IORedis.ClusterOptions>options).redisOptions;
       }
 
@@ -67,10 +67,7 @@ export class RedisConnection extends EventEmitter {
   }
 
   private checkOptions(msg: string, options?: IORedis.RedisOptions) {
-    if (
-      options &&
-      (options.maxRetriesPerRequest || options.enableReadyCheck)
-    ) {
+    if (options && (options.maxRetriesPerRequest || options.enableReadyCheck)) {
       console.error(msg);
     }
   }
@@ -121,7 +118,13 @@ export class RedisConnection extends EventEmitter {
   }
 
   protected loadCommands(): Promise<void> {
-    return scriptLoader.load(this._client, path.join(__dirname, '../commands'));
+    return (
+      (<any>this._client)['bullmq:loadingCommands'] ||
+      ((<any>this._client)['bullmq:loadingCommands'] = scriptLoader.load(
+        this._client,
+        path.join(__dirname, '../commands'),
+      ))
+    );
   }
 
   private async init() {
