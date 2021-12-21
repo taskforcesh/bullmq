@@ -388,7 +388,7 @@ export class ScriptLoader {
     client: RedisClient,
     extraCommands?: Record<string, { content: string; keys?: number }>,
     extraIncludes?: Record<string, { content: string }>,
-  ): Promise<void> {
+  ): void {
     const scripts = this.loadScripts(extraCommands, extraIncludes);
     scripts.forEach((command: Command) => {
       // Only define the command if not already defined

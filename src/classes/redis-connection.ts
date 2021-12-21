@@ -117,7 +117,7 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(): Promise<void> {
+  protected loadCommands(): void {
     return scriptLoader.load(
       this._client /*path.join(__dirname, '../commands')*/,
     );
