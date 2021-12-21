@@ -25,6 +25,7 @@ export * from './pause-4';
 export * from './promote-5';
 export * from './releaseLock-1';
 export * from './removeJob-1';
+export * from './removeRepeatable-2';
 export * from './reprocessJob-4';
 export * from './retryJob-4';
 export * from './takeLock-1';
