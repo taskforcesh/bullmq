@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Adds a job to the queue by doing the following:
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
@@ -177,3 +177,9 @@ local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents")
 if (maxEvents) then rcall("XTRIM", KEYS[8], "MAXLEN", "~", maxEvents) end
 
 return jobId .. "" -- convert to string
+`;
+
+export const addJob = {
+  content,
+  keys: 9,
+};

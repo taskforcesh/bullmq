@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Drains the queue, removes all jobs that are waiting
   or delayed, but not active, completed or failed
 
@@ -34,3 +34,9 @@ end
 rcall("DEL", KEYS[1])
 rcall("DEL", KEYS[2])
 rcall("DEL", KEYS[4])
+`;
+
+export const drain = {
+  content,
+  keys: 4,
+};

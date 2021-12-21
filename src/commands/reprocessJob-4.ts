@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Attempts to reprocess a job
 
   Input:
@@ -30,3 +30,9 @@ if (rcall("EXISTS", KEYS[1]) == 1) then
 else
   return -1
 end
+`;
+
+export const reprocessJob = {
+  content,
+  keys: 4,
+};

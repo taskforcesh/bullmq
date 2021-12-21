@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Move stalled jobs to wait.
 
     Input:
@@ -110,3 +110,9 @@ local maxEvents = rcall("HGET", KEYS[6], "opts.maxLenEvents")
 if maxEvents then rcall("XTRIM", KEYS[8], "MAXLEN", "~", maxEvents) end
 
 return {failed, stalled}
+`;
+
+export const moveStalledJobsToWait = {
+  content,
+  keys: 8,
+};

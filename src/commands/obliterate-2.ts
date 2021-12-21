@@ -1,4 +1,4 @@
---[[
+const content = `--[[
     Completely obliterates a queue and all of its contents
      Input:
 
@@ -15,7 +15,7 @@
 
 -- The queue needs to be "paused" or it will return an error
 -- If the queue has currently active jobs then the script by default will return error,
--- however this behaviour can be overrided using the `force` option.
+-- however this behaviour can be overrided using the 'force' option.
 local maxCount = tonumber(ARGV[1])
 local baseKey = KEYS[2]
 
@@ -127,3 +127,9 @@ if(maxCount > 0) then
 else
     return 1
 end
+`;
+
+export const obliterate = {
+  content,
+  keys: 2,
+};

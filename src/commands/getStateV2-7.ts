@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Get a job state
 
   Input: 
@@ -49,3 +49,9 @@ if redis.call("ZSCORE", KEYS[7] , ARGV[1]) ~= false then
 end
 
 return "unknown"
+`;
+
+export const getStateV2 = {
+  content,
+  keys: 7,
+};

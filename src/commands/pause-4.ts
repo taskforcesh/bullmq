@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Pauses or resumes a queue globably.
 
    Input:
@@ -25,3 +25,9 @@ else
 end
 
 rcall("XADD", KEYS[4], "*", "event", ARGV[1]);
+`;
+
+export const pause = {
+  content,
+  keys: 4,
+};

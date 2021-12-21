@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Remove jobs from the specific set.
 
   Input:
@@ -63,3 +63,9 @@ end
 rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", deletedCount)
 
 return deleted
+`;
+
+export const cleanJobsInSet = {
+  content,
+  keys: 2,
+};

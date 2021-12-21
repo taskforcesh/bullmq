@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Updates the delay set, by picking a delayed job that should
   be processed now.
 
@@ -71,3 +71,9 @@ if (nextTimestamp ~= nil) then
 end
 
 return {nextTimestamp, id}
+`;
+
+export const updateDelaySet = {
+  content,
+  keys: 7,
+};

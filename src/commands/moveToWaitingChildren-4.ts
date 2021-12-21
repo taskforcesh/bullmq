@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Moves job from active to waiting children set.
 
   Input:
@@ -58,3 +58,9 @@ if rcall("EXISTS", KEYS[4]) == 1 then
 end
 
 return -1
+`;
+
+export const moveToWaitingChildren = {
+  content,
+  keys: 4,
+};

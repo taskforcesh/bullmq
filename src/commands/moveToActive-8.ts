@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Move next job to be processed to active, lock it and fetch its data. The job
   may be delayed, in that case we need to move it to the delayed set instead.
 
@@ -98,3 +98,9 @@ if jobId then
 else
   rcall("XADD", KEYS[4], "*", "event", "drained");
 end
+`;
+
+export const moveToActive = {
+  content,
+  keys: 8,
+};

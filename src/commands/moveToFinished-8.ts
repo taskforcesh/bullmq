@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Move job from active to a finished status (completed o failed)
   A job can only be moved to completed if it was active.
   The job must be locked before it can be moved to a finished status,
@@ -105,7 +105,8 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     if removeJobs ~= 1 then
         -- Add to complete/failed set
         rcall("ZADD", KEYS[2], ARGV[2], jobId)
-        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", ARGV[2]) -- "returnvalue" / "failedReason" and "finishedOn"
+        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn",
+        ARGV[2]) -- "returnvalue" / "failedReason" and "finishedOn"
 
         -- Remove old jobs?
         if removeJobs and removeJobs > 1 then
@@ -157,3 +158,9 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
 else
     return -1
 end
+`;
+
+export const moveToFinished = {
+  content,
+  keys: 8,
+};

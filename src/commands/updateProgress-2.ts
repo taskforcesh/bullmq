@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Update job progress
 
      Input:
@@ -13,3 +13,9 @@
 ]]
 redis.call("HSET", KEYS[1], "progress", ARGV[2])
 redis.call("XADD", KEYS[2], "*", "event", "progress", "jobId", ARGV[1], "data", ARGV[2]);
+`;
+
+export const updateProgress = {
+  content,
+  keys: 2,
+};

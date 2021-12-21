@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Change job delay when it is in delayed set.
   Input:
     KEYS[1] delayed key
@@ -38,4 +38,9 @@ if rcall("EXISTS", KEYS[2]) == 1 then
   return 0
 else
   return -1
-end
+end`;
+
+export const changeDelay = {
+  content,
+  keys: 4,
+};

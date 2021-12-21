@@ -1,4 +1,4 @@
---[[
+const content = `--[[
     Remove a job from all the queues it may be in as well as all its data.
     In order to be able to remove a job, it cannot be active.
 
@@ -113,3 +113,9 @@ if not isLocked(prefix, ARGV[1]) then
     return 1
 end
 return 0
+`;
+
+export const removeJob = {
+  content,
+  keys: 1,
+};

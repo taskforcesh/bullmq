@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Extend lock and removes the job from the stalled set.
 
   Input:
@@ -21,3 +21,9 @@ if rcall("GET", KEYS[1]) == ARGV[1] then
   end
 end
 return 0
+`;
+
+export const extendLock = {
+  content,
+  keys: 2,
+};

@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Promotes a job that is currently "delayed" to the "waiting" state
 
      Input:
@@ -51,4 +51,9 @@ if redis.call("ZREM", KEYS[1], jobId) == 1 then
   return 0
 else
   return -3
-end
+end`;
+
+export const promote = {
+  content,
+  keys: 5,
+};

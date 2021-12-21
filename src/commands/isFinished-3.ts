@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Checks if a job is finished (.i.e. is in the completed or failed set)
 
   Input: 
@@ -46,3 +46,9 @@ if ARGV[2] == "1" then
 end
 
 return 0
+`;
+
+export const isFinished = {
+  content,
+  keys: 3,
+};

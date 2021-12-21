@@ -1,4 +1,4 @@
---[[
+const content = `--[[
       Checks if job is in a given list.
 
       Input:
@@ -18,3 +18,9 @@ local function item_in_list (list, item)
 end
 local items = redis.call("LRANGE", KEYS[1] , 0, -1)
 return item_in_list(items, ARGV[1])
+`;
+
+export const isJobInList = {
+  content,
+  keys: 1,
+};

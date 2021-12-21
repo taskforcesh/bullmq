@@ -1,8 +1,9 @@
---[[
+const content = `--[[
   Validate and move or add dependencies to parent.
 ]]
 
-local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue )
+local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
+  parentId, jobIdKey, returnvalue )
   local processedSet = parentKey .. ":processed"
   rcall("HSET", processedSet, jobIdKey, returnvalue)
   local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
@@ -17,3 +18,8 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
     rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
   end
 end
+`;
+
+export const updateParentDepsIfNeeded = {
+  content,
+};

@@ -1,4 +1,4 @@
-
+const content = `
 --[[
   Removes a repeatable job
   Input:
@@ -21,3 +21,9 @@ if(millis) then
 end
 
 rcall("ZREM", KEYS[1], ARGV[2]);
+`;
+
+export const removeRepeatable = {
+  content,
+  keys: 2,
+};

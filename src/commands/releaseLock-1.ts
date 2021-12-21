@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Release lock
 
      Input:
@@ -17,3 +17,9 @@ if rcall("GET", KEYS[1]) == ARGV[1] then
 else
   return 0
 end
+`;
+
+export const releaseLock = {
+  content,
+  keys: 1,
+};

@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Moves job from active to delayed set.
 
   Input: 
@@ -43,3 +43,9 @@ if rcall("EXISTS", KEYS[3]) == 1 then
 else
   return -1
 end
+`;
+
+export const moveToDelayed = {
+  content,
+  keys: 5,
+};

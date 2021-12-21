@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Takes a lock
 
      Input:
@@ -15,3 +15,9 @@ if redis.call("SET", KEYS[1], ARGV[1], "NX", "PX", ARGV[2]) then
 else
   return 0
 end
+`;
+
+export const takeLock = {
+  content,
+  keys: 1,
+};

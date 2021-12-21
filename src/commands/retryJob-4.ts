@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Retries a failed job by moving it back to the wait queue.
 
     Input:
@@ -32,3 +32,9 @@ if rcall("EXISTS", KEYS[3]) == 1 then
 else
   return -1
 end
+`;
+
+export const retryJob = {
+  content,
+  keys: 4,
+};

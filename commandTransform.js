@@ -35,12 +35,24 @@ const loadCommand = async (filename, file, writeDir) => {
   const writeFilenamePath = path.normalize(writeDir);
 
   const content = (await readFile(filenamePath)).toString();
-  const newContent = `const script = \`${content}\`;
 
-export default script;
+  const longName = path.basename(file, '.lua');
+  const [name, num] = longName.split('-');
+  const numberOfKeys = num && parseInt(num, 10);
+
+  const newContent = `const content = \`${content}\`;
+
+export const ${name} = {
+  content,${
+    numberOfKeys
+      ? `
+  keys: ${numberOfKeys},`
+      : ''
+  }
+};
 `;
   await writeFile(
-    path.join(writeFilenamePath, path.basename(file) + '.ts'),
+    path.join(writeFilenamePath, path.basename(file, '.lua') + '.ts'),
     newContent,
   );
 };
