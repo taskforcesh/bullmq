@@ -1,1 +1,0 @@
---- @include "includes/fixture_glob_*.lua"

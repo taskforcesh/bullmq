@@ -1,11 +1,3 @@
-/*import { ScriptLoader } from './script-loader';
-export { ScriptMetadata, Command, ScriptLoaderError } from './script-loader';
-
-const scriptLoader = new ScriptLoader();
-
-export { ScriptLoader, scriptLoader };
-*/
-
 export * from './addJob-9';
 export * from './changeDelay-4';
 export * from './cleanJobsInSet-2';

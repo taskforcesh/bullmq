@@ -23,20 +23,27 @@ const loadScripts = async (readDir, writeDir) => {
     throw new Error('No .lua files found!');
   }
 
+  let indexContent = '';
+
   for (let i = 0; i < luaFiles.length; i++) {
     const completedFilename = path.join(normalizedDir, luaFiles[i]);
+    const longName = path.basename(luaFiles[i], '.lua');
+    indexContent += `export * from './${longName}';\n`;
 
-    await loadCommand(completedFilename, luaFiles[i], writeDir);
+    await loadCommand(completedFilename, longName, writeDir);
   }
+
+  const writeFilenamePath = path.normalize(writeDir);
+
+  await writeFile(path.join(writeFilenamePath, 'index.ts'), indexContent);
 };
 
-const loadCommand = async (filename, file, writeDir) => {
+const loadCommand = async (filename, longName, writeDir) => {
   const filenamePath = path.resolve(filename);
   const writeFilenamePath = path.normalize(writeDir);
 
   const content = (await readFile(filenamePath)).toString();
 
-  const longName = path.basename(file, '.lua');
   const [name, num] = longName.split('-');
   const numberOfKeys = num && parseInt(num, 10);
 
@@ -51,10 +58,7 @@ export const ${name} = {
   }
 };
 `;
-  await writeFile(
-    path.join(writeFilenamePath, path.basename(file, '.lua') + '.ts'),
-    newContent,
-  );
+  await writeFile(path.join(writeFilenamePath, longName + '.ts'), newContent);
 };
 
 loadScripts(argv[2], argv[3]);

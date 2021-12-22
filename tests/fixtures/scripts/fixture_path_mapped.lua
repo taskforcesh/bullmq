@@ -1,5 +1,0 @@
----
---- Expects a path mapping of map-glob to be set in the test file
---- addScriptPathMapping('includes', './fixtures/scripts/includes');
----
---- @include "<includes>/math.lua"

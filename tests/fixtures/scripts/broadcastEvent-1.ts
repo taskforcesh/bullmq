@@ -1,4 +1,4 @@
---[[
+const content = `--[[
   Broadcast a message.
 
     Input:
@@ -12,3 +12,9 @@ local payload = ARGV[2]
 
 -- Emit  event
 redis.call("XADD", channel, "*", "event", event, "payload", payload);
+`;
+
+export const broadcastEvent = {
+  content,
+  keys: 1,
+};

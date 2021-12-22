@@ -1858,7 +1858,9 @@ describe('workers', function () {
       });
 
       const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', resolve);
+        worker.on('completed', (_job, _result, _prev) => {
+          resolve();
+        });
       });
 
       const retriedJob = await queue.add('test', { foo: 'bar' });
@@ -1912,7 +1914,9 @@ describe('workers', function () {
       });
 
       const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', resolve);
+        worker.on('completed', (_job, _result, _prev) => {
+          resolve();
+        });
       });
 
       const retriedJob = await queue.add('test', { foo: 'bar' });

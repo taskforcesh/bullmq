@@ -1,2 +1,0 @@
---- file: fixture_missing_include.lua
---- @include "includes/non-existent"

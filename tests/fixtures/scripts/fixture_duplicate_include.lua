@@ -1,3 +1,0 @@
---- file: fixture_duplicate_include.lua
---- @include "includes/utils"
---- @include "includes/utils"

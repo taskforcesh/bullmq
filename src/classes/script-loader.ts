@@ -1,12 +1,11 @@
 import { createHash } from 'crypto';
-import { glob, hasMagic } from 'glob';
+import * as minimatch from 'minimatch';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as commands from '../commands';
 import * as includes from '../commands/includes';
 import { RedisClient } from '../interfaces';
 
-const GlobOptions = { dot: true, silent: false };
 const IncludeRegex = /^[-]{2,3}[ \t]*@include[ \t]+(["'])(.+?)\1[; \t\n]*$/m;
 const EmptyLineRegex = /^\s*[\r\n]/gm;
 
@@ -82,7 +81,6 @@ export class ScriptLoaderError extends Error {
 
 const isPossiblyMappedPath = (path: string) =>
   path && ['~', '<'].includes(path[0]);
-const hasFilenamePattern = (path: string) => hasMagic(path, GlobOptions);
 
 /**
  * Lua script loader with include support
@@ -205,54 +203,69 @@ export class ScriptLoader {
     while ((res = IncludeRegex.exec(content)) !== null) {
       const [match, , reference] = res;
 
+      let includeMatches: string[];
+      if (!includes[reference]) {
+        includeMatches = getFilenamesByPatternSync(reference, includes);
+      } else {
+        includeMatches = [reference];
+      }
+
+      if (includeMatches.length === 0) {
+        raiseError(`include not found: "${reference}"`, match);
+      }
+
       const tokens: string[] = [];
 
       //for (const key in includes) {
-      const hasInclude = file.includes.find(
-        (x: ScriptMetadata) => x.path === reference,
-      );
 
-      if (hasInclude) {
-        /**
-         * We have something like
-         * --- \@include "a"
-         * ...
-         * --- \@include "a"
-         */
-        raiseError(
-          `file "${reference}" already included in "${file.path}"`,
-          match,
+      for (let i = 0; i < includeMatches.length; i++) {
+        const includeMatch = includeMatches[i];
+
+        const hasInclude = file.includes.find(
+          (x: ScriptMetadata) => x.path === includeMatch,
         );
-      }
 
-      let includeMetadata = this.cache.get(reference);
-      let token: string;
-
-      if (!includeMetadata) {
-        const include = includes[reference];
-        if (!include) {
-          raiseError(`include not found: "${reference}"`, match);
+        if (hasInclude) {
+          /**
+           * We have something like
+           * --- \@include "a"
+           * ...
+           * --- \@include "a"
+           */
+          raiseError(
+            `file "${reference}" already included in "${file.path}"`,
+            match,
+          );
         }
-        // this represents a normalized version of the path to make replacement easy
-        token = getPathHash(reference);
-        includeMetadata = {
-          name: reference,
-          numberOfKeys: 0,
-          path: reference,
-          content: include.content,
-          token,
-          includes: [],
-        };
-        this.cache.set(reference, includeMetadata);
-      } else {
-        token = includeMetadata.token;
+
+        let includeMetadata = this.cache.get(includeMatch);
+        let token: string;
+
+        if (!includeMetadata) {
+          const include = includes[includeMatch];
+          if (!include) {
+            raiseError(`include not found: "${reference}"`, match);
+          }
+          // this represents a normalized version of the path to make replacement easy
+          token = getPathHash(includeMatch);
+          includeMetadata = {
+            name: includeMatch,
+            numberOfKeys: 0,
+            path: includeMatch,
+            content: include.content,
+            token,
+            includes: [],
+          };
+          this.cache.set(includeMatch, includeMetadata);
+        } else {
+          token = includeMetadata.token;
+        }
+
+        tokens.push(token);
+
+        file.includes.push(includeMetadata);
+        this.resolveDependencies(includeMetadata, includes, stack);
       }
-
-      tokens.push(token);
-
-      file.includes.push(includeMetadata);
-      this.resolveDependencies(includeMetadata, includes, stack);
-      //}
 
       // Replace @includes with normalized path hashes
       const substitution = tokens.join('\n');
@@ -324,11 +337,11 @@ export class ScriptLoader {
   }
 
   loadCommand(
-    filename: string,
+    commandName: string,
     command: RawCommand,
-    includes: Record<string, RawInclude>,
+    includes: Record<string, RawInclude> = {},
   ): Command {
-    const script = this.parseScript(filename, command, includes);
+    const script = this.parseScript(commandName, command, includes);
 
     const lua = removeEmptyLines(this.interpolate(script));
     const { name, numberOfKeys } = script;
@@ -407,33 +420,11 @@ export class ScriptLoader {
   }
 }
 
-function ensureExt(filename: string, ext = 'lua'): string {
-  const foundExt = path.extname(filename);
-  if (foundExt && foundExt !== '.') {
-    return filename;
-  }
-  if (ext && ext[0] !== '.') {
-    ext = `.${ext}`;
-  }
-  return `${filename}${ext}`;
-}
-
-function splitFilename(filePath: string): {
-  name: string;
-  numberOfKeys?: number;
-} {
-  const longName = path.basename(filePath, '.lua');
-  const [name, num] = longName.split('-');
-  const numberOfKeys = num && parseInt(num, 10);
-  return { name, numberOfKeys };
-}
-
-async function getFilenamesByPattern(pattern: string): Promise<string[]> {
-  return new Promise<string[]>((resolve, reject) => {
-    glob(pattern, GlobOptions, (err, files) => {
-      return err ? reject(err) : resolve(files);
-    });
-  });
+function getFilenamesByPatternSync(
+  pattern: string,
+  includes: Record<string, RawInclude>,
+): string[] {
+  return Object.keys(includes).filter(key => minimatch(key, pattern));
 }
 
 // Determine the project root
