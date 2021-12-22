@@ -1,7 +1,5 @@
 import { createHash } from 'crypto';
 import * as minimatch from 'minimatch';
-import * as path from 'path';
-import * as fs from 'fs';
 import * as commands from '../commands';
 import * as includes from '../commands/includes';
 import { RedisClient } from '../interfaces';
@@ -79,85 +77,15 @@ export class ScriptLoaderError extends Error {
   }
 }
 
-const isPossiblyMappedPath = (path: string) =>
-  path && ['~', '<'].includes(path[0]);
-
 /**
  * Lua script loader with include support
  */
 export class ScriptLoader {
   /**
-   * Map an alias to a path
-   */
-  private pathMapper = new Map<string, string>();
-  private clientScripts = new WeakMap<RedisClient, Set<string>>();
-  /**
    * Cache commands by dir
    */
   private commandCache: Command[]; // = new Map<string, Command[]>();
   private cache = new Map<string, ScriptMetadata>();
-  private rootPath: string;
-
-  constructor() {
-    this.rootPath = getPkgJsonDir();
-    this.pathMapper.set('~', this.rootPath);
-    this.pathMapper.set('rootDir', this.rootPath);
-    this.pathMapper.set('base', __dirname);
-  }
-
-  /**
-   * Add a script path mapping. Allows includes of the form "<includes>/utils.lua" where `includes` is a user
-   * defined path
-   * @param name - the name of the mapping. Note: do not include angle brackets
-   * @param mappedPath - if a relative path is passed, it's relative to the *caller* of this function.
-   * Mapped paths are also accepted, e.g. "~/server/scripts/lua" or "<base>/includes"
-   */
-  addPathMapping(name: string, mappedPath: string): void {
-    let resolved: string;
-
-    if (isPossiblyMappedPath(mappedPath)) {
-      resolved = this.resolvePath(mappedPath);
-    } else {
-      const caller = getCallerFile();
-      const callerPath = path.dirname(caller);
-      resolved = path.normalize(path.resolve(callerPath, mappedPath));
-    }
-
-    const last = resolved.length - 1;
-    if (resolved[last] === path.sep) {
-      resolved = resolved.substr(0, last);
-    }
-
-    this.pathMapper.set(name, resolved);
-  }
-
-  /**
-   * Resolve the script path considering path mappings
-   * @param scriptName - the name of the script
-   * @param stack - the include stack, for nicer errors
-   */
-  resolvePath(scriptName: string, stack: string[] = []): string {
-    const first = scriptName[0];
-    if (first === '~') {
-      scriptName = path.join(this.rootPath, scriptName.substr(2));
-    } else if (first === '<') {
-      const p = scriptName.indexOf('>');
-      if (p > 0) {
-        const name = scriptName.substring(1, p);
-        const mappedPath = this.pathMapper.get(name);
-        if (!mappedPath) {
-          throw new ScriptLoaderError(
-            `No path mapping found for "${name}"`,
-            scriptName,
-            stack,
-          );
-        }
-        scriptName = path.join(mappedPath, scriptName.substring(p + 1));
-      }
-    }
-
-    return path.normalize(scriptName);
-  }
 
   /**
    * Recursively collect all scripts included in a file
@@ -386,10 +314,8 @@ export class ScriptLoader {
     }
 
     this.commandCache = scripts;
-    //this.commandCache.set(dir, commands);
 
     return scripts;
-    //return commands;
   }
 
   /**
@@ -425,50 +351,6 @@ function getFilenamesByPatternSync(
   includes: Record<string, RawInclude>,
 ): string[] {
   return Object.keys(includes).filter(key => minimatch(key, pattern));
-}
-
-// Determine the project root
-// https://stackoverflow.com/a/18721515
-function getPkgJsonDir(): string {
-  for (const modPath of module.paths) {
-    try {
-      const prospectivePkgJsonDir = path.dirname(modPath);
-      fs.accessSync(modPath, fs.constants.F_OK);
-      return prospectivePkgJsonDir;
-      // eslint-disable-next-line no-empty
-    } catch (e) {}
-  }
-}
-
-// https://stackoverflow.com/a/66842927
-// some dark magic here :-)
-// this version is preferred to the simpler version because of
-// https://github.com/facebook/jest/issues/5303 -
-// tldr: dont assume you're the only one with the doing something like this
-function getCallerFile() {
-  const originalFunc = Error.prepareStackTrace;
-
-  let callerFile;
-  try {
-    Error.prepareStackTrace = (_, stack) => stack;
-
-    const sites = <NodeJS.CallSite[]>(<unknown>new Error().stack);
-    const currentFile = sites.shift().getFileName();
-
-    while (sites.length) {
-      callerFile = sites.shift().getFileName();
-
-      if (currentFile !== callerFile) {
-        break;
-      }
-    }
-    // eslint-disable-next-line no-empty
-  } catch (e) {
-  } finally {
-    Error.prepareStackTrace = originalFunc;
-  }
-
-  return callerFile;
 }
 
 function sha1(data: string): string {
