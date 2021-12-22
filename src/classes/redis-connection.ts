@@ -118,8 +118,11 @@ export class RedisConnection extends EventEmitter {
   }
 
   protected loadCommands(): void {
-    return scriptLoader.load(
-      this._client /*path.join(__dirname, '../commands')*/,
+    return (
+      (<any>this._client)['bullmq:loadingCommands'] ||
+      ((<any>this._client)['bullmq:loadingCommands'] = scriptLoader.load(
+        this._client,
+      ))
     );
   }
 
