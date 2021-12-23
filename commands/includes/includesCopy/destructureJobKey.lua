@@ -1,4 +1,4 @@
-const content = `--[[
+--[[
   Functions to destructure job key.
   Just a bit of warning, these functions may be a bit slow and affect performance significantly.
 ]]
@@ -10,10 +10,3 @@ end
 local getJobKeyPrefix = function (jobKey, jobId)
   return string.sub(jobKey, 0, #jobKey - #jobId)
 end
-`;
-
-export const includes_destructureJobKey = {
-  path: 'includes/destructureJobKey',
-  name: 'destructureJobKey',
-  content,
-};

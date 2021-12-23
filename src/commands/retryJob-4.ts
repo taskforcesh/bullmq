@@ -35,6 +35,8 @@ end
 `;
 
 export const retryJob = {
+  path: 'retryJob',
+  name: 'retryJob',
   content,
   keys: 4,
 };

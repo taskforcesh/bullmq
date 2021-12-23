@@ -88,7 +88,8 @@ const loadCommand = async (
   const newContent = `const content = \`${content}\`;
 
 export const ${prefix ? `${prefix}_${name}` : name} = {
-  ref: '${pathPrefix ? `${pathPrefix}/${name}` : name}',
+  path: '${pathPrefix ? `${pathPrefix}/${name}` : name}',
+  name: '${name}',
   content,${
     numberOfKeys
       ? `

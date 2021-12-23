@@ -16,6 +16,8 @@ redis.call("XADD", KEYS[2], "*", "event", "progress", "jobId", ARGV[1], "data", 
 `;
 
 export const updateProgress = {
+  path: 'updateProgress',
+  name: 'updateProgress',
   content,
   keys: 2,
 };

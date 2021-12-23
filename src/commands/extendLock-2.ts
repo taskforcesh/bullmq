@@ -24,6 +24,8 @@ return 0
 `;
 
 export const extendLock = {
+  path: 'extendLock',
+  name: 'extendLock',
   content,
   keys: 2,
 };

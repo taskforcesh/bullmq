@@ -12,8 +12,8 @@ local getJobKeyPrefix = function (jobKey, jobId)
 end
 `;
 
-export const includes_destructureJobKey = {
-  path: 'includes/destructureJobKey',
+export const includes_includesCopy_destructureJobKey = {
+  path: 'includes/includesCopy/destructureJobKey',
   name: 'destructureJobKey',
   content,
 };

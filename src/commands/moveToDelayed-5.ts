@@ -46,6 +46,8 @@ end
 `;
 
 export const moveToDelayed = {
+  path: 'moveToDelayed',
+  name: 'moveToDelayed',
   content,
   keys: 5,
 };

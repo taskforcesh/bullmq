@@ -37,6 +37,8 @@ rcall("DEL", KEYS[4])
 `;
 
 export const drain = {
+  path: 'drain',
+  name: 'drain',
   content,
   keys: 4,
 };

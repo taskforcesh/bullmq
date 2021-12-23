@@ -52,6 +52,8 @@ return "unknown"
 `;
 
 export const getStateV2 = {
+  path: 'getStateV2',
+  name: 'getStateV2',
   content,
   keys: 7,
 };

@@ -24,6 +24,8 @@ rcall("ZREM", KEYS[1], ARGV[2]);
 `;
 
 export const removeRepeatable = {
+  path: 'removeRepeatable',
+  name: 'removeRepeatable',
   content,
   keys: 2,
 };

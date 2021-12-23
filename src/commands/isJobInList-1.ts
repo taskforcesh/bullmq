@@ -21,6 +21,8 @@ return item_in_list(items, ARGV[1])
 `;
 
 export const isJobInList = {
+  path: 'isJobInList',
+  name: 'isJobInList',
   content,
   keys: 1,
 };

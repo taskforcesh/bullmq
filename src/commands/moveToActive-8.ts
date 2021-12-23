@@ -101,6 +101,8 @@ end
 `;
 
 export const moveToActive = {
+  path: 'moveToActive',
+  name: 'moveToActive',
   content,
   keys: 8,
 };

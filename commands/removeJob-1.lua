@@ -13,7 +13,7 @@
 local rcall = redis.call
 
 -- Includes
---- @include "destructureJobKey"
+--- @include "includes/destructureJobKey"
 
 -- recursively check if there are no locks on the
 -- jobs to be removed.

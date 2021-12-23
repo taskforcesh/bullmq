@@ -42,8 +42,8 @@
 local rcall = redis.call
 
 -- Includes
---- @include "updateParentDepsIfNeeded"
---- @include "destructureJobKey"
+--- @include "includes/updateParentDepsIfNeeded"
+--- @include "includes/destructureJobKey"
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists

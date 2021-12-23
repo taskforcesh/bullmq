@@ -54,6 +54,8 @@ else
 end`;
 
 export const promote = {
+  path: 'promote',
+  name: 'promote',
   content,
   keys: 5,
 };

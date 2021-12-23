@@ -17,10 +17,11 @@ export interface Command {
 
 export interface RawInclude {
   content: string;
-  keys?: number;
+  name: string;
+  path: string;
 }
 
-export type RawCommand = RawInclude & { keys?: number };
+export type RawCommand = RawInclude & { keys: number };
 
 /**
  * Script metadata
@@ -96,12 +97,9 @@ export class ScriptLoader {
    */
   private resolveDependencies(
     file: ScriptMetadata,
-    includes: Record<string, RawInclude>,
-    //cache?: Map<string, ScriptMetadata>,
+    includes: Map<string, RawInclude>,
     stack: string[] = [],
   ): void {
-    // cache = cache ?? new Map<string, ScriptMetadata>();
-
     if (stack.includes(file.path)) {
       throw new ScriptLoaderError(
         `circular reference: "${file.path}"`,
@@ -132,7 +130,7 @@ export class ScriptLoader {
       const [match, , reference] = res;
 
       let includeMatches: string[];
-      if (!includes[reference]) {
+      if (!includes.get(reference)) {
         includeMatches = getFilenamesByPatternSync(reference, includes);
       } else {
         includeMatches = [reference];
@@ -143,8 +141,6 @@ export class ScriptLoader {
       }
 
       const tokens: string[] = [];
-
-      //for (const key in includes) {
 
       for (let i = 0; i < includeMatches.length; i++) {
         const includeMatch = includeMatches[i];
@@ -170,16 +166,16 @@ export class ScriptLoader {
         let token: string;
 
         if (!includeMetadata) {
-          const include = includes[includeMatch];
+          const include = includes.get(includeMatch);
           if (!include) {
             raiseError(`include not found: "${reference}"`, match);
           }
           // this represents a normalized version of the path to make replacement easy
           token = getPathHash(includeMatch);
           includeMetadata = {
-            name: includeMatch,
+            name: include.name,
             numberOfKeys: 0,
-            path: includeMatch,
+            path: include.path,
             content: include.content,
             token,
             includes: [],
@@ -215,14 +211,12 @@ export class ScriptLoader {
   parseScript(
     filename: string,
     command: RawCommand,
-    includes: Record<string, RawInclude>,
-    //cache?: Map<string, ScriptMetadata>,
+    includes: Map<string, RawInclude>,
   ): ScriptMetadata {
     const meta = this.cache?.get(filename);
     if (meta?.content === command.content) {
       return meta;
     }
-    //const { name, numberOfKeys } = splitFilename(filename);
     const fileInfo: ScriptMetadata = {
       path: filename,
       token: getPathHash(filename),
@@ -232,7 +226,7 @@ export class ScriptLoader {
       includes: [],
     };
 
-    this.resolveDependencies(fileInfo, includes /*, cache*/);
+    this.resolveDependencies(fileInfo, includes);
     return fileInfo;
   }
 
@@ -267,7 +261,7 @@ export class ScriptLoader {
   loadCommand(
     commandName: string,
     command: RawCommand,
-    includes: Record<string, RawInclude> = {},
+    includes: Map<string, RawInclude> = new Map(),
   ): Command {
     const script = this.parseScript(commandName, command, includes);
 
@@ -299,19 +293,32 @@ export class ScriptLoader {
     if (this.commandCache) {
       return this.commandCache;
     }
+    const mapAllCommands = new Map<string, RawCommand>();
+    const mapAllIncludes = new Map<string, RawInclude>();
+
     const scripts: Command[] = [];
-    const allCommands = {
-      ...(commands as Record<string, RawCommand>),
-      ...extraCommands,
-    };
-    const allIncludes = {
-      ...(includes as Record<string, RawInclude>),
-      ...extraIncludes,
-    };
-    for (const key in allCommands) {
-      const command = this.loadCommand(key, allCommands[key], allIncludes);
-      scripts.push(command);
+    for (const property in commands) {
+      mapAllCommands.set(
+        (commands as any)[property].path,
+        (commands as any)[property],
+      );
     }
+    for (const property in extraCommands) {
+      mapAllCommands.set(extraCommands[property].path, extraCommands[property]);
+    }
+    for (const property in includes) {
+      mapAllIncludes.set(
+        (includes as any)[property].path,
+        (includes as any)[property],
+      );
+    }
+    for (const property in extraIncludes) {
+      mapAllIncludes.set(extraIncludes[property].path, extraIncludes[property]);
+    }
+    mapAllCommands.forEach((value, key) => {
+      const command = this.loadCommand(key, value, mapAllIncludes);
+      scripts.push(command);
+    });
 
     this.commandCache = scripts;
 
@@ -325,8 +332,8 @@ export class ScriptLoader {
    */
   load(
     client: RedisClient,
-    extraCommands?: Record<string, { content: string; keys?: number }>,
-    extraIncludes?: Record<string, { content: string }>,
+    extraCommands?: Record<string, RawCommand>,
+    extraIncludes?: Record<string, RawInclude>,
   ): void {
     const scripts = this.loadScripts(extraCommands, extraIncludes);
     scripts.forEach((command: Command) => {
@@ -348,9 +355,15 @@ export class ScriptLoader {
 
 function getFilenamesByPatternSync(
   pattern: string,
-  includes: Record<string, RawInclude>,
+  includes: Map<string, RawInclude>,
 ): string[] {
-  return Object.keys(includes).filter(key => minimatch(key, pattern));
+  const filenames: string[] = [];
+  includes.forEach((value, key) => {
+    if (minimatch(key, pattern)) {
+      filenames.push(key);
+    }
+  });
+  return filenames;
 }
 
 function sha1(data: string): string {

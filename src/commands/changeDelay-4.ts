@@ -41,6 +41,8 @@ else
 end`;
 
 export const changeDelay = {
+  path: 'changeDelay',
+  name: 'changeDelay',
   content,
   keys: 4,
 };

@@ -18,6 +18,8 @@ end
 `;
 
 export const takeLock = {
+  path: 'takeLock',
+  name: 'takeLock',
   content,
   keys: 1,
 };

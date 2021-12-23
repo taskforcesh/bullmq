@@ -33,6 +33,8 @@ end
 `;
 
 export const reprocessJob = {
+  path: 'reprocessJob',
+  name: 'reprocessJob',
   content,
   keys: 4,
 };

@@ -64,6 +64,8 @@ return "unknown"
 `;
 
 export const getState = {
+  path: 'getState',
+  name: 'getState',
   content,
   keys: 7,
 };

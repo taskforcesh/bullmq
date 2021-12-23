@@ -13,7 +13,7 @@ const content = `--[[
 local rcall = redis.call
 
 -- Includes
---- @include "destructureJobKey"
+--- @include "includes/destructureJobKey"
 
 -- recursively check if there are no locks on the
 -- jobs to be removed.
@@ -116,6 +116,8 @@ return 0
 `;
 
 export const removeJob = {
+  path: 'removeJob',
+  name: 'removeJob',
   content,
   keys: 1,
 };

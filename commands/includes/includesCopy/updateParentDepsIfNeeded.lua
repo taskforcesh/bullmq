@@ -1,4 +1,4 @@
-const content = `--[[
+--[[
   Validate and move or add dependencies to parent.
 ]]
 
@@ -18,10 +18,3 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
     rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
   end
 end
-`;
-
-export const includes_updateParentDepsIfNeeded = {
-  path: 'includes/updateParentDepsIfNeeded',
-  name: 'updateParentDepsIfNeeded',
-  content,
-};

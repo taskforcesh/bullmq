@@ -28,6 +28,8 @@ rcall("XADD", KEYS[4], "*", "event", ARGV[1]);
 `;
 
 export const pause = {
+  path: 'pause',
+  name: 'pause',
   content,
   keys: 4,
 };

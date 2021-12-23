@@ -66,6 +66,8 @@ return deleted
 `;
 
 export const cleanJobsInSet = {
+  path: 'cleanJobsInSet',
+  name: 'cleanJobsInSet',
   content,
   keys: 2,
 };

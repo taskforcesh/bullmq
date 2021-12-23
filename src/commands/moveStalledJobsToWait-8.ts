@@ -113,6 +113,8 @@ return {failed, stalled}
 `;
 
 export const moveStalledJobsToWait = {
+  path: 'moveStalledJobsToWait',
+  name: 'moveStalledJobsToWait',
   content,
   keys: 8,
 };

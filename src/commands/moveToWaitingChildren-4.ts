@@ -61,6 +61,8 @@ return -1
 `;
 
 export const moveToWaitingChildren = {
+  path: 'moveToWaitingChildren',
+  name: 'moveToWaitingChildren',
   content,
   keys: 4,
 };

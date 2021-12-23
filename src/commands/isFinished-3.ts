@@ -49,6 +49,8 @@ return 0
 `;
 
 export const isFinished = {
+  path: 'isFinished',
+  name: 'isFinished',
   content,
   keys: 3,
 };

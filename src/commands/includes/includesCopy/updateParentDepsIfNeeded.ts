@@ -20,8 +20,8 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
 end
 `;
 
-export const includes_updateParentDepsIfNeeded = {
-  path: 'includes/updateParentDepsIfNeeded',
+export const includes_includesCopy_updateParentDepsIfNeeded = {
+  path: 'includes/includesCopy/updateParentDepsIfNeeded',
   name: 'updateParentDepsIfNeeded',
   content,
 };

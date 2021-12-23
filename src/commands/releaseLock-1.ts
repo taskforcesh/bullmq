@@ -20,6 +20,8 @@ end
 `;
 
 export const releaseLock = {
+  path: 'releaseLock',
+  name: 'releaseLock',
   content,
   keys: 1,
 };

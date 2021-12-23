@@ -74,6 +74,8 @@ return {nextTimestamp, id}
 `;
 
 export const updateDelaySet = {
+  path: 'updateDelaySet',
+  name: 'updateDelaySet',
   content,
   keys: 7,
 };

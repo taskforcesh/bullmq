@@ -130,6 +130,8 @@ end
 `;
 
 export const obliterate = {
+  path: 'obliterate',
+  name: 'obliterate',
   content,
   keys: 2,
 };
