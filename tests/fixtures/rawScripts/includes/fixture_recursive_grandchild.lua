@@ -1,0 +1,2 @@
+--- @include "includes/fixture_recursive_great_grandchild"
+--- file: fixture_recursive_grandchild.lua

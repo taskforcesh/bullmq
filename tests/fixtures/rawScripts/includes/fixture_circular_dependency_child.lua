@@ -1,0 +1,2 @@
+--- file: fixture_circular_dependency_child.lua
+--- @include "fixture_circular_dependency"

@@ -44,6 +44,9 @@
     "tsc": "tsc",
     "transform:commands": "node ./commandTransform.js ./commands ./src/commands",
     "transform:includes": "node ./commandTransform.js ./commands/includes ./src/commands/includes 1 includes includes",
+    "transform:test:commands": "node ./commandTransform.js ./tests/fixtures/rawScripts ./tests/fixtures/scripts",
+    "transform:test:includes": "node ./commandTransform.js ./tests/fixtures/rawScripts/includes ./tests/fixtures/scripts/includes 1 includes includes",
+    "transform:test": "npm-run-all transform:test:commands transform:test:includes",
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {

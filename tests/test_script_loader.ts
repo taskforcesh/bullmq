@@ -1,25 +1,10 @@
 import { expect } from 'chai';
 import * as sinon from 'sinon';
-import { broadcastEvent } from './fixtures/scripts/broadcastEvent-1';
-import { fixture_circular_dependency } from './fixtures/scripts/fixture_circular_dependency';
-import { fixture_duplicate_elimination } from './fixtures/scripts/fixture_duplicate_elimination';
-import { fixture_duplicate_include } from './fixtures/scripts/fixture_duplicate_include';
-import { fixture_glob_includes } from './fixtures/scripts/fixture_glob_includes';
-import { fixture_missing_include } from './fixtures/scripts/fixture_missing_include';
-import { fixture_recursive_parent } from './fixtures/scripts/fixture_recursive_parent';
-import { fixture_simple_include } from './fixtures/scripts/fixture_simple_include';
-import { fixture_simple_include_child } from './fixtures/scripts/fixture_simple_include_child';
-import { includes_fixture_circular_dependency_child } from './fixtures/scripts/includes_fixture_circular_dependency_child';
-import { includes_fixture_glob_include_1 } from './fixtures/scripts/includes_fixture_glob_include_1';
-import { includes_fixture_glob_include_2 } from './fixtures/scripts/includes_fixture_glob_include_2';
-import { includes_fixture_recursive_child } from './fixtures/scripts/includes_fixture_recursive_child';
-import { includes_fixture_recursive_grandchild } from './fixtures/scripts/includes_fixture_recursive_grandchild';
-import { includes_fixture_recursive_great_grandchild } from './fixtures/scripts/includes_fixture_recursive_great_grandchild';
-import { includes_math } from './fixtures/scripts/includes_math';
-import { includes_strings } from './fixtures/scripts/includes_strings';
-import { includes_utils } from './fixtures/scripts/includes_utils';
+import * as commands from './fixtures/scripts';
+import * as includes from './fixtures/scripts/includes';
 import {
   RawCommand,
+  RawInclude,
   ScriptLoader,
   ScriptLoaderError,
 } from '../src/classes/script-loader';
@@ -46,6 +31,13 @@ describe('scriptLoader', () => {
     return res;
   }
 
+  const setMap = (
+    map: Map<string, RawInclude | RawCommand>,
+    script: RawInclude | RawCommand,
+  ) => {
+    map.set(script.path, script);
+  };
+
   beforeEach(() => {
     loader = new ScriptLoader();
   });
@@ -56,37 +48,46 @@ describe('scriptLoader', () => {
 
   describe('when loading files', () => {
     it('handles basic includes', async () => {
+      const filteredIncludes = new Map();
+      setMap(filteredIncludes, includes.includes_fixture_simple_include_child);
+      setMap(filteredIncludes, includes.includes_math);
       const command = loader.loadCommand(
         'fixture_simple_include',
-        fixture_simple_include as RawCommand,
-        { fixture_simple_include_child, includes_math },
+        commands.fixture_simple_include as RawCommand,
+        filteredIncludes,
       );
       expect(command).to.not.eql(undefined);
     });
 
     it('removes the @include tag from the resulting script', async () => {
+      const filteredIncludes = new Map();
+      setMap(filteredIncludes, includes.includes_fixture_simple_include_child);
+      setMap(filteredIncludes, includes.includes_math);
       const command = loader.loadCommand(
         'fixture_simple_include',
-        fixture_simple_include as RawCommand,
-        { fixture_simple_include_child, includes_math },
+        commands.fixture_simple_include as RawCommand,
+        filteredIncludes,
       );
       expect(command.options.lua).to.not.have.string('@include');
     });
 
     it('interpolates a script exactly once', async () => {
+      const filteredIncludes = new Map();
+      setMap(filteredIncludes, includes.includes_fixture_recursive_grandchild);
+      setMap(
+        filteredIncludes,
+        includes.includes_fixture_recursive_great_grandchild,
+      );
+      setMap(filteredIncludes, includes.includes_math);
+      setMap(filteredIncludes, includes.includes_strings);
+      setMap(filteredIncludes, includes.includes_utils);
       const command = loader.loadCommand(
         'fixture_duplicate_elimination',
-        fixture_duplicate_elimination as RawCommand,
-        {
-          includes_fixture_recursive_grandchild,
-          includes_fixture_recursive_great_grandchild,
-          includes_math,
-          includes_strings,
-          includes_utils,
-        },
+        commands.fixture_duplicate_elimination as RawCommand,
+        filteredIncludes,
       );
-      const includes = parseIncludedFiles(command.options.lua);
-      const count = includes.reduce(
+      const parsedIncludes = parseIncludedFiles(command.options.lua);
+      const count = parsedIncludes.reduce(
         (res, include) => res + (include === 'strings.lua' ? 1 : 0),
         0,
       );
@@ -94,17 +95,21 @@ describe('scriptLoader', () => {
     });
 
     it('inserts scripts in dependency order', async () => {
+      const filteredIncludes = new Map();
+      setMap(filteredIncludes, includes.includes_fixture_recursive_child);
+      setMap(filteredIncludes, includes.includes_fixture_recursive_grandchild);
+      setMap(
+        filteredIncludes,
+        includes.includes_fixture_recursive_great_grandchild,
+      );
+      setMap(filteredIncludes, includes.includes_strings);
+
       const command = loader.loadCommand(
         'fixture_recursive_parent',
-        fixture_recursive_parent as RawCommand,
-        {
-          includes_fixture_recursive_child,
-          includes_fixture_recursive_grandchild,
-          includes_fixture_recursive_great_grandchild,
-          includes_strings,
-        },
+        commands.fixture_recursive_parent as RawCommand,
+        filteredIncludes,
       );
-      const includes = parseIncludedFiles(command.options.lua);
+      const parsedIncludes = parseIncludedFiles(command.options.lua);
 
       const expected = [
         'strings.lua',
@@ -113,23 +118,27 @@ describe('scriptLoader', () => {
         'fixture_recursive_child.lua',
         'fixture_recursive_parent.lua',
       ];
-      expect(includes).to.eql(expected);
+      expect(parsedIncludes).to.eql(expected);
     });
 
     it('handles glob patterns in @includes statement', async () => {
+      const filteredIncludes = new Map();
+      setMap(filteredIncludes, includes.includes_fixture_glob_include_1);
+      setMap(filteredIncludes, includes.includes_fixture_glob_include_2);
+
       const command = loader.loadCommand(
         'fixture_glob_includes',
-        fixture_glob_includes as RawCommand,
-        { includes_fixture_glob_include_1, includes_fixture_glob_include_2 },
+        commands.fixture_glob_includes as RawCommand,
+        filteredIncludes,
       );
-      const includes = parseIncludedFiles(command.options.lua);
+      const parsedIncludes = parseIncludedFiles(command.options.lua);
 
       const expected = [
         'fixture_glob_include_1.lua',
         'fixture_glob_include_2.lua',
       ];
       expected.forEach(include => {
-        expect(includes).to.include(include);
+        expect(parsedIncludes).to.include(include);
       });
     });
 
@@ -139,7 +148,7 @@ describe('scriptLoader', () => {
       try {
         loader.loadCommand(
           'fixture_missing_include',
-          fixture_missing_include as RawCommand,
+          commands.fixture_missing_include as RawCommand,
         );
       } catch (err) {
         error = <ScriptLoaderError>err;
@@ -151,16 +160,19 @@ describe('scriptLoader', () => {
     });
 
     it('detects circular dependencies', async () => {
+      const filteredIncludes = new Map();
+      setMap(
+        filteredIncludes,
+        includes.includes_fixture_circular_dependency_child,
+      );
+      setMap(filteredIncludes, commands.fixture_circular_dependency);
       let didThrow = false;
       let error: ScriptLoaderError;
       try {
         loader.loadCommand(
           'fixture_circular_dependency',
-          fixture_circular_dependency as RawCommand,
-          {
-            includes_fixture_circular_dependency_child,
-            fixture_circular_dependency,
-          },
+          commands.fixture_circular_dependency as RawCommand,
+          filteredIncludes,
         );
       } catch (err) {
         error = <ScriptLoaderError>err;
@@ -169,18 +181,22 @@ describe('scriptLoader', () => {
 
       expect(didThrow).to.eql(true);
       expect(error.includes).to.include(
-        'includes_fixture_circular_dependency_child',
+        'includes/fixture_circular_dependency_child',
       );
     });
 
     it('prevents multiple includes of a file in a single script', async () => {
+      const filteredIncludes = new Map();
+      setMap(filteredIncludes, includes.includes_utils);
+      setMap(filteredIncludes, includes.includes_strings);
+      setMap(filteredIncludes, includes.includes_math);
       let didThrow = false;
       let error: ScriptLoaderError;
       try {
         loader.loadCommand(
           'fixture_duplicate_include',
-          fixture_duplicate_include as RawCommand,
-          { includes_utils, includes_strings, includes_math },
+          commands.fixture_duplicate_include as RawCommand,
+          filteredIncludes,
         );
       } catch (err) {
         error = <ScriptLoaderError>err;
@@ -188,7 +204,7 @@ describe('scriptLoader', () => {
       }
 
       expect(didThrow).to.eql(true);
-      expect(error.message).to.have.string('includes_utils');
+      expect(error.message).to.have.string('includes/utils');
     });
   });
 
@@ -208,11 +224,12 @@ describe('scriptLoader', () => {
     });
 
     it('properly sets commands on the instance', async () => {
-      loader.load(client, { broadcastEvent });
+      loader.load(client, { broadcastEvent: commands.broadcastEvent });
       expect((client as any).broadcastEvent).to.not.be.undefined;
     });
 
     it('sets commands on a client only once', async () => {
+      const { broadcastEvent } = commands;
       sinon.spy(loader, 'loadScripts');
       loader.load(client, { broadcastEvent });
       loader.load(client, { broadcastEvent });

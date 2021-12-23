@@ -1,0 +1,2 @@
+--- file: fixture_simple_include.lua
+--- @include "includes/fixture_simple_include_child"

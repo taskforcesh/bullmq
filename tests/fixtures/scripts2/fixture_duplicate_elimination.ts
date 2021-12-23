@@ -3,13 +3,11 @@ const content = `---
 --- We include multiple scripts which directly or
 --- transitively include "strings.lua". It should only be included once
 ---
---- @include "includes/fixture_recursive_grandchild"
---- @include "includes/utils"
---- @include "includes/strings"
+--- @include "includes_fixture_recursive_grandchild"
+--- @include "includes_utils"
+--- @include "includes_strings"
 `;
 
 export const fixture_duplicate_elimination = {
-  path: 'fixture_duplicate_elimination',
-  name: 'fixture_duplicate_elimination',
   content,
 };

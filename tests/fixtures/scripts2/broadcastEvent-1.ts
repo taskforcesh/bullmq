@@ -15,8 +15,6 @@ redis.call("XADD", channel, "*", "event", event, "payload", payload);
 `;
 
 export const broadcastEvent = {
-  path: 'broadcastEvent',
-  name: 'broadcastEvent',
   content,
   keys: 1,
 };
