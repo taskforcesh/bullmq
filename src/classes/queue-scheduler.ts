@@ -7,13 +7,20 @@ import { array2obj, isRedisInstance } from '../utils';
 import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
 
-export interface QueueSchedulerDeclaration {
-  on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
-  on(
-    event: 'failed',
-    listener: (jobId: string, failedReason: Error, prev: string) => void,
-  ): this;
-  on(event: string, listener: Function): this;
+export interface QueueSchedulerListener {
+  /**
+   * Listen to 'stalled' event.
+   *
+   * This event is triggered when a job gets stalled.
+   */
+  stalled: (jobId: string, prev: string) => void;
+
+  /**
+   * Listen to 'failed' event.
+   *
+   * This event is triggered when a job has thrown an exception.
+   */
+  failed: (jobId: string, failedReason: Error, prev: string) => void;
 }
 
 /**
@@ -32,10 +39,7 @@ export interface QueueSchedulerDeclaration {
  * jobs, etc, will not work correctly or at all.
  *
  */
-export class QueueScheduler
-  extends QueueBase
-  implements QueueSchedulerDeclaration
-{
+export class QueueScheduler extends QueueBase {
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
   private running = false;
@@ -63,6 +67,37 @@ export class QueueScheduler
         console.error(error);
       });
     }
+  }
+
+  emit<U extends keyof QueueSchedulerListener>(
+    event: U,
+    ...args: Parameters<QueueSchedulerListener[U]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  off<U extends keyof QueueSchedulerListener>(
+    eventName: U,
+    listener: QueueSchedulerListener[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof QueueSchedulerListener>(
+    event: U,
+    listener: QueueSchedulerListener[U],
+  ): this {
+    super.on(event, listener);
+    return this;
+  }
+
+  once<U extends keyof QueueSchedulerListener>(
+    event: U,
+    listener: QueueSchedulerListener[U],
+  ): this {
+    super.once(event, listener);
+    return this;
   }
 
   async run(): Promise<void> {
