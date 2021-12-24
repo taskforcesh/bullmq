@@ -447,7 +447,7 @@ describe('repeat', function () {
   });
 
   it('should repeat once a day for 5 days', async function () {
-    this.timeout(100000);
+    this.timeout(120000);
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
