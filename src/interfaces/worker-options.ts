@@ -21,6 +21,7 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @see {@link https://docs.bullmq.io/guide/rate-limiting}
    */
   limiter?: RateLimiterOptions;
+  name?: string;
   skipDelayCheck?: boolean;
   drainDelay?: number;
   lockDuration?: number;

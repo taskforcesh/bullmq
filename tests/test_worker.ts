@@ -36,47 +36,69 @@ describe('workers', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should get all workers for this queue', async function () {
-    const worker = new Worker(queueName, async job => {}, { connection });
-    await worker.waitUntilReady();
-    worker.run();
-    await delay(10);
+  describe('when .getWorkers', () => {
+    it('gets all workers for this queue', async function () {
+      const worker = new Worker(queueName, async job => {}, { connection });
+      await worker.waitUntilReady();
+      worker.run();
+      await delay(10);
 
-    const workers = await queue.getWorkers();
-    expect(workers).to.have.length(1);
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
 
-    const worker2 = new Worker(queueName, async job => {}, { connection });
-    await worker2.waitUntilReady();
-    worker2.run();
-    await delay(10);
+      const worker2 = new Worker(queueName, async job => {}, { connection });
+      await worker2.waitUntilReady();
+      worker2.run();
+      await delay(10);
 
-    const nextWorkers = await queue.getWorkers();
-    expect(nextWorkers).to.have.length(2);
+      const nextWorkers = await queue.getWorkers();
+      expect(nextWorkers).to.have.length(2);
+      //console.log(nextWorkers,Buffer.from(queueName).toString('base64'));
+      expect(nextWorkers[0].name).to.equal(queueName);
 
-    await worker.close();
-    await worker2.close();
-  });
+      await worker.close();
+      await worker2.close();
+    });
 
-  it('should get only workers related only to one queue', async function () {
-    const queueName2 = `${queueName}2`;
-    const queue2 = new Queue(queueName2, { connection });
-    const worker = new Worker(queueName, async job => {}, { connection });
-    const worker2 = new Worker(queueName2, async job => {}, { connection });
-    await worker.waitUntilReady();
-    await worker2.waitUntilReady();
-    worker.run();
-    worker2.run();
+    it('gets worker with provided name for this queue', async function () {
+      const workerName = `test-${v4()}`;
+      const worker = new Worker(queueName, async job => {}, {
+        connection,
+        name: workerName,
+      });
+      await worker.waitUntilReady();
+      worker.run();
+      await delay(10);
 
-    const workers = await queue.getWorkers();
-    expect(workers).to.have.length(1);
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
 
-    const workers2 = await queue2.getWorkers();
-    expect(workers2).to.have.length(1);
+      expect(workers[0].name).to.equal(workerName);
 
-    await queue2.close();
-    await worker.close();
-    await worker2.close();
-    await removeAllQueueData(new IORedis(), queueName2);
+      await worker.close();
+    });
+
+    it('gets only workers related only to one queue', async function () {
+      const queueName2 = `${queueName}2`;
+      const queue2 = new Queue(queueName2, { connection });
+      const worker = new Worker(queueName, async job => {}, { connection });
+      const worker2 = new Worker(queueName2, async job => {}, { connection });
+      await worker.waitUntilReady();
+      await worker2.waitUntilReady();
+      worker.run();
+      worker2.run();
+
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
+
+      const workers2 = await queue2.getWorkers();
+      expect(workers2).to.have.length(1);
+
+      await queue2.close();
+      await worker.close();
+      await worker2.close();
+      await removeAllQueueData(new IORedis(), queueName2);
+    });
   });
 
   describe('when closing a worker', () => {
