@@ -2,11 +2,11 @@
     Remove a job from all the queues it may be in as well as all its data.
     In order to be able to remove a job, it cannot be active.
 
-     Input:
+    Input:
       KEYS[1] jobId
       ARGV[1]  jobId
 
-     Events:
+    Events:
       'removed'
 ]]
 

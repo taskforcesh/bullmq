@@ -32,27 +32,21 @@ if redis.call("ZSCORE", KEYS[3], ARGV[1]) ~= false then
   return "delayed"
 end
 
-local function item_in_list (list, item)
-  for _, v in pairs(list) do
-    if v == item then
-      return 1
-    end
-  end
-  return nil
-end
+-- Includes
+--- @include "includes/checkItemInList"
 
 local active_items = redis.call("LRANGE", KEYS[4] , 0, -1)
-if item_in_list(active_items, ARGV[1]) ~= nil then
+if checkItemInList(active_items, ARGV[1]) ~= nil then
   return "active"
 end
 
 local wait_items = redis.call("LRANGE", KEYS[5] , 0, -1)
-if item_in_list(wait_items, ARGV[1]) ~= nil then
+if checkItemInList(wait_items, ARGV[1]) ~= nil then
   return "waiting"
 end
 
 local paused_items = redis.call("LRANGE", KEYS[6] , 0, -1)
-if item_in_list(paused_items, ARGV[1]) ~= nil then
+if checkItemInList(paused_items, ARGV[1]) ~= nil then
   return "waiting"
 end
 
