@@ -2,9 +2,9 @@
   "compilerOptions": {
     "types": ["node"],
     "target": "ES2017",
-    "module": "commonjs",
+    "module": "ES2020",
     "declaration": true,
-    "outDir": "dist",
+    "outDir": "dist/esm",
     "sourceMap": true,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,

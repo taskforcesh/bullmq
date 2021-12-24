@@ -85,7 +85,7 @@
 |  [SandboxedJob](./bullmq.sandboxedjob.md) |  |
 |  [ScriptMetadata](./bullmq.scriptmetadata.md) | Script metadata |
 |  [Strategies](./bullmq.strategies.md) |  |
-|  [WorkerDeclaration](./bullmq.workerdeclaration.md) |  |
+|  [WorkerListener](./bullmq.workerlistener.md) |  |
 |  [WorkerOptions\_2](./bullmq.workeroptions_2.md) |  |
 
 ## Variables
