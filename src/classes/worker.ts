@@ -220,7 +220,7 @@ export class Worker<
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
         const connection = await this.client;
-        this._repeat = new Repeat(this.name, {
+        this._repeat = new Repeat(this.queueName, {
           ...this.opts,
           connection,
         });
