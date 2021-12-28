@@ -105,7 +105,8 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     if removeJobs ~= 1 then
         -- Add to complete/failed set
         rcall("ZADD", KEYS[2], ARGV[2], jobId)
-        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", ARGV[2]) -- "returnvalue" / "failedReason" and "finishedOn"
+        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn",
+        ARGV[2]) -- "returnvalue" / "failedReason" and "finishedOn"
 
         -- Remove old jobs?
         if removeJobs and removeJobs > 1 then

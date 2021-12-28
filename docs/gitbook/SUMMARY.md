@@ -43,7 +43,7 @@
 * [Sender - Receiver](patterns/sender-receiver.md)
 * [Working with batches](patterns/working-with-batches.md)
 * [Idempotent jobs](patterns/idempotent-jobs.md)
-* [Debounce jobs](patterns/debounce-jobs.md)
+* [Throttle jobs](patterns/throttle-jobs.md)
 
 ## BullMQ Pro
 
@@ -73,3 +73,4 @@
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
+
