@@ -860,9 +860,16 @@ describe('Job', function () {
 
     describe('when job was added with removeOnComplete', async () => {
       it('rejects with missing key for job message', async function () {
-        const worker = new Worker(queueName, async job => 'qux', {
-          connection,
-        });
+        const worker = new Worker(
+          queueName,
+          async job => {
+            await delay(100);
+            return 'qux';
+          },
+          {
+            connection,
+          },
+        );
         await worker.waitUntilReady();
 
         const completed = new Promise<void>((resolve, reject) => {

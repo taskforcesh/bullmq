@@ -58,14 +58,19 @@ describe('repeat', function () {
     const every = 100;
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
-    const worker = new Worker(queueName, NoopProc, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        this.clock.tick(every);
+      },
+      { connection },
+    );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
     await worker.waitUntilReady();
 
     let processed = 0;
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async () => {
-        this.clock.tick(every);
         processed++;
         if (processed === 10) {
           resolve();
@@ -191,13 +196,19 @@ describe('repeat', function () {
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const nextTick = 2 * ONE_SECOND + 100;
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        this.clock.tick(nextTick);
+      },
+      { connection },
+    );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
-
-    const nextTick = 2 * ONE_SECOND + 100;
 
     await queue.add(
       'test',
@@ -212,7 +223,6 @@ describe('repeat', function () {
 
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
-        this.clock.tick(nextTick);
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
           expect(job.timestamp - prev.timestamp).to.be.gte(2000);
@@ -241,7 +251,13 @@ describe('repeat', function () {
     const nextTick = 2 * ONE_SECOND + 500;
     const delay = 5 * ONE_SECOND + 500;
 
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        this.clock.tick(nextTick);
+      },
+      { connection },
+    );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
@@ -262,7 +278,6 @@ describe('repeat', function () {
 
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
-        this.clock.tick(nextTick);
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
           expect(job.timestamp - prev.timestamp).to.be.gte(2000);
@@ -292,7 +307,13 @@ describe('repeat', function () {
     const nextTick = 2 * ONE_SECOND + 500;
     const delay = 5 * ONE_SECOND + 500;
 
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        this.clock.tick(nextTick);
+      },
+      { connection },
+    );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
@@ -313,7 +334,6 @@ describe('repeat', function () {
 
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
-        this.clock.tick(nextTick);
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
           expect(job.timestamp - prev.timestamp).to.be.gte(2000);
@@ -350,7 +370,13 @@ describe('repeat', function () {
     const nextTick = 2 * ONE_SECOND + 500;
     const delay = 5 * ONE_SECOND + 500;
 
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        this.clock.tick(nextTick);
+      },
+      { connection },
+    );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
@@ -371,7 +397,6 @@ describe('repeat', function () {
 
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
-        this.clock.tick(nextTick);
         if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
           expect(job.timestamp - prev.timestamp).to.be.gte(2000);
@@ -403,7 +428,13 @@ describe('repeat', function () {
     this.clock.setSystemTime(date);
     const nextTick = 2 * ONE_SECOND;
 
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        this.clock.tick(nextTick);
+      },
+      { connection },
+    );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     await queue.add(
@@ -424,7 +455,6 @@ describe('repeat', function () {
 
     const completing = new Promise<void>(resolve => {
       worker.on('completed', async job => {
-        this.clock.tick(nextTick);
         if (prev && counter === 1) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
           expect(job.timestamp - prev.timestamp).to.be.gte(100);
@@ -459,7 +489,7 @@ describe('repeat', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         this.clock.tick(nextTick);
       },
       { connection },
@@ -519,7 +549,7 @@ describe('repeat', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         nextTick();
       },
       { connection },
