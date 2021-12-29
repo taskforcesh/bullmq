@@ -33,7 +33,7 @@ export class Queue<
     ResultType = any,
     NameType extends string = string,
   >
-  extends QueueGetters
+  extends QueueGetters<DataType, ResultType, NameType>
   implements QueueDeclaration<DataType, ResultType, NameType>
 {
   token = v4();

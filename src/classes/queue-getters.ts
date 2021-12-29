@@ -5,9 +5,17 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg } from '../utils';
 
-export class QueueGetters extends QueueBase {
-  getJob(jobId: string): Promise<Job | undefined> {
-    return Job.fromId(this, jobId);
+export class QueueGetters<
+  DataType,
+  ResultType,
+  NameType extends string,
+> extends QueueBase {
+  getJob(
+    jobId: string,
+  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
+    return Job.fromId(this, jobId) as Promise<
+      Job<DataType, ResultType, NameType>
+    >;
   }
 
   private commandByType(
@@ -102,27 +110,45 @@ export class QueueGetters extends QueueBase {
     return this.getJobCountByTypes('waiting-children', 'paused');
   }
 
-  getWaiting(start = 0, end = -1): Promise<Job<any, any, string>[]> {
+  getWaiting(
+    start = 0,
+    end = -1,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['waiting'], start, end, true);
   }
 
-  getWaitingChildren(start = 0, end = -1): Promise<Job<any, any, string>[]> {
+  getWaitingChildren(
+    start = 0,
+    end = -1,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['waiting-children'], start, end, true);
   }
 
-  getActive(start = 0, end = -1): Promise<Job<any, any, string>[]> {
+  getActive(
+    start = 0,
+    end = -1,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['active'], start, end, true);
   }
 
-  getDelayed(start = 0, end = -1): Promise<Job<any, any, string>[]> {
+  getDelayed(
+    start = 0,
+    end = -1,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['delayed'], start, end, true);
   }
 
-  getCompleted(start = 0, end = -1): Promise<Job<any, any, string>[]> {
+  getCompleted(
+    start = 0,
+    end = -1,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['completed'], start, end, false);
   }
 
-  getFailed(start = 0, end = -1): Promise<Job<any, any, string>[]> {
+  getFailed(
+    start = 0,
+    end = -1,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['failed'], start, end, false);
   }
 
@@ -172,7 +198,7 @@ export class QueueGetters extends QueueBase {
     start = 0,
     end = -1,
     asc = false,
-  ): Promise<Job<any, any, string>[]> {
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
     types = Array.isArray(types) ? types : [types];
 
     if (types.indexOf('waiting') !== -1) {
@@ -180,7 +206,14 @@ export class QueueGetters extends QueueBase {
     }
     const jobIds = await this.getRanges(types, start, end, asc);
 
-    return Promise.all(jobIds.map(jobId => Job.fromId(this, jobId)));
+    return Promise.all(
+      jobIds.map(
+        jobId =>
+          Job.fromId(this, jobId) as Promise<
+            Job<DataType, ResultType, NameType>
+          >,
+      ),
+    );
   }
 
   async getJobLogs(
