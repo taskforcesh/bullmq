@@ -251,11 +251,7 @@ export class Job<
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
    * @returns
    */
-  static fromJSON(
-    queue: MinimalQueue,
-    json: JobJsonRaw,
-    jobId?: string,
-  ): Job<any, any, string> {
+  static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string): Job {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 

@@ -1902,8 +1902,10 @@ describe('workers', function () {
         });
       });
 
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', resolve);
+      const completing = new Promise<void>((resolve, _reject) => {
+        worker.on('completed', async () => {
+          resolve();
+        });
       });
 
       const retriedJob = await queue.add('test', { foo: 'bar' });
@@ -1956,8 +1958,10 @@ describe('workers', function () {
         });
       });
 
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', resolve);
+      const completing = new Promise<void>((resolve, _reject) => {
+        worker.on('completed', async () => {
+          resolve();
+        });
       });
 
       const retriedJob = await queue.add('test', { foo: 'bar' });
@@ -1984,7 +1988,7 @@ describe('workers', function () {
     it('should not retry a job that is active', async () => {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           await delay(500);
         },
         { connection },
