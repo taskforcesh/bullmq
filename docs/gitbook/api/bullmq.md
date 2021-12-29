@@ -78,7 +78,7 @@
 |  [QueueEventsListener](./bullmq.queueeventslistener.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
 |  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |
-|  [QueueSchedulerDeclaration](./bullmq.queueschedulerdeclaration.md) |  |
+|  [QueueSchedulerListener](./bullmq.queueschedulerlistener.md) |  |
 |  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
 |  [RateLimiterOptions](./bullmq.ratelimiteroptions.md) |  |
 |  [RepeatOptions](./bullmq.repeatoptions.md) | Settings for repeatable jobs |
