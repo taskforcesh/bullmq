@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-protected moveToActive(token: string, jobId?: string): Promise<Job<any, any, string>>;
+protected moveToActive(token: string, jobId?: string): Promise<Job<DataType, ResultType, NameType>>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ protected moveToActive(token: string, jobId?: string): Promise<Job<any, any, str
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt;&gt;
 

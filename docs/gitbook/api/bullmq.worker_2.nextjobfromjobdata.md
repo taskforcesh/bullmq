@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-protected nextJobFromJobData(jobData?: JobJsonRaw | number, jobId?: string): Promise<Job<any, any, string>>;
+protected nextJobFromJobData(jobData?: JobJsonRaw | number, jobId?: string): Promise<Job<DataType, ResultType, NameType>>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ protected nextJobFromJobData(jobData?: JobJsonRaw | number, jobId?: string): Pro
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt;&gt;
 

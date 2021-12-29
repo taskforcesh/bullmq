@@ -11,9 +11,9 @@ This class provides methods to add jobs to a queue and some othe high-level admi
 <b>Signature:</b>
 
 ```typescript
-export declare class Queue<DataType = any, ResultType = any, NameType extends string = string> extends QueueGetters implements QueueDeclaration<DataType, ResultType, NameType> 
+export declare class Queue<DataType = any, ResultType = any, NameType extends string = string> extends QueueGetters<DataType, ResultType, NameType> implements QueueDeclaration<DataType, ResultType, NameType> 
 ```
-<b>Extends:</b> [QueueGetters](./bullmq.queuegetters.md)
+<b>Extends:</b> [QueueGetters](./bullmq.queuegetters.md)<!-- -->&lt;DataType, ResultType, NameType&gt;
 
 <b>Implements:</b> [QueueDeclaration](./bullmq.queuedeclaration.md)<!-- -->&lt;DataType, ResultType, NameType&gt;
 

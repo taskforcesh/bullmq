@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-export declare class QueueGetters extends QueueBase 
+export declare class QueueGetters<DataType, ResultType, NameType extends string> extends QueueBase 
 ```
 <b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
 

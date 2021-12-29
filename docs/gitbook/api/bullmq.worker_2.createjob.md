@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-protected createJob(data: JobJsonRaw, jobId: string): Job<any, any, string>;
+protected createJob(data: JobJsonRaw, jobId: string): Job<DataType, ResultType, NameType>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ protected createJob(data: JobJsonRaw, jobId: string): Job<any, any, string>;
 
 <b>Returns:</b>
 
-[Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;
+[Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt;
 
