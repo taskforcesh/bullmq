@@ -24,6 +24,23 @@ export interface QueueListener<DataType, ResultType, NameType extends string> {
   paused: () => void;
 
   /**
+   * Listen to 'progress' event.
+   *
+   * This event is triggered when the job updates its progress.
+   */
+  progress: (
+    job: Job<DataType, ResultType, NameType>,
+    progress: number | object,
+  ) => void;
+
+  /**
+   * Listen to 'removed' event.
+   *
+   * This event is triggered when a job is removed.
+   */
+  removed: (job: Job<DataType, ResultType, NameType>) => void;
+
+  /**
    * Listen to 'resumed' event.
    *
    * This event is triggered when the queue is resumed.
