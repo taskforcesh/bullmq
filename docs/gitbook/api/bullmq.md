@@ -22,7 +22,7 @@
 |  [ScriptLoader](./bullmq.scriptloader.md) | Lua script loader with include support |
 |  [ScriptLoaderError](./bullmq.scriptloadererror.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
-|  [Worker\_2](./bullmq.worker_2.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
+|  [Worker](./bullmq.worker.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
 ## Enumerations
 
@@ -86,7 +86,7 @@
 |  [ScriptMetadata](./bullmq.scriptmetadata.md) | Script metadata |
 |  [Strategies](./bullmq.strategies.md) |  |
 |  [WorkerListener](./bullmq.workerlistener.md) |  |
-|  [WorkerOptions\_2](./bullmq.workeroptions_2.md) |  |
+|  [WorkerOptions](./bullmq.workeroptions.md) |  |
 
 ## Variables
 

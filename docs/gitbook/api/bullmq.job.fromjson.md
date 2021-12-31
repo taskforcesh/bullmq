@@ -9,7 +9,7 @@ Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON obj
 <b>Signature:</b>
 
 ```typescript
-static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string): Job;
+static fromJSON<T = any, R = any, N extends string = string>(queue: MinimalQueue, json: JobJsonRaw, jobId?: string): Job<T, R, N>;
 ```
 
 ## Parameters
@@ -22,6 +22,6 @@ static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string): Job;
 
 <b>Returns:</b>
 
-[Job](./bullmq.job.md)
+[Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt;
 
 
