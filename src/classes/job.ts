@@ -2,6 +2,8 @@ import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
+  JobJson,
+  JobJsonRaw,
   JobsOptions,
   WorkerOptions,
   RedisClient,
@@ -21,39 +23,6 @@ import { fromPairs } from 'lodash';
 const logger = debuglog('bull');
 
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
-
-export interface JobJson {
-  id: string;
-  name: string;
-  data: string;
-  opts: JobsOptions;
-  progress: number | object;
-  attemptsMade: number;
-  finishedOn?: number;
-  processedOn?: number;
-  timestamp: number;
-  failedReason: string;
-  stacktrace: string;
-  returnvalue: string;
-  parentKey?: string;
-}
-
-export interface JobJsonRaw {
-  id: string;
-  name: string;
-  data: string;
-  opts: string;
-  progress: string;
-  attemptsMade: string;
-  finishedOn?: string;
-  processedOn?: string;
-  timestamp: string;
-  failedReason: string;
-  stacktrace: string[];
-  returnvalue: string;
-  parentKey?: string;
-  parent?: string;
-}
 
 export interface MoveToChildrenOpts {
   timestamp?: number;

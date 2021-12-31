@@ -1,8 +1,13 @@
 import { EventEmitter } from 'events';
 import { Redis, Pipeline } from 'ioredis';
 import { v4 } from 'uuid';
-import { RedisClient, QueueBaseOptions } from '../interfaces';
-import { FlowJob, FlowQueuesOpts, FlowOpts } from '../interfaces/flow-job';
+import {
+  FlowJob,
+  FlowQueuesOpts,
+  FlowOpts,
+  QueueBaseOptions,
+  RedisClient,
+} from '../interfaces';
 import { getParentKey, jobIdForGroup } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
