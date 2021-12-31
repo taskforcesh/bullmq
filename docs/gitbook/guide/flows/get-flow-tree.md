@@ -48,7 +48,7 @@ const { children, job } = tree;
 ```
 
 {% hint style="info" %}
-Each children may have a job property and in case they have children as well, they would have children property
+Each _child_ may have a job property and in case they have children as well, they would have children property
 {% endhint %}
 
 You would also may need a way to limit that information if you have many children for one of the job nodes.
