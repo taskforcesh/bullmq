@@ -198,8 +198,8 @@ export class Queue<
    */
   async addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
-  ) {
-    return Job.createBulk(
+  ): Promise<Job<DataType, DataType, NameType>[]> {
+    return Job.createBulk<DataType, DataType, NameType>(
       this,
       jobs.map(job => ({
         name: job.name,
