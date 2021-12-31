@@ -686,10 +686,10 @@ export class Scripts {
     return raw2jobData(result);
   }
 
-  //
-  //  It checks if the job in the top of the delay set should be moved back to the
-  //  top of the  wait queue (so that it will be processed as soon as possible)
-  //
+  /**
+   * It checks if the job in the top of the delay set should be moved back to the
+   * top of the  wait queue (so that it will be processed as soon as possible)
+   */
   static async updateDelaySet(queue: MinimalQueue, delayedTimestamp: number) {
     const client = await queue.client;
 
@@ -708,7 +708,7 @@ export class Scripts {
     return (<any>client).updateDelaySet(keys.concat(args));
   }
 
-  static async promote(queue: MinimalQueue, jobId: string) {
+  static async promote(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
     const keys = [
@@ -724,15 +724,15 @@ export class Scripts {
     return (<any>client).promote(keys.concat(args));
   }
 
-  //
-  // Looks for unlocked jobs in the active queue.
-  //
-  //    The job was being worked on, but the worker process died and it failed to renew the lock.
-  //    We call these jobs 'stalled'. This is the most common case. We resolve these by moving them
-  //    back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait,
-  //    (e.g. if the job handler keeps crashing),
-  //    we limit the number stalled job recoveries to settings.maxStalledCount.
-  //
+  /**
+   * Looks for unlocked jobs in the active queue.
+   *
+   * The job was being worked on, but the worker process died and it failed to renew the lock.
+   * We call these jobs 'stalled'. This is the most common case. We resolve these by moving them
+   * back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait,
+   * (e.g. if the job handler keeps crashing),
+   * we limit the number stalled job recoveries to settings.maxStalledCount.
+   */
   static async moveStalledJobsToWait(queue: QueueScheduler) {
     const client = await queue.client;
 

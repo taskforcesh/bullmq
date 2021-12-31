@@ -184,7 +184,7 @@ export class Job<
       data: T;
       opts?: BulkJobOptions;
     }[],
-  ) {
+  ): Promise<Job<T, R, N>[]> {
     const client = await queue.client;
 
     const jobInstances = jobs.map(
@@ -220,11 +220,21 @@ export class Job<
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
    * @returns
    */
-  static fromJSON(queue: MinimalQueue, json: JobJsonRaw, jobId?: string): Job {
+  static fromJSON<T = any, R = any, N extends string = string>(
+    queue: MinimalQueue,
+    json: JobJsonRaw,
+    jobId?: string,
+  ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
-    const job = new this(queue, json.name, data, opts, json.id || jobId);
+    const job = new this<T, R, N>(
+      queue,
+      json.name as N,
+      data,
+      opts,
+      json.id || jobId,
+    );
 
     job.progress = JSON.parse(json.progress || '0');
 
@@ -266,17 +276,17 @@ export class Job<
    * @param jobId - the job id.
    * @returns
    */
-  static async fromId(
+  static async fromId<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     jobId: string,
-  ): Promise<Job | undefined> {
+  ): Promise<Job<T, R, N> | undefined> {
     // jobId can be undefined if moveJob returns undefined
     if (jobId) {
       const client = await queue.client;
       const jobData = await client.hgetall(queue.toKey(jobId));
       return isEmpty(jobData)
         ? undefined
-        : Job.fromJSON(queue, (<unknown>jobData) as JobJsonRaw, jobId);
+        : Job.fromJSON<T, R, N>(queue, (<unknown>jobData) as JobJsonRaw, jobId);
     }
   }
 
