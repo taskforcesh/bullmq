@@ -354,14 +354,14 @@ export class FlowProducer extends EventEmitter {
     };
   }
 
-  close() {
+  close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
     }
     return this.closing;
   }
 
-  disconnect() {
+  disconnect(): Promise<void> {
     return this.connection.disconnect();
   }
 }

@@ -160,7 +160,8 @@ function wrapJob(job: JobJson): SandboxedJob {
     data: JSON.parse(job.data || '{}'),
     opts: job.opts,
     returnValue: JSON.parse(job.returnvalue || '{}'),
-    /*
+    /**
+     * @deprecated Use updateProgress instead.
      * Emulate the real job `progress` function.
      * If no argument is given, it behaves as a sync getter.
      * If an argument is given, it behaves as an async setter.
