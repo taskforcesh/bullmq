@@ -1,6 +1,5 @@
 import { promisify } from 'util';
-import { JobJson } from './job';
-import { SandboxedJob, ParentCommand } from '../interfaces';
+import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
 
 import { childSend } from '../utils';
 

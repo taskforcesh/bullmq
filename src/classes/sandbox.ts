@@ -1,7 +1,7 @@
-import { Job } from './job';
 import { ChildCommand, ChildMessage, ParentCommand } from '../interfaces';
-import { ChildPool } from '../classes';
 import { parentSend } from '../utils';
+import { ChildPool } from './child-pool';
+import { Job } from './job';
 
 const sandbox = <T, R, N extends string>(
   processFile: any,

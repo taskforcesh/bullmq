@@ -1,4 +1,4 @@
-import { Job } from '../classes/job';
+import { Job } from './job';
 import { BackoffOptions } from '../interfaces/backoff-options';
 
 interface BuiltInStrategies {

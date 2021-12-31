@@ -15,17 +15,19 @@ const pack = packer.pack;
 
 import * as semver from 'semver';
 import {
+  JobJson,
+  JobJsonRaw,
   JobsOptions,
   QueueSchedulerOptions,
-  WorkerOptions,
   RedisClient,
+  WorkerOptions,
 } from '../interfaces';
 import { ErrorCodes } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
-import { Job, JobJson, JobJsonRaw, MoveToChildrenOpts } from './job';
+import { Job, MoveToChildrenOpts } from './job';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -157,27 +159,20 @@ export class Scripts {
   ) {
     const queueKeys = queue.keys;
 
-    const keys = [
-      queueKeys.repeat,
-      queueKeys.delayed,
-    ];
+    const keys = [queueKeys.repeat, queueKeys.delayed];
 
-    const args = [
-      repeatJobId,
-      repeatJobKey,
-      queueKeys[''],
-    ];
+    const args = [repeatJobId, repeatJobKey, queueKeys['']];
 
     return keys.concat(args);
   }
 
-  static async removeRepeatable(queue: MinimalQueue, repeatJobId: string, repeatJobKey: string): Promise<void> {
+  static async removeRepeatable(
+    queue: MinimalQueue,
+    repeatJobId: string,
+    repeatJobKey: string,
+  ): Promise<void> {
     const client = await queue.client;
-    const args = this.removeRepeatableArgs(
-      queue,
-      repeatJobId,
-      repeatJobKey
-    );
+    const args = this.removeRepeatableArgs(queue, repeatJobId, repeatJobKey);
 
     return (<any>client).removeRepeatable(args);
   }

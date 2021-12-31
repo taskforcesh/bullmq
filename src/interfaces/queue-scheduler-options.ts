@@ -1,4 +1,4 @@
-import { QueueBaseOptions } from '../interfaces';
+import { QueueBaseOptions } from './queue-options';
 
 /**
  * Options for customizing the behaviour of the scheduler.

@@ -3,10 +3,11 @@ import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
 import {
-  Processor,
-  WorkerOptions,
   GetNextJobOptions,
+  JobJsonRaw,
+  Processor,
   RedisClient,
+  WorkerOptions,
 } from '../interfaces';
 import {
   clientCommandMessageReg,
@@ -18,7 +19,7 @@ import {
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
-import { Job, JobJsonRaw } from './job';
+import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';

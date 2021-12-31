@@ -1,5 +1,7 @@
-import { Job } from '../classes';
-import { AdvancedOptions, QueueBaseOptions, RateLimiterOptions } from './';
+import { Job } from '../classes/job';
+import { AdvancedOptions } from './advanced-options';
+import { QueueBaseOptions } from './queue-options';
+import { RateLimiterOptions } from './rate-limiter-options';
 
 /**
  * An async function that receives `Job`s and handles them.

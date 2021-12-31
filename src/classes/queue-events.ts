@@ -1,11 +1,11 @@
 import { QueueEventsOptions, RedisClient, StreamReadRaw } from '../interfaces';
 import {
   array2obj,
+  DELAY_TIME_5,
   delay,
   isNotConnectionError,
   isRedisInstance,
 } from '../utils';
-import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
