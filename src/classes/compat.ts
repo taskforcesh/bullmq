@@ -40,6 +40,9 @@ type CommonOptions = QueueSchedulerOptions &
   WorkerOptions &
   QueueEventsOptions;
 
+/**
+ * @deprecated Use Queue class instead {@link https://docs.bullmq.io/guide/queues}
+ */
 export class Queue3<T = any> extends EventEmitter {
   /**
    * The name of the queue
