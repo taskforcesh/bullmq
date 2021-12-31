@@ -74,9 +74,9 @@
 |  [Parent](./bullmq.parent.md) | Describes the parent for a Job. |
 |  [ParentMessage](./bullmq.parentmessage.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
-|  [QueueDeclaration](./bullmq.queuedeclaration.md) |  |
 |  [QueueEventsListener](./bullmq.queueeventslistener.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
+|  [QueueListener](./bullmq.queuelistener.md) |  |
 |  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |
 |  [QueueSchedulerListener](./bullmq.queueschedulerlistener.md) |  |
 |  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
