@@ -15,6 +15,7 @@ export interface QueueListener<DataType, ResultType, NameType extends string>
 |  Property | Type | Description |
 |  --- | --- | --- |
 |  [cleaned](./bullmq.queuelistener.cleaned.md) | (jobs: string\[\], type: string) =&gt; void | Listen to 'cleaned' event.<!-- -->This event is triggered when the queue calls clean method. |
+|  [error](./bullmq.queuelistener.error.md) | (err: Error) =&gt; void | Listen to 'error' event.<!-- -->This event is triggered when an error is thrown. |
 |  [paused](./bullmq.queuelistener.paused.md) | () =&gt; void | Listen to 'paused' event.<!-- -->This event is triggered when the queue is paused. |
 |  [progress](./bullmq.queuelistener.progress.md) | (job: [Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt;, progress: number \| object) =&gt; void | Listen to 'progress' event.<!-- -->This event is triggered when the job updates its progress. |
 |  [removed](./bullmq.queuelistener.removed.md) | (job: [Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt;) =&gt; void | Listen to 'removed' event.<!-- -->This event is triggered when a job is removed. |
