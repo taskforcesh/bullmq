@@ -252,6 +252,16 @@ describe('Job', function () {
       const storedJob = await Job.fromId(queue, job.id);
       expect(storedJob.progress).to.eql({ total: 120, completed: 40 });
     });
+
+    describe('when job is removed', () => {
+      it('throws error', async function () {
+        const job = await Job.create(queue, 'test', { foo: 'bar' });
+        await job.remove();
+        await expect(
+          job.updateProgress({ total: 120, completed: 40 }),
+        ).to.be.rejectedWith(`Missing key for job ${job.id}. updateProgress`);
+      });
+    });
   });
 
   describe('.log', () => {
