@@ -211,7 +211,15 @@ export class Scripts {
     const keys = [queue.toKey(job.id), queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
-    await (<any>client).updateProgress(keys, [job.id, progressJson]);
+    const result = await (<any>client).updateProgress(keys, [
+      job.id,
+      progressJson,
+    ]);
+
+    if (result < 0) {
+      throw this.finishedErrors(result, job.id, 'updateProgress');
+    }
+
     queue.emit('progress', job, progress);
   }
 
