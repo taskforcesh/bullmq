@@ -156,8 +156,10 @@ describe('events', function () {
       connection,
     });
 
-    const drained = new Promise(resolve => {
-      worker.once('drained', resolve);
+    const drained = new Promise<void>(resolve => {
+      worker.once('drained', () => {
+        resolve();
+      });
     });
 
     await queue.add('test', { foo: 'bar' });
@@ -183,7 +185,9 @@ describe('events', function () {
     });
 
     const error = new Promise<void>(resolve => {
-      worker.once('error', resolve);
+      worker.once('error', () => {
+        resolve();
+      });
     });
 
     await queue.add('test', { foo: 'bar' });

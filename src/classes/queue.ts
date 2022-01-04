@@ -17,6 +17,13 @@ export interface QueueListener<DataType, ResultType, NameType extends string> {
   cleaned: (jobs: string[], type: string) => void;
 
   /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an error is thrown.
+   */
+  error: (err: Error) => void;
+
+  /**
    * Listen to 'paused' event.
    *
    * This event is triggered when the queue is paused.
