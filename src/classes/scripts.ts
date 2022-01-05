@@ -156,7 +156,7 @@ export class Scripts {
     queue: MinimalQueue,
     repeatJobId: string,
     repeatJobKey: string,
-  ) {
+  ): string[] {
     const queueKeys = queue.keys;
 
     const keys = [queueKeys.repeat, queueKeys.delayed];
@@ -201,9 +201,9 @@ export class Scripts {
     return (<any>client).extendLock(args);
   }
 
-  static async updateProgress(
+  static async updateProgress<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     progress: number | object,
   ): Promise<void> {
     const client = await queue.client;
@@ -223,9 +223,9 @@ export class Scripts {
     queue.emit('progress', job, progress);
   }
 
-  static moveToFinishedArgs(
+  static moveToFinishedArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     val: any,
     propVal: string,
     shouldRemove: boolean | number,
@@ -274,9 +274,13 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  private static async moveToFinished(
+  private static async moveToFinished<
+    T = any,
+    R = any,
+    N extends string = string,
+  >(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     val: any,
     propVal: string,
     shouldRemove: boolean | number,
@@ -285,7 +289,7 @@ export class Scripts {
     fetchNext: boolean,
   ): Promise<JobData | []> {
     const client = await queue.client;
-    const args = this.moveToFinishedArgs(
+    const args = this.moveToFinishedArgs<T, R, N>(
       queue,
       job,
       val,
@@ -348,15 +352,15 @@ export class Scripts {
     return (<any>client).drain(args);
   }
 
-  static moveToCompleted(
+  static moveToCompleted<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     returnvalue: any,
     removeOnComplete: boolean | number,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
-    return this.moveToFinished(
+    return this.moveToFinished<T, R, N>(
       queue,
       job,
       returnvalue,
@@ -368,9 +372,9 @@ export class Scripts {
     );
   }
 
-  static moveToFailedArgs(
+  static moveToFailedArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     failedReason: string,
     removeOnFailed: boolean | number,
     token: string,
@@ -597,7 +601,10 @@ export class Scripts {
     ]);
   }
 
-  static retryJobArgs(queue: MinimalQueue, job: Job) {
+  static retryJobArgs<T = any, R = any, N extends string = string>(
+    queue: MinimalQueue,
+    job: Job<T, R, N>,
+  ) {
     const jobId = job.id;
 
     const keys = ['active', 'wait', jobId].map(function (name) {
@@ -625,9 +632,9 @@ export class Scripts {
    * -1 means the job is currently locked and can't be retried.
    * -2 means the job was not found in the expected set
    */
-  static async reprocessJob(
+  static async reprocessJob<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     state: 'failed' | 'completed',
   ): Promise<void> {
     const client = await queue.client;
