@@ -898,8 +898,8 @@ export class Job<
       );
     }
 
-    if (this.opts.delay && this.opts.repeat) {
-      throw new Error(`Delay and repeat options could not be used together`);
+    if (this.opts.delay && this.opts.repeat?.every) {
+      throw new Error(`Delay and every options could not be used together`);
     }
 
     return Scripts.addJob(

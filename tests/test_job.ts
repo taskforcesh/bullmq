@@ -110,12 +110,12 @@ describe('Job', function () {
       });
     });
 
-    describe('when delay and repeat options are provided', () => {
+    describe('when delay and every options are provided', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const opts = { repeat: { every: 200 }, delay: 1000 };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
-          'Delay and repeat options could not be used together',
+          'Delay and every options could not be used together',
         );
       });
     });
