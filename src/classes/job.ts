@@ -898,6 +898,10 @@ export class Job<
       );
     }
 
+    if (this.opts.delay && this.opts.repeat) {
+      throw new Error(`Delay and repeat options could not be used together`);
+    }
+
     return Scripts.addJob(
       client,
       queue,
