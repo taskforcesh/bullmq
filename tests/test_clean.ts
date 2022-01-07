@@ -47,9 +47,6 @@ describe('Cleaner', () => {
     const worker = new Worker(queueName, async job => {}, { connection });
     await worker.waitUntilReady();
 
-    await queue.add('test', { some: 'data' });
-    await queue.add('test', { some: 'data' });
-
     const completing = new Promise<void>(resolve => {
       worker.on(
         'completed',
@@ -60,6 +57,9 @@ describe('Cleaner', () => {
         }),
       );
     });
+
+    await queue.add('test', { some: 'data' });
+    await queue.add('test', { some: 'data' });
 
     await completing;
     await worker.close();
