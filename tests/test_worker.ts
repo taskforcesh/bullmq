@@ -160,6 +160,8 @@ describe('workers', function () {
 
       const connection = new IORedis({
         host: 'localhost',
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
       });
 
       const queue1 = new Queue(queueName2, { connection });
@@ -185,6 +187,8 @@ describe('workers', function () {
 
       const worker = new Worker(queueName2, processor, { connection });
       await worker.waitUntilReady();
+
+      worker.run();
 
       for (let i = 1; i <= maxJobs; i++) {
         await queue1.add('test', { foo: 'bar', num: i });
