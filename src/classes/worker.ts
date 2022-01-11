@@ -3,10 +3,11 @@ import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
 import {
-  Processor,
-  WorkerOptions,
   GetNextJobOptions,
+  JobJsonRaw,
+  Processor,
   RedisClient,
+  WorkerOptions,
 } from '../interfaces';
 import {
   clientCommandMessageReg,
@@ -18,7 +19,7 @@ import {
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
 import { ChildPool } from './child-pool';
-import { Job, JobJsonRaw } from './job';
+import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { Scripts } from './scripts';
@@ -171,7 +172,7 @@ export class Worker<
         this.processFn = processor;
       } else {
         // SANDBOXED
-        const supportedFileTypes = ['.js', '.ts', '.flow'];
+        const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs'];
         const processorFile =
           processor +
           (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
@@ -238,8 +239,15 @@ export class Worker<
     return this.processFn(job, token);
   }
 
-  protected createJob(data: JobJsonRaw, jobId: string) {
-    return Job.fromJSON(this, data, jobId);
+  protected createJob(
+    data: JobJsonRaw,
+    jobId: string,
+  ): Job<DataType, ResultType, NameType> {
+    return Job.fromJSON(this, data, jobId) as Job<
+      DataType,
+      ResultType,
+      NameType
+    >;
   }
 
   /**
@@ -306,7 +314,7 @@ export class Worker<
               const token = tokens.pop();
 
               processing.set(
-                this.retryIfFailed<Job<any, any, string>>(
+                this.retryIfFailed<Job<DataType, ResultType, NameType>>(
                   () => this.getNextJob(token),
                   this.opts.runRetryDelay,
                 ),
@@ -331,7 +339,7 @@ export class Worker<
             if (job) {
               // reuse same token if next job is available to process
               processing.set(
-                this.retryIfFailed<void | Job<any, any, string>>(
+                this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
                   () => this.processJob(job, token),
                   this.opts.runRetryDelay,
                 ),
@@ -394,15 +402,12 @@ export class Worker<
     }
   }
 
-  protected async moveToActive(token: string, jobId?: string) {
-    try {
-      const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
-      return await this.nextJobFromJobData(jobData, id);
-    } catch (error) {
-      if (isNotConnectionError(<Error>error)) {
-        this.emit('error', error);
-      }
-    }
+  protected async moveToActive(
+    token: string,
+    jobId?: string,
+  ): Promise<Job<DataType, ResultType, NameType>> {
+    const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
+    return this.nextJobFromJobData(jobData, id);
   }
 
   private async waitForJob() {
@@ -450,7 +455,7 @@ export class Worker<
   protected async nextJobFromJobData(
     jobData?: JobJsonRaw | number,
     jobId?: string,
-  ): Promise<Job<any, any, string>> {
+  ): Promise<Job<DataType, ResultType, NameType>> {
     // NOTE: This is not really optimal in all cases since a new job would could arrive at the wait
     // list and this worker will not start processing it directly.
     // Best would be to emit drain and block for rateKeyExpirationTime
@@ -486,7 +491,7 @@ export class Worker<
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
-  ): Promise<void | Job<any, any, string>> {
+  ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
     }
@@ -589,7 +594,7 @@ export class Worker<
    *
    * Resumes processing of this worker (if paused).
    */
-  resume() {
+  resume(): void {
     if (this.resumeWorker) {
       this.resumeWorker();
       this.emit('resumed');

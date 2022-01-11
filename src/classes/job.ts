@@ -2,6 +2,8 @@ import { Pipeline } from 'ioredis';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
+  JobJson,
+  JobJsonRaw,
   JobsOptions,
   WorkerOptions,
   RedisClient,
@@ -21,39 +23,6 @@ import { fromPairs } from 'lodash';
 const logger = debuglog('bull');
 
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
-
-export interface JobJson {
-  id: string;
-  name: string;
-  data: string;
-  opts: JobsOptions;
-  progress: number | object;
-  attemptsMade: number;
-  finishedOn?: number;
-  processedOn?: number;
-  timestamp: number;
-  failedReason: string;
-  stacktrace: string;
-  returnvalue: string;
-  parentKey?: string;
-}
-
-export interface JobJsonRaw {
-  id: string;
-  name: string;
-  data: string;
-  opts: string;
-  progress: string;
-  attemptsMade: string;
-  finishedOn?: string;
-  processedOn?: string;
-  timestamp: string;
-  failedReason: string;
-  stacktrace: string[];
-  returnvalue: string;
-  parentKey?: string;
-  parent?: string;
-}
 
 export interface MoveToChildrenOpts {
   timestamp?: number;
@@ -215,7 +184,7 @@ export class Job<
       data: T;
       opts?: BulkJobOptions;
     }[],
-  ) {
+  ): Promise<Job<T, R, N>[]> {
     const client = await queue.client;
 
     const jobInstances = jobs.map(
@@ -251,15 +220,21 @@ export class Job<
    * @param jobId - an optional job id (overrides the id coming from the JSON object)
    * @returns
    */
-  static fromJSON(
+  static fromJSON<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     json: JobJsonRaw,
     jobId?: string,
-  ): Job<any, any, string> {
+  ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
     const opts = JSON.parse(json.opts || '{}');
 
-    const job = new this(queue, json.name, data, opts, json.id || jobId);
+    const job = new this<T, R, N>(
+      queue,
+      json.name as N,
+      data,
+      opts,
+      json.id || jobId,
+    );
 
     job.progress = JSON.parse(json.progress || '0');
 
@@ -301,17 +276,17 @@ export class Job<
    * @param jobId - the job id.
    * @returns
    */
-  static async fromId(
+  static async fromId<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     jobId: string,
-  ): Promise<Job | undefined> {
+  ): Promise<Job<T, R, N> | undefined> {
     // jobId can be undefined if moveJob returns undefined
     if (jobId) {
       const client = await queue.client;
       const jobData = await client.hgetall(queue.toKey(jobId));
       return isEmpty(jobData)
         ? undefined
-        : Job.fromJSON(queue, (<unknown>jobData) as JobJsonRaw, jobId);
+        : Job.fromJSON<T, R, N>(queue, (<unknown>jobData) as JobJsonRaw, jobId);
     }
   }
 
@@ -921,6 +896,10 @@ export class Job<
       throw new Error(
         `The size of job ${this.name} exceeds the limit ${this.opts.sizeLimit} bytes`,
       );
+    }
+
+    if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
+      throw new Error(`Delay and repeat options could not be used together`);
     }
 
     return Scripts.addJob(

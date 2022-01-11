@@ -19,7 +19,7 @@
     "paths": {
       "@src/*": ["src/*"]
     },
-    "lib": ["esnext", "dom"]
+    "lib": ["esnext"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist", "tests/*"]

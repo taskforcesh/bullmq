@@ -4,6 +4,10 @@
 
 ## Scripts.moveStalledJobsToWait() method
 
+Looks for unlocked jobs in the active queue.
+
+The job was being worked on, but the worker process died and it failed to renew the lock. We call these jobs 'stalled'. This is the most common case. We resolve these by moving them back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait, (e.g. if the job handler keeps crashing), we limit the number stalled job recoveries to settings.maxStalledCount.
+
 <b>Signature:</b>
 
 ```typescript

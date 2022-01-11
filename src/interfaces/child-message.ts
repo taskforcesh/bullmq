@@ -1,4 +1,4 @@
-import { ParentCommand } from '.';
+import { ParentCommand } from './parent-command';
 
 export interface ChildMessage {
   cmd: ParentCommand;

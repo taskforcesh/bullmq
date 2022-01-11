@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static updateProgress(queue: MinimalQueue, job: Job, progress: number | object): Promise<void>;
+static updateProgress<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, progress: number | object): Promise<void>;
 ```
 
 ## Parameters
@@ -15,7 +15,7 @@ static updateProgress(queue: MinimalQueue, job: Job, progress: number | object):
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  job | [Job](./bullmq.job.md) |  |
+|  job | [Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; |  |
 |  progress | number \| object |  |
 
 <b>Returns:</b>
