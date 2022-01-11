@@ -280,14 +280,11 @@ export class Job<
     queue: MinimalQueue,
     jobId: string,
   ): Promise<Job<T, R, N> | undefined> {
-    // jobId can be undefined if moveJob returns undefined
-    if (jobId) {
-      const client = await queue.client;
-      const jobData = await client.hgetall(queue.toKey(jobId));
-      return isEmpty(jobData)
-        ? undefined
-        : Job.fromJSON<T, R, N>(queue, (<unknown>jobData) as JobJsonRaw, jobId);
-    }
+    const client = await queue.client;
+    const jobData = await client.hgetall(queue.toKey(jobId));
+    return isEmpty(jobData)
+      ? undefined
+      : Job.fromJSON<T, R, N>(queue, (<unknown>jobData) as JobJsonRaw, jobId);
   }
 
   toJSON() {
