@@ -1,5 +1,4 @@
 import { toString } from 'lodash';
-
 import { ChildProcessor } from './child-processor';
 import { ParentCommand, ChildCommand } from '../interfaces';
 import { childSend } from '../utils';

@@ -1,9 +1,11 @@
 {
   "name": "bullmq",
-  "version": "1.57.4",
+  "version": "1.64.0",
   "description": "Queue for messages and jobs based on Redis",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "jsnext:main": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
   "source": "src/index.ts",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
@@ -18,10 +20,10 @@
     "dist"
   ],
   "scripts": {
-    "build": "npm-run-all tsc copy:lua copy:includes:lua clean:temp:files",
-    "clean:temp:files": "rimraf dist/bullmq.d.ts dist/tsdoc-metadata.json",
-    "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/commands",
-    "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/commands/includes",
+    "build": "npm-run-all tsc:all copy:lua copy:includes:lua clean:temp:files",
+    "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
+    "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/cjs/commands && copyfiles -f ./src/commands/*.lua ./dist/esm/commands",
+    "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/cjs/commands/includes && copyfiles -f ./src/commands/includes/*.lua ./dist/esm/commands/includes",
     "coverage": "nyc --reporter=text npm run test",
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
     "cm": "git cz",
@@ -31,15 +33,16 @@
     "dry-run": "npm publish --dry-run",
     "eslint:fix": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore --fix",
     "lint": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore",
-    "lint:staged": "./node_modules/.bin/lint-staged",
+    "lint:staged": "lint-staged",
     "prepare": "yarn build",
     "prettier": "prettier --config package.json src/**/*.ts",
-    "pretty:quick": "./node_modules/.bin/pretty-quick --ignore-path ./.eslintignore --staged",
+    "pretty:quick": "pretty-quick --ignore-path ./.eslintignore --staged",
     "semantic-release": "semantic-release",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
-    "test": "tsc && ts-mocha --config ./.mocharc.js",
-    "test:watch": "ts-mocha --paths 'tests/test_*.ts' -w --watch-extensions ts",
-    "tsc": "tsc"
+    "test": "ts-mocha -p tsconfig-cjs.json --config ./.mocharc.js",
+    "test:watch": "ts-mocha -p tsconfig-cjs.json --paths 'tests/test_*.ts' -w --watch-extensions ts",
+    "tsc": "tsc",
+    "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
     "cron-parser": "^2.18.0",
@@ -104,7 +107,7 @@
     "test-console": "^2.0.0",
     "ts-mocha": "^8.0.0",
     "ts-node": "^8.10.2",
-    "typescript": "^4.5.2"
+    "typescript": "3.9.10"
   },
   "nyc": {
     "extends": "@istanbuljs/nyc-config-typescript",

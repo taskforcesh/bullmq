@@ -154,6 +154,55 @@ describe('workers', function () {
     });
   });
 
+  describe('when sharing connection', () => {
+    it('should not fail', async () => {
+      const queueName2 = `test-${v4()}`;
+
+      const connection = new IORedis({
+        host: 'localhost',
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+      });
+
+      const queue1 = new Queue(queueName2, { connection });
+
+      let counter = 1;
+      const maxJobs = 35;
+
+      let processor;
+      const processing = new Promise<void>((resolve, reject) => {
+        processor = async (job: Job) => {
+          try {
+            expect(job.data.num).to.be.equal(counter);
+            expect(job.data.foo).to.be.equal('bar');
+            if (counter === maxJobs) {
+              resolve();
+            }
+            counter++;
+          } catch (err) {
+            reject(err);
+          }
+        };
+      });
+
+      const worker = new Worker(queueName2, processor, { connection });
+      await worker.waitUntilReady();
+
+      worker.run();
+
+      for (let i = 1; i <= maxJobs; i++) {
+        await queue1.add('test', { foo: 'bar', num: i });
+      }
+
+      await processing;
+      expect(worker.isRunning()).to.be.equal(true);
+
+      await worker.close();
+      await queue1.close();
+      await removeAllQueueData(new IORedis(), queueName2);
+    });
+  });
+
   describe('auto job removal', () => {
     it('should remove job after completed if removeOnComplete', async () => {
       const worker = new Worker(
@@ -1954,8 +2003,10 @@ describe('workers', function () {
         });
       });
 
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', resolve);
+      const completing = new Promise<void>((resolve, _reject) => {
+        worker.on('completed', async () => {
+          resolve();
+        });
       });
 
       queueScheduler.run();
@@ -2011,8 +2062,10 @@ describe('workers', function () {
         });
       });
 
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', resolve);
+      const completing = new Promise<void>((resolve, _reject) => {
+        worker.on('completed', async () => {
+          resolve();
+        });
       });
 
       queueScheduler.run();
@@ -2042,7 +2095,7 @@ describe('workers', function () {
     it('should not retry a job that is active', async () => {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           await delay(500);
         },
         { connection },

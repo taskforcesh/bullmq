@@ -9,7 +9,7 @@ Fetches a Job from the queue given the passed job id.
 <b>Signature:</b>
 
 ```typescript
-static fromId(queue: MinimalQueue, jobId: string): Promise<Job | undefined>;
+static fromId<T = any, R = any, N extends string = string>(queue: MinimalQueue, jobId: string): Promise<Job<T, R, N> | undefined>;
 ```
 
 ## Parameters
@@ -21,6 +21,6 @@ static fromId(queue: MinimalQueue, jobId: string): Promise<Job | undefined>;
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md) \| undefined&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; \| undefined&gt;
 
 

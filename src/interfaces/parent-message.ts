@@ -1,5 +1,5 @@
-import { ChildCommand } from '.';
-import { JobJson } from '../classes';
+import { ChildCommand } from './child-command';
+import { JobJson } from './job-json';
 
 export interface ParentMessage {
   cmd: ChildCommand;

@@ -13,7 +13,7 @@ addBulk(jobs: {
         name: NameType;
         data: DataType;
         opts?: BulkJobOptions;
-    }[]): Promise<Job<DataType, any, NameType>[]>;
+    }[]): Promise<Job<DataType, DataType, NameType>[]>;
 ```
 
 ## Parameters
@@ -24,5 +24,5 @@ addBulk(jobs: {
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;DataType, any, NameType&gt;\[\]&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;DataType, DataType, NameType&gt;\[\]&gt;
 
