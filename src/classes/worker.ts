@@ -118,6 +118,7 @@ export class Worker<
 > extends QueueBase {
   opts: WorkerOptions;
 
+  public readonly name: string;
   private drained: boolean;
   private waiting = false;
   private running = false;
@@ -138,16 +139,18 @@ export class Worker<
     string
   >;
   constructor(
-    name: string,
+    public readonly queueName: string,
     processor?: string | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
     Connection?: typeof RedisConnection,
   ) {
     super(
-      name,
+      queueName,
       { ...opts, sharedConnection: isRedisInstance(opts.connection) },
       Connection,
     );
+
+    this.name = this.opts?.name;
 
     this.opts = {
       drainDelay: 5,
@@ -265,7 +268,7 @@ export class Worker<
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
         const connection = await this.client;
-        this._repeat = new Repeat(this.name, {
+        this._repeat = new Repeat(this.queueName, {
           ...this.opts,
           connection,
         });
@@ -703,5 +706,16 @@ export class Worker<
         }
       }
     } while (retry);
+  }
+
+  protected base64Name(): string {
+    return Buffer.from(this.queueName).toString('base64');
+  }
+
+  protected clientName(): string {
+    const queueNameBase64 = this.base64Name();
+    return `${this.opts.prefix}:${
+      this.name ? `${queueNameBase64}:${this.name}` : queueNameBase64
+    }`;
   }
 }
