@@ -26,6 +26,7 @@ describe('workers', function () {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -35,43 +36,69 @@ describe('workers', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should get all workers for this queue', async function () {
-    const worker = new Worker(queueName, async job => {}, { connection });
-    await worker.waitUntilReady();
-    await delay(10);
+  describe('when .getWorkers', () => {
+    it('gets all workers for this queue', async function () {
+      const worker = new Worker(queueName, async job => {}, { connection });
+      await worker.waitUntilReady();
+      worker.run();
+      await delay(10);
 
-    const workers = await queue.getWorkers();
-    expect(workers).to.have.length(1);
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
 
-    const worker2 = new Worker(queueName, async job => {}, { connection });
-    await worker2.waitUntilReady();
-    await delay(10);
+      const worker2 = new Worker(queueName, async job => {}, { connection });
+      await worker2.waitUntilReady();
+      worker2.run();
+      await delay(10);
 
-    const nextWorkers = await queue.getWorkers();
-    expect(nextWorkers).to.have.length(2);
+      const nextWorkers = await queue.getWorkers();
+      expect(nextWorkers).to.have.length(2);
+      //console.log(nextWorkers,Buffer.from(queueName).toString('base64'));
+      expect(nextWorkers[0].name).to.equal(queueName);
 
-    await worker.close();
-    await worker2.close();
-  });
+      await worker.close();
+      await worker2.close();
+    });
 
-  it('should get only workers related only to one queue', async function () {
-    const queueName2 = `${queueName}2`;
-    const queue2 = new Queue(queueName2, { connection });
-    const worker = new Worker(queueName, async job => {}, { connection });
-    const worker2 = new Worker(queueName2, async job => {}, { connection });
-    await worker.waitUntilReady();
-    await worker2.waitUntilReady();
+    it('gets worker with provided name for this queue', async function () {
+      const workerName = `test-${v4()}`;
+      const worker = new Worker(queueName, async job => {}, {
+        connection,
+        name: workerName,
+      });
+      await worker.waitUntilReady();
+      worker.run();
+      await delay(10);
 
-    const workers = await queue.getWorkers();
-    expect(workers).to.have.length(1);
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
 
-    const workers2 = await queue2.getWorkers();
-    expect(workers2).to.have.length(1);
+      expect(workers[0].name).to.equal(workerName);
 
-    await queue2.close();
-    await worker.close();
-    await worker2.close();
-    await removeAllQueueData(new IORedis(), queueName2);
+      await worker.close();
+    });
+
+    it('gets only workers related only to one queue', async function () {
+      const queueName2 = `${queueName}2`;
+      const queue2 = new Queue(queueName2, { connection });
+      const worker = new Worker(queueName, async job => {}, { connection });
+      const worker2 = new Worker(queueName2, async job => {}, { connection });
+      await worker.waitUntilReady();
+      await worker2.waitUntilReady();
+      worker.run();
+      worker2.run();
+
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
+
+      const workers2 = await queue2.getWorkers();
+      expect(workers2).to.have.length(1);
+
+      await queue2.close();
+      await worker.close();
+      await worker2.close();
+      await removeAllQueueData(new IORedis(), queueName2);
+    });
   });
 
   describe('when closing a worker', () => {
@@ -88,6 +115,7 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -122,6 +150,7 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -147,6 +176,55 @@ describe('workers', function () {
     });
   });
 
+  describe('when sharing connection', () => {
+    it('should not fail', async () => {
+      const queueName2 = `test-${v4()}`;
+
+      const connection = new IORedis({
+        host: 'localhost',
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+      });
+
+      const queue1 = new Queue(queueName2, { connection });
+
+      let counter = 1;
+      const maxJobs = 35;
+
+      let processor;
+      const processing = new Promise<void>((resolve, reject) => {
+        processor = async (job: Job) => {
+          try {
+            expect(job.data.num).to.be.equal(counter);
+            expect(job.data.foo).to.be.equal('bar');
+            if (counter === maxJobs) {
+              resolve();
+            }
+            counter++;
+          } catch (err) {
+            reject(err);
+          }
+        };
+      });
+
+      const worker = new Worker(queueName2, processor, { connection });
+      await worker.waitUntilReady();
+
+      worker.run();
+
+      for (let i = 1; i <= maxJobs; i++) {
+        await queue1.add('test', { foo: 'bar', num: i });
+      }
+
+      await processing;
+      expect(worker.isRunning()).to.be.equal(true);
+
+      await worker.close();
+      await queue1.close();
+      await removeAllQueueData(new IORedis(), queueName2);
+    });
+  });
+
   describe('auto job removal', () => {
     it('should remove job after completed if removeOnComplete', async () => {
       const worker = new Worker(
@@ -158,6 +236,8 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       const job = await queue.add(
         'test',
@@ -204,6 +284,8 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
+      worker.run();
+
       const job = await newQueue.add('test', { foo: 'bar' });
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
@@ -237,6 +319,8 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -295,6 +379,8 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
+      worker.run();
+
       const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
       const jobIds = await Promise.all(
@@ -342,6 +428,8 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
+      worker.run();
+
       const job = await queue.add(
         'test',
         { foo: 'bar' },
@@ -376,6 +464,8 @@ describe('workers', function () {
       });
       await worker.waitUntilReady();
 
+      worker.run();
+
       const newQueue = new Queue(queueName, {
         defaultJobOptions: {
           removeOnFail: true,
@@ -407,6 +497,8 @@ describe('workers', function () {
         throw Error('error');
       });
       await worker.waitUntilReady();
+
+      worker.run();
 
       const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
@@ -450,6 +542,8 @@ describe('workers', function () {
         throw Error('error');
       });
       await worker.waitUntilReady();
+
+      worker.run();
 
       const newQueue = new Queue(queueName, {
         defaultJobOptions: {
@@ -517,6 +611,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
+    worker.run();
+
     await queue.pause();
     // Add a series of jobs in a predictable order
     const jobs = [
@@ -582,6 +678,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
+    worker.run();
+
     // wait for all jobs to enter the queue and then start processing
     await Promise.all([normalPriority, mediumPriority, highPriority]);
 
@@ -613,6 +711,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
+    worker.run();
+
     for (let i = 1; i <= maxJobs; i++) {
       await queue.add('test', { foo: 'bar', num: i });
     }
@@ -625,7 +725,10 @@ describe('workers', function () {
 
   describe('when sharing a redis connection between workers', function () {
     it('should not close the connection', async () => {
-      const connection = new IORedis();
+      const connection = new IORedis({
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+      });
 
       return new Promise((resolve, reject) => {
         connection.on('ready', async () => {
@@ -652,72 +755,69 @@ describe('workers', function () {
     });
   });
 
-  describe('when autorun option is provided as false', function () {
-    it('processes several jobs serially using process option as false', async () => {
-      let counter = 1;
-      const maxJobs = 10;
+  it('processes several jobs serially', async () => {
+    let counter = 1;
+    const maxJobs = 10;
 
-      let processor;
-      const processing = new Promise<void>((resolve, reject) => {
-        processor = async (job: Job) => {
-          try {
-            expect(job.data.num).to.be.equal(counter);
-            expect(job.data.foo).to.be.equal('bar');
-            if (counter === maxJobs) {
-              resolve();
-            }
-            counter++;
-          } catch (err) {
-            reject(err);
+    let processor;
+    const processing = new Promise<void>((resolve, reject) => {
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.num).to.be.equal(counter);
+          expect(job.data.foo).to.be.equal('bar');
+          if (counter === maxJobs) {
+            resolve();
           }
-        };
-      });
+          counter++;
+        } catch (err) {
+          reject(err);
+        }
+      };
+    });
 
-      const worker = new Worker(queueName, processor, { autorun: false });
+    const worker = new Worker(queueName, processor);
+    await worker.waitUntilReady();
+
+    for (let i = 1; i <= maxJobs; i++) {
+      await queue.add('test', { foo: 'bar', num: i });
+    }
+
+    worker.run();
+
+    await processing;
+    await worker.close();
+  });
+
+  describe('when process function is not defined', function () {
+    it('throws error', async () => {
+      const worker = new Worker(queueName, undefined);
       await worker.waitUntilReady();
+
+      await expect(worker.run()).to.be.rejectedWith(
+        'No process function is defined.',
+      );
+
+      await worker.close();
+    });
+  });
+
+  describe('when run method is called when worker is running', function () {
+    it('throws error', async () => {
+      const maxJobs = 10;
+      const worker = new Worker(queueName, async (job: Job) => {});
+      await worker.waitUntilReady();
+
+      worker.run();
 
       for (let i = 1; i <= maxJobs; i++) {
         await queue.add('test', { foo: 'bar', num: i });
       }
 
-      worker.run();
+      await expect(worker.run()).to.be.rejectedWith(
+        'Worker is already running.',
+      );
 
-      await processing;
       await worker.close();
-    });
-
-    describe('when process function is not defined', function () {
-      it('throws error', async () => {
-        const worker = new Worker(queueName, undefined, { autorun: false });
-        await worker.waitUntilReady();
-
-        await expect(worker.run()).to.be.rejectedWith(
-          'No process function is defined.',
-        );
-
-        await worker.close();
-      });
-    });
-
-    describe('when run method is called when worker is running', function () {
-      it('throws error', async () => {
-        const maxJobs = 10;
-        const worker = new Worker(queueName, async (job: Job) => {}, {
-          autorun: false,
-        });
-        await worker.waitUntilReady();
-        worker.run();
-
-        for (let i = 1; i <= maxJobs; i++) {
-          await queue.add('test', { foo: 'bar', num: i });
-        }
-
-        await expect(worker.run()).to.be.rejectedWith(
-          'Worker is already running.',
-        );
-
-        await worker.close();
-      });
     });
   });
 
@@ -747,6 +847,8 @@ describe('workers', function () {
 
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
+
+    worker.run();
 
     await processing;
 
@@ -780,6 +882,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
+    worker.run();
+
     await processing;
 
     await worker.close();
@@ -798,6 +902,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, async job => {});
     await worker.waitUntilReady();
 
+    worker.run();
+
     await new Promise(resolve => {
       const resolveAfterAllJobs = after(jobs.length, resolve);
       worker.on('completed', resolveAfterAllJobs);
@@ -812,6 +918,8 @@ describe('workers', function () {
       return 37;
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -860,6 +968,8 @@ describe('workers', function () {
       });
     });
 
+    worker.run();
+
     await queue.add('test', { testing: true });
     await waiting;
     await worker.close();
@@ -871,6 +981,8 @@ describe('workers', function () {
       return 37;
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -906,6 +1018,8 @@ describe('workers', function () {
     });
     await worker.waitUntilReady();
 
+    worker.run();
+
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
@@ -927,6 +1041,8 @@ describe('workers', function () {
     });
 
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -957,6 +1073,8 @@ describe('workers', function () {
 
     await worker.waitUntilReady();
 
+    worker.run();
+
     const addedJob = await queue.add('test', { foo: 'bar' });
 
     const anotherWorker = new Worker(queueName, async job => {
@@ -985,6 +1103,8 @@ describe('workers', function () {
       throw jobError;
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -1023,6 +1143,8 @@ describe('workers', function () {
       });
     });
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
 
     await waiting;
@@ -1041,6 +1163,8 @@ describe('workers', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -1102,6 +1226,8 @@ describe('workers', function () {
       });
     });
 
+    worker.run();
+
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
@@ -1129,6 +1255,8 @@ describe('workers', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -1188,6 +1316,9 @@ describe('workers', function () {
     });
     await queueScheduler.waitUntilReady();
 
+    queueScheduler.run();
+    worker.run();
+
     const job = await queue.add('test', { bar: 'baz' });
 
     const errorMessage = `Missing lock for job ${job.id}. failed`;
@@ -1230,6 +1361,9 @@ describe('workers', function () {
     });
     await queueScheduler.waitUntilReady();
 
+    queueScheduler.run();
+    worker.run();
+
     await queue.add('test', { bar: 'baz' });
 
     const completed = new Promise(resolve => {
@@ -1271,6 +1405,8 @@ describe('workers', function () {
         },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       await queue.add('test', {});
       await queue.add('test', {});
@@ -1323,6 +1459,8 @@ describe('workers', function () {
         worker.on('failed', reject);
       });
 
+      worker.run();
+
       await Promise.all(times(8, () => queue.add('test', {})));
 
       await waiting;
@@ -1373,6 +1511,9 @@ describe('workers', function () {
         worker.on('failed', cb);
         worker.on('error', reject);
       });
+
+      worker.run();
+
       await Promise.all(times(8, () => queue.add('test', {})));
 
       await waiting;
@@ -1397,6 +1538,8 @@ describe('workers', function () {
       );
 
       await worker.waitUntilReady();
+
+      worker.run();
 
       await queue.add(
         'test',
@@ -1430,6 +1573,8 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
+      worker.run();
+
       await queue.add(
         'test',
         { foo: 'bar' },
@@ -1461,6 +1606,8 @@ describe('workers', function () {
       );
 
       await worker.waitUntilReady();
+
+      worker.run();
 
       await queue.add(
         'test',
@@ -1502,6 +1649,9 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
+      queueScheduler.run();
+      worker.run();
+
       const start = Date.now();
       await queue.add(
         'test',
@@ -1541,6 +1691,9 @@ describe('workers', function () {
       );
 
       await worker.waitUntilReady();
+
+      queueScheduler.run();
+      worker.run();
 
       const start = Date.now();
       await queue.add(
@@ -1594,6 +1747,9 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
+      queueScheduler.run();
+      worker.run();
+
       const start = Date.now();
       await queue.add(
         'test',
@@ -1640,6 +1796,8 @@ describe('workers', function () {
           },
         },
       );
+
+      worker.run();
 
       await queue.add(
         'test',
@@ -1694,6 +1852,9 @@ describe('workers', function () {
           },
         },
       );
+
+      queueScheduler.run();
+      worker.run();
 
       const start = Date.now();
       await queue.add(
@@ -1756,6 +1917,9 @@ describe('workers', function () {
         },
       );
 
+      queueScheduler.run();
+      worker.run();
+
       const start = Date.now();
       await queue.add(
         'test',
@@ -1804,6 +1968,10 @@ describe('workers', function () {
           },
         },
       );
+
+      queueScheduler.run();
+      worker.run();
+
       const start = Date.now();
       await queue.add(
         'test',
@@ -1857,11 +2025,14 @@ describe('workers', function () {
         });
       });
 
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', (_job, _result, _prev) => {
+      const completing = new Promise<void>((resolve, _reject) => {
+        worker.on('completed', async () => {
           resolve();
         });
       });
+
+      queueScheduler.run();
+      worker.run();
 
       const retriedJob = await queue.add('test', { foo: 'bar' });
 
@@ -1913,11 +2084,14 @@ describe('workers', function () {
         });
       });
 
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', (_job, _result, _prev) => {
+      const completing = new Promise<void>((resolve, _reject) => {
+        worker.on('completed', async () => {
           resolve();
         });
       });
+
+      queueScheduler.run();
+      worker.run();
 
       const retriedJob = await queue.add('test', { foo: 'bar' });
 
@@ -1943,7 +2117,7 @@ describe('workers', function () {
     it('should not retry a job that is active', async () => {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           await delay(500);
         },
         { connection },
@@ -1954,6 +2128,8 @@ describe('workers', function () {
       const activating = new Promise(resolve => {
         worker.on('active', resolve);
       });
+
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -2398,6 +2574,9 @@ describe('workers', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    queueScheduler.run();
+    worker.run();
 
     await queue.add('test', { foo: 'bar' });
 

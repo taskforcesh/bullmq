@@ -38,6 +38,8 @@ describe('bulk jobs', () => {
     const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
+    worker.run();
+
     const jobs = await queue.addBulk([
       { name, data: { idx: 0, foo: 'bar' } },
       { name, data: { idx: 1, foo: 'baz' } },
@@ -58,10 +60,17 @@ describe('bulk jobs', () => {
     const parentQueueName = `parent-queue-${v4()}`;
     const parentQueue = new Queue(parentQueueName, { connection });
 
-    const parentWorker = new Worker(parentQueueName, null, { connection });
-    const childrenWorker = new Worker(queueName, null, { connection });
+    const parentWorker = new Worker(parentQueueName, async job => {}, {
+      connection,
+    });
+    const childrenWorker = new Worker(queueName, async job => {}, {
+      connection,
+    });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
+
+    parentWorker.run();
+    childrenWorker.run();
 
     const parent = await parentQueue.add('parent', { some: 'data' });
     const jobs = await queue.addBulk([
@@ -122,6 +131,8 @@ describe('bulk jobs', () => {
     );
     const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const jobs = await queue.addBulk([
       { name, data: { idx: 0, foo: 'bar' }, opts: { jobId: 'test1' } },

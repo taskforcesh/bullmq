@@ -26,7 +26,8 @@
   * [Adding bulks](guide/jobs/adding-bulks.md)
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
-* [Flows](guide/flows.md)
+* [Flows](guide/flows/README.md)
+  * [Get Flow Tree](guide/flows/get-flow-tree.md)
 * [Rate limiting](guide/rate-limiting.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
 * [Returning job data](guide/returning-job-data.md)
@@ -43,7 +44,7 @@
 * [Sender - Receiver](patterns/sender-receiver.md)
 * [Working with batches](patterns/working-with-batches.md)
 * [Idempotent jobs](patterns/idempotent-jobs.md)
-* [Debounce jobs](patterns/debounce-jobs.md)
+* [Throttle jobs](patterns/throttle-jobs.md)
 
 ## BullMQ Pro
 
@@ -73,3 +74,4 @@
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
+

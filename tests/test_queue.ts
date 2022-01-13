@@ -122,6 +122,8 @@ describe('queues', function () {
         const queueScheduler = new QueueScheduler(queueName, { connection });
         await queueScheduler.waitUntilReady();
 
+        queueScheduler.run();
+
         for (let i = 1; i <= maxJobs; i++) {
           added.push(queue.add('test', { foo: 'bar', num: i }));
         }
@@ -152,6 +154,8 @@ describe('queues', function () {
 
         const queueScheduler = new QueueScheduler(queueName, { connection });
         await queueScheduler.waitUntilReady();
+
+        queueScheduler.run();
 
         for (let i = 1; i <= maxJobs; i++) {
           added.push(queue.add('test', { foo: 'bar', num: i }));

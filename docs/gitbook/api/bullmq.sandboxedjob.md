@@ -18,7 +18,6 @@ export interface SandboxedJob<T = any, R = any> extends Omit<JobJson, 'data' | '
 |  [data](./bullmq.sandboxedjob.data.md) | T |  |
 |  [log](./bullmq.sandboxedjob.log.md) | (row: any) =&gt; void |  |
 |  [opts](./bullmq.sandboxedjob.opts.md) | [JobsOptions](./bullmq.jobsoptions.md) |  |
-|  [progress](./bullmq.sandboxedjob.progress.md) | (() =&gt; object \| number) \| ((value: object \| number) =&gt; Promise&lt;void&gt;) |  |
 |  [returnValue](./bullmq.sandboxedjob.returnvalue.md) | R |  |
 |  [updateProgress](./bullmq.sandboxedjob.updateprogress.md) | (value: object \| number) =&gt; Promise&lt;void&gt; |  |
 

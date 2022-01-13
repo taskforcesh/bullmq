@@ -12,13 +12,11 @@ import * as path from 'path';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false',
-  'and will be overrided by BullMQ.',
+  'and will be overridden by BullMQ.',
 ].join(' ');
 
-const deprecationMessage = [
-  'BullMQ: DEPRECATION WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false.',
-  'On the next versions having this settings will throw an exception',
-].join(' ');
+const connectionErrorMessage = `Using a redis instance with enableReadyCheck or maxRetriesPerRequest is not permitted.
+See https://https://github.com/OptimalBits/bull/issues/1873`;
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -51,11 +49,16 @@ export class RedisConnection extends EventEmitter {
     } else {
       this._client = <RedisClient>opts;
       let options = this._client.options;
-      if ((<IORedis.ClusterOptions>options)?.redisOptions) {
+      if((<IORedis.ClusterOptions>options)?.redisOptions){
         options = (<IORedis.ClusterOptions>options).redisOptions;
       }
 
-      this.checkOptions(deprecationMessage, options);
+      if (
+        (<IORedis.RedisOptions>options).maxRetriesPerRequest ||
+        options.enableReadyCheck
+      ) {
+        throw new Error(connectionErrorMessage);
+      }
     }
 
     this.handleClientError = (err: Error): void => {
@@ -196,14 +199,27 @@ export class RedisConnection extends EventEmitter {
 
   private async getRedisVersion() {
     const doc = await this._client.info();
-    const prefix = 'redis_version:';
+    const redisPrefix = 'redis_version:';
+    const maxMemoryPolicyPrefix = 'maxmemory_policy:';
     const lines = doc.split('\r\n');
+    let redisVersion;
 
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].indexOf(prefix) === 0) {
-        return lines[i].substr(prefix.length);
+      if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
+        const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
+        if (maxMemoryPolicy !== 'noeviction') {
+          throw new Error(
+            `Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
+          );
+        }
+      }
+
+      if (lines[i].indexOf(redisPrefix) === 0) {
+        redisVersion = lines[i].substr(redisPrefix.length);
       }
     }
+
+    return redisVersion;
   }
 
   get redisVersion(): string {

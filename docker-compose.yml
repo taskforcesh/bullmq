@@ -1,5 +1,7 @@
-redis:
-  image: redis
-  container_name: cache
-  ports:
-    - 6379:6379
+version: '3.2'
+services:
+  redis:
+    image: redis
+    container_name: cache
+    ports:
+      - 6379:6379

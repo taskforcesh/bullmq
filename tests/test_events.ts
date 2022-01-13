@@ -27,65 +27,41 @@ describe('events', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  describe('when autorun option is provided as false', function () {
-    it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
-      const queue2 = new Queue(queueName2, { connection });
-      const queueEvents2 = new QueueEvents(queueName2, {
-        autorun: false,
-        connection,
-      });
-      await queueEvents2.waitUntilReady();
-
-      const waiting = new Promise(resolve => {
-        queue2.on('waiting', resolve);
-      });
-
-      const running = queueEvents2.run();
-
-      await queue2.add('test', { foo: 'bar' });
-
-      await waiting;
-
-      await queue2.close();
-      await queueEvents2.close();
-      await expect(running).to.have.been.fulfilled;
-      await removeAllQueueData(new IORedis(), queueName2);
+  it('emits waiting when a job has been added', async () => {
+    const waiting = new Promise(resolve => {
+      queue.on('waiting', resolve);
     });
 
-    describe('when run method is called when queueEvent is running', function () {
-      it('throws error', async () => {
-        const queueName2 = `test-${v4()}`;
-        const queue2 = new Queue(queueName2, { connection });
-        const queueEvents2 = new QueueEvents(queueName2, {
-          autorun: false,
-          connection,
-        });
-        await queueEvents2.waitUntilReady();
+    await queue.add('test', { foo: 'bar' });
 
-        const running = queueEvents2.run();
+    await waiting;
+  });
 
-        await queue2.add('test', { foo: 'bar' });
+  describe('when run method is called when queueEvent is running', function () {
+    it('throws error', async function () {
+      const queueEvents2 = new QueueEvents(queueName, { connection });
+      await queueEvents2.waitUntilReady();
+      const running = queueEvents2.run();
 
-        await expect(queueEvents2.run()).to.be.rejectedWith(
-          'Queue Events is already running.',
-        );
+      await expect(queueEvents2.run()).to.be.rejectedWith(
+        'Queue Events is already running.',
+      );
 
-        await queue2.close();
-        await queueEvents2.close();
-        await expect(running).to.have.been.fulfilled;
-        await removeAllQueueData(new IORedis(), queueName2);
-      });
+      await queueEvents2.close();
+
+      await expect(running).to.have.been.fulfilled;
     });
   });
 
-  it('should emit waiting when a job has been added', async function () {
+  it('should emit waiting event when a job has been added', async function () {
     const waiting = new Promise<void>(resolve => {
       queue.on('waiting', job => {
         expect(job.id).to.be.string;
         resolve();
       });
     });
+
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
 
@@ -96,6 +72,8 @@ describe('events', function () {
     const waiting = new Promise(resolve => {
       queueEvents.on('waiting', resolve);
     });
+
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
 
@@ -116,7 +94,9 @@ describe('events', function () {
       await queue.add('test', { foo: 'bar' });
     }
 
-    await new Promise<void>(resolve => {
+    worker.run();
+
+    const cleaned = new Promise<void>(resolve => {
       queueEvents.once('cleaned', async ({ count }) => {
         expect(count).to.be.eql('50');
         const actualCount = await queue.count();
@@ -124,6 +104,12 @@ describe('events', function () {
         resolve();
       });
     });
+
+    queueEvents.run();
+
+    await cleaned;
+
+    await worker.close();
   });
 
   it('emits drained global event when all jobs have been processed', async function () {
@@ -138,6 +124,9 @@ describe('events', function () {
         resolve();
       });
     });
+
+    worker.run();
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { foo: 'baz' });
@@ -156,9 +145,14 @@ describe('events', function () {
       connection,
     });
 
-    const drained = new Promise(resolve => {
-      worker.once('drained', resolve);
+    const drained = new Promise<void>(resolve => {
+      worker.once('drained', () => {
+        resolve();
+      });
     });
+
+    worker.run();
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { foo: 'baz' });
@@ -183,8 +177,13 @@ describe('events', function () {
     });
 
     const error = new Promise<void>(resolve => {
-      worker.once('error', resolve);
+      worker.once('error', () => {
+        resolve();
+      });
     });
+
+    worker.run();
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
 
@@ -202,17 +201,17 @@ describe('events', function () {
       connection,
     });
     const testName = 'test';
-    const testData = { foo: 'bar' };
 
     const added = new Promise<void>(resolve => {
-      queueEvents.once('added', ({ jobId, name, data, opts }) => {
+      queueEvents.once('added', ({ jobId, name }) => {
         expect(jobId).to.be.equal('1');
         expect(name).to.be.equal(testName);
-        expect(data).to.be.equal(JSON.stringify(testData));
-        expect(JSON.parse(opts)).to.be.deep.equal({ attempts: 0, delay: 0 });
         resolve();
       });
     });
+
+    worker.run();
+    queueEvents.run();
 
     await queue.add(testName, { foo: 'bar' });
 
@@ -224,8 +223,6 @@ describe('events', function () {
   it('should emit an event when a job becomes active', async () => {
     const worker = new Worker(queueName, async job => {}, { connection });
 
-    await queue.add('test', {});
-
     const completed = new Promise<void>(resolve => {
       worker.once('active', function () {
         worker.once('completed', async function () {
@@ -234,6 +231,11 @@ describe('events', function () {
         });
       });
     });
+
+    worker.run();
+    queueEvents.run();
+
+    await queue.add('test', {});
 
     await completed;
     await worker.close();
@@ -256,6 +258,9 @@ describe('events', function () {
         resolve();
       });
     });
+
+    worker.run();
+    queueEvents.run();
 
     const flow = new FlowProducer({ connection });
     await flow.add({
@@ -299,6 +304,9 @@ describe('events', function () {
       });
     });
 
+    worker.run();
+    queueEvents.run();
+
     await queue.add('test', {});
 
     await completed;
@@ -328,6 +336,9 @@ describe('events', function () {
       queueEvents.on('drained', resolve);
     });
 
+    worker.run();
+    queueEvents.run();
+
     await waitForCompletion;
     await worker.close();
 
@@ -352,6 +363,8 @@ describe('events', function () {
   it('should trim events manually', async () => {
     const queueName = 'test-manual-' + v4();
     const trimmedQueue = new Queue(queueName, { connection });
+
+    queueEvents.run();
 
     await trimmedQueue.add('test', {});
     await trimmedQueue.add('test', {});

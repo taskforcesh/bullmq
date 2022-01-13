@@ -25,6 +25,7 @@ describe('sandboxed process', () => {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -57,11 +58,48 @@ describe('sandboxed process', () => {
       });
     });
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
 
     await completing;
 
     await worker.close();
+  });
+
+  describe('when processor file is .cjs (CommonJS)', () => {
+    it('processes and completes', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor.cjs';
+      const worker = new Worker(queueName, processFile, {
+        autorun: false,
+        connection,
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql(42);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+            await worker.close();
+            resolve();
+          } catch (err) {
+            await worker.close();
+            reject(err);
+          }
+        });
+      });
+
+      worker.run();
+
+      await queue.add('foobar', { foo: 'bar' });
+
+      await completing;
+    });
   });
 
   describe('when there is an output from stdout', () => {
@@ -83,6 +121,8 @@ describe('sandboxed process', () => {
         });
       });
       const inspect = stdout.inspect();
+
+      worker.run();
 
       await queue.add('test', { foo: 'bar' });
 
@@ -119,6 +159,8 @@ describe('sandboxed process', () => {
         });
       });
       const inspect = stderr.inspect();
+
+      worker.run();
 
       await queue.add('test', { foo: 'bar' });
 
@@ -158,6 +200,8 @@ describe('sandboxed process', () => {
         }
       });
     });
+
+    worker.run();
 
     await queue.add('foobar', { foo: 'bar' });
 
@@ -202,6 +246,8 @@ describe('sandboxed process', () => {
       });
     });
 
+    worker.run();
+
     await completing;
     await worker.close();
   });
@@ -245,6 +291,8 @@ describe('sandboxed process', () => {
       });
     });
 
+    worker.run();
+
     await completing;
   });
 
@@ -267,11 +315,6 @@ describe('sandboxed process', () => {
           expect(progresses).to.be.eql([10, 27, 78, 100]);
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
           expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
-          const logs = await queue.getJobLogs(job.id);
-          expect(logs).to.be.eql({
-            logs: ['10', '27', '78', '100'],
-            count: 4,
-          });
           resolve();
         } catch (err) {
           reject(err);
@@ -282,6 +325,8 @@ describe('sandboxed process', () => {
     worker.on('progress', (job, progress) => {
       progresses.push(progress);
     });
+
+    worker.run();
 
     await queue.add('test', { foo: 'bar' });
 
@@ -315,6 +360,8 @@ describe('sandboxed process', () => {
           }
         });
       });
+
+      worker.run();
 
       await queue.add('test', { foo: 'bar' });
 
@@ -350,6 +397,8 @@ describe('sandboxed process', () => {
       });
     });
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
 
     await failing;
@@ -362,7 +411,8 @@ describe('sandboxed process', () => {
     let didThrow = false;
     try {
       const missingProcessFile = __dirname + '/fixtures/missing_processor.js';
-      worker = new Worker(queueName, missingProcessFile, { connection });
+      worker = new Worker(queueName, missingProcessFile, {});
+      worker.run();
     } catch (err) {
       didThrow = true;
     }
@@ -377,10 +427,12 @@ describe('sandboxed process', () => {
   it('should fail if the process crashes', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-    new Worker(queueName, processFile, {
+    const worker = new Worker(queueName, processFile, {
       connection,
       drainDelay: 1,
     });
+
+    worker.run();
 
     const job = await queue.add('test', {});
 
@@ -392,10 +444,12 @@ describe('sandboxed process', () => {
   it('should fail if the process exits 0', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-    new Worker(queueName, processFile, {
+    const worker = new Worker(queueName, processFile, {
       connection,
       drainDelay: 1,
     });
+
+    worker.run();
 
     const job = await queue.add('test', { exitCode: 0 });
 
@@ -407,10 +461,12 @@ describe('sandboxed process', () => {
   it('should fail if the process exits non-0', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-    new Worker(queueName, processFile, {
+    const worker = new Worker(queueName, processFile, {
       connection,
       drainDelay: 1,
     });
+
+    worker.run();
 
     const job = await queue.add('test', { exitCode: 1 });
 
@@ -422,10 +478,12 @@ describe('sandboxed process', () => {
   it('should fail if the process file is broken', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_broken.js';
 
-    new Worker(queueName, processFile, {
+    const worker = new Worker(queueName, processFile, {
       connection,
       drainDelay: 1,
     });
+
+    worker.run();
 
     const job = await queue.add('test', { exitCode: 1 });
 
@@ -457,6 +515,8 @@ describe('sandboxed process', () => {
       });
     });
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
 
     await completing;
@@ -480,6 +540,8 @@ describe('sandboxed process', () => {
         resolve();
       });
     });
+
+    worker.run();
 
     const jobAdd = queue.add('foo', {});
     await onJobActive;

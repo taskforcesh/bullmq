@@ -42,6 +42,53 @@ describe('connection', () => {
     checkOptions(await queue.client);
   });
 
+  describe('when reusing connection with enableReadyCheck as true', () => {
+    it('throws an error', async () => {
+      const connection = new IORedis({
+        maxRetriesPerRequest: null,
+        enableReadyCheck: true,
+      });
+
+      expect(() => new QueueBase(queueName, { connection })).to
+        .throw(`Using a redis instance with enableReadyCheck or maxRetriesPerRequest is not permitted.
+See https://https://github.com/OptimalBits/bull/issues/1873`);
+    });
+  });
+
+  describe('when reusing connection with maxRetriesPerRequest different than null', () => {
+    it('throws an error', async () => {
+      const connection = new IORedis({
+        maxRetriesPerRequest: 1,
+        enableReadyCheck: false,
+      });
+
+      expect(() => new QueueBase(queueName, { connection })).to
+        .throw(`Using a redis instance with enableReadyCheck or maxRetriesPerRequest is not permitted.
+See https://https://github.com/OptimalBits/bull/issues/1873`);
+    });
+  });
+
+  describe('when maxmemory-policy is different than noeviction in Redis', () => {
+    it('throws an error', async () => {
+      const opts = {
+        connection: {
+          host: 'localhost',
+        },
+      };
+
+      const queue = new QueueBase(queueName, opts);
+      const client = await queue.client;
+      await client.config('SET', 'maxmemory-policy', 'volatile-lru');
+
+      const queue2 = new QueueBase(`${queueName}2`, opts);
+
+      await expect(queue2.client).to.be.eventually.rejectedWith(
+        'Eviction policy is volatile-lru. It should be "noeviction"',
+      );
+      await client.config('SET', 'maxmemory-policy', 'noeviction');
+    });
+  });
+
   it('should recover from a connection loss', async () => {
     let processor;
 
@@ -61,6 +108,8 @@ describe('connection', () => {
     queue.on('error', (err: Error) => {
       // error event has to be observed or the exception will bubble up
     });
+
+    worker.run();
 
     const workerClient = await worker.client;
     const queueClient = await queue.client;
@@ -124,6 +173,8 @@ describe('connection', () => {
         await queue.add('test', { foo: 'bar' });
       }
     });
+
+    worker.run();
 
     await queue.waitUntilReady();
     await queue.add('test', { foo: 'bar' });

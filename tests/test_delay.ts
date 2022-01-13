@@ -58,13 +58,16 @@ describe('Delayed jobs', function () {
           const delayedJobs = await queue.getDelayed();
           expect(delayedJobs.length).to.be.equal(0);
           expect(publishHappened).to.be.eql(true);
-          await worker.close();
           resolve();
         } catch (err) {
           reject(err);
         }
       });
     });
+
+    queueEvents.run();
+    queueScheduler.run();
+    worker.run();
 
     const job = await queue.add('test', { delayed: 'foobar' }, { delay });
 
@@ -79,85 +82,27 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
-  describe('when autorun option is provided as false', function () {
-    it('should process a delayed job only after delayed time', async function () {
+  describe('when run method is called when queue-scheduler is running', function () {
+    it('throws an error', async function () {
       const delay = 1000;
-      const queueScheduler = new QueueScheduler(queueName, {
-        connection,
-        autorun: false,
-      });
+      const maxJobs = 10;
+      const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
-      const queueEvents = new QueueEvents(queueName, { connection });
-      await queueEvents.waitUntilReady();
 
-      const worker = new Worker(queueName, async job => {}, { connection });
+      const worker = new Worker(queueName, async job => {});
+      const running = queueScheduler.run();
 
-      const timestamp = Date.now();
-      let publishHappened = false;
+      for (let i = 1; i <= maxJobs; i++) {
+        await queue.add('test', { foo: 'bar', num: i }, { delay });
+      }
 
-      const delayed = new Promise<void>((resolve, reject) => {
-        queueEvents.on('delayed', () => {
-          publishHappened = true;
-          resolve();
-        });
-      });
+      await expect(queueScheduler.run()).to.be.rejectedWith(
+        'Queue Scheduler is already running.',
+      );
 
-      const completed = new Promise<void>((resolve, reject) => {
-        queueEvents.on('completed', async function () {
-          try {
-            expect(Date.now() > timestamp + delay);
-            const jobs = await queue.getWaiting();
-            expect(jobs.length).to.be.equal(0);
-
-            const delayedJobs = await queue.getDelayed();
-            expect(delayedJobs.length).to.be.equal(0);
-            expect(publishHappened).to.be.eql(true);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      const job = await queue.add('test', { delayed: 'foobar' }, { delay });
-
-      expect(job.id).to.be.ok;
-      expect(job.data.delayed).to.be.eql('foobar');
-      expect(job.opts.delay).to.be.eql(delay);
-
-      queueScheduler.run();
-
-      await delayed;
-      await completed;
       await queueScheduler.close();
-      await queueEvents.close();
+      await expect(running).to.have.been.fulfilled;
       await worker.close();
-    });
-
-    describe('when run method is called when queue-scheduler is running', function () {
-      it('throws an error', async function () {
-        const delay = 1000;
-        const maxJobs = 10;
-        const queueScheduler = new QueueScheduler(queueName, {
-          connection,
-          autorun: false,
-        });
-        await queueScheduler.waitUntilReady();
-
-        const worker = new Worker(queueName, async job => {}, { connection });
-        queueScheduler.run();
-
-        for (let i = 1; i <= maxJobs; i++) {
-          await queue.add('test', { foo: 'bar', num: i }, { delay });
-        }
-
-        await expect(queueScheduler.run()).to.be.rejectedWith(
-          'Queue Scheduler is already running.',
-        );
-
-        await queueScheduler.close();
-        await worker.close();
-      });
     });
   });
 
@@ -186,6 +131,9 @@ describe('Delayed jobs', function () {
     const worker = new Worker(queueName, processor, { connection });
 
     worker.on('failed', function (job, err) {});
+
+    queueScheduler.run();
+    worker.run();
 
     await Promise.all([
       queue.add('test', { order: 1 }, { delay: 100 }),
@@ -231,6 +179,7 @@ describe('Delayed jobs', function () {
                 connection,
               });
               await secondQueueScheduler.waitUntilReady();
+              secondQueueScheduler.run();
             }
 
             if (order === 4) {
@@ -245,6 +194,9 @@ describe('Delayed jobs', function () {
       );
     });
 
+    firstQueueScheduler.run();
+    worker.run();
+
     await Promise.all([
       queue.add('test', { order: 2 }, { delay: 500 }),
       queue.add('test', { order: 4 }, { delay: 1500 }),
@@ -255,7 +207,7 @@ describe('Delayed jobs', function () {
     await processing;
 
     await queue.close();
-    worker && (await worker.close());
+    await worker.close();
     secondQueueScheduler && (await secondQueueScheduler.close());
   });
 
@@ -288,6 +240,9 @@ describe('Delayed jobs', function () {
 
     worker.on('failed', function (job, err) {});
 
+    queueScheduler.run();
+    worker.run();
+
     const now = Date.now();
     const promises = [];
     let i = 1;
@@ -305,6 +260,7 @@ describe('Delayed jobs', function () {
     }
     await Promise.all(promises);
     await processing;
+
     await queueScheduler.close();
     await worker.close();
   });

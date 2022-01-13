@@ -1,11 +1,11 @@
 import { QueueEventsOptions, RedisClient, StreamReadRaw } from '../interfaces';
 import {
   array2obj,
+  DELAY_TIME_5,
   delay,
   isNotConnectionError,
   isRedisInstance,
 } from '../utils';
-import { DELAY_TIME_5 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
@@ -23,7 +23,7 @@ export interface QueueEventsListener {
    * This event is triggered when a job is created.
    */
   added: (
-    args: { jobId: string; name: string; data: string; opts: string },
+    args: { jobId: string; name: string; },
     id: string,
   ) => void;
 
@@ -179,7 +179,7 @@ export class QueueEvents extends QueueBase {
 
   constructor(
     name: string,
-    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+    { connection, ...opts }: QueueEventsOptions = {},
     Connection?: typeof RedisConnection,
   ) {
     super(
@@ -199,10 +199,6 @@ export class QueueEvents extends QueueBase {
       },
       this.opts,
     );
-
-    if (autorun) {
-      this.run().catch(error => this.emit('error', error));
-    }
   }
 
   async run(): Promise<void> {

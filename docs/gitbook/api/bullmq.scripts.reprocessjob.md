@@ -9,7 +9,7 @@ Attempts to reprocess a job
 <b>Signature:</b>
 
 ```typescript
-static reprocessJob(queue: MinimalQueue, job: Job, state: 'failed' | 'completed'): Promise<void>;
+static reprocessJob<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, state: 'failed' | 'completed'): Promise<void>;
 ```
 
 ## Parameters
@@ -17,7 +17,7 @@ static reprocessJob(queue: MinimalQueue, job: Job, state: 'failed' | 'completed'
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  job | [Job](./bullmq.job.md) |  |
+|  job | [Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; |  |
 |  state | 'failed' \| 'completed' |  |
 
 <b>Returns:</b>

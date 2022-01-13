@@ -8,17 +8,58 @@ import { Repeat } from './repeat';
 import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
 
-export interface QueueDeclaration<
-  DataType,
-  ResultType,
-  NameType extends string,
-> {
-  on(event: 'cleaned', listener: (jobs: string[], type: string) => void): this;
-  on(
-    event: 'waiting',
-    listener: (job: Job<DataType, ResultType, NameType>) => void,
-  ): this;
-  on(event: string, listener: Function): this;
+export interface QueueListener<DataType, ResultType, NameType extends string> {
+  /**
+   * Listen to 'cleaned' event.
+   *
+   * This event is triggered when the queue calls clean method.
+   */
+  cleaned: (jobs: string[], type: string) => void;
+
+  /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an error is thrown.
+   */
+  error: (err: Error) => void;
+
+  /**
+   * Listen to 'paused' event.
+   *
+   * This event is triggered when the queue is paused.
+   */
+  paused: () => void;
+
+  /**
+   * Listen to 'progress' event.
+   *
+   * This event is triggered when the job updates its progress.
+   */
+  progress: (
+    job: Job<DataType, ResultType, NameType>,
+    progress: number | object,
+  ) => void;
+
+  /**
+   * Listen to 'removed' event.
+   *
+   * This event is triggered when a job is removed.
+   */
+  removed: (job: Job<DataType, ResultType, NameType>) => void;
+
+  /**
+   * Listen to 'resumed' event.
+   *
+   * This event is triggered when the queue is resumed.
+   */
+  resumed: () => void;
+
+  /**
+   * Listen to 'waiting' event.
+   *
+   * This event is triggered when the queue creates a new job.
+   */
+  waiting: (job: Job<DataType, ResultType, NameType>) => void;
 }
 
 /**
@@ -29,13 +70,10 @@ export interface QueueDeclaration<
  *
  */
 export class Queue<
-    DataType = any,
-    ResultType = any,
-    NameType extends string = string,
-  >
-  extends QueueGetters
-  implements QueueDeclaration<DataType, ResultType, NameType>
-{
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
+> extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
   jobsOpts: JobsOptions;
   limiter: {
@@ -74,6 +112,37 @@ export class Queue<
         // We ignore this error to avoid warnings. The error can still
         // be received by listening to event 'error'
       });
+  }
+
+  emit<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+    event: U,
+    ...args: Parameters<QueueListener<DataType, ResultType, NameType>[U]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  off<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+    eventName: U,
+    listener: QueueListener<DataType, ResultType, NameType>[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+    event: U,
+    listener: QueueListener<DataType, ResultType, NameType>[U],
+  ): this {
+    super.on(event, listener);
+    return this;
+  }
+
+  once<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+    event: U,
+    listener: QueueListener<DataType, ResultType, NameType>[U],
+  ): this {
+    super.once(event, listener);
+    return this;
   }
 
   /**
@@ -136,8 +205,8 @@ export class Queue<
    */
   async addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
-  ) {
-    return Job.createBulk(
+  ): Promise<Job<DataType, DataType, NameType>[]> {
+    return Job.createBulk<DataType, DataType, NameType>(
       this,
       jobs.map(job => ({
         name: job.name,

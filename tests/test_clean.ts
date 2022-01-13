@@ -17,6 +17,7 @@ describe('Cleaner', () => {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -44,26 +45,33 @@ describe('Cleaner', () => {
   });
 
   it('should clean two jobs from the queue', async () => {
-    await queue.add('test', { some: 'data' });
-    await queue.add('test', { some: 'data' });
-
     const worker = new Worker(queueName, async job => {}, { connection });
     await worker.waitUntilReady();
 
-    queue.on(
-      'completed',
-      after(2, async () => {
-        const jobs = await queue.clean(0, 0);
-        expect(jobs.length).to.be.eql(2);
-      }),
-    );
+    worker.run();
+    const completing = new Promise<void>(resolve => {
+      worker.on(
+        'completed',
+        after(2, async () => {
+          const jobs = await queue.clean(0, 0);
+          expect(jobs.length).to.be.eql(2);
+          resolve();
+        }),
+      );
+    });
 
+    await queue.add('test', { some: 'data' });
+    await queue.add('test', { some: 'data' });
+
+    await completing;
     await worker.close();
   });
 
   it('should only remove a job outside of the grace period', async () => {
     const worker = new Worker(queueName, async job => {}, { connection });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
@@ -105,6 +113,8 @@ describe('Cleaner', () => {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
@@ -158,6 +168,8 @@ describe('Cleaner', () => {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     const client = new IORedis();
 

@@ -18,6 +18,7 @@ describe('Rate Limiter', function () {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -35,6 +36,8 @@ describe('Rate Limiter', function () {
       },
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     queueEvents.on('failed', ({ failedReason }) => {});
 
@@ -98,6 +101,9 @@ describe('Rate Limiter', function () {
       });
     });
 
+    queueScheduler.run();
+    worker.run();
+
     for (let i = 0; i < numJobs; i++) {
       await queue.add('rate test', {});
     }
@@ -147,6 +153,9 @@ describe('Rate Limiter', function () {
         reject(err);
       });
     });
+
+    queueScheduler.run();
+    worker.run();
 
     for (let i = 0; i < numJobs; i++) {
       await queue.add('rate test', {});
@@ -222,6 +231,9 @@ describe('Rate Limiter', function () {
       });
     });
 
+    queueScheduler.run();
+    worker.run();
+
     for (let i = 0; i < numJobs; i++) {
       await rateLimitedQueue.add('rate test', { accountId: i % numGroups });
     }
@@ -296,6 +308,9 @@ describe('Rate Limiter', function () {
         reject(err);
       });
     });
+
+    queueScheduler.run();
+    worker.run();
 
     for (let i = 0; i < numJobs; i++) {
       await rateLimitedQueue.add('rate test', {});
@@ -383,6 +398,9 @@ describe('Rate Limiter', function () {
         }),
       );
     });
+
+    queueScheduler.run();
+    worker.run();
 
     await result;
     await worker.close();
