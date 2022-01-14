@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "1.64.0",
+  "version": "1.64.1",
   "description": "Queue for messages and jobs based on Redis",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
