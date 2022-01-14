@@ -76,8 +76,6 @@ async function initChild(child: ChildProcess, processFile: string) {
     };
 
     child.on('message', onMessageHandler);
-
-    // TODO: we need to clean this listener too.
     child.on('close', onCloseHandler);
   });
 
