@@ -44,6 +44,7 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/destructureJobKey"
+--- @include "includes/removeParentDependencyKey"
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
@@ -114,6 +115,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
             local jobIds = rcall("ZREVRANGE", KEYS[2], start, -1)
             for i, jobId in ipairs(jobIds) do
                 local jobKey = ARGV[9] .. jobId
+                removeParentDependencyKey(jobKey)
                 local jobLogKey = jobKey .. ':logs'
                 local jobProcessedKey = jobKey .. ':processed'
                 rcall("DEL", jobKey, jobLogKey, jobProcessedKey)

@@ -32,9 +32,12 @@ local function getSetItems(keyName, max)
     return rcall('SMEMBERS', keyName, 0, max)
 end
 
+--- @include "includes/removeParentDependencyKey"
+
 local function removeJobs(keys)
     for i, key in ipairs(keys) do
-        local jobKey = baseKey .. key 
+        local jobKey = baseKey .. key
+        removeParentDependencyKey(jobKey)
         rcall("DEL", jobKey)
         rcall("DEL", jobKey .. ':logs')
         rcall("DEL", jobKey .. ':dependencies')
@@ -84,12 +87,6 @@ if(maxCount <= 0) then
     return 1
 end
 
-local waitKey = baseKey .. 'paused'
-removeListJobs(waitKey, maxCount)
-if(maxCount <= 0) then
-    return 1
-end
-
 local delayedKey = baseKey .. 'delayed'
 removeZSetJobs(delayedKey, maxCount)
 if(maxCount <= 0) then
@@ -104,6 +101,12 @@ end
 
 local failedKey = baseKey .. 'failed'
 removeZSetJobs(failedKey, maxCount)
+if(maxCount <= 0) then
+    return 1
+end
+
+local waitKey = baseKey .. 'paused'
+removeListJobs(waitKey, maxCount)
 if(maxCount <= 0) then
     return 1
 end
