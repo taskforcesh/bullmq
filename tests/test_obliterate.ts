@@ -98,7 +98,7 @@ describe('Obliterate', function () {
       const flow = new FlowProducer({ connection });
       await flow.add({
         name: 'parent-job',
-        queueName: queueName,
+        queueName,
         data: {},
         children: [
           { name, data: { idx: 0, foo: 'bar' }, queueName },

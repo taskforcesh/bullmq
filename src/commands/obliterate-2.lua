@@ -87,12 +87,6 @@ if(maxCount <= 0) then
     return 1
 end
 
-local waitKey = baseKey .. 'paused'
-removeListJobs(waitKey, maxCount)
-if(maxCount <= 0) then
-    return 1
-end
-
 local delayedKey = baseKey .. 'delayed'
 removeZSetJobs(delayedKey, maxCount)
 if(maxCount <= 0) then
@@ -107,6 +101,12 @@ end
 
 local failedKey = baseKey .. 'failed'
 removeZSetJobs(failedKey, maxCount)
+if(maxCount <= 0) then
+    return 1
+end
+
+local waitKey = baseKey .. 'paused'
+removeListJobs(waitKey, maxCount)
 if(maxCount <= 0) then
     return 1
 end

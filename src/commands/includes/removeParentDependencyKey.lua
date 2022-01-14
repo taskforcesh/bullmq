@@ -4,6 +4,8 @@
   which requires code from "moveToFinished"
 ]]
 
+--- @include "destructureJobKey"
+
 local function removeParentDependencyKey(jobKey)
   local parentKey = rcall("HGET", jobKey, "parentKey")
   if( (type(parentKey) == "string") and parentKey ~= "" and (rcall("EXISTS", parentKey) == 1)) then
@@ -18,7 +20,7 @@ local function removeParentDependencyKey(jobKey)
           if rcall("HEXISTS", parentPrefix .. "meta", "paused") ~= 1 then
               rcall("RPUSH", parentPrefix .. "wait", parentId)
           else
-              rcall("RPUSH", parentPrefix .. "parentPrefixpaused", parentId)
+              rcall("RPUSH", parentPrefix .. "paused", parentId)
           end
 
           local parentEventStream = parentPrefix .. "events"
