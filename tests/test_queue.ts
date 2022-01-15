@@ -72,7 +72,7 @@ import * as IORedis from 'ioredis';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { Queue, QueueScheduler } from '../src/classes';
+import { FlowProducer, Queue, QueueScheduler } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
 describe('queues', function () {
@@ -110,6 +110,38 @@ describe('queues', function () {
       await queue.drain();
       const countAfterEmpty = await queue.count();
       expect(countAfterEmpty).to.be.eql(0);
+    });
+
+    describe('when having a flow', async () => {
+      it('drains paused, waiting and delayed jobs, also move parent jobs to wait if necessary', async () => {
+        await queue.waitUntilReady();
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection });
+        await flow.add({
+          name: 'parent-job',
+          queueName,
+          data: {},
+          children: [
+            { name, data: { idx: 0, foo: 'bar' }, queueName },
+            { name, data: { idx: 1, foo: 'baz' }, queueName },
+            { name, data: { idx: 2, foo: 'qux' }, queueName },
+          ],
+        });
+
+        const count = await queue.count();
+        expect(count).to.be.eql(3);
+
+        await queue.drain();
+
+        const client = await queue.client;
+        const keys = await client.keys(`bull:${queue.name}:*`);
+
+        expect(keys.length).to.be.eql(5);
+
+        const countAfterEmpty = await queue.count();
+        expect(countAfterEmpty).to.be.eql(1);
+      });
     });
 
     describe('when delayed option is provided as false', () => {
