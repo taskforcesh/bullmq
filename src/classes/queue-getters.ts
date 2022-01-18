@@ -47,7 +47,12 @@ export class QueueGetters<
     Returns the number of jobs waiting to be processed.
   */
   count(): Promise<number> {
-    return this.getJobCountByTypes('waiting', 'paused', 'delayed');
+    return this.getJobCountByTypes(
+      'waiting',
+      'paused',
+      'delayed',
+      'waiting-children',
+    );
   }
 
   /**

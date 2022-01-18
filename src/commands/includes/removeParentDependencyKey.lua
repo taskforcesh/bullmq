@@ -43,12 +43,6 @@ local function removeParentDependencyKey(jobKey, hard, baseKey, timestamp)
             rcall("ZADD", parentPrefix .. "failed", timestamp, parentId)
             rcall("HMSET", parentKey, "failedReason", "Deleted children", "finishedOn",
               timestamp)
-          else
-            if rcall("HEXISTS", parentPrefix .. "meta", "paused") ~= 1 then
-              rcall("RPUSH", parentPrefix .. "wait", parentId)
-            else
-              rcall("RPUSH", parentPrefix .. "paused", parentId)
-            end
           end
         end
       else
