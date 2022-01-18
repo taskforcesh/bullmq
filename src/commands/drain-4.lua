@@ -15,9 +15,9 @@ local queueBaseKey = ARGV[1]
 
 --- @include "includes/removeJobs"
 
-removeListJobs(KEYS[1], queueBaseKey, 0) --wait
-removeListJobs(KEYS[2], queueBaseKey, 0) --paused
+removeListJobs(KEYS[1], true, queueBaseKey, 0) --wait
+removeListJobs(KEYS[2], true, queueBaseKey, 0) --paused
 
 if KEYS[3] ~= "" then
-  removeZSetJobs(KEYS[3], queueBaseKey, 0) --delayed
+  removeZSetJobs(KEYS[3], true, queueBaseKey, 0) --delayed
 end
