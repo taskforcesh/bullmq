@@ -21,7 +21,7 @@ local function removeParentDependencyKey(jobKey, hard, baseKey, timestamp)
           rcall("ZREM", parentPrefix .. "waiting-children", parentId)
 
           if parentPrefix == baseKey then
-            removeParentDependencyKey(parentKey, 1, baseKey, 1)
+            removeParentDependencyKey(parentKey, hard, baseKey, timestamp)
             rcall("DEL", parentKey)
             rcall("DEL", parentKey .. ':logs')
             rcall("DEL", parentKey .. ':dependencies')

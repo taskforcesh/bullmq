@@ -330,17 +330,17 @@ export class Scripts {
     }
   }
 
-  static drainArgs(queue: MinimalQueue, delayed: boolean): string[] {
+  static drainArgs(queue: MinimalQueue, delayed: boolean): (string | number)[] {
     const queueKeys = queue.keys;
 
-    const keys = [
+    const keys: (string | number)[] = [
       queueKeys.wait,
       queueKeys.paused,
       delayed ? queueKeys.delayed : '',
       queueKeys.priority,
     ];
 
-    const args = [queueKeys['']];
+    const args = [queueKeys[''], Date.now()];
 
     return keys.concat(args);
   }
@@ -778,7 +778,7 @@ export class Scripts {
     const client = await queue.client;
 
     const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];
-    const args = [opts.count, opts.force ? 'force' : null];
+    const args = [opts.count, opts.force ? 'force' : null, Date.now()];
 
     const result = await (<any>client).obliterate(keys.concat(args));
     if (result < 0) {
