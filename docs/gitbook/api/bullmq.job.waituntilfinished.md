@@ -17,7 +17,7 @@ waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<ReturnType>;
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queueEvents | [QueueEvents](./bullmq.queueevents.md) |  |
-|  ttl | number |  |
+|  ttl | number | Time in milliseconds to wait for job to finish before timing out. |
 
 <b>Returns:</b>
 
