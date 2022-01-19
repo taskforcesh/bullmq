@@ -9,7 +9,8 @@
 
 * [Introduction](guide/introduction.md)
 * [Connections](guide/connections.md)
-* [Queues](guide/queues.md)
+* [Queues](guide/queues/README.md)
+  * [Removing Jobs](guide/queues/removing-jobs.md)
 * [Workers](guide/workers/README.md)
   * [Concurrency](guide/workers/concurrency.md)
   * [Graceful shutdown](guide/workers/graceful-shutdown.md)
@@ -24,6 +25,7 @@
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/prioritized.md)
   * [Adding bulks](guide/jobs/adding-bulks.md)
+  * [Removing job](guide/jobs/removing-job.md)
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
 * [Flows](guide/flows/README.md)
@@ -75,3 +77,4 @@
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
+
