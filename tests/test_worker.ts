@@ -2042,56 +2042,24 @@ describe('workers', function () {
   });
 
   describe('Manually process jobs', () => {
-    describe('when redisVersion is less than 6.0.6', () => {
-      it('should allow to complete jobs manually', async () => {
-        const redisVersionStub = sinon
-          .stub(queue, 'redisVersion')
-          .get(() => '6.0.5');
-        const worker = new Worker(queueName, null, { connection });
-        const token = 'my-token';
+    it('should allow to complete jobs manually', async () => {
+      const worker = new Worker(queueName, null, { connection });
+      const token = 'my-token';
 
-        await queue.add('test', { foo: 'bar' });
+      await queue.add('test', { foo: 'bar' });
 
-        const job = (await worker.getNextJob(token)) as Job;
+      const job = (await worker.getNextJob(token)) as Job;
 
-        const isActive = await job.isActive();
-        expect(isActive).to.be.equal(true);
+      const isActive = await job.isActive();
+      expect(isActive).to.be.equal(true);
 
-        await job.moveToCompleted('return value', token);
+      await job.moveToCompleted('return value', token);
 
-        const isCompleted = await job.isCompleted();
+      const isCompleted = await job.isCompleted();
 
-        expect(isCompleted).to.be.equal(true);
+      expect(isCompleted).to.be.equal(true);
 
-        await worker.close();
-        redisVersionStub.restore();
-      });
-    });
-
-    describe('when redisVersion is greater or equal than 6.0.6', () => {
-      it('should allow to complete jobs manually', async () => {
-        const redisVersionStub = sinon
-          .stub(queue, 'redisVersion')
-          .get(() => '6.0.6');
-        const worker = new Worker(queueName, null, { connection });
-        const token = 'my-token';
-
-        await queue.add('test', { foo: 'bar' });
-
-        const job = (await worker.getNextJob(token)) as Job;
-
-        const isActive = await job.isActive();
-        expect(isActive).to.be.equal(true);
-
-        await job.moveToCompleted('return value', token);
-
-        const isCompleted = await job.isCompleted();
-
-        expect(isCompleted).to.be.equal(true);
-
-        await worker.close();
-        redisVersionStub.restore();
-      });
+      await worker.close();
     });
 
     describe('when move job to waiting-children', () => {

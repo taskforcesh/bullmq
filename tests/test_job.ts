@@ -5,7 +5,6 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
-import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import {
   Job,
@@ -16,8 +15,6 @@ import {
 } from '../src/classes';
 import { JobsOptions } from '../src/interfaces';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
-
-const ONE_SECOND = 1000;
 
 describe('Job', function () {
   let queue: Queue;
@@ -675,78 +672,35 @@ describe('Job', function () {
   });
 
   describe('.getState', () => {
-    describe('when redisVersion is less than 6.0.6', () => {
-      it('should get job actual state', async () => {
-        const redisVersionStub = sinon
-          .stub(queue, 'redisVersion')
-          .get(() => '6.0.5');
-        const worker = new Worker(queueName, null, { connection });
-        const token = 'my-token';
-        const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
-        const delayedState = await job.getState();
+    it('should get job actual state', async () => {
+      const worker = new Worker(queueName, null, { connection });
+      const token = 'my-token';
+      const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
+      const delayedState = await job.getState();
 
-        expect(delayedState).to.be.equal('delayed');
+      expect(delayedState).to.be.equal('delayed');
 
-        await queue.pause();
-        await job.promote();
-        await queue.resume();
-        const waitingState = await job.getState();
+      await queue.pause();
+      await job.promote();
+      await queue.resume();
+      const waitingState = await job.getState();
 
-        expect(waitingState).to.be.equal('waiting');
+      expect(waitingState).to.be.equal('waiting');
 
-        const currentJob1 = (await worker.getNextJob(token)) as Job;
+      const currentJob1 = (await worker.getNextJob(token)) as Job;
 
-        await currentJob1.moveToFailed(new Error('test error'), token, true);
-        const failedState = await currentJob1.getState();
-        await queue.add('job2', { foo: 'foo' });
-        const job2 = (await worker.getNextJob(token)) as Job;
+      await currentJob1.moveToFailed(new Error('test error'), token, true);
+      const failedState = await currentJob1.getState();
+      await queue.add('job2', { foo: 'foo' });
+      const job2 = (await worker.getNextJob(token)) as Job;
 
-        expect(failedState).to.be.equal('failed');
+      expect(failedState).to.be.equal('failed');
 
-        await job2.moveToCompleted('succeeded', token, true);
-        const completedState = await job2.getState();
+      await job2.moveToCompleted('succeeded', token, true);
+      const completedState = await job2.getState();
 
-        expect(completedState).to.be.equal('completed');
-        await worker.close();
-        redisVersionStub.restore();
-      });
-    });
-
-    describe('when redisVersion is greater or equal than 6.0.6', () => {
-      it('should get job actual state', async () => {
-        const redisVersionStub = sinon
-          .stub(queue, 'redisVersion')
-          .get(() => '6.0.6');
-        const worker = new Worker(queueName, null, { connection });
-        const token = 'my-token';
-        const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
-        const delayedState = await job.getState();
-
-        expect(delayedState).to.be.equal('delayed');
-
-        await queue.pause();
-        await job.promote();
-        await queue.resume();
-        const waitingState = await job.getState();
-
-        expect(waitingState).to.be.equal('waiting');
-
-        const currentJob1 = (await worker.getNextJob(token)) as Job;
-
-        await currentJob1.moveToFailed(new Error('test error'), token, true);
-        const failedState = await currentJob1.getState();
-        await queue.add('job2', { foo: 'foo' });
-        const job2 = (await worker.getNextJob(token)) as Job;
-
-        expect(failedState).to.be.equal('failed');
-
-        await job2.moveToCompleted('succeeded', token, true);
-        const completedState = await job2.getState();
-
-        expect(completedState).to.be.equal('completed');
-        await worker.close();
-        redisVersionStub.restore();
-      });
+      expect(completedState).to.be.equal('completed');
+      await worker.close();
     });
   });
 
