@@ -730,6 +730,9 @@ export class Job<
 
   /**
    * Returns a promise the resolves when the job has finished. (completed or failed).
+   *
+   * @param queueEvents - Instance of QueueEvents.
+   * @param ttl - Time in milliseconds to wait for job to finish before timing out.
    */
   async waitUntilFinished(
     queueEvents: QueueEvents,
