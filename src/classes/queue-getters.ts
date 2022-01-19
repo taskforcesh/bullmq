@@ -60,7 +60,7 @@ export class QueueGetters<
    */
   async getJobCountByTypes(...types: string[]): Promise<number> {
     const result = await this.getJobCounts(...types);
-    return Object.values(result).reduce((sum, count) => sum + count);
+    return Object.values(result).reduce((sum, count) => sum + count, 0);
   }
 
   /**
