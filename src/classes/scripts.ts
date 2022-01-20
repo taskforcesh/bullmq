@@ -22,7 +22,7 @@ import {
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
-import { ErrorCodes } from '../enums';
+import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
@@ -315,17 +315,17 @@ export class Scripts {
     state?: string,
   ): Error {
     switch (code) {
-      case ErrorCodes.JobNotExist:
+      case ErrorCode.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
-      case ErrorCodes.JobLockNotExist:
+      case ErrorCode.JobLockNotExist:
         return new Error(`Missing lock for job ${jobId}. ${command}`);
-      case ErrorCodes.JobNotInState:
+      case ErrorCode.JobNotInState:
         return new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
-      case ErrorCodes.JobPendingDependencies:
+      case ErrorCode.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
-      case ErrorCodes.ParentJobNotExist:
+      case ErrorCode.ParentJobNotExist:
         return new Error(`Missing key for parent job ${jobId}. ${command}`);
     }
   }

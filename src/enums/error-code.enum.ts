@@ -1,4 +1,4 @@
-export enum ErrorCodes {
+export enum ErrorCode {
   JobNotExist = -1,
   JobLockNotExist = -2,
   JobNotInState = -3,

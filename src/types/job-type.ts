@@ -1,4 +1,4 @@
-export type JobTypes =
+export type JobType =
   | 'completed'
   | 'failed'
   | 'delayed'
