@@ -1464,8 +1464,8 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          expect(job.attemptsMade).to.be.eql(tries);
           tries++;
+          expect(job.attemptsMade).to.be.eql(tries);
           if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
@@ -1497,10 +1497,10 @@ describe('workers', function () {
         queueName,
         async job => {
           tries++;
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 4) {
             throw new Error('Not yet!');
           }
-          expect(job.attemptsMade).to.be.eql(tries - 1);
+          expect(job.attemptsMade).to.be.eql(tries);
         },
         { connection },
       );
@@ -1560,7 +1560,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          expect(elapse).to.be.greaterThan(2000);
+          expect(elapse).to.be.greaterThan(1000);
           resolve();
         });
       });
@@ -1603,7 +1603,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          const expected = 1000 * (Math.pow(2, 2) - 1);
+          const expected = 1000 * (Math.pow(2, 1) - 1);
           expect(elapse).to.be.greaterThan(expected);
           resolve();
         });
@@ -1621,7 +1621,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 2) {
+          if (job.attemptsMade < 3) {
             throw new Error('Not yet!');
           }
         },
@@ -1654,7 +1654,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          expect(elapse).to.be.greaterThan(3000);
+          expect(elapse).to.be.greaterThan(1000);
           resolve();
         });
       });
@@ -1755,7 +1755,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          expect(elapse).to.be.greaterThan(3000);
+          expect(elapse).to.be.greaterThan(1500);
           resolve();
         });
       });
@@ -1864,7 +1864,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          expect(elapse).to.be.greaterThan(1000);
+          expect(elapse).to.be.greaterThan(500);
           resolve();
         });
       });
