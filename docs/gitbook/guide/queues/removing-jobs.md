@@ -13,7 +13,8 @@ await queue.drain();
 ```
 
 {% hint style="warning" %}
-Parent jobs that belong to the same queue would be moved to failed state (when having pending dependencies at that moment) or they will be removed (no more pending dependencies after deleting the last child). On the other hand, if the parent belongs to another queue, it should be kept in waiting-children state (when having pending dependencies at that moment) or it will be moved to wait state (no more pending dependencies after deleting the last child).
+Parent jobs that belong to the queue being drained will be moved to failed state if they have pending children, but if they do not have any pending children they will just be removed. On the other hand, parent jobs in queues different from the one being drained will either stay in **waiting-children** if they
+have pending children in other queues, or just moved to wait.
 {% endhint %}
 
 # Obliterate
@@ -29,5 +30,6 @@ await queue.obliterate();
 ```
 
 {% hint style="warning" %}
-If the parent belongs to another queue, it should be kept in waiting-children state (when having pending dependencies at that moment) or it will be moved to wait state (no more pending dependencies after deleting the last child).
+Parent jobs in queues different from the one being obliterated will either stay in **waiting-children** if they
+have pending children in other queues, or just moved to wait.
 {% endhint %}
