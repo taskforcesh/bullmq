@@ -1427,6 +1427,41 @@ describe('workers', function () {
   });
 
   describe('Retries and backoffs', () => {
+    describe('when attempts is 1', () => {
+      it('should execute job only once', async () => {
+        let tries = 0;
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            tries++;
+            throw new Error('failed');
+          },
+          { connection },
+        );
+
+        await worker.waitUntilReady();
+
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 1,
+          },
+        );
+
+        await new Promise<void>(resolve => {
+          worker.on('failed', () => {
+            if (tries === 1) {
+              resolve();
+            }
+          });
+        });
+
+        await worker.close();
+      });
+    });
+
     it('should not retry a job if it has been marked as unrecoverable', async () => {
       let tries = 0;
 
