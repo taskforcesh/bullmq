@@ -20,6 +20,7 @@
 // TypeScript Version: 2.8
 
 import { EventEmitter } from 'events';
+import { JobType } from '../types';
 import { Job } from './job';
 import { QueueScheduler } from './queue-scheduler';
 import { Queue } from './queue';
@@ -312,7 +313,7 @@ export class Queue3<T = any> extends EventEmitter {
    * Optional parameters for range and ordering are provided.
    */
   getJobs(
-    types: string[] | string,
+    types: JobType[] | JobType,
     start = 0,
     end = -1,
     asc = false,
@@ -339,14 +340,14 @@ export class Queue3<T = any> extends EventEmitter {
   /**
    * Returns a promise that resolves with the job counts for the given queue.
    */
-  getJobCounts(...types: string[]): Promise<{ [index: string]: number }> {
+  getJobCounts(...types: JobType[]): Promise<{ [index: string]: number }> {
     return this.queue.getJobCounts(...types);
   }
 
   /**
    * Returns a promise that resolves with the job counts for the given queue of the given types.
    */
-  async getJobCountByTypes(...types: string[]): Promise<number> {
+  async getJobCountByTypes(...types: JobType[]): Promise<number> {
     return this.queue.getJobCountByTypes(...types);
   }
 
