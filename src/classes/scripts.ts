@@ -22,6 +22,7 @@ import {
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
+import { JobState } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
@@ -408,7 +409,10 @@ export class Scripts {
     );
   }
 
-  static async getState(queue: MinimalQueue, jobId: string): Promise<string> {
+  static async getState(
+    queue: MinimalQueue,
+    jobId: string,
+  ): Promise<JobState | 'unknown'> {
     const client = await queue.client;
 
     const keys = [

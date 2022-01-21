@@ -1,10 +1,9 @@
-export type JobType =
-  | 'completed'
-  | 'failed'
-  | 'delayed'
-  | 'repeat'
-  | 'waiting-children'
+export type JobState =
   | 'active'
+  | 'completed'
+  | 'delayed'
+  | 'failed'
   | 'waiting'
-  | 'wait'
-  | 'paused';
+  | 'waiting-children';
+
+export type JobType = JobState | 'paused' | 'repeat' | 'wait';
