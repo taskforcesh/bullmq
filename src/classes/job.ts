@@ -480,7 +480,9 @@ export class Job<
         this.opts.removeOnFail,
         token,
         fetchNext,
-        this.attemptsMade >= this.opts.attempts ? this.attemptsMade : 0,
+        this.opts.attempts && this.attemptsMade >= this.opts.attempts
+          ? this.attemptsMade
+          : 0,
       );
       (<any>multi).moveToFinished(args);
       command = 'failed';
