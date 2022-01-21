@@ -132,7 +132,7 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
           ARGV[4])
 
-    if ARGV[15] then
+    if ARGV[15] > 0 then
       rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId", jobId, "attemptsMade", ARGV[15])
     end
 

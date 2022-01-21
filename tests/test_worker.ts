@@ -1429,12 +1429,9 @@ describe('workers', function () {
   describe('Retries and backoffs', () => {
     describe('when attempts is 1', () => {
       it('should execute job only once and emits retries-exhausted event', async () => {
-        let tries = 0;
-
         const worker = new Worker(
           queueName,
           async () => {
-            tries++;
             throw new Error('failed');
           },
           { connection },
