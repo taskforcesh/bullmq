@@ -11,10 +11,10 @@ end
 
 --- @include "removeParentDependencyKey"
 
-local function removeJobs(keys, hard, baseKey, max, timestamp)
+local function removeJobs(keys, hard, baseKey, max)
   for i, key in ipairs(keys) do
     local jobKey = baseKey .. key
-    removeParentDependencyKey(jobKey, hard, baseKey, timestamp)
+    removeParentDependencyKey(jobKey, hard, baseKey)
     rcall("DEL", jobKey)
     rcall("DEL", jobKey .. ':logs')
     rcall("DEL", jobKey .. ':dependencies')
@@ -23,16 +23,16 @@ local function removeJobs(keys, hard, baseKey, max, timestamp)
   return max - #keys
 end
 
-local function removeListJobs(keyName, hard, baseKey, max, timestamp)
+local function removeListJobs(keyName, hard, baseKey, max)
   local jobs = getListItems(keyName, max)
-  local count = removeJobs(jobs, hard, baseKey, max, timestamp)
+  local count = removeJobs(jobs, hard, baseKey, max)
   rcall("LTRIM", keyName, #jobs, -1)
   return count
 end
 
-local function removeZSetJobs(keyName, hard, baseKey, max, timestamp)
+local function removeZSetJobs(keyName, hard, baseKey, max)
   local jobs = getZSetItems(keyName, max)
-  local count = removeJobs(jobs, hard, baseKey, max, timestamp)
+  local count = removeJobs(jobs, hard, baseKey, max)
   if(#jobs > 0) then
     rcall("ZREM", keyName, unpack(jobs))
   end

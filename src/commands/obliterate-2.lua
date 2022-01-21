@@ -7,7 +7,6 @@
 
     ARGV[1] count
     ARGV[2] force
-    ARGV[3] timestamp
 ]]
 
 -- This command completely destroys a queue including all of its jobs, current or past 
@@ -45,38 +44,38 @@ if (#activeJobs > 0) then
 end
 
 removeLockKeys(activeJobs)
-maxCount = removeJobs(activeJobs, true, baseKey, maxCount, ARGV[3])
+maxCount = removeJobs(activeJobs, true, baseKey, maxCount)
 rcall("LTRIM", activeKey, #activeJobs, -1)
 if(maxCount <= 0) then
   return 1
 end
 
 local delayedKey = baseKey .. 'delayed'
-maxCount = removeZSetJobs(delayedKey, true, baseKey, maxCount, ARGV[3])
+maxCount = removeZSetJobs(delayedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end
 
 local completedKey = baseKey .. 'completed'
-maxCount = removeZSetJobs(completedKey, true, baseKey, maxCount, ARGV[3])
+maxCount = removeZSetJobs(completedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end
 
 local waitKey = baseKey .. 'paused'
-maxCount = removeListJobs(waitKey, true, baseKey, maxCount, ARGV[3])
+maxCount = removeListJobs(waitKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end
 
 local waitingChildrenKey = baseKey .. 'waiting-children'
-maxCount = removeZSetJobs(waitingChildrenKey, true, baseKey, maxCount, ARGV[3])
+maxCount = removeZSetJobs(waitingChildrenKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end
 
 local failedKey = baseKey .. 'failed'
-maxCount = removeZSetJobs(failedKey, true, baseKey, maxCount, ARGV[3])
+maxCount = removeZSetJobs(failedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end

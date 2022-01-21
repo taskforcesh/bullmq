@@ -340,7 +340,7 @@ export class Scripts {
       queueKeys.priority,
     ];
 
-    const args = [queueKeys[''], Date.now()];
+    const args = [queueKeys['']];
 
     return keys.concat(args);
   }
@@ -778,7 +778,7 @@ export class Scripts {
     const client = await queue.client;
 
     const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];
-    const args = [opts.count, opts.force ? 'force' : null, Date.now()];
+    const args = [opts.count, opts.force ? 'force' : null];
 
     const result = await (<any>client).obliterate(keys.concat(args));
     if (result < 0) {

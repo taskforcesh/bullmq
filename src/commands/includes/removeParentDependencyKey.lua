@@ -6,7 +6,7 @@
 
 --- @include "destructureJobKey"
 
-local function removeParentDependencyKey(jobKey, hard, baseKey, timestamp)
+local function removeParentDependencyKey(jobKey, hard, baseKey)
   local parentKey = rcall("HGET", jobKey, "parentKey")
   if( (type(parentKey) == "string") and parentKey ~= "" and (rcall("EXISTS", parentKey) == 1)) then
     local parentDependenciesKey = parentKey .. ":dependencies"
@@ -21,7 +21,7 @@ local function removeParentDependencyKey(jobKey, hard, baseKey, timestamp)
           rcall("ZREM", parentPrefix .. "waiting-children", parentId)
 
           if parentPrefix == baseKey then
-            removeParentDependencyKey(parentKey, hard, baseKey, timestamp)
+            removeParentDependencyKey(parentKey, hard, baseKey)
             rcall("DEL", parentKey)
             rcall("DEL", parentKey .. ':logs')
             rcall("DEL", parentKey .. ':dependencies')
@@ -32,17 +32,6 @@ local function removeParentDependencyKey(jobKey, hard, baseKey, timestamp)
             else
               rcall("RPUSH", parentPrefix .. "paused", parentId)
             end
-          end
-        else
-          local parentId = getJobIdFromKey(parentKey)
-          local parentPrefix = getJobKeyPrefix(parentKey, parentId)
-    
-          rcall("ZREM", parentPrefix .. "waiting-children", parentId)
-
-          if parentPrefix == baseKey then
-            rcall("ZADD", parentPrefix .. "failed", timestamp, parentId)
-            rcall("HMSET", parentKey, "failedReason", "Deleted children", "finishedOn",
-              timestamp)
           end
         end
       else

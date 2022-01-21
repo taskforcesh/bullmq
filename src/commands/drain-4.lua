@@ -9,16 +9,15 @@
     KEYS[4] 'priority'
 
     ARGV[1]  queue key prefix
-    ARGV[2]  timestamp
 ]]
 local rcall = redis.call
 local queueBaseKey = ARGV[1]
 
 --- @include "includes/removeJobs"
 
-removeListJobs(KEYS[1], true, queueBaseKey, 0, ARGV[2]) --wait
-removeListJobs(KEYS[2], true, queueBaseKey, 0, ARGV[2]) --paused
+removeListJobs(KEYS[1], true, queueBaseKey, 0) --wait
+removeListJobs(KEYS[2], true, queueBaseKey, 0) --paused
 
 if KEYS[3] ~= "" then
-  removeZSetJobs(KEYS[3], true, queueBaseKey, 0, ARGV[2]) --delayed
+  removeZSetJobs(KEYS[3], true, queueBaseKey, 0) --delayed
 end
