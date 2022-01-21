@@ -9,7 +9,7 @@ Returns the job counts for each type specified or every list/set in the queue by
 <b>Signature:</b>
 
 ```typescript
-getJobCounts(...types: string[]): Promise<{
+getJobCounts(...types: JobType[]): Promise<{
         [index: string]: number;
     }>;
 ```
@@ -18,7 +18,7 @@ getJobCounts(...types: string[]): Promise<{
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  types | string\[\] |  |
+|  types | [JobType](./bullmq.jobtype.md)<!-- -->\[\] |  |
 
 <b>Returns:</b>
 

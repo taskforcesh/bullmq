@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-getRanges(types: string[], start?: number, end?: number, asc?: boolean): Promise<any[]>;
+getRanges(types: JobType[], start?: number, end?: number, asc?: boolean): Promise<any[]>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  types | string\[\] |  |
+|  types | [JobType](./bullmq.jobtype.md)<!-- -->\[\] |  |
 |  start | number |  |
 |  end | number |  |
 |  asc | boolean |  |

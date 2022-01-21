@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static getState(queue: MinimalQueue, jobId: string): Promise<string>;
+static getState(queue: MinimalQueue, jobId: string): Promise<JobState | 'unknown'>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ static getState(queue: MinimalQueue, jobId: string): Promise<string>;
 
 <b>Returns:</b>
 
-Promise&lt;string&gt;
+Promise&lt;[JobState](./bullmq.jobstate.md) \| 'unknown'&gt;
 
