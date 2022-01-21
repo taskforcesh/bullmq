@@ -1428,7 +1428,7 @@ describe('workers', function () {
 
   describe('Retries and backoffs', () => {
     describe('when attempts is 1', () => {
-      it('should execute job only once', async () => {
+      it('should execute job only once and emits retries-exhausted event', async () => {
         let tries = 0;
 
         const worker = new Worker(
@@ -1442,7 +1442,7 @@ describe('workers', function () {
 
         await worker.waitUntilReady();
 
-        await queue.add(
+        const job = await queue.add(
           'test',
           { foo: 'bar' },
           {
@@ -1451,11 +1451,14 @@ describe('workers', function () {
         );
 
         await new Promise<void>(resolve => {
-          worker.on('failed', () => {
-            if (tries === 1) {
+          queueEvents.on(
+            'retries-exhausted',
+            async ({ jobId, attemptsMade }) => {
+              expect(jobId).to.eql(job.id);
+              expect(1).to.eql(Number(attemptsMade));
               resolve();
-            }
-          });
+            },
+          );
         });
 
         await worker.close();
@@ -1542,7 +1545,7 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
-      await queue.add(
+      const job = await queue.add(
         'test',
         { foo: 'bar' },
         {
@@ -1554,10 +1557,10 @@ describe('workers', function () {
         worker.on('completed', () => {
           reject(new Error('Failed job was retried more than it should be!'));
         });
-        worker.on('failed', () => {
-          if (tries === 3) {
-            resolve();
-          }
+        queueEvents.on('retries-exhausted', async ({ jobId, attemptsMade }) => {
+          expect(jobId).to.eql(job.id);
+          expect(3).to.eql(Number(attemptsMade));
+          resolve();
         });
       });
 
@@ -1927,7 +1930,7 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
-      const failing = new Promise<void>((resolve, reject) => {
+      const failing = new Promise<void>(resolve => {
         worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
           expect(err).to.equal(failedError);
@@ -1937,7 +1940,7 @@ describe('workers', function () {
         });
       });
 
-      const completing = new Promise<void>((resolve, _reject) => {
+      const completing = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           resolve();
         });
@@ -1984,7 +1987,7 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
-      const failing = new Promise<void>((resolve, reject) => {
+      const failing = new Promise<void>(resolve => {
         worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
           expect(err).to.equal(failedError);
@@ -1993,7 +1996,7 @@ describe('workers', function () {
         });
       });
 
-      const completing = new Promise<void>((resolve, _reject) => {
+      const completing = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           resolve();
         });

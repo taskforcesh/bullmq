@@ -28,6 +28,7 @@
       ARGV[12] parentId
       ARGV[13] parentQueue
       ARGV[14] parentKey
+      ARGV[14] retriesExhausted
 
     Output:
       0 OK
@@ -130,6 +131,10 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
 
     rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
           ARGV[4])
+
+    if ARGV[15] then
+      rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId", jobId, "attemptsMade", ARGV[15])
+    end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
