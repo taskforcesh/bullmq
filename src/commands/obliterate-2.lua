@@ -68,12 +68,6 @@ if(maxCount <= 0) then
   return 1
 end
 
-local waitingChildrenKey = baseKey .. 'waiting-children'
-maxCount = removeZSetJobs(waitingChildrenKey, true, baseKey, maxCount)
-if(maxCount <= 0) then
-  return 1
-end
-
 local failedKey = baseKey .. 'failed'
 maxCount = removeZSetJobs(failedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then

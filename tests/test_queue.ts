@@ -174,7 +174,7 @@ describe('queues', function () {
           });
         });
 
-        describe('when parent has pending children in the different queue', async () => {
+        describe('when parent has pending children in different queue', async () => {
           it('keeps parent in waiting-children', async () => {
             await queue.waitUntilReady();
             const childrenQueueName = `test-${v4()}`;

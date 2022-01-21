@@ -70,7 +70,7 @@ describe('Obliterate', function () {
 
   describe('when creating a flow', async () => {
     describe('when parent belongs to same queue', async () => {
-      describe('when parent has more than 1 pending children', async () => {
+      describe('when parent has more than 1 pending children in the same queue', async () => {
         it('removes parent record', async () => {
           await queue.waitUntilReady();
           const name = 'child-job';
@@ -105,7 +105,7 @@ describe('Obliterate', function () {
         });
       });
 
-      describe('when parent has only 1 pending children', async () => {
+      describe('when parent has only 1 pending child in the same queue', async () => {
         it('obliterates a queue with jobs and its dependency keys', async () => {
           await queue.waitUntilReady();
           const name = 'child-job';
@@ -154,6 +154,43 @@ describe('Obliterate', function () {
           expect(keys.length).to.be.eql(0);
 
           await worker.close();
+        });
+      });
+
+      describe('when parent has pending children in different queue', async () => {
+        it('keeps parent in waiting-children', async () => {
+          await queue.waitUntilReady();
+          const childrenQueueName = `test-${v4()}`;
+          const childrenQueue = new Queue(childrenQueueName, { connection });
+          await childrenQueue.waitUntilReady();
+          const name = 'child-job';
+
+          const flow = new FlowProducer({ connection });
+          await flow.add({
+            name: 'parent-job',
+            queueName,
+            data: {},
+            children: [
+              {
+                name,
+                data: { idx: 0, foo: 'bar' },
+                queueName: childrenQueueName,
+              },
+            ],
+          });
+
+          const count = await queue.count();
+          expect(count).to.be.eql(1);
+
+          await queue.obliterate();
+
+          const client = await queue.client;
+          const keys = await client.keys(`bull:${queue.name}:*`);
+
+          expect(keys.length).to.be.eql(3);
+
+          const countAfterEmpty = await queue.count();
+          expect(countAfterEmpty).to.be.eql(1);
         });
       });
     });
