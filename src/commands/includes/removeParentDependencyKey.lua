@@ -6,6 +6,17 @@
 
 --- @include "destructureJobKey"
 
+local function moveParentToWait(parentPrefix, parentId)
+  if rcall("HEXISTS", parentPrefix .. "meta", "paused") ~= 1 then
+    rcall("RPUSH", parentPrefix .. "wait", parentId)
+  else
+    rcall("RPUSH", parentPrefix .. "paused", parentId)
+  end
+
+  local parentEventStream = parentPrefix .. "events"
+  rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+end
+
 local function removeParentDependencyKey(jobKey, hard, baseKey)
   local parentKey = rcall("HGET", jobKey, "parentKey")
   if( (type(parentKey) == "string") and parentKey ~= "" and (rcall("EXISTS", parentKey) == 1)) then
@@ -13,13 +24,13 @@ local function removeParentDependencyKey(jobKey, hard, baseKey)
     local result = rcall("SREM", parentDependenciesKey, jobKey)
     if result > 0 then
       local pendingDependencies = rcall("SCARD", parentDependenciesKey)
-      if hard then
-        if pendingDependencies == 0 then
-          local parentId = getJobIdFromKey(parentKey)
-          local parentPrefix = getJobKeyPrefix(parentKey, parentId)
-    
-          rcall("ZREM", parentPrefix .. "waiting-children", parentId)
+      if pendingDependencies == 0 then
+        local parentId = getJobIdFromKey(parentKey)
+        local parentPrefix = getJobKeyPrefix(parentKey, parentId)
 
+        rcall("ZREM", parentPrefix .. "waiting-children", parentId)
+
+        if hard then  
           if parentPrefix == baseKey then
             removeParentDependencyKey(parentKey, hard, baseKey)
             rcall("DEL", parentKey)
@@ -27,28 +38,10 @@ local function removeParentDependencyKey(jobKey, hard, baseKey)
             rcall("DEL", parentKey .. ':dependencies')
             rcall("DEL", parentKey .. ':processed')
           else
-            if rcall("HEXISTS", parentPrefix .. "meta", "paused") ~= 1 then
-              rcall("RPUSH", parentPrefix .. "wait", parentId)
-            else
-              rcall("RPUSH", parentPrefix .. "paused", parentId)
-            end
+            moveParentToWait(parentPrefix, parentId)
           end
-        end
-      else
-        if pendingDependencies == 0 then
-          local parentId = getJobIdFromKey(parentKey)
-          local parentPrefix = getJobKeyPrefix(parentKey, parentId)
-    
-          rcall("ZREM", parentPrefix .. "waiting-children", parentId)
-    
-          if rcall("HEXISTS", parentPrefix .. "meta", "paused") ~= 1 then
-            rcall("RPUSH", parentPrefix .. "wait", parentId)
-          else
-            rcall("RPUSH", parentPrefix .. "paused", parentId)
-          end
-    
-          local parentEventStream = parentPrefix .. "events"
-          rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+        else
+          moveParentToWait(parentPrefix, parentId)
         end
       end
     end
