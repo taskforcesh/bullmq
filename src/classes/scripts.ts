@@ -271,7 +271,7 @@ export class Scripts {
       job.opts?.parent?.id,
       job.opts?.parent?.queue,
       job.parentKey,
-      retriesExhausted,
+      retriesExhausted === 0 ? '' : retriesExhausted,
     ];
 
     return keys.concat(args);
@@ -301,6 +301,9 @@ export class Scripts {
       target,
       token,
       fetchNext,
+      job.opts.attempts && job.attemptsMade >= job.opts.attempts
+        ? job.attemptsMade
+        : 0,
     );
 
     const result = await (<any>client).moveToFinished(args);
