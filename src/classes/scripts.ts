@@ -382,6 +382,7 @@ export class Scripts {
     removeOnFailed: boolean | number,
     token: string,
     fetchNext = false,
+    retriesExhausted = 0,
   ) {
     return this.moveToFinishedArgs(
       queue,

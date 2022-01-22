@@ -134,7 +134,6 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
           ARGV[4])
 
     if ARGV[5] == "failed" then
-      local maxAttempts = tonumber(ARGV[15])
       if tonumber(ARGV[16]) >= tonumber(ARGV[15]) then
         rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId", jobId, "attemptsMade", ARGV[16])
       end
