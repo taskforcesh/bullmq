@@ -233,7 +233,6 @@ export class Scripts {
     target: string,
     token: string,
     fetchNext = true,
-    retriesExhausted = 0,
   ) {
     const queueKeys = queue.keys;
     const opts: WorkerOptions = <WorkerOptions>queue.opts;
@@ -271,7 +270,8 @@ export class Scripts {
       job.opts?.parent?.id,
       job.opts?.parent?.queue,
       job.parentKey,
-      retriesExhausted === 0 ? '' : retriesExhausted,
+      job.opts.attempts,
+      job.attemptsMade,
     ];
 
     return keys.concat(args);
@@ -301,9 +301,6 @@ export class Scripts {
       target,
       token,
       fetchNext,
-      job.opts.attempts && job.attemptsMade >= job.opts.attempts
-        ? job.attemptsMade
-        : 0,
     );
 
     const result = await (<any>client).moveToFinished(args);
@@ -385,7 +382,6 @@ export class Scripts {
     removeOnFailed: boolean | number,
     token: string,
     fetchNext = false,
-    retriesExhausted = 0,
   ) {
     return this.moveToFinishedArgs(
       queue,
@@ -396,7 +392,6 @@ export class Scripts {
       'failed',
       token,
       fetchNext,
-      retriesExhausted,
     );
   }
 
