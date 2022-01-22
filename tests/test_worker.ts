@@ -1427,7 +1427,7 @@ describe('workers', function () {
   });
 
   describe('Retries and backoffs', () => {
-    describe('when attempts is 1', () => {
+    describe('when attempts is 1 and job fails', () => {
       it('should execute job only once and emits retries-exhausted event', async () => {
         const worker = new Worker(
           queueName,
@@ -1455,6 +1455,44 @@ describe('workers', function () {
               expect(1).to.eql(Number(attemptsMade));
               resolve();
             },
+          );
+        });
+
+        await worker.close();
+      });
+    });
+
+    describe('when jobs do not fail and get the maximum attempts limit', () => {
+      it('should not emit retries-exhausted event', async () => {
+        const worker = new Worker(queueName, async () => {}, { connection });
+
+        await worker.waitUntilReady();
+
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 1,
+          },
+        );
+        await queue.add(
+          'test',
+          { foo: 'baz' },
+          {
+            attempts: 1,
+          },
+        );
+
+        await new Promise<void>((resolve, reject) => {
+          queueEvents.on('retries-exhausted', async () => {
+            reject();
+          });
+
+          queueEvents.on(
+            'completed',
+            after(2, async function ({ jobId, returnvalue }) {
+              resolve();
+            }),
           );
         });
 
