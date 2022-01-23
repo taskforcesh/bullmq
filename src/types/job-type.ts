@@ -1,8 +1,9 @@
+import { FinishedTarget } from './finished-target';
+
 export type JobState =
+  | FinishedTarget
   | 'active'
-  | 'completed'
   | 'delayed'
-  | 'failed'
   | 'waiting'
   | 'waiting-children';
 

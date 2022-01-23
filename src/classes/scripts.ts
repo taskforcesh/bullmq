@@ -22,7 +22,7 @@ import {
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
-import { JobState } from '../types';
+import { JobState, FinishedTarget, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
@@ -228,9 +228,9 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job<T, R, N>,
     val: any,
-    propVal: string,
+    propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number,
-    target: string,
+    target: FinishedTarget,
     token: string,
     fetchNext = true,
   ) {
@@ -270,6 +270,8 @@ export class Scripts {
       job.opts?.parent?.id,
       job.opts?.parent?.queue,
       job.parentKey,
+      job.opts.attempts,
+      job.attemptsMade,
     ];
 
     return keys.concat(args);
@@ -283,9 +285,9 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job<T, R, N>,
     val: any,
-    propVal: string,
+    propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number,
-    target: string,
+    target: FinishedTarget,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
@@ -380,6 +382,7 @@ export class Scripts {
     removeOnFailed: boolean | number,
     token: string,
     fetchNext = false,
+    retriesExhausted = 0,
   ) {
     return this.moveToFinishedArgs(
       queue,
