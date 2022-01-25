@@ -93,6 +93,7 @@ if jobId then
   rcall("XADD", KEYS[4], "*", "event", "active", "jobId", jobId, "prev", "waiting")
 
   rcall("HSET", jobKey, "processedOn", ARGV[4])
+  rcall("HINCRBY", jobKey, "attemptsMade", 1)
 
   return {rcall("HGETALL", jobKey), jobId} -- get job data
 else

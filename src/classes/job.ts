@@ -435,7 +435,7 @@ export class Job<
 
     let command: string;
     const multi = client.multi();
-    this.saveAttempt(multi, err);
+    this.saveStacktrace(multi, err);
 
     //
     // Check if an automatic retry should be performed
@@ -919,8 +919,7 @@ export class Job<
     );
   }
 
-  private saveAttempt(multi: Pipeline, err: Error) {
-    this.attemptsMade++;
+  private saveStacktrace(multi: Pipeline, err: Error) {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {
@@ -931,7 +930,6 @@ export class Job<
     }
 
     const params = {
-      attemptsMade: this.attemptsMade,
       stacktrace: JSON.stringify(this.stacktrace),
       failedReason: err?.message,
     };
