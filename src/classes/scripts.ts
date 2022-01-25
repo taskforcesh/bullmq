@@ -653,7 +653,11 @@ export class Scripts {
       queue.toKey('wait'),
     ];
 
-    const args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH'];
+    const args = [
+      job.id,
+      (job.opts.lifo ? 'R' : 'L') + 'PUSH',
+      state === 'failed' ? 'failedReason' : 'returnvalue',
+    ];
 
     const result = await (<any>client).reprocessJob(keys.concat(args));
 

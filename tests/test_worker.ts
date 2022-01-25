@@ -1233,12 +1233,13 @@ describe('workers', function () {
       expect(job.failedReason).to.be.null;
       expect(job.processedOn).to.be.null;
       expect(job.finishedOn).to.be.null;
+      expect(job.returnvalue).to.be.null;
 
       const updatedJob = await queue.getJob(job.id);
       expect(updatedJob.failedReason).to.be.undefined;
       expect(updatedJob.processedOn).to.be.undefined;
       expect(updatedJob.finishedOn).to.be.undefined;
-      expect(updatedJob.returnvalue).to.be.undefined;
+      expect(updatedJob.returnvalue).to.be.null;
 
       await worker.resume();
     });
