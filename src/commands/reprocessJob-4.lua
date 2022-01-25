@@ -20,6 +20,7 @@ if (rcall("EXISTS", KEYS[1]) == 1) then
   local jobId = ARGV[1]
   if (rcall("ZREM", KEYS[3], jobId) == 1) then
     rcall(ARGV[2], KEYS[4], jobId)
+    rcall("HDEL", KEYS[1], "finishedOn", "processedOn", "failedReason", "returnvalue")
 
     -- Emit waiting event
     rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId);

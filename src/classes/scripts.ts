@@ -611,7 +611,7 @@ export class Scripts {
   static retryJobArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
-  ) {
+  ): string[] {
     const jobId = job.id;
 
     const keys = ['active', 'wait', jobId].map(function (name) {
