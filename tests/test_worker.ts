@@ -1468,33 +1468,32 @@ describe('workers', function () {
 
         await worker.waitUntilReady();
 
-        await queue.add(
-          'test',
-          { foo: 'bar' },
-          {
-            attempts: 1,
-          },
-        );
-        await queue.add(
-          'test',
-          { foo: 'baz' },
-          {
-            attempts: 1,
-          },
-        );
-
-        await new Promise<void>((resolve, reject) => {
+        const completing = new Promise<void>((resolve, reject) => {
           queueEvents.on('retries-exhausted', async () => {
             reject();
           });
 
           queueEvents.on(
             'completed',
-            after(2, async function ({ jobId, returnvalue }) {
+            after(3, async function ({ jobId, returnvalue }) {
               resolve();
             }),
           );
         });
+
+        await Promise.all(
+          times(3, () =>
+            queue.add(
+              'test',
+              { foo: 'baz' },
+              {
+                attempts: 1,
+              },
+            ),
+          ),
+        );
+
+        await completing;
 
         await worker.close();
       });
