@@ -1603,7 +1603,7 @@ describe('workers', function () {
     });
 
     it('should retry a job after a delay if a fixed backoff is given', async function () {
-      this.timeout(12000);
+      this.timeout(10000);
 
       const queueScheduler = new QueueScheduler(queueName);
       await queueScheduler.waitUntilReady();
@@ -1611,7 +1611,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 2) {
+          if (job.attemptsMade < 3) {
             throw new Error('Not yet!');
           }
         },
@@ -1633,7 +1633,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          expect(elapse).to.be.greaterThan(1000);
+          expect(elapse).to.be.greaterThan(2000);
           resolve();
         });
       });
@@ -1643,7 +1643,7 @@ describe('workers', function () {
     });
 
     it('should retry a job after a delay if an exponential backoff is given', async function () {
-      this.timeout(12000);
+      this.timeout(10000);
 
       const queueScheduler = new QueueScheduler(queueName, { connection });
       await queueScheduler.waitUntilReady();
@@ -1651,7 +1651,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 2) {
+          if (job.attemptsMade < 3) {
             throw new Error('Not yet!');
           }
         },
@@ -1676,7 +1676,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          const expected = 1000 * (Math.pow(2, 1) - 1);
+          const expected = 1000 * (Math.pow(2, 2) - 1);
           expect(elapse).to.be.greaterThan(expected);
           resolve();
         });
@@ -1687,7 +1687,7 @@ describe('workers', function () {
     });
 
     it('should retry a job after a delay if a custom backoff is given', async function () {
-      this.timeout(12000);
+      this.timeout(10000);
       const queueScheduler = new QueueScheduler(queueName, { connection });
       await queueScheduler.waitUntilReady();
 
@@ -1727,7 +1727,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          expect(elapse).to.be.greaterThan(1000);
+          expect(elapse).to.be.greaterThan(3000);
           resolve();
         });
       });
@@ -1794,7 +1794,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 2) {
+          if (job.attemptsMade < 3) {
             throw new CustomError('Hey, custom error!');
           }
         },
@@ -1828,7 +1828,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          expect(elapse).to.be.greaterThan(1500);
+          expect(elapse).to.be.greaterThan(3000);
           resolve();
         });
       });
@@ -1899,7 +1899,7 @@ describe('workers', function () {
     });
 
     it('should be able to handle a custom backoff if it returns a promise', async function () {
-      this.timeout(12000);
+      this.timeout(10000);
 
       const queueScheduler = new QueueScheduler(queueName, { connection });
       await queueScheduler.waitUntilReady();
@@ -1907,7 +1907,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async (job: Job) => {
-          if (job.attemptsMade < 2) {
+          if (job.attemptsMade < 3) {
             throw new Error('some error');
           }
         },
@@ -1937,7 +1937,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.on('completed', () => {
           const elapse = Date.now() - start;
-          expect(elapse).to.be.greaterThan(500);
+          expect(elapse).to.be.greaterThan(1000);
           resolve();
         });
       });
@@ -1954,7 +1954,7 @@ describe('workers', function () {
       let attempts = 0;
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           if (attempts === 0) {
             attempts++;
             throw failedError;
@@ -2011,7 +2011,7 @@ describe('workers', function () {
 
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           if (attempts === 0) {
             attempts++;
             throw failedError;
