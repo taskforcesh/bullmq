@@ -1,3 +1,10 @@
+## [1.66.1](https://github.com/taskforcesh/bullmq/compare/v1.66.0...v1.66.1) (2022-01-25)
+
+
+### Bug Fixes
+
+* **job:** increase attemptsMade when moving job to active ([#1009](https://github.com/taskforcesh/bullmq/issues/1009)) fixes [#1002](https://github.com/taskforcesh/bullmq/issues/1002) ([0974ae0](https://github.com/taskforcesh/bullmq/commit/0974ae0ff6db73c223be4b18fb2aab53b6a23c88))
+
 # [1.66.0](https://github.com/taskforcesh/bullmq/compare/v1.65.1...v1.66.0) (2022-01-23)
 
 
