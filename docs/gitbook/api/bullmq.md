@@ -30,7 +30,7 @@
 |  --- | --- |
 |  [ChildCommand](./bullmq.childcommand.md) |  |
 |  [ClientType](./bullmq.clienttype.md) |  |
-|  [ErrorCodes](./bullmq.errorcodes.md) |  |
+|  [ErrorCode](./bullmq.errorcode.md) |  |
 |  [ParentCommand](./bullmq.parentcommand.md) |  |
 
 ## Functions
@@ -109,8 +109,12 @@
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
 |  [EntryId](./bullmq.entryid.md) |  |
 |  [EntryRaw](./bullmq.entryraw.md) |  |
+|  [FinishedPropValAttribute](./bullmq.finishedpropvalattribute.md) |  |
+|  [FinishedTarget](./bullmq.finishedtarget.md) |  |
 |  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [JobData](./bullmq.jobdata.md) |  |
+|  [JobState](./bullmq.jobstate.md) |  |
+|  [JobType](./bullmq.jobtype.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  [ParentOpts](./bullmq.parentopts.md) |  |
 |  [Processor](./bullmq.processor.md) | An async function that receives <code>Job</code>s and handles them. |

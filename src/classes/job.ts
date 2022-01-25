@@ -8,6 +8,7 @@ import {
   WorkerOptions,
   RedisClient,
 } from '../interfaces';
+import { JobState } from '../types';
 import {
   errorObject,
   isEmpty,
@@ -480,6 +481,9 @@ export class Job<
         this.opts.removeOnFail,
         token,
         fetchNext,
+        this.opts.attempts && this.attemptsMade >= this.opts.attempts
+          ? this.attemptsMade
+          : 0,
       );
       (<any>multi).moveToFinished(args);
       command = 'failed';
@@ -544,7 +548,7 @@ export class Job<
    * @returns Returns one of these values:
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
-  getState(): Promise<string> {
+  getState(): Promise<JobState | 'unknown'> {
     return Scripts.getState(this.queue, this.id);
   }
 

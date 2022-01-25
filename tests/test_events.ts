@@ -95,9 +95,9 @@ describe('events', function () {
   it('should emit global waiting event when a job has been added', async function () {
     const waiting = new Promise(resolve => {
       queueEvents.on('waiting', resolve);
-    });
 
-    await queue.add('test', { foo: 'bar' });
+      queue.add('test', { foo: 'bar' });
+    });
 
     await waiting;
   });

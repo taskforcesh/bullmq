@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static moveToFailedArgs<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, failedReason: string, removeOnFailed: boolean | number, token: string, fetchNext?: boolean): string[];
+static moveToFailedArgs<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, failedReason: string, removeOnFailed: boolean | number, token: string, fetchNext?: boolean, retriesExhausted?: number): string[];
 ```
 
 ## Parameters
@@ -20,6 +20,7 @@ static moveToFailedArgs<T = any, R = any, N extends string = string>(queue: Mini
 |  removeOnFailed | boolean \| number |  |
 |  token | string |  |
 |  fetchNext | boolean |  |
+|  retriesExhausted | number |  |
 
 <b>Returns:</b>
 
