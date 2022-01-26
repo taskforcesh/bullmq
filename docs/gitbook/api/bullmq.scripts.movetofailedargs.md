@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static moveToFailedArgs<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, failedReason: string, removeOnFailed: boolean | number, token: string, fetchNext?: boolean, retriesExhausted?: number): string[];
+static moveToFailedArgs<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, failedReason: string, removeOnFailed: boolean | number | KeepJobs, token: string, fetchNext?: boolean, retriesExhausted?: number): string[];
 ```
 
 ## Parameters
@@ -17,7 +17,7 @@ static moveToFailedArgs<T = any, R = any, N extends string = string>(queue: Mini
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  job | [Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; |  |
 |  failedReason | string |  |
-|  removeOnFailed | boolean \| number |  |
+|  removeOnFailed | boolean \| number \| [KeepJobs](./bullmq.keepjobs.md) |  |
 |  token | string |  |
 |  fetchNext | boolean |  |
 |  retriesExhausted | number |  |

@@ -21,6 +21,7 @@ import {
   QueueSchedulerOptions,
   RedisClient,
   WorkerOptions,
+  KeepJobs,
 } from '../interfaces';
 import { JobState, FinishedTarget, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
@@ -229,7 +230,7 @@ export class Scripts {
     job: Job<T, R, N>,
     val: any,
     propVal: FinishedPropValAttribute,
-    shouldRemove: boolean | number,
+    shouldRemove: boolean | number | KeepJobs,
     target: FinishedTarget,
     token: string,
     fetchNext = true,
@@ -248,12 +249,13 @@ export class Scripts {
       queueKeys.stalled,
     ];
 
-    let remove;
-    if (typeof shouldRemove === 'boolean') {
-      remove = shouldRemove ? '1' : '0';
-    } else if (typeof shouldRemove === 'number') {
-      remove = `${shouldRemove + 1}`;
-    }
+    const keepJobs = pack(
+      typeof shouldRemove === 'object'
+        ? shouldRemove
+        : typeof shouldRemove === 'number'
+        ? { count: shouldRemove }
+        : { count: shouldRemove ? 0 : -1 },
+    );
 
     const args = [
       job.id,
@@ -261,7 +263,7 @@ export class Scripts {
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      remove,
+      keepJobs,
       JSON.stringify({ jobId: job.id, val: val }),
       !fetchNext || queue.closing || opts.limiter ? 0 : 1,
       queueKeys[''],
@@ -278,21 +280,22 @@ export class Scripts {
   }
 
   private static async moveToFinished<
-    T = any,
-    R = any,
-    N extends string = string,
+    DataType = any,
+    ReturnType = any,
+    NameType extends string = string,
   >(
     queue: MinimalQueue,
-    job: Job<T, R, N>,
+    job: Job<DataType, ReturnType, NameType>,
     val: any,
     propVal: FinishedPropValAttribute,
-    shouldRemove: boolean | number,
+    shouldRemove: boolean | number | KeepJobs,
     target: FinishedTarget,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
     const client = await queue.client;
-    const args = this.moveToFinishedArgs<T, R, N>(
+
+    const args = this.moveToFinishedArgs<DataType, ReturnType, NameType>(
       queue,
       job,
       val,
@@ -359,7 +362,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job<T, R, N>,
     returnvalue: any,
-    removeOnComplete: boolean | number,
+    removeOnComplete: boolean | number | KeepJobs,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
@@ -379,7 +382,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job<T, R, N>,
     failedReason: string,
-    removeOnFailed: boolean | number,
+    removeOnFailed: boolean | number | KeepJobs,
     token: string,
     fetchNext = false,
     retriesExhausted = 0,

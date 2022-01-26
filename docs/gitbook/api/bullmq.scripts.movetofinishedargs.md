@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static moveToFinishedArgs<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, val: any, propVal: FinishedPropValAttribute, shouldRemove: boolean | number, target: FinishedTarget, token: string, fetchNext?: boolean): string[];
+static moveToFinishedArgs<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, val: any, propVal: FinishedPropValAttribute, shouldRemove: boolean | number | KeepJobs, target: FinishedTarget, token: string, fetchNext?: boolean): string[];
 ```
 
 ## Parameters
@@ -18,7 +18,7 @@ static moveToFinishedArgs<T = any, R = any, N extends string = string>(queue: Mi
 |  job | [Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; |  |
 |  val | any |  |
 |  propVal | [FinishedPropValAttribute](./bullmq.finishedpropvalattribute.md) |  |
-|  shouldRemove | boolean \| number |  |
+|  shouldRemove | boolean \| number \| [KeepJobs](./bullmq.keepjobs.md) |  |
 |  target | [FinishedTarget](./bullmq.finishedtarget.md) |  |
 |  token | string |  |
 |  fetchNext | boolean |  |
