@@ -361,10 +361,10 @@ export class Queue<
     } while (cursor);
   }
 
-  async retryAllFailedJobs(count?: number): Promise<void> {
+  async retryJobs(opts: { count?: number } = {}): Promise<void> {
     let cursor = 0;
     do {
-      cursor = await Scripts.retryAllFailedJobs(this, count);
+      cursor = await Scripts.retryJobs(this, opts.count);
     } while (cursor);
   }
 

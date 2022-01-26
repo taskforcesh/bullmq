@@ -625,7 +625,7 @@ export class Scripts {
     return keys.concat([pushCmd, jobId]);
   }
 
-  private static retryAllFailedJobsArgs(
+  private static retryJobsArgs(
     queue: MinimalQueue,
     count: number,
   ): (string | number)[] {
@@ -641,15 +641,12 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async retryAllFailedJobs(
-    queue: MinimalQueue,
-    count = 1000,
-  ): Promise<number> {
+  static async retryJobs(queue: MinimalQueue, count = 1000): Promise<number> {
     const client = await queue.client;
 
-    const args = this.retryAllFailedJobsArgs(queue, count);
+    const args = this.retryJobsArgs(queue, count);
 
-    return (<any>client).retryAllFailedJobs(args);
+    return (<any>client).retryJobs(args);
   }
 
   /**

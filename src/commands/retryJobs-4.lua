@@ -26,14 +26,12 @@ local jobs = getZSetItems(KEYS[3], maxCount)
 
 for i, key in ipairs(jobs) do
   local jobKey = baseKey .. key
-  if (rcall("ZREM", KEYS[3], key) == 1) then
-    rcall("LPUSH", KEYS[4], key)
-    rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason")
-    rcall("HSET", jobKey, "attemptsMade", 0)
+  rcall("ZREM", KEYS[3], key)
+  rcall("LPUSH", KEYS[4], key)
+  rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason")
 
-    -- Emit waiting event
-    rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", key);
-  end
+  -- Emit waiting event
+  rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", key);
 end
 maxCount = maxCount - #jobs
 

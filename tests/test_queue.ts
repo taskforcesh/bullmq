@@ -197,7 +197,7 @@ describe('queues', function () {
     });
   });
 
-  describe('.retryAllFailedJobs', () => {
+  describe('.retryJobs', () => {
     it('should retry all failed jobs', async () => {
       await queue.waitUntilReady();
 
@@ -205,7 +205,7 @@ describe('queues', function () {
       const worker = new Worker(
         queueName,
         async () => {
-          await delay(10);
+          await delay(20);
           if (fail) {
             throw new Error('failed');
           }
@@ -214,23 +214,39 @@ describe('queues', function () {
       );
       await worker.waitUntilReady();
 
-      const failing = new Promise(resolve => {
-        worker.on('failed', after(4, resolve));
+      let order = 0;
+      const failing = new Promise<void>(resolve => {
+        worker.on('failed', job => {
+          expect(order).to.be.eql(job.data.idx);
+          if (order === 3) {
+            resolve();
+          }
+          order++;
+        });
       });
 
-      await Promise.all(times(4, () => queue.add('test', {})));
+      for (const index of Array.from(Array(4).keys())) {
+        await queue.add('test', { idx: index });
+      }
 
       await failing;
 
       const failedCount = await queue.getJobCounts('failed');
       expect(failedCount.failed).to.be.equal(4);
 
-      const completing = new Promise(resolve => {
-        worker.on('completed', after(4, resolve));
+      order = 0;
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', job => {
+          expect(order).to.be.eql(job.data.idx);
+          if (order === 3) {
+            resolve();
+          }
+          order++;
+        });
       });
 
       fail = false;
-      await queue.retryAllFailedJobs(2);
+      await queue.retryJobs({ count: 2 });
 
       await completing;
 
