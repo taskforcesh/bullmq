@@ -11,6 +11,8 @@ import {
   Worker,
   QueueScheduler,
 } from '../src/classes';
+import { KeepJobs, JobsOptions } from '../src/interfaces';
+
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('workers', function () {
@@ -34,6 +36,81 @@ describe('workers', function () {
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
   });
+
+  async function testRemoveOnFinish(
+    opts: boolean | number | KeepJobs,
+    expectedCount: number,
+    fail?: boolean,
+  ) {
+    const clock = sinon.useFakeTimers();
+    clock.reset();
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        await job.log('test log');
+        if (fail) {
+          throw new Error('job failed');
+        }
+      },
+      { connection },
+    );
+    await worker.waitUntilReady();
+
+    const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
+    let jobIds;
+
+    const processing = new Promise<void>(resolve => {
+      worker.on(fail ? 'failed' : 'completed', async job => {
+        clock.tick(1000);
+
+        if (job.data == 14) {
+          const counts = await queue.getJobCounts(
+            fail ? 'failed' : 'completed',
+          );
+
+          if (fail) {
+            expect(counts.failed).to.be.equal(expectedCount);
+          } else {
+            expect(counts.completed).to.be.equal(expectedCount);
+          }
+
+          await Promise.all(
+            jobIds.map(async (jobId, index) => {
+              const job = await queue.getJob(jobId);
+              const logs = await queue.getJobLogs(jobId);
+              if (index >= datas.length - expectedCount) {
+                expect(job).to.not.be.equal(undefined);
+                expect(logs.logs).to.not.be.empty;
+              } else {
+                expect(job).to.be.equal(undefined);
+                expect(logs.logs).to.be.empty;
+              }
+            }),
+          );
+          resolve();
+        }
+      });
+    });
+
+    const jobOpts: JobsOptions = {};
+    if (fail) {
+      jobOpts.removeOnFail = opts;
+    } else {
+      jobOpts.removeOnComplete = opts;
+    }
+
+    jobIds = (
+      await Promise.all(
+        datas.map(async data => queue.add('test', data, jobOpts)),
+      )
+    ).map(job => job.id);
+
+    await processing;
+    clock.restore();
+    await worker.close();
+  }
 
   it('should get all workers for this queue', async function () {
     const worker = new Worker(queueName, async job => {}, { connection });
@@ -273,55 +350,27 @@ describe('workers', function () {
 
     it('should keep specified number of jobs after completed with removeOnComplete', async () => {
       const keepJobs = 3;
-
-      const worker = new Worker(
-        queueName,
-        async job => {
-          await job.log('test log');
-        },
-        { connection },
-      );
-      await worker.waitUntilReady();
-
-      const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-
-      const jobIds = await Promise.all(
-        datas.map(
-          async data =>
-            (
-              await queue.add('test', data, { removeOnComplete: keepJobs })
-            ).id,
-        ),
-      );
-
-      await new Promise<void>(resolve => {
-        worker.on('completed', async job => {
-          if (job.data == 8) {
-            const counts = await queue.getJobCounts('completed');
-            expect(counts.completed).to.be.equal(keepJobs);
-
-            await Promise.all(
-              jobIds.map(async (jobId, index) => {
-                const job = await queue.getJob(jobId);
-                const logs = await queue.getJobLogs(jobId);
-                if (index >= datas.length - keepJobs) {
-                  expect(job).to.not.be.equal(undefined);
-                  expect(logs.logs).to.not.be.empty;
-                } else {
-                  expect(job).to.be.equal(undefined);
-                  expect(logs.logs).to.be.empty;
-                }
-              }),
-            );
-            resolve();
-          }
-        });
-      });
-
-      await worker.close();
+      await testRemoveOnFinish(keepJobs, keepJobs);
     });
 
-    it('should keep specified number of jobs after completed with global removeOnComplete', async () => {
+    it('should keep of jobs newer than specified after completed with removeOnComplete', async () => {
+      const age = 7;
+      await testRemoveOnFinish({ age }, age);
+    });
+
+    it('should keep of jobs newer than specified and up to a count completed with removeOnComplete', async () => {
+      const age = 7;
+      const count = 5;
+      await testRemoveOnFinish({ age, count }, count);
+    });
+
+    it('should keep of jobs newer than specified and up to a count fail with removeOnFail', async () => {
+      const age = 7;
+      const count = 5;
+      await testRemoveOnFinish({ age, count }, count, true);
+    });
+
+    it('should keep specified number of jobs after completed with default job options removeOnComplete', async () => {
       const keepJobs = 3;
 
       const newQueue = new Queue(queueName, {
@@ -376,42 +425,7 @@ describe('workers', function () {
     });
 
     it('should remove job after failed if removeOnFail', async () => {
-      const jobError = new Error('Job Failed');
-      const worker = new Worker(
-        queueName,
-        async job => {
-          await job.log('test log');
-          throw jobError;
-        },
-        { connection },
-      );
-      await worker.waitUntilReady();
-
-      const job = await queue.add(
-        'test',
-        { foo: 'bar' },
-        { removeOnFail: true },
-      );
-      expect(job.id).to.be.ok;
-      expect(job.data.foo).to.be.eql('bar');
-
-      return new Promise<void>(resolve => {
-        worker.on('failed', async (job, error) => {
-          await queue
-            .getJob(job.id)
-            .then(currentJob => {
-              expect(currentJob).to.be.equal(undefined);
-              return null;
-            })
-            .then(() => {
-              return queue.getJobCounts('failed').then(counts => {
-                expect(counts.failed).to.be.equal(0);
-                resolve();
-              });
-            });
-          expect(error).to.be.equal(jobError);
-        });
-      });
+      await testRemoveOnFinish(true, 0, true);
     });
 
     it('should remove a job after fail if the default job options specify removeOnFail', async () => {
@@ -447,44 +461,7 @@ describe('workers', function () {
 
     it('should keep specified number of jobs after completed with removeOnFail', async () => {
       const keepJobs = 3;
-
-      const worker = new Worker(queueName, async job => {
-        throw Error('error');
-      });
-      await worker.waitUntilReady();
-
-      const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8];
-
-      const jobIds = await Promise.all(
-        datas.map(
-          async data =>
-            (
-              await queue.add('test', data, { removeOnFail: keepJobs })
-            ).id,
-        ),
-      );
-
-      return new Promise(resolve => {
-        worker.on('failed', async job => {
-          if (job.data == 8) {
-            const counts = await queue.getJobCounts('failed');
-            expect(counts.failed).to.be.equal(keepJobs);
-
-            await Promise.all(
-              jobIds.map(async (jobId, index) => {
-                const job = await queue.getJob(jobId);
-                if (index >= datas.length - keepJobs) {
-                  expect(job).to.not.be.equal(undefined);
-                } else {
-                  expect(job).to.be.equal(undefined);
-                }
-              }),
-            );
-            await worker.close();
-            resolve();
-          }
-        });
-      });
+      await testRemoveOnFinish(keepJobs, keepJobs, true);
     });
 
     it('should keep specified number of jobs after completed with global removeOnFail', async () => {
