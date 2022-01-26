@@ -37,81 +37,6 @@ describe('workers', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  async function testRemoveOnFinish(
-    opts: boolean | number | KeepJobs,
-    expectedCount: number,
-    fail?: boolean,
-  ) {
-    const clock = sinon.useFakeTimers();
-    clock.reset();
-
-    const worker = new Worker(
-      queueName,
-      async job => {
-        await job.log('test log');
-        if (fail) {
-          throw new Error('job failed');
-        }
-      },
-      { connection },
-    );
-    await worker.waitUntilReady();
-
-    const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-
-    let jobIds;
-
-    const processing = new Promise<void>(resolve => {
-      worker.on(fail ? 'failed' : 'completed', async job => {
-        clock.tick(1000);
-
-        if (job.data == 14) {
-          const counts = await queue.getJobCounts(
-            fail ? 'failed' : 'completed',
-          );
-
-          if (fail) {
-            expect(counts.failed).to.be.equal(expectedCount);
-          } else {
-            expect(counts.completed).to.be.equal(expectedCount);
-          }
-
-          await Promise.all(
-            jobIds.map(async (jobId, index) => {
-              const job = await queue.getJob(jobId);
-              const logs = await queue.getJobLogs(jobId);
-              if (index >= datas.length - expectedCount) {
-                expect(job).to.not.be.equal(undefined);
-                expect(logs.logs).to.not.be.empty;
-              } else {
-                expect(job).to.be.equal(undefined);
-                expect(logs.logs).to.be.empty;
-              }
-            }),
-          );
-          resolve();
-        }
-      });
-    });
-
-    const jobOpts: JobsOptions = {};
-    if (fail) {
-      jobOpts.removeOnFail = opts;
-    } else {
-      jobOpts.removeOnComplete = opts;
-    }
-
-    jobIds = (
-      await Promise.all(
-        datas.map(async data => queue.add('test', data, jobOpts)),
-      )
-    ).map(job => job.id);
-
-    await processing;
-    clock.restore();
-    await worker.close();
-  }
-
   it('should get all workers for this queue', async function () {
     const worker = new Worker(queueName, async job => {}, { connection });
     await worker.waitUntilReady();
@@ -270,6 +195,81 @@ describe('workers', function () {
   });
 
   describe('auto job removal', () => {
+    async function testRemoveOnFinish(
+      opts: boolean | number | KeepJobs,
+      expectedCount: number,
+      fail?: boolean,
+    ) {
+      const clock = sinon.useFakeTimers();
+      clock.reset();
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          await job.log('test log');
+          if (fail) {
+            throw new Error('job failed');
+          }
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
+      let jobIds;
+
+      const processing = new Promise<void>(resolve => {
+        worker.on(fail ? 'failed' : 'completed', async job => {
+          clock.tick(1000);
+
+          if (job.data == 14) {
+            const counts = await queue.getJobCounts(
+              fail ? 'failed' : 'completed',
+            );
+
+            if (fail) {
+              expect(counts.failed).to.be.equal(expectedCount);
+            } else {
+              expect(counts.completed).to.be.equal(expectedCount);
+            }
+
+            await Promise.all(
+              jobIds.map(async (jobId, index) => {
+                const job = await queue.getJob(jobId);
+                const logs = await queue.getJobLogs(jobId);
+                if (index >= datas.length - expectedCount) {
+                  expect(job).to.not.be.equal(undefined);
+                  expect(logs.logs).to.not.be.empty;
+                } else {
+                  expect(job).to.be.equal(undefined);
+                  expect(logs.logs).to.be.empty;
+                }
+              }),
+            );
+            resolve();
+          }
+        });
+      });
+
+      const jobOpts: JobsOptions = {};
+      if (fail) {
+        jobOpts.removeOnFail = opts;
+      } else {
+        jobOpts.removeOnComplete = opts;
+      }
+
+      jobIds = (
+        await Promise.all(
+          datas.map(async data => queue.add('test', data, jobOpts)),
+        )
+      ).map(job => job.id);
+
+      await processing;
+      clock.restore();
+      await worker.close();
+    }
+
     it('should remove job after completed if removeOnComplete', async () => {
       const worker = new Worker(
         queueName,
