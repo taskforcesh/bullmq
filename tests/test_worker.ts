@@ -1988,7 +1988,6 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async () => {
-          console.log(attempts);
           if (attempts === 0) {
             attempts++;
             throw failedError;
