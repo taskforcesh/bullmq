@@ -4,10 +4,10 @@
 
 ## JobsOptions.removeOnFail property
 
-If true, removes the job when it fails after all attempts. When given an number, it specifies the maximum amount of jobs to keep.
+If true, removes the job when it fails after all attempts. When given an number, it specifies the maximum amount of jobs to keep, or you can provide an object specifying max age and/or count to keep.
 
 <b>Signature:</b>
 
 ```typescript
-removeOnFail?: boolean | number;
+removeOnFail?: boolean | number | KeepJobs;
 ```

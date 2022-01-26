@@ -69,6 +69,7 @@
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  [JobNode](./bullmq.jobnode.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
+|  [KeepJobs](./bullmq.keepjobs.md) | KeepJobs<!-- -->Specify which jobs to keep after finishing. If both age and count are specified, then the jobs kept will be the ones that satisfies both properties. |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
 |  [Parent](./bullmq.parent.md) | Describes the parent for a Job. |
