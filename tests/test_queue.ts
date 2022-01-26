@@ -69,11 +69,12 @@ describe('Queue', function() {
 
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
+import { after, times } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { Queue, QueueScheduler } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { Queue, QueueScheduler, Worker } from '../src/classes';
+import { delay, removeAllQueueData } from '../src/utils';
 
 describe('queues', function () {
   const sandbox = sinon.createSandbox();
@@ -193,6 +194,50 @@ describe('queues', function () {
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).to.be.eql(0);
       });
+    });
+  });
+
+  describe('.retryAllFailedJobs', () => {
+    it('should retry all failed jobs', async () => {
+      await queue.waitUntilReady();
+
+      let fail = true;
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(10);
+          if (fail) {
+            throw new Error('failed');
+          }
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      const failing = new Promise(resolve => {
+        worker.on('failed', after(4, resolve));
+      });
+
+      await Promise.all(times(4, () => queue.add('test', {})));
+
+      await failing;
+
+      const failedCount = await queue.getJobCounts('failed');
+      expect(failedCount.failed).to.be.equal(4);
+
+      const completing = new Promise(resolve => {
+        worker.on('completed', after(4, resolve));
+      });
+
+      fail = false;
+      await queue.retryAllFailedJobs(2);
+
+      await completing;
+
+      const CompletedCount = await queue.getJobCounts('completed');
+      expect(CompletedCount.completed).to.be.equal(4);
+
+      await worker.close();
     });
   });
 });

@@ -625,6 +625,33 @@ export class Scripts {
     return keys.concat([pushCmd, jobId]);
   }
 
+  private static retryAllFailedJobsArgs(
+    queue: MinimalQueue,
+    count: number,
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      queue.toKey(''),
+      queue.keys.events,
+      queue.toKey('failed'),
+      queue.toKey('wait'),
+    ];
+
+    const args = [count];
+
+    return keys.concat(args);
+  }
+
+  static async retryAllFailedJobs(
+    queue: MinimalQueue,
+    count = 1000,
+  ): Promise<number> {
+    const client = await queue.client;
+
+    const args = this.retryAllFailedJobsArgs(queue, count);
+
+    return (<any>client).retryAllFailedJobs(args);
+  }
+
   /**
    * Attempts to reprocess a job
    *

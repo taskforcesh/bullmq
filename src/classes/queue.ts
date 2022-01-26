@@ -361,6 +361,13 @@ export class Queue<
     } while (cursor);
   }
 
+  async retryAllFailedJobs(count?: number): Promise<void> {
+    let cursor = 0;
+    do {
+      cursor = await Scripts.retryAllFailedJobs(this, count);
+    } while (cursor);
+  }
+
   /**
    * Trim the event stream to an approximately maxLength.
    *
