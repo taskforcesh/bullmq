@@ -842,7 +842,7 @@ export class Job<
   }
 
   /**
-   * Attempts to retry the job. Only a job that has failed can be retried.
+   * Attempts to retry the job. Only a job that has failed or completed can be retried.
    *
    * @param state - completed / failed
    * @returns If resolved and return code is 1, then the queue emits a waiting event
