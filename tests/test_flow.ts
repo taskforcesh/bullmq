@@ -573,7 +573,7 @@ describe('flows', () => {
 
     let parentProcessor;
     const processingParent = new Promise<void>((resolve, reject) => [
-      (parentProcessor = async (job: Job) => {
+      (parentProcessor = async () => {
         try {
           resolve();
         } catch (err) {
@@ -605,7 +605,7 @@ describe('flows', () => {
           const timeDiff = Date.now() - startTime;
           // In some test envs, these timestamps can drift.
           expect(timeDiff).to.be.gte(numGroups * 990);
-          expect(timeDiff).to.be.below((numGroups + 1) * 1100);
+          expect(timeDiff).to.be.below((numGroups + 1) * 1200);
 
           for (const group in completed) {
             let prevTime = completed[group][0];
