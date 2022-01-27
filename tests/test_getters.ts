@@ -402,4 +402,19 @@ describe('Jobs getters', function () {
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
   });
+
+  it('should return 0 if queue is empty', async function () {
+    const count = await queue.getJobCountByTypes();
+    expect(count).to.be.a('number');
+    expect(count).to.be.equal(0);
+  });
+
+  it('should return 0 if no type provided', async function () {
+    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { baz: 'qux' });
+    
+    const count = await queue.getJobCountByTypes();
+    expect(count).to.be.a('number');
+    expect(count).to.be.equal(0);
+  });
 });

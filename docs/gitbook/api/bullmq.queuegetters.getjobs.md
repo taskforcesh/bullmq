@@ -7,14 +7,14 @@
 <b>Signature:</b>
 
 ```typescript
-getJobs(types: string[] | string, start?: number, end?: number, asc?: boolean): Promise<Job<DataType, ResultType, NameType>[]>;
+getJobs(types: JobType[] | JobType, start?: number, end?: number, asc?: boolean): Promise<Job<DataType, ResultType, NameType>[]>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  types | string\[\] \| string |  |
+|  types | [JobType](./bullmq.jobtype.md)<!-- -->\[\] \| [JobType](./bullmq.jobtype.md) |  |
 |  start | number |  |
 |  end | number |  |
 |  asc | boolean |  |

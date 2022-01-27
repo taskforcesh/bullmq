@@ -14,6 +14,7 @@ export interface QueueEventsListener
 
 |  Property | Type | Description |
 |  --- | --- | --- |
+|  ["retries-exhausted"](./bullmq.queueeventslistener._retries-exhausted_.md) | (args: { jobId: string; attemptsMade: string; }, id: string) =&gt; void | Listen to 'retries-exhausted' event.<!-- -->This event is triggered when a job has retried the maximum attempts. |
 |  ["waiting-children"](./bullmq.queueeventslistener._waiting-children_.md) | (args: { jobId: string; }, id: string) =&gt; void | Listen to 'waiting-children' event.<!-- -->This event is triggered when a job enters the 'waiting-children' state. |
 |  [active](./bullmq.queueeventslistener.active.md) | (args: { jobId: string; prev?: string; }, id: string) =&gt; void | Listen to 'active' event.<!-- -->This event is triggered when a job enters the 'active' state. |
 |  [added](./bullmq.queueeventslistener.added.md) | (args: { jobId: string; name: string; data: string; opts: string; }, id: string) =&gt; void | Listen to 'added' event.<!-- -->This event is triggered when a job is created. |

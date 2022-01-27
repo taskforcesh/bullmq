@@ -23,3 +23,7 @@ app.post("/jobs", async (req, res) => {
 ```
 
 In this way the caller can catch this temporal error and act upon it, maybe doing some retries or giving up depending on its requirements.
+
+{% hint style="danger" %}
+Currently there is a limitation in that the Redis instance must at least be online while the queue is being instantiated.
+{% endhint %}

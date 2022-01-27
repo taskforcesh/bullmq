@@ -4,6 +4,7 @@
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg } from '../utils';
+import { JobType } from '../types';
 
 export class QueueGetters<
   DataType,
@@ -19,7 +20,7 @@ export class QueueGetters<
   }
 
   private commandByType(
-    types: string[],
+    types: JobType[],
     count: boolean,
     callback: (key: string, dataType: string) => void,
   ) {
@@ -63,9 +64,9 @@ export class QueueGetters<
    * Queue#getJobCountByTypes('completed', 'failed') => completed + failed count
    * Queue#getJobCountByTypes('completed', 'waiting', 'failed') => completed + waiting + failed count
    */
-  async getJobCountByTypes(...types: string[]): Promise<number> {
+  async getJobCountByTypes(...types: JobType[]): Promise<number> {
     const result = await this.getJobCounts(...types);
-    return Object.values(result).reduce((sum, count) => sum + count);
+    return Object.values(result).reduce((sum, count) => sum + count, 0);
   }
 
   /**
@@ -73,7 +74,7 @@ export class QueueGetters<
    *
    * @returns An object, key (type) and value (count)
    */
-  async getJobCounts(...types: string[]): Promise<{
+  async getJobCounts(...types: JobType[]): Promise<{
     [index: string]: number;
   }> {
     const client = await this.client;
@@ -157,7 +158,7 @@ export class QueueGetters<
     return this.getJobs(['failed'], start, end, false);
   }
 
-  async getRanges(types: string[], start = 0, end = 1, asc = false) {
+  async getRanges(types: JobType[], start = 0, end = 1, asc = false) {
     const client = await this.client;
     const multi = client.multi();
     const multiCommands: string[] = [];
@@ -199,7 +200,7 @@ export class QueueGetters<
   }
 
   async getJobs(
-    types: string[] | string,
+    types: JobType[] | JobType,
     start = 0,
     end = -1,
     asc = false,

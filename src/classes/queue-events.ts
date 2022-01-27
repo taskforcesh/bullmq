@@ -113,6 +113,16 @@ export interface QueueEventsListener {
   resumed: (args: {}, id: string) => void;
 
   /**
+   * Listen to 'retries-exhausted' event.
+   *
+   * This event is triggered when a job has retried the maximum attempts.
+   */
+  'retries-exhausted': (
+    args: { jobId: string; attemptsMade: string },
+    id: string,
+  ) => void;
+
+  /**
    * Listen to 'stalled' event.
    *
    * This event is triggered when a job has been moved from 'active' back

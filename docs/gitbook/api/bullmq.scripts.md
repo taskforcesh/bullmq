@@ -30,7 +30,7 @@ export declare class Scripts
 |  [moveToCompleted(queue, job, returnvalue, removeOnComplete, token, fetchNext)](./bullmq.scripts.movetocompleted.md) | <code>static</code> |  |
 |  [moveToDelayed(queue, jobId, timestamp)](./bullmq.scripts.movetodelayed.md) | <code>static</code> |  |
 |  [moveToDelayedArgs(queue, jobId, timestamp)](./bullmq.scripts.movetodelayedargs.md) | <code>static</code> |  |
-|  [moveToFailedArgs(queue, job, failedReason, removeOnFailed, token, fetchNext)](./bullmq.scripts.movetofailedargs.md) | <code>static</code> |  |
+|  [moveToFailedArgs(queue, job, failedReason, removeOnFailed, token, fetchNext, retriesExhausted)](./bullmq.scripts.movetofailedargs.md) | <code>static</code> |  |
 |  [moveToFinishedArgs(queue, job, val, propVal, shouldRemove, target, token, fetchNext)](./bullmq.scripts.movetofinishedargs.md) | <code>static</code> |  |
 |  [moveToWaitingChildren(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildren.md) | <code>static</code> | Move parent job to waiting-children state. |
 |  [moveToWaitingChildrenArgs(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildrenargs.md) | <code>static</code> |  |

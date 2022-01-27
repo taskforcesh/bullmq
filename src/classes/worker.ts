@@ -428,10 +428,16 @@ export class Worker<
     try {
       this.waiting = true;
 
-      const blockTimeout = Math.max(
+      let blockTimeout = Math.max(
         this.blockTimeout ? this.blockTimeout / 1000 : opts.drainDelay,
         0.01,
       );
+
+      // Only Redis v6.0.0 and above supports doubles as block time
+      blockTimeout =
+        this.blockingConnection.redisVersion < '6.0.0'
+          ? Math.ceil(blockTimeout)
+          : blockTimeout;
 
       jobId = await client.brpoplpush(
         this.keys.wait,
