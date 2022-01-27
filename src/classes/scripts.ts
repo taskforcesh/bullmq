@@ -664,7 +664,7 @@ export class Scripts {
       case 1:
         return;
       default:
-        throw this.finishedErrors(result, job.id, 'reprocessJob', 'failed');
+        throw this.finishedErrors(result, job.id, 'reprocessJob', state);
     }
   }
 

@@ -2034,6 +2034,67 @@ describe('workers', function () {
       await queueScheduler.close();
     });
 
+    it('should only retry a job once after it has reached the max attempts', async () => {
+      let attempts = 0;
+      const failedError = new Error('failed');
+      const queueScheduler = new QueueScheduler(queueName, { connection });
+      await queueScheduler.waitUntilReady();
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          if (attempts < 3) {
+            attempts++;
+            throw failedError;
+          }
+        },
+        { connection },
+      );
+
+      await worker.waitUntilReady();
+
+      const failing = new Promise<void>(resolve => {
+        worker.on('failed', async (job, err) => {
+          expect(job.data.foo).to.equal('bar');
+          expect(err).to.equal(failedError);
+          if (job.attemptsMade === 2) {
+            await job.retry();
+            resolve();
+          }
+        });
+      });
+
+      const failedAgain = new Promise<void>(resolve => {
+        worker.on('failed', async job => {
+          if (job.attemptsMade === 3) {
+            resolve();
+          }
+        });
+      });
+
+      const retriedJob = await queue.add(
+        'test',
+        { foo: 'bar' },
+        { attempts: 2 },
+      );
+
+      await failing;
+      await failedAgain;
+
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.equal(1);
+
+      await expect(retriedJob.retry('completed')).to.be.rejectedWith(
+        `Job ${retriedJob.id} is not in the completed state. reprocessJob`,
+      );
+
+      const completedCount = await queue.getCompletedCount();
+      expect(completedCount).to.equal(0);
+
+      await worker.close();
+      await queueScheduler.close();
+    });
+
     it('should not retry a job that is active', async () => {
       const worker = new Worker(
         queueName,
