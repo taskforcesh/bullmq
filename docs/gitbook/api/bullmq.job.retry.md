@@ -4,7 +4,7 @@
 
 ## Job.retry() method
 
-Attempts to retry the job. Only a job that has failed can be retried.
+Attempts to retry the job. Only a job that has failed or completed can be retried.
 
 <b>Signature:</b>
 
@@ -16,7 +16,7 @@ retry(state?: 'completed' | 'failed'): Promise<void>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  state | 'completed' \| 'failed' |  |
+|  state | 'completed' \| 'failed' | completed / failed |
 
 <b>Returns:</b>
 

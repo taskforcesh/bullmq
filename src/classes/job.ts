@@ -842,25 +842,18 @@ export class Job<
   }
 
   /**
-   * Attempts to retry the job. Only a job that has failed can be retried.
+   * Attempts to retry the job. Only a job that has failed or completed can be retried.
    *
+   * @param state - completed / failed
    * @returns If resolved and return code is 1, then the queue emits a waiting event
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
   async retry(state: 'completed' | 'failed' = 'failed'): Promise<void> {
-    const client = await this.queue.client;
-
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
-
-    await client.hdel(
-      this.queue.toKey(this.id),
-      'finishedOn',
-      'processedOn',
-      'failedReason',
-    );
+    this.returnvalue = null;
 
     return Scripts.reprocessJob(this.queue, this, state);
   }
