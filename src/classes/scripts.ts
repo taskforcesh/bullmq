@@ -614,7 +614,7 @@ export class Scripts {
   static retryJobArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
-  ) {
+  ): string[] {
     const jobId = job.id;
 
     const keys = ['active', 'wait', jobId].map(function (name) {
@@ -656,7 +656,11 @@ export class Scripts {
       queue.toKey('wait'),
     ];
 
-    const args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH'];
+    const args = [
+      job.id,
+      (job.opts.lifo ? 'R' : 'L') + 'PUSH',
+      state === 'failed' ? 'failedReason' : 'returnvalue',
+    ];
 
     const result = await (<any>client).reprocessJob(keys.concat(args));
 

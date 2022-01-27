@@ -1027,7 +1027,7 @@ describe('workers', function () {
   it('process a job that returns data with a circular dependency', async () => {
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         const circular = { x: {} };
         circular.x = circular;
         return circular;
@@ -1090,7 +1090,7 @@ describe('workers', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         if (!failedOnce) {
           throw notEvenErr;
         }
@@ -1135,6 +1135,47 @@ describe('workers', function () {
     await worker.close();
   });
 
+  it('retry a job that completes', async () => {
+    let completedOnce = false;
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        if (!completedOnce) {
+          return 1;
+        }
+        return 2;
+      },
+      { connection },
+    );
+    await worker.waitUntilReady();
+
+    let count = 1;
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.once('completed', async (job, result) => {
+        try {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          expect(result).to.be.eql(count++);
+          completedOnce = true;
+        } catch (err) {
+          reject(err);
+        }
+        resolve();
+      });
+    });
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await completing;
+    await job.retry('completed');
+    await completing;
+
+    await worker.close();
+  });
+
   it('retry a job that fails using job retry method', async () => {
     let called = 0;
     let failedOnce = false;
@@ -1142,7 +1183,7 @@ describe('workers', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         called++;
         if (called % 2 !== 0) {
           throw notEvenErr;
@@ -1169,11 +1210,13 @@ describe('workers', function () {
       expect(job.failedReason).to.be.null;
       expect(job.processedOn).to.be.null;
       expect(job.finishedOn).to.be.null;
+      expect(job.returnvalue).to.be.null;
 
       const updatedJob = await queue.getJob(job.id);
       expect(updatedJob.failedReason).to.be.undefined;
       expect(updatedJob.processedOn).to.be.undefined;
       expect(updatedJob.finishedOn).to.be.undefined;
+      expect(updatedJob.returnvalue).to.be.null;
 
       await worker.resume();
     });
@@ -1193,7 +1236,7 @@ describe('workers', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         return delay(2000);
       },
       {
