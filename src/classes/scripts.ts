@@ -336,10 +336,10 @@ export class Scripts {
     }
   }
 
-  static drainArgs(queue: MinimalQueue, delayed: boolean): string[] {
+  static drainArgs(queue: MinimalQueue, delayed: boolean): (string | number)[] {
     const queueKeys = queue.keys;
 
-    const keys = [
+    const keys: (string | number)[] = [
       queueKeys.wait,
       queueKeys.paused,
       delayed ? queueKeys.delayed : '',

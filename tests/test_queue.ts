@@ -72,7 +72,7 @@ import * as IORedis from 'ioredis';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { Queue, QueueScheduler } from '../src/classes';
+import { FlowProducer, Queue, QueueScheduler } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
 describe('queues', function () {
@@ -110,6 +110,197 @@ describe('queues', function () {
       await queue.drain();
       const countAfterEmpty = await queue.count();
       expect(countAfterEmpty).to.be.eql(0);
+    });
+
+    describe('when having a flow', async () => {
+      describe('when parent belongs to same queue', async () => {
+        describe('when parent has more than 1 pending children in the same queue', async () => {
+          it('deletes parent record', async () => {
+            await queue.waitUntilReady();
+            const name = 'child-job';
+
+            const flow = new FlowProducer({ connection });
+            await flow.add({
+              name: 'parent-job',
+              queueName,
+              data: {},
+              children: [
+                { name, data: { idx: 0, foo: 'bar' }, queueName },
+                { name, data: { idx: 1, foo: 'baz' }, queueName },
+                { name, data: { idx: 2, foo: 'qux' }, queueName },
+              ],
+            });
+
+            const count = await queue.count();
+            expect(count).to.be.eql(4);
+
+            await queue.drain();
+
+            const client = await queue.client;
+            const keys = await client.keys(`bull:${queue.name}:*`);
+
+            expect(keys.length).to.be.eql(3);
+
+            const countAfterEmpty = await queue.count();
+            expect(countAfterEmpty).to.be.eql(0);
+          });
+        });
+
+        describe('when parent has only 1 pending child in the same queue', async () => {
+          it('deletes parent record', async () => {
+            await queue.waitUntilReady();
+            const name = 'child-job';
+
+            const flow = new FlowProducer({ connection });
+            await flow.add({
+              name: 'parent-job',
+              queueName,
+              data: {},
+              children: [{ name, data: { idx: 0, foo: 'bar' }, queueName }],
+            });
+
+            const count = await queue.count();
+            expect(count).to.be.eql(2);
+
+            await queue.drain();
+
+            const client = await queue.client;
+            const keys = await client.keys(`bull:${queue.name}:*`);
+
+            expect(keys.length).to.be.eql(3);
+
+            const countAfterEmpty = await queue.count();
+            expect(countAfterEmpty).to.be.eql(0);
+          });
+        });
+
+        describe('when parent has pending children in different queue', async () => {
+          it('keeps parent in waiting-children', async () => {
+            await queue.waitUntilReady();
+            const childrenQueueName = `test-${v4()}`;
+            const childrenQueue = new Queue(childrenQueueName, { connection });
+            await childrenQueue.waitUntilReady();
+            const name = 'child-job';
+
+            const flow = new FlowProducer({ connection });
+            await flow.add({
+              name: 'parent-job',
+              queueName,
+              data: {},
+              children: [
+                {
+                  name,
+                  data: { idx: 0, foo: 'bar' },
+                  queueName: childrenQueueName,
+                },
+              ],
+            });
+
+            const count = await queue.count();
+            expect(count).to.be.eql(1);
+
+            await queue.drain();
+
+            const client = await queue.client;
+            const keys = await client.keys(`bull:${queue.name}:*`);
+
+            expect(keys.length).to.be.eql(6);
+
+            const countAfterEmpty = await queue.count();
+            expect(countAfterEmpty).to.be.eql(1);
+          });
+        });
+      });
+
+      describe('when parent belongs to different queue', async () => {
+        describe('when parent has more than 1 pending children', async () => {
+          it('deletes each children until trying to move parent to wait', async () => {
+            await queue.waitUntilReady();
+            const parentQueueName = `test-${v4()}`;
+            const parentQueue = new Queue(parentQueueName, { connection });
+            await parentQueue.waitUntilReady();
+            const name = 'child-job';
+
+            const flow = new FlowProducer({ connection });
+            await flow.add({
+              name: 'parent-job',
+              queueName: parentQueueName,
+              data: {},
+              children: [
+                { name, data: { idx: 0, foo: 'bar' }, queueName },
+                { name, data: { idx: 1, foo: 'baz' }, queueName },
+                { name, data: { idx: 2, foo: 'qux' }, queueName },
+              ],
+            });
+
+            const count = await queue.count();
+            expect(count).to.be.eql(3);
+
+            await queue.drain();
+
+            const client = await queue.client;
+            const keys = await client.keys(`bull:${queue.name}:*`);
+
+            expect(keys.length).to.be.eql(3);
+
+            const countAfterEmpty = await queue.count();
+            expect(countAfterEmpty).to.be.eql(0);
+
+            const childrenFailedCount = await queue.getJobCountByTypes(
+              'failed',
+            );
+            expect(childrenFailedCount).to.be.eql(0);
+
+            const parentWaitCount = await parentQueue.getJobCountByTypes(
+              'wait',
+            );
+            expect(parentWaitCount).to.be.eql(1);
+            await parentQueue.close();
+            await removeAllQueueData(new IORedis(), parentQueueName);
+          });
+        });
+
+        describe('when parent has only 1 pending children', async () => {
+          it('moves parent to wait to try to process it', async () => {
+            await queue.waitUntilReady();
+            const parentQueueName = `test-${v4()}`;
+            const parentQueue = new Queue(parentQueueName, { connection });
+            await parentQueue.waitUntilReady();
+            const name = 'child-job';
+
+            const flow = new FlowProducer({ connection });
+            await flow.add({
+              name: 'parent-job',
+              queueName: parentQueueName,
+              data: {},
+              children: [{ name, data: { idx: 0, foo: 'bar' }, queueName }],
+            });
+
+            const count = await queue.count();
+            expect(count).to.be.eql(1);
+
+            await queue.drain();
+
+            const client = await queue.client;
+            const keys = await client.keys(`bull:${queue.name}:*`);
+
+            expect(keys.length).to.be.eql(3);
+
+            const countAfterEmpty = await queue.count();
+            expect(countAfterEmpty).to.be.eql(0);
+
+            const failedCount = await queue.getJobCountByTypes('failed');
+            expect(failedCount).to.be.eql(0);
+
+            const parentWaitCount = await parentQueue.getJobCountByTypes(
+              'wait',
+            );
+            expect(parentWaitCount).to.be.eql(1);
+            await parentQueue.close();
+            await removeAllQueueData(new IORedis(), parentQueueName);
+          });
+        });
+      });
     });
 
     describe('when delayed option is provided as false', () => {
