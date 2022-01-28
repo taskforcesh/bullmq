@@ -37,7 +37,8 @@ export class Repeat extends QueueBase {
 
     const nextMillis = getNextMillis(now, repeatOpts);
 
-    const hasImmediately = repeatOpts.every && repeatOpts.immediately;
+    const hasImmediately =
+      (repeatOpts.every || repeatOpts.cron) && repeatOpts.immediately;
     const offset = hasImmediately ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
@@ -123,11 +124,7 @@ export class Repeat extends QueueBase {
       jobId || repeat.jobId,
     );
 
-    return Scripts.removeRepeatable(
-      this,
-      repeatJobId,
-      repeatJobKey,
-    );
+    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
   }
 
   async removeRepeatableByKey(repeatJobKey: string) {
@@ -140,11 +137,7 @@ export class Repeat extends QueueBase {
       data.id,
     );
 
-    return Scripts.removeRepeatable(
-      this,
-      repeatJobId,
-      repeatJobKey,
-    );
+    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
   }
 
   private keyToData(key: string) {
