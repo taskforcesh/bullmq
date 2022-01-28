@@ -13,7 +13,7 @@ await queue.drain();
 ```
 
 {% hint style="warning" %}
-Parent jobs that belong to the queue being drained will be kept in **waiting-children** state if they have pending children, but if they do not have any pending children they will just be removed.
+Parent jobs that belong to the queue being drained will be kept in **waiting-children** status if they have pending children, but if they do not have any pending children they will just be removed.
 {% endhint %}
 
 {% hint style="warning" %}
