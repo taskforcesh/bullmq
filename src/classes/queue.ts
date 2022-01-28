@@ -361,6 +361,12 @@ export class Queue<
     } while (cursor);
   }
 
+  /**
+   * Retry all the failed jobs.
+   *
+   * @param opts.count - number to limit how many jobs will be moved to wait status per iteration
+   * @returns
+   */
   async retryJobs(opts: { count?: number } = {}): Promise<void> {
     let cursor = 0;
     do {
