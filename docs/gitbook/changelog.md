@@ -1,3 +1,10 @@
+## [1.67.2](https://github.com/taskforcesh/bullmq/compare/v1.67.1...v1.67.2) (2022-01-28)
+
+
+### Bug Fixes
+
+* **repeat:** consider immediately option with cron ([#1030](https://github.com/taskforcesh/bullmq/issues/1030)) fixes [#1020](https://github.com/taskforcesh/bullmq/issues/1020) ([b9e7488](https://github.com/taskforcesh/bullmq/commit/b9e748870385a88b2384df40f50df3144c11d7e0))
+
 ## [1.67.1](https://github.com/taskforcesh/bullmq/compare/v1.67.0...v1.67.1) (2022-01-27)
 
 
