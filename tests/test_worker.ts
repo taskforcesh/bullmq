@@ -672,6 +672,42 @@ describe('workers', function () {
         });
       });
     });
+
+    it('should not close the connection', async () => {
+      const connection = new IORedis();
+      const queueName2 = `test-shared-${v4()}`;
+
+      const queue2 = new Queue(queueName2, {
+        defaultJobOptions: { removeOnComplete: true },
+        connection,
+      });
+
+      await new Promise((resolve, reject) => {
+        connection.on('ready', async () => {
+          const worker1 = new Worker(queueName2, null, { connection });
+          const worker2 = new Worker(queueName2, null, { connection });
+
+          try {
+            // There is no point into checking the ready status after closing
+            // since ioredis will not update it anyway:
+            // https://github.com/luin/ioredis/issues/614
+            expect(connection.status).to.be.equal('ready');
+            await worker1.close();
+            await worker2.close();
+            await connection.quit();
+
+            connection.on('end', () => {
+              resolve();
+            });
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue2.close();
+      await removeAllQueueData(new IORedis(), queueName2);
+    });
   });
 
   describe('when autorun option is provided as false', function () {
