@@ -13,20 +13,20 @@ await job.remove();
 ```
 
 {% hint style="info" %}
-Locked jobs (in active state) could not be removed. An error would be thrown.
+Locked jobs (in active state) can not be removed. An error will be thrown.
 {% endhint %}
 
 # Having a parent job
 
 There are 2 possible cases:
 
-1. There are not pending dependencies; in this case the parent is moved to wait state, we may try to process this job.
-2. There are pending dependencies; in this case the parent is kept in waiting-children state.
+1. There are not pending dependencies; in this case the parent is moved to wait status, we may try to process this job.
+2. There are pending dependencies; in this case the parent is kept in waiting-children status.
 
 # Having pending dependencies
 
-We may try to remove all its pending decendents first.
+We may try to remove all its pending descendents first.
 
 {% hint style="warning" %}
-in case one of the children is locked, we would stop the deletion process.
+In case one of the children is locked, it will stop the deletion process.
 {% endhint %}
