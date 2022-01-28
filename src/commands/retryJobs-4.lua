@@ -18,6 +18,9 @@ local maxCount = tonumber(ARGV[1])
 
 local rcall = redis.call;
 
+-- Includes
+--- @include "includes/batches"
+
 local function getZSetItems(keyName, max)
   return rcall('ZRANGE', keyName, 0, max - 1)
 end
@@ -26,13 +29,19 @@ local jobs = getZSetItems(KEYS[3], maxCount)
 
 for i, key in ipairs(jobs) do
   local jobKey = baseKey .. key
-  rcall("ZREM", KEYS[3], key)
-  rcall("LPUSH", KEYS[4], key)
   rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason")
 
   -- Emit waiting event
   rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", key);
 end
+
+if (#jobs > 0) then
+  for from, to in batches(#jobs, 7000) do
+    rcall("ZREM", KEYS[3], unpack(jobs, from, to))
+    rcall("LPUSH", KEYS[4], unpack(jobs, from, to))
+  end
+end
+
 maxCount = maxCount - #jobs
 
 if(maxCount <= 0) then

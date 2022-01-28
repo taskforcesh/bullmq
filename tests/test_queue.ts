@@ -200,12 +200,13 @@ describe('queues', function () {
   describe('.retryJobs', () => {
     it('should retry all failed jobs', async () => {
       await queue.waitUntilReady();
+      const jobCount = 8;
 
       let fail = true;
       const worker = new Worker(
         queueName,
         async () => {
-          await delay(20);
+          await delay(10);
           if (fail) {
             throw new Error('failed');
           }
@@ -218,27 +219,27 @@ describe('queues', function () {
       const failing = new Promise<void>(resolve => {
         worker.on('failed', job => {
           expect(order).to.be.eql(job.data.idx);
-          if (order === 3) {
+          if (order === jobCount - 1) {
             resolve();
           }
           order++;
         });
       });
 
-      for (const index of Array.from(Array(4).keys())) {
+      for (const index of Array.from(Array(jobCount).keys())) {
         await queue.add('test', { idx: index });
       }
 
       await failing;
 
       const failedCount = await queue.getJobCounts('failed');
-      expect(failedCount.failed).to.be.equal(4);
+      expect(failedCount.failed).to.be.equal(jobCount);
 
       order = 0;
       const completing = new Promise<void>(resolve => {
         worker.on('completed', job => {
           expect(order).to.be.eql(job.data.idx);
-          if (order === 3) {
+          if (order === jobCount - 1) {
             resolve();
           }
           order++;
@@ -251,7 +252,7 @@ describe('queues', function () {
       await completing;
 
       const CompletedCount = await queue.getJobCounts('completed');
-      expect(CompletedCount.completed).to.be.equal(4);
+      expect(CompletedCount.completed).to.be.equal(jobCount);
 
       await worker.close();
     });
