@@ -138,9 +138,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             rcall("ZREMRANGEBYRANK", targetSet, 0, -(maxCount + 1))
         end
     else
-        local jobLogKey = jobIdKey .. ':logs'
-        local jobProcessedKey = jobIdKey .. ':processed'
-        rcall("DEL", jobIdKey, jobLogKey, jobProcessedKey)
+        rcall("DEL", jobIdKey, jobIdKey .. ':logs', jobIdKey .. ':processed')
     end
 
     rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],

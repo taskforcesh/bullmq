@@ -1,6 +1,10 @@
 --[[
   Functions remove jobs.
 ]]
+
+-- Includes
+--- @include "batches"
+
 local function getListItems(keyName, max)
   return rcall('LRANGE', keyName, 0, max - 1)
 end
@@ -15,10 +19,8 @@ local function removeJobs(keys, hard, baseKey, max)
   for i, key in ipairs(keys) do
     local jobKey = baseKey .. key
     removeParentDependencyKey(jobKey, hard, baseKey)
-    rcall("DEL", jobKey)
-    rcall("DEL", jobKey .. ':logs')
-    rcall("DEL", jobKey .. ':dependencies')
-    rcall("DEL", jobKey .. ':processed')
+    rcall("DEL", jobKey, jobKey .. ':logs',
+      jobKey .. ':dependencies', jobKey .. ':processed')
   end
   return max - #keys
 end
@@ -34,7 +36,9 @@ local function removeZSetJobs(keyName, hard, baseKey, max)
   local jobs = getZSetItems(keyName, max)
   local count = removeJobs(jobs, hard, baseKey, max)
   if(#jobs > 0) then
-    rcall("ZREM", keyName, unpack(jobs))
+    for from, to in batches(#jobs, 7000) do
+      rcall("ZREM", keyName, unpack(jobs))
+    end
   end
   return count
 end

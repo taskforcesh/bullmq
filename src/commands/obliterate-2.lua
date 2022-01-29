@@ -75,14 +75,10 @@ if(maxCount <= 0) then
 end
 
 if(maxCount > 0) then
-  rcall("DEL", baseKey .. 'priority')
-  rcall("DEL", baseKey .. 'events')
-  rcall("DEL", baseKey .. 'delay')
-  rcall("DEL", baseKey .. 'stalled-check')
-  rcall("DEL", baseKey .. 'stalled')
-  rcall("DEL", baseKey .. 'id')
-  rcall("DEL", baseKey .. 'meta')
-  rcall("DEL", baseKey .. 'repeat')
+  rcall("DEL", baseKey .. 'priority', baseKey .. 'events',
+    baseKey .. 'delay', baseKey .. 'stalled-check',
+    baseKey .. 'stalled', baseKey .. 'id',
+    baseKey .. 'meta', baseKey .. 'repeat')
   return 0
 else
   return 1
