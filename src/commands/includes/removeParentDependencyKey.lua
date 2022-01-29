@@ -33,10 +33,8 @@ local function removeParentDependencyKey(jobKey, hard, baseKey)
         if hard then  
           if parentPrefix == baseKey then
             removeParentDependencyKey(parentKey, hard, baseKey)
-            rcall("DEL", parentKey)
-            rcall("DEL", parentKey .. ':logs')
-            rcall("DEL", parentKey .. ':dependencies')
-            rcall("DEL", parentKey .. ':processed')
+            rcall("DEL", parentKey, parentKey .. ':logs',
+              parentKey .. ':dependencies', parentKey .. ':processed')
           else
             moveParentToWait(parentPrefix, parentId)
           end

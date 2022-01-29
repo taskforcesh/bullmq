@@ -52,8 +52,7 @@ for _, job in ipairs(jobs) do
       else
         rcall("ZREM", KEYS[1], job)
       end
-      rcall("DEL", jobKey)
-      rcall("DEL", jobKey .. ":logs")
+      rcall("DEL", jobKey, jobKey .. ":logs")
       deletedCount = deletedCount + 1
       table.insert(deleted, job)
     end
