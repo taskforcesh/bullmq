@@ -72,8 +72,8 @@ import * as IORedis from 'ioredis';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueScheduler } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { FlowProducer, Queue, QueueScheduler, Worker } from '../src/classes';
+import { delay, removeAllQueueData } from '../src/utils';
 
 describe('queues', function () {
   const sandbox = sinon.createSandbox();
@@ -384,6 +384,67 @@ describe('queues', function () {
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).to.be.eql(0);
       });
+    });
+  });
+
+  describe('.retryJobs', () => {
+    it('should retry all failed jobs', async () => {
+      await queue.waitUntilReady();
+      const jobCount = 8;
+
+      let fail = true;
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(10);
+          if (fail) {
+            throw new Error('failed');
+          }
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      let order = 0;
+      const failing = new Promise<void>(resolve => {
+        worker.on('failed', job => {
+          expect(order).to.be.eql(job.data.idx);
+          if (order === jobCount - 1) {
+            resolve();
+          }
+          order++;
+        });
+      });
+
+      for (const index of Array.from(Array(jobCount).keys())) {
+        await queue.add('test', { idx: index });
+      }
+
+      await failing;
+
+      const failedCount = await queue.getJobCounts('failed');
+      expect(failedCount.failed).to.be.equal(jobCount);
+
+      order = 0;
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', job => {
+          expect(order).to.be.eql(job.data.idx);
+          if (order === jobCount - 1) {
+            resolve();
+          }
+          order++;
+        });
+      });
+
+      fail = false;
+      await queue.retryJobs({ count: 2 });
+
+      await completing;
+
+      const CompletedCount = await queue.getJobCounts('completed');
+      expect(CompletedCount.completed).to.be.equal(jobCount);
+
+      await worker.close();
     });
   });
 });

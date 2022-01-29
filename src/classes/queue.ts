@@ -362,6 +362,19 @@ export class Queue<
   }
 
   /**
+   * Retry all the failed jobs.
+   *
+   * @param opts.count - number to limit how many jobs will be moved to wait status per iteration
+   * @returns
+   */
+  async retryJobs(opts: { count?: number } = {}): Promise<void> {
+    let cursor = 0;
+    do {
+      cursor = await Scripts.retryJobs(this, opts.count);
+    } while (cursor);
+  }
+
+  /**
    * Trim the event stream to an approximately maxLength.
    *
    * @param maxLength -

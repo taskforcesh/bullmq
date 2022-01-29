@@ -427,7 +427,7 @@ describe('flows', () => {
       const processingChildren = new Promise<void>((resolve, reject) => {
         childrenProcessor = async (job: Job) => {
           processedChildren++;
-          await delay(10);
+          await delay(20);
           expect(processedChildren).to.be.equal(job.data.order);
 
           if (processedChildren === 3) {

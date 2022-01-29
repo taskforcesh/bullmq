@@ -682,7 +682,7 @@ describe('workers', function () {
         connection,
       });
 
-      await new Promise((resolve, reject) => {
+      await new Promise<void>((resolve, reject) => {
         connection.on('ready', async () => {
           const worker1 = new Worker(queueName2, null, { connection });
           const worker2 = new Worker(queueName2, null, { connection });
