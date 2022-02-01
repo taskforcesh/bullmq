@@ -124,11 +124,11 @@ describe('Obliterate', function () {
           );
           await worker.waitUntilReady();
 
-          const completing = new Promise((resolve, reject) => {
+          const completing = new Promise(resolve => {
             worker.on('completed', after(2, resolve));
           });
 
-          const failing = new Promise((resolve, reject) => {
+          const failing = new Promise(resolve => {
             worker.on('failed', resolve);
           });
 
