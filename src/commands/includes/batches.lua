@@ -1,3 +1,9 @@
+--[[
+  Function to loop in batches.
+  Just a bit of warning, some commands as ZREM
+  could receive a maximum of 7000 parameters per call.
+]]
+
 local function batches(n, batchSize)
   local i = 0
 

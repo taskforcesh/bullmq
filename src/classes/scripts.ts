@@ -203,6 +203,23 @@ export class Scripts {
     return (<any>client).extendLock(args);
   }
 
+  static async updateData<T = any, R = any, N extends string = string>(
+    queue: MinimalQueue,
+    job: Job<T, R, N>,
+    data: T,
+  ): Promise<void> {
+    const client = await queue.client;
+
+    const keys = [queue.toKey(job.id)];
+    const dataJson = JSON.stringify(data);
+
+    const result = await (<any>client).updateData(keys.concat([dataJson]));
+
+    if (result < 0) {
+      throw this.finishedErrors(result, job.id, 'updateData');
+    }
+  }
+
   static async updateProgress<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
@@ -213,10 +230,9 @@ export class Scripts {
     const keys = [queue.toKey(job.id), queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
-    const result = await (<any>client).updateProgress(keys, [
-      job.id,
-      progressJson,
-    ]);
+    const result = await (<any>client).updateProgress(
+      keys.concat([job.id, progressJson]),
+    );
 
     if (result < 0) {
       throw this.finishedErrors(result, job.id, 'updateProgress');

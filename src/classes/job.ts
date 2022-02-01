@@ -323,10 +323,13 @@ export class Job<
    * @param data - the data that will replace the current jobs data.
    */
   async update(data: DataType): Promise<void> {
-    const client = await this.queue.client;
-
     this.data = data;
-    await client.hset(this.toKey(this.id), 'data', JSON.stringify(data));
+
+    return Scripts.updateData<DataType, ReturnType, NameType>(
+      this.queue,
+      this,
+      data,
+    );
   }
 
   /**

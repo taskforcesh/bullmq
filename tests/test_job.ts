@@ -186,6 +186,16 @@ describe('Job', function () {
       const updatedJob = await Job.fromId(queue, job.id);
       expect(updatedJob.data).to.be.eql({ baz: 'qux' });
     });
+
+    describe('when job is removed', () => {
+      it('throws error', async function () {
+        const job = await Job.create(queue, 'test', { foo: 'bar' });
+        await job.remove();
+        await expect(job.update({ foo: 'baz' })).to.be.rejectedWith(
+          `Missing key for job ${job.id}. updateData`,
+        );
+      });
+    });
   });
 
   describe('.remove', function () {
@@ -245,7 +255,7 @@ describe('Job', function () {
 
   // TODO: Add more remove tests
 
-  describe('.progress', function () {
+  describe('.progressProgress', function () {
     it('can set and get progress as number', async function () {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(42);
