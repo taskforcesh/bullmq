@@ -4,8 +4,8 @@
 The following pattern, although still useful, has been mostly super-seeded by the new [Flows](../guide/flows/) functionality
 {% endhint %}
 
-In some situations you need to execute a flow of actions that each and one of them could fail, it could be database updates, calls to external services, or any other kind of asynchronous call.
+In some situations, you need to execute a flow of actions that each and one of them could fail, it could be database updates, calls to external services, or any other kind of asynchronous call.
 
 Sometimes it may not be possible to create an [idempotent job](idempotent-jobs.md) that can execute all these actions again in the case one of them failed for any reason, instead we want to be able to only re-execute the action that failed and continue executing the rest of the actions that have not yet been executed.
 
-The pattern to solve this issue consists on dividing the flow of actions into one queue for every action. When the first action completes it places the next action as a job in its correspondent queue.
+The pattern to solve this issue consists on dividing the flow of actions into one queue for every action. When the first action completes, it places the next action as a job in its correspondent queue.
