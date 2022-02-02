@@ -1728,9 +1728,6 @@ describe('workers', function () {
                     step: finishStep,
                   });
                   step = finishStep;
-                  break;
-                }
-                case finishStep: {
                   return 'finished';
                 }
                 default: {
