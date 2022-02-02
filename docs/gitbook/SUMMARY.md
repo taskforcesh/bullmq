@@ -47,6 +47,7 @@
 * [Working with batches](patterns/working-with-batches.md)
 * [Idempotent jobs](patterns/idempotent-jobs.md)
 * [Throttle jobs](patterns/throttle-jobs.md)
+* [Process Step Jobs](patterns/process-step-jobs.md)
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
 
 ## BullMQ Pro
