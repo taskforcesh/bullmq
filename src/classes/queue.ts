@@ -149,7 +149,7 @@ export class Queue<
    * Returns this instance current default job options.
    */
   get defaultJobOptions(): JobsOptions {
-    return this.jobsOpts;
+    return { ...this.jobsOpts };
   }
 
   get repeat(): Promise<Repeat> {

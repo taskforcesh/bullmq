@@ -222,9 +222,15 @@ describe('Obliterate', function () {
           await queue.obliterate();
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`bull:${queueName}:*`);
 
           expect(keys.length).to.be.eql(0);
+
+          const eventsCount = await client.xlen(
+            `bull:${parentQueueName}:events`,
+          );
+
+          expect(eventsCount).to.be.eql(2); // added and waiting-children events
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);

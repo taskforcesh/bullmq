@@ -17,7 +17,7 @@
 local rcall = redis.call;
 local jobId = ARGV[2]
 
-if redis.call("ZREM", KEYS[1], jobId) == 1 then
+if rcall("ZREM", KEYS[1], jobId) == 1 then
   local priority = tonumber(rcall("HGET", ARGV[1] .. jobId, "priority")) or 0
 
   local target = KEYS[2];
