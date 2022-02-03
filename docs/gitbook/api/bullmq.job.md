@@ -72,5 +72,5 @@ export declare class Job<DataType = any, ReturnType = any, NameType extends stri
 |  [toJSON()](./bullmq.job.tojson.md) |  |  |
 |  [update(data)](./bullmq.job.update.md) |  | Updates a job's data |
 |  [updateProgress(progress)](./bullmq.job.updateprogress.md) |  | Updates a job's progress |
-|  [waitUntilFinished(queueEvents, ttl)](./bullmq.job.waituntilfinished.md) |  | Returns a promise the resolves when the job has finished. (completed or failed). |
+|  [waitUntilFinished(queueEvents, ttl)](./bullmq.job.waituntilfinished.md) |  | Returns a promise the resolves when the job has completed (containing the return value of the job), or rejects when the job has failed (containing the failedReason). |
 
