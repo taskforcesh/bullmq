@@ -1,6 +1,6 @@
 # Process Step jobs
 
-Sometimes, people would like to break their processor function into small pieces that will be processed depending on the previous executed step, we could handle this kind of logic by using switch blocks:
+Sometimes, it is useful to break processor function into small pieces that will be processed depending on the previous executed step, we could handle this kind of logic by using switch blocks:
 
 ```typescript
 const queueScheduler = new QueueScheduler(queueName, { connection });
@@ -15,6 +15,7 @@ const worker = new Worker(
     while (step !== finishStep) {
       switch (step) {
         case initialStep: {
+          await doInitialStepStuff();
           await job.update({
             step: secondStep,
           });
@@ -22,9 +23,7 @@ const worker = new Worker(
           break;
         }
         case secondStep: {
-          if (job.attemptsMade < 3) {
-            throw new Error('Not yet!');
-          }
+          await doSecondStepStuff();
           await job.update({
             step: finishStep,
           });
@@ -41,4 +40,8 @@ const worker = new Worker(
 );
 ```
 
-As you can see, we should save the step value, in this case we are saving it into data. So even in an error, it would be retried in the last step that was saved.
+As you can see, we should save the step value, in this case we are saving it into data. So even in an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
+
+{% hint style="info" %}
+Bullmq-Pro: this pattern could be handle by using observables, in that case we do not need to save next step.
+{% endhint %}
