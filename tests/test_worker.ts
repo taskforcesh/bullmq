@@ -1660,7 +1660,7 @@ describe('workers', function () {
     it('should retry a job after a delay if a fixed backoff is given', async function () {
       this.timeout(10000);
 
-      const queueScheduler = new QueueScheduler(queueName);
+      const queueScheduler = new QueueScheduler(queueName, { connection });
       await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
@@ -1695,6 +1695,75 @@ describe('workers', function () {
 
       await worker.close();
       await queueScheduler.close();
+    });
+
+    describe('when providing a way to execute step jobs', () => {
+      it('should retry a job after a delay if a fixed backoff is given, keeping the current step', async function () {
+        this.timeout(8000);
+
+        const queueScheduler = new QueueScheduler(queueName, { connection });
+        await queueScheduler.waitUntilReady();
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            const initialStep = 'initialStep';
+            const secondStep = 'secondStep';
+            const finishStep = 'finishStep';
+            let step = job.data.step;
+            while (step !== finishStep) {
+              switch (step) {
+                case initialStep: {
+                  await job.update({
+                    step: secondStep,
+                  });
+                  step = secondStep;
+                  break;
+                }
+                case secondStep: {
+                  if (job.attemptsMade < 3) {
+                    throw new Error('Not yet!');
+                  }
+                  await job.update({
+                    step: finishStep,
+                  });
+                  step = finishStep;
+                  return 'finished';
+                }
+                default: {
+                  throw new Error('invalid step');
+                }
+              }
+            }
+          },
+          { connection },
+        );
+
+        await worker.waitUntilReady();
+
+        const start = Date.now();
+        await queue.add(
+          'test',
+          { step: 'initialStep' },
+          {
+            attempts: 3,
+            backoff: 1000,
+          },
+        );
+
+        await new Promise<void>(resolve => {
+          worker.on('completed', job => {
+            const elapse = Date.now() - start;
+            expect(elapse).to.be.greaterThan(2000);
+            expect(job.returnvalue).to.be.eql('finished');
+            expect(job.attemptsMade).to.be.eql(3);
+            resolve();
+          });
+        });
+
+        await worker.close();
+        await queueScheduler.close();
+      });
     });
 
     it('should retry a job after a delay if an exponential backoff is given', async function () {
