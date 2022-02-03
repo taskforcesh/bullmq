@@ -40,7 +40,7 @@ const worker = new Worker(
 );
 ```
 
-As you can see, we should save the step value, in this case we are saving it into data. So even in an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
+As you can see, we should save the step value, in this case we are saving it into data. So even in the case of an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
 
 {% hint style="info" %}
 Bullmq-Pro: this pattern could be handle by using observables, in that case we do not need to save next step.
