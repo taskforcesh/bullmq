@@ -44,7 +44,7 @@ describe('Cleaner', () => {
   });
 
   it('should clean two jobs from the queue', async () => {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
 
     const completing = new Promise<void>(resolve => {
@@ -66,7 +66,7 @@ describe('Cleaner', () => {
   });
 
   it('should only remove a job outside of the grace period', async () => {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
 
     await queue.add('test', { some: 'data' });
@@ -103,7 +103,7 @@ describe('Cleaner', () => {
   it('should clean all failed jobs', async () => {
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         throw new Error('It failed');
       },
       { connection },
@@ -156,7 +156,7 @@ describe('Cleaner', () => {
   it('should clean a job without a timestamp', async () => {
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         throw new Error('It failed');
       },
       { connection },
