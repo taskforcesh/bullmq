@@ -101,7 +101,7 @@ describe('queues', function () {
       const added = [];
 
       for (let i = 1; i <= maxJobs; i++) {
-        added.push(queue.add('test', { foo: 'bar', num: i }));
+        added.push(queue.add('test', { foo: 'bar', num: i }, { priority: i }));
       }
 
       await Promise.all(added);
@@ -110,6 +110,11 @@ describe('queues', function () {
       await queue.drain();
       const countAfterEmpty = await queue.count();
       expect(countAfterEmpty).to.be.eql(0);
+
+      const client = await queue.client;
+      const keys = await client.keys(`bull:${queue.name}:*`);
+
+      expect(keys.length).to.be.eql(3);
     });
 
     describe('when having a flow', async () => {
