@@ -14,6 +14,7 @@ export interface JobJson {
   stacktrace: string;
   returnvalue: string;
   parentKey?: string;
+  queueName?: string;
 }
 
 export interface JobJsonRaw {
