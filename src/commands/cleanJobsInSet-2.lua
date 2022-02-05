@@ -52,9 +52,7 @@ if ARGV[4] == "active" then
     if (rcall("EXISTS", jobKey .. ":lock") == 0) then
       jobTS = rcall("HGET", jobKey, "timestamp")
       if (not jobTS or jobTS < ARGV[2]) then
-        if isList then
-          rcall("LREM", KEYS[1], 0, job)
-        end
+        rcall("LREM", KEYS[1], 0, job)
         removeJob(job, true, ARGV[1])
         deletedCount = deletedCount + 1
         table.insert(deleted, job)
@@ -80,9 +78,9 @@ else
   end
 
   if not isList then
-    if(#jobs > 0) then
-      for from, to in batches(#jobs, 7000) do
-        rcall("ZREM", KEYS[1], unpack(jobs))
+    if(#deleted > 0) then
+      for from, to in batches(#deleted, 7000) do
+        rcall("ZREM", KEYS[1], unpack(deleted, from, to))
       end
     end
   end
