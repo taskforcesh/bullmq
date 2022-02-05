@@ -20,10 +20,7 @@ local rcall = redis.call;
 
 -- Includes
 --- @include "includes/batches"
-
-local function getZSetItems(keyName, max)
-  return rcall('ZRANGE', keyName, 0, max - 1)
-end
+--- @include "includes/getZSetItems"
 
 local jobs = getZSetItems(KEYS[3], maxCount)
 

@@ -9,11 +9,8 @@ local function getListItems(keyName, max)
   return rcall('LRANGE', keyName, 0, max - 1)
 end
 
-local function getZSetItems(keyName, max)
-  return rcall('ZRANGE', keyName, 0, max - 1)
-end
-
 --- @include "removeParentDependencyKey"
+--- @include "getZSetItems"
 
 local function removeJobs(keys, hard, baseKey, max)
   for i, key in ipairs(keys) do
