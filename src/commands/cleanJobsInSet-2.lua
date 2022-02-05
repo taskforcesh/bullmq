@@ -34,27 +34,54 @@ if limit > 0 then
   rangeEnd = -1
 end
 
+-- Includes
+--- @include "includes/batches"
+--- @include "includes/removeJob"
+
 local jobs = rcall(command, KEYS[1], rangeStart, rangeEnd)
 local deleted = {}
 local deletedCount = 0
 local jobTS
-for _, job in ipairs(jobs) do
-  if limit > 0 and deletedCount >= limit then
-    break
+if ARGV[4] == "active" then
+  for _, job in ipairs(jobs) do
+    if limit > 0 and deletedCount >= limit then
+      break
+    end
+  
+    local jobKey = ARGV[1] .. job
+    if (rcall("EXISTS", jobKey .. ":lock") == 0) then
+      jobTS = rcall("HGET", jobKey, "timestamp")
+      if (not jobTS or jobTS < ARGV[2]) then
+        rcall("LREM", KEYS[1], 0, job)
+        removeJob(job, true, ARGV[1])
+        deletedCount = deletedCount + 1
+        table.insert(deleted, job)
+      end
+    end
   end
-
-  local jobKey = ARGV[1] .. job
-  if (rcall("EXISTS", jobKey .. ":lock") == 0) then
+else
+  for _, job in ipairs(jobs) do
+    if limit > 0 and deletedCount >= limit then
+      break
+    end
+  
+    local jobKey = ARGV[1] .. job
     jobTS = rcall("HGET", jobKey, "timestamp")
     if (not jobTS or jobTS < ARGV[2]) then
       if isList then
         rcall("LREM", KEYS[1], 0, job)
-      else
-        rcall("ZREM", KEYS[1], job)
       end
-      rcall("DEL", jobKey, jobKey .. ":logs")
+      removeJob(job, true, ARGV[1])
       deletedCount = deletedCount + 1
       table.insert(deleted, job)
+    end
+  end
+
+  if not isList then
+    if(#deleted > 0) then
+      for from, to in batches(#deleted, 7000) do
+        rcall("ZREM", KEYS[1], unpack(deleted, from, to))
+      end
     end
   end
 end

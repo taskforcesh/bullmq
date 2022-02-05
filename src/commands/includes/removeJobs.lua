@@ -1,5 +1,5 @@
 --[[
-  Functions remove jobs.
+  Functions to remove jobs.
 ]]
 
 -- Includes
@@ -9,15 +9,12 @@ local function getListItems(keyName, max)
   return rcall('LRANGE', keyName, 0, max - 1)
 end
 
---- @include "removeParentDependencyKey"
 --- @include "getZSetItems"
+--- @include "removeJob"
 
 local function removeJobs(keys, hard, baseKey, max)
   for i, key in ipairs(keys) do
-    local jobKey = baseKey .. key
-    removeParentDependencyKey(jobKey, hard, baseKey)
-    rcall("DEL", jobKey, jobKey .. ':logs',
-      jobKey .. ':dependencies', jobKey .. ':processed')
+    removeJob(key, hard, baseKey)
   end
   return max - #keys
 end
