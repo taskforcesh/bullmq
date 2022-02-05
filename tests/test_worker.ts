@@ -38,14 +38,14 @@ describe('workers', function () {
   });
 
   it('should get all workers for this queue', async function () {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
     await delay(10);
 
     const workers = await queue.getWorkers();
     expect(workers).to.have.length(1);
 
-    const worker2 = new Worker(queueName, async job => {}, { connection });
+    const worker2 = new Worker(queueName, async () => {}, { connection });
     await worker2.waitUntilReady();
     await delay(10);
 
@@ -59,8 +59,8 @@ describe('workers', function () {
   it('should get only workers related only to one queue', async function () {
     const queueName2 = `${queueName}2`;
     const queue2 = new Queue(queueName2, { connection });
-    const worker = new Worker(queueName, async job => {}, { connection });
-    const worker2 = new Worker(queueName2, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker2 = new Worker(queueName2, async () => {}, { connection });
     await worker.waitUntilReady();
     await worker2.waitUntilReady();
 
@@ -135,7 +135,7 @@ describe('workers', function () {
       worker.close();
 
       await new Promise<void>(resolve => {
-        worker.once('completed', async (job, err) => {
+        worker.once('completed', async job => {
           expect(job).to.be.ok;
           expect(job.finishedOn).to.be.string;
           expect(job.data.foo).to.be.eql('bar');
@@ -760,7 +760,7 @@ describe('workers', function () {
     describe('when run method is called when worker is running', function () {
       it('throws error', async () => {
         const maxJobs = 10;
-        const worker = new Worker(queueName, async (job: Job) => {}, {
+        const worker = new Worker(queueName, async () => {}, {
           autorun: false,
         });
         await worker.waitUntilReady();
@@ -853,7 +853,7 @@ describe('workers', function () {
 
     await Promise.all(jobs);
 
-    const worker = new Worker(queueName, async job => {});
+    const worker = new Worker(queueName, async () => {});
     await worker.waitUntilReady();
 
     await new Promise(resolve => {
@@ -896,7 +896,7 @@ describe('workers', function () {
   it('process a job that returns a string in the process handler', async () => {
     const testString = 'a very dignified string';
 
-    const worker = new Worker(queueName, async job => {
+    const worker = new Worker(queueName, async () => {
       return testString;
     });
     await worker.waitUntilReady();
@@ -1017,7 +1017,7 @@ describe('workers', function () {
 
     const addedJob = await queue.add('test', { foo: 'bar' });
 
-    const anotherWorker = new Worker(queueName, async job => {
+    const anotherWorker = new Worker(queueName, async () => {
       err = new Error(
         'The second queue should not have received a job to process',
       );
@@ -1311,7 +1311,7 @@ describe('workers', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         if (first) {
           first = false;
           return delay(2000);

@@ -9,10 +9,7 @@ local function getListItems(keyName, max)
   return rcall('LRANGE', keyName, 0, max - 1)
 end
 
-local function getZSetItems(keyName, max)
-  return rcall('ZRANGE', keyName, 0, max - 1)
-end
-
+--- @include "getZSetItems"
 --- @include "removeJob"
 
 local function removeJobs(keys, hard, baseKey, max)
