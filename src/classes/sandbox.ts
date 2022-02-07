@@ -14,7 +14,7 @@ const sandbox = <T, R, N extends string>(
 
     await parentSend(child, {
       cmd: ChildCommand.Start,
-      job: job.asJSON(),
+      job: job.asJSONSandbox(),
     });
 
     const done: Promise<R> = new Promise((resolve, reject) => {

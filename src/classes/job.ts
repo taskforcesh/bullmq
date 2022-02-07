@@ -8,7 +8,7 @@ import {
   WorkerOptions,
   RedisClient,
 } from '../interfaces';
-import { JobState } from '../types';
+import { JobState, JobJsonSandbox } from '../types';
 import {
   errorObject,
   isEmpty,
@@ -314,6 +314,17 @@ export class Job<
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
       returnvalue: JSON.stringify(this.returnvalue),
+    };
+  }
+
+  /**
+   * Prepares a job to be passed to Sandbox.
+   * @returns
+   */
+  asJSONSandbox(): JobJsonSandbox {
+    return {
+      ...this.asJSON(),
+      queueName: this.queueName,
     };
   }
 
@@ -737,7 +748,7 @@ export class Job<
 
   /**
    * Returns a promise the resolves when the job has completed (containing the return value of the job),
-   * or rejects when the job has failed (containing the failedReason). 
+   * or rejects when the job has failed (containing the failedReason).
    *
    * @param queueEvents - Instance of QueueEvents.
    * @param ttl - Time in milliseconds to wait for job to finish before timing out.
