@@ -36,15 +36,10 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
 
-    services:
-      redis:
-        image: redis
-        ports:
-          - 6379:6379
-
     strategy:
       matrix:
         node-version: [10.x, 12.x, 14.x, 16.x]
+        redis-version: [5, 6]
 
     steps:
       - name: Checkout repository and submodules
@@ -58,5 +53,9 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
+      - name: Start Redis
+        uses: supercharge/redis-github-action@1.4.0
+        with:
+          redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn test

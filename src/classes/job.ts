@@ -8,6 +8,7 @@ import {
   WorkerOptions,
   RedisClient,
 } from '../interfaces';
+import { JobState } from '../types';
 import {
   errorObject,
   isEmpty,
@@ -319,10 +320,13 @@ export class Job<
    * @param data - the data that will replace the current jobs data.
    */
   async update(data: DataType): Promise<void> {
-    const client = await this.queue.client;
-
     this.data = data;
-    await client.hset(this.toKey(this.id), 'data', JSON.stringify(data));
+
+    return Scripts.updateData<DataType, ReturnType, NameType>(
+      this.queue,
+      this,
+      data,
+    );
   }
 
   /**
@@ -431,7 +435,7 @@ export class Job<
 
     let command: string;
     const multi = client.multi();
-    this.saveAttempt(multi, err);
+    this.saveStacktrace(multi, err);
 
     //
     // Check if an automatic retry should be performed
@@ -477,6 +481,9 @@ export class Job<
         this.opts.removeOnFail,
         token,
         fetchNext,
+        this.opts.attempts && this.attemptsMade >= this.opts.attempts
+          ? this.attemptsMade
+          : 0,
       );
       (<any>multi).moveToFinished(args);
       command = 'failed';
@@ -541,7 +548,7 @@ export class Job<
    * @returns Returns one of these values:
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
-  getState(): Promise<string> {
+  getState(): Promise<JobState | 'unknown'> {
     return Scripts.getState(this.queue, this.id);
   }
 
@@ -726,7 +733,11 @@ export class Job<
   }
 
   /**
-   * Returns a promise the resolves when the job has finished. (completed or failed).
+   * Returns a promise the resolves when the job has completed (containing the return value of the job),
+   * or rejects when the job has failed (containing the failedReason). 
+   *
+   * @param queueEvents - Instance of QueueEvents.
+   * @param ttl - Time in milliseconds to wait for job to finish before timing out.
    */
   async waitUntilFinished(
     queueEvents: QueueEvents,
@@ -832,25 +843,18 @@ export class Job<
   }
 
   /**
-   * Attempts to retry the job. Only a job that has failed can be retried.
+   * Attempts to retry the job. Only a job that has failed or completed can be retried.
    *
+   * @param state - completed / failed
    * @returns If resolved and return code is 1, then the queue emits a waiting event
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
   async retry(state: 'completed' | 'failed' = 'failed'): Promise<void> {
-    const client = await this.queue.client;
-
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
-
-    await client.hdel(
-      this.queue.toKey(this.id),
-      'finishedOn',
-      'processedOn',
-      'failedReason',
-    );
+    this.returnvalue = null;
 
     return Scripts.reprocessJob(this.queue, this, state);
   }
@@ -909,8 +913,7 @@ export class Job<
     );
   }
 
-  private saveAttempt(multi: Pipeline, err: Error) {
-    this.attemptsMade++;
+  private saveStacktrace(multi: Pipeline, err: Error) {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {
@@ -921,7 +924,6 @@ export class Job<
     }
 
     const params = {
-      attemptsMade: this.attemptsMade,
       stacktrace: JSON.stringify(this.stacktrace),
       failedReason: err?.message,
     };

@@ -71,11 +71,10 @@ describe('events', function () {
   it('should emit global waiting event when a job has been added', async function () {
     const waiting = new Promise(resolve => {
       queueEvents.on('waiting', resolve);
+      queue.add('test', { foo: 'bar' });
     });
 
     queueEvents.run();
-
-    await queue.add('test', { foo: 'bar' });
 
     await waiting;
   });
@@ -196,10 +195,16 @@ describe('events', function () {
   });
 
   it('emits added event when one job is added', async function () {
-    const worker = new Worker(queueName, async job => {}, {
-      drainDelay: 1,
-      connection,
-    });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(100);
+      },
+      {
+        drainDelay: 1,
+        connection,
+      },
+    );
     const testName = 'test';
 
     const added = new Promise<void>(resolve => {
@@ -208,12 +213,11 @@ describe('events', function () {
         expect(name).to.be.equal(testName);
         resolve();
       });
+      queue.add(testName, { foo: 'bar' });
     });
 
     worker.run();
     queueEvents.run();
-
-    await queue.add(testName, { foo: 'bar' });
 
     await added;
 

@@ -7,8 +7,9 @@
     KEYS[3] job state
     KEYS[4] wait key
 
-    ARGV[1] job.id,
+    ARGV[1] job.id
     ARGV[2] (job.opts.lifo ? 'R' : 'L') + 'PUSH'
+    ARGV[3] propVal - failedReason/returnvalue
 
   Output:
     1  means the operation was a success
@@ -20,6 +21,7 @@ if (rcall("EXISTS", KEYS[1]) == 1) then
   local jobId = ARGV[1]
   if (rcall("ZREM", KEYS[3], jobId) == 1) then
     rcall(ARGV[2], KEYS[4], jobId)
+    rcall("HDEL", KEYS[1], "finishedOn", "processedOn", ARGV[3])
 
     -- Emit waiting event
     rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId);

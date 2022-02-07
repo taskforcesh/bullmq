@@ -14,5 +14,5 @@ export interface FlowOpts
 
 |  Property | Type | Description |
 |  --- | --- | --- |
-|  [queuesOptions](./bullmq.flowopts.queuesoptions.md) | [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
+|  [queuesOptions](./bullmq.flowopts.queuesoptions.md) | [FlowQueuesOpts](./bullmq.flowqueuesopts.md) | Map of options for Queue classes. |
 

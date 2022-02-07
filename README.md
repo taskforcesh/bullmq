@@ -101,22 +101,25 @@ This is just scratching the surface, check all the features and more in the offi
 
 Since there are a few job queue solutions, here is a table comparing them:
 
-| Feature                   |     Bullmq      |      Bull       |  Kue  |   Bee    | Agenda |
-| :------------------------ | :-------------: | :-------------: | :---: | :------: | ------ |
-| Backend                   |      redis      |      redis      | redis |  redis   | mongo  |
-| Parent/Child dependencies |        ✓        |                 |       |          |        |
-| Priorities                |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Concurrency               |        ✓        |        ✓        |   ✓   |    ✓     | ✓      |
-| Delayed jobs              |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Global events             |        ✓        |        ✓        |   ✓   |          |        |
-| Rate Limiter              |        ✓        |        ✓        |       |          |        |
-| Pause/Resume              |        ✓        |        ✓        |   ✓   |          |        |
-| Sandboxed worker          |        ✓        |        ✓        |       |          |        |
-| Repeatable jobs           |        ✓        |        ✓        |       |          | ✓      |
-| Atomic ops                |        ✓        |        ✓        |       |    ✓     |        |
-| Persistence               |        ✓        |        ✓        |   ✓   |    ✓     | ✓      |
-| UI                        |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Optimized for             | Jobs / Messages | Jobs / Messages | Jobs  | Messages | Jobs   |
+| Feature                   |   Bullmq-Pro    |     Bullmq      |      Bull       |  Kue  | Bee      | Agenda |
+| :------------------------ | :-------------: | :-------------: | :-------------: | :---: | -------- | ------ |
+| Backend                   |      redis      |      redis      |      redis      | redis | redis    | mongo  |
+| Observables               |        ✓        |                 |                 |       |          |        |
+| Group Rate Limit          |        ✓        |                 |                 |       |          |        |
+| Group Support             |        ✓        |                 |                 |       |          |        |
+| Parent/Child Dependencies |        ✓        |        ✓        |                 |       |          |        |
+| Priorities                |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Concurrency               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
+| Delayed jobs              |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Global events             |        ✓        |        ✓        |        ✓        |   ✓   |          |        |
+| Rate Limiter              |        ✓        |        ✓        |        ✓        |       |          |        |
+| Pause/Resume              |        ✓        |        ✓        |        ✓        |   ✓   |          |        |
+| Sandboxed worker          |        ✓        |        ✓        |        ✓        |       |          |        |
+| Repeatable jobs           |        ✓        |        ✓        |        ✓        |       |          | ✓      |
+| Atomic ops                |        ✓        |        ✓        |        ✓        |       | ✓        |        |
+| Persistence               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
+| UI                        |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
+| Optimized for             | Jobs / Messages | Jobs / Messages | Jobs / Messages | Jobs  | Messages | Jobs   |
 
 # 🚀 Sponsor 🚀
 

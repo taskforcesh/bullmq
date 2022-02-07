@@ -149,7 +149,7 @@ export class Queue<
    * Returns this instance current default job options.
    */
   get defaultJobOptions(): JobsOptions {
-    return this.jobsOpts;
+    return { ...this.jobsOpts };
   }
 
   get repeat(): Promise<Repeat> {
@@ -308,7 +308,7 @@ export class Queue<
    * grace period.
    *
    * @param grace - The grace period
-   * @param The - Max number of jobs to clean
+   * @param limit - Max number of jobs to clean
    * @param {string} [type=completed] - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
    * @returns Id jobs from the deleted records
@@ -358,6 +358,19 @@ export class Queue<
         count: 1000,
         ...opts,
       });
+    } while (cursor);
+  }
+
+  /**
+   * Retry all the failed jobs.
+   *
+   * @param opts.count - number to limit how many jobs will be moved to wait status per iteration
+   * @returns
+   */
+  async retryJobs(opts: { count?: number } = {}): Promise<void> {
+    let cursor = 0;
+    do {
+      cursor = await Scripts.retryJobs(this, opts.count);
     } while (cursor);
   }
 

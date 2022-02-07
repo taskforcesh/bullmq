@@ -6,6 +6,7 @@ export * from './connection';
 export * from './flow-job';
 export * from './job-json';
 export * from './jobs-options';
+export * from './keep-jobs';
 export * from './parent-command';
 export * from './parent-message';
 export * from './parent';

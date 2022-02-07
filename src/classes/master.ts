@@ -34,5 +34,7 @@ process.on('uncaughtException', async (err: Error) => {
     value: err,
   });
 
-  throw err;
+  // An uncaughException leaves this process in a potentially undetermined state so
+  // we must exit
+  process.exit(-1);
 });
