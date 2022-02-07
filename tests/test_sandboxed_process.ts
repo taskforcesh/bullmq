@@ -359,7 +359,7 @@ describe('sandboxed process', () => {
     });
   });
 
-  it('job should include queueName', async () => {
+  it('includes queueName', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_queueName.js';
 
     const worker = new Worker(queueName, processFile, {
