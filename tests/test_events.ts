@@ -31,6 +31,34 @@ describe('events', function () {
     const waiting = new Promise(resolve => {
       queue.on('waiting', resolve);
     });
+    queueEvents.run();
+
+    await queue.add('test', { foo: 'bar' });
+
+    await waiting;
+  });
+
+  it('should emit global waiting event when a job has been added', async function () {
+    const waiting = new Promise(resolve => {
+      queueEvents.on('waiting', resolve);
+    });
+
+    queueEvents.run();
+
+    await queue.add('test', { foo: 'bar' });
+
+    await waiting;
+  });
+
+  it('should emit waiting event when a job has been added', async function () {
+    const waiting = new Promise<void>(resolve => {
+      queue.on('waiting', job => {
+        expect(job.id).to.be.string;
+        resolve();
+      });
+    });
+
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
 
@@ -51,32 +79,6 @@ describe('events', function () {
 
       await expect(running).to.have.been.fulfilled;
     });
-  });
-
-  it('should emit waiting event when a job has been added', async function () {
-    const waiting = new Promise<void>(resolve => {
-      queue.on('waiting', job => {
-        expect(job.id).to.be.string;
-        resolve();
-      });
-    });
-
-    queueEvents.run();
-
-    await queue.add('test', { foo: 'bar' });
-
-    await waiting;
-  });
-
-  it('should emit global waiting event when a job has been added', async function () {
-    const waiting = new Promise(resolve => {
-      queueEvents.on('waiting', resolve);
-      queue.add('test', { foo: 'bar' });
-    });
-
-    queueEvents.run();
-
-    await waiting;
   });
 
   it('emits cleaned global event when jobs were cleaned', async function () {
@@ -213,11 +215,12 @@ describe('events', function () {
         expect(name).to.be.equal(testName);
         resolve();
       });
-      queue.add(testName, { foo: 'bar' });
     });
 
     worker.run();
     queueEvents.run();
+
+    await queue.add(testName, { foo: 'bar' });
 
     await added;
 

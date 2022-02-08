@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { worker } from 'cluster';
 import * as IORedis from 'ioredis';
 import { after, times } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
@@ -290,6 +291,8 @@ describe('workers', function () {
       } else {
         jobOpts.removeOnComplete = opts;
       }
+
+      worker.run();
 
       jobIds = (
         await Promise.all(
@@ -1275,6 +1278,8 @@ describe('workers', function () {
       });
     });
 
+    worker.run();
+
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
@@ -1442,7 +1447,7 @@ describe('workers', function () {
 
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           expect(processing).to.be.equal(false);
           processing = true;
           await delay(50);

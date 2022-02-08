@@ -425,6 +425,8 @@ describe('queues', function () {
         });
       });
 
+      worker.run();
+
       for (const index of Array.from(Array(jobCount).keys())) {
         await queue.add('test', { idx: index });
       }

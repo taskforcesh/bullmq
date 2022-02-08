@@ -135,6 +135,8 @@ describe('Obliterate', function () {
             worker.on('failed', resolve);
           });
 
+          worker.run();
+
           const flow = new FlowProducer({ connection });
           await flow.add({
             name: 'parent-job',

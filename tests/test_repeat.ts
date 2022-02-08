@@ -517,6 +517,9 @@ describe('repeat', function () {
       console.log('delay');
     });
 
+    worker.run();
+    queueScheduler.run();
+
     await queue.add(
       'repeat',
       { foo: 'bar' },
