@@ -108,7 +108,7 @@ describe('sandboxed process', () => {
         drainDelay: 1,
       });
 
-      const completing = new Promise<void>((resolve, reject) => {
+      const completing = new Promise<void>(resolve => {
         worker.on('completed', async (job: Job, value: any) => {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(1);
@@ -144,7 +144,7 @@ describe('sandboxed process', () => {
         drainDelay: 1,
       });
 
-      const completing = new Promise<void>((resolve, reject) => {
+      const completing = new Promise<void>(resolve => {
         worker.on('completed', async (job: Job, value: any) => {
           expect(job.data).to.be.eql({ foo: 'bar' });
           expect(value).to.be.eql(1);
@@ -357,6 +357,37 @@ describe('sandboxed process', () => {
       process.env.variable = undefined;
       await worker.close();
     });
+  });
+
+  it('includes queueName', async () => {
+    const processFile = __dirname + '/fixtures/fixture_processor_queueName.js';
+
+    const worker = new Worker(queueName, processFile, {
+      connection,
+      drainDelay: 1,
+    });
+
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, value: any) => {
+        try {
+          expect(job.data).to.be.eql({ foo: 'bar' });
+          expect(value).to.be.eql(queueName);
+          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          await worker.close();
+          resolve();
+        } catch (err) {
+          await worker.close();
+          reject(err);
+        }
+      });
+    });
+
+    await queue.add('test', { foo: 'bar' });
+
+    await completing;
+
+    await worker.close();
   });
 
   it('should process and fail', async () => {
