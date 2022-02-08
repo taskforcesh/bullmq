@@ -114,6 +114,7 @@
 |  [FinishedTarget](./bullmq.finishedtarget.md) |  |
 |  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [JobData](./bullmq.jobdata.md) |  |
+|  [JobJsonSandbox](./bullmq.jobjsonsandbox.md) |  |
 |  [JobState](./bullmq.jobstate.md) |  |
 |  [JobType](./bullmq.jobtype.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |

@@ -44,6 +44,7 @@ export declare class Job<DataType = any, ReturnType = any, NameType extends stri
 |  --- | --- | --- |
 |  [addJob(client, parentOpts)](./bullmq.job.addjob.md) |  | Adds the job to Redis. |
 |  [asJSON()](./bullmq.job.asjson.md) |  | Prepares a job to be serialized for storage in Redis. |
+|  [asJSONSandbox()](./bullmq.job.asjsonsandbox.md) |  | Prepares a job to be passed to Sandbox. |
 |  [changeDelay(delay)](./bullmq.job.changedelay.md) |  | Change delay of a delayed job. |
 |  [create(queue, name, data, opts)](./bullmq.job.create.md) | <code>static</code> | Creates a new job and adds it to the queue. |
 |  [createBulk(queue, jobs)](./bullmq.job.createbulk.md) | <code>static</code> | Creates a bulk of jobs and adds them atomically to the given queue. |
