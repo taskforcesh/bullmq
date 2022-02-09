@@ -47,7 +47,6 @@ local rcall = redis.call
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/destructureJobKey"
 --- @include "includes/removeJob"
---- @include "includes/removeParentDependencyKey"
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists

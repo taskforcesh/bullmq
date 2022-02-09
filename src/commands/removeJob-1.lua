@@ -45,11 +45,7 @@ end
 local function removeJob( prefix, jobId, parentKey)
     local jobKey = prefix .. jobId;
 
-    if parentKey then
-      baseRemoveParentDependencyKey(jobKey, parentKey)
-    else
-      removeParentDependencyKey(jobKey)
-    end
+    removeParentDependencyKey(jobKey, false, parentKey)
 
     -- Check if this job has children
     -- If so, we are going to try to remove the children recursively in deep first way because
