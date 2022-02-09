@@ -46,7 +46,7 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/destructureJobKey"
---- @include "includes/removeParentDependencyKey"
+--- @include "includes/removeJob"
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -116,13 +116,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         -- Remove old jobs?
         local prefix = ARGV[9]
-        local function removeJob(jobId)
-            local jobKey = prefix .. jobId
-            removeParentDependencyKey(jobKey)
-            local jobLogKey = jobKey .. ':logs'
-            local jobProcessedKey = jobKey .. ':processed'
-            rcall("DEL", jobKey, jobLogKey, jobProcessedKey)
-        end
 
         if maxAge ~= nil then
             local start = timestamp - maxAge * 1000
