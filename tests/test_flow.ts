@@ -12,7 +12,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { removeAllQueueData, delay, DELAY_TIME_1 } from '../src/utils';
+import { removeAllQueueData, delay } from '../src/utils';
 
 describe('flows', () => {
   let queue: Queue;
@@ -155,7 +155,7 @@ describe('flows', () => {
       );
 
       const processingParent = new Promise<void>((resolve, reject) => [
-        (parentProcessor = async (job: Job) => {
+        (parentProcessor = async () => {
           try {
             resolve();
           } catch (err) {
@@ -586,7 +586,7 @@ describe('flows', () => {
     const parentWorker = new Worker(parentQueueName, parentProcessor, {
       connection,
     });
-    const childrenWorker = new Worker(queueName, async job => {}, {
+    const childrenWorker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,
