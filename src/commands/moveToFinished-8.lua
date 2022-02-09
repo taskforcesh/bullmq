@@ -120,14 +120,14 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if maxAge ~= nil then
             local start = timestamp - maxAge * 1000
             local jobIds = rcall("ZREVRANGEBYSCORE", targetSet, start, "-inf")
-            for i, jobId in ipairs(jobIds) do removeJob(jobId) end
+            for i, jobId in ipairs(jobIds) do removeJob(jobId, false, prefix) end
             rcall("ZREMRANGEBYSCORE", targetSet, "-inf", start)
         end
 
         if maxCount ~= nil and maxCount > 0 then
             local start = maxCount
             local jobIds = rcall("ZREVRANGE", targetSet, start, -1)
-            for i, jobId in ipairs(jobIds) do removeJob(jobId) end
+            for i, jobId in ipairs(jobIds) do removeJob(jobId, false, prefix) end
             rcall("ZREMRANGEBYRANK", targetSet, 0, -(maxCount + 1))
         end
     else
