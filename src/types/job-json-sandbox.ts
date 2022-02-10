@@ -1,6 +1,6 @@
-import { JobJson } from '../interfaces';
+import { JobJson, ParentKeys } from '../interfaces';
 
 export type JobJsonSandbox = JobJson & {
   queueName: string;
-  parent: { id: string; queueKey: string };
+  parent?: ParentKeys;
 };
