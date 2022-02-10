@@ -2,11 +2,12 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import {
+  ChildProcessExt,
+  FlowProducer,
+  Job,
   Queue,
   QueueEvents,
   Worker,
-  Job,
-  ChildProcessExt,
 } from '../src/classes';
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
@@ -384,6 +385,48 @@ describe('sandboxed process', () => {
     });
 
     await queue.add('test', { foo: 'bar' });
+
+    await completing;
+
+    await worker.close();
+  });
+
+  it('includes parent', async () => {
+    const processFile = __dirname + '/fixtures/fixture_processor_parent.js';
+    const parentQueueName = `parent-queue-${v4()}`;
+
+    const worker = new Worker(queueName, processFile, {
+      connection,
+      drainDelay: 1,
+    });
+
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, value: any) => {
+        try {
+          expect(job.data).to.be.eql({ foo: 'bar' });
+          expect(value).to.be.eql({
+            id: 'job-id',
+            queueKey: `bull:${parentQueueName}`,
+          });
+          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+          await worker.close();
+          resolve();
+        } catch (err) {
+          await worker.close();
+          reject(err);
+        }
+      });
+    });
+
+    const flow = new FlowProducer({ connection });
+    await flow.add({
+      name: 'parent-job',
+      queueName: parentQueueName,
+      data: {},
+      opts: { jobId: 'job-id' },
+      children: [{ name: 'child-job', data: { foo: 'bar' }, queueName }],
+    });
 
     await completing;
 

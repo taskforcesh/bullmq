@@ -97,6 +97,10 @@ export class Job<
    * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
   parentKey?: string;
+
+  /**
+   * Object that contains parentId (id) and parent queueKey.
+   */
   parent?: { id: string; queueKey: string };
 
   protected toKey: (type: string) => string;
@@ -325,6 +329,7 @@ export class Job<
     return {
       ...this.asJSON(),
       queueName: this.queueName,
+      parent: { ...this.parent },
     };
   }
 
