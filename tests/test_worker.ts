@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { worker } from 'cluster';
 import * as IORedis from 'ioredis';
 import { after, times } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
@@ -702,33 +701,6 @@ describe('workers', function () {
         maxRetriesPerRequest: null,
         enableReadyCheck: false,
       });
-
-      return new Promise((resolve, reject) => {
-        connection.on('ready', async () => {
-          const worker1 = new Worker('test-shared', null, { connection });
-          const worker2 = new Worker('test-shared', null, { connection });
-
-          try {
-            // There is no point into checking the ready status after closing
-            // since ioredis will not update it anyway:
-            // https://github.com/luin/ioredis/issues/614
-            expect(connection.status).to.be.equal('ready');
-            await worker1.close();
-            await worker2.close();
-            await connection.quit();
-
-            connection.on('end', () => {
-              resolve();
-            });
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-    });
-
-    it('should not close the connection', async () => {
-      const connection = new IORedis();
       const queueName2 = `test-shared-${v4()}`;
 
       const queue2 = new Queue(queueName2, {
@@ -1588,6 +1560,7 @@ describe('workers', function () {
         );
 
         await worker.waitUntilReady();
+        worker.run();
 
         const job = await queue.add(
           'test',
@@ -1617,6 +1590,7 @@ describe('workers', function () {
         const worker = new Worker(queueName, async () => {}, { connection });
 
         await worker.waitUntilReady();
+        worker.run();
 
         const completing = new Promise<void>((resolve, reject) => {
           queueEvents.on('retries-exhausted', async () => {
@@ -1843,6 +1817,8 @@ describe('workers', function () {
         );
 
         await worker.waitUntilReady();
+        worker.run();
+        queueScheduler.run();
 
         const start = Date.now();
         await queue.add(
@@ -2346,6 +2322,9 @@ describe('workers', function () {
           }
         });
       });
+
+      worker.run();
+      queueScheduler.run();
 
       const retriedJob = await queue.add(
         'test',
