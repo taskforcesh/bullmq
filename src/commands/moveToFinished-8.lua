@@ -50,11 +50,6 @@ local rcall = redis.call
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
-
-    if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
-        return -4
-    end
-
     if ARGV[10] ~= "0" then
         local lockKey = jobIdKey .. ':lock'
         if rcall("GET", lockKey) == ARGV[10] then
@@ -63,6 +58,10 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         else
             return -2
         end
+    end
+
+    if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
+        return -4
     end
 
     local jobId = ARGV[1]
