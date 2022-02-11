@@ -392,6 +392,62 @@ describe('queues', function () {
     });
   });
 
+  describe('.getJobCounts', () => {
+    it('returns job counts for active, completed, delayed, failed, paused, waiting and waiting-children', async () => {
+      await queue.waitUntilReady();
+
+      let fail = true;
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(200);
+          if (fail) {
+            fail = false;
+            throw new Error('failed');
+          }
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', () => {
+          resolve();
+        });
+      });
+
+      const flow = new FlowProducer({ connection });
+      await flow.add({
+        name: 'parent-job',
+        queueName,
+        data: {},
+        children: [
+          { name: 'child-1', data: { idx: 0, foo: 'bar' }, queueName },
+          { name: 'child-2', data: { idx: 1, foo: 'baz' }, queueName },
+          { name: 'child-3', data: { idx: 2, foo: 'bac' }, queueName },
+          { name: 'child-4', data: { idx: 3, foo: 'bad' }, queueName },
+        ],
+      });
+
+      await queue.add('test', { idx: 2 }, { delay: 5000 });
+
+      await completing;
+
+      const counts = await queue.getJobCounts();
+      expect(counts).to.be.eql({
+        active: 1,
+        completed: 1,
+        delayed: 1,
+        failed: 1,
+        paused: 0,
+        waiting: 1,
+        'waiting-children': 1,
+      });
+
+      await worker.close();
+    });
+  });
+
   describe('.retryJobs', () => {
     it('should retry all failed jobs', async () => {
       await queue.waitUntilReady();
@@ -446,8 +502,8 @@ describe('queues', function () {
 
       await completing;
 
-      const CompletedCount = await queue.getJobCounts('completed');
-      expect(CompletedCount.completed).to.be.equal(jobCount);
+      const completedCount = await queue.getJobCounts('completed');
+      expect(completedCount.completed).to.be.equal(jobCount);
 
       await worker.close();
     });

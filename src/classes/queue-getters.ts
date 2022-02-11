@@ -77,17 +77,29 @@ export class QueueGetters<
   async getJobCounts(...types: JobType[]): Promise<{
     [index: string]: number;
   }> {
+    const currentTypes: JobType[] = types.length
+      ? types
+      : [
+          'active',
+          'completed',
+          'delayed',
+          'failed',
+          'paused',
+          'waiting',
+          'waiting-children',
+        ];
+
     const client = await this.client;
     const multi = client.multi();
 
-    this.commandByType(types, true, function (key, command) {
+    this.commandByType(currentTypes, true, function (key, command) {
       (<any>multi)[command](key);
     });
 
     const res = await multi.exec();
     const counts: { [index: string]: number } = {};
     res.forEach((res: number[], index: number) => {
-      counts[types[index]] = res[1] || 0;
+      counts[currentTypes[index]] = res[1] || 0;
     });
     return counts;
   }
