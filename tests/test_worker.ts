@@ -1764,6 +1764,118 @@ describe('workers', function () {
         await worker.close();
         await queueScheduler.close();
       });
+
+      describe('when creating children at runtime', () => {
+        it('should wait children as one step of the parent job', async function () {
+          this.timeout(8000);
+          const parentQueueName = `parent-queue-${v4()}`;
+          const parentQueue = new Queue(parentQueueName, { connection });
+
+          const queueScheduler = new QueueScheduler(parentQueueName, {
+            connection,
+          });
+          await queueScheduler.waitUntilReady();
+
+          const worker = new Worker(
+            parentQueueName,
+            async (job, token) => {
+              const initialStep = 'initialStep';
+              const secondStep = 'secondStep';
+              const thirdStep = 'thirdStep';
+              const finishStep = 'finishStep';
+              let step = job.data.step;
+              while (step !== finishStep) {
+                switch (step) {
+                  case initialStep: {
+                    await queue.add(
+                      'child-1',
+                      { foo: 'bar' },
+                      {
+                        parent: {
+                          id: job.id,
+                          queue: `bull:${parentQueueName}`,
+                        },
+                      },
+                    );
+                    await job.update({
+                      step: secondStep,
+                    });
+                    step = secondStep;
+                    break;
+                  }
+                  case secondStep: {
+                    if (job.attemptsMade < 3) {
+                      throw new Error('Not yet!');
+                    }
+                    await queue.add(
+                      'child-2',
+                      { foo: 'bar' },
+                      {
+                        parent: {
+                          id: job.id,
+                          queue: `bull:${parentQueueName}`,
+                        },
+                      },
+                    );
+                    await job.update({
+                      step: thirdStep,
+                    });
+                    step = thirdStep;
+                    break;
+                  }
+                  case thirdStep: {
+                    const shouldWait = await job.moveToWaitingChildren(token);
+                    if (!shouldWait) {
+                      await job.update({
+                        step: finishStep,
+                      });
+                      step = finishStep;
+                      return 'finished';
+                    }
+                    break;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection },
+          );
+          const childrenWorker = new Worker(
+            queueName,
+            async () => {
+              await delay(100);
+            },
+            {
+              connection,
+            },
+          );
+          await childrenWorker.waitUntilReady();
+          await worker.waitUntilReady();
+
+          await parentQueue.add(
+            'test',
+            { step: 'initialStep' },
+            {
+              attempts: 3,
+              backoff: 1000,
+            },
+          );
+
+          await new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              expect(job.returnvalue).to.equal('finished');
+              resolve();
+            });
+          });
+
+          await worker.close();
+          await childrenWorker.close();
+          await parentQueue.close();
+          await queueScheduler.close();
+        });
+      });
     });
 
     it('should retry a job after a delay if an exponential backoff is given', async function () {
