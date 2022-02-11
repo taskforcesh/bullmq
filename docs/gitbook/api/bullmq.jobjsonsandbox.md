@@ -9,7 +9,8 @@
 ```typescript
 export declare type JobJsonSandbox = JobJson & {
     queueName: string;
+    parent?: ParentKeys;
 };
 ```
-<b>References:</b> [JobJson](./bullmq.jobjson.md)
+<b>References:</b> [JobJson](./bullmq.jobjson.md)<!-- -->, [ParentKeys](./bullmq.parentkeys.md)
 

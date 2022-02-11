@@ -73,6 +73,7 @@
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
 |  [Parent](./bullmq.parent.md) | Describes the parent for a Job. |
+|  [ParentKeys](./bullmq.parentkeys.md) |  |
 |  [ParentMessage](./bullmq.parentmessage.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
 |  [QueueEventsListener](./bullmq.queueeventslistener.md) |  |
