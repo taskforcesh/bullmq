@@ -57,6 +57,7 @@ local parentData
 
 -- Includes
 --- @include "includes/destructureJobKey"
+--- @include "includes/trimEvents"
 
 if parentKey ~= nil then
   if rcall("EXISTS", parentKey) ~= 1 then
@@ -173,7 +174,6 @@ if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end
 
-local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents")
-if (maxEvents) then rcall("XTRIM", KEYS[8], "MAXLEN", "~", maxEvents) end
+trimEvents(KEYS[3], KEYS[8])
 
 return jobId .. "" -- convert to string
