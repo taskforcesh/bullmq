@@ -6,8 +6,8 @@ import { after } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { Queue, Job, Worker } from '../src/classes';
-import { removeAllQueueData } from '../src/utils';
+import { FlowProducer, Queue, Worker } from '../src/classes';
+import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', function () {
   let queue: Queue;
@@ -76,7 +76,7 @@ describe('Jobs getters', function () {
   it('should get active jobs', async function () {
     let processor;
     const processing = new Promise<void>(resolve => {
-      processor = async (job: Job) => {
+      processor = async () => {
         const jobs = await queue.getActive();
         expect(jobs).to.be.a('array');
         expect(jobs.length).to.be.equal(1);
@@ -106,7 +106,7 @@ describe('Jobs getters', function () {
   });
 
   it('should get completed jobs', async () => {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
     let counter = 2;
 
     const completed = new Promise<void>(resolve => {
@@ -134,7 +134,7 @@ describe('Jobs getters', function () {
   it('should get failed jobs', async () => {
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         throw new Error('Forced error');
       },
       { connection },
@@ -165,7 +165,7 @@ describe('Jobs getters', function () {
   it('should get all failed jobs when no range is provided', async () => {
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         throw new Error('Forced error');
       },
       { connection },
@@ -226,7 +226,7 @@ describe('Jobs getters', function () {
   */
 
   it('should return all completed jobs when not setting start/end', function (done) {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
 
     worker.on(
       'completed',
@@ -259,7 +259,7 @@ describe('Jobs getters', function () {
   it('should return all failed jobs when not setting start/end', function (done) {
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         throw new Error('error');
       },
       { connection },
@@ -293,7 +293,7 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when setting positive range', function (done) {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
 
     worker.on(
       'completed',
@@ -321,7 +321,7 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when setting a negative range', function (done) {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
 
     worker.on(
       'completed',
@@ -374,7 +374,7 @@ describe('Jobs getters', function () {
     let counter = 0;
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         counter++;
         if (counter == 2) {
           await queue.add('test', { foo: 3 });
@@ -409,12 +409,59 @@ describe('Jobs getters', function () {
     expect(count).to.be.equal(0);
   });
 
-  it('should return 0 if no type provided', async function () {
-    await queue.add('test', { foo: 'bar' });
-    await queue.add('test', { baz: 'qux' });
-    
-    const count = await queue.getJobCountByTypes();
-    expect(count).to.be.a('number');
-    expect(count).to.be.equal(0);
+  describe('.getJobCounts', () => {
+    it('returns job counts for active, completed, delayed, failed, paused, waiting and waiting-children', async () => {
+      await queue.waitUntilReady();
+
+      let fail = true;
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(200);
+          if (fail) {
+            fail = false;
+            throw new Error('failed');
+          }
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', () => {
+          resolve();
+        });
+      });
+
+      const flow = new FlowProducer({ connection });
+      await flow.add({
+        name: 'parent-job',
+        queueName,
+        data: {},
+        children: [
+          { name: 'child-1', data: { idx: 0, foo: 'bar' }, queueName },
+          { name: 'child-2', data: { idx: 1, foo: 'baz' }, queueName },
+          { name: 'child-3', data: { idx: 2, foo: 'bac' }, queueName },
+          { name: 'child-4', data: { idx: 3, foo: 'bad' }, queueName },
+        ],
+      });
+
+      await queue.add('test', { idx: 2 }, { delay: 5000 });
+
+      await completing;
+
+      const counts = await queue.getJobCounts();
+      expect(counts).to.be.eql({
+        active: 1,
+        completed: 1,
+        delayed: 1,
+        failed: 1,
+        paused: 0,
+        waiting: 1,
+        'waiting-children': 1,
+      });
+
+      await worker.close();
+    });
   });
 });
