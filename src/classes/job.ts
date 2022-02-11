@@ -5,8 +5,9 @@ import {
   JobJson,
   JobJsonRaw,
   JobsOptions,
-  WorkerOptions,
+  ParentKeys,
   RedisClient,
+  WorkerOptions,
 } from '../interfaces';
 import { JobState, JobJsonSandbox } from '../types';
 import {
@@ -97,7 +98,11 @@ export class Job<
    * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
   parentKey?: string;
-  parent?: { id: string; queueKey: string };
+
+  /**
+   * Object that contains parentId (id) and parent queueKey.
+   */
+  parent?: ParentKeys;
 
   protected toKey: (type: string) => string;
 
@@ -325,6 +330,7 @@ export class Job<
     return {
       ...this.asJSON(),
       queueName: this.queueName,
+      parent: this.parent ? { ...this.parent } : undefined,
     };
   }
 
