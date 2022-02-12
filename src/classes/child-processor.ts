@@ -1,6 +1,5 @@
 import { promisify } from 'util';
-import { JobJson } from './job';
-import { SandboxedJob, ParentCommand } from '../interfaces';
+import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
 import { childSend } from '../utils';
 
 enum ChildStatus {
@@ -87,7 +86,7 @@ export class ChildProcessor {
 
   public async stop() {}
 
-  async waitForCurrentJobAndExit() {
+  async waitForCurrentJobAndExit(): Promise<void> {
     this.status = ChildStatus.Terminating;
     try {
       await this.currentJobPromise;

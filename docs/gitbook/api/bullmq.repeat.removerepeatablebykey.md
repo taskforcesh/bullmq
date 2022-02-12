@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-removeRepeatableByKey(repeatJobKey: string): Promise<any>;
+removeRepeatableByKey(repeatJobKey: string): Promise<void>;
 ```
 
 ## Parameters
@@ -18,5 +18,5 @@ removeRepeatableByKey(repeatJobKey: string): Promise<any>;
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;void&gt;
 

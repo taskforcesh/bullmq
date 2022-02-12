@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-getJob(jobId: string): Promise<Job | undefined>;
+getJob(jobId: string): Promise<Job<DataType, ResultType, NameType> | undefined>;
 ```
 
 ## Parameters
@@ -18,5 +18,5 @@ getJob(jobId: string): Promise<Job | undefined>;
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md) \| undefined&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt; \| undefined&gt;
 

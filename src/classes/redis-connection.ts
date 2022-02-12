@@ -70,10 +70,7 @@ export class RedisConnection extends EventEmitter {
   }
 
   private checkOptions(msg: string, options?: IORedis.RedisOptions) {
-    if (
-      options &&
-      (options.maxRetriesPerRequest || options.enableReadyCheck)
-    ) {
+    if (options && (options.maxRetriesPerRequest || options.enableReadyCheck)) {
       console.error(msg);
     }
   }
@@ -124,7 +121,13 @@ export class RedisConnection extends EventEmitter {
   }
 
   protected loadCommands(): Promise<void> {
-    return scriptLoader.load(this._client, path.join(__dirname, '../commands'));
+    return (
+      (<any>this._client)['bullmq:loadingCommands'] ||
+      ((<any>this._client)['bullmq:loadingCommands'] = scriptLoader.load(
+        this._client,
+        path.join(__dirname, '../commands'),
+      ))
+    );
   }
 
   private async init() {

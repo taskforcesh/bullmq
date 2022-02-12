@@ -14,7 +14,7 @@ describe('stalled jobs', function () {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName);
+    queue = new Queue(queueName, { connection });
   });
 
   afterEach(async function () {

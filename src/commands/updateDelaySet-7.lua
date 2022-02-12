@@ -2,7 +2,7 @@
   Updates the delay set, by picking a delayed job that should
   be processed now.
 
-     Input:
+    Input:
       KEYS[1] 'delayed'
       KEYS[2] 'wait'
       KEYS[3] 'priority'

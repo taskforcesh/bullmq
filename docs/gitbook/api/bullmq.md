@@ -22,7 +22,7 @@
 |  [ScriptLoader](./bullmq.scriptloader.md) | Lua script loader with include support |
 |  [ScriptLoaderError](./bullmq.scriptloadererror.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
-|  [Worker\_2](./bullmq.worker_2.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
+|  [Worker](./bullmq.worker.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
 ## Enumerations
 
@@ -74,19 +74,19 @@
 |  [Parent](./bullmq.parent.md) | Describes the parent for a Job. |
 |  [ParentMessage](./bullmq.parentmessage.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
-|  [QueueDeclaration](./bullmq.queuedeclaration.md) |  |
 |  [QueueEventsListener](./bullmq.queueeventslistener.md) |  |
 |  [QueueEventsOptions](./bullmq.queueeventsoptions.md) | Options for QueueEvents |
+|  [QueueListener](./bullmq.queuelistener.md) |  |
 |  [QueueOptions](./bullmq.queueoptions.md) | Options for the Queue class. |
-|  [QueueSchedulerDeclaration](./bullmq.queueschedulerdeclaration.md) |  |
+|  [QueueSchedulerListener](./bullmq.queueschedulerlistener.md) |  |
 |  [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) | Options for customizing the behaviour of the scheduler. |
 |  [RateLimiterOptions](./bullmq.ratelimiteroptions.md) |  |
 |  [RepeatOptions](./bullmq.repeatoptions.md) | Settings for repeatable jobs |
 |  [SandboxedJob](./bullmq.sandboxedjob.md) |  |
 |  [ScriptMetadata](./bullmq.scriptmetadata.md) | Script metadata |
 |  [Strategies](./bullmq.strategies.md) |  |
-|  [WorkerDeclaration](./bullmq.workerdeclaration.md) |  |
-|  [WorkerOptions\_2](./bullmq.workeroptions_2.md) |  |
+|  [WorkerListener](./bullmq.workerlistener.md) |  |
+|  [WorkerOptions](./bullmq.workeroptions.md) |  |
 
 ## Variables
 

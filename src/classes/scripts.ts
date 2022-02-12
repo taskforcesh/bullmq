@@ -15,17 +15,19 @@ const pack = packer.pack;
 
 import * as semver from 'semver';
 import {
+  JobJson,
+  JobJsonRaw,
   JobsOptions,
   QueueSchedulerOptions,
-  WorkerOptions,
   RedisClient,
+  WorkerOptions,
 } from '../interfaces';
 import { ErrorCodes } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
-import { Job, JobJson, JobJsonRaw, MoveToChildrenOpts } from './job';
+import { Job, MoveToChildrenOpts } from './job';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -150,6 +152,31 @@ export class Scripts {
     return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
 
+  static removeRepeatableArgs(
+    queue: MinimalQueue,
+    repeatJobId: string,
+    repeatJobKey: string,
+  ): string[] {
+    const queueKeys = queue.keys;
+
+    const keys = [queueKeys.repeat, queueKeys.delayed];
+
+    const args = [repeatJobId, repeatJobKey, queueKeys['']];
+
+    return keys.concat(args);
+  }
+
+  static async removeRepeatable(
+    queue: MinimalQueue,
+    repeatJobId: string,
+    repeatJobKey: string,
+  ): Promise<void> {
+    const client = await queue.client;
+    const args = this.removeRepeatableArgs(queue, repeatJobId, repeatJobKey);
+
+    return (<any>client).removeRepeatable(args);
+  }
+
   static async remove(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
@@ -174,9 +201,9 @@ export class Scripts {
     return (<any>client).extendLock(args);
   }
 
-  static async updateProgress(
+  static async updateProgress<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     progress: number | object,
   ): Promise<void> {
     const client = await queue.client;
@@ -184,13 +211,21 @@ export class Scripts {
     const keys = [queue.toKey(job.id), queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
-    await (<any>client).updateProgress(keys, [job.id, progressJson]);
+    const result = await (<any>client).updateProgress(keys, [
+      job.id,
+      progressJson,
+    ]);
+
+    if (result < 0) {
+      throw this.finishedErrors(result, job.id, 'updateProgress');
+    }
+
     queue.emit('progress', job, progress);
   }
 
-  static moveToFinishedArgs(
+  static moveToFinishedArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     val: any,
     propVal: string,
     shouldRemove: boolean | number,
@@ -239,9 +274,13 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  private static async moveToFinished(
+  private static async moveToFinished<
+    T = any,
+    R = any,
+    N extends string = string,
+  >(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     val: any,
     propVal: string,
     shouldRemove: boolean | number,
@@ -250,7 +289,7 @@ export class Scripts {
     fetchNext: boolean,
   ): Promise<JobData | []> {
     const client = await queue.client;
-    const args = this.moveToFinishedArgs(
+    const args = this.moveToFinishedArgs<T, R, N>(
       queue,
       job,
       val,
@@ -313,15 +352,15 @@ export class Scripts {
     return (<any>client).drain(args);
   }
 
-  static moveToCompleted(
+  static moveToCompleted<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     returnvalue: any,
     removeOnComplete: boolean | number,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
-    return this.moveToFinished(
+    return this.moveToFinished<T, R, N>(
       queue,
       job,
       returnvalue,
@@ -333,9 +372,9 @@ export class Scripts {
     );
   }
 
-  static moveToFailedArgs(
+  static moveToFailedArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     failedReason: string,
     removeOnFailed: boolean | number,
     token: string,
@@ -562,7 +601,10 @@ export class Scripts {
     ]);
   }
 
-  static retryJobArgs(queue: MinimalQueue, job: Job) {
+  static retryJobArgs<T = any, R = any, N extends string = string>(
+    queue: MinimalQueue,
+    job: Job<T, R, N>,
+  ) {
     const jobId = job.id;
 
     const keys = ['active', 'wait', jobId].map(function (name) {
@@ -590,9 +632,9 @@ export class Scripts {
    * -1 means the job is currently locked and can't be retried.
    * -2 means the job was not found in the expected set
    */
-  static async reprocessJob(
+  static async reprocessJob<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
-    job: Job,
+    job: Job<T, R, N>,
     state: 'failed' | 'completed',
   ): Promise<void> {
     const client = await queue.client;
@@ -659,10 +701,10 @@ export class Scripts {
     return raw2jobData(result);
   }
 
-  //
-  //  It checks if the job in the top of the delay set should be moved back to the
-  //  top of the  wait queue (so that it will be processed as soon as possible)
-  //
+  /**
+   * It checks if the job in the top of the delay set should be moved back to the
+   * top of the  wait queue (so that it will be processed as soon as possible)
+   */
   static async updateDelaySet(queue: MinimalQueue, delayedTimestamp: number) {
     const client = await queue.client;
 
@@ -681,7 +723,7 @@ export class Scripts {
     return (<any>client).updateDelaySet(keys.concat(args));
   }
 
-  static async promote(queue: MinimalQueue, jobId: string) {
+  static async promote(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
     const keys = [
@@ -697,15 +739,15 @@ export class Scripts {
     return (<any>client).promote(keys.concat(args));
   }
 
-  //
-  // Looks for unlocked jobs in the active queue.
-  //
-  //    The job was being worked on, but the worker process died and it failed to renew the lock.
-  //    We call these jobs 'stalled'. This is the most common case. We resolve these by moving them
-  //    back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait,
-  //    (e.g. if the job handler keeps crashing),
-  //    we limit the number stalled job recoveries to settings.maxStalledCount.
-  //
+  /**
+   * Looks for unlocked jobs in the active queue.
+   *
+   * The job was being worked on, but the worker process died and it failed to renew the lock.
+   * We call these jobs 'stalled'. This is the most common case. We resolve these by moving them
+   * back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait,
+   * (e.g. if the job handler keeps crashing),
+   * we limit the number stalled job recoveries to settings.maxStalledCount.
+   */
   static async moveStalledJobsToWait(queue: QueueScheduler) {
     const client = await queue.client;
 
