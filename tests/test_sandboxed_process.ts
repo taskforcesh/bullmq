@@ -11,6 +11,7 @@ import {
 import { beforeEach } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../src/utils';
+import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 const { stdout, stderr } = require('test-console');
 
 describe('sandboxed process', () => {
@@ -71,7 +72,40 @@ describe('sandboxed process', () => {
     it('processes and completes', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor.cjs';
       const worker = new Worker(queueName, processFile, {
-        autorun: false,
+        connection,
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql(42);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+            await worker.close();
+            resolve();
+          } catch (err) {
+            await worker.close();
+            reject(err);
+          }
+        });
+      });
+
+      worker.run();
+
+      await queue.add('foobar', { foo: 'bar' });
+
+      await completing;
+    });
+  });
+
+  describe('when processor file is .mjs (ESM)', () => {
+    it('processes and completes', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor.mjs';
+      const worker = new Worker(queueName, processFile, {
         connection,
         drainDelay: 1,
       });
