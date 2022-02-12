@@ -47,6 +47,7 @@ local rcall = redis.call
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/destructureJobKey"
 --- @include "includes/removeJob"
+--- @include "includes/trimEvents"
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -75,11 +76,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     end
 
     -- Trim events before emiting them to avoid trimming events emitted in this script
-    local maxEvents = rcall("HGET", KEYS[7], "opts.maxLenEvents")
-    if (maxEvents == false) then
-      maxEvents = 10000
-    end
-    rcall("XTRIM", KEYS[6], "MAXLEN", "~", maxEvents)
+    trimEvents(KEYS[7], KEYS[6])
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies

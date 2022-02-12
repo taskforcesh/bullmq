@@ -379,7 +379,7 @@ export class Queue<
    *
    * @param maxLength -
    */
-  async trimEvents(maxLength: number) {
+  async trimEvents(maxLength: number): Promise<number> {
     const client = await this.client;
     return client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
   }
