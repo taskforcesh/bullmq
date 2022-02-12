@@ -72,7 +72,6 @@ describe('sandboxed process', () => {
     it('processes and completes', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor.cjs';
       const worker = new Worker(queueName, processFile, {
-        autorun: false,
         connection,
         drainDelay: 1,
       });
