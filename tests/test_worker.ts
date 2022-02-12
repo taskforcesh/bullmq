@@ -7,9 +7,10 @@ import { v4 } from 'uuid';
 import {
   Queue,
   QueueEvents,
-  Job,
-  Worker,
   QueueScheduler,
+  Job,
+  UnrecoverableError,
+  Worker,
 } from '../src/classes';
 import { KeepJobs, JobsOptions } from '../src/interfaces';
 
@@ -1695,6 +1696,57 @@ describe('workers', function () {
 
       await worker.close();
       await queueScheduler.close();
+    });
+
+    describe('when UnrecoverableError is throw', () => {
+      it('moves job to failed', async function () {
+        this.timeout(8000);
+
+        const queueScheduler = new QueueScheduler(queueName, { connection });
+        await queueScheduler.waitUntilReady();
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            if (job.attemptsMade < 2) {
+              throw new Error('Not yet!');
+            }
+            if (job.attemptsMade < 3) {
+              throw new UnrecoverableError('Unrecoverable');
+            }
+          },
+          { connection },
+        );
+
+        await worker.waitUntilReady();
+
+        const start = Date.now();
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 3,
+            backoff: 1000,
+          },
+        );
+
+        await new Promise<void>(resolve => {
+          worker.on(
+            'failed',
+            after(2, (job: Job, error) => {
+              const elapse = Date.now() - start;
+              expect(error.name).to.be.eql('UnrecoverableError');
+              expect(error.message).to.be.eql('Unrecoverable');
+              expect(elapse).to.be.greaterThan(1000);
+              expect(job.attemptsMade).to.be.eql(2);
+              resolve();
+            }),
+          );
+        });
+
+        await worker.close();
+        await queueScheduler.close();
+      });
     });
 
     describe('when providing a way to execute step jobs', () => {
