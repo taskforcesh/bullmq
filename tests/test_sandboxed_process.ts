@@ -103,6 +103,40 @@ describe('sandboxed process', () => {
     });
   });
 
+  describe('when processor file is .mjs (ESM)', () => {
+    it('processes and completes', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor.mjs';
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql(42);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+            await worker.close();
+            resolve();
+          } catch (err) {
+            await worker.close();
+            reject(err);
+          }
+        });
+      });
+
+      worker.run();
+
+      await queue.add('foobar', { foo: 'bar' });
+
+      await completing;
+    });
+  });
+
   describe('when there is an output from stdout', () => {
     it('uses the parent stdout', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_stdout.js';
@@ -181,66 +215,6 @@ describe('sandboxed process', () => {
 
   it('should process with named processor', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor.js';
-    const worker = new Worker(queueName, processFile, {
-      connection,
-      drainDelay: 1,
-    });
-
-    const completing = new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job: Job, value: any) => {
-        try {
-          expect(job.data).to.be.eql({ foo: 'bar' });
-          expect(value).to.be.eql(42);
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-          await worker.close();
-          resolve();
-        } catch (err) {
-          await worker.close();
-          reject(err);
-        }
-      });
-    });
-
-    worker.run();
-
-    await queue.add('foobar', { foo: 'bar' });
-
-    await completing;
-  });
-
-  it('should process and complete (CommonJS)', async () => {
-    const processFile = __dirname + '/fixtures/fixture_processor.cjs';
-    const worker = new Worker(queueName, processFile, {
-      connection,
-      drainDelay: 1,
-    });
-
-    const completing = new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job: Job, value: any) => {
-        try {
-          expect(job.data).to.be.eql({ foo: 'bar' });
-          expect(value).to.be.eql(42);
-          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
-          expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-          await worker.close();
-          resolve();
-        } catch (err) {
-          await worker.close();
-          reject(err);
-        }
-      });
-    });
-
-    worker.run();
-
-    await queue.add('foobar', { foo: 'bar' });
-
-    await completing;
-  });
-
-  it('should process and complete (ESM)', async () => {
-    const processFile = __dirname + '/fixtures/fixture_processor.mjs';
     const worker = new Worker(queueName, processFile, {
       connection,
       drainDelay: 1,
