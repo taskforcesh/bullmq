@@ -446,8 +446,8 @@ describe('queues', function () {
 
       await completing;
 
-      const CompletedCount = await queue.getJobCounts('completed');
-      expect(CompletedCount.completed).to.be.equal(jobCount);
+      const completedCount = await queue.getJobCounts('completed');
+      expect(completedCount.completed).to.be.equal(jobCount);
 
       await worker.close();
     });
