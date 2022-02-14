@@ -1,7 +1,7 @@
 /**
  * UnrecoverableError
  *
- * Error to pass a job to failed even if the attemptsMade
+ * Error to move a job to failed even if the attemptsMade
  * are lower than the expected limit.
  *
  */
