@@ -7,6 +7,7 @@ import {
   Job,
   Queue,
   QueueEvents,
+  QueueScheduler,
   Worker,
 } from '../src/classes';
 import { beforeEach } from 'mocha';
@@ -169,6 +170,52 @@ describe('sandboxed process', () => {
       expect(output).to.be.equal('error message\n');
 
       await worker.close();
+    });
+  });
+
+  describe('when processor throws UnrecoverableError', () => {
+    it('moves job to failed', async function () {
+      this.timeout(6000);
+
+      const queueScheduler = new QueueScheduler(queueName, { connection });
+      await queueScheduler.waitUntilReady();
+
+      const processFile =
+        __dirname + '/fixtures/fixture_processor_unrecoverable.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        drainDelay: 1,
+      });
+
+      await worker.waitUntilReady();
+
+      const start = Date.now();
+      await queue.add(
+        'test',
+        { foo: 'bar' },
+        {
+          attempts: 3,
+          backoff: 1000,
+        },
+      );
+
+      await new Promise<void>(resolve => {
+        worker.on(
+          'failed',
+          after(2, (job: Job, error) => {
+            const elapse = Date.now() - start;
+            expect(error.name).to.be.eql('UnrecoverableError');
+            expect(error.message).to.be.eql('Unrecoverable');
+            expect(elapse).to.be.greaterThan(1000);
+            expect(job.attemptsMade).to.be.eql(2);
+            resolve();
+          }),
+        );
+      });
+
+      await worker.close();
+      await queueScheduler.close();
     });
   });
 

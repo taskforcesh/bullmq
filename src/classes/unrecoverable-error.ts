@@ -6,11 +6,9 @@
  *
  */
 export class UnrecoverableError extends Error {
-  constructor(message: string) {
+  constructor(message?: string) {
     super(message);
-  }
-
-  get name(): string {
-    return this.constructor.name;
+    this.name = this.constructor.name;
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
