@@ -3,30 +3,33 @@
 Sometimes, it is useful to break processor function into small pieces that will be processed depending on the previous executed step, we could handle this kind of logic by using switch blocks:
 
 ```typescript
+enum Step {
+  Initial,
+  Second,
+  Finish,
+}
+
 const worker = new Worker(
   queueName,
   async job => {
-    const initialStep = 'initialStep';
-    const secondStep = 'secondStep';
-    const finishStep = 'finishStep';
     let step = job.data.step;
-    while (step !== finishStep) {
+    while (step !== Step.Finish) {
       switch (step) {
-        case initialStep: {
+        case Step.Initial: {
           await doInitialStepStuff();
           await job.update({
-            step: secondStep,
+            step: Step.Second,
           });
-          step = secondStep;
+          step = Step.Second;
           break;
         }
-        case secondStep: {
+        case Step.Second: {
           await doSecondStepStuff();
           await job.update({
-            step: finishStep,
+            step: Step.Finish,
           });
-          step = finishStep;
-          return 'finished';
+          step = Step.Finish;
+          return Step.Finish;
         }
         default: {
           throw new Error('invalid step');
@@ -38,26 +41,29 @@ const worker = new Worker(
 );
 ```
 
-As you can see, we should save the step value; in this case, we are saving it into data. So even in the case of an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
+As you can see, we should save the step value; in this case, we are saving it into the job's data. So even in the case of an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
 
 # Waiting Children
 
-There is a case where people want to add children at runtime, then wait for children
+A common use case is to add children at runtime and then wait for the children to complete.
 
-This could be handled using moveToWaitingChildren method:
+This could be handled using the moveToWaitingChildren method:
 
 ```typescript
+enum Step {
+  Initial,
+  Second,
+  Third,
+  Finish,
+}
+
 const worker = new Worker(
   parentQueueName,
   async job => {
-    const initialStep = 'initialStep';
-    const secondStep = 'secondStep';
-    const thirdStep = 'thirdStep';
-    const finishStep = 'finishStep';
     let step = job.data.step;
-    while (step !== finishStep) {
+    while (step !== Step.Finish) {
       switch (step) {
-        case initialStep: {
+        case Step.Initial: {
           await doInitialStepStuff();
           await childrenQueue.add(
             'child-1',
@@ -70,12 +76,12 @@ const worker = new Worker(
             },
           );
           await job.update({
-            step: secondStep,
+            step: Step.Second,
           });
-          step = secondStep;
+          step = Step.Second;
           break;
         }
-        case secondStep: {
+        case Step.Second: {
           await doSecondStepStuff();
           await childrenQueue.add(
             'child-2',
@@ -88,19 +94,19 @@ const worker = new Worker(
             },
           );
           await job.update({
-            step: thirdStep,
+            step: Step.Third,
           });
-          step = thirdStep;
+          step = Step.Third;
           break;
         }
-        case thirdStep: {
+        case Step.Third: {
           const shouldWait = await job.moveToWaitingChildren(token);
           if (!shouldWait) {
             await job.update({
-              step: finishStep,
+              step: Step.Finish,
             });
-            step = finishStep;
-            return 'finished';
+            step = Step.Finish;
+            return Step.Finish;
           }
           break;
         }

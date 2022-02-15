@@ -1704,31 +1704,34 @@ describe('workers', function () {
         const queueScheduler = new QueueScheduler(queueName, { connection });
         await queueScheduler.waitUntilReady();
 
+        enum Step {
+          Initial,
+          Second,
+          Finish,
+        }
+
         const worker = new Worker(
           queueName,
           async job => {
-            const initialStep = 'initialStep';
-            const secondStep = 'secondStep';
-            const finishStep = 'finishStep';
             let step = job.data.step;
-            while (step !== finishStep) {
+            while (step !== Step.Finish) {
               switch (step) {
-                case initialStep: {
+                case Step.Initial: {
                   await job.update({
-                    step: secondStep,
+                    step: Step.Second,
                   });
-                  step = secondStep;
+                  step = Step.Second;
                   break;
                 }
-                case secondStep: {
+                case Step.Second: {
                   if (job.attemptsMade < 3) {
                     throw new Error('Not yet!');
                   }
                   await job.update({
-                    step: finishStep,
+                    step: Step.Finish,
                   });
-                  step = finishStep;
-                  return 'finished';
+                  step = Step.Finish;
+                  return Step.Finish;
                 }
                 default: {
                   throw new Error('invalid step');
@@ -1744,7 +1747,7 @@ describe('workers', function () {
         const start = Date.now();
         await queue.add(
           'test',
-          { step: 'initialStep' },
+          { step: Step.Initial },
           {
             attempts: 3,
             backoff: 1000,
@@ -1755,7 +1758,7 @@ describe('workers', function () {
           worker.on('completed', job => {
             const elapse = Date.now() - start;
             expect(elapse).to.be.greaterThan(2000);
-            expect(job.returnvalue).to.be.eql('finished');
+            expect(job.returnvalue).to.be.eql(Step.Finish);
             expect(job.attemptsMade).to.be.eql(3);
             resolve();
           });
@@ -1776,17 +1779,20 @@ describe('workers', function () {
           });
           await queueScheduler.waitUntilReady();
 
+          enum Step {
+            Initial,
+            Second,
+            Third,
+            Finish,
+          }
+
           const worker = new Worker(
             parentQueueName,
             async (job, token) => {
-              const initialStep = 'initialStep';
-              const secondStep = 'secondStep';
-              const thirdStep = 'thirdStep';
-              const finishStep = 'finishStep';
               let step = job.data.step;
-              while (step !== finishStep) {
+              while (step !== Step.Finish) {
                 switch (step) {
-                  case initialStep: {
+                  case Step.Initial: {
                     await queue.add(
                       'child-1',
                       { foo: 'bar' },
@@ -1798,12 +1804,12 @@ describe('workers', function () {
                       },
                     );
                     await job.update({
-                      step: secondStep,
+                      step: Step.Second,
                     });
-                    step = secondStep;
+                    step = Step.Second;
                     break;
                   }
-                  case secondStep: {
+                  case Step.Second: {
                     if (job.attemptsMade < 3) {
                       throw new Error('Not yet!');
                     }
@@ -1818,19 +1824,19 @@ describe('workers', function () {
                       },
                     );
                     await job.update({
-                      step: thirdStep,
+                      step: Step.Third,
                     });
-                    step = thirdStep;
+                    step = Step.Third;
                     break;
                   }
-                  case thirdStep: {
+                  case Step.Third: {
                     const shouldWait = await job.moveToWaitingChildren(token);
                     if (!shouldWait) {
                       await job.update({
-                        step: finishStep,
+                        step: Step.Finish,
                       });
-                      step = finishStep;
-                      return 'finished';
+                      step = Step.Finish;
+                      return Step.Finish;
                     }
                     break;
                   }
@@ -1856,7 +1862,7 @@ describe('workers', function () {
 
           await parentQueue.add(
             'test',
-            { step: 'initialStep' },
+            { step: Step.Initial },
             {
               attempts: 3,
               backoff: 1000,
@@ -1865,7 +1871,7 @@ describe('workers', function () {
 
           await new Promise<void>(resolve => {
             worker.on('completed', job => {
-              expect(job.returnvalue).to.equal('finished');
+              expect(job.returnvalue).to.equal(Step.Finish);
               resolve();
             });
           });
