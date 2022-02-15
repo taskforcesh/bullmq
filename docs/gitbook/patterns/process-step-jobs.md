@@ -59,7 +59,7 @@ enum Step {
 
 const worker = new Worker(
   parentQueueName,
-  async job => {
+  async (job, token) => {
     let step = job.data.step;
     while (step !== Step.Finish) {
       switch (step) {
