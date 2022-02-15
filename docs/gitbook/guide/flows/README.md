@@ -45,7 +45,7 @@ const flow = await flowProducer.add({
 });
 ```
 
-The above code will add atomically 4 jobs, one to the 'renovate' queue and 3 to the 'steps' queue. When the 3 jobs in the 'activities" queue are completed, the parent job in the 'renovate' queue will be processed as a regular job.
+The above code will add atomically 4 jobs, one to the "renovate" queue and 3 to the "steps" queue. When the 3 jobs in the "steps" queue are completed, the parent job in the "renovate" queue will be processed as a regular job.
 
 The above call will return instances for all the jobs added to the queue.
 
