@@ -331,6 +331,7 @@ describe('flows', () => {
         resolve =>
           (childrenProcessor = async (job: Job) => {
             processedChildren++;
+            await delay(10);
 
             if (processedChildren == values.length) {
               resolve();

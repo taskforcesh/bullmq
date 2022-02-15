@@ -1,4 +1,5 @@
 import { Pipeline } from 'ioredis';
+import { fromPairs } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -20,7 +21,7 @@ import {
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts, JobData } from './scripts';
-import { fromPairs } from 'lodash';
+import { UnrecoverableError } from './unrecoverable-error';
 
 const logger = debuglog('bull');
 
@@ -442,8 +443,8 @@ export class Job<
    * @param fetchNext - true when wanting to fetch the next job
    * @returns void
    */
-  async moveToFailed(
-    err: Error,
+  async moveToFailed<E extends Error>(
+    err: E,
     token: string,
     fetchNext = false,
   ): Promise<void> {
@@ -461,7 +462,11 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
-    if (this.attemptsMade < this.opts.attempts && !this.discarded) {
+    if (
+      this.attemptsMade < this.opts.attempts &&
+      !this.discarded &&
+      !(err instanceof UnrecoverableError)
+    ) {
       const opts = queue.opts as WorkerOptions;
 
       // Check if backoff is needed
