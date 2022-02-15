@@ -22,6 +22,7 @@
 |  [ScriptLoader](./bullmq.scriptloader.md) | Lua script loader with include support |
 |  [ScriptLoaderError](./bullmq.scriptloadererror.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
+|  [UnrecoverableError](./bullmq.unrecoverableerror.md) | UnrecoverableError<!-- -->Error to move a job to failed even if the attemptsMade are lower than the expected limit. |
 |  [Worker](./bullmq.worker.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
 ## Enumerations
