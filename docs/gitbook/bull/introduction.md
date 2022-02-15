@@ -6,8 +6,9 @@ Bull is the legacy version of BullMQ. As it is still heavily used today, it is a
 
 Bull has been a part of the NodeJS ecosystem for a long time and is used by many organizations both in commercial and open-source projects. A few special mentions:
 
-![](<../.gitbook/assets/Screenshot 2022-02-15 at 11.32.39 (1).png>)![](<../.gitbook/assets/mozilla-logo-bw-rgb (2).png>)![](../.gitbook/assets/autodesk-logo-white.png)![](../.gitbook/assets/midwayjs-logo.png)
+![](<../.gitbook/assets/Screenshot 2022-02-15 at 11.32.39 (1).png>)![](<../.gitbook/assets/mozilla-logo-bw-rgb (2).png>)![](../.gitbook/assets/autodesk-logo-white.png)![](<../.gitbook/assets/Atlassian-horizontal-blue-rgb (1).webp>)
 
-![](<../.gitbook/assets/entethalliance-logo (1).png>)![](../.gitbook/assets/kisspng-logo-retail-target-corporation-advertising-5ae5ef43944c89.3404142515250184356074.png)![](../.gitbook/assets/salesforce-logo.png)
+![](../.gitbook/assets/midwayjs-logo.png)![](../.gitbook/assets/salesforce-logo.png)
 
-![](../.gitbook/assets/Atlassian-horizontal-blue-rgb.webp)
+![](<../.gitbook/assets/entethalliance-logo (1).png>)![](../.gitbook/assets/kisspng-logo-retail-target-corporation-advertising-5ae5ef43944c89.3404142515250184356074.png)
+
