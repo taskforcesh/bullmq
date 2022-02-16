@@ -284,7 +284,29 @@ export class QueueGetters<
     }
   }
 
-  private parseClientList(list: string) {
+  /**
+   * Get queue schedulers list related to the queue.
+   *
+   * @returns - Returns an array with queue schedulers info.
+   */
+  async getQueueSchedulers(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
+    const client = await this.client;
+    const clients = await client.client('list');
+    try {
+      const list = this.parseClientList(clients, 'qs');
+      return list;
+    } catch (err) {
+      if (!clientCommandMessageReg.test((<Error>err).message)) {
+        throw err;
+      }
+    }
+  }
+
+  private parseClientList(list: string, suffix = '') {
     const lines = list.split('\n');
     const clients: { [index: string]: string }[] = [];
 
@@ -298,7 +320,10 @@ export class QueueGetters<
         client[key] = value;
       });
       const name = client['name'];
-      if (name && name === this.clientName()) {
+      if (
+        name &&
+        name === `${this.clientName()}${suffix ? `:${suffix}` : ''}`
+      ) {
         client['name'] = this.name;
         clients.push(client);
       }
