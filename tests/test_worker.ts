@@ -38,45 +38,6 @@ describe('workers', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should get all workers for this queue', async function () {
-    const worker = new Worker(queueName, async () => {}, { connection });
-    await worker.waitUntilReady();
-    await delay(10);
-
-    const workers = await queue.getWorkers();
-    expect(workers).to.have.length(1);
-
-    const worker2 = new Worker(queueName, async () => {}, { connection });
-    await worker2.waitUntilReady();
-    await delay(10);
-
-    const nextWorkers = await queue.getWorkers();
-    expect(nextWorkers).to.have.length(2);
-
-    await worker.close();
-    await worker2.close();
-  });
-
-  it('should get only workers related only to one queue', async function () {
-    const queueName2 = `${queueName}2`;
-    const queue2 = new Queue(queueName2, { connection });
-    const worker = new Worker(queueName, async () => {}, { connection });
-    const worker2 = new Worker(queueName2, async () => {}, { connection });
-    await worker.waitUntilReady();
-    await worker2.waitUntilReady();
-
-    const workers = await queue.getWorkers();
-    expect(workers).to.have.length(1);
-
-    const workers2 = await queue2.getWorkers();
-    expect(workers2).to.have.length(1);
-
-    await queue2.close();
-    await worker.close();
-    await worker2.close();
-    await removeAllQueueData(new IORedis(), queueName2);
-  });
-
   describe('when closing a worker', () => {
     it('process a job that throws an exception after worker close', async () => {
       const jobError = new Error('Job Failed');
