@@ -332,6 +332,7 @@ export class Job<
       ...this.asJSON(),
       queueName: this.queueName,
       parent: this.parent ? { ...this.parent } : undefined,
+      prefix: this.prefix,
     };
   }
 
@@ -565,6 +566,10 @@ export class Job<
 
   get queueName(): string {
     return this.queue.name;
+  }
+
+  get prefix(): string {
+    return this.queue.opts.prefix;
   }
 
   /**
