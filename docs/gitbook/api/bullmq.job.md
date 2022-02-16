@@ -29,6 +29,7 @@ export declare class Job<DataType = any, ReturnType = any, NameType extends stri
 |  [opts](./bullmq.job.opts.md) |  | [JobsOptions](./bullmq.jobsoptions.md) | The options object for this job. |
 |  [parent?](./bullmq.job.parent.md) |  | [ParentKeys](./bullmq.parentkeys.md) | <i>(Optional)</i> Object that contains parentId (id) and parent queueKey. |
 |  [parentKey?](./bullmq.job.parentkey.md) |  | string | <i>(Optional)</i> Fully qualified key (including the queue prefix) pointing to the parent of this job. |
+|  [prefix](./bullmq.job.prefix.md) |  | string |  |
 |  [processedOn?](./bullmq.job.processedon.md) |  | number | <i>(Optional)</i> Timestamp for when the job was processed. |
 |  [progress](./bullmq.job.progress.md) |  | number \| object | The progress a job has performed so far. |
 |  [queue](./bullmq.job.queue.md) |  | [MinimalQueue](./bullmq.minimalqueue.md) |  |

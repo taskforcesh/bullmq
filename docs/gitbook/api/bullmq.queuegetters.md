@@ -29,6 +29,7 @@ export declare class QueueGetters<DataType, ResultType, NameType extends string>
 |  [getJobCounts(types)](./bullmq.queuegetters.getjobcounts.md) |  | Returns the job counts for each type specified or every list/set in the queue by default. |
 |  [getJobLogs(jobId, start, end, asc)](./bullmq.queuegetters.getjoblogs.md) |  |  |
 |  [getJobs(types, start, end, asc)](./bullmq.queuegetters.getjobs.md) |  |  |
+|  [getQueueSchedulers()](./bullmq.queuegetters.getqueueschedulers.md) |  | Get queue schedulers list related to the queue. |
 |  [getRanges(types, start, end, asc)](./bullmq.queuegetters.getranges.md) |  |  |
 |  [getWaiting(start, end)](./bullmq.queuegetters.getwaiting.md) |  |  |
 |  [getWaitingChildren(start, end)](./bullmq.queuegetters.getwaitingchildren.md) |  |  |

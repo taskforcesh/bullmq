@@ -1,3 +1,11 @@
+# [1.73.0](https://github.com/taskforcesh/bullmq/compare/v1.72.0...v1.73.0) (2022-02-16)
+
+
+### Features
+
+* **job:** add prefix getter ([#1077](https://github.com/taskforcesh/bullmq/issues/1077)) ([db9ef10](https://github.com/taskforcesh/bullmq/commit/db9ef105a7a524d7502664d52bd9f9c7dfa9477f))
+* **queue-getters:** add getQueueSchedulers ([#1078](https://github.com/taskforcesh/bullmq/issues/1078)) ref [#1075](https://github.com/taskforcesh/bullmq/issues/1075) ([0b3b1c4](https://github.com/taskforcesh/bullmq/commit/0b3b1c4382de34bd68733d162c2fa2ba9417f79c))
+
 # [1.72.0](https://github.com/taskforcesh/bullmq/compare/v1.71.0...v1.72.0) (2022-02-15)
 
 
