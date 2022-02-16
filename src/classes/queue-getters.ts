@@ -297,7 +297,6 @@ export class QueueGetters<
     const client = await this.client;
     const clients = await client.client('list');
     try {
-      console.log(clients);
       const list = this.parseClientList(clients, 'qs');
       return list;
     } catch (err) {
