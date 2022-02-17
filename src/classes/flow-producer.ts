@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { get } from 'lodash';
 import { Redis, Pipeline } from 'ioredis';
 import { v4 } from 'uuid';
 import {
@@ -6,6 +7,7 @@ import {
   FlowQueuesOpts,
   FlowOpts,
   QueueBaseOptions,
+  QueueOptions,
   RedisClient,
 } from '../interfaces';
 import { getParentKey, jobIdForGroup } from '../utils';
@@ -201,6 +203,7 @@ export class FlowProducer extends EventEmitter {
     );
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
+    const jobsOpts = get(queueOpts, 'defaultJobOptions');
     const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
 
     const job = new Job(
@@ -208,6 +211,7 @@ export class FlowProducer extends EventEmitter {
       node.name,
       node.data,
       {
+        ...(jobsOpts ? jobsOpts : {}),
         ...node.opts,
         parent: parent?.parentOpts,
       },
