@@ -54,7 +54,6 @@ Sign up at [Taskforce.sh](https://taskforce.sh)
 Some notable organizations using BullMQ:
 
 [<img src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FUvwInTAmk7hxAViDwJzU%2Fclipart1565701.png?alt=media&token=e1df5b23-8eb7-4d32-94b9-076c523c361b" width="200" alt="Microsoft" style="padding: 200px"/>](https://github.com/microsoft/lage)
-[<img src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FMJ0U3RmmWyACQ7mfLPia%2Fremix-logo.png?alt=media&token=f9d4ecfb-f7fc-44d3-b9cc-bc4803e93a6a" width="200" alt="Remix" style="padding: 200px"/>](https://github.com/remix-run/remix)
 [<img src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FvT30DUqsi61gL8edn3R2%2Fwordmark-logo.png?alt=media&token=a2994d3e-b54c-46d3-8759-3e8065905dd5" width="200" alt="Vendure" style="padding: 200px"/>](https://github.com/vendure-ecommerce/vendure)
 [<img src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FCJ5XmotpBBsuSgD8CilC%2Fdatawrapper-logo.png?alt=media&token=584a85b7-5275-4cf7-8296-0eba798fd50e" width="200" alt="Datawrapper" style="padding: 200px"/>](https://github.com/datawrapper/datawrapper)
 
