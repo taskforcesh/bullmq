@@ -461,7 +461,7 @@ describe('queues', function () {
         const worker = new Worker(
           queueName,
           async () => {
-            await delay(20);
+            await delay(25);
           },
           { connection },
         );
@@ -485,6 +485,9 @@ describe('queues', function () {
         });
 
         await queue.retryJobs({ count: 2, state: 'completed' });
+
+        const completedCount2 = await queue.getJobCounts('completed');
+        expect(completedCount2.completed).to.be.equal(0);
 
         await completing2;
 
