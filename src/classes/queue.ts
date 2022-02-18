@@ -7,6 +7,7 @@ import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
+import { FinishedTarget } from '..';
 
 export interface QueueListener<DataType, ResultType, NameType extends string> {
   /**
@@ -364,13 +365,16 @@ export class Queue<
   /**
    * Retry all the failed jobs.
    *
-   * @param opts.count - number to limit how many jobs will be moved to wait status per iteration
+   * @param opts - contains number to limit how many jobs will be moved to wait status per iteration
+   * and state (failed, completed) failed by default.
    * @returns
    */
-  async retryJobs(opts: { count?: number } = {}): Promise<void> {
+  async retryJobs(
+    opts: { count?: number; state?: FinishedTarget } = {},
+  ): Promise<void> {
     let cursor = 0;
     do {
-      cursor = await Scripts.retryJobs(this, opts.count);
+      cursor = await Scripts.retryJobs(this, opts.state, opts.count);
     } while (cursor);
   }
 

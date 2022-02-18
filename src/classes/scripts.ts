@@ -646,12 +646,13 @@ export class Scripts {
 
   private static retryJobsArgs(
     queue: MinimalQueue,
+    state: FinishedTarget,
     count: number,
   ): (string | number)[] {
     const keys: (string | number)[] = [
       queue.toKey(''),
       queue.keys.events,
-      queue.toKey('failed'),
+      queue.toKey(state),
       queue.toKey('wait'),
     ];
 
@@ -660,10 +661,14 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async retryJobs(queue: MinimalQueue, count = 1000): Promise<number> {
+  static async retryJobs(
+    queue: MinimalQueue,
+    state: FinishedTarget = 'failed',
+    count = 1000,
+  ): Promise<number> {
     const client = await queue.client;
 
-    const args = this.retryJobsArgs(queue, count);
+    const args = this.retryJobsArgs(queue, state, count);
 
     return (<any>client).retryJobs(args);
   }
