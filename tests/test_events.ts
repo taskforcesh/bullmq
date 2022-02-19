@@ -18,6 +18,7 @@ describe('events', function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
+    await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
 
@@ -95,9 +96,10 @@ describe('events', function () {
   it('should emit global waiting event when a job has been added', async function () {
     const waiting = new Promise(resolve => {
       queueEvents.on('waiting', resolve);
-
-      queue.add('test', { foo: 'bar' });
     });
+    await delay(10);
+
+    await queue.add('test', { foo: 'bar' });
 
     await waiting;
   });
@@ -211,6 +213,7 @@ describe('events', function () {
         connection,
       },
     );
+    await worker.waitUntilReady();
     const testName = 'test';
     const testData = { foo: 'bar' };
 
