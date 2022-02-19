@@ -221,6 +221,8 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
+        await this.setClientName(client);
+
         await this.consumeEvents(client);
       } catch (error) {
         this.running = false;
@@ -229,6 +231,14 @@ export class QueueEvents extends QueueBase {
     } else {
       throw new Error('Queue Events is already running.');
     }
+  }
+
+  /**
+   * @override
+   */
+  protected clientName(): string {
+    const queueNameBase64 = this.base64Name();
+    return `${this.opts.prefix}:${queueNameBase64}:qe`;
   }
 
   private async consumeEvents(client: RedisClient) {

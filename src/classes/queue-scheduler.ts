@@ -3,7 +3,7 @@ import {
   RedisClient,
   StreamReadRaw,
 } from '../interfaces';
-import { array2obj, clientCommandMessageReg, isRedisInstance } from '../utils';
+import { array2obj, isRedisInstance } from '../utils';
 import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
 
@@ -109,13 +109,7 @@ export class QueueScheduler extends QueueBase {
         const key = this.keys.delay;
         const opts = this.opts as QueueSchedulerOptions;
 
-        try {
-          await client.client('setname', this.clientName());
-        } catch (err) {
-          if (!clientCommandMessageReg.test((<Error>err).message)) {
-            throw err;
-          }
-        }
+        await this.setClientName(client);
 
         const [nextTimestamp, streamId = '0-0'] = await this.updateDelaySet(
           Date.now(),
@@ -253,6 +247,9 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
+  /**
+   * @override
+   */
   protected clientName(): string {
     const queueNameBase64 = this.base64Name();
     return `${this.opts.prefix}:${queueNameBase64}:qs`;

@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events';
+import { clientCommandMessageReg } from '../utils';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
 import { RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
@@ -71,6 +72,16 @@ export class QueueBase extends EventEmitter {
 
   protected clientName(): string {
     return this.opts.prefix + ':' + this.base64Name();
+  }
+
+  protected async setClientName(client: RedisClient): Promise<void> {
+    try {
+      await client.client('setname', this.clientName());
+    } catch (err) {
+      if (!clientCommandMessageReg.test((<Error>err).message)) {
+        throw err;
+      }
+    }
   }
 
   close(): Promise<void> {

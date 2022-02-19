@@ -10,7 +10,6 @@ import {
   WorkerOptions,
 } from '../interfaces';
 import {
-  clientCommandMessageReg,
   delay,
   DELAY_TIME_1,
   isNotConnectionError,
@@ -297,13 +296,7 @@ export class Worker<
           // every worker is a hash key workername:workerId with json holding
           // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
           //
-          try {
-            await client.client('setname', this.clientName());
-          } catch (err) {
-            if (!clientCommandMessageReg.test((<Error>err).message)) {
-              throw err;
-            }
-          }
+          await this.setClientName(client);
 
           const opts: WorkerOptions = <WorkerOptions>this.opts;
 

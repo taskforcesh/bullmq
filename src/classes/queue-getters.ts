@@ -306,6 +306,28 @@ export class QueueGetters<
     }
   }
 
+  /**
+   * Get queue events list related to the queue.
+   *
+   * @returns - Returns an array with queue events info.
+   */
+  async getQueueEvents(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
+    const client = await this.client;
+    const clients = await client.client('list');
+    try {
+      const list = this.parseClientList(clients, 'qe');
+      return list;
+    } catch (err) {
+      if (!clientCommandMessageReg.test((<Error>err).message)) {
+        throw err;
+      }
+    }
+  }
+
   private parseClientList(list: string, suffix = '') {
     const lines = list.split('\n');
     const clients: { [index: string]: string }[] = [];
