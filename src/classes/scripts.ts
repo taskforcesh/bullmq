@@ -646,6 +646,7 @@ export class Scripts {
   private static retryJobsArgs(
     queue: MinimalQueue,
     count: number,
+    timestamp: number,
   ): (string | number)[] {
     const keys: (string | number)[] = [
       queue.toKey(''),
@@ -654,15 +655,19 @@ export class Scripts {
       queue.toKey('wait'),
     ];
 
-    const args = [count];
+    const args = [count, timestamp];
 
     return keys.concat(args);
   }
 
-  static async retryJobs(queue: MinimalQueue, count = 1000): Promise<number> {
+  static async retryJobs(
+    queue: MinimalQueue,
+    count = 1000,
+    timestamp = new Date().getTime(),
+  ): Promise<number> {
     const client = await queue.client;
 
-    const args = this.retryJobsArgs(queue, count);
+    const args = this.retryJobsArgs(queue, count, timestamp);
 
     return (<any>client).retryJobs(args);
   }
