@@ -73,6 +73,7 @@
 |  [KeepJobs](./bullmq.keepjobs.md) | KeepJobs<!-- -->Specify which jobs to keep after finishing. If both age and count are specified, then the jobs kept will be the ones that satisfies both properties. |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
+|  [ObliterateOpts](./bullmq.obliterateopts.md) |  |
 |  [Parent](./bullmq.parent.md) | Describes the parent for a Job. |
 |  [ParentKeys](./bullmq.parentkeys.md) |  |
 |  [ParentMessage](./bullmq.parentmessage.md) |  |

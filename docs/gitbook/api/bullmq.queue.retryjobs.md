@@ -11,6 +11,7 @@ Retry all the failed jobs.
 ```typescript
 retryJobs(opts?: {
         count?: number;
+        timestamp?: number;
     }): Promise<void>;
 ```
 
@@ -18,7 +19,7 @@ retryJobs(opts?: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  opts | { count?: number; } |  |
+|  opts | { count?: number; timestamp?: number; } | contains number to limit how many jobs will be moved to wait status per iteration or from which timestamp. |
 
 <b>Returns:</b>
 
