@@ -8,6 +8,19 @@ import { Repeat } from './repeat';
 import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
 
+export interface ObliterateOpts {
+  /**
+   * Use force = true to force obliteration even with active jobs in the queue
+   * @defaultValue false
+   */
+  force?: boolean;
+  /**
+   * Use count with the maximum number of deleted keys per iteration
+   * @defaultValue 1000
+   */
+  count?: number;
+}
+
 export interface QueueListener<DataType, ResultType, NameType extends string> {
   /**
    * Listen to 'cleaned' event.
@@ -172,7 +185,11 @@ export class Queue<
    * @param data - Arbitrary data to append to the job.
    * @param opts - Job options that affects how the job is going to be processed.
    */
-  async add(name: NameType, data: DataType, opts?: JobsOptions) {
+  async add(
+    name: NameType,
+    data: DataType,
+    opts?: JobsOptions,
+  ): Promise<Job<DataType, ResultType, NameType>> {
     if (opts && opts.repeat) {
       return (await this.repeat).addNextRepeatableJob<
         DataType,
@@ -203,7 +220,7 @@ export class Queue<
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
    */
-  async addBulk(
+  addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
   ): Promise<Job<DataType, DataType, NameType>[]> {
     return Job.createBulk<DataType, DataType, NameType>(
@@ -309,7 +326,7 @@ export class Queue<
    *
    * @param grace - The grace period
    * @param limit - Max number of jobs to clean
-   * @param {string} [type=completed] - The type of job to clean
+   * @param type - Default completed - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
    * @returns Id jobs from the deleted records
    */
@@ -344,11 +361,9 @@ export class Queue<
    * Note: This operation requires to iterate on all the jobs stored in the queue
    * and can be slow for very large queues.
    *
-   * @param { { force: boolean, count: number }} opts. Use force = true to force obliteration even
-   * with active jobs in the queue. Use count with the maximum number of deleted keys per iteration,
-   * 1000 is the default.
+   * @param opts - Obliterate options.
    */
-  async obliterate(opts?: { force?: boolean; count?: number }): Promise<void> {
+  async obliterate(opts?: ObliterateOpts): Promise<void> {
     await this.pause();
 
     let cursor = 0;
