@@ -22,6 +22,7 @@
 |  [ScriptLoader](./bullmq.scriptloader.md) | Lua script loader with include support |
 |  [ScriptLoaderError](./bullmq.scriptloadererror.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
+|  [UnrecoverableError](./bullmq.unrecoverableerror.md) | UnrecoverableError<!-- -->Error to move a job to failed even if the attemptsMade are lower than the expected limit. |
 |  [Worker](./bullmq.worker.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
 ## Enumerations
@@ -69,9 +70,12 @@
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  [JobNode](./bullmq.jobnode.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
+|  [KeepJobs](./bullmq.keepjobs.md) | KeepJobs<!-- -->Specify which jobs to keep after finishing. If both age and count are specified, then the jobs kept will be the ones that satisfies both properties. |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
+|  [ObliterateOpts](./bullmq.obliterateopts.md) |  |
 |  [Parent](./bullmq.parent.md) | Describes the parent for a Job. |
+|  [ParentKeys](./bullmq.parentkeys.md) |  |
 |  [ParentMessage](./bullmq.parentmessage.md) |  |
 |  [QueueBaseOptions](./bullmq.queuebaseoptions.md) | Base Queue options |
 |  [QueueEventsListener](./bullmq.queueeventslistener.md) |  |
@@ -113,6 +117,7 @@
 |  [FinishedTarget](./bullmq.finishedtarget.md) |  |
 |  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [JobData](./bullmq.jobdata.md) |  |
+|  [JobJsonSandbox](./bullmq.jobjsonsandbox.md) |  |
 |  [JobState](./bullmq.jobstate.md) |  |
 |  [JobType](./bullmq.jobtype.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |

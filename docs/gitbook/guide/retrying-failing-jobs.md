@@ -2,7 +2,7 @@
 
 When a processor throws an exception, the worker will catch it and move the job to the failed set. But sometimes it may be desirable to retry a failed job.
 
-BullMQ support retries of failed jobs using backoff functions. It is possible to use the built in backoff functions or provide custom ones.
+BullMQ supports retries of failed jobs using backoff functions. It is possible to use the built in backoff functions or provide custom ones.
 
 For BullMQ to reschedule failed jobs, make sure you create a `QueueScheduler` for your queue.
 
@@ -30,24 +30,21 @@ await queue.add(
 You can also define it in the queue's `defaultJobOptions`, and it will apply to all jobs added to the queue, unless overridden. For example:
 
 ```typescript
-import { Queue, QueueScheduler } from "bullmq";
+import { Queue, QueueScheduler } from 'bullmq';
 
-const myQueue = new Queue("foo", {
+const myQueue = new Queue('foo', {
   defaultJobOptions: {
     attempts: 3,
     backoff: {
-      type: "exponential",
-      delay: 1000
-    }
-  }
+      type: 'exponential',
+      delay: 1000,
+    },
+  },
 });
 
 const myQueueScheduler = new QueueScheduler('foo');
 
-await queue.add(
-  "test-retry",
-  { foo: "bar" }
-);
+await queue.add('test-retry', { foo: 'bar' });
 ```
 
 The current built-in backoff functions are "exponential" and "fixed".
@@ -59,19 +56,15 @@ If you want to define your custom backoff you need to define it at the worker:
 ```typescript
 import { Worker } from 'bullmq';
 
-const worker = new Worker(
-  'foo',
-  async job => doSomeProcessing(),
-  {
-    settings: {
-      backoffStrategies: {
-        custom(attemptsMade: number) {
-          return attemptsMade * 1000;
-        },
+const worker = new Worker('foo', async job => doSomeProcessing(), {
+  settings: {
+    backoffStrategies: {
+      custom(attemptsMade: number) {
+        return attemptsMade * 1000;
       },
     },
   },
-);
+});
 ```
 
 You can then use your "custom" strategy when adding jobs:
@@ -93,3 +86,28 @@ await queue.add(
 );
 ```
 
+# Stop retrying jobs
+
+When a processor throws an exception that is considered as unrecoverable, you should use the `UnrecoverableError` class.
+
+BullMQ supports moving jobs to failed when this error is thrown without retrying to process it.
+
+```typescript
+import { Worker, UnrecoverableError } from 'bullmq';
+
+const worker = new Worker('foo', async job => {doSomeProcessing();
+throw new UnrecoverableError('Unrecoverable');
+}, {
+  connection
+  },
+});
+
+await queue.add(
+  'test-retry',
+  { foo: 'bar' },
+  {
+    attempts: 3,
+    backoff: 1000,
+  },
+);
+```

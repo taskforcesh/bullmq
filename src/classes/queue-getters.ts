@@ -48,7 +48,12 @@ export class QueueGetters<
     Returns the number of jobs waiting to be processed.
   */
   count(): Promise<number> {
-    return this.getJobCountByTypes('waiting', 'paused', 'delayed');
+    return this.getJobCountByTypes(
+      'waiting',
+      'paused',
+      'delayed',
+      'waiting-children',
+    );
   }
 
   /**
@@ -72,17 +77,29 @@ export class QueueGetters<
   async getJobCounts(...types: JobType[]): Promise<{
     [index: string]: number;
   }> {
+    const currentTypes: JobType[] = types.length
+      ? types
+      : [
+          'active',
+          'completed',
+          'delayed',
+          'failed',
+          'paused',
+          'waiting',
+          'waiting-children',
+        ];
+
     const client = await this.client;
     const multi = client.multi();
 
-    this.commandByType(types, true, function (key, command) {
+    this.commandByType(currentTypes, true, function (key, command) {
       (<any>multi)[command](key);
     });
 
     const res = await multi.exec();
     const counts: { [index: string]: number } = {};
     res.forEach((res: number[], index: number) => {
-      counts[types[index]] = res[1] || 0;
+      counts[currentTypes[index]] = res[1] || 0;
     });
     return counts;
   }
@@ -153,7 +170,12 @@ export class QueueGetters<
     return this.getJobs(['failed'], start, end, false);
   }
 
-  async getRanges(types: JobType[], start = 0, end = 1, asc = false) {
+  async getRanges(
+    types: JobType[],
+    start = 0,
+    end = 1,
+    asc = false,
+  ): Promise<string[]> {
     const client = await this.client;
     const multi = client.multi();
     const multiCommands: string[] = [];
@@ -180,7 +202,7 @@ export class QueueGetters<
     });
 
     const responses = await multi.exec();
-    let results: any[] = [];
+    let results: string[] = [];
 
     responses.forEach((response: any[], index: number) => {
       const result = response[1] || [];
@@ -267,7 +289,29 @@ export class QueueGetters<
     }
   }
 
-  private parseClientList(list: string) {
+  /**
+   * Get queue schedulers list related to the queue.
+   *
+   * @returns - Returns an array with queue schedulers info.
+   */
+  async getQueueSchedulers(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
+    const client = await this.client;
+    const clients = await client.client('list');
+    try {
+      const list = this.parseClientList(clients, 'qs');
+      return list;
+    } catch (err) {
+      if (!clientCommandMessageReg.test((<Error>err).message)) {
+        throw err;
+      }
+    }
+  }
+
+  private parseClientList(list: string, suffix = '') {
     const lines = list.split('\n');
     const clients: { [index: string]: string }[] = [];
 
@@ -281,7 +325,10 @@ export class QueueGetters<
         client[key] = value;
       });
       const name = client['name'];
-      if (name && name === this.clientName()) {
+      if (
+        name &&
+        name === `${this.clientName()}${suffix ? `:${suffix}` : ''}`
+      ) {
         client['name'] = this.name;
         clients.push(client);
       }

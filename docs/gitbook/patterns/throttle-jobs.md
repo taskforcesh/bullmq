@@ -21,8 +21,8 @@ worker.on('completed', (job: Job, returnvalue: any) => {
   console.log('worker done painting', new Date());
 });
 
-worker.on('failed', (job: Job, failedReason: string) => {
-  console.error('worker fail painting', job, failedReason, new Date());
+worker.on('failed', (job: Job, error: Error) => {
+  console.error('worker fail painting', job, error, new Date());
 });
 
 // Add only one job that will be delayed at least 1 second.

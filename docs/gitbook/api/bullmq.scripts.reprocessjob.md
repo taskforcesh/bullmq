@@ -18,7 +18,7 @@ static reprocessJob<T = any, R = any, N extends string = string>(queue: MinimalQ
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  job | [Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; |  |
-|  state | 'failed' \| 'completed' |  |
+|  state | 'failed' \| 'completed' | The expected job state. If the job is not found on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed' |
 
 <b>Returns:</b>
 

@@ -30,7 +30,7 @@ export declare class Scripts
 |  [moveToCompleted(queue, job, returnvalue, removeOnComplete, token, fetchNext)](./bullmq.scripts.movetocompleted.md) | <code>static</code> |  |
 |  [moveToDelayed(queue, jobId, timestamp)](./bullmq.scripts.movetodelayed.md) | <code>static</code> |  |
 |  [moveToDelayedArgs(queue, jobId, timestamp)](./bullmq.scripts.movetodelayedargs.md) | <code>static</code> |  |
-|  [moveToFailedArgs(queue, job, failedReason, removeOnFailed, token, fetchNext, retriesExhausted)](./bullmq.scripts.movetofailedargs.md) | <code>static</code> |  |
+|  [moveToFailedArgs(queue, job, failedReason, removeOnFailed, token, fetchNext)](./bullmq.scripts.movetofailedargs.md) | <code>static</code> |  |
 |  [moveToFinishedArgs(queue, job, val, propVal, shouldRemove, target, token, fetchNext)](./bullmq.scripts.movetofinishedargs.md) | <code>static</code> |  |
 |  [moveToWaitingChildren(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildren.md) | <code>static</code> | Move parent job to waiting-children state. |
 |  [moveToWaitingChildrenArgs(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildrenargs.md) | <code>static</code> |  |
@@ -42,6 +42,8 @@ export declare class Scripts
 |  [removeRepeatableArgs(queue, repeatJobId, repeatJobKey)](./bullmq.scripts.removerepeatableargs.md) | <code>static</code> |  |
 |  [reprocessJob(queue, job, state)](./bullmq.scripts.reprocessjob.md) | <code>static</code> | Attempts to reprocess a job |
 |  [retryJobArgs(queue, job)](./bullmq.scripts.retryjobargs.md) | <code>static</code> |  |
+|  [retryJobs(queue, count, timestamp)](./bullmq.scripts.retryjobs.md) | <code>static</code> |  |
+|  [updateData(queue, job, data)](./bullmq.scripts.updatedata.md) | <code>static</code> |  |
 |  [updateDelaySet(queue, delayedTimestamp)](./bullmq.scripts.updatedelayset.md) | <code>static</code> | It checks if the job in the top of the delay set should be moved back to the top of the wait queue (so that it will be processed as soon as possible) |
 |  [updateProgress(queue, job, progress)](./bullmq.scripts.updateprogress.md) | <code>static</code> |  |
 

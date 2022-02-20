@@ -10,7 +10,7 @@ import { Job, Worker } from '../src/classes';
 import { Queue3 } from '../src/classes/compat';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('Compat', function () {
+describe.skip('Compat', function () {
   const connection = { host: 'localhost' };
 
   describe('jobs getters', function () {

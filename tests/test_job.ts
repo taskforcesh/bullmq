@@ -186,6 +186,16 @@ describe('Job', function () {
       const updatedJob = await Job.fromId(queue, job.id);
       expect(updatedJob.data).to.be.eql({ baz: 'qux' });
     });
+
+    describe('when job is removed', () => {
+      it('throws error', async function () {
+        const job = await Job.create(queue, 'test', { foo: 'bar' });
+        await job.remove();
+        await expect(job.update({ foo: 'baz' })).to.be.rejectedWith(
+          `Missing key for job ${job.id}. updateData`,
+        );
+      });
+    });
   });
 
   describe('.remove', function () {
@@ -245,7 +255,7 @@ describe('Job', function () {
 
   // TODO: Add more remove tests
 
-  describe('.progress', function () {
+  describe('.progressProgress', function () {
     it('can set and get progress as number', async function () {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(42);
@@ -396,6 +406,10 @@ describe('Job', function () {
         job.moveToCompleted('return value', token),
       ).to.be.rejectedWith(`Job ${job.id} has pending dependencies. finished`);
 
+      const lock = await client.get(`bull:${parentQueueName}:${job.id}:lock`);
+
+      expect(lock).to.be.null;
+
       const isCompleted = await job.isCompleted();
 
       expect(isCompleted).to.be.false;
@@ -533,12 +547,12 @@ describe('Job', function () {
       const queueScheduler = new QueueScheduler(queueName, { connection });
       await queueScheduler.waitUntilReady();
 
-      const worker = new Worker(queueName, async job => {}, { connection });
+      const worker = new Worker(queueName, async () => {}, { connection });
       await worker.waitUntilReady();
 
       const startTime = new Date().getTime();
 
-      const completing = new Promise<void>((resolve, reject) => {
+      const completing = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           const timeDiff = new Date().getTime() - startTime;
           expect(timeDiff).to.be.gte(4000);
@@ -603,7 +617,7 @@ describe('Job', function () {
       this.timeout(10000);
       const worker = new Worker(
         queueName,
-        job => {
+        () => {
           return delay(100);
         },
         { connection },
@@ -821,7 +835,7 @@ describe('Job', function () {
     });
 
     it('should resolve when the job has been completed', async function () {
-      const worker = new Worker(queueName, async job => 'qux', { connection });
+      const worker = new Worker(queueName, async () => 'qux', { connection });
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -836,7 +850,7 @@ describe('Job', function () {
       it('rejects with missing key for job message', async function () {
         const worker = new Worker(
           queueName,
-          async job => {
+          async () => {
             await delay(100);
             return 'qux';
           },
@@ -877,11 +891,9 @@ describe('Job', function () {
     });
 
     it('should resolve when the job has been completed and return object', async function () {
-      const worker = new Worker(
-        queueName,
-        async job => ({ resultFoo: 'bar' }),
-        { connection },
-      );
+      const worker = new Worker(queueName, async () => ({ resultFoo: 'bar' }), {
+        connection,
+      });
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -896,7 +908,7 @@ describe('Job', function () {
     it('should resolve when the job has been delayed and completed and return object', async function () {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           await delay(300);
           return { resultFoo: 'bar' };
         },
@@ -914,7 +926,7 @@ describe('Job', function () {
     });
 
     it('should resolve when the job has been completed and return string', async function () {
-      const worker = new Worker(queueName, async job => 'a string', {
+      const worker = new Worker(queueName, async () => 'a string', {
         connection,
       });
 
@@ -931,7 +943,7 @@ describe('Job', function () {
     it('should reject when the job has been failed', async function () {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           await delay(500);
           throw new Error('test error');
         },
@@ -948,11 +960,9 @@ describe('Job', function () {
     });
 
     it('should resolve directly if already processed', async function () {
-      const worker = new Worker(
-        queueName,
-        async job => ({ resultFoo: 'bar' }),
-        { connection },
-      );
+      const worker = new Worker(queueName, async () => ({ resultFoo: 'bar' }), {
+        connection,
+      });
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -968,7 +978,7 @@ describe('Job', function () {
     it('should reject directly if already processed', async function () {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           throw new Error('test error');
         },
         { connection },

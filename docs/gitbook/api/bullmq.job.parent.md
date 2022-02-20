@@ -4,11 +4,10 @@
 
 ## Job.parent property
 
+Object that contains parentId (id) and parent queueKey.
+
 <b>Signature:</b>
 
 ```typescript
-parent?: {
-        id: string;
-        queueKey: string;
-    };
+parent?: ParentKeys;
 ```

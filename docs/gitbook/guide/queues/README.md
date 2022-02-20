@@ -9,7 +9,7 @@ const queue = new Queue('Cars');
 ```
 
 {% hint style="info" %}
-See [Connections](connections.md) for details on how to pass Redis details to use by the queue.
+See [Connections](../connections.md) for details on how to pass Redis details to use by the queue.
 {% endhint %}
 
 When you instance a Queue, BullMQ will just _upsert_ a small "meta-key", so if the queue existed before it will just pick it up and you can continue adding jobs to it.
@@ -28,11 +28,10 @@ When adding a job you can also specify an options object. This options object ca
 await queue.add('paint', { colour: 'blue' }, { delay: 5000 });
 ```
 
-The job will now wait **at** **least** 5 seconds before it is processed. 
+The job will now wait **at** **least** 5 seconds before it is processed.&#x20;
 
 {% hint style="danger" %}
-In order for delay jobs to work you need to have at least one QueueScheduler somewhere in your infrastructure. Read more [here](queuescheduler.md).
+In order for delay jobs to work you need to have at least one QueueScheduler somewhere in your infrastructure. Read more [here](../queuescheduler.md).
 {% endhint %}
 
 There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remaining of this guide for more information regarding these options.
-

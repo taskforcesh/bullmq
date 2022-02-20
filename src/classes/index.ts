@@ -12,3 +12,4 @@ export * from './worker';
 export * from './child-pool';
 export * from './sandbox';
 export * from './flow-producer';
+export * from './unrecoverable-error';

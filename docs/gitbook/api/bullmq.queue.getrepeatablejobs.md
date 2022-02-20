@@ -10,7 +10,13 @@ Get all repeatable meta jobs.
 
 ```typescript
 getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<{
-        key: string;
+        key: string; /**
+         * Adds a new job to the queue.
+         *
+         * @param name - Name of the job to be added to the queue,.
+         * @param data - Arbitrary data to append to the job.
+         * @param opts - Job options that affects how the job is going to be processed.
+         */
         name: string;
         id: string;
         endDate: number;
@@ -30,5 +36,5 @@ getRepeatableJobs(start?: number, end?: number, asc?: boolean): Promise<{
 
 <b>Returns:</b>
 
-Promise&lt;{ key: string; name: string; id: string; endDate: number; tz: string; cron: string; next: number; }\[\]&gt;
+Promise&lt;{ key: string; /\*\* \* Adds a new job to the queue. \* \* @param name - Name of the job to be added to the queue,. \* @param data - Arbitrary data to append to the job. \* @param opts - Job options that affects how the job is going to be processed. \*/ name: string; id: string; endDate: number; tz: string; cron: string; next: number; }\[\]&gt;
 

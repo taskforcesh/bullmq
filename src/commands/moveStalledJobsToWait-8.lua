@@ -23,18 +23,9 @@
 ]]
 local rcall = redis.call
 
-local function batches(n, batchSize)
-  local i = 0
-
-  return function()
-    local from = i * batchSize + 1
-    i = i + 1
-    if (from <= n) then
-      local to = math.min(from + batchSize - 1, n)
-      return from, to
-    end
-  end
-end
+-- Includes
+--- @include "includes/batches"
+--- @include "includes/trimEvents"
 
 -- Check if we need to check for stalled jobs now.
 if rcall("EXISTS", KEYS[5]) == 1 then return {{}, {}} end
@@ -106,7 +97,6 @@ if (#active > 0) then
   end
 end
 
-local maxEvents = rcall("HGET", KEYS[6], "opts.maxLenEvents")
-if maxEvents then rcall("XTRIM", KEYS[8], "MAXLEN", "~", maxEvents) end
+trimEvents(KEYS[6], KEYS[8])
 
 return {failed, stalled}

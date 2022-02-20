@@ -51,5 +51,6 @@ export declare class Queue<DataType = any, ResultType = any, NameType extends st
 |  [removeRepeatable(name, repeatOpts, jobId)](./bullmq.queue.removerepeatable.md) |  |  |
 |  [removeRepeatableByKey(key)](./bullmq.queue.removerepeatablebykey.md) |  |  |
 |  [resume()](./bullmq.queue.resume.md) |  | Resumes the processing of this queue globally.<!-- -->The method reverses the pause operation by resuming the processing of the queue. |
+|  [retryJobs(opts)](./bullmq.queue.retryjobs.md) |  | Retry all the failed jobs. |
 |  [trimEvents(maxLength)](./bullmq.queue.trimevents.md) |  | Trim the event stream to an approximately maxLength. |
 

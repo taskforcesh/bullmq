@@ -17,8 +17,8 @@ clean(grace: number, limit: number, type?: 'completed' | 'wait' | 'active' | 'pa
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  grace | number | The grace period |
-|  limit | number |  |
-|  type | 'completed' \| 'wait' \| 'active' \| 'paused' \| 'delayed' \| 'failed' | The type of job to clean Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed. |
+|  limit | number | Max number of jobs to clean |
+|  type | 'completed' \| 'wait' \| 'active' \| 'paused' \| 'delayed' \| 'failed' | Default completed - The type of job to clean Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed. |
 
 <b>Returns:</b>
 

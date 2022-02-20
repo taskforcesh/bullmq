@@ -29,3 +29,16 @@ If you are new to Message Queues, you may wonder why they are needed after all. 
 * [x] **Concurrency setting per worker**
 * [x] **Threaded (sandboxed) processing functions**
 * [x] **Automatic recovery from process crashes**
+
+### Used by
+
+BullMQ is used by many organizations big and small, here are some notable examples:
+
+![](.gitbook/assets/clipart1565701.png)
+
+![](.gitbook/assets/remix-logo.png)
+
+![](.gitbook/assets/wordmark-logo.png)
+
+![](.gitbook/assets/datawrapper-logo.png)
+

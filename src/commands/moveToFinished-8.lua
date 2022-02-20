@@ -46,41 +46,37 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/destructureJobKey"
---- @include "includes/removeParentDependencyKey"
+--- @include "includes/removeJob"
+--- @include "includes/trimEvents"
 
 local jobIdKey = KEYS[3]
-if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
-
-    if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
-      return -4
+if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
+    if ARGV[10] ~= "0" then
+        local lockKey = jobIdKey .. ':lock'
+        if rcall("GET", lockKey) == ARGV[10] then
+            rcall("DEL", lockKey)
+            rcall("SREM", KEYS[8], ARGV[1])
+        else
+            return -2
+        end
     end
 
-    if ARGV[10] ~= "0" then
-      local lockKey = jobIdKey .. ':lock'
-      if rcall("GET", lockKey) == ARGV[10] then
-          rcall("DEL", lockKey)
-          rcall("SREM", KEYS[8], ARGV[1])
-      else
-          return -2
-      end
+    if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
+        return -4
     end
 
     local jobId = ARGV[1]
+    local timestamp = ARGV[2]
 
     -- Remove from active list (if not active we shall return error)
     local numRemovedElements = rcall("LREM", KEYS[1], -1, jobId)
 
-    if(numRemovedElements < 1) then
+    if (numRemovedElements < 1) then
       return -3
     end
 
-
     -- Trim events before emiting them to avoid trimming events emitted in this script
-    local maxEvents = rcall("HGET", KEYS[7], "opts.maxLenEvents")
-    if (maxEvents == false) then
-       maxEvents = 10000
-    end
-    rcall("XTRIM", KEYS[6], "MAXLEN", "~", maxEvents)
+    trimEvents(KEYS[7], KEYS[6])
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -91,52 +87,57 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
     local parentId = ARGV[12]
     local parentQueueKey = ARGV[13]
     if parentId == "" and ARGV[14] ~= "" then
-      parentId = getJobIdFromKey(ARGV[14])
-      parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
+        parentId = getJobIdFromKey(ARGV[14])
+        parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
     end
     if parentId ~= "" and ARGV[5] == "completed" then
-        local parentKey =  parentQueueKey .. ":" .. parentId
+        local parentKey = parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
         if result == 1 then
-          updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet, parentId, jobIdKey, ARGV[4])
+            updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
+                                     parentId, jobIdKey, ARGV[4])
         end
     end
 
     -- Remove job?
-    local removeJobs = tonumber(ARGV[6])
-    if removeJobs ~= 1 then
+    local keepJobs = cmsgpack.unpack(ARGV[6])
+    local maxCount = keepJobs['count']
+    local maxAge = keepJobs['age']
+    if maxCount ~= 0 then
+        local targetSet = KEYS[2]
         -- Add to complete/failed set
-        rcall("ZADD", KEYS[2], ARGV[2], jobId)
-        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn",
-        ARGV[2]) -- "returnvalue" / "failedReason" and "finishedOn"
+        rcall("ZADD", targetSet, timestamp, jobId)
+        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp) -- "returnvalue" / "failedReason" and "finishedOn"
 
         -- Remove old jobs?
-        if removeJobs and removeJobs > 1 then
-            local start = removeJobs - 1
-            local jobIds = rcall("ZREVRANGE", KEYS[2], start, -1)
-            for i, jobId in ipairs(jobIds) do
-                local jobKey = ARGV[9] .. jobId
-                removeParentDependencyKey(jobKey)
-                local jobLogKey = jobKey .. ':logs'
-                local jobProcessedKey = jobKey .. ':processed'
-                rcall("DEL", jobKey, jobLogKey, jobProcessedKey)
-            end
-            rcall("ZREMRANGEBYRANK", KEYS[2], 0, -removeJobs)
+        local prefix = ARGV[9]
+
+        if maxAge ~= nil then
+            local start = timestamp - maxAge * 1000
+            local jobIds = rcall("ZREVRANGEBYSCORE", targetSet, start, "-inf")
+            for i, jobId in ipairs(jobIds) do removeJob(jobId, false, prefix) end
+            rcall("ZREMRANGEBYSCORE", targetSet, "-inf", start)
+        end
+
+        if maxCount ~= nil and maxCount > 0 then
+            local start = maxCount
+            local jobIds = rcall("ZREVRANGE", targetSet, start, -1)
+            for i, jobId in ipairs(jobIds) do removeJob(jobId, false, prefix) end
+            rcall("ZREMRANGEBYRANK", targetSet, 0, -(maxCount + 1))
         end
     else
-        local jobLogKey = jobIdKey .. ':logs'
-        local jobProcessedKey = jobIdKey .. ':processed'
-        rcall("DEL", jobIdKey, jobLogKey, jobProcessedKey)
+        rcall("DEL", jobIdKey, jobIdKey .. ':logs', jobIdKey .. ':processed')
     end
 
     rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
           ARGV[4])
 
     if ARGV[5] == "failed" then
-      if tonumber(ARGV[16]) >= tonumber(ARGV[15]) then
-        rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId", jobId, "attemptsMade", ARGV[16])
-      end
+        if tonumber(ARGV[16]) >= tonumber(ARGV[15]) then
+            rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId",
+                  jobId, "attemptsMade", ARGV[16])
+        end
     end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
@@ -150,17 +151,17 @@ if rcall("EXISTS",jobIdKey) == 1 then -- // Make sure job exists
 
             -- get a lock
             if ARGV[10] ~= "0" then
-              rcall("SET", lockKey, ARGV[10], "PX", ARGV[11])
+                rcall("SET", lockKey, ARGV[10], "PX", ARGV[11])
             end
 
             rcall("ZREM", KEYS[5], jobId) -- remove from priority
             rcall("XADD", KEYS[6], "*", "event", "active", "jobId", jobId,
                   "prev", "waiting")
-            rcall("HSET", jobKey, "processedOn", ARGV[2])
+            rcall("HSET", jobKey, "processedOn", timestamp)
 
             return {rcall("HGETALL", jobKey), jobId} -- get job data
         else
-          rcall("XADD", KEYS[6], "*", "event", "drained");
+            rcall("XADD", KEYS[6], "*", "event", "drained");
         end
     end
 

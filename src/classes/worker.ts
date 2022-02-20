@@ -643,7 +643,7 @@ export class Worker<
    *
    * @returns Promise that resolves when the worker has been closed.
    */
-  close(force = false) {
+  close(force = false): Promise<void> {
     if (this.closing) {
       return this.closing;
     }
