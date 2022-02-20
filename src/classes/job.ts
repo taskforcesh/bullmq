@@ -561,6 +561,9 @@ export class Job<
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
+  /**
+   * @returns the queue name this job belongs to.
+   */
   get queueName(): string {
     return this.queue.name;
   }
