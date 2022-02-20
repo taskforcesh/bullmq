@@ -27,9 +27,8 @@
       ARGV[11] lock duration in milliseconds
       ARGV[12] parentId
       ARGV[13] parentQueue
-      ARGV[14] parentKey
-      ARGV[15] max attempts
-      ARGV[16] attemptsMade
+      ARGV[14] max attempts
+      ARGV[15] attemptsMade
 
     Output:
       0 OK
@@ -86,10 +85,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- NOTE: Priorities not supported yet for parent jobs.
     local parentId = ARGV[12]
     local parentQueueKey = ARGV[13]
-    if parentId == "" and ARGV[14] ~= "" then
-        parentId = getJobIdFromKey(ARGV[14])
-        parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
-    end
     if parentId ~= "" and ARGV[5] == "completed" then
         local parentKey = parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
@@ -134,9 +129,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
           ARGV[4])
 
     if ARGV[5] == "failed" then
-        if tonumber(ARGV[16]) >= tonumber(ARGV[15]) then
+        if tonumber(ARGV[15]) >= tonumber(ARGV[14]) then
             rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId",
-                  jobId, "attemptsMade", ARGV[16])
+                  jobId, "attemptsMade", ARGV[15])
         end
     end
 

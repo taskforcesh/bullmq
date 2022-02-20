@@ -30,9 +30,10 @@
             [2]  custom id (will not generate one automatically)
             [3]  name
             [4]  timestamp
-            [5]  parentKey?
-            [6] waitChildrenKey key.
-            [7] parent dependencies key.
+            [5]  parentId?
+            [6]  parentQueueKey?
+            [7]  waitChildrenKey key.
+            [8]  parent dependencies key.
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -50,26 +51,27 @@ local args = cmsgpack.unpack(ARGV[1])
 local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
-local parentKey = args[5]
-local parentId
-local parentQueueKey
+local parentKey
+local parentId = args[5]
+local parentQueueKey = args[6]
 local parentData
 
 -- Includes
 --- @include "includes/destructureJobKey"
 --- @include "includes/trimEvents"
 
-if parentKey ~= nil then
-  if rcall("EXISTS", parentKey) ~= 1 then
-    return -5
-  end
-
-  parentId = getJobIdFromKey(parentKey)
-  parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
+if parentId ~= nil then
+  parentKey = parentQueueKey .. ":" .. parentId
   local parent = {}
   parent['id'] = parentId
   parent['queueKey'] = parentQueueKey
   parentData = cjson.encode(parent)
+end
+
+if parentKey ~= nil then
+  if rcall("EXISTS", parentKey) ~= 1 then
+    return -5
+  end
 end
 
 local jobCounter = rcall("INCR", KEYS[4])
@@ -77,7 +79,7 @@ local jobCounter = rcall("INCR", KEYS[4])
 -- Includes
 --- @include "includes/updateParentDepsIfNeeded"
 
-local parentDependenciesKey = args[7]
+local parentDependenciesKey = args[8]
 if args[2] == "" then
   jobId = jobCounter
   jobIdKey = args[1] .. jobId
@@ -94,7 +96,7 @@ else
           rcall("SADD", parentDependenciesKey, jobIdKey)
         end
       end
-      rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
+      rcall("HMSET", jobIdKey, "parent", parentData)
     end
     return jobId .. "" -- convert to string
   end
@@ -108,7 +110,7 @@ local timestamp = args[4]
 
 if parentKey ~= nil then
   rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-    "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey, "parent", parentData)
+    "timestamp", timestamp, "delay", delay, "priority", priority, "parent", parentData)
 else
   rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
     "timestamp", timestamp, "delay", delay, "priority", priority )
@@ -121,7 +123,7 @@ rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3], "
 local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
 
 -- Check if job is a parent, if so add to the parents set
-local waitChildrenKey = args[6]
+local waitChildrenKey = args[7]
 if waitChildrenKey ~= nil then
     rcall("ZADD", waitChildrenKey, timestamp, jobId)
     rcall("XADD", KEYS[8], "*", "event", "waiting-children", "jobId", jobId)

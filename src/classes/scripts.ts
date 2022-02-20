@@ -47,9 +47,10 @@ export type MinimalQueue = Pick<
 >;
 
 export type ParentOpts = {
+  id?: string;
+  queueKey?: string;
   waitChildrenKey?: string;
   parentDependenciesKey?: string;
-  parentKey?: string;
 };
 
 export type JobData = [JobJsonRaw | number, string?];
@@ -77,7 +78,8 @@ export class Scripts {
     opts: JobsOptions,
     jobId: string,
     parentOpts: ParentOpts = {
-      parentKey: null,
+      id: null,
+      queueKey: null,
       waitChildrenKey: null,
       parentDependenciesKey: null,
     },
@@ -100,7 +102,8 @@ export class Scripts {
       typeof jobId !== 'undefined' ? jobId : '',
       job.name,
       job.timestamp,
-      parentOpts.parentKey || null,
+      parentOpts.id || null,
+      parentOpts.queueKey || null,
       parentOpts.waitChildrenKey || null,
       parentOpts.parentDependenciesKey || null,
     ];
@@ -131,7 +134,11 @@ export class Scripts {
     const result = await (<any>client).addJob(keys);
 
     if (result < 0) {
-      throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
+      throw this.finishedErrors(
+        result,
+        getParentKey({ id: parentOpts.id, queue: parentOpts.queueKey }),
+        'addJob',
+      );
     }
 
     return result;
@@ -285,9 +292,8 @@ export class Scripts {
       queueKeys[''],
       token,
       opts.lockDuration,
-      job.opts?.parent?.id,
-      job.opts?.parent?.queue,
-      job.parentKey,
+      job?.parent?.id,
+      job?.parent?.queueKey,
       job.opts.attempts,
       job.attemptsMade,
     ];
