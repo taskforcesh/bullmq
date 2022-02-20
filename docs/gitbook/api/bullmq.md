@@ -96,6 +96,7 @@
 
 |  Variable | Description |
 |  --- | --- |
+|  [asyncSend](./bullmq.asyncsend.md) |  |
 |  [childSend](./bullmq.childsend.md) |  |
 |  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
 |  [DELAY\_TIME\_1](./bullmq.delay_time_1.md) |  |
