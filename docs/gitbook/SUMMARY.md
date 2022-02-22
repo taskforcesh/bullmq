@@ -41,6 +41,7 @@
 
 * [Manually processing jobs](patterns/manually-fetching-jobs.md)
 * [Producer - Consumer](patterns/producer-consumer.md)
+* [Named Processor](patterns/named-processor.md)
 * [Flows](patterns/flows.md)
 * [Real time updates](patterns/real-time-updates.md)
 * [Sender - Receiver](patterns/sender-receiver.md)
