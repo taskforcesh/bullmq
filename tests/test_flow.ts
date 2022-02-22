@@ -129,6 +129,93 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
+  describe('when moving jobs from wait to active continuing', async () => {
+    it('begins with attemptsMade as 1', async () => {
+      const queueScheduler = new QueueScheduler(queueName, { connection });
+      await queueScheduler.waitUntilReady();
+
+      let parentProcessor,
+        counter = 0;
+
+      const processingParent = new Promise<void>(resolve => [
+        (parentProcessor = async (job: Job) => {
+          switch (job.name) {
+            case 'task3': {
+              if (job.attemptsMade != job.opts.attempts) {
+                throw {};
+              }
+              counter++;
+              if (counter === 3) {
+                resolve();
+              }
+              break;
+            }
+            case 'task2': {
+              if (job.attemptsMade != job.opts.attempts) {
+                throw {};
+              }
+              counter++;
+              break;
+            }
+          }
+        }),
+      ]);
+
+      const parentWorker = new Worker(queueName, parentProcessor, {
+        connection,
+      });
+      const delayTime = 1000;
+      await parentWorker.waitUntilReady();
+
+      const flow = new FlowProducer({ connection });
+      const tree = await flow.add({
+        name: 'task3',
+        data: { status: 'plan' },
+        opts: { attempts: 1, backoff: { type: 'fixed', delay: delayTime } },
+        queueName,
+        children: [
+          {
+            name: 'task2',
+            data: {},
+            queueName,
+            opts: { attempts: 1, backoff: { type: 'fixed', delay: delayTime } },
+            children: [
+              {
+                name: 'task3',
+                data: { status: 'proposal' },
+                opts: {
+                  attempts: 1,
+                  backoff: { type: 'fixed', delay: delayTime },
+                },
+                queueName,
+              },
+            ],
+          },
+        ],
+      });
+
+      expect(tree).to.have.property('job');
+      expect(tree).to.have.property('children');
+
+      const { children, job } = tree;
+      const parentState = await job.getState();
+
+      expect(parentState).to.be.eql('waiting-children');
+      expect(children).to.have.length(1);
+
+      await processingParent;
+      await queueScheduler.close();
+
+      await parentWorker.close();
+
+      await flow.close();
+
+      const count = await queue.getJobCountByTypes('completed');
+
+      expect(count).to.be.eql(3);
+    });
+  });
+
   describe('when defaultJobOptions is provided', async () => {
     it('processes children before the parent', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
