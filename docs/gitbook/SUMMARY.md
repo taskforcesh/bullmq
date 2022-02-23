@@ -66,6 +66,7 @@
 * [Important Notes](bull/important-notes.md)
 * [Reference](https://github.com/OptimalBits/bull/blob/develop/REFERENCE.md)
 * [Patterns](bull/patterns/README.md)
+  * [Persistent connections](bull/patterns/persistent-connections.md)
   * [Message queue](bull/patterns/message-queue.md)
   * [Returning Job Completions](bull/patterns/returning-job-completions.md)
   * [Reusing Redis Connections](bull/patterns/reusing-redis-connections.md)
@@ -78,4 +79,3 @@
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
-
