@@ -36,8 +36,6 @@ BullMQ is used by many organizations big and small, here are some notable exampl
 
 ![](.gitbook/assets/clipart1565701.png)
 
-![](.gitbook/assets/remix-logo.png)
-
 ![](.gitbook/assets/wordmark-logo.png)
 
 ![](.gitbook/assets/datawrapper-logo.png)
