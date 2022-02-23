@@ -26,5 +26,5 @@ const worker = new Worker(
 You could use a simple switch case to differentiate your logic, in this example we are using the job name.
 
 {% hint style="warning" %}
-This was a feature in Bull package, but it creates a lot of confusion, so in order to provide an alternative, you can use this pattern. See [#297](https://github.com/taskforcesh/bullmq/issues/297) and [#69](https://github.com/taskforcesh/bullmq/issues/69) as reference
+This was a feature in the Bull package, but it creates a lot of confusion, so in order to provide an alternative, you can use this pattern. See [#297](https://github.com/taskforcesh/bullmq/issues/297) and [#69](https://github.com/taskforcesh/bullmq/issues/69) as reference
 {% endhint %}
