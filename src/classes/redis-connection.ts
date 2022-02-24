@@ -76,8 +76,8 @@ export class RedisConnection extends EventEmitter {
     }
   }
 
-  private checkUpstashHost(host: string) {
-    if (host.endsWith('upstash.io')) {
+  private checkUpstashHost(host: string | undefined) {
+    if (host?.endsWith('upstash.io')) {
       throw new Error(upstashMessage);
     }
   }
