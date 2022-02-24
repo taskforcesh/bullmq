@@ -101,10 +101,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if ARGV[5] == "completed" then
                 updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
                                         parentId, jobIdKey, ARGV[4])
-            else
-                if ARGV[17] == "1" then
-                    updateParentIfNeeded(parentQueueKey, dependenciesSet, parentId )
-                end
+            elseif ARGV[17] == "1" then
+                updateParentIfNeeded(parentQueueKey, dependenciesSet, parentId )
             end
         end
     end
