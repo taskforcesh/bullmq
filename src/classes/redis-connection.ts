@@ -20,6 +20,8 @@ const deprecationMessage = [
   'On the next versions having this settings will throw an exception',
 ].join(' ');
 
+const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
+
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   protected _client: RedisClient;
@@ -48,14 +50,16 @@ export class RedisConnection extends EventEmitter {
         maxRetriesPerRequest: null,
         enableReadyCheck: false,
       };
+      this.checkUpstashHost(this.opts.host);
     } else {
       this._client = <RedisClient>opts;
-      let options = this._client.options;
+      let options = <IORedis.RedisOptions>this._client.options;
       if ((<IORedis.ClusterOptions>options)?.redisOptions) {
         options = (<IORedis.ClusterOptions>options).redisOptions;
       }
 
       this.checkOptions(deprecationMessage, options);
+      this.checkUpstashHost(options.host);
     }
 
     this.handleClientError = (err: Error): void => {
@@ -69,6 +73,12 @@ export class RedisConnection extends EventEmitter {
   private checkOptions(msg: string, options?: IORedis.RedisOptions) {
     if (options && (options.maxRetriesPerRequest || options.enableReadyCheck)) {
       console.error(msg);
+    }
+  }
+
+  private checkUpstashHost(host: string) {
+    if (host.endsWith('upstash.io')) {
+      throw new Error(upstashMessage);
     }
   }
 
