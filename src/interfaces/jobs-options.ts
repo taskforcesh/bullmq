@@ -67,6 +67,11 @@ export interface JobsOptions {
   jobId?: string;
 
   /**
+   * If true, removes the job from its parent dependencies when it fails after all attempts.
+   */
+  removeDependencyOnFail?: boolean;
+
+  /**
    * If true, removes the job when it successfully completes
    * When given an number, it specifies the maximum amount of
    * jobs to keep, or you can provide an object specifying max

@@ -290,6 +290,7 @@ export class Scripts {
       job.parentKey,
       job.opts.attempts,
       job.attemptsMade,
+      job.opts?.removeDependencyOnFail ? '1' : '0',
     ];
 
     return keys.concat(args);

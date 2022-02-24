@@ -30,6 +30,7 @@
       ARGV[14] parentKey
       ARGV[15] max attempts
       ARGV[16] attemptsMade
+      ARGV[17] removeDependencyOnFail
 
     Output:
       0 OK
@@ -45,6 +46,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/updateParentDepsIfNeeded"
+--- @include "includes/updateParentIfNeeded"
 --- @include "includes/destructureJobKey"
 --- @include "includes/removeJob"
 --- @include "includes/trimEvents"
@@ -90,13 +92,17 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         parentId = getJobIdFromKey(ARGV[14])
         parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
     end
-    if parentId ~= "" and ARGV[5] == "completed" then
+    if parentId ~= "" then
         local parentKey = parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
-        if result == 1 then
-            updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
-                                     parentId, jobIdKey, ARGV[4])
+        if ARGV[5] == "completed" then
+            if result == 1 then
+                updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
+                                        parentId, jobIdKey, ARGV[4])
+            end
+        elseif ARGV[17] == "1" then
+            updateParentIfNeeded(parentQueueKey, dependenciesSet, parentId )
         end
     end
 
