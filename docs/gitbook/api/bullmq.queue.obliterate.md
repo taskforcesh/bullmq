@@ -11,17 +11,14 @@ Note: This operation requires to iterate on all the jobs stored in the queue and
 <b>Signature:</b>
 
 ```typescript
-obliterate(opts?: {
-        force?: boolean;
-        count?: number;
-    }): Promise<void>;
+obliterate(opts?: ObliterateOpts): Promise<void>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  opts | { force?: boolean; count?: number; } |  |
+|  opts | [ObliterateOpts](./bullmq.obliterateopts.md) | Obliterate options. |
 
 <b>Returns:</b>
 

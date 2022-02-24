@@ -401,7 +401,6 @@ export class Scripts {
     removeOnFailed: boolean | number | KeepJobs,
     token: string,
     fetchNext = false,
-    retriesExhausted = 0,
   ) {
     return this.moveToFinishedArgs(
       queue,
@@ -648,6 +647,7 @@ export class Scripts {
     queue: MinimalQueue,
     state: FinishedTarget,
     count: number,
+    timestamp: number,
   ): (string | number)[] {
     const keys: (string | number)[] = [
       queue.toKey(''),
@@ -656,7 +656,7 @@ export class Scripts {
       queue.toKey('wait'),
     ];
 
-    const args = [count];
+    const args = [count, timestamp];
 
     return keys.concat(args);
   }
@@ -665,10 +665,11 @@ export class Scripts {
     queue: MinimalQueue,
     state: FinishedTarget = 'failed',
     count = 1000,
+    timestamp = new Date().getTime(),
   ): Promise<number> {
     const client = await queue.client;
 
-    const args = this.retryJobsArgs(queue, state, count);
+    const args = this.retryJobsArgs(queue, state, count, timestamp);
 
     return (<any>client).retryJobs(args);
   }
@@ -676,9 +677,9 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
+   * @param queue -
    * @param job -
-   * @param {Object} options
-   * @param {String} options.state The expected job state. If the job is not found
+   * @param state - The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
    * @returns Returns a promise that evaluates to a return code:

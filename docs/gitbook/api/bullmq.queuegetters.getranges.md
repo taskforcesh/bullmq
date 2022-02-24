@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-getRanges(types: JobType[], start?: number, end?: number, asc?: boolean): Promise<any[]>;
+getRanges(types: JobType[], start?: number, end?: number, asc?: boolean): Promise<string[]>;
 ```
 
 ## Parameters
@@ -21,5 +21,5 @@ getRanges(types: JobType[], start?: number, end?: number, asc?: boolean): Promis
 
 <b>Returns:</b>
 
-Promise&lt;any\[\]&gt;
+Promise&lt;string\[\]&gt;
 

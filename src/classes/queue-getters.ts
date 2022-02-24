@@ -170,7 +170,12 @@ export class QueueGetters<
     return this.getJobs(['failed'], start, end, false);
   }
 
-  async getRanges(types: JobType[], start = 0, end = 1, asc = false) {
+  async getRanges(
+    types: JobType[],
+    start = 0,
+    end = 1,
+    asc = false,
+  ): Promise<string[]> {
     const client = await this.client;
     const multi = client.multi();
     const multiCommands: string[] = [];
@@ -197,7 +202,7 @@ export class QueueGetters<
     });
 
     const responses = await multi.exec();
-    let results: any[] = [];
+    let results: string[] = [];
 
     responses.forEach((response: any[], index: number) => {
       const result = response[1] || [];
