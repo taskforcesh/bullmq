@@ -1,6 +1,6 @@
 # Workers
 
-Workers are the actual instances that perform some job based on the jobs that are added in the queue. A worker is equivalent to a "message" receiver in a traditional message queue. The worker duty is to complete the job, if it succeeds the job will be moved to the "completed" status. If the worker throws an exception during its processing, the job will automatically be moved to the "failed" status.
+Workers are the actual instances that perform some job based on the jobs that are added in the queue. A worker is equivalent to a "message" receiver in a traditional message queue. The worker duty is to complete the job, if it succeeds, the job will be moved to the "completed" status. If the worker throws an exception during its processing, the job will automatically be moved to the "failed" status.
 
 {% hint style="info" %}
 Failed jobs can be automatically retried, see [Retrying failing jobs](../retrying-failing-jobs.md)
@@ -13,10 +13,10 @@ import { Worker, Job } from 'bullmq';
 
 const worker = new Worker(queueName, async (job: Job) => {
   // Optionally report some progress
-  job.updateProgress(42);
+  await job.updateProgress(42);
 
   // Optionally sending an object as progress
-  job.updateProgress({ foo: 'bar' });
+  await job.updateProgress({ foo: 'bar' });
 
   // Do something with job
   return 'some value';

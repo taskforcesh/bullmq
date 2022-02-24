@@ -93,7 +93,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         parentId = getJobIdFromKey(ARGV[14])
         parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
     end
-    if parentId ~= "" then
+    if parentId ~= "" and (ARGV[5] == "completed" or ARGV[17] == "1")then
         local parentKey = parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
@@ -101,8 +101,10 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if ARGV[5] == "completed" then
                 updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
                                         parentId, jobIdKey, ARGV[4])
-            elseif ARGV[17] == "1" then
-                updateParentIfNeeded(parentQueueKey, dependenciesSet, parentId )
+            else
+                if ARGV[17] == "1" then
+                    updateParentIfNeeded(parentQueueKey, dependenciesSet, parentId )
+                end
             end
         end
     end
