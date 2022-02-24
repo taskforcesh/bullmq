@@ -35,6 +35,9 @@
 local jobId
 local rcall = redis.call
 
+-- Includes
+--- @include "includes/moveJobFromWaitToActive"
+
 if(ARGV[5] ~= "") then
   jobId = ARGV[5]
 
@@ -88,12 +91,8 @@ if jobId then
 
   -- get a lock
   rcall("SET", lockKey, ARGV[2], "PX", ARGV[3])
-  rcall("ZREM", KEYS[3], jobId) -- remove from priority
 
-  rcall("XADD", KEYS[4], "*", "event", "active", "jobId", jobId, "prev", "waiting")
-
-  rcall("HSET", jobKey, "processedOn", ARGV[4])
-  rcall("HINCRBY", jobKey, "attemptsMade", 1)
+  moveJobFromWaitToActive(KEYS[3], KEYS[4], jobKey, jobId, ARGV[4])
 
   return {rcall("HGETALL", jobKey), jobId} -- get job data
 else

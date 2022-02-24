@@ -48,6 +48,7 @@ local rcall = redis.call
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/updateParentIfNeeded"
 --- @include "includes/destructureJobKey"
+--- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/removeJob"
 --- @include "includes/trimEvents"
 
@@ -160,10 +161,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 rcall("SET", lockKey, ARGV[10], "PX", ARGV[11])
             end
 
-            rcall("ZREM", KEYS[5], jobId) -- remove from priority
-            rcall("XADD", KEYS[6], "*", "event", "active", "jobId", jobId,
-                  "prev", "waiting")
-            rcall("HSET", jobKey, "processedOn", timestamp)
+            moveJobFromWaitToActive(KEYS[5], KEYS[6], jobKey, jobId, timestamp)
 
             return {rcall("HGETALL", jobKey), jobId} -- get job data
         else

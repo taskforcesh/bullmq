@@ -2,16 +2,17 @@
 
 ### **Basic Usage**
 
-```js
-const Queue = require('bull');
+```javascript
+const Queue = require("bull");
 
-const videoQueue = new Queue('video transcoding', 'redis://127.0.0.1:6379');
-const audioQueue = new Queue('audio transcoding', { redis: { port: 6379, host: '127.0.0.1', password: 'foobared' } }); // Specify Redis connection using object
-const imageQueue = new Queue('image transcoding');
-const pdfQueue = new Queue('pdf transcoding');
+const videoQueue = new Queue("video transcoding", "redis://127.0.0.1:6379");
+const audioQueue = new Queue("audio transcoding", {
+  redis: { port: 6379, host: "127.0.0.1", password: "foobared" },
+}); // Specify Redis connection using object
+const imageQueue = new Queue("image transcoding");
+const pdfQueue = new Queue("pdf transcoding");
 
 videoQueue.process(function (job, done) {
-
   // job.data contains the custom data passed when the job was created
   // job.id contains id of this job.
 
@@ -22,13 +23,13 @@ videoQueue.process(function (job, done) {
   done();
 
   // or give a error if error
-  done(new Error('error transcoding'));
+  done(new Error("error transcoding"));
 
   // or pass it a result
   done(null, { framerate: 29.5 /* etc... */ });
 
   // If the job throws an unhandled exception it is also handled correctly
-  throw new Error('some unexpected error');
+  throw new Error("some unexpected error");
 });
 
 audioQueue.process(function (job, done) {
@@ -39,13 +40,13 @@ audioQueue.process(function (job, done) {
   done();
 
   // or give a error if error
-  done(new Error('error transcoding'));
+  done(new Error("error transcoding"));
 
   // or pass it a result
   done(null, { samplerate: 48000 /* etc... */ });
 
   // If the job throws an unhandled exception it is also handled correctly
-  throw new Error('some unexpected error');
+  throw new Error("some unexpected error");
 });
 
 imageQueue.process(function (job, done) {
@@ -56,13 +57,13 @@ imageQueue.process(function (job, done) {
   done();
 
   // or give a error if error
-  done(new Error('error transcoding'));
+  done(new Error("error transcoding"));
 
   // or pass it a result
   done(null, { width: 1280, height: 720 /* etc... */ });
 
   // If the job throws an unhandled exception it is also handled correctly
-  throw new Error('some unexpected error');
+  throw new Error("some unexpected error");
 });
 
 pdfQueue.process(function (job) {
@@ -70,9 +71,10 @@ pdfQueue.process(function (job) {
   return pdfAsyncProcessor();
 });
 
-videoQueue.add({ video: 'http://example.com/video1.mov' });
-audioQueue.add({ audio: 'http://example.com/audio1.mp3' });
-imageQueue.add({ image: 'http://example.com/image1.tiff' });
+videoQueue.add({ video: "http://example.com/video1.mov" });
+audioQueue.add({ audio: "http://example.com/audio1.mp3" });
+imageQueue.add({ image: "http://example.com/image1.tiff" });
+
 ```
 
 ### **Using promises**
@@ -80,35 +82,37 @@ imageQueue.add({ image: 'http://example.com/image1.tiff' });
 Alternatively, you can use return promises instead of using the `done` callback:
 
 ```javascript
-videoQueue.process(function (job) { // don't forget to remove the done callback!
+videoQueue.process(function (job) {
+  // don't forget to remove the done callback!
   // Simply return a promise
   return fetchVideo(job.data.url).then(transcodeVideo);
 
   // Handles promise rejection
-  return Promise.reject(new Error('error transcoding'));
+  return Promise.reject(new Error("error transcoding"));
 
   // Passes the value the promise is resolved with to the "completed" event
   return Promise.resolve({ framerate: 29.5 /* etc... */ });
 
   // If the job throws an unhandled exception it is also handled correctly
-  throw new Error('some unexpected error');
+  throw new Error("some unexpected error");
   // same as
-  return Promise.reject(new Error('some unexpected error'));
+  return Promise.reject(new Error("some unexpected error"));
 });
+
 ```
 
-### **Separate processes**
+### **Sandboxed processes**
 
 The process function can also be run in a separate process. This has several advantages:
 
 * The process is sandboxed so if it crashes it does not affect the worker.
 * You can run blocking code without affecting the queue (jobs will not stall).
-* Much better utilization of multi-core CPUs.
+* &#x20;Better utilization of multi-core CPUs.
 * Less connections to redis.
 
 In order to use this feature just create a separate file with the processor:
 
-```js
+```javascript
 // processor.js
 module.exports = function (job) {
   // Do some heavy work
@@ -119,7 +123,7 @@ module.exports = function (job) {
 
 And define the processor like this:
 
-```js
+```javascript
 // Single process:
 queue.process('/path/to/my/processor.js');
 
@@ -134,13 +138,14 @@ queue.process('my processor', 5, '/path/to/my/processor.js');
 
 A job can be added to a queue and processed repeatedly according to a cron specification:
 
-```js
-  paymentsQueue.process(function (job) {
-    // Check payments
-  });
+```javascript
+paymentsQueue.process(function (job) {
+  // Check payments
+});
 
-  // Repeat payment job once every day at 3:15 (am)
-  paymentsQueue.add(paymentsData, { repeat: { cron: '15 3 * * *' } });
+// Repeat payment job once every day at 3:15 (am)
+paymentsQueue.add(paymentsData, { repeat: { cron: "15 3 * * *" } });
+
 ```
 
 As a tip, check your expressions here to verify they are correct: [cron expression generator](https://crontab.cronhub.io)
@@ -149,22 +154,22 @@ As a tip, check your expressions here to verify they are correct: [cron expressi
 
 A queue can be paused and resumed globally (pass `true` to pause processing for just this worker):
 
-```js
+```javascript
 queue.pause().then(function () {
   // queue is paused now
 });
 
 queue.resume().then(function () {
   // queue is resumed now
-})
+});
 ```
 
 ### **Events**
 
 A queue emits some useful events, for example...
 
-```js
-.on('completed', function (job, result) {
+```javascript
+myqueue.on('completed', function (job, result) {
   // Job completed with output result!
 })
 ```
@@ -173,7 +178,7 @@ For more information on events, including the full list of events that are fired
 
 ### **Queues performance**
 
-Queues are cheap, so if you need many of them just create new ones with different names:
+Queues are relative cheap, so if you need many of them just create new ones with different names. However having too many queues can become unmanageable. Up to a dozen is normally ok.
 
 ```javascript
 const userJohn = new Queue('john');
@@ -183,42 +188,45 @@ const userLisa = new Queue('lisa');
 .
 ```
 
-However every queue instance will require new redis connections, check how to [reuse connections](https://github.com/OptimalBits/bull/blob/master/PATTERNS.md#reusing-redis-connections) or you can also use [named processors](https://github.com/OptimalBits/bull/blob/master/REFERENCE.md#queueprocess) to achieve a similar result.
+Also keep in mind that every queue instance will require new redis connections, check how to [reuse connections](https://github.com/OptimalBits/bull/blob/master/PATTERNS.md#reusing-redis-connections) or you can also use [named processors](https://github.com/OptimalBits/bull/blob/master/REFERENCE.md#queueprocess) to achieve a similar result.
 
 ### **Cluster support**
 
-NOTE: From version 3.2.0 and above it is recommended to use threaded processors instead.
+{% hint style="info" %}
+From version 3.2.0 and above it is recommended to use threaded processors instead.
+{% endhint %}
 
 Queues are robust and can be run in parallel in several threads or processes without any risk of hazards or queue corruption. Check this simple example using cluster to parallelize jobs across processes:
 
-```js
-const Queue = require('bull');
-const cluster = require('cluster');
+```javascript
+const Queue = require("bull");
+const cluster = require("cluster");
 
 const numWorkers = 8;
-const queue = new Queue('test concurrent queue');
+const queue = new Queue("test concurrent queue");
 
 if (cluster.isMaster) {
   for (let i = 0; i < numWorkers; i++) {
     cluster.fork();
   }
 
-  cluster.on('online', function (worker) {
+  cluster.on("online", function (worker) {
     // Let's create a few jobs for the queue workers
     for (let i = 0; i < 500; i++) {
-      queue.add({ foo: 'bar' });
-    };
+      queue.add({ foo: "bar" });
+    }
   });
 
-  cluster.on('exit', function (worker, code, signal) {
-    console.log('worker ' + worker.process.pid + ' died');
+  cluster.on("exit", function (worker, code, signal) {
+    console.log("worker " + worker.process.pid + " died");
   });
 } else {
   queue.process(function (job, jobDone) {
-    console.log('Job done by worker', cluster.worker.id, job.id);
+    console.log("Job done by worker", cluster.worker.id, job.id);
     jobDone();
   });
 }
+
 ```
 
 ***

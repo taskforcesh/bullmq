@@ -2,12 +2,13 @@
 
 Here are a few examples of useful patterns that are often implemented with Bull:
 
-* [Message Queue](https://github.com/OptimalBits/bull/blob/HEAD/PATTERNS.md#message-queue)
-* [Returning Job Completions](https://github.com/OptimalBits/bull/blob/HEAD/PATTERNS.md#returning-job-completions)
-* [Reusing Redis Connections](https://github.com/OptimalBits/bull/blob/HEAD/PATTERNS.md#reusing-redis-connections)
-* [Redis Cluster](https://github.com/OptimalBits/bull/blob/HEAD/PATTERNS.md#redis-cluster)
-* [Debugging](https://github.com/OptimalBits/bull/blob/HEAD/PATTERNS.md#debugging)
-* [Custom backoff strategy](https://github.com/OptimalBits/bull/blob/HEAD/PATTERNS.md#custom-backoff-strategy)
-* [Manually fetching jobs](https://github.com/OptimalBits/bull/blob/HEAD/PATTERNS.md#manually-fetching-jobs)
+* [Persistent connections](persistent-connections.md)
+* [Message Queue](message-queue.md)
+* [Returning Job Completions](returning-job-completions.md)
+* [Reusing Redis Connections](reusing-redis-connections.md)
+* [Redis Cluster](redis-cluster.md)
+* [Debugging](debugging.md)
+* [Custom backoff strategy](custom-backoff-strategy.md)
+* [Manually fetching jobs](../../patterns/manually-fetching-jobs.md)
 
 If you have any other common patterns you want to add, pull request them!
