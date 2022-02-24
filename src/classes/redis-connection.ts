@@ -20,9 +20,7 @@ const deprecationMessage = [
   'On the next versions having this settings will throw an exception',
 ].join(' ');
 
-const upstashMessage = ['BullMQ: Upstash is not compatible with BullMQ.'].join(
-  ' ',
-);
+const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -80,7 +78,7 @@ export class RedisConnection extends EventEmitter {
 
   private checkUpstashHost(host: string) {
     if (host.endsWith('upstash.io')) {
-      console.error(upstashMessage);
+      throw new Error(upstashMessage);
     }
   }
 
