@@ -42,7 +42,7 @@ export declare class Scripts
 |  [removeRepeatableArgs(queue, repeatJobId, repeatJobKey)](./bullmq.scripts.removerepeatableargs.md) | <code>static</code> |  |
 |  [reprocessJob(queue, job, state)](./bullmq.scripts.reprocessjob.md) | <code>static</code> | Attempts to reprocess a job |
 |  [retryJobArgs(queue, job)](./bullmq.scripts.retryjobargs.md) | <code>static</code> |  |
-|  [retryJobs(queue, count, timestamp)](./bullmq.scripts.retryjobs.md) | <code>static</code> |  |
+|  [retryJobs(queue, state, count, timestamp)](./bullmq.scripts.retryjobs.md) | <code>static</code> |  |
 |  [updateData(queue, job, data)](./bullmq.scripts.updatedata.md) | <code>static</code> |  |
 |  [updateDelaySet(queue, delayedTimestamp)](./bullmq.scripts.updatedelayset.md) | <code>static</code> | It checks if the job in the top of the delay set should be moved back to the top of the wait queue (so that it will be processed as soon as possible) |
 |  [updateProgress(queue, job, progress)](./bullmq.scripts.updateprogress.md) | <code>static</code> |  |

@@ -11,6 +11,7 @@ Retry all the failed jobs.
 ```typescript
 retryJobs(opts?: {
         count?: number;
+        state?: FinishedStatus;
         timestamp?: number;
     }): Promise<void>;
 ```
@@ -19,7 +20,7 @@ retryJobs(opts?: {
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  opts | { count?: number; timestamp?: number; } | contains number to limit how many jobs will be moved to wait status per iteration or from which timestamp. |
+|  opts | { count?: number; state?: [FinishedStatus](./bullmq.finishedstatus.md)<!-- -->; timestamp?: number; } | contains number to limit how many jobs will be moved to wait status per iteration, state (failed, completed) failed by default or from which timestamp. |
 
 <b>Returns:</b>
 
