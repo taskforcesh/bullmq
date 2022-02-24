@@ -23,7 +23,7 @@ import {
   WorkerOptions,
   KeepJobs,
 } from '../interfaces';
-import { JobState, FinishedTarget, FinishedPropValAttribute } from '../types';
+import { JobState, FinishedStatus, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
@@ -247,7 +247,7 @@ export class Scripts {
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
-    target: FinishedTarget,
+    target: FinishedStatus,
     token: string,
     fetchNext = true,
   ) {
@@ -305,7 +305,7 @@ export class Scripts {
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
-    target: FinishedTarget,
+    target: FinishedStatus,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
@@ -645,7 +645,7 @@ export class Scripts {
 
   private static retryJobsArgs(
     queue: MinimalQueue,
-    state: FinishedTarget,
+    state: FinishedStatus,
     count: number,
     timestamp: number,
   ): (string | number)[] {
@@ -663,7 +663,7 @@ export class Scripts {
 
   static async retryJobs(
     queue: MinimalQueue,
-    state: FinishedTarget = 'failed',
+    state: FinishedStatus = 'failed',
     count = 1000,
     timestamp = new Date().getTime(),
   ): Promise<number> {

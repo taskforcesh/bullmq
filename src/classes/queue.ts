@@ -7,7 +7,7 @@ import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
-import { FinishedTarget } from '..';
+import { FinishedStatus } from '../types';
 
 export interface ObliterateOpts {
   /**
@@ -385,11 +385,16 @@ export class Queue<
    * @returns
    */
   async retryJobs(
-    opts: { count?: number; state?: FinishedTarget, timestamp?: number } = {},
+    opts: { count?: number; state?: FinishedStatus; timestamp?: number } = {},
   ): Promise<void> {
     let cursor = 0;
     do {
-      cursor = await Scripts.retryJobs(this, opts.state, opts.count, opts.timestamp);
+      cursor = await Scripts.retryJobs(
+        this,
+        opts.state,
+        opts.count,
+        opts.timestamp,
+      );
     } while (cursor);
   }
 
