@@ -7,6 +7,7 @@ import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
+import { FinishedStatus } from '../types';
 
 export interface ObliterateOpts {
   /**
@@ -379,16 +380,21 @@ export class Queue<
   /**
    * Retry all the failed jobs.
    *
-   * @param opts - contains number to limit how many jobs will be moved to wait status per iteration
-   * or from which timestamp.
+   * @param opts - contains number to limit how many jobs will be moved to wait status per iteration,
+   * state (failed, completed) failed by default or from which timestamp.
    * @returns
    */
   async retryJobs(
-    opts: { count?: number; timestamp?: number } = {},
+    opts: { count?: number; state?: FinishedStatus; timestamp?: number } = {},
   ): Promise<void> {
     let cursor = 0;
     do {
-      cursor = await Scripts.retryJobs(this, opts.count, opts.timestamp);
+      cursor = await Scripts.retryJobs(
+        this,
+        opts.state,
+        opts.count,
+        opts.timestamp,
+      );
     } while (cursor);
   }
 

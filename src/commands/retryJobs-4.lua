@@ -4,7 +4,7 @@
   Input:
     KEYS[1] base key
     KEYS[2] events stream
-    KEYS[3] failed state key
+    KEYS[3] state key (failed, completed)
     KEYS[4] wait state key
 
     ARGV[1]  count
@@ -28,7 +28,7 @@ local jobs = rcall('ZRANGEBYSCORE', KEYS[3], 0, timestamp, 'LIMIT', 0, maxCount)
 if (#jobs > 0) then
   for i, key in ipairs(jobs) do
     local jobKey = baseKey .. key
-    rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason")
+    rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason", "returnvalue")
 
     -- Emit waiting event
     rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", key);
