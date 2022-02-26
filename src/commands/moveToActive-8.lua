@@ -58,7 +58,7 @@ if jobId then
     local groupKey
     if(ARGV[8]) then
       groupKey = string.match(jobId, "[^:]+$")
-      if groupKey ~= nil and groupKey ~= jobId then
+      if groupKey ~= jobId then
         rateLimiterKey = rateLimiterKey .. ":" .. groupKey
       end
     end
