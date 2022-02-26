@@ -56,15 +56,18 @@ if jobId then
     local rateLimiterKey = KEYS[6];
 
     if(ARGV[8]) then
-      local groupKey = string.match(jobId, "[^:]+$")
+      local groupKey = string.match(jobId, "[^:]+[^:]+[^:]+$")
       if groupKey ~= nil then
         rateLimiterKey = rateLimiterKey .. ":" .. groupKey
       end
     end
 
-    local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
+    local jobCounter
+    if rateLimiterKey ~= KEYS[6] then
+      jobCounter = tonumber(rcall("INCR", rateLimiterKey))
+    end
     -- check if rate limit hit
-    if jobCounter > maxJobs then
+    if jobCounter ~= nil and jobCounter > maxJobs then
       local exceedingJobs = jobCounter - maxJobs
       local expireTime = tonumber(rcall("PTTL", rateLimiterKey))
       local delay = expireTime + ((exceedingJobs - 1) * ARGV[7]) / maxJobs;

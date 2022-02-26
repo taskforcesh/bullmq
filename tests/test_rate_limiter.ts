@@ -157,6 +157,39 @@ describe('Rate Limiter', function () {
     await queueScheduler.close();
   });
 
+  describe('when added job does not contain groupKey and fails', function () {
+    it('should move job to wait after retry', async function () {
+      const rateLimitedQueue = new Queue(queueName, {
+        connection,
+        limiter: {
+          groupKey: 'accountId',
+        },
+      });
+      const worker = new Worker(queueName, null, {
+        connection,
+        limiter: {
+          max: 1,
+          duration: 1000,
+          groupKey: 'accountId',
+        },
+      });
+      await rateLimitedQueue.add('rate test', {});
+      const job = await worker.getNextJob('0');
+      await job.moveToFailed(new Error('test error'), '0', true);
+
+      const isFailed = await job.isFailed();
+      expect(isFailed).to.be.equal(true);
+      await job.retry();
+      await worker.getNextJob('0');
+      const isDelayed = await job.isDelayed();
+
+      expect(isDelayed).to.be.equal(false);
+
+      await worker.close();
+      await rateLimitedQueue.close();
+    });
+  });
+
   it('should rate limit by grouping', async function () {
     this.timeout(20000);
 
