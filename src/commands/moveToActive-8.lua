@@ -55,17 +55,24 @@ if jobId then
   if(maxJobs) then
     local rateLimiterKey = KEYS[6];
 
+    local groupKey
     if(ARGV[8]) then
-      local groupKey = string.match(jobId, "[^:]+[^:]+[^:]+$")
-      if groupKey ~= nil then
+      groupKey = string.match(jobId, "[^:]+$")
+      if groupKey ~= nil and groupKey ~= jobId then
         rateLimiterKey = rateLimiterKey .. ":" .. groupKey
       end
     end
 
     local jobCounter
-    if rateLimiterKey ~= KEYS[6] then
+    
+    if groupKey ~= nil then
+      if rateLimiterKey ~= KEYS[6] then
+        jobCounter = tonumber(rcall("INCR", rateLimiterKey))
+      end
+    else
       jobCounter = tonumber(rcall("INCR", rateLimiterKey))
     end
+
     -- check if rate limit hit
     if jobCounter ~= nil and jobCounter > maxJobs then
       local exceedingJobs = jobCounter - maxJobs
