@@ -36,7 +36,7 @@ describe('Rate Limiter', function () {
     });
     await worker.waitUntilReady();
 
-    queueEvents.on('failed', ({ failedReason }) => {});
+    queueEvents.on('failed', () => {});
 
     await Promise.all([
       queue.add('test', {}),
@@ -173,14 +173,18 @@ describe('Rate Limiter', function () {
           groupKey: 'accountId',
         },
       });
+
+      const token = 'my-token';
+      const token2 = 'my-token2';
       await rateLimitedQueue.add('rate test', {});
-      const job = await worker.getNextJob('0');
-      await job.moveToFailed(new Error('test error'), '0', true);
+
+      const job = await worker.getNextJob(token);
+      await job.moveToFailed(new Error('test error'), token);
 
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(true);
       await job.retry();
-      await worker.getNextJob('0');
+      await worker.getNextJob(token2);
       const isDelayed = await job.isDelayed();
 
       expect(isDelayed).to.be.equal(false);
