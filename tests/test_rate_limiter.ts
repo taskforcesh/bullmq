@@ -36,7 +36,7 @@ describe('Rate Limiter', function () {
     });
     await worker.waitUntilReady();
 
-    queueEvents.on('failed', ({ failedReason }) => {});
+    queueEvents.on('failed', () => {});
 
     await Promise.all([
       queue.add('test', {}),
@@ -155,6 +155,43 @@ describe('Rate Limiter', function () {
     await result;
     await worker.close();
     await queueScheduler.close();
+  });
+
+  describe('when added job does not contain groupKey and fails', function () {
+    it('should move job to wait after retry', async function () {
+      const rateLimitedQueue = new Queue(queueName, {
+        connection,
+        limiter: {
+          groupKey: 'accountId',
+        },
+      });
+      const worker = new Worker(queueName, null, {
+        connection,
+        limiter: {
+          max: 1,
+          duration: 1000,
+          groupKey: 'accountId',
+        },
+      });
+
+      const token = 'my-token';
+      const token2 = 'my-token2';
+      await rateLimitedQueue.add('rate test', {});
+
+      const job = await worker.getNextJob(token);
+      await job.moveToFailed(new Error('test error'), token);
+
+      const isFailed = await job.isFailed();
+      expect(isFailed).to.be.equal(true);
+      await job.retry();
+      await worker.getNextJob(token2);
+      const isDelayed = await job.isDelayed();
+
+      expect(isDelayed).to.be.equal(false);
+
+      await worker.close();
+      await rateLimitedQueue.close();
+    });
   });
 
   it('should rate limit by grouping', async function () {
