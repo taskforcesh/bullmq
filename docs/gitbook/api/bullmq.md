@@ -96,6 +96,7 @@
 
 |  Variable | Description |
 |  --- | --- |
+|  [asyncSend](./bullmq.asyncsend.md) |  |
 |  [childSend](./bullmq.childsend.md) |  |
 |  [clientCommandMessageReg](./bullmq.clientcommandmessagereg.md) |  |
 |  [DELAY\_TIME\_1](./bullmq.delay_time_1.md) |  |
@@ -114,7 +115,7 @@
 |  [EntryId](./bullmq.entryid.md) |  |
 |  [EntryRaw](./bullmq.entryraw.md) |  |
 |  [FinishedPropValAttribute](./bullmq.finishedpropvalattribute.md) |  |
-|  [FinishedTarget](./bullmq.finishedtarget.md) |  |
+|  [FinishedStatus](./bullmq.finishedstatus.md) |  |
 |  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [JobData](./bullmq.jobdata.md) |  |
 |  [JobJsonSandbox](./bullmq.jobjsonsandbox.md) |  |

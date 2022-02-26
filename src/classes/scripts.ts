@@ -23,7 +23,7 @@ import {
   WorkerOptions,
   KeepJobs,
 } from '../interfaces';
-import { JobState, FinishedTarget, FinishedPropValAttribute } from '../types';
+import { JobState, FinishedStatus, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
@@ -247,7 +247,7 @@ export class Scripts {
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
-    target: FinishedTarget,
+    target: FinishedStatus,
     token: string,
     fetchNext = true,
   ) {
@@ -305,7 +305,7 @@ export class Scripts {
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
-    target: FinishedTarget,
+    target: FinishedStatus,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
@@ -645,13 +645,14 @@ export class Scripts {
 
   private static retryJobsArgs(
     queue: MinimalQueue,
+    state: FinishedStatus,
     count: number,
     timestamp: number,
   ): (string | number)[] {
     const keys: (string | number)[] = [
       queue.toKey(''),
       queue.keys.events,
-      queue.toKey('failed'),
+      queue.toKey(state),
       queue.toKey('wait'),
     ];
 
@@ -662,12 +663,13 @@ export class Scripts {
 
   static async retryJobs(
     queue: MinimalQueue,
+    state: FinishedStatus = 'failed',
     count = 1000,
     timestamp = new Date().getTime(),
   ): Promise<number> {
     const client = await queue.client;
 
-    const args = this.retryJobsArgs(queue, count, timestamp);
+    const args = this.retryJobsArgs(queue, state, count, timestamp);
 
     return (<any>client).retryJobs(args);
   }
