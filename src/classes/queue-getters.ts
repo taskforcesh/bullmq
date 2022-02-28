@@ -5,6 +5,7 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg } from '../utils';
 import { JobType } from '../types';
+import { Metrics } from '../interfaces';
 
 export class QueueGetters<
   DataType,
@@ -329,15 +330,7 @@ export class QueueGetters<
     type: 'completed' | 'failed',
     start = 0,
     end = -1,
-  ): Promise<{
-    meta: {
-      count: number;
-      prevTS: number;
-      prevCount: number;
-    };
-    data: number[];
-    count: number;
-  }> {
+  ): Promise<Metrics> {
     const client = await this.client;
     const metricsKey = this.toKey(`metrics:${type}`);
     const dataKey = `${metricsKey}:data`;
