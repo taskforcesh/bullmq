@@ -13,6 +13,7 @@
       KEYS[6] event stream key
       KEYS[7] meta key
       KEYS[8] stalled key
+      KEYS[9] metrics key
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
@@ -30,6 +31,7 @@
       ARGV[14] parentKey
       ARGV[15] max attempts
       ARGV[16] attemptsMade
+      ARGV[17] maxMetricsSize
 
     Output:
       0 OK
@@ -40,15 +42,15 @@
 
     Events:
       'completed/failed'
-]]
-local rcall = redis.call
+]] local rcall = redis.call
 
--- Includes
+--- Includes
 --- @include "includes/destructureJobKey"
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/removeJob"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
+--- @include "includes/collectMetrics"
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -72,9 +74,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- Remove from active list (if not active we shall return error)
     local numRemovedElements = rcall("LREM", KEYS[1], -1, jobId)
 
-    if (numRemovedElements < 1) then
-      return -3
-    end
+    if (numRemovedElements < 1) then return -3 end
 
     -- Trim events before emiting them to avoid trimming events emitted in this script
     trimEvents(KEYS[7], KEYS[6])
@@ -117,14 +117,18 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if maxAge ~= nil then
             local start = timestamp - maxAge * 1000
             local jobIds = rcall("ZREVRANGEBYSCORE", targetSet, start, "-inf")
-            for i, jobId in ipairs(jobIds) do removeJob(jobId, false, prefix) end
+            for i, jobId in ipairs(jobIds) do
+                removeJob(jobId, false, prefix)
+            end
             rcall("ZREMRANGEBYSCORE", targetSet, "-inf", start)
         end
 
         if maxCount ~= nil and maxCount > 0 then
             local start = maxCount
             local jobIds = rcall("ZREVRANGE", targetSet, start, -1)
-            for i, jobId in ipairs(jobIds) do removeJob(jobId, false, prefix) end
+            for i, jobId in ipairs(jobIds) do
+                removeJob(jobId, false, prefix)
+            end
             rcall("ZREMRANGEBYRANK", targetSet, 0, -(maxCount + 1))
         end
     else
@@ -139,6 +143,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId",
                   jobId, "attemptsMade", ARGV[16])
         end
+    end
+
+    -- Collect metrics
+    if ARGV[17] ~= "" then
+        collectMetrics(KEYS[9], KEYS[9]..':data', ARGV[17], timestamp)
     end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
