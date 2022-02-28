@@ -125,7 +125,7 @@ describe('metrics', function () {
       '1',
       '1',
       '3',
-      '2',
+      '3',
     ];
 
     const numJobs = timmings.length;
@@ -362,7 +362,7 @@ describe('metrics', function () {
       {
         connection,
         metrics: {
-          maxDataPoints: MetricsTime.ONE_HOUR,
+          maxDataPoints: MetricsTime.ONE_HOUR * 2,
         },
       },
     );
