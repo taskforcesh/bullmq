@@ -8,6 +8,7 @@ import {
   JobsOptions,
   ParentKeys,
   RedisClient,
+  RedisJobOptions,
   WorkerOptions,
 } from '../interfaces';
 import { JobState, JobJsonSandbox } from '../types';
@@ -35,6 +36,7 @@ export interface MoveToChildrenOpts {
   };
 }
 
+type ValueOf<T> = T[keyof T];
 export interface DependenciesOpts {
   processed?: {
     cursor?: number;
@@ -233,7 +235,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = JSON.parse(json.opts || '{}');
+    const opts = Job.optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
       queue,
@@ -276,6 +278,28 @@ export class Job<
     return job;
   }
 
+  static optsFromJSON(rawOpts?: string): JobsOptions {
+    const opts = JSON.parse(rawOpts || '{}');
+
+    const optionEntries = Object.entries(opts) as Array<
+      [keyof RedisJobOptions, any]
+    >;
+    const options = optionEntries.reduce<Partial<Record<string, any>>>(
+      (acc, item) => {
+        const [attributeName, value] = item;
+        if (attributeName === 'rdof') {
+          acc.removeDependencyOnFail = value;
+        } else {
+          acc[attributeName] = value;
+        }
+        return acc;
+      },
+      {},
+    );
+
+    return options as JobsOptions;
+  }
+
   /**
    * Fetches a Job from the queue given the passed job id.
    *
@@ -311,7 +335,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: this.opts,
+      opts: this.optsAsJSON(this.opts),
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,
@@ -321,6 +345,26 @@ export class Job<
       stacktrace: JSON.stringify(this.stacktrace),
       returnvalue: JSON.stringify(this.returnvalue),
     };
+  }
+
+  private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+    const optionEntries = Object.entries(opts) as Array<
+      [keyof JobsOptions, any]
+    >;
+    const options = optionEntries.reduce<Partial<Record<string, any>>>(
+      (acc, item) => {
+        const [attributeName, value] = item;
+        if (attributeName === 'removeDependencyOnFail') {
+          acc.rdof = value;
+        } else {
+          acc[attributeName] = value;
+        }
+        return acc;
+      },
+      {},
+    );
+
+    return options as RedisJobOptions;
   }
 
   /**
