@@ -75,10 +75,19 @@ if(maxCount <= 0) then
 end
 
 if(maxCount > 0) then
-  rcall("DEL", baseKey .. 'priority', baseKey .. 'events',
-    baseKey .. 'delay', baseKey .. 'stalled-check',
-    baseKey .. 'stalled', baseKey .. 'id',
-    baseKey .. 'meta', baseKey .. 'repeat')
+  rcall("DEL", 
+    baseKey .. 'priority',
+    baseKey .. 'events',
+    baseKey .. 'delay', 
+    baseKey .. 'stalled-check',
+    baseKey .. 'stalled',
+    baseKey .. 'id',
+    baseKey .. 'meta',
+    baseKey .. 'repeat',
+    baseKey .. 'metrics:completed',
+    baseKey .. 'metrics:completed:data',
+    baseKey .. 'metrics:failed',
+    baseKey .. 'metrics:failed:data')
   return 0
 else
   return 1
