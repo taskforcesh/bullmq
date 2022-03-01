@@ -42,6 +42,20 @@ describe('connection', () => {
     checkOptions(await queue.client);
   });
 
+  describe('when host belongs to Upstash', async () => {
+    it('throws an error', async () => {
+      const opts = {
+        connection: {
+          host: 'https://upstash.io',
+        },
+      };
+
+      expect(() => new QueueBase(queueName, opts)).to.throw(
+        'BullMQ: Upstash is not compatible with BullMQ.',
+      );
+    });
+  });
+
   it('should recover from a connection loss', async () => {
     let processor;
 
