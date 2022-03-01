@@ -1,4 +1,4 @@
-import { RedisJobOptions } from './jobs-options';
+import { RedisJobOptions } from '../types';
 
 export interface JobJson {
   id: string;

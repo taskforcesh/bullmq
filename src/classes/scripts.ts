@@ -17,12 +17,12 @@ import * as semver from 'semver';
 import {
   JobJson,
   JobJsonRaw,
-  JobsOptions,
   QueueSchedulerOptions,
   RedisClient,
   WorkerOptions,
   KeepJobs,
 } from '../interfaces';
+import { JobsOptions } from '../types';
 import { JobState, FinishedTarget, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';

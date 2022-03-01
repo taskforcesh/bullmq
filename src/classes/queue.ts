@@ -1,6 +1,7 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
-import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
+import { QueueOptions, RepeatOptions } from '../interfaces';
+import { JobsOptions } from '../types';
 import { isRedisInstance, jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
 import { QueueGetters } from './queue-getters';
