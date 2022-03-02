@@ -6,7 +6,7 @@ interface FlowJobBase<T> {
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: T;
+  opts?: Omit<T, 'repeat'>;
   children?: FlowChildJob[];
 }
 
