@@ -232,7 +232,8 @@ export class QueueGetters<
         results = results.concat(result);
       }
     });
-    return results;
+
+    return [...new Set(results)];
   }
 
   async getJobs(

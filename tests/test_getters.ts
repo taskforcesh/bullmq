@@ -465,6 +465,14 @@ describe('Jobs getters', function () {
     queue.add('test', { foo: 2 });
   });
 
+  it('should return deduplicated jobs for duplicates types', async function () {
+    queue.add('test', { foo: 1 });
+    const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);
+
+    expect(jobs).to.be.an('array');
+    expect(jobs).to.have.length(1);
+  });
+
   it('should return 0 if queue is empty', async function () {
     const count = await queue.getJobCountByTypes();
     expect(count).to.be.a('number');
