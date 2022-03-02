@@ -7,7 +7,6 @@ import {
   FlowQueuesOpts,
   FlowOpts,
   QueueBaseOptions,
-  QueueOptions,
   RedisClient,
 } from '../interfaces';
 import { getParentKey, jobIdForGroup } from '../utils';
@@ -125,28 +124,17 @@ export class FlowProducer extends EventEmitter {
       ? `${parentKey}:dependencies`
       : undefined;
 
-    const jobsTree = this.addNode(multi, flow, {
-      parentOpts,
-      parentDependenciesKey,
+    const jobsTree = this.addNode({
+      multi,
+      node: flow,
+      queuesOpts: opts?.queuesOptions,
+      parent: {
+        parentOpts,
+        parentDependenciesKey,
+      },
     });
 
     const result = await multi.exec();
-
-    const updateJobIds = (
-      jobsTree: JobNode,
-      result: [Error, string][],
-      index: number,
-    ) => {
-      // TODO: Can we safely ignore result errors? how could they happen in the
-      // first place?
-      jobsTree.job.id = result[index][1];
-      const children = jobsTree.children;
-      if (children) {
-        for (let i = 0; i < children.length; i++) {
-          updateJobIds(children[i], result, index + i + 1);
-        }
-      }
-    };
 
     await multi.exec();
 

@@ -135,7 +135,7 @@ describe('flows', () => {
 
     const parentQueueName = `parent-queue-${v4()}`;
     const grandparentQueueName = `grandparent-queue-${v4()}`;
-    const grandparentQueue = new Queue(grandparentQueueName);
+    const grandparentQueue = new Queue(grandparentQueueName, { connection });
     const grandparentJob = await grandparentQueue.add('grandparent', {
       foo: 'bar',
     });
@@ -178,12 +178,16 @@ describe('flows', () => {
       }),
     ]);
 
-    const parentWorker = new Worker(parentQueueName, parentProcessor);
-    const childrenWorker = new Worker(queueName, childrenProcessor);
+    const parentWorker = new Worker(parentQueueName, parentProcessor, {
+      connection,
+    });
+    const childrenWorker = new Worker(queueName, childrenProcessor, {
+      connection,
+    });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
-    const flow = new FlowProducer();
+    const flow = new FlowProducer({ connection });
     const tree = await flow.add({
       name: 'parent-job',
       queueName: parentQueueName,
