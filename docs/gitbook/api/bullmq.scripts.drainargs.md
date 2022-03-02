@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static drainArgs(queue: MinimalQueue, delayed: boolean): string[];
+static drainArgs(queue: MinimalQueue, delayed: boolean): (string | number)[];
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ static drainArgs(queue: MinimalQueue, delayed: boolean): string[];
 
 <b>Returns:</b>
 
-string\[\]
+(string \| number)\[\]
 

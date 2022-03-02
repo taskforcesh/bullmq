@@ -42,7 +42,7 @@ worker.on('progress', (job: Job, progress: number | object) => {
 Finally, when the process fails with an exception it is possible to listen for the "failed" event too:
 
 ```typescript
-worker.on('failed', (job: Job, failedReason: string) => {
+worker.on('failed', (job: Job, error: Error) => {
   // Do something with the return value.
 });
 ```
@@ -77,7 +77,7 @@ worker.on('error', err => {
 ```
 
 {% hint style="danger" %}
-If the error handler is missing, your worker may stop processing jobs when an error is emitted!. More info [here](https://nodejs.org/api/events.html#events\_error\_events).
+If the error handler is missing, your worker may stop processing jobs when an error is emitted!. More info [here](https://nodejs.org/api/events.html#events_error_events).
 {% endhint %}
 
 ## Typescript typings

@@ -5,7 +5,6 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
-import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import {
   Job,
@@ -16,8 +15,6 @@ import {
 } from '../src/classes';
 import { JobsOptions } from '../src/interfaces';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
-
-const ONE_SECOND = 1000;
 
 describe('Job', function () {
   let queue: Queue;
@@ -191,6 +188,16 @@ describe('Job', function () {
       const updatedJob = await Job.fromId(queue, job.id);
       expect(updatedJob.data).to.be.eql({ baz: 'qux' });
     });
+
+    describe('when job is removed', () => {
+      it('throws error', async function () {
+        const job = await Job.create(queue, 'test', { foo: 'bar' });
+        await job.remove();
+        await expect(job.update({ foo: 'baz' })).to.be.rejectedWith(
+          `Missing key for job ${job.id}. updateData`,
+        );
+      });
+    });
   });
 
   describe('.remove', function () {
@@ -250,7 +257,7 @@ describe('Job', function () {
 
   // TODO: Add more remove tests
 
-  describe('.progress', function () {
+  describe('.progressProgress', function () {
     it('can set and get progress as number', async function () {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(42);
@@ -542,14 +549,14 @@ describe('Job', function () {
 
       queueScheduler.run();
 
-      const worker = new Worker(queueName, async job => {}, { connection });
+      const worker = new Worker(queueName, async () => {}, { connection });
       await worker.waitUntilReady();
 
       worker.run();
 
       const startTime = new Date().getTime();
 
-      const completing = new Promise<void>((resolve, reject) => {
+      const completing = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           const timeDiff = new Date().getTime() - startTime;
           expect(timeDiff).to.be.gte(4000);
@@ -616,7 +623,7 @@ describe('Job', function () {
 
       const worker = new Worker(
         queueName,
-        job => {
+        () => {
           return delay(100);
         },
         { connection },
@@ -687,78 +694,35 @@ describe('Job', function () {
   });
 
   describe('.getState', () => {
-    describe('when redisVersion is less than 6.0.6', () => {
-      it('should get job actual state', async () => {
-        const redisVersionStub = sinon
-          .stub(queue, 'redisVersion')
-          .get(() => '6.0.5');
-        const worker = new Worker(queueName, null, { connection });
-        const token = 'my-token';
-        const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
-        const delayedState = await job.getState();
+    it('should get job actual state', async () => {
+      const worker = new Worker(queueName, null, { connection });
+      const token = 'my-token';
+      const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
+      const delayedState = await job.getState();
 
-        expect(delayedState).to.be.equal('delayed');
+      expect(delayedState).to.be.equal('delayed');
 
-        await queue.pause();
-        await job.promote();
-        await queue.resume();
-        const waitingState = await job.getState();
+      await queue.pause();
+      await job.promote();
+      await queue.resume();
+      const waitingState = await job.getState();
 
-        expect(waitingState).to.be.equal('waiting');
+      expect(waitingState).to.be.equal('waiting');
 
-        const currentJob1 = (await worker.getNextJob(token)) as Job;
+      const currentJob1 = (await worker.getNextJob(token)) as Job;
 
-        await currentJob1.moveToFailed(new Error('test error'), token, true);
-        const failedState = await currentJob1.getState();
-        await queue.add('job2', { foo: 'foo' });
-        const job2 = (await worker.getNextJob(token)) as Job;
+      await currentJob1.moveToFailed(new Error('test error'), token, true);
+      const failedState = await currentJob1.getState();
+      await queue.add('job2', { foo: 'foo' });
+      const job2 = (await worker.getNextJob(token)) as Job;
 
-        expect(failedState).to.be.equal('failed');
+      expect(failedState).to.be.equal('failed');
 
-        await job2.moveToCompleted('succeeded', token, true);
-        const completedState = await job2.getState();
+      await job2.moveToCompleted('succeeded', token, true);
+      const completedState = await job2.getState();
 
-        expect(completedState).to.be.equal('completed');
-        await worker.close();
-        redisVersionStub.restore();
-      });
-    });
-
-    describe('when redisVersion is greater or equal than 6.0.6', () => {
-      it('should get job actual state', async () => {
-        const redisVersionStub = sinon
-          .stub(queue, 'redisVersion')
-          .get(() => '6.0.6');
-        const worker = new Worker(queueName, null, { connection });
-        const token = 'my-token';
-        const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
-        const delayedState = await job.getState();
-
-        expect(delayedState).to.be.equal('delayed');
-
-        await queue.pause();
-        await job.promote();
-        await queue.resume();
-        const waitingState = await job.getState();
-
-        expect(waitingState).to.be.equal('waiting');
-
-        const currentJob1 = (await worker.getNextJob(token)) as Job;
-
-        await currentJob1.moveToFailed(new Error('test error'), token, true);
-        const failedState = await currentJob1.getState();
-        await queue.add('job2', { foo: 'foo' });
-        const job2 = (await worker.getNextJob(token)) as Job;
-
-        expect(failedState).to.be.equal('failed');
-
-        await job2.moveToCompleted('succeeded', token, true);
-        const completedState = await job2.getState();
-
-        expect(completedState).to.be.equal('completed');
-        await worker.close();
-        redisVersionStub.restore();
-      });
+      expect(completedState).to.be.equal('completed');
+      await worker.close();
     });
   });
 
@@ -880,7 +844,7 @@ describe('Job', function () {
     });
 
     it('should resolve when the job has been completed', async function () {
-      const worker = new Worker(queueName, async job => 'qux', { connection });
+      const worker = new Worker(queueName, async () => 'qux', { connection });
 
       worker.run();
 
@@ -897,7 +861,7 @@ describe('Job', function () {
       it('rejects with missing key for job message', async function () {
         const worker = new Worker(
           queueName,
-          async job => {
+          async () => {
             await delay(100);
             return 'qux';
           },
@@ -940,11 +904,9 @@ describe('Job', function () {
     });
 
     it('should resolve when the job has been completed and return object', async function () {
-      const worker = new Worker(
-        queueName,
-        async job => ({ resultFoo: 'bar' }),
-        { connection },
-      );
+      const worker = new Worker(queueName, async () => ({ resultFoo: 'bar' }), {
+        connection,
+      });
 
       worker.run();
 
@@ -961,7 +923,7 @@ describe('Job', function () {
     it('should resolve when the job has been delayed and completed and return object', async function () {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           await delay(300);
           return { resultFoo: 'bar' };
         },
@@ -981,7 +943,7 @@ describe('Job', function () {
     });
 
     it('should resolve when the job has been completed and return string', async function () {
-      const worker = new Worker(queueName, async job => 'a string', {
+      const worker = new Worker(queueName, async () => 'a string', {
         connection,
       });
 
@@ -1000,7 +962,7 @@ describe('Job', function () {
     it('should reject when the job has been failed', async function () {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           await delay(500);
           throw new Error('test error');
         },
@@ -1020,11 +982,9 @@ describe('Job', function () {
     });
 
     it('should resolve directly if already processed', async function () {
-      const worker = new Worker(
-        queueName,
-        async job => ({ resultFoo: 'bar' }),
-        { connection },
-      );
+      const worker = new Worker(queueName, async () => ({ resultFoo: 'bar' }), {
+        connection,
+      });
 
       worker.run();
 
@@ -1042,7 +1002,7 @@ describe('Job', function () {
     it('should reject directly if already processed', async function () {
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           throw new Error('test error');
         },
         { connection },

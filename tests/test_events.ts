@@ -31,6 +31,34 @@ describe('events', function () {
     const waiting = new Promise(resolve => {
       queue.on('waiting', resolve);
     });
+    queueEvents.run();
+
+    await queue.add('test', { foo: 'bar' });
+
+    await waiting;
+  });
+
+  it('should emit global waiting event when a job has been added', async function () {
+    const waiting = new Promise(resolve => {
+      queueEvents.on('waiting', resolve);
+    });
+
+    queueEvents.run();
+
+    await queue.add('test', { foo: 'bar' });
+
+    await waiting;
+  });
+
+  it('should emit waiting event when a job has been added', async function () {
+    const waiting = new Promise<void>(resolve => {
+      queue.on('waiting', job => {
+        expect(job.id).to.be.string;
+        resolve();
+      });
+    });
+
+    queueEvents.run();
 
     await queue.add('test', { foo: 'bar' });
 
@@ -51,33 +79,6 @@ describe('events', function () {
 
       await expect(running).to.have.been.fulfilled;
     });
-  });
-
-  it('should emit waiting event when a job has been added', async function () {
-    const waiting = new Promise<void>(resolve => {
-      queue.on('waiting', job => {
-        expect(job.id).to.be.string;
-        resolve();
-      });
-    });
-
-    queueEvents.run();
-
-    await queue.add('test', { foo: 'bar' });
-
-    await waiting;
-  });
-
-  it('should emit global waiting event when a job has been added', async function () {
-    const waiting = new Promise(resolve => {
-      queueEvents.on('waiting', resolve);
-    });
-
-    queueEvents.run();
-
-    await queue.add('test', { foo: 'bar' });
-
-    await waiting;
   });
 
   it('emits cleaned global event when jobs were cleaned', async function () {
@@ -196,10 +197,16 @@ describe('events', function () {
   });
 
   it('emits added event when one job is added', async function () {
-    const worker = new Worker(queueName, async job => {}, {
-      drainDelay: 1,
-      connection,
-    });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(100);
+      },
+      {
+        drainDelay: 1,
+        connection,
+      },
+    );
     const testName = 'test';
 
     const added = new Promise<void>(resolve => {

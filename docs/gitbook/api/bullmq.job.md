@@ -68,9 +68,9 @@ export declare class Job<DataType = any, ReturnType = any, NameType extends stri
 |  [moveToWaitingChildren(token, opts)](./bullmq.job.movetowaitingchildren.md) |  | Moves the job to the waiting-children set. |
 |  [promote()](./bullmq.job.promote.md) |  | Promotes a delayed job so that it starts to be processed as soon as possible. |
 |  [remove()](./bullmq.job.remove.md) |  | Completely remove the job from the queue. Note, this call will throw an exception if the job is being processed when the call is performed. |
-|  [retry(state)](./bullmq.job.retry.md) |  | Attempts to retry the job. Only a job that has failed can be retried. |
+|  [retry(state)](./bullmq.job.retry.md) |  | Attempts to retry the job. Only a job that has failed or completed can be retried. |
 |  [toJSON()](./bullmq.job.tojson.md) |  |  |
 |  [update(data)](./bullmq.job.update.md) |  | Updates a job's data |
 |  [updateProgress(progress)](./bullmq.job.updateprogress.md) |  | Updates a job's progress |
-|  [waitUntilFinished(queueEvents, ttl)](./bullmq.job.waituntilfinished.md) |  | Returns a promise the resolves when the job has finished. (completed or failed). |
+|  [waitUntilFinished(queueEvents, ttl)](./bullmq.job.waituntilfinished.md) |  | Returns a promise the resolves when the job has completed (containing the return value of the job), or rejects when the job has failed (containing the failedReason). |
 

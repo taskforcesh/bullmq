@@ -9,4 +9,3 @@ To achieve this behaviour, your jobs should be as atomic and simple as possible.
 Simpler jobs also means simpler debugging, identifying bottlenecks, etc.
 
 If necessary, split complex jobs [as described in the flow pattern](flows.md).
-

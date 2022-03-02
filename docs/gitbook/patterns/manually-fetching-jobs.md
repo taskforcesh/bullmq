@@ -29,13 +29,13 @@ There is an important consideration regarding job "locks" when processing manual
 the lock duration setting is called "visibility window" in other queue systems.
 {% endhint %}
 
-Normally a job gets locked as soon as it is fetched from the queue with a max duration of "lockDuration" worker option. The default is 30 seconds but can be changed to any value easily, for example to change it to 60 seconds:
+Normally a job gets locked as soon as it is fetched from the queue with a max duration of "lockDuration" worker option. The default is 30 seconds but can be changed to any value easily, for example, to change it to 60 seconds:
 
 ```typescript
 const worker = new Worker('my-queue', null, { lockDuration: 60000 });
 ```
 
-When using standard worker processors the lock is renewed automatically after half lock duration time has passed, however this mechanism does not exist when processing jobs manually, so you need to make sure to process the job faster than the lockDuration to avoid the "QueueScheduler" to move the job back to the waiting list of the queue or you can extend the lock for the job manually:
+When using standard worker processors the lock is renewed automatically after half lock duration time has passed, however, this mechanism does not exist when processing jobs manually, so you need to make sure to process the job faster than the lockDuration to avoid the "QueueScheduler" to move the job back to the waiting list of the queue or you can extend the lock for the job manually:
 
 ```typescript
 const job = (await worker.getNextJob(token)) as Job;
@@ -46,7 +46,7 @@ await job.extendLock(token, 30000);
 
 ## Looping through jobs
 
-In many cases you will have an "infinite" loop that processes jobs one by one like this example:
+In many cases, you will have an "infinite" loop that processes jobs one by one like this example:
 
 ```typescript
 const worker = new Worker('my-queue');
@@ -81,4 +81,3 @@ while (1) {
   }
 }
 ```
-

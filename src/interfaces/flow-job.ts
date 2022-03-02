@@ -16,5 +16,8 @@ export type FlowQueuesOpts = Record<
 >;
 
 export interface FlowOpts {
+  /**
+   * Map of options for Queue classes.
+   */
   queuesOptions: FlowQueuesOpts;
 }

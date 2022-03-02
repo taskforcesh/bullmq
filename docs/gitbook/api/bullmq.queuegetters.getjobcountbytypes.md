@@ -11,14 +11,14 @@ Queue\#getJobCountByTypes('completed') =<!-- -->&gt; completed count Queue\#getJ
 <b>Signature:</b>
 
 ```typescript
-getJobCountByTypes(...types: string[]): Promise<number>;
+getJobCountByTypes(...types: JobType[]): Promise<number>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  types | string\[\] |  |
+|  types | [JobType](./bullmq.jobtype.md)<!-- -->\[\] |  |
 
 <b>Returns:</b>
 

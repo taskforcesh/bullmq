@@ -21,8 +21,10 @@ import {
   QueueSchedulerOptions,
   RedisClient,
   WorkerOptions,
+  KeepJobs,
 } from '../interfaces';
-import { ErrorCodes } from '../enums';
+import { JobState, FinishedTarget, FinishedPropValAttribute } from '../types';
+import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
 import { QueueScheduler } from './queue-scheduler';
@@ -201,6 +203,23 @@ export class Scripts {
     return (<any>client).extendLock(args);
   }
 
+  static async updateData<T = any, R = any, N extends string = string>(
+    queue: MinimalQueue,
+    job: Job<T, R, N>,
+    data: T,
+  ): Promise<void> {
+    const client = await queue.client;
+
+    const keys = [queue.toKey(job.id)];
+    const dataJson = JSON.stringify(data);
+
+    const result = await (<any>client).updateData(keys.concat([dataJson]));
+
+    if (result < 0) {
+      throw this.finishedErrors(result, job.id, 'updateData');
+    }
+  }
+
   static async updateProgress<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
@@ -211,10 +230,9 @@ export class Scripts {
     const keys = [queue.toKey(job.id), queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
-    const result = await (<any>client).updateProgress(keys, [
-      job.id,
-      progressJson,
-    ]);
+    const result = await (<any>client).updateProgress(
+      keys.concat([job.id, progressJson]),
+    );
 
     if (result < 0) {
       throw this.finishedErrors(result, job.id, 'updateProgress');
@@ -227,9 +245,9 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job<T, R, N>,
     val: any,
-    propVal: string,
-    shouldRemove: boolean | number,
-    target: string,
+    propVal: FinishedPropValAttribute,
+    shouldRemove: boolean | number | KeepJobs,
+    target: FinishedTarget,
     token: string,
     fetchNext = true,
   ) {
@@ -247,12 +265,13 @@ export class Scripts {
       queueKeys.stalled,
     ];
 
-    let remove;
-    if (typeof shouldRemove === 'boolean') {
-      remove = shouldRemove ? '1' : '0';
-    } else if (typeof shouldRemove === 'number') {
-      remove = `${shouldRemove + 1}`;
-    }
+    const keepJobs = pack(
+      typeof shouldRemove === 'object'
+        ? shouldRemove
+        : typeof shouldRemove === 'number'
+        ? { count: shouldRemove }
+        : { count: shouldRemove ? 0 : -1 },
+    );
 
     const args = [
       job.id,
@@ -260,7 +279,7 @@ export class Scripts {
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      remove,
+      keepJobs,
       JSON.stringify({ jobId: job.id, val: val }),
       !fetchNext || queue.closing || opts.limiter ? 0 : 1,
       queueKeys[''],
@@ -269,27 +288,30 @@ export class Scripts {
       job.opts?.parent?.id,
       job.opts?.parent?.queue,
       job.parentKey,
+      job.opts.attempts,
+      job.attemptsMade,
     ];
 
     return keys.concat(args);
   }
 
   private static async moveToFinished<
-    T = any,
-    R = any,
-    N extends string = string,
+    DataType = any,
+    ReturnType = any,
+    NameType extends string = string,
   >(
     queue: MinimalQueue,
-    job: Job<T, R, N>,
+    job: Job<DataType, ReturnType, NameType>,
     val: any,
-    propVal: string,
-    shouldRemove: boolean | number,
-    target: string,
+    propVal: FinishedPropValAttribute,
+    shouldRemove: boolean | number | KeepJobs,
+    target: FinishedTarget,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
     const client = await queue.client;
-    const args = this.moveToFinishedArgs<T, R, N>(
+
+    const args = this.moveToFinishedArgs<DataType, ReturnType, NameType>(
       queue,
       job,
       val,
@@ -315,25 +337,25 @@ export class Scripts {
     state?: string,
   ): Error {
     switch (code) {
-      case ErrorCodes.JobNotExist:
+      case ErrorCode.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
-      case ErrorCodes.JobLockNotExist:
+      case ErrorCode.JobLockNotExist:
         return new Error(`Missing lock for job ${jobId}. ${command}`);
-      case ErrorCodes.JobNotInState:
+      case ErrorCode.JobNotInState:
         return new Error(
           `Job ${jobId} is not in the ${state} state. ${command}`,
         );
-      case ErrorCodes.JobPendingDependencies:
+      case ErrorCode.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
-      case ErrorCodes.ParentJobNotExist:
+      case ErrorCode.ParentJobNotExist:
         return new Error(`Missing key for parent job ${jobId}. ${command}`);
     }
   }
 
-  static drainArgs(queue: MinimalQueue, delayed: boolean): string[] {
+  static drainArgs(queue: MinimalQueue, delayed: boolean): (string | number)[] {
     const queueKeys = queue.keys;
 
-    const keys = [
+    const keys: (string | number)[] = [
       queueKeys.wait,
       queueKeys.paused,
       delayed ? queueKeys.delayed : '',
@@ -356,7 +378,7 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job<T, R, N>,
     returnvalue: any,
-    removeOnComplete: boolean | number,
+    removeOnComplete: boolean | number | KeepJobs,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
@@ -376,9 +398,10 @@ export class Scripts {
     queue: MinimalQueue,
     job: Job<T, R, N>,
     failedReason: string,
-    removeOnFailed: boolean | number,
+    removeOnFailed: boolean | number | KeepJobs,
     token: string,
     fetchNext = false,
+    retriesExhausted = 0,
   ) {
     return this.moveToFinishedArgs(
       queue,
@@ -408,7 +431,10 @@ export class Scripts {
     );
   }
 
-  static async getState(queue: MinimalQueue, jobId: string): Promise<string> {
+  static async getState(
+    queue: MinimalQueue,
+    jobId: string,
+  ): Promise<JobState | 'unknown'> {
     const client = await queue.client;
 
     const keys = [
@@ -604,7 +630,7 @@ export class Scripts {
   static retryJobArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
-  ) {
+  ): string[] {
     const jobId = job.id;
 
     const keys = ['active', 'wait', jobId].map(function (name) {
@@ -616,6 +642,30 @@ export class Scripts {
     const pushCmd = (job.opts.lifo ? 'R' : 'L') + 'PUSH';
 
     return keys.concat([pushCmd, jobId]);
+  }
+
+  private static retryJobsArgs(
+    queue: MinimalQueue,
+    count: number,
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      queue.toKey(''),
+      queue.keys.events,
+      queue.toKey('failed'),
+      queue.toKey('wait'),
+    ];
+
+    const args = [count];
+
+    return keys.concat(args);
+  }
+
+  static async retryJobs(queue: MinimalQueue, count = 1000): Promise<number> {
+    const client = await queue.client;
+
+    const args = this.retryJobsArgs(queue, count);
+
+    return (<any>client).retryJobs(args);
   }
 
   /**
@@ -646,7 +696,11 @@ export class Scripts {
       queue.toKey('wait'),
     ];
 
-    const args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH'];
+    const args = [
+      job.id,
+      (job.opts.lifo ? 'R' : 'L') + 'PUSH',
+      state === 'failed' ? 'failedReason' : 'returnvalue',
+    ];
 
     const result = await (<any>client).reprocessJob(keys.concat(args));
 
@@ -654,7 +708,7 @@ export class Scripts {
       case 1:
         return;
       default:
-        throw this.finishedErrors(result, job.id, 'reprocessJob', 'failed');
+        throw this.finishedErrors(result, job.id, 'reprocessJob', state);
     }
   }
 

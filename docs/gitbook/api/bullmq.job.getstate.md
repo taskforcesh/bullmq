@@ -9,11 +9,11 @@ Get current state.
 <b>Signature:</b>
 
 ```typescript
-getState(): Promise<string>;
+getState(): Promise<JobState | 'unknown'>;
 ```
 <b>Returns:</b>
 
-Promise&lt;string&gt;
+Promise&lt;[JobState](./bullmq.jobstate.md) \| 'unknown'&gt;
 
 Returns one of these values: 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
 
