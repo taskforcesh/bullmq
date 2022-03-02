@@ -49,7 +49,13 @@ export class QueueGetters<
     const currentTypes = typeof types === 'string' ? [types] : types;
 
     if (Array.isArray(currentTypes) && currentTypes.length > 0) {
-      return [...new Set(currentTypes)];
+      const sanitizedTypes = [...currentTypes];
+
+      if (sanitizedTypes.indexOf('waiting') !== -1) {
+        sanitizedTypes.push('paused');
+      }
+
+      return [...new Set(sanitizedTypes)];
     }
 
     return [
@@ -145,7 +151,7 @@ export class QueueGetters<
    * Returns the number of jobs in waiting or paused statuses.
    */
   getWaitingCount(): Promise<number> {
-    return this.getJobCountByTypes('waiting', 'paused');
+    return this.getJobCountByTypes('waiting');
   }
 
   /**
@@ -252,9 +258,6 @@ export class QueueGetters<
   ): Promise<Job<DataType, ResultType, NameType>[]> {
     types = this.sanitizeJobTypes(types);
 
-    if (types.indexOf('waiting') !== -1) {
-      types = types.concat(['paused']);
-    }
     const jobIds = await this.getRanges(types, start, end, asc);
 
     return Promise.all(
