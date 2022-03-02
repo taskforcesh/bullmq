@@ -1,6 +1,6 @@
 # Removing job
 
-Sometimes it is necessary to remove a job. For example there could be a job that has bad data.
+Sometimes it is necessary to remove a job. For example, there could be a job that has bad data.
 
 ```typescript
 import { Queue } from 'bullmq';
