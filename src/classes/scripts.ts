@@ -254,6 +254,8 @@ export class Scripts {
     const queueKeys = queue.keys;
     const opts: WorkerOptions = <WorkerOptions>queue.opts;
 
+    const metricsKey = queue.toKey(`metrics:${target}`);
+
     const keys = [
       queueKeys.active,
       queueKeys[target],
@@ -263,6 +265,7 @@ export class Scripts {
       queueKeys.events,
       queueKeys.meta,
       queueKeys.stalled,
+      metricsKey,
     ];
 
     const keepJobs = pack(
@@ -290,6 +293,7 @@ export class Scripts {
       job.parentKey,
       job.opts.attempts,
       job.attemptsMade,
+      opts.metrics?.maxDataPoints,
     ];
 
     return keys.concat(args);
