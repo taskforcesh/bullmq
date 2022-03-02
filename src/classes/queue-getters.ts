@@ -45,6 +45,24 @@ export class QueueGetters<
     });
   }
 
+  private sanitizeJobTypes(types: JobType[] | JobType | undefined): JobType[] {
+    const currentTypes = typeof types === 'string' ? [types] : types;
+
+    if (Array.isArray(currentTypes) && currentTypes.length > 0) {
+      return [...new Set(currentTypes)];
+    }
+
+    return [
+      'active',
+      'completed',
+      'delayed',
+      'failed',
+      'paused',
+      'waiting',
+      'waiting-children',
+    ];
+  }
+
   /**
     Returns the number of jobs waiting to be processed.
   */
@@ -78,17 +96,7 @@ export class QueueGetters<
   async getJobCounts(...types: JobType[]): Promise<{
     [index: string]: number;
   }> {
-    const currentTypes: JobType[] = types.length
-      ? types
-      : [
-          'active',
-          'completed',
-          'delayed',
-          'failed',
-          'paused',
-          'waiting',
-          'waiting-children',
-        ];
+    const currentTypes = this.sanitizeJobTypes(types);
 
     const client = await this.client;
     const multi = client.multi();
@@ -237,12 +245,12 @@ export class QueueGetters<
   }
 
   async getJobs(
-    types: JobType[] | JobType,
+    types?: JobType[] | JobType,
     start = 0,
     end = -1,
     asc = false,
   ): Promise<Job<DataType, ResultType, NameType>[]> {
-    types = Array.isArray(types) ? types : [types];
+    types = this.sanitizeJobTypes(types);
 
     if (types.indexOf('waiting') !== -1) {
       types = types.concat(['paused']);
