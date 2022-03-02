@@ -7,7 +7,6 @@ import {
   FlowQueuesOpts,
   FlowOpts,
   QueueBaseOptions,
-  QueueOptions,
   RedisClient,
 } from '../interfaces';
 import { getParentKey, jobIdForGroup } from '../utils';
@@ -119,11 +118,23 @@ export class FlowProducer extends EventEmitter {
     const client = await this.connection.client;
     const multi = client.multi();
 
+    const parentOpts = flow?.opts?.parent;
+    const parentKey = getParentKey(parentOpts);
+    const parentDependenciesKey = parentKey
+      ? `${parentKey}:dependencies`
+      : undefined;
+
     const jobsTree = this.addNode({
       multi,
       node: flow,
       queuesOpts: opts?.queuesOptions,
+      parent: {
+        parentOpts,
+        parentDependenciesKey,
+      },
     });
+
+    const result = await multi.exec();
 
     await multi.exec();
 
