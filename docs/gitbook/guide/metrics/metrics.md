@@ -3,8 +3,7 @@
 BullMQ provides a simple metrics gathering functionality that allows you to track the performance of your queues.
 The workers can count the number of jobs they have processed per minute and store this data in a list to be consumed later.
 
-You enable it on the worker settings by specifying how many data points you want to keep, we recommend 2 weeks of metrics data which
-should take a very small amount of space, just around 120Kb of RAM per queue.
+You enable it on the worker settings by specifying how many data points you want to keep, we recommend 2 weeks of metrics data which should take a very small amount of space, just around 120Kb of RAM per queue.
 
 ```typescript
 import { Worker, MetricsTime } from 'bullmq';
@@ -21,8 +20,7 @@ const myWorker = new Worker('Paint', {
 You need to use the same setting on all your workers to get consistent metrics.
 {% endhint %}
 
-In order to get the metrics you just use the `getMetrics` method on the Queue class. You can choose to get the metrics
-for the completed or failed jobs:
+In order to get the metrics you just use the `getMetrics` method on the Queue class. You can choose to get the metrics for the completed or failed jobs:
 
 ```typescript
 import { Queue } from 'bullmq';
