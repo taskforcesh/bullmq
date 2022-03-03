@@ -45,22 +45,14 @@
       'completed/failed'
 ]] local rcall = redis.call
 
-<<<<<<< HEAD:src/commands/moveToFinished-8.lua
--- Includes
---- @include "includes/updateParentDepsIfNeeded"
---- @include "includes/updateParentIfNeeded"
-=======
 --- Includes
->>>>>>> master:src/commands/moveToFinished-9.lua
+--- @include "includes/collectMetrics"
 --- @include "includes/destructureJobKey"
 --- @include "includes/moveJobFromWaitToActive"
+--- @include "includes/moveParentToWaitifNeeded"
 --- @include "includes/removeJob"
 --- @include "includes/trimEvents"
-<<<<<<< HEAD:src/commands/moveToFinished-8.lua
-=======
 --- @include "includes/updateParentDepsIfNeeded"
---- @include "includes/collectMetrics"
->>>>>>> master:src/commands/moveToFinished-9.lua
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -110,7 +102,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
                                         parentId, jobIdKey, ARGV[4])
             elseif ARGV[18] == "1" then
-                updateParentIfNeeded(parentQueueKey, dependenciesSet, parentId )
+                moveParentToWaitifNeeded(parentQueueKey, dependenciesSet, parentId )
             end
         end
     end

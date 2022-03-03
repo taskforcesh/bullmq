@@ -2,7 +2,7 @@
   Validate and move parent to active if needed.
 ]]
 
-local function updateParentIfNeeded(parentQueueKey, parentDependenciesKey, parentId )
+local function moveParentToWaitifNeeded(parentQueueKey, parentDependenciesKey, parentId )
   local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
   if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
