@@ -35,3 +35,7 @@ In order for delay jobs to work you need to have at least one _QueueScheduler_ s
 {% endhint %}
 
 There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remaining of this guide for more information regarding these options.
+
+## Read more:
+
+- 💡 [Queue API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.md)
