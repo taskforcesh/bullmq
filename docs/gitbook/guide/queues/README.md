@@ -14,7 +14,7 @@ See [Connections](../connections.md) for details on how to pass Redis details to
 
 When you instance a Queue, BullMQ will just _upsert_ a small "meta-key", so if the queue existed before it will just pick it up and you can continue adding jobs to it.
 
-The most important method is probably the [_**add**_](./bullmq.queue.add.md) method. This method allows you to add jobs to the queue in different fashions:
+The most important method is probably the [_**add**_](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.add.md) method. This method allows you to add jobs to the queue in different fashions:
 
 ```typescript
 await queue.add('paint', { colour: 'red' });
