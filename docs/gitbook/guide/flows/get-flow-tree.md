@@ -1,6 +1,6 @@
 # Get Flow Tree
 
-In some situations you need to get a job and all of its children, grandchildren and so on.
+In some situations, you need to get a job and all of its children, grandchildren and so on.
 
 The pattern to solve this requirement consists on using [getFlow](./bullmq.flowproducer.getflow.md) method.
 
