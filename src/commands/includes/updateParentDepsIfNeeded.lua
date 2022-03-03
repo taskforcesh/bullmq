@@ -3,11 +3,11 @@
 ]]
 
 -- Includes
---- @include "moveParentToWaitifNeeded"
+--- @include "moveParentToWaitIfNeeded"
 
 local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
   parentId, jobIdKey, returnvalue )
   local processedSet = parentKey .. ":processed"
   rcall("HSET", processedSet, jobIdKey, returnvalue)
-  moveParentToWaitifNeeded(parentQueueKey, parentDependenciesKey, parentId )
+  moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey, parentId )
 end

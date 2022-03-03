@@ -49,7 +49,7 @@
 --- @include "includes/collectMetrics"
 --- @include "includes/destructureJobKey"
 --- @include "includes/moveJobFromWaitToActive"
---- @include "includes/moveParentToWaitifNeeded"
+--- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeJob"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
@@ -102,7 +102,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
                                         parentId, jobIdKey, ARGV[4])
             elseif ARGV[18] == "1" then
-                moveParentToWaitifNeeded(parentQueueKey, dependenciesSet, parentId )
+                moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet, parentId )
             end
         end
     end
