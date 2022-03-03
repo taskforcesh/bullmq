@@ -4,3 +4,6 @@ Queues can hold different types of jobs which determine how and when they are pr
 
 An important thing to consider is that you can mix the different job types in the same queue, so you can add FIFO jobs, and at any moment add a LIFO or a delayed job.
 
+## Read more:
+
+- 💡 [Job API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.job.md)

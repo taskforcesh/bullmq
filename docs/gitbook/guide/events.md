@@ -32,7 +32,7 @@ myWorker.on('failed', (job: Job) => {
 });
 ```
 
-The events above are local for the workers that actually completed the jobs, however, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [QueueEvents](./bullmq.queueevents.md) class:
+The events above are local for the workers that actually completed the jobs, however, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [QueueEvents](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queueevents.md) class:
 
 ```typescript
 import { QueueEvents } from 'bullmq';
