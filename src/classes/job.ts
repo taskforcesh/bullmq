@@ -281,7 +281,7 @@ export class Job<
     return job;
   }
 
-  static optsFromJSON(rawOpts?: string): JobsOptions {
+  private static optsFromJSON(rawOpts?: string): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
 
     const optionEntries = Object.entries(opts) as Array<

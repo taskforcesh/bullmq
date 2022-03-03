@@ -3,8 +3,8 @@
 ]]
 
 local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey, parentId )
-  local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
-  if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
+  local isParentActive = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
+  if rcall("SCARD", parentDependenciesKey) == 0 and isParentActive then 
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
     if rcall("HEXISTS", parentQueueKey .. ":meta", "paused") ~= 1 then
       rcall("RPUSH", parentQueueKey .. ":wait", parentId)
