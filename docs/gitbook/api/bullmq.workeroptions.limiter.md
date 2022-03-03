@@ -4,6 +4,8 @@
 
 ## WorkerOptions.limiter property
 
+Enable rate limiter
+
 <b>Signature:</b>
 
 ```typescript

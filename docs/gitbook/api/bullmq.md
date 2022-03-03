@@ -10,18 +10,22 @@
 |  --- | --- |
 |  [Backoffs](./bullmq.backoffs.md) |  |
 |  [ChildPool](./bullmq.childpool.md) |  |
+|  [ChildProcessor](./bullmq.childprocessor.md) | ChildProcessor<!-- -->This class acts as the interface between a child process and it parent process so that jobs can be processed in different processes than the parent. |
 |  [FlowProducer](./bullmq.flowproducer.md) | This class allows to add jobs with dependencies between them in such a way that it is possible to build complex flows. Note: A flow is a tree-like structure of jobs that depend on each other. Whenever the children of a given parent are completed, the parent will be processed, being able to access the children's result data. All Jobs can be in different queues, either children or parents, |
 |  [Job](./bullmq.job.md) |  |
 |  [Queue](./bullmq.queue.md) | Queue<!-- -->This class provides methods to add jobs to a queue and some othe high-level administration such as pausing or deleting queues. |
+|  [Queue3](./bullmq.queue3.md) |  |
 |  [QueueBase](./bullmq.queuebase.md) |  |
 |  [QueueEvents](./bullmq.queueevents.md) | The QueueEvents class is used for listening to the global events emitted by a given queue.<!-- -->This class requires a dedicated redis connection. |
 |  [QueueGetters](./bullmq.queuegetters.md) |  |
+|  [QueueKeys](./bullmq.queuekeys.md) |  |
 |  [QueueScheduler](./bullmq.queuescheduler.md) | This class is just used for some automatic bookkeeping of the queue, such as updating the delay set as well as moving stalled jobs back to the waiting list.<!-- -->Jobs are checked for stallness once every "visibility window" seconds. Jobs are then marked as candidates for being stalled, in the next check, the candidates are marked as stalled and moved to wait. Workers need to clean the candidate list with the jobs that they are working on, failing to update the list results in the job ending being stalled.<!-- -->This class requires a dedicated redis connection, and at least one is needed to be running at a given time, otherwise delays, stalled jobs, retries, repeatable jobs, etc, will not work correctly or at all. |
 |  [RedisConnection](./bullmq.redisconnection.md) |  |
 |  [Repeat](./bullmq.repeat.md) |  |
 |  [ScriptLoader](./bullmq.scriptloader.md) | Lua script loader with include support |
 |  [ScriptLoaderError](./bullmq.scriptloadererror.md) |  |
 |  [Scripts](./bullmq.scripts.md) |  |
+|  [TimerManager](./bullmq.timermanager.md) | Keeps track on timers created with setTimeout to help clearTimeout for all timers when no more delayed actions needed |
 |  [UnrecoverableError](./bullmq.unrecoverableerror.md) | UnrecoverableError<!-- -->Error to move a job to failed even if the attemptsMade are lower than the expected limit. |
 |  [Worker](./bullmq.worker.md) | This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs. |
 
@@ -32,6 +36,7 @@
 |  [ChildCommand](./bullmq.childcommand.md) |  |
 |  [ClientType](./bullmq.clienttype.md) |  |
 |  [ErrorCode](./bullmq.errorcode.md) |  |
+|  [MetricsTime](./bullmq.metricstime.md) |  |
 |  [ParentCommand](./bullmq.parentcommand.md) |  |
 
 ## Functions
@@ -45,6 +50,7 @@
 |  [isNotConnectionError(error)](./bullmq.isnotconnectionerror.md) |  |
 |  [isRedisInstance(obj)](./bullmq.isredisinstance.md) |  |
 |  [jobIdForGroup(jobOpts, data, queueOpts)](./bullmq.jobidforgroup.md) |  |
+|  [killAsync(child, signal, timeoutMs)](./bullmq.killasync.md) | Sends a kill signal to a child resolving when the child has exited, resorting to SIGKILL if the given timeout is reached |
 |  [lengthInUtf8Bytes(str)](./bullmq.lengthinutf8bytes.md) | Checks the size of string for ascii/non-ascii characters |
 |  [raw2jobData(raw)](./bullmq.raw2jobdata.md) |  |
 |  [removeAllQueueData(client, queueName, prefix)](./bullmq.removeallqueuedata.md) |  |
@@ -66,11 +72,15 @@
 |  [FlowOpts](./bullmq.flowopts.md) |  |
 |  [GetNextJobOptions](./bullmq.getnextjoboptions.md) |  |
 |  [IConnection](./bullmq.iconnection.md) |  |
+|  [JobInformation3](./bullmq.jobinformation3.md) |  |
 |  [JobJson](./bullmq.jobjson.md) |  |
 |  [JobJsonRaw](./bullmq.jobjsonraw.md) |  |
 |  [JobNode](./bullmq.jobnode.md) |  |
+|  [JobPromise3](./bullmq.jobpromise3.md) |  |
 |  [JobsOptions](./bullmq.jobsoptions.md) |  |
 |  [KeepJobs](./bullmq.keepjobs.md) | KeepJobs<!-- -->Specify which jobs to keep after finishing. If both age and count are specified, then the jobs kept will be the ones that satisfies both properties. |
+|  [Metrics](./bullmq.metrics.md) |  |
+|  [MetricsOptions](./bullmq.metricsoptions.md) |  |
 |  [MoveToChildrenOpts](./bullmq.movetochildrenopts.md) |  |
 |  [NodeOpts](./bullmq.nodeopts.md) |  |
 |  [ObliterateOpts](./bullmq.obliterateopts.md) |  |
@@ -109,24 +119,36 @@
 
 |  Type Alias | Description |
 |  --- | --- |
+|  [ActiveEventCallback3](./bullmq.activeeventcallback3.md) |  |
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
 |  [BulkJobOptions](./bullmq.bulkjoboptions.md) |  |
+|  [CleanedEventCallback3](./bullmq.cleanedeventcallback3.md) |  |
+|  [CompletedEventCallback3](./bullmq.completedeventcallback3.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
 |  [EntryId](./bullmq.entryid.md) |  |
 |  [EntryRaw](./bullmq.entryraw.md) |  |
+|  [ErrorEventCallback3](./bullmq.erroreventcallback3.md) |  |
+|  [EventCallback3](./bullmq.eventcallback3.md) |  |
+|  [FailedEventCallback3](./bullmq.failedeventcallback3.md) |  |
 |  [FinishedPropValAttribute](./bullmq.finishedpropvalattribute.md) |  |
 |  [FinishedStatus](./bullmq.finishedstatus.md) |  |
 |  [FlowQueuesOpts](./bullmq.flowqueuesopts.md) |  |
 |  [JobData](./bullmq.jobdata.md) |  |
 |  [JobJsonSandbox](./bullmq.jobjsonsandbox.md) |  |
 |  [JobState](./bullmq.jobstate.md) |  |
+|  [JobStatusClean3](./bullmq.jobstatusclean3.md) |  |
 |  [JobType](./bullmq.jobtype.md) |  |
+|  [KeysMap](./bullmq.keysmap.md) |  |
 |  [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  [ParentOpts](./bullmq.parentopts.md) |  |
 |  [Processor](./bullmq.processor.md) | An async function that receives <code>Job</code>s and handles them. |
+|  [ProgressEventCallback3](./bullmq.progresseventcallback3.md) |  |
 |  [RedisClient](./bullmq.redisclient.md) |  |
 |  [RedisOptions](./bullmq.redisoptions.md) |  |
+|  [RemovedEventCallback3](./bullmq.removedeventcallback3.md) |  |
 |  [SandboxedJobProcessor](./bullmq.sandboxedjobprocessor.md) |  |
+|  [StalledEventCallback3](./bullmq.stalledeventcallback3.md) |  |
 |  [StreamName](./bullmq.streamname.md) |  |
 |  [StreamReadRaw](./bullmq.streamreadraw.md) |  |
+|  [WaitingEventCallback3](./bullmq.waitingeventcallback3.md) |  |
 

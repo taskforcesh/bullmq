@@ -5,6 +5,7 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg } from '../utils';
 import { JobType } from '../types';
+import { Metrics } from '../interfaces';
 
 export class QueueGetters<
   DataType,
@@ -309,6 +310,53 @@ export class QueueGetters<
         throw err;
       }
     }
+  }
+
+  /**
+   * Get queue metrics related to the queue.
+   *
+   * This method returns the gathered metrics for the queue.
+   * The metrics are represented as an array of job counts
+   * per unit of time (1 minute).
+   *
+   * @param start - Start point of the metrics, where 0
+   * is the newest point to be returned.
+   * @param end - End poinf of the metrics, where -1 is the
+   * oldest point to be returned.
+   *
+   * @returns - Returns an object with queue metrics.
+   */
+  async getMetrics(
+    type: 'completed' | 'failed',
+    start = 0,
+    end = -1,
+  ): Promise<Metrics> {
+    const client = await this.client;
+    const metricsKey = this.toKey(`metrics:${type}`);
+    const dataKey = `${metricsKey}:data`;
+
+    const multi = client.multi();
+    multi.hmget(metricsKey, 'count', 'prevTS', 'prevCount');
+    multi.lrange(dataKey, start, end);
+    multi.llen(dataKey);
+
+    const [hmget, range, len] = await multi.exec();
+    const [err, [count, prevTS, prevCount]] = hmget;
+    const [err2, data] = range;
+    const [err3, numPoints] = len;
+    if (err || err2) {
+      throw err || err2 || err3;
+    }
+
+    return {
+      meta: {
+        count: parseInt(count || '0', 10),
+        prevTS: parseInt(prevTS || '0', 10),
+        prevCount: parseInt(prevCount || '0', 10),
+      },
+      data,
+      count: numPoints,
+    };
   }
 
   private parseClientList(list: string, suffix = '') {

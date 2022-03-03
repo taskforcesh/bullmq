@@ -13,6 +13,7 @@
       KEYS[6] event stream key
       KEYS[7] meta key
       KEYS[8] stalled key
+      KEYS[9] metrics key
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
@@ -30,7 +31,8 @@
       ARGV[14] parentKey
       ARGV[15] max attempts
       ARGV[16] attemptsMade
-      ARGV[17] removeDependencyOnFail
+      ARGV[17] maxMetricsSize
+      ARGV[18] removeDependencyOnFail
 
     Output:
       0 OK
@@ -41,16 +43,24 @@
 
     Events:
       'completed/failed'
-]]
-local rcall = redis.call
+]] local rcall = redis.call
 
+<<<<<<< HEAD:src/commands/moveToFinished-8.lua
 -- Includes
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/updateParentIfNeeded"
+=======
+--- Includes
+>>>>>>> master:src/commands/moveToFinished-9.lua
 --- @include "includes/destructureJobKey"
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/removeJob"
 --- @include "includes/trimEvents"
+<<<<<<< HEAD:src/commands/moveToFinished-8.lua
+=======
+--- @include "includes/updateParentDepsIfNeeded"
+--- @include "includes/collectMetrics"
+>>>>>>> master:src/commands/moveToFinished-9.lua
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -74,9 +84,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- Remove from active list (if not active we shall return error)
     local numRemovedElements = rcall("LREM", KEYS[1], -1, jobId)
 
-    if (numRemovedElements < 1) then
-      return -3
-    end
+    if (numRemovedElements < 1) then return -3 end
 
     -- Trim events before emiting them to avoid trimming events emitted in this script
     trimEvents(KEYS[7], KEYS[6])
@@ -93,7 +101,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         parentId = getJobIdFromKey(ARGV[14])
         parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
     end
-    if parentId ~= "" and (ARGV[5] == "completed" or ARGV[17] == "1")then
+    if parentId ~= "" and (ARGV[5] == "completed" or ARGV[18] == "1")then
         local parentKey = parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
@@ -101,7 +109,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if ARGV[5] == "completed" then
                 updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
                                         parentId, jobIdKey, ARGV[4])
-            elseif ARGV[17] == "1" then
+            elseif ARGV[18] == "1" then
                 updateParentIfNeeded(parentQueueKey, dependenciesSet, parentId )
             end
         end
@@ -123,14 +131,18 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if maxAge ~= nil then
             local start = timestamp - maxAge * 1000
             local jobIds = rcall("ZREVRANGEBYSCORE", targetSet, start, "-inf")
-            for i, jobId in ipairs(jobIds) do removeJob(jobId, false, prefix) end
+            for i, jobId in ipairs(jobIds) do
+                removeJob(jobId, false, prefix)
+            end
             rcall("ZREMRANGEBYSCORE", targetSet, "-inf", start)
         end
 
         if maxCount ~= nil and maxCount > 0 then
             local start = maxCount
             local jobIds = rcall("ZREVRANGE", targetSet, start, -1)
-            for i, jobId in ipairs(jobIds) do removeJob(jobId, false, prefix) end
+            for i, jobId in ipairs(jobIds) do
+                removeJob(jobId, false, prefix)
+            end
             rcall("ZREMRANGEBYRANK", targetSet, 0, -(maxCount + 1))
         end
     else
@@ -145,6 +157,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId",
                   jobId, "attemptsMade", ARGV[16])
         end
+    end
+
+    -- Collect metrics
+    if ARGV[17] ~= "" then
+        collectMetrics(KEYS[9], KEYS[9]..':data', ARGV[17], timestamp)
     end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,

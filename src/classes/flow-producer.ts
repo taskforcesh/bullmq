@@ -7,7 +7,6 @@ import {
   FlowQueuesOpts,
   FlowOpts,
   QueueBaseOptions,
-  QueueOptions,
   RedisClient,
 } from '../interfaces';
 import { getParentKey, jobIdForGroup } from '../utils';
