@@ -2,7 +2,24 @@
 
 When jobs are added to a queue, they will be in different statuses during their lifetime. BullMQ provides methods to retrieve information and jobs from the different statuses.
 
-![](../../.gitbook/assets/image.png)
+```mermaid
+stateDiagram-v2
+state "Job Added" as ja
+state "Job Finished" as jf
+state "waiting-children" as wc
+    ja --> wc
+    ja --> wait
+    ja --> delayed
+    wc --> wait : when all children are completed
+    wait --> active
+    wait --> delayed : when it's in rate limit
+    delayed --> wait
+    active --> completed
+    active --> failed
+    completed --> jf
+    failed --> jf
+    active --> delayed : when error and auto retry is enabled
+```
 
 #### Job Counts
 
