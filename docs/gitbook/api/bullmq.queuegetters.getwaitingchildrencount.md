@@ -4,6 +4,8 @@
 
 ## QueueGetters.getWaitingChildrenCount() method
 
+Returns the number of jobs in waiting-children status.
+
 <b>Signature:</b>
 
 ```typescript

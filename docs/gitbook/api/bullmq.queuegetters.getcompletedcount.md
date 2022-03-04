@@ -4,6 +4,8 @@
 
 ## QueueGetters.getCompletedCount() method
 
+Returns the number of jobs in completed status.
+
 <b>Signature:</b>
 
 ```typescript
