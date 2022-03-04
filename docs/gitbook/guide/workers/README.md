@@ -87,3 +87,7 @@ It is also possible to specify the data types for the Job data and return value 
 ```typescript
 const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {});
 ```
+
+## Read more:
+
+- 💡 [Worker API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.worker.md)

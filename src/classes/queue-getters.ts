@@ -105,28 +105,46 @@ export class QueueGetters<
     return counts;
   }
 
+  /**
+   * Returns the number of jobs in completed status.
+   */
   getCompletedCount(): Promise<number> {
     return this.getJobCountByTypes('completed');
   }
 
+  /**
+   * Returns the number of jobs in failed status.
+   */
   getFailedCount(): Promise<number> {
     return this.getJobCountByTypes('failed');
   }
 
+  /**
+   * Returns the number of jobs in delayed status.
+   */
   getDelayedCount(): Promise<number> {
     return this.getJobCountByTypes('delayed');
   }
 
+  /**
+   * Returns the number of jobs in active status.
+   */
   getActiveCount(): Promise<number> {
     return this.getJobCountByTypes('active');
   }
 
+  /**
+   * Returns the number of jobs in waiting or paused statuses.
+   */
   getWaitingCount(): Promise<number> {
     return this.getJobCountByTypes('waiting', 'paused');
   }
 
+  /**
+   * Returns the number of jobs in waiting-children status.
+   */
   getWaitingChildrenCount(): Promise<number> {
-    return this.getJobCountByTypes('waiting-children', 'paused');
+    return this.getJobCountByTypes('waiting-children');
   }
 
   getWaiting(

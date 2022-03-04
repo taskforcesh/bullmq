@@ -452,7 +452,7 @@ describe('flows', () => {
       );
 
       const processingParent = new Promise<void>((resolve, reject) => [
-        (parentProcessor = async (job: Job) => {
+        (parentProcessor = async () => {
           try {
             resolve();
           } catch (err) {
@@ -527,11 +527,11 @@ describe('flows', () => {
 
   describe('when continually adding jobs', async () => {
     it('adds jobs that do not exists', async () => {
-      const worker = new Worker(queueName, async (job: Job) => {}, {
+      const worker = new Worker(queueName, async () => {}, {
         connection,
       });
 
-      const completing1 = new Promise<void>((resolve, reject) => {
+      const completing1 = new Promise<void>(resolve => {
         worker.on('completed', (job: Job) => {
           if (job.id === 'wed') {
             resolve();
@@ -576,7 +576,7 @@ describe('flows', () => {
 
       await completing1;
 
-      const completing2 = new Promise<void>((resolve, reject) => {
+      const completing2 = new Promise<void>(resolve => {
         worker.on('completed', (job: Job) => {
           if (job.id === 'thu') {
             resolve();
@@ -722,7 +722,7 @@ describe('flows', () => {
         parentProcessor,
         processedGrandChildren = 0,
         processedChildren = 0;
-      const processingChildren = new Promise<void>((resolve, reject) => {
+      const processingChildren = new Promise<void>(resolve => {
         childrenProcessor = async (job: Job) => {
           processedChildren++;
           await delay(20);
@@ -884,7 +884,7 @@ describe('flows', () => {
     const parentWorker = new Worker(parentQueueName, parentProcessor, {
       connection,
     });
-    const childrenWorker = new Worker(queueName, async job => {}, {
+    const childrenWorker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,

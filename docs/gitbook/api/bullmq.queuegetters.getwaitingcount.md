@@ -4,6 +4,8 @@
 
 ## QueueGetters.getWaitingCount() method
 
+Returns the number of jobs in waiting or paused statuses.
+
 <b>Signature:</b>
 
 ```typescript
