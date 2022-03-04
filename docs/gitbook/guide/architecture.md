@@ -10,8 +10,9 @@ In order to use the full potential of Bull queues, it is important to understand
 
 ```mermaid
 stateDiagram-v2
-state "Job Added" as ja
-state "Job Finished" as jf
+state ja <<fork>>
+state jf <<fork>>
+    [*] --> ja : job added
     ja --> wait
     ja --> delayed
     wait --> active
@@ -22,6 +23,7 @@ state "Job Finished" as jf
     completed --> jf
     failed --> jf
     active --> delayed : when error and auto retry is enabled
+    jf --> [*] : job finished
 ```
 
 When a job is added to a queue it can be in one of two states, it can either be in the “wait” status, which is, in fact, a waiting list, where all jobs must enter before they can be processed, or it can be in a “delayed” status: a delayed status implies that the job is waiting for some timeout or to be promoted for being processed, however, a delayed job will not be processed directly, instead it will be placed at the beginning of the waiting list and processed as soon as a worker is idle.
@@ -32,9 +34,10 @@ Another way to add a job is by the [`add`](https://github.com/taskforcesh/bullmq
 
 ```mermaid
 stateDiagram-v2
-state "Job Added" as ja
-state "Job Finished" as jf
 state "waiting-children" as wc
+state ja <<fork>>
+state jf <<fork>>
+    [*] --> ja : job added
     ja --> wc
     ja --> wait : when there aren't children
     wc --> wait : when all children are completed
@@ -46,6 +49,7 @@ state "waiting-children" as wc
     completed --> jf
     failed --> jf
     active --> delayed : when error and auto retry is enabled
+    jf --> [*] : job finished
 ```
 
 When a job is added by a flow producer, it can be in one of two states, it can either be in the “wait” status, when there aren't children, or it can be in a “waiting-children” status: a waiting-children status implies that the job is waiting for all its children to be completed, however, a waiting-children job will not be processed directly, instead it will be placed at the waiting list and processed as soon as the last child is marked as completed.

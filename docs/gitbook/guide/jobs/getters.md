@@ -4,9 +4,10 @@ When jobs are added to a queue, they will be in different statuses during their 
 
 ```mermaid
 stateDiagram-v2
-state "Job Added" as ja
-state "Job Finished" as jf
 state "waiting-children" as wc
+state ja <<fork>>
+state jf <<fork>>
+    [*] --> ja : job added
     ja --> wc
     ja --> wait
     ja --> delayed
@@ -19,6 +20,7 @@ state "waiting-children" as wc
     completed --> jf
     failed --> jf
     active --> delayed : when error and auto retry is enabled
+    jf --> [*] : job finished
 ```
 
 #### Job Counts
