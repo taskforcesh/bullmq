@@ -21,6 +21,11 @@ export interface QueueBaseOptions {
   sharedConnection?: boolean;
 
   /**
+   * Denotes commands should retry indefinitely.
+   */
+  persistentConnection?: boolean;
+
+  /**
    * Prefix for all queue keys.
    */
   prefix?: string;

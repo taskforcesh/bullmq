@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueBase } from '../src/classes';
-import { RedisClient } from '../src/interfaces';
 import { removeAllQueueData } from '../src/utils';
 
 describe('connection', () => {
@@ -20,26 +19,47 @@ describe('connection', () => {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should override maxRetriesPerRequest: null and enableReadyCheck: false as redis options', async () => {
-    const opts = {
-      connection: {
-        host: 'localhost',
-        maxRetriesPerRequest: 20,
-        enableReadyCheck: true,
-      },
-    };
+  describe('persistent', () => {
+    let options: IORedis.RedisOptions;
 
-    function checkOptions(client: RedisClient) {
-      expect(
-        (<IORedis.RedisOptions>client.options).maxRetriesPerRequest,
-      ).to.be.equal(null);
-      expect(
-        (<IORedis.RedisOptions>client.options).enableReadyCheck,
-      ).to.be.equal(false);
-    }
+    beforeEach(async () => {
+      const queue = new QueueBase(queueName, {
+        connection: {
+          host: 'localhost',
+          maxRetriesPerRequest: 20,
+          enableReadyCheck: true,
+        },
+      });
 
-    const queue = new QueueBase(queueName, opts);
-    checkOptions(await queue.client);
+      options = <IORedis.RedisOptions>(await queue.client).options;
+    });
+
+    it('should override maxRetriesPerRequest: null and enableReadyCheck: false as redis options', () => {
+      expect(options.maxRetriesPerRequest).to.be.equal(null);
+      expect(options.enableReadyCheck).to.be.equal(false);
+    });
+  });
+
+  describe('non-persistent', () => {
+    let options: IORedis.RedisOptions;
+
+    beforeEach(async () => {
+      const queue = new QueueBase(queueName, {
+        connection: {
+          host: 'localhost',
+          maxRetriesPerRequest: 20,
+          enableReadyCheck: true,
+        },
+        persistentConnection: false,
+      });
+
+      options = <IORedis.RedisOptions>(await queue.client).options;
+    });
+
+    it('should not override any redis options', () => {
+      expect(options.maxRetriesPerRequest).to.be.equal(20);
+      expect(options.enableReadyCheck).to.be.equal(true);
+    });
   });
 
   describe('when host belongs to Upstash', async () => {

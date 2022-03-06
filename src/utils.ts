@@ -1,4 +1,4 @@
-import { Cluster } from 'ioredis';
+import { Cluster, Redis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
@@ -60,12 +60,16 @@ export function delay(ms: number): Promise<void> {
   });
 }
 
-export function isRedisInstance(obj: any): boolean {
+export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
   }
   const redisApi = ['connect', 'disconnect', 'duplicate'];
   return redisApi.every(name => typeof obj[name] === 'function');
+}
+
+export function isRedisCluster(obj: unknown): obj is Cluster {
+  return isRedisInstance(obj) && (<Cluster>obj).isCluster;
 }
 
 export async function removeAllQueueData(
