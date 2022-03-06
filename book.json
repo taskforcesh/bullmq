@@ -1,0 +1,8 @@
+{
+  "plugins": ["mermaid-compat"],
+  "pluginsConfig": {
+    "mermaid-compat": {
+      "theme": "forest"
+    }
+  }
+}
