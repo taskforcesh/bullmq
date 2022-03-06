@@ -2918,12 +2918,12 @@ git-raw-commits@^2.0.0:
     split2 "^3.0.0"
     through2 "^4.0.0"
 
-gitbook-plugin-mermaid-compat@^0.1.0:
-  version "0.1.0"
-  resolved "https://registry.yarnpkg.com/gitbook-plugin-mermaid-compat/-/gitbook-plugin-mermaid-compat-0.1.0.tgz#54a7574594efd9f0d671df11ac87a1d41d1dbdbd"
-  integrity sha1-VKdXRZTv2fDWcd8RrIeh1B0dvb0=
+gitbook-plugin-mermaid-compat@^0.2.0-beta1:
+  version "0.2.0-beta1"
+  resolved "https://registry.yarnpkg.com/gitbook-plugin-mermaid-compat/-/gitbook-plugin-mermaid-compat-0.2.0-beta1.tgz#ca6b621b73712391fa6c5c079b4619f91f635cae"
+  integrity sha1-ymtiG3NxI5H6bFwHm0YZ+R9jXK4=
   dependencies:
-    mermaid "^0.5.8"
+    mermaid "^6.0.0"
 
 glob-parent@^5.0.0, glob-parent@^5.1.0:
   version "5.1.2"
@@ -4214,7 +4214,7 @@ lodash@^3.10.0:
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-3.10.1.tgz#5bf45e8e49ba4189e17d482789dfd15bd140b7b6"
   integrity sha1-W/Rejkm6QYnhfUgnid/RW9FAt7Y=
 
-lodash@^4.17.11, lodash@^4.17.12, lodash@^4.17.14, lodash@^4.17.15, lodash@^4.17.19, lodash@^4.17.20, lodash@^4.17.21, lodash@^4.17.4, lodash@^4.2.1, lodash@~4.17.15:
+lodash@^4.17.11, lodash@^4.17.12, lodash@^4.17.14, lodash@^4.17.15, lodash@^4.17.19, lodash@^4.17.20, lodash@^4.17.21, lodash@^4.17.4, lodash@^4.2.1, lodash@^4.6.1, lodash@~4.17.15:
   version "4.17.21"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.21.tgz#679591c564c3bffaae8454cf0b3df370c3d6911c"
   integrity sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==
@@ -4414,16 +4414,17 @@ merge@^2.1.0:
   resolved "https://registry.yarnpkg.com/merge/-/merge-2.1.1.tgz#59ef4bf7e0b3e879186436e8481c06a6c162ca98"
   integrity sha512-jz+Cfrg9GWOZbQAnDQ4hlVnQky+341Yk5ru8bZSe6sIDTCIg8n9i/u7hSQGSVOF3C7lH6mGtqjkiT9G4wFLL0w==
 
-mermaid@^0.5.8:
-  version "0.5.8"
-  resolved "https://registry.yarnpkg.com/mermaid/-/mermaid-0.5.8.tgz#e768ce301bd6b109dfe51c1a5821f6bbc4536061"
-  integrity sha1-52jOMBvWsQnf5RwaWCH2u8RTYGE=
+mermaid@^6.0.0:
+  version "6.0.0"
+  resolved "https://registry.yarnpkg.com/mermaid/-/mermaid-6.0.0.tgz#eaee78164113a5ee1f26a0f16e2a337b9ac6424e"
+  integrity sha1-6u54FkETpe4fJqDxbioze5rGQk4=
   dependencies:
     chalk "^0.5.1"
     d3 "3.5.6"
     dagre "^0.7.4"
     dagre-d3 "0.4.10"
     he "^0.5.0"
+    lodash "^4.6.1"
     minimist "^1.1.0"
     mkdirp "^0.5.0"
     moment "^2.9.0"
