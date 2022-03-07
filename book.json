@@ -1,8 +1,9 @@
 {
-  "plugins": ["mermaid-compat"],
+  "plugins": ["addcssjs", "richquotes"],
   "pluginsConfig": {
-    "mermaid-compat": {
-      "theme": "forest"
+    "addcssjs": {
+      "js": ["./mermaid/mermaid.min.js", "./mermaid/index.js"],
+      "css": []
     }
   }
 }
