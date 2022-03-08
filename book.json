@@ -1,9 +1,0 @@
-{
-  "plugins": ["addcssjs", "richquotes"],
-  "pluginsConfig": {
-    "addcssjs": {
-      "js": ["./mermaid/mermaid.min.js", "./mermaid/index.js"],
-      "css": []
-    }
-  }
-}
