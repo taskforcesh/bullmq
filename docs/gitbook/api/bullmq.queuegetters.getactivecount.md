@@ -4,6 +4,8 @@
 
 ## QueueGetters.getActiveCount() method
 
+Returns the number of jobs in active status.
+
 <b>Signature:</b>
 
 ```typescript
