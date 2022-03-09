@@ -191,7 +191,7 @@ describe('events', function () {
     await worker.close();
   });
 
-  it('emits drained event when all jobs have been processed', async function () {
+  it('emits drained event in worker when all jobs have been processed', async function () {
     const worker = new Worker(queueName, async job => {}, {
       drainDelay: 1,
       connection,
@@ -203,8 +203,10 @@ describe('events', function () {
       });
     });
 
-    await queue.add('test', { foo: 'bar' });
-    await queue.add('test', { foo: 'baz' });
+    await queue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
 
     await drained;
 
@@ -375,10 +377,16 @@ describe('events', function () {
       { name: 'test', data: { foo: 'baz' } },
     ]);
 
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(10);
+      },
+      { connection },
+    );
 
     const waitForCompletion = new Promise(resolve => {
-      queueEvents.on('drained', resolve);
+      queueEvents.once('drained', resolve);
     });
 
     await waitForCompletion;
