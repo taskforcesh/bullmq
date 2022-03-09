@@ -8,6 +8,8 @@ Adding prioritized jobs is a slower operation than the other types of jobs, with
 
 Priorities goes from 1 to MAX_INT, whereas lower number is always higher priority than higher numbers.
 
+In a queue where only some jobs have a priority assigned, jobs without priority will be processed last.
+
 ```typescript
 import { Queue } from 'bullmq';
 
