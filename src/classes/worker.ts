@@ -414,12 +414,7 @@ export class Worker<
     token: string,
     jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    const [jobData, id] = await Scripts.moveToActive(
-      this,
-      token,
-      jobId,
-      this.drained,
-    );
+    const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
 

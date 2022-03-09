@@ -127,7 +127,7 @@ describe('events', function () {
   });
 
   it('emits drained global event when all jobs have been processed', async function () {
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       drainDelay: 1,
       connection,
     });
@@ -154,7 +154,7 @@ describe('events', function () {
     const worker = new Worker(
       queueName,
       async () => {
-        await delay(20);
+        await delay(25);
       },
       {
         drainDelay: 1,
@@ -163,17 +163,22 @@ describe('events', function () {
     );
 
     let counterDrainedEvents = 0;
+
     queueEvents.on('drained', () => {
       counterDrainedEvents++;
     });
 
-    await queue.add('test', { foo: 'bar' });
-    await queue.add('test', { foo: 'baz' });
+    await queue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
 
     await delay(1000);
 
-    await queue.add('test', { foo: 'bar' });
-    await queue.add('test', { foo: 'baz' });
+    await queue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
 
     await delay(1000);
 

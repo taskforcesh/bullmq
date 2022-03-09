@@ -26,11 +26,10 @@
       ARGV[3] lock duration in milliseconds
       ARGV[4] timestamp
       ARGV[5] optional job ID
-      ARGV[6] drained
 
-      ARGV[7] optional jobs per time unit (rate limiter)
-      ARGV[8] optional time unit (rate limiter)
-      ARGV[9] optional rate limit by key
+      ARGV[6] optional jobs per time unit (rate limiter)
+      ARGV[7] optional time unit (rate limiter)
+      ARGV[8] optional rate limit by key
 ]]
 
 local jobId
@@ -51,13 +50,13 @@ end
 
 if jobId then
   -- Check if we need to perform rate limiting.
-  local maxJobs = tonumber(ARGV[7])
+  local maxJobs = tonumber(ARGV[6])
 
   if(maxJobs) then
     local rateLimiterKey = KEYS[6];
 
     local groupKey
-    if(ARGV[9]) then
+    if(ARGV[8]) then
       groupKey = string.match(jobId, "[^:]+$")
       if groupKey ~= jobId then
         rateLimiterKey = rateLimiterKey .. ":" .. groupKey
@@ -78,9 +77,9 @@ if jobId then
     if jobCounter ~= nil and jobCounter > maxJobs then
       local exceedingJobs = jobCounter - maxJobs
       local expireTime = tonumber(rcall("PTTL", rateLimiterKey))
-      local delay = expireTime + ((exceedingJobs - 1) * ARGV[8]) / maxJobs;
+      local delay = expireTime + ((exceedingJobs - 1) * ARGV[7]) / maxJobs;
       local timestamp = delay + tonumber(ARGV[4])
-      
+
       -- put job into delayed queue
       rcall("ZADD", KEYS[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
       rcall("XADD", KEYS[4], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
@@ -92,7 +91,7 @@ if jobId then
       return expireTime
     else
       if jobCounter == 1 then
-        rcall("PEXPIRE", rateLimiterKey, ARGV[8])
+        rcall("PEXPIRE", rateLimiterKey, ARGV[7])
       end
     end
   end
@@ -103,11 +102,7 @@ if jobId then
   -- get a lock
   rcall("SET", lockKey, ARGV[2], "PX", ARGV[3])
 
-  moveJobFromWaitToActive(KEYS[3], KEYS[4], jobKey, jobId, ARGV[4])
+  moveJobFromWaitToActive(KEYS[1], KEYS[3], KEYS[4], jobKey, jobId, ARGV[4])
 
   return {rcall("HGETALL", jobKey), jobId} -- get job data
-else
-  if not ARGV[6] then
-    rcall("XADD", KEYS[4], "*", "event", "drained");
-  end
 end
