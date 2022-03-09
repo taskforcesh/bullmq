@@ -366,10 +366,12 @@ describe('events', function () {
 
     await queueEvents.client;
 
-    await trimmedQueue.add('test', {});
-    await trimmedQueue.add('test', {});
-    await trimmedQueue.add('test', {});
-    await trimmedQueue.add('test', {});
+    await trimmedQueue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
 
     const worker = new Worker(queueName, async () => {}, { connection });
 
