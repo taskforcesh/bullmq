@@ -726,6 +726,7 @@ export class Scripts {
     worker: Worker<T, R, N>,
     token: string,
     jobId?: string,
+    drained = false,
   ) {
     const client = await worker.client;
     const opts = worker.opts;
@@ -748,6 +749,7 @@ export class Scripts {
       opts.lockDuration,
       Date.now(),
       jobId,
+      drained,
     ];
 
     if (opts.limiter) {

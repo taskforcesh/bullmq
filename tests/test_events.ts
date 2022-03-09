@@ -150,6 +150,40 @@ describe('events', function () {
     await worker.close();
   });
 
+  it('emits drained global event only once when worker is idle', async function () {
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(20);
+      },
+      {
+        drainDelay: 1,
+        connection,
+      },
+    );
+
+    let counterDrainedEvents = 0;
+    queueEvents.on('drained', () => {
+      counterDrainedEvents++;
+    });
+
+    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'baz' });
+
+    await delay(1000);
+
+    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'baz' });
+
+    await delay(1000);
+
+    const jobs = await queue.getJobCountByTypes('completed');
+    expect(jobs).to.be.equal(4);
+    expect(counterDrainedEvents).to.be.equal(2);
+
+    await worker.close();
+  });
+
   it('emits drained event when all jobs have been processed', async function () {
     const worker = new Worker(queueName, async job => {}, {
       drainDelay: 1,
