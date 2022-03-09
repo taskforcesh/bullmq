@@ -147,7 +147,8 @@ describe('events', function () {
     await drained;
 
     const jobs = await queue.getJobCountByTypes('completed');
-    expect(jobs).to.be.equal(2);
+    expect(jobs).to.be.gte(1);
+    expect(jobs).to.be.lte(2);
 
     await worker.close();
   });
