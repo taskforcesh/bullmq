@@ -139,8 +139,10 @@ describe('events', function () {
       });
     });
 
-    await queue.add('test', { foo: 'bar' });
-    await queue.add('test', { foo: 'baz' });
+    await queue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
 
     await drained;
 
