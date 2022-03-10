@@ -25,6 +25,9 @@
       ARGV[8]  fetch next?
       ARGV[9]  keys prefix
       ARGV[10] lock token
+      ARGV[11] opts
+
+      DEPRECATED
       ARGV[11] lock duration in milliseconds
       ARGV[12] parentId
       ARGV[13] parentQueue
@@ -43,6 +46,16 @@
     Events:
       'completed/failed'
 ]] local rcall = redis.call
+
+local opts = cmsgpack.unpack(ARGV[11])
+
+local lockDuration = opts['lockDuration']
+local parentId = opts['parent'] and opts['parent']['id'] or ""
+local parentQueueKey = opts['parent'] and opts['parent']['queue'] or ""
+local parentKey = opts['parentKey'] or ""
+local attempts = opts['attempts']
+local attemptsMade = opts['attemptsMade']
+local maxMetricsSize = opts['maxMetricsSize']
 
 --- Includes
 --- @include "includes/destructureJobKey"
@@ -85,11 +98,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- 3) push the results into parent "results" list
     -- 4) if parent's dependencies is empty, then move parent to "wait/paused". Note it may be a different queue!.
     -- NOTE: Priorities not supported yet for parent jobs.
-    local parentId = ARGV[12]
-    local parentQueueKey = ARGV[13]
-    if parentId == "" and ARGV[14] ~= "" then
-        parentId = getJobIdFromKey(ARGV[14])
-        parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
+    if parentId == "" and parentKey ~= "" then
+        parentId = getJobIdFromKey(parentKey)
+        parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
     end
     if parentId ~= "" and ARGV[5] == "completed" then
         local parentKey = parentQueueKey .. ":" .. parentId
@@ -139,15 +150,15 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
           ARGV[4])
 
     if ARGV[5] == "failed" then
-        if tonumber(ARGV[16]) >= tonumber(ARGV[15]) then
+        if tonumber(attemptsMade) >= tonumber(attempts) then
             rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId",
-                  jobId, "attemptsMade", ARGV[16])
+                  jobId, "attemptsMade", attemptsMade)
         end
     end
 
     -- Collect metrics
-    if ARGV[17] ~= "" then
-        collectMetrics(KEYS[9], KEYS[9]..':data', ARGV[17], timestamp)
+    if maxMetricsSize ~= "" then
+        collectMetrics(KEYS[9], KEYS[9]..':data', maxMetricsSize, timestamp)
     end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
@@ -161,7 +172,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
             -- get a lock
             if ARGV[10] ~= "0" then
-                rcall("SET", lockKey, ARGV[10], "PX", ARGV[11])
+                rcall("SET", lockKey, ARGV[10], "PX", lockDuration)
             end
 
             moveJobFromWaitToActive(KEYS[4], KEYS[5], KEYS[6], jobKey, jobId, timestamp)

@@ -287,13 +287,16 @@ export class Scripts {
       !fetchNext || queue.closing || opts.limiter ? 0 : 1,
       queueKeys[''],
       token,
-      opts.lockDuration,
-      job.opts?.parent?.id,
-      job.opts?.parent?.queue,
-      job.parentKey,
-      job.opts.attempts,
-      job.attemptsMade,
-      opts.metrics?.maxDataPoints,
+      pack({
+        lockDuration: opts.lockDuration,
+        parent: job.opts?.parent,
+        parentKey: job.parentKey,
+        attempts: job.opts.attempts,
+        attemptsMade: job.attemptsMade,
+        maxMetricsSize: opts.metrics?.maxDataPoints
+          ? opts.metrics?.maxDataPoints
+          : '',
+      }),
     ];
 
     return keys.concat(args);
