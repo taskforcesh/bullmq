@@ -79,7 +79,7 @@ if jobId then
       local expireTime = tonumber(rcall("PTTL", rateLimiterKey))
       local delay = expireTime + ((exceedingJobs - 1) * ARGV[7]) / maxJobs;
       local timestamp = delay + tonumber(ARGV[4])
-      
+
       -- put job into delayed queue
       rcall("ZADD", KEYS[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
       rcall("XADD", KEYS[4], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
@@ -102,9 +102,7 @@ if jobId then
   -- get a lock
   rcall("SET", lockKey, ARGV[2], "PX", ARGV[3])
 
-  moveJobFromWaitToActive(KEYS[3], KEYS[4], jobKey, jobId, ARGV[4])
+  moveJobFromWaitToActive(KEYS[1], KEYS[3], KEYS[4], jobKey, jobId, ARGV[4])
 
   return {rcall("HGETALL", jobKey), jobId} -- get job data
-else
-  rcall("XADD", KEYS[4], "*", "event", "drained");
 end

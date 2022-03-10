@@ -127,7 +127,7 @@ describe('events', function () {
   });
 
   it('emits drained global event when all jobs have been processed', async function () {
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       drainDelay: 1,
       connection,
     });
@@ -139,18 +139,60 @@ describe('events', function () {
       });
     });
 
-    await queue.add('test', { foo: 'bar' });
-    await queue.add('test', { foo: 'baz' });
+    await queue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
 
     await drained;
 
     const jobs = await queue.getJobCountByTypes('completed');
-    expect(jobs).to.be.equal(2);
+    expect(jobs).to.be.gte(1);
+    expect(jobs).to.be.lte(2);
 
     await worker.close();
   });
 
-  it('emits drained event when all jobs have been processed', async function () {
+  it('emits drained global event only once when worker is idle', async function () {
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(25);
+      },
+      {
+        drainDelay: 1,
+        connection,
+      },
+    );
+
+    let counterDrainedEvents = 0;
+
+    queueEvents.on('drained', () => {
+      counterDrainedEvents++;
+    });
+
+    await queue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
+
+    await delay(1000);
+
+    await queue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
+
+    await delay(1000);
+
+    const jobs = await queue.getJobCountByTypes('completed');
+    expect(jobs).to.be.equal(4);
+    expect(counterDrainedEvents).to.be.equal(2);
+
+    await worker.close();
+  });
+
+  it('emits drained event in worker when all jobs have been processed', async function () {
     const worker = new Worker(queueName, async job => {}, {
       drainDelay: 1,
       connection,
@@ -162,8 +204,10 @@ describe('events', function () {
       });
     });
 
-    await queue.add('test', { foo: 'bar' });
-    await queue.add('test', { foo: 'baz' });
+    await queue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
 
     await drained;
 
@@ -327,15 +371,23 @@ describe('events', function () {
 
     await queueEvents.client;
 
-    await trimmedQueue.add('test', {});
-    await trimmedQueue.add('test', {});
-    await trimmedQueue.add('test', {});
-    await trimmedQueue.add('test', {});
+    await trimmedQueue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+    ]);
 
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(10);
+      },
+      { connection },
+    );
 
     const waitForCompletion = new Promise(resolve => {
-      queueEvents.on('drained', resolve);
+      queueEvents.once('drained', resolve);
     });
 
     await waitForCompletion;

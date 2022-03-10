@@ -164,11 +164,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 rcall("SET", lockKey, ARGV[10], "PX", ARGV[11])
             end
 
-            moveJobFromWaitToActive(KEYS[5], KEYS[6], jobKey, jobId, timestamp)
+            moveJobFromWaitToActive(KEYS[4], KEYS[5], KEYS[6], jobKey, jobId, timestamp)
 
             return {rcall("HGETALL", jobKey), jobId} -- get job data
-        else
-            rcall("XADD", KEYS[6], "*", "event", "drained");
         end
     end
 
