@@ -9,10 +9,10 @@ BullMQ supports parent - child relationships between jobs. The basic idea is tha
 This functionality enables the creation of flows where jobs are the node of trees of arbitrary depth.
 
 {% hint style="warning" %}
-Flows are added to a queue using the "FlowProducer" class.
+Flows are added to a queue using the "_FlowProducer_" class.
 {% endhint %}
 
-In order to create "flows" you must use the [FlowProducer](./bullmq.flowproducer.md) class. The method "_add_" accepts an object with the following interface:
+In order to create "flows" you must use the [FlowProducer](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.flowproducer.md) class. The method "_add_" accepts an object with the following interface:
 
 ```typescript
 interface FlowJob {

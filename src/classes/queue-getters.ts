@@ -5,6 +5,7 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { clientCommandMessageReg } from '../utils';
 import { JobType } from '../types';
+import { Metrics } from '../interfaces';
 
 export class QueueGetters<
   DataType,
@@ -104,28 +105,46 @@ export class QueueGetters<
     return counts;
   }
 
+  /**
+   * Returns the number of jobs in completed status.
+   */
   getCompletedCount(): Promise<number> {
     return this.getJobCountByTypes('completed');
   }
 
+  /**
+   * Returns the number of jobs in failed status.
+   */
   getFailedCount(): Promise<number> {
     return this.getJobCountByTypes('failed');
   }
 
+  /**
+   * Returns the number of jobs in delayed status.
+   */
   getDelayedCount(): Promise<number> {
     return this.getJobCountByTypes('delayed');
   }
 
+  /**
+   * Returns the number of jobs in active status.
+   */
   getActiveCount(): Promise<number> {
     return this.getJobCountByTypes('active');
   }
 
+  /**
+   * Returns the number of jobs in waiting or paused statuses.
+   */
   getWaitingCount(): Promise<number> {
     return this.getJobCountByTypes('waiting', 'paused');
   }
 
+  /**
+   * Returns the number of jobs in waiting-children status.
+   */
   getWaitingChildrenCount(): Promise<number> {
-    return this.getJobCountByTypes('waiting-children', 'paused');
+    return this.getJobCountByTypes('waiting-children');
   }
 
   getWaiting(
@@ -309,6 +328,53 @@ export class QueueGetters<
         throw err;
       }
     }
+  }
+
+  /**
+   * Get queue metrics related to the queue.
+   *
+   * This method returns the gathered metrics for the queue.
+   * The metrics are represented as an array of job counts
+   * per unit of time (1 minute).
+   *
+   * @param start - Start point of the metrics, where 0
+   * is the newest point to be returned.
+   * @param end - End poinf of the metrics, where -1 is the
+   * oldest point to be returned.
+   *
+   * @returns - Returns an object with queue metrics.
+   */
+  async getMetrics(
+    type: 'completed' | 'failed',
+    start = 0,
+    end = -1,
+  ): Promise<Metrics> {
+    const client = await this.client;
+    const metricsKey = this.toKey(`metrics:${type}`);
+    const dataKey = `${metricsKey}:data`;
+
+    const multi = client.multi();
+    multi.hmget(metricsKey, 'count', 'prevTS', 'prevCount');
+    multi.lrange(dataKey, start, end);
+    multi.llen(dataKey);
+
+    const [hmget, range, len] = await multi.exec();
+    const [err, [count, prevTS, prevCount]] = hmget;
+    const [err2, data] = range;
+    const [err3, numPoints] = len;
+    if (err || err2) {
+      throw err || err2 || err3;
+    }
+
+    return {
+      meta: {
+        count: parseInt(count || '0', 10),
+        prevTS: parseInt(prevTS || '0', 10),
+        prevCount: parseInt(prevCount || '0', 10),
+      },
+      data,
+      count: numPoints,
+    };
   }
 
   private parseClientList(list: string, suffix = '') {

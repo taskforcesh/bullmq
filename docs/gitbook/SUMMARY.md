@@ -30,6 +30,7 @@
   * [Getters](guide/jobs/getters.md)
 * [Flows](guide/flows/README.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
+* [Metrics](guide/metrics/metrics.md)
 * [Rate limiting](guide/rate-limiting.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
 * [Returning job data](guide/returning-job-data.md)
@@ -58,6 +59,7 @@
 * [Observables](bullmq-pro/observables.md)
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
+  * [Concurrency](bullmq-pro/groups/concurrency.md)
 
 ## Bull
 

@@ -17,23 +17,24 @@ export declare class QueueGetters<DataType, ResultType, NameType extends string>
 |  --- | --- | --- |
 |  [count()](./bullmq.queuegetters.count.md) |  | Returns the number of jobs waiting to be processed. |
 |  [getActive(start, end)](./bullmq.queuegetters.getactive.md) |  |  |
-|  [getActiveCount()](./bullmq.queuegetters.getactivecount.md) |  |  |
+|  [getActiveCount()](./bullmq.queuegetters.getactivecount.md) |  | Returns the number of jobs in active status. |
 |  [getCompleted(start, end)](./bullmq.queuegetters.getcompleted.md) |  |  |
-|  [getCompletedCount()](./bullmq.queuegetters.getcompletedcount.md) |  |  |
+|  [getCompletedCount()](./bullmq.queuegetters.getcompletedcount.md) |  | Returns the number of jobs in completed status. |
 |  [getDelayed(start, end)](./bullmq.queuegetters.getdelayed.md) |  |  |
-|  [getDelayedCount()](./bullmq.queuegetters.getdelayedcount.md) |  |  |
+|  [getDelayedCount()](./bullmq.queuegetters.getdelayedcount.md) |  | Returns the number of jobs in delayed status. |
 |  [getFailed(start, end)](./bullmq.queuegetters.getfailed.md) |  |  |
-|  [getFailedCount()](./bullmq.queuegetters.getfailedcount.md) |  |  |
+|  [getFailedCount()](./bullmq.queuegetters.getfailedcount.md) |  | Returns the number of jobs in failed status. |
 |  [getJob(jobId)](./bullmq.queuegetters.getjob.md) |  |  |
 |  [getJobCountByTypes(types)](./bullmq.queuegetters.getjobcountbytypes.md) |  | Job counts by type<!-- -->Queue\#getJobCountByTypes('completed') =<!-- -->&gt; completed count Queue\#getJobCountByTypes('completed,failed') =<!-- -->&gt; completed + failed count Queue\#getJobCountByTypes('completed', 'failed') =<!-- -->&gt; completed + failed count Queue\#getJobCountByTypes('completed', 'waiting', 'failed') =<!-- -->&gt; completed + waiting + failed count |
 |  [getJobCounts(types)](./bullmq.queuegetters.getjobcounts.md) |  | Returns the job counts for each type specified or every list/set in the queue by default. |
 |  [getJobLogs(jobId, start, end, asc)](./bullmq.queuegetters.getjoblogs.md) |  |  |
 |  [getJobs(types, start, end, asc)](./bullmq.queuegetters.getjobs.md) |  |  |
+|  [getMetrics(type, start, end)](./bullmq.queuegetters.getmetrics.md) |  | Get queue metrics related to the queue.<!-- -->This method returns the gathered metrics for the queue. The metrics are represented as an array of job counts per unit of time (1 minute). |
 |  [getQueueSchedulers()](./bullmq.queuegetters.getqueueschedulers.md) |  | Get queue schedulers list related to the queue. |
 |  [getRanges(types, start, end, asc)](./bullmq.queuegetters.getranges.md) |  |  |
 |  [getWaiting(start, end)](./bullmq.queuegetters.getwaiting.md) |  |  |
 |  [getWaitingChildren(start, end)](./bullmq.queuegetters.getwaitingchildren.md) |  |  |
-|  [getWaitingChildrenCount()](./bullmq.queuegetters.getwaitingchildrencount.md) |  |  |
-|  [getWaitingCount()](./bullmq.queuegetters.getwaitingcount.md) |  |  |
+|  [getWaitingChildrenCount()](./bullmq.queuegetters.getwaitingchildrencount.md) |  | Returns the number of jobs in waiting-children status. |
+|  [getWaitingCount()](./bullmq.queuegetters.getwaitingcount.md) |  | Returns the number of jobs in waiting or paused statuses. |
 |  [getWorkers()](./bullmq.queuegetters.getworkers.md) |  | Get worker list related to the queue. |
 
