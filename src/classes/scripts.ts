@@ -764,7 +764,7 @@ export class Scripts {
     }
 
     const result = await (<any>client).moveToActive(
-      (<(string | number | boolean)[]>keys).concat(args),
+      (<(string | number | boolean | Buffer)[]>keys).concat(args),
     );
 
     if (typeof result === 'number') {
