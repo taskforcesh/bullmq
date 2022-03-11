@@ -747,20 +747,7 @@ export class Scripts {
       queueKeys.delay,
     ];
 
-    const args: (string | number | boolean)[] = [
-      queueKeys[''],
-      token,
-      opts.lockDuration,
-      Date.now(),
-      jobId,
-    ];
-
-    if (opts.limiter) {
-      args.push(opts.limiter.max, opts.limiter.duration);
-      opts.limiter.groupKey && args.push(true);
-    }
-
-    /* const args: (string | number | boolean | Buffer)[] = [
+    const args: (string | number | boolean | Buffer)[] = [
       queueKeys[''],
       Date.now(),
       jobId,
@@ -769,7 +756,12 @@ export class Scripts {
         lockDuration: opts.lockDuration,
         limiter: opts.limiter,
       }),
-    ];*/
+    ];
+
+    if (opts.limiter) {
+      args.push(opts.limiter.max, opts.limiter.duration);
+      opts.limiter.groupKey && args.push(true);
+    }
 
     const result = await (<any>client).moveToActive(
       (<(string | number | boolean)[]>keys).concat(args),
