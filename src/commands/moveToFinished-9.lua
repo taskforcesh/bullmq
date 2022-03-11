@@ -20,21 +20,19 @@
       ARGV[3]  msg property
       ARGV[4]  return value / failed reason
       ARGV[5]  target (completed/failed)
-      ARGV[6]  shouldRemove
-      ARGV[7]  event data (? maybe just send jobid).
-      ARGV[8]  fetch next?
-      ARGV[9]  keys prefix
-      ARGV[10] lock token
-      ARGV[11] opts
+      ARGV[6]  event data (? maybe just send jobid).
+      ARGV[7]  fetch next?
+      ARGV[8]  keys prefix
+      ARGV[9] lock token
+      ARGV[10] opts
 
-      DEPRECATED
-      ARGV[11] lock duration in milliseconds
-      ARGV[12] parentId
-      ARGV[13] parentQueue
-      ARGV[14] parentKey
-      ARGV[15] max attempts
-      ARGV[16] attemptsMade
-      ARGV[17] maxMetricsSize
+      opts - keepJobs
+      opts - lockDuration - lock duration in milliseconds
+      opts - parent - parent data
+      opts - parentKey
+      opts - attempts max attempts
+      opts - attemptsMade
+      opts - maxMetricsSize
 
     Output:
       0 OK
@@ -47,16 +45,6 @@
       'completed/failed'
 ]] local rcall = redis.call
 
-local opts = cmsgpack.unpack(ARGV[11])
-
-local lockDuration = opts['lockDuration']
-local parentId = opts['parent'] and opts['parent']['id'] or ""
-local parentQueueKey = opts['parent'] and opts['parent']['queue'] or ""
-local parentKey = opts['parentKey'] or ""
-local attempts = opts['attempts']
-local attemptsMade = opts['attemptsMade']
-local maxMetricsSize = opts['maxMetricsSize']
-
 --- Includes
 --- @include "includes/destructureJobKey"
 --- @include "includes/moveJobFromWaitToActive"
@@ -67,9 +55,21 @@ local maxMetricsSize = opts['maxMetricsSize']
 
 local jobIdKey = KEYS[3]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
-    if ARGV[10] ~= "0" then
+    local opts = cmsgpack.unpack(ARGV[10])
+
+    local lockDuration = opts['lockDuration']
+    local parentId = opts['parent'] and opts['parent']['id'] or ""
+    local parentQueueKey = opts['parent'] and opts['parent']['queue'] or ""
+    local parentKey = opts['parentKey'] or ""
+    local attempts = opts['attempts']
+    local attemptsMade = opts['attemptsMade']
+    local maxMetricsSize = opts['maxMetricsSize']
+    local maxCount = opts['keepJobs']['count']
+    local maxAge = opts['keepJobs']['age']
+
+    if ARGV[9] ~= "0" then
         local lockKey = jobIdKey .. ':lock'
-        if rcall("GET", lockKey) == ARGV[10] then
+        if rcall("GET", lockKey) == ARGV[9] then
             rcall("DEL", lockKey)
             rcall("SREM", KEYS[8], ARGV[1])
         else
@@ -113,9 +113,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     end
 
     -- Remove job?
-    local keepJobs = cmsgpack.unpack(ARGV[6])
-    local maxCount = keepJobs['count']
-    local maxAge = keepJobs['age']
     if maxCount ~= 0 then
         local targetSet = KEYS[2]
         -- Add to complete/failed set
@@ -123,7 +120,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp) -- "returnvalue" / "failedReason" and "finishedOn"
 
         -- Remove old jobs?
-        local prefix = ARGV[9]
+        local prefix = ARGV[8]
 
         if maxAge ~= nil then
             local start = timestamp - maxAge * 1000
@@ -163,16 +160,16 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
-    if (ARGV[8] == "1") then
+    if (ARGV[7] == "1") then
         -- move from wait to active
         local jobId = rcall("RPOPLPUSH", KEYS[4], KEYS[1])
         if jobId then
-            local jobKey = ARGV[9] .. jobId
+            local jobKey = ARGV[8] .. jobId
             local lockKey = jobKey .. ':lock'
 
             -- get a lock
-            if ARGV[10] ~= "0" then
-                rcall("SET", lockKey, ARGV[10], "PX", lockDuration)
+            if ARGV[9] ~= "0" then
+                rcall("SET", lockKey, ARGV[9], "PX", lockDuration)
             end
 
             moveJobFromWaitToActive(KEYS[4], KEYS[5], KEYS[6], jobKey, jobId, timestamp)
