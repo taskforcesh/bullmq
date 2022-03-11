@@ -268,13 +268,12 @@ export class Scripts {
       metricsKey,
     ];
 
-    const keepJobs = pack(
+    const keepJobs =
       typeof shouldRemove === 'object'
         ? shouldRemove
         : typeof shouldRemove === 'number'
         ? { count: shouldRemove }
-        : { count: shouldRemove ? 0 : -1 },
-    );
+        : { count: shouldRemove ? 0 : -1 };
 
     const args = [
       job.id,
@@ -282,18 +281,21 @@ export class Scripts {
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      keepJobs,
       JSON.stringify({ jobId: job.id, val: val }),
       !fetchNext || queue.closing || opts.limiter ? 0 : 1,
       queueKeys[''],
       token,
-      opts.lockDuration,
-      job.opts?.parent?.id,
-      job.opts?.parent?.queue,
-      job.parentKey,
-      job.opts.attempts,
-      job.attemptsMade,
-      opts.metrics?.maxDataPoints,
+      pack({
+        keepJobs,
+        lockDuration: opts.lockDuration,
+        parent: job.opts?.parent,
+        parentKey: job.parentKey,
+        attempts: job.opts.attempts,
+        attemptsMade: job.attemptsMade,
+        maxMetricsSize: opts.metrics?.maxDataPoints
+          ? opts.metrics?.maxDataPoints
+          : '',
+      }),
     ];
 
     return keys.concat(args);
