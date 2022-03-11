@@ -258,13 +258,16 @@ export class Scripts {
 
     const keys = [
       queueKeys.active,
-      queueKeys[target],
-      queue.toKey(job.id),
       queueKeys.wait,
       queueKeys.priority,
       queueKeys.events,
-      queueKeys.meta,
       queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.delay,
+      queueKeys[target],
+      queue.toKey(job.id),
+      queueKeys.meta,
       metricsKey,
     ];
 
@@ -284,8 +287,8 @@ export class Scripts {
       JSON.stringify({ jobId: job.id, val: val }),
       !fetchNext || queue.closing || opts.limiter ? 0 : 1,
       queueKeys[''],
-      token,
       pack({
+        token,
         keepJobs,
         lockDuration: opts.lockDuration,
         parent: job.opts?.parent,
@@ -756,6 +759,17 @@ export class Scripts {
       args.push(opts.limiter.max, opts.limiter.duration);
       opts.limiter.groupKey && args.push(true);
     }
+
+    /* const args: (string | number | boolean | Buffer)[] = [
+      queueKeys[''],
+      Date.now(),
+      jobId,
+      pack({
+        token,
+        lockDuration: opts.lockDuration,
+        limiter: opts.limiter,
+      }),
+    ];*/
 
     const result = await (<any>client).moveToActive(
       (<(string | number | boolean)[]>keys).concat(args),
