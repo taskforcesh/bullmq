@@ -371,13 +371,6 @@ describe('events', function () {
 
     await queueEvents.client;
 
-    await trimmedQueue.addBulk([
-      { name: 'test', data: { foo: 'bar' } },
-      { name: 'test', data: { foo: 'baz' } },
-      { name: 'test', data: { foo: 'bar' } },
-      { name: 'test', data: { foo: 'baz' } },
-    ]);
-
     const worker = new Worker(
       queueName,
       async () => {
@@ -386,11 +379,17 @@ describe('events', function () {
       { connection },
     );
 
-    const waitForCompletion = new Promise(resolve => {
+    const waitDrainedEvent = new Promise(resolve => {
       queueEvents.once('drained', resolve);
     });
 
-    await waitForCompletion;
+    await trimmedQueue.addBulk([
+      { name: 'test', data: { foo: 'bar' } },
+      { name: 'test', data: { foo: 'baz' } },
+      { name: 'test', data: { foo: 'bar' } },
+    ]);
+
+    await waitDrainedEvent;
     await worker.close();
 
     const client = await trimmedQueue.client;
@@ -405,7 +404,7 @@ describe('events', function () {
 
     const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-    expect(eventsLength).to.be.lte(3);
+    expect(eventsLength).to.be.lte(12);
 
     await trimmedQueue.close();
     await removeAllQueueData(new IORedis(), queueName);
