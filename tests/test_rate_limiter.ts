@@ -27,7 +27,8 @@ describe('Rate Limiter', function () {
   });
 
   it('should put a job into the delayed queue when limit is hit', async function () {
-    const worker = new Worker(queueName, async job => {}, {
+    const numJobs = 5;
+    const worker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,
@@ -38,13 +39,11 @@ describe('Rate Limiter', function () {
 
     queueEvents.on('failed', () => {});
 
-    await Promise.all([
-      queue.add('test', {}),
-      queue.add('test', {}),
-      queue.add('test', {}),
-      queue.add('test', {}),
-      queue.add('test', {}),
-    ]);
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
 
     await Promise.all([
       worker.getNextJob('test-token'),
@@ -54,20 +53,19 @@ describe('Rate Limiter', function () {
     ]);
 
     const delayedCount = await queue.getDelayedCount();
-    expect(delayedCount).to.equal(4);
+    expect(delayedCount).to.equal(numJobs - 1);
     await worker.close();
   });
 
   it('should obey the rate limit', async function () {
     this.timeout(20000);
 
-    const numJobs = 4;
-    const startTime = new Date().getTime();
+    const numJobs = 10;
 
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,
@@ -98,9 +96,63 @@ describe('Rate Limiter', function () {
       });
     });
 
-    for (let i = 0; i < numJobs; i++) {
-      await queue.add('rate test', {});
-    }
+    const startTime = new Date().getTime();
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'rate test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
+
+    await result;
+    await worker.close();
+    await queueScheduler.close();
+  });
+
+  it('should obey the rate limit with max value greater than 1', async function () {
+    this.timeout(20000);
+
+    const numJobs = 10;
+
+    const queueScheduler = new QueueScheduler(queueName, { connection });
+    await queueScheduler.waitUntilReady();
+
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      limiter: {
+        max: 2,
+        duration: 1000,
+      },
+    });
+
+    const result = new Promise<void>((resolve, reject) => {
+      queueEvents.on(
+        'completed',
+        // after every job has been completed
+        after(numJobs, async () => {
+          await worker.close();
+
+          try {
+            const timeDiff = new Date().getTime() - startTime;
+            expect(timeDiff).to.be.gte(numJobs / 2 - 1 * 1000);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
+
+      queueEvents.on('failed', async err => {
+        await worker.close();
+        reject(err);
+      });
+    });
+
+    const startTime = new Date().getTime();
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'rate test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
 
     await result;
     await worker.close();
@@ -116,7 +168,7 @@ describe('Rate Limiter', function () {
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,
@@ -259,9 +311,11 @@ describe('Rate Limiter', function () {
       });
     });
 
-    for (let i = 0; i < numJobs; i++) {
-      await rateLimitedQueue.add('rate test', { accountId: i % numGroups });
-    }
+    const jobs = Array.from(Array(numJobs).keys()).map((_, index) => ({
+      name: 'rate test',
+      data: { accountId: index % numGroups },
+    }));
+    await rateLimitedQueue.addBulk(jobs);
 
     await running;
     await rateLimitedQueue.close();

@@ -285,11 +285,12 @@ export class Scripts {
       typeof val === 'undefined' ? 'null' : val,
       target,
       JSON.stringify({ jobId: job.id, val: val }),
-      !fetchNext || queue.closing || opts.limiter ? 0 : 1,
+      !fetchNext || queue.closing ? 0 : 1,
       queueKeys[''],
       pack({
         token,
         keepJobs,
+        limiter: opts.limiter,
         lockDuration: opts.lockDuration,
         parent: job.opts?.parent,
         parentKey: job.parentKey,
