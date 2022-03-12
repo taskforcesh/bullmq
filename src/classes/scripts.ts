@@ -257,8 +257,8 @@ export class Scripts {
     const metricsKey = queue.toKey(`metrics:${target}`);
 
     const keys = [
-      queueKeys.active,
       queueKeys.wait,
+      queueKeys.active,
       queueKeys.priority,
       queueKeys.events,
       queueKeys.stalled,

@@ -5,8 +5,8 @@
   and the lock must be released in this script.
 
     Input:
-      KEYS[1] active key
-      KEYS[2] wait key
+      KEYS[1] wait key
+      KEYS[2] active key
       KEYS[3] priority key
       KEYS[4] event stream key
       KEYS[5] stalled key
@@ -66,7 +66,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local opts = cmsgpack.unpack(ARGV[9])
 
     local token = opts['token']
-    local lockDuration = opts['lockDuration']
     local parentId = opts['parent'] and opts['parent']['id'] or ""
     local parentQueueKey = opts['parent'] and opts['parent']['queue'] or ""
     local parentKey = opts['parentKey'] or ""
@@ -94,7 +93,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local timestamp = ARGV[2]
 
     -- Remove from active list (if not active we shall return error)
-    local numRemovedElements = rcall("LREM", KEYS[1], -1, jobId)
+    local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
 
     if (numRemovedElements < 1) then return -3 end
 
@@ -171,19 +170,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- and not rate limited.
     if (ARGV[7] == "1") then
         -- move from wait to active
-        local jobId = rcall("RPOPLPUSH", KEYS[2], KEYS[1])
+        local jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
         if jobId then
-            local jobKey = ARGV[8] .. jobId
-            local lockKey = jobKey .. ':lock'
-
-            -- get a lock
-            if token ~= "0" then
-                rcall("SET", lockKey, token, "PX", lockDuration)
-            end
-
-            moveJobFromWaitToActive(KEYS[2], KEYS[3], KEYS[4], jobKey, jobId, timestamp)
-
-            return {rcall("HGETALL", jobKey), jobId} -- get job data
+            return moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
         end
     end
 
