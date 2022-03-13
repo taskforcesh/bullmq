@@ -15,12 +15,12 @@ import {
 import * as path from 'path';
 
 const overrideMessage = [
-  'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false',
-  'and will be overrided by BullMQ.',
+  'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
+  'and will be overridden by BullMQ.',
 ].join(' ');
 
 const deprecationMessage = [
-  'BullMQ: DEPRECATION WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false.',
+  'BullMQ: DEPRECATION WARNING! Your redis options maxRetriesPerRequest must be null.',
   'On the next versions having this settings will throw an exception',
 ].join(' ');
 
@@ -57,7 +57,6 @@ export class RedisConnection extends EventEmitter {
 
       if (this.persistent) {
         this.opts.maxRetriesPerRequest = null;
-        this.opts.enableReadyCheck = false;
       }
     } else {
       this._client = opts;
@@ -79,11 +78,7 @@ export class RedisConnection extends EventEmitter {
   }
 
   private checkPersistentOptions(msg: string, options?: RedisOptions) {
-    if (
-      this.persistent &&
-      options &&
-      (options.maxRetriesPerRequest || options.enableReadyCheck)
-    ) {
+    if (this.persistent && options && options.maxRetriesPerRequest) {
       console.error(msg);
     }
   }

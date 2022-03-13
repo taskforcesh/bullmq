@@ -27,16 +27,14 @@ describe('connection', () => {
         connection: {
           host: 'localhost',
           maxRetriesPerRequest: 20,
-          enableReadyCheck: true,
         },
       });
 
       options = <IORedis.RedisOptions>(await queue.client).options;
     });
 
-    it('should override maxRetriesPerRequest: null and enableReadyCheck: false as redis options', () => {
+    it('should override maxRetriesPerRequest: null as redis options', () => {
       expect(options.maxRetriesPerRequest).to.be.equal(null);
-      expect(options.enableReadyCheck).to.be.equal(false);
     });
   });
 
@@ -48,7 +46,6 @@ describe('connection', () => {
         connection: {
           host: 'localhost',
           maxRetriesPerRequest: 20,
-          enableReadyCheck: true,
         },
         persistentConnection: false,
       });
@@ -58,7 +55,6 @@ describe('connection', () => {
 
     it('should not override any redis options', () => {
       expect(options.maxRetriesPerRequest).to.be.equal(20);
-      expect(options.enableReadyCheck).to.be.equal(true);
     });
   });
 
