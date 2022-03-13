@@ -257,14 +257,17 @@ export class Scripts {
     const metricsKey = queue.toKey(`metrics:${target}`);
 
     const keys = [
-      queueKeys.active,
-      queueKeys[target],
-      queue.toKey(job.id),
       queueKeys.wait,
+      queueKeys.active,
       queueKeys.priority,
       queueKeys.events,
-      queueKeys.meta,
       queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.delay,
+      queueKeys[target],
+      queue.toKey(job.id),
+      queueKeys.meta,
       metricsKey,
     ];
 
@@ -282,11 +285,12 @@ export class Scripts {
       typeof val === 'undefined' ? 'null' : val,
       target,
       JSON.stringify({ jobId: job.id, val: val }),
-      !fetchNext || queue.closing || opts.limiter ? 0 : 1,
+      !fetchNext || queue.closing ? 0 : 1,
       queueKeys[''],
-      token,
       pack({
+        token,
         keepJobs,
+        limiter: opts.limiter,
         lockDuration: opts.lockDuration,
         parent: job.opts?.parent,
         parentKey: job.parentKey,
@@ -744,12 +748,15 @@ export class Scripts {
       queueKeys.delay,
     ];
 
-    const args: (string | number | boolean)[] = [
+    const args: (string | number | boolean | Buffer)[] = [
       queueKeys[''],
-      token,
-      opts.lockDuration,
       Date.now(),
       jobId,
+      pack({
+        token,
+        lockDuration: opts.lockDuration,
+        limiter: opts.limiter,
+      }),
     ];
 
     if (opts.limiter) {
@@ -758,7 +765,7 @@ export class Scripts {
     }
 
     const result = await (<any>client).moveToActive(
-      (<(string | number | boolean)[]>keys).concat(args),
+      (<(string | number | boolean | Buffer)[]>keys).concat(args),
     );
 
     if (typeof result === 'number') {
