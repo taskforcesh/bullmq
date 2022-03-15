@@ -36,12 +36,12 @@ describe('Delayed jobs', function () {
     const queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
 
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
 
     const timestamp = Date.now();
     let publishHappened = false;
 
-    const delayed = new Promise<void>((resolve, reject) => {
+    const delayed = new Promise<void>(resolve => {
       queueEvents.on('delayed', () => {
         publishHappened = true;
         resolve();
@@ -90,7 +90,7 @@ describe('Delayed jobs', function () {
       const queueEvents = new QueueEvents(queueName, { connection });
       await queueEvents.waitUntilReady();
 
-      const worker = new Worker(queueName, async job => {}, { connection });
+      const worker = new Worker(queueName, async () => {}, { connection });
 
       const timestamp = Date.now();
       let publishHappened = false;

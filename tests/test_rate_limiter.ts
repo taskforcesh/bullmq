@@ -4,7 +4,7 @@ import * as IORedis from 'ioredis';
 import { after, every, last } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { removeAllQueueData } from '../src/utils';
+import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
   let queue: Queue;
@@ -106,6 +106,95 @@ describe('Rate Limiter', function () {
     await result;
     await worker.close();
     await queueScheduler.close();
+  });
+
+  describe('when promoting', function () {
+    it('moves job to delayed status when is in rate limit', async function () {
+      const rateLimitedQueue = new Queue(queueName, {
+        connection,
+        limiter: {
+          groupKey: 'accountId',
+        },
+      });
+      const worker = new Worker(queueName, null, {
+        connection,
+        limiter: {
+          max: 1,
+          duration: 1000,
+          groupKey: 'accountId',
+        },
+      });
+      const job = await rateLimitedQueue.add('rate test', {
+        accountId: 'account1',
+      });
+      const job2 = await rateLimitedQueue.add('rate test', {
+        accountId: 'account1',
+      });
+
+      await worker.getNextJob('0');
+      await worker.getNextJob('0');
+      const isActive = await job.isActive();
+      expect(isActive).to.be.equal(true);
+
+      const isDelayed = await job2.isDelayed();
+      expect(isDelayed).to.be.equal(true);
+
+      await job.moveToCompleted('return value', '0');
+      await job2.promote();
+      await worker.getNextJob('0');
+
+      const isStillDelayed = await job2.isDelayed();
+      expect(isStillDelayed).to.be.equal(true);
+
+      await rateLimitedQueue.close();
+      await worker.close();
+    });
+
+    it('moves job to wait status after rate limit', async function () {
+      const rateLimitedQueue = new Queue(queueName, {
+        connection,
+        limiter: {
+          groupKey: 'accountId',
+        },
+      });
+      const worker = new Worker(queueName, null, {
+        connection,
+        limiter: {
+          max: 1,
+          duration: 1000,
+          groupKey: 'accountId',
+        },
+      });
+      const job = await rateLimitedQueue.add('rate test', {
+        accountId: 'account1',
+      });
+      const job2 = await rateLimitedQueue.add('rate test', {
+        accountId: 'account1',
+      });
+
+      await worker.getNextJob('0');
+      await worker.getNextJob('0');
+      const isActive1 = await job.isActive();
+      expect(isActive1).to.be.equal(true);
+
+      const isDelayed = await job2.isDelayed();
+      expect(isDelayed).to.be.equal(true);
+
+      await job.moveToCompleted('return value', '0');
+      await delay(1000);
+      await job2.promote();
+
+      const isWaiting = await job2.isWaiting();
+      expect(isWaiting).to.be.equal(true);
+
+      await worker.getNextJob('0');
+
+      const isActive2 = await job2.isActive();
+      expect(isActive2).to.be.equal(true);
+
+      await rateLimitedQueue.close();
+      await worker.close();
+    });
   });
 
   it('should obey the rate limit with max value greater than 1', async function () {
