@@ -31,7 +31,7 @@
       ARGV[6]  event data (? maybe just send jobid).
       ARGV[7]  fetch next?
       ARGV[8]  keys prefix
-      ARGV[9] opts
+      ARGV[9]  opts
 
       opts - token - lock token
       opts - keepJobs
@@ -112,12 +112,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         parentId = getJobIdFromKey(parentKey)
         parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
     end
-    if parentId ~= "" and (ARGV[5] == "completed" or ARGV[18] == "1")then
+    local removeDependencyOnFail = opts['rdof']
+    if parentId ~= "" and (ARGV[5] == "completed" or removeDependencyOnFail) then
         local parentKey = parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
         if result == 1 then
-            local removeDependencyOnFail = opts['rdof']
             if ARGV[5] == "completed" then
                 updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
                                         parentId, jobIdKey, ARGV[4])
