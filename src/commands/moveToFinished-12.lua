@@ -5,34 +5,43 @@
   and the lock must be released in this script.
 
     Input:
-      KEYS[1] active key
-      KEYS[2] completed/failed key
-      KEYS[3] jobId key
-      KEYS[4] wait key
-      KEYS[5] priority key
-      KEYS[6] event stream key
-      KEYS[7] meta key
-      KEYS[8] stalled key
-      KEYS[9] metrics key
+      KEYS[1] wait key
+      KEYS[2] active key
+      KEYS[3] priority key
+      KEYS[4] event stream key
+      KEYS[5] stalled key
+
+      -- Rate limiting
+      KEYS[6] rate limiter key
+      KEYS[7] delayed key
+
+      -- Delay events
+      KEYS[8] delay stream key
+
+      KEYS[9] completed/failed key
+      KEYS[10] jobId key
+      KEYS[11] meta key
+      KEYS[12] metrics key
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
       ARGV[3]  msg property
       ARGV[4]  return value / failed reason
       ARGV[5]  target (completed/failed)
-      ARGV[6]  shouldRemove
-      ARGV[7]  event data (? maybe just send jobid).
-      ARGV[8]  fetch next?
-      ARGV[9]  keys prefix
-      ARGV[10] lock token
-      ARGV[11] lock duration in milliseconds
-      ARGV[12] parentId
-      ARGV[13] parentQueue
-      ARGV[14] parentKey
-      ARGV[15] max attempts
-      ARGV[16] attemptsMade
-      ARGV[17] maxMetricsSize
-      ARGV[18] removeDependencyOnFail
+      ARGV[6]  event data (? maybe just send jobid).
+      ARGV[7]  fetch next?
+      ARGV[8]  keys prefix
+      ARGV[9] opts
+
+      opts - token - lock token
+      opts - keepJobs
+      opts - lockDuration - lock duration in milliseconds
+      opts - parent - parent data
+      opts - parentKey
+      opts - attempts max attempts
+      opts - attemptsMade
+      opts - maxMetricsSize
+      opts - rdof -remove dependency on fail
 
     Output:
       0 OK
@@ -54,13 +63,25 @@
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
 
-local jobIdKey = KEYS[3]
+local jobIdKey = KEYS[10]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
-    if ARGV[10] ~= "0" then
+    local opts = cmsgpack.unpack(ARGV[9])
+
+    local token = opts['token']
+    local parentId = opts['parent'] and opts['parent']['id'] or ""
+    local parentQueueKey = opts['parent'] and opts['parent']['queue'] or ""
+    local parentKey = opts['parentKey'] or ""
+    local attempts = opts['attempts']
+    local attemptsMade = opts['attemptsMade']
+    local maxMetricsSize = opts['maxMetricsSize']
+    local maxCount = opts['keepJobs']['count']
+    local maxAge = opts['keepJobs']['age']
+
+    if token ~= "0" then
         local lockKey = jobIdKey .. ':lock'
-        if rcall("GET", lockKey) == ARGV[10] then
+        if rcall("GET", lockKey) == token then
             rcall("DEL", lockKey)
-            rcall("SREM", KEYS[8], ARGV[1])
+            rcall("SREM", KEYS[5], ARGV[1])
         else
             return -2
         end
@@ -74,12 +95,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local timestamp = ARGV[2]
 
     -- Remove from active list (if not active we shall return error)
-    local numRemovedElements = rcall("LREM", KEYS[1], -1, jobId)
+    local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
 
     if (numRemovedElements < 1) then return -3 end
 
     -- Trim events before emiting them to avoid trimming events emitted in this script
-    trimEvents(KEYS[7], KEYS[6])
+    trimEvents(KEYS[11], KEYS[4])
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -87,38 +108,34 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- 3) push the results into parent "results" list
     -- 4) if parent's dependencies is empty, then move parent to "wait/paused". Note it may be a different queue!.
     -- NOTE: Priorities not supported yet for parent jobs.
-    local parentId = ARGV[12]
-    local parentQueueKey = ARGV[13]
-    if parentId == "" and ARGV[14] ~= "" then
-        parentId = getJobIdFromKey(ARGV[14])
-        parentQueueKey = getJobKeyPrefix(ARGV[14], ":" .. parentId)
+    if parentId == "" and parentKey ~= "" then
+        parentId = getJobIdFromKey(parentKey)
+        parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
     end
     if parentId ~= "" and (ARGV[5] == "completed" or ARGV[18] == "1")then
         local parentKey = parentQueueKey .. ":" .. parentId
         local dependenciesSet = parentKey .. ":dependencies"
         local result = rcall("SREM", dependenciesSet, jobIdKey)
         if result == 1 then
+            local removeDependencyOnFail = opts['rdof']
             if ARGV[5] == "completed" then
                 updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
                                         parentId, jobIdKey, ARGV[4])
-            elseif ARGV[18] == "1" then
+            elseif removeDependencyOnFail then
                 moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet, parentId )
             end
         end
     end
 
     -- Remove job?
-    local keepJobs = cmsgpack.unpack(ARGV[6])
-    local maxCount = keepJobs['count']
-    local maxAge = keepJobs['age']
     if maxCount ~= 0 then
-        local targetSet = KEYS[2]
+        local targetSet = KEYS[9]
         -- Add to complete/failed set
         rcall("ZADD", targetSet, timestamp, jobId)
         rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp) -- "returnvalue" / "failedReason" and "finishedOn"
 
         -- Remove old jobs?
-        local prefix = ARGV[9]
+        local prefix = ARGV[8]
 
         if maxAge ~= nil then
             local start = timestamp - maxAge * 1000
@@ -141,40 +158,28 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         rcall("DEL", jobIdKey, jobIdKey .. ':logs', jobIdKey .. ':processed')
     end
 
-    rcall("XADD", KEYS[6], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
+    rcall("XADD", KEYS[4], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
           ARGV[4])
 
     if ARGV[5] == "failed" then
-        if tonumber(ARGV[16]) >= tonumber(ARGV[15]) then
-            rcall("XADD", KEYS[6], "*", "event", "retries-exhausted", "jobId",
-                  jobId, "attemptsMade", ARGV[16])
+        if tonumber(attemptsMade) >= tonumber(attempts) then
+            rcall("XADD", KEYS[4], "*", "event", "retries-exhausted", "jobId",
+                  jobId, "attemptsMade", attemptsMade)
         end
     end
 
     -- Collect metrics
-    if ARGV[17] ~= "" then
-        collectMetrics(KEYS[9], KEYS[9]..':data', ARGV[17], timestamp)
+    if maxMetricsSize ~= "" then
+        collectMetrics(KEYS[12], KEYS[12]..':data', maxMetricsSize, timestamp)
     end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
-    if (ARGV[8] == "1") then
+    if (ARGV[7] == "1") then
         -- move from wait to active
-        local jobId = rcall("RPOPLPUSH", KEYS[4], KEYS[1])
+        local jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
         if jobId then
-            local jobKey = ARGV[9] .. jobId
-            local lockKey = jobKey .. ':lock'
-
-            -- get a lock
-            if ARGV[10] ~= "0" then
-                rcall("SET", lockKey, ARGV[10], "PX", ARGV[11])
-            end
-
-            moveJobFromWaitToActive(KEYS[5], KEYS[6], jobKey, jobId, timestamp)
-
-            return {rcall("HGETALL", jobKey), jobId} -- get job data
-        else
-            rcall("XADD", KEYS[6], "*", "event", "drained");
+            return moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
         end
     end
 

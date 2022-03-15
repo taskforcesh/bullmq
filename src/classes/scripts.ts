@@ -257,24 +257,26 @@ export class Scripts {
     const metricsKey = queue.toKey(`metrics:${target}`);
 
     const keys = [
-      queueKeys.active,
-      queueKeys[target],
-      queue.toKey(job.id),
       queueKeys.wait,
+      queueKeys.active,
       queueKeys.priority,
       queueKeys.events,
-      queueKeys.meta,
       queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.delay,
+      queueKeys[target],
+      queue.toKey(job.id),
+      queueKeys.meta,
       metricsKey,
     ];
 
-    const keepJobs = pack(
+    const keepJobs =
       typeof shouldRemove === 'object'
         ? shouldRemove
         : typeof shouldRemove === 'number'
         ? { count: shouldRemove }
-        : { count: shouldRemove ? 0 : -1 },
-    );
+        : { count: shouldRemove ? 0 : -1 };
 
     const args = [
       job.id,
@@ -282,19 +284,23 @@ export class Scripts {
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      keepJobs,
       JSON.stringify({ jobId: job.id, val: val }),
-      !fetchNext || queue.closing || opts.limiter ? 0 : 1,
+      !fetchNext || queue.closing ? 0 : 1,
       queueKeys[''],
-      token,
-      opts.lockDuration,
-      job.opts?.parent?.id,
-      job.opts?.parent?.queue,
-      job.parentKey,
-      job.opts.attempts,
-      job.attemptsMade,
-      opts.metrics?.maxDataPoints,
-      job.opts?.removeDependencyOnFail ? '1' : '0',
+      pack({
+        token,
+        keepJobs,
+        limiter: opts.limiter,
+        lockDuration: opts.lockDuration,
+        parent: job.opts?.parent,
+        parentKey: job.parentKey,
+        attempts: job.opts.attempts,
+        attemptsMade: job.attemptsMade,
+        maxMetricsSize: opts.metrics?.maxDataPoints
+          ? opts.metrics?.maxDataPoints
+          : '',
+        rdof: !!job.opts?.removeDependencyOnFail,
+      }),
     ];
 
     return keys.concat(args);
@@ -743,12 +749,15 @@ export class Scripts {
       queueKeys.delay,
     ];
 
-    const args: (string | number | boolean)[] = [
+    const args: (string | number | boolean | Buffer)[] = [
       queueKeys[''],
-      token,
-      opts.lockDuration,
       Date.now(),
       jobId,
+      pack({
+        token,
+        lockDuration: opts.lockDuration,
+        limiter: opts.limiter,
+      }),
     ];
 
     if (opts.limiter) {
@@ -757,7 +766,7 @@ export class Scripts {
     }
 
     const result = await (<any>client).moveToActive(
-      (<(string | number | boolean)[]>keys).concat(args),
+      (<(string | number | boolean | Buffer)[]>keys).concat(args),
     );
 
     if (typeof result === 'number') {

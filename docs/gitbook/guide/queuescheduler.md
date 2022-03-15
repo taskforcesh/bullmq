@@ -3,7 +3,7 @@
 The QueueScheduler is a helper class used to manage stalled and delayed jobs for a given Queue.
 
 ```typescript
-import { QueueScheduler } from 'bullmq'
+import { QueueScheduler } from 'bullmq';
 
 const queueScheduler = new QueueScheduler('test');
 
@@ -23,3 +23,6 @@ The reason for having this functionality in a separate class instead of in the w
 It is ok to have as many QueueScheduler instances as you want, just keep in mind that every instance will perform some bookkeeping so it may create some noticeable CPU and IO usage in your Redis instances.
 {% endhint %}
 
+## Read more:
+
+- 💡 [Queue Scheduler API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queuescheduler.md)

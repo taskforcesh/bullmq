@@ -53,3 +53,7 @@ The QueueEvents class is implemented using [Redis streams](https://redis.io/topi
 {% hint style="danger" %}
 The event stream is auto-trimmed so that its size does not grow too much, by default it is ~10.000 events, but this can be configured with the `streams.events.maxLen` option.
 {% endhint %}
+
+## Read more:
+
+- 💡 [Queue Events API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queueevents.md)

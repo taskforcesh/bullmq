@@ -19,7 +19,7 @@ $ yarn add bullmq
 ```
 
 {% hint style="info" %}
-Bull is written in TypeScript, and although it can be used in vanilla JavaScript, all examples in this guide will be written in TypeScript.
+BullMQ is written in TypeScript, and although it can be used in vanilla JavaScript, all examples in this guide will be written in TypeScript.
 {% endhint %}
 
 Import into your project and add some jobs:
@@ -70,7 +70,7 @@ worker.on('failed', (job, err) => {
 ```
 
 {% hint style="info" %}
-There are many other events available, check the [Guide](guide/events.md) or the [API reference](broken-reference) for more information.
+There are many other events available, check the [Guide](guide/events.md) or the [API reference](broken-reference/) for more information.
 {% endhint %}
 
 Sometimes you need to listen to all the workers events in a given place, for this you need to use a special class `QueueEvents`:
