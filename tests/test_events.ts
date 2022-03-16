@@ -381,6 +381,8 @@ describe('events', function () {
       { connection },
     );
 
+    await worker.waitUntilReady();
+
     const waitDrainedEvent = new Promise(resolve => {
       queueEvents.once('drained', resolve);
     });
