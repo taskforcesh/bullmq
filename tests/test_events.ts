@@ -193,7 +193,7 @@ describe('events', function () {
   });
 
   it('emits drained event in worker when all jobs have been processed', async function () {
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       drainDelay: 1,
       connection,
     });
@@ -210,6 +210,8 @@ describe('events', function () {
     ]);
 
     await drained;
+
+    await delay(10);
 
     const jobs = await queue.getJobCountByTypes('completed');
     expect(jobs).to.be.equal(2);

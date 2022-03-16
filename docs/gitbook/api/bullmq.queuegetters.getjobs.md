@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-getJobs(types: JobType[] | JobType, start?: number, end?: number, asc?: boolean): Promise<Job<DataType, ResultType, NameType>[]>;
+getJobs(types?: JobType[] | JobType, start?: number, end?: number, asc?: boolean): Promise<Job<DataType, ResultType, NameType>[]>;
 ```
 
 ## Parameters

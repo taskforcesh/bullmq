@@ -56,7 +56,8 @@
 
 * [Introduction](bullmq-pro/introduction.md)
 * [Install](bullmq-pro/install.md)
-* [Observables](bullmq-pro/observables.md)
+* [Observables](bullmq-pro/observables/README.md)
+  * [Cancelation](bullmq-pro/observables/cancelation.md)
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
