@@ -376,7 +376,7 @@ describe('events', function () {
     const worker = new Worker(
       queueName,
       async () => {
-        await delay(50);
+        await delay(100);
       },
       { connection },
     );
