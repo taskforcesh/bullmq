@@ -6,6 +6,7 @@ import {
 import { array2obj, clientCommandMessageReg, isRedisInstance } from '../utils';
 import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
+import { RedisConnection } from './redis-connection';
 
 export interface QueueSchedulerListener {
   /**
@@ -47,16 +48,21 @@ export class QueueScheduler extends QueueBase {
   constructor(
     name: string,
     { connection, autorun = true, ...opts }: QueueSchedulerOptions = {},
+    Connection?: typeof RedisConnection,
   ) {
-    super(name, {
-      maxStalledCount: 1,
-      stalledInterval: 30000,
-      ...opts,
-      connection: isRedisInstance(connection)
-        ? (<RedisClient>connection).duplicate()
-        : connection,
-      sharedConnection: false,
-    });
+    super(
+      name,
+      {
+        maxStalledCount: 1,
+        stalledInterval: 30000,
+        ...opts,
+        connection: isRedisInstance(connection)
+          ? (<RedisClient>connection).duplicate()
+          : connection,
+        sharedConnection: false,
+      },
+      Connection,
+    );
 
     if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
