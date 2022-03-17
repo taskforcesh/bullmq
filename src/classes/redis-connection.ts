@@ -18,6 +18,8 @@ const overrideMessage = [
 const connectionErrorMessage = `Using a redis instance with enableReadyCheck or maxRetriesPerRequest is not permitted.
 See https://https://github.com/OptimalBits/bull/issues/1873`;
 
+const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
+
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   protected _client: RedisClient;
@@ -46,10 +48,11 @@ export class RedisConnection extends EventEmitter {
         maxRetriesPerRequest: null,
         enableReadyCheck: false,
       };
+      this.checkUpstashHost(this.opts.host);
     } else {
       this._client = <RedisClient>opts;
-      let options = this._client.options;
-      if((<IORedis.ClusterOptions>options)?.redisOptions){
+      let options = <IORedis.RedisOptions>this._client.options;
+      if ((<IORedis.ClusterOptions>options)?.redisOptions) {
         options = (<IORedis.ClusterOptions>options).redisOptions;
       }
 
@@ -59,6 +62,7 @@ export class RedisConnection extends EventEmitter {
       ) {
         throw new Error(connectionErrorMessage);
       }
+      this.checkUpstashHost(options.host);
     }
 
     this.handleClientError = (err: Error): void => {
@@ -72,6 +76,12 @@ export class RedisConnection extends EventEmitter {
   private checkOptions(msg: string, options?: IORedis.RedisOptions) {
     if (options && (options.maxRetriesPerRequest || options.enableReadyCheck)) {
       console.error(msg);
+    }
+  }
+
+  private checkUpstashHost(host: string | undefined) {
+    if (host?.endsWith('upstash.io')) {
+      throw new Error(upstashMessage);
     }
   }
 

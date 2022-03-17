@@ -1,6 +1,6 @@
 # Manually fetching jobs
 
-If you want the actual job processing to be done in a seperate repo/service than where `bull` is running, this pattern may be for you.
+If you want to manually fetch the jobs from the queue instead of letting the automatic processor taking care of it, this pattern is for your.
 
 Manually transitioning states for jobs can be done with a few simple methods.
 

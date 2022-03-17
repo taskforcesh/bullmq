@@ -84,7 +84,7 @@ export class ChildProcessor {
     })();
   }
 
-  public async stop() {}
+  public async stop(): Promise<void> {}
 
   async waitForCurrentJobAndExit(): Promise<void> {
     this.status = ChildStatus.Terminating;

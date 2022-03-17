@@ -27,7 +27,7 @@ export declare class Worker<DataType = any, ResultType = any, NameType extends s
 |  [paused](./bullmq.worker.paused.md) |  | Promise&lt;void&gt; |  |
 |  [processFn](./bullmq.worker.processfn.md) |  | [Processor](./bullmq.processor.md)<!-- -->&lt;DataType, ResultType, NameType&gt; |  |
 |  [repeat](./bullmq.worker.repeat.md) |  | Promise&lt;[Repeat](./bullmq.repeat.md)<!-- -->&gt; |  |
-|  [timerManager](./bullmq.worker.timermanager.md) |  | TimerManager |  |
+|  [timerManager](./bullmq.worker.timermanager.md) |  | [TimerManager](./bullmq.timermanager.md) |  |
 
 ## Methods
 

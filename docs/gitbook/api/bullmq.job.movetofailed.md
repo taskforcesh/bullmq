@@ -9,14 +9,14 @@ Moves a job to the failed queue.
 <b>Signature:</b>
 
 ```typescript
-moveToFailed(err: Error, token: string, fetchNext?: boolean): Promise<void>;
+moveToFailed<E extends Error>(err: E, token: string, fetchNext?: boolean): Promise<void>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  err | Error | the jobs error message. |
+|  err | E | the jobs error message. |
 |  token | string | token to check job is locked by current worker |
 |  fetchNext | boolean | true when wanting to fetch the next job |
 

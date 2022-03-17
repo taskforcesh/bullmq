@@ -4,10 +4,11 @@
   Input:
     KEYS[1] base key
     KEYS[2] events stream
-    KEYS[3] failed state key
+    KEYS[3] state key (failed, completed)
     KEYS[4] wait state key
 
     ARGV[1]  count
+    ARGV[2]  timestamp
 
   Output:
     1  means the operation is not completed
@@ -15,6 +16,7 @@
 ]]
 local baseKey = KEYS[1]
 local maxCount = tonumber(ARGV[1])
+local timestamp = tonumber(ARGV[2])
 
 local rcall = redis.call;
 
@@ -22,12 +24,11 @@ local rcall = redis.call;
 --- @include "includes/batches"
 --- @include "includes/getZSetItems"
 
-local jobs = getZSetItems(KEYS[3], maxCount)
-
+local jobs = rcall('ZRANGEBYSCORE', KEYS[3], 0, timestamp, 'LIMIT', 0, maxCount)
 if (#jobs > 0) then
   for i, key in ipairs(jobs) do
     local jobKey = baseKey .. key
-    rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason")
+    rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason", "returnvalue")
 
     -- Emit waiting event
     rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", key);

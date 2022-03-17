@@ -27,8 +27,9 @@ export declare class Job<DataType = any, ReturnType = any, NameType extends stri
 |  [id?](./bullmq.job.id.md) |  | string | <i>(Optional)</i> |
 |  [name](./bullmq.job.name.md) |  | NameType | The name of the Job |
 |  [opts](./bullmq.job.opts.md) |  | [JobsOptions](./bullmq.jobsoptions.md) | The options object for this job. |
-|  [parent?](./bullmq.job.parent.md) |  | { id: string; queueKey: string; } | <i>(Optional)</i> |
+|  [parent?](./bullmq.job.parent.md) |  | [ParentKeys](./bullmq.parentkeys.md) | <i>(Optional)</i> Object that contains parentId (id) and parent queueKey. |
 |  [parentKey?](./bullmq.job.parentkey.md) |  | string | <i>(Optional)</i> Fully qualified key (including the queue prefix) pointing to the parent of this job. |
+|  [prefix](./bullmq.job.prefix.md) |  | string |  |
 |  [processedOn?](./bullmq.job.processedon.md) |  | number | <i>(Optional)</i> Timestamp for when the job was processed. |
 |  [progress](./bullmq.job.progress.md) |  | number \| object | The progress a job has performed so far. |
 |  [queue](./bullmq.job.queue.md) |  | [MinimalQueue](./bullmq.minimalqueue.md) |  |
@@ -44,6 +45,7 @@ export declare class Job<DataType = any, ReturnType = any, NameType extends stri
 |  --- | --- | --- |
 |  [addJob(client, parentOpts)](./bullmq.job.addjob.md) |  | Adds the job to Redis. |
 |  [asJSON()](./bullmq.job.asjson.md) |  | Prepares a job to be serialized for storage in Redis. |
+|  [asJSONSandbox()](./bullmq.job.asjsonsandbox.md) |  | Prepares a job to be passed to Sandbox. |
 |  [changeDelay(delay)](./bullmq.job.changedelay.md) |  | Change delay of a delayed job. |
 |  [create(queue, name, data, opts)](./bullmq.job.create.md) | <code>static</code> | Creates a new job and adds it to the queue. |
 |  [createBulk(queue, jobs)](./bullmq.job.createbulk.md) | <code>static</code> | Creates a bulk of jobs and adds them atomically to the given queue. |

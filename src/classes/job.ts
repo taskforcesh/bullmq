@@ -1,14 +1,16 @@
 import { Pipeline } from 'ioredis';
+import { fromPairs } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
   JobJson,
   JobJsonRaw,
   JobsOptions,
-  WorkerOptions,
+  ParentKeys,
   RedisClient,
+  WorkerOptions,
 } from '../interfaces';
-import { JobState } from '../types';
+import { JobState, JobJsonSandbox } from '../types';
 import {
   errorObject,
   isEmpty,
@@ -19,7 +21,7 @@ import {
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts, JobData } from './scripts';
-import { fromPairs } from 'lodash';
+import { UnrecoverableError } from './unrecoverable-error';
 
 const logger = debuglog('bull');
 
@@ -97,7 +99,11 @@ export class Job<
    * Fully qualified key (including the queue prefix) pointing to the parent of this job.
    */
   parentKey?: string;
-  parent?: { id: string; queueKey: string };
+
+  /**
+   * Object that contains parentId (id) and parent queueKey.
+   */
+  parent?: ParentKeys;
 
   protected toKey: (type: string) => string;
 
@@ -288,7 +294,7 @@ export class Job<
       : Job.fromJSON<T, R, N>(queue, (<unknown>jobData) as JobJsonRaw, jobId);
   }
 
-  toJSON() {
+  toJSON(): Omit<this, 'queue'> {
     const { queue, ...withoutQueue } = this;
     return withoutQueue;
   }
@@ -315,11 +321,24 @@ export class Job<
   }
 
   /**
+   * Prepares a job to be passed to Sandbox.
+   * @returns
+   */
+  asJSONSandbox(): JobJsonSandbox {
+    return {
+      ...this.asJSON(),
+      queueName: this.queueName,
+      parent: this.parent ? { ...this.parent } : undefined,
+      prefix: this.prefix,
+    };
+  }
+
+  /**
    * Updates a job's data
    *
    * @param data - the data that will replace the current jobs data.
    */
-  async update(data: DataType): Promise<void> {
+  update(data: DataType): Promise<void> {
     this.data = data;
 
     return Scripts.updateData<DataType, ReturnType, NameType>(
@@ -334,7 +353,7 @@ export class Job<
    *
    * @param progress - number or object to be saved as progress.
    */
-  async updateProgress(progress: number | object): Promise<void> {
+  updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
     return Scripts.updateProgress(this.queue, this, progress);
   }
@@ -422,8 +441,8 @@ export class Job<
    * @param fetchNext - true when wanting to fetch the next job
    * @returns void
    */
-  async moveToFailed(
-    err: Error,
+  async moveToFailed<E extends Error>(
+    err: E,
     token: string,
     fetchNext = false,
   ): Promise<void> {
@@ -441,7 +460,11 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
-    if (this.attemptsMade < this.opts.attempts && !this.discarded) {
+    if (
+      this.attemptsMade < this.opts.attempts &&
+      !this.discarded &&
+      !(err instanceof UnrecoverableError)
+    ) {
       const opts = queue.opts as WorkerOptions;
 
       // Check if backoff is needed
@@ -481,9 +504,6 @@ export class Job<
         this.opts.removeOnFail,
         token,
         fetchNext,
-        this.opts.attempts && this.attemptsMade >= this.opts.attempts
-          ? this.attemptsMade
-          : 0,
       );
       (<any>multi).moveToFinished(args);
       command = 'failed';
@@ -538,8 +558,15 @@ export class Job<
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
+  /**
+   * @returns the queue name this job belongs to.
+   */
   get queueName(): string {
     return this.queue.name;
+  }
+
+  get prefix(): string {
+    return this.queue.opts.prefix;
   }
 
   /**
@@ -734,7 +761,7 @@ export class Job<
 
   /**
    * Returns a promise the resolves when the job has completed (containing the return value of the job),
-   * or rejects when the job has failed (containing the failedReason). 
+   * or rejects when the job has failed (containing the failedReason).
    *
    * @param queueEvents - Instance of QueueEvents.
    * @param ttl - Time in milliseconds to wait for job to finish before timing out.
@@ -866,14 +893,14 @@ export class Job<
     this.discarded = true;
   }
 
-  private async isInZSet(set: string) {
+  private async isInZSet(set: string): Promise<boolean> {
     const client = await this.queue.client;
 
     const score = await client.zscore(this.queue.toKey(set), this.id);
     return score !== null;
   }
 
-  private async isInList(list: string) {
+  private async isInList(list: string): Promise<boolean> {
     return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
   }
 
