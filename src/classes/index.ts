@@ -1,7 +1,6 @@
 export * from './backoffs';
 export * from './child-pool';
 export * from './child-processor';
-export * from './compat';
 export * from './flow-producer';
 export * from './job';
 // export * from './master'; this file must not be exported

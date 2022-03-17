@@ -250,6 +250,9 @@ describe('Rate Limiter', function () {
     }));
     await queue.addBulk(jobs);
 
+    worker.run();
+    queueScheduler.run();
+
     await result;
     await worker.close();
     await queueScheduler.close();

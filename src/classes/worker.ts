@@ -724,7 +724,7 @@ export class Worker<
   protected clientName(): string {
     const queueNameBase64 = this.base64Name();
     return `${this.opts.prefix}:${
-      this.name ? `${queueNameBase64}:${this.name}` : queueNameBase64
+      this.name ? `${queueNameBase64}:w:${this.name}` : `${queueNameBase64}:w`
     }`;
   }
 }

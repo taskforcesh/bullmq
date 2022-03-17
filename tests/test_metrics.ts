@@ -159,6 +159,8 @@ describe('metrics', function () {
       await queue.add('test', { index: i });
     }
 
+    worker.run();
+
     await completing;
 
     const closing = worker.close();
@@ -249,6 +251,8 @@ describe('metrics', function () {
       await queue.add('test', { index: i });
     }
 
+    worker.run();
+
     await completing;
 
     const closing = worker.close();
@@ -313,6 +317,8 @@ describe('metrics', function () {
     for (let i = 0; i < numJobs; i++) {
       await queue.add('test', { index: i });
     }
+
+    worker.run();
 
     await completing;
 
@@ -382,6 +388,8 @@ describe('metrics', function () {
     for (let i = 0; i < numJobs; i++) {
       await queue.add('test', { index: i });
     }
+
+    worker.run();
 
     await completing;
 

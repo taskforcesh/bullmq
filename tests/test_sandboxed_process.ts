@@ -206,6 +206,9 @@ describe('sandboxed process', () => {
         },
       );
 
+      worker.run();
+      queueScheduler.run();
+
       await new Promise<void>(resolve => {
         worker.on(
           'failed',
@@ -442,6 +445,8 @@ describe('sandboxed process', () => {
       });
     });
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
 
     await completing;
@@ -485,6 +490,8 @@ describe('sandboxed process', () => {
       opts: { jobId: 'job-id' },
       children: [{ name: 'child-job', data: { foo: 'bar' }, queueName }],
     });
+
+    worker.run();
 
     await completing;
 

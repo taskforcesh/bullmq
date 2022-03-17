@@ -311,7 +311,7 @@ export class QueueGetters<
     const client = await this.client;
     const clients = await client.client('list');
     try {
-      const list = this.parseClientList(clients);
+      const list = this.parseClientList(clients, 'w');
       return list;
     } catch (err) {
       if (!clientCommandMessageReg.test((<Error>err).message)) {
@@ -403,10 +403,8 @@ export class QueueGetters<
         client[key] = value;
       });
       const name = client['name'];
-      const clientName = `${this.clientName()}${suffix ? `:${suffix}`: ''}`;
-      if (
-        name &&
-        name.startsWith(clientName)) {
+      const clientName = `${this.clientName()}${suffix ? `:${suffix}` : ''}`;
+      if (name && name.startsWith(clientName)) {
         const workerName = name.substring(clientName.length + 1);
         client['name'] = workerName ? workerName : this.name;
         clients.push(client);

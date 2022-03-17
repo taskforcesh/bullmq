@@ -13,6 +13,7 @@ import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { removeAllQueueData, delay } from '../src/utils';
+import { worker } from 'cluster';
 
 describe('flows', () => {
   let queue: Queue;
@@ -206,6 +207,9 @@ describe('flows', () => {
       expect(parentState).to.be.eql('waiting-children');
       expect(children).to.have.length(1);
 
+      parentWorker.run();
+      queueScheduler.run();
+
       await processingParent;
       await queueScheduler.close();
 
@@ -321,6 +325,9 @@ describe('flows', () => {
       expect(children[1].job.data.foo).to.be.eql('baz');
       expect(children[2].job.id).to.be.ok;
       expect(children[2].job.data.foo).to.be.eql('qux');
+
+      parentWorker.run();
+      childrenWorker.run();
 
       await processingChildren;
       await childrenWorker.close();

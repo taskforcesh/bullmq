@@ -481,6 +481,8 @@ describe('queues', function () {
           await queue.add('test', { idx: index });
         }
 
+        worker.run();
+
         await completing1;
 
         const completedCount1 = await queue.getJobCounts('completed');
@@ -540,6 +542,8 @@ describe('queues', function () {
         for (const index of Array.from(Array(jobCount).keys())) {
           await queue.add('test', { idx: index });
         }
+
+        worker.run();
 
         await failing;
 

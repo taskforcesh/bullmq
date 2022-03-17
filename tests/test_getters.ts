@@ -28,6 +28,7 @@ describe('Jobs getters', function () {
     it('gets all queueSchedulers for this queue', async function () {
       const queueScheduler = new QueueScheduler(queueName, { connection });
       await queueScheduler.waitUntilReady();
+      queueScheduler.run();
       await delay(10);
 
       const queueSchedulers = await queue.getQueueSchedulers();
@@ -35,6 +36,7 @@ describe('Jobs getters', function () {
 
       const queueScheduler2 = new QueueScheduler(queueName, { connection });
       await queueScheduler2.waitUntilReady();
+      queueScheduler2.run();
       await delay(10);
 
       const nextQueueSchedulers = await queue.getQueueSchedulers();
@@ -49,6 +51,7 @@ describe('Jobs getters', function () {
     it('gets all workers for this queue', async function () {
       const worker = new Worker(queueName, async () => {}, { connection });
       await worker.waitUntilReady();
+      worker.run();
       await delay(10);
 
       const workers = await queue.getWorkers();
@@ -56,13 +59,33 @@ describe('Jobs getters', function () {
 
       const worker2 = new Worker(queueName, async () => {}, { connection });
       await worker2.waitUntilReady();
+      worker2.run();
       await delay(10);
 
       const nextWorkers = await queue.getWorkers();
       expect(nextWorkers).to.have.length(2);
+      expect(nextWorkers[0].name).to.equal(queueName);
 
       await worker.close();
       await worker2.close();
+    });
+
+    it('gets worker with provided name for this queue', async function () {
+      const workerName = `test-${v4()}`;
+      const worker = new Worker(queueName, async job => {}, {
+        connection,
+        name: workerName,
+      });
+      await worker.waitUntilReady();
+      worker.run();
+      await delay(10);
+
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
+
+      expect(workers[0].name).to.equal(workerName);
+
+      await worker.close();
     });
 
     it('gets only workers related only to one queue', async function () {
@@ -72,6 +95,9 @@ describe('Jobs getters', function () {
       const worker2 = new Worker(queueName2, async () => {}, { connection });
       await worker.waitUntilReady();
       await worker2.waitUntilReady();
+      worker.run();
+      worker2.run();
+      await delay(10);
 
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
@@ -522,6 +548,8 @@ describe('Jobs getters', function () {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
   });
@@ -570,6 +598,8 @@ describe('Jobs getters', function () {
       });
 
       await queue.add('test', { idx: 2 }, { delay: 5000 });
+
+      worker.run();
 
       await completing;
 

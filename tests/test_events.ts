@@ -161,6 +161,9 @@ describe('events', function () {
       counterDrainedEvents++;
     });
 
+    worker.run();
+    queueEvents.run();
+
     await queue.addBulk([
       { name: 'test', data: { foo: 'bar' } },
       { name: 'test', data: { foo: 'baz' } },
