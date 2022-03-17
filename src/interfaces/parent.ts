@@ -10,3 +10,8 @@ export interface Parent<T> {
   data?: T;
   opts?: JobsOptions;
 }
+
+export interface ParentKeys {
+  id: string;
+  queueKey: string;
+}

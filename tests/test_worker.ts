@@ -7,9 +7,10 @@ import { v4 } from 'uuid';
 import {
   Queue,
   QueueEvents,
-  Job,
-  Worker,
   QueueScheduler,
+  Job,
+  UnrecoverableError,
+  Worker,
 } from '../src/classes';
 import { KeepJobs, JobsOptions } from '../src/interfaces';
 
@@ -35,45 +36,6 @@ describe('workers', function () {
     await queue.close();
     await queueEvents.close();
     await removeAllQueueData(new IORedis(), queueName);
-  });
-
-  it('should get all workers for this queue', async function () {
-    const worker = new Worker(queueName, async () => {}, { connection });
-    await worker.waitUntilReady();
-    await delay(10);
-
-    const workers = await queue.getWorkers();
-    expect(workers).to.have.length(1);
-
-    const worker2 = new Worker(queueName, async () => {}, { connection });
-    await worker2.waitUntilReady();
-    await delay(10);
-
-    const nextWorkers = await queue.getWorkers();
-    expect(nextWorkers).to.have.length(2);
-
-    await worker.close();
-    await worker2.close();
-  });
-
-  it('should get only workers related only to one queue', async function () {
-    const queueName2 = `${queueName}2`;
-    const queue2 = new Queue(queueName2, { connection });
-    const worker = new Worker(queueName, async () => {}, { connection });
-    const worker2 = new Worker(queueName2, async () => {}, { connection });
-    await worker.waitUntilReady();
-    await worker2.waitUntilReady();
-
-    const workers = await queue.getWorkers();
-    expect(workers).to.have.length(1);
-
-    const workers2 = await queue2.getWorkers();
-    expect(workers2).to.have.length(1);
-
-    await queue2.close();
-    await worker.close();
-    await worker2.close();
-    await removeAllQueueData(new IORedis(), queueName2);
   });
 
   describe('when closing a worker', () => {
@@ -1697,8 +1659,8 @@ describe('workers', function () {
       await queueScheduler.close();
     });
 
-    describe('when providing a way to execute step jobs', () => {
-      it('should retry a job after a delay if a fixed backoff is given, keeping the current step', async function () {
+    describe('when UnrecoverableError is throw', () => {
+      it('moves job to failed', async function () {
         this.timeout(8000);
 
         const queueScheduler = new QueueScheduler(queueName, { connection });
@@ -1707,28 +1669,82 @@ describe('workers', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            const initialStep = 'initialStep';
-            const secondStep = 'secondStep';
-            const finishStep = 'finishStep';
+            if (job.attemptsMade < 2) {
+              throw new Error('Not yet!');
+            }
+            if (job.attemptsMade < 3) {
+              throw new UnrecoverableError('Unrecoverable');
+            }
+          },
+          { connection },
+        );
+
+        await worker.waitUntilReady();
+
+        const start = Date.now();
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 3,
+            backoff: 1000,
+          },
+        );
+
+        await new Promise<void>(resolve => {
+          worker.on(
+            'failed',
+            after(2, (job: Job, error) => {
+              const elapse = Date.now() - start;
+              expect(error.name).to.be.eql('UnrecoverableError');
+              expect(error.message).to.be.eql('Unrecoverable');
+              expect(elapse).to.be.greaterThan(1000);
+              expect(job.attemptsMade).to.be.eql(2);
+              resolve();
+            }),
+          );
+        });
+
+        await worker.close();
+        await queueScheduler.close();
+      });
+    });
+
+    describe('when providing a way to execute step jobs', () => {
+      it('should retry a job after a delay if a fixed backoff is given, keeping the current step', async function () {
+        this.timeout(8000);
+
+        const queueScheduler = new QueueScheduler(queueName, { connection });
+        await queueScheduler.waitUntilReady();
+
+        enum Step {
+          Initial,
+          Second,
+          Finish,
+        }
+
+        const worker = new Worker(
+          queueName,
+          async job => {
             let step = job.data.step;
-            while (step !== finishStep) {
+            while (step !== Step.Finish) {
               switch (step) {
-                case initialStep: {
+                case Step.Initial: {
                   await job.update({
-                    step: secondStep,
+                    step: Step.Second,
                   });
-                  step = secondStep;
+                  step = Step.Second;
                   break;
                 }
-                case secondStep: {
+                case Step.Second: {
                   if (job.attemptsMade < 3) {
                     throw new Error('Not yet!');
                   }
                   await job.update({
-                    step: finishStep,
+                    step: Step.Finish,
                   });
-                  step = finishStep;
-                  return 'finished';
+                  step = Step.Finish;
+                  return Step.Finish;
                 }
                 default: {
                   throw new Error('invalid step');
@@ -1744,7 +1760,7 @@ describe('workers', function () {
         const start = Date.now();
         await queue.add(
           'test',
-          { step: 'initialStep' },
+          { step: Step.Initial },
           {
             attempts: 3,
             backoff: 1000,
@@ -1755,7 +1771,7 @@ describe('workers', function () {
           worker.on('completed', job => {
             const elapse = Date.now() - start;
             expect(elapse).to.be.greaterThan(2000);
-            expect(job.returnvalue).to.be.eql('finished');
+            expect(job.returnvalue).to.be.eql(Step.Finish);
             expect(job.attemptsMade).to.be.eql(3);
             resolve();
           });
@@ -1763,6 +1779,121 @@ describe('workers', function () {
 
         await worker.close();
         await queueScheduler.close();
+      });
+
+      describe('when creating children at runtime', () => {
+        it('should wait children as one step of the parent job', async function () {
+          this.timeout(8000);
+          const parentQueueName = `parent-queue-${v4()}`;
+          const parentQueue = new Queue(parentQueueName, { connection });
+
+          const queueScheduler = new QueueScheduler(parentQueueName, {
+            connection,
+          });
+          await queueScheduler.waitUntilReady();
+
+          enum Step {
+            Initial,
+            Second,
+            Third,
+            Finish,
+          }
+
+          const worker = new Worker(
+            parentQueueName,
+            async (job, token) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await queue.add(
+                      'child-1',
+                      { foo: 'bar' },
+                      {
+                        parent: {
+                          id: job.id,
+                          queue: `${job.prefix}:${job.queueName}`,
+                        },
+                      },
+                    );
+                    await job.update({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    break;
+                  }
+                  case Step.Second: {
+                    if (job.attemptsMade < 3) {
+                      throw new Error('Not yet!');
+                    }
+                    await queue.add(
+                      'child-2',
+                      { foo: 'bar' },
+                      {
+                        parent: {
+                          id: job.id,
+                          queue: `bull:${parentQueueName}`,
+                        },
+                      },
+                    );
+                    await job.update({
+                      step: Step.Third,
+                    });
+                    step = Step.Third;
+                    break;
+                  }
+                  case Step.Third: {
+                    const shouldWait = await job.moveToWaitingChildren(token);
+                    if (!shouldWait) {
+                      await job.update({
+                        step: Step.Finish,
+                      });
+                      step = Step.Finish;
+                      return Step.Finish;
+                    }
+                    break;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection },
+          );
+          const childrenWorker = new Worker(
+            queueName,
+            async () => {
+              await delay(100);
+            },
+            {
+              connection,
+            },
+          );
+          await childrenWorker.waitUntilReady();
+          await worker.waitUntilReady();
+
+          await parentQueue.add(
+            'test',
+            { step: Step.Initial },
+            {
+              attempts: 3,
+              backoff: 1000,
+            },
+          );
+
+          await new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              expect(job.returnvalue).to.equal(Step.Finish);
+              resolve();
+            });
+          });
+
+          await worker.close();
+          await childrenWorker.close();
+          await parentQueue.close();
+          await queueScheduler.close();
+        });
       });
     });
 

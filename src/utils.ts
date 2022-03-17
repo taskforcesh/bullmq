@@ -134,9 +134,13 @@ export function isNotConnectionError(error: Error): boolean {
   );
 }
 
-export const childSend = (
-  proc: NodeJS.Process,
-  msg: ChildMessage,
+interface procSendLike {
+  send?(message: any, callback?: (error: Error | null) => void): boolean;
+}
+
+export const asyncSend = <T extends procSendLike>(
+  proc: T,
+  msg: any,
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
     proc.send(msg, (err: Error) => {
@@ -149,17 +153,12 @@ export const childSend = (
   });
 };
 
+export const childSend = (
+  proc: NodeJS.Process,
+  msg: ChildMessage,
+): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
+
 export const parentSend = (
   child: ChildProcess,
   msg: ParentMessage,
-): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    child.send(msg, (err: Error) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
-  });
-};
+): Promise<void> => asyncSend<ChildProcess>(child, msg);

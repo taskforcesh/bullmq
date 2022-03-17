@@ -2,6 +2,7 @@ import { Job } from '../classes/job';
 import { AdvancedOptions } from './advanced-options';
 import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
+import { MetricsOptions } from './metrics-options';
 
 /**
  * An async function that receives `Job`s and handles them.
@@ -24,9 +25,17 @@ export interface WorkerOptions extends QueueBaseOptions {
    */
   concurrency?: number;
   /**
+   * Enable rate limiter
    * @see {@link https://docs.bullmq.io/guide/rate-limiting}
    */
   limiter?: RateLimiterOptions;
+
+  /**
+   * Enable collect metrics.
+   * @see {@link https://docs.bullmq.io/guide/metrics}
+   */
+  metrics?: MetricsOptions;
+
   skipDelayCheck?: boolean;
   drainDelay?: number;
   lockDuration?: number;

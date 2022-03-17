@@ -1,7 +1,7 @@
-import { FinishedTarget } from './finished-target';
+import { FinishedStatus } from './finished-status';
 
 export type JobState =
-  | FinishedTarget
+  | FinishedStatus
   | 'active'
   | 'delayed'
   | 'waiting'

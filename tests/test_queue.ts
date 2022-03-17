@@ -68,6 +68,7 @@ describe('Queue', function() {
 */
 
 import { expect } from 'chai';
+import { after } from 'lodash';
 import * as IORedis from 'ioredis';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
@@ -393,7 +394,7 @@ describe('queues', function () {
   });
 
   describe('.retryJobs', () => {
-    it('should retry all failed jobs', async () => {
+    it('retries all failed jobs by default', async () => {
       await queue.waitUntilReady();
       const jobCount = 8;
 
@@ -446,10 +447,121 @@ describe('queues', function () {
 
       await completing;
 
-      const CompletedCount = await queue.getJobCounts('completed');
-      expect(CompletedCount.completed).to.be.equal(jobCount);
+      const completedCount = await queue.getJobCounts('completed');
+      expect(completedCount.completed).to.be.equal(jobCount);
 
       await worker.close();
+    });
+
+    describe('when completed state is provided', () => {
+      it('retries all completed jobs', async () => {
+        await queue.waitUntilReady();
+        const jobCount = 8;
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(25);
+          },
+          { connection },
+        );
+        await worker.waitUntilReady();
+
+        const completing1 = new Promise(resolve => {
+          worker.on('completed', after(jobCount, resolve));
+        });
+
+        for (const index of Array.from(Array(jobCount).keys())) {
+          await queue.add('test', { idx: index });
+        }
+
+        await completing1;
+
+        const completedCount1 = await queue.getJobCounts('completed');
+        expect(completedCount1.completed).to.be.equal(jobCount);
+
+        const completing2 = new Promise(resolve => {
+          worker.on('completed', after(jobCount, resolve));
+        });
+
+        await queue.retryJobs({ count: 2, state: 'completed' });
+
+        const completedCount2 = await queue.getJobCounts('completed');
+        expect(completedCount2.completed).to.be.equal(0);
+
+        await completing2;
+
+        const completedCount = await queue.getJobCounts('completed');
+        expect(completedCount.completed).to.be.equal(jobCount);
+
+        await worker.close();
+      });
+    });
+
+    describe('when timestamp is provided', () => {
+      it('should retry all failed jobs before specific timestamp', async () => {
+        await queue.waitUntilReady();
+        const jobCount = 8;
+
+        let fail = true;
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(50);
+            if (fail) {
+              throw new Error('failed');
+            }
+          },
+          { connection },
+        );
+        await worker.waitUntilReady();
+
+        let order = 0;
+        let timestamp;
+        const failing = new Promise<void>(resolve => {
+          worker.on('failed', job => {
+            expect(order).to.be.eql(job.data.idx);
+            if (job.data.idx === jobCount / 2 - 1) {
+              timestamp = Date.now();
+            }
+            if (order === jobCount - 1) {
+              resolve();
+            }
+            order++;
+          });
+        });
+
+        for (const index of Array.from(Array(jobCount).keys())) {
+          await queue.add('test', { idx: index });
+        }
+
+        await failing;
+
+        const failedCount = await queue.getJobCounts('failed');
+        expect(failedCount.failed).to.be.equal(jobCount);
+
+        order = 0;
+        const completing = new Promise<void>(resolve => {
+          worker.on('completed', job => {
+            expect(order).to.be.eql(job.data.idx);
+            if (order === jobCount / 2 - 1) {
+              resolve();
+            }
+            order++;
+          });
+        });
+
+        fail = false;
+
+        await queue.retryJobs({ count: 2, timestamp });
+        await completing;
+
+        const count = await queue.getJobCounts('completed', 'failed');
+        expect(count.completed).to.be.equal(jobCount / 2);
+        expect(count.failed).to.be.equal(jobCount / 2);
+
+        await worker.close();
+      });
     });
   });
 });
