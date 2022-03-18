@@ -1743,6 +1743,9 @@ describe('workers', function () {
           },
         );
 
+        queueScheduler.run();
+        worker.run();
+
         await new Promise<void>(resolve => {
           worker.on(
             'failed',
@@ -1927,6 +1930,17 @@ describe('workers', function () {
           await childrenWorker.waitUntilReady();
           await worker.waitUntilReady();
 
+          const completing = new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              expect(job.returnvalue).to.equal(Step.Finish);
+              resolve();
+            });
+          });
+
+          queueScheduler.run();
+          worker.run();
+          childrenWorker.run();
+
           await parentQueue.add(
             'test',
             { step: Step.Initial },
@@ -1936,12 +1950,7 @@ describe('workers', function () {
             },
           );
 
-          await new Promise<void>(resolve => {
-            worker.on('completed', job => {
-              expect(job.returnvalue).to.equal(Step.Finish);
-              resolve();
-            });
-          });
+          await completing;
 
           await worker.close();
           await childrenWorker.close();
