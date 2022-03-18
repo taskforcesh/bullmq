@@ -246,7 +246,7 @@ export class Worker<
     data: JobJsonRaw,
     jobId: string,
   ): Job<DataType, ResultType, NameType> {
-    return Job.fromJSON(this, data, jobId) as Job<
+    return Job.fromJSON(this.getMinimalQueue(), data, jobId) as Job<
       DataType,
       ResultType,
       NameType
@@ -582,6 +582,22 @@ export class Worker<
     } finally {
       stopTimer();
     }
+  }
+
+  private getMinimalQueue() {
+    return {
+      client: this.connection.client,
+      name: this.queueName,
+      keys: this.keys,
+      toKey: (type: string) => this.toKey(type),
+      opts: this.opts,
+      closing: this.closing,
+      waitUntilReady: async () => this.connection.client,
+      removeListener: this.removeListener.bind(this) as any,
+      emit: this.emit.bind(this) as any,
+      on: this.on.bind(this) as any,
+      redisVersion: this.connection.redisVersion,
+    };
   }
 
   /**

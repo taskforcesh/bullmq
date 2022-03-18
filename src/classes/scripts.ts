@@ -34,7 +34,6 @@ import { Job, MoveToChildrenOpts } from './job';
 export type MinimalQueue = Pick<
   QueueBase,
   | 'name'
-  | 'queueName'
   | 'client'
   | 'toKey'
   | 'keys'

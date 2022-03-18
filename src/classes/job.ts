@@ -562,7 +562,7 @@ export class Job<
    * @returns the queue name this job belongs to.
    */
   get queueName(): string {
-    return this.queue.queueName;
+    return this.queue.name;
   }
 
   get prefix(): string {

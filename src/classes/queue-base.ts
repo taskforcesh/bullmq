@@ -9,7 +9,6 @@ export class QueueBase extends EventEmitter {
   closing: Promise<void>;
 
   protected connection: RedisConnection;
-  public readonly queueName: string;
 
   constructor(
     public readonly name: string,
@@ -18,7 +17,6 @@ export class QueueBase extends EventEmitter {
   ) {
     super();
 
-    this.queueName = name;
     this.opts = {
       prefix: 'bull',
       ...opts,

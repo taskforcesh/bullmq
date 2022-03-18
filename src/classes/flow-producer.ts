@@ -350,7 +350,6 @@ export class FlowProducer extends EventEmitter {
     return {
       client: this.connection.client,
       name: node.queueName,
-      queueName: node.queueName,
       keys: queueKeys.getKeys(node.queueName),
       toKey: (type: string) => queueKeys.toKey(node.queueName, type),
       opts: {},
