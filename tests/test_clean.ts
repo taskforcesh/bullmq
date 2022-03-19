@@ -68,6 +68,7 @@ describe('Cleaner', () => {
   it('should succeed when the limit is higher than the actual number of jobs', async () => {
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
+    await delay(100);
     const deletedJobs = await queue.clean(0, 100, 'wait');
     expect(deletedJobs).to.have.length(2);
     const remainingJobsCount = await queue.count();
