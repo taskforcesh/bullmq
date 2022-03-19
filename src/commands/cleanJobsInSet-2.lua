@@ -42,7 +42,7 @@ local jobs = rcall(command, KEYS[1], rangeStart, rangeEnd)
 local deleted = {}
 local deletedCount = 0
 local jobTS
-local deletionMarker = -1
+local deletionMarker = "-1"
 local jobIdsLen = #jobs
 if ARGV[4] == "active" then
   for i, job in ipairs(jobs) do
