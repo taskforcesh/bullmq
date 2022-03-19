@@ -63,6 +63,17 @@ describe('Job', function () {
       expect(createdJob.id).to.be.equal(customJobId);
     });
 
+    describe('when custom jobId is provided as 0', function () {
+      it('should use the custom jobId if one is provided', async function () {
+        const customJobId = '0';
+        await expect(
+          Job.create(queue, 'test', data, {
+            jobId: customJobId,
+          }),
+        ).to.be.rejectedWith('Custom id must not be 0');
+      });
+    });
+
     it('should set default size limit and succeed in creating job', async () => {
       const data = { foo: 'bar' }; // 13 bytes
       const opts = { sizeLimit: 20 };
