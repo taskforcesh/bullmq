@@ -65,6 +65,15 @@ describe('Cleaner', () => {
     await worker.close();
   });
 
+  it('should succeed when the limit is higher than the actual number of jobs', async () => {
+    await queue.add('test', { some: 'data' });
+    await queue.add('test', { some: 'data' });
+    const deletedJobs = await queue.clean(0, 100, 'wait');
+    expect(deletedJobs).to.have.length(2);
+    const remainingJobsCount = await queue.count();
+    expect(remainingJobsCount).to.be.eql(0);
+  });
+
   it('should only remove a job outside of the grace period', async () => {
     const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
