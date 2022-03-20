@@ -17,6 +17,7 @@ describe('Cleaner', () => {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    await queue.waitUntilReady();
   });
 
   afterEach(async function () {
@@ -26,8 +27,6 @@ describe('Cleaner', () => {
   });
 
   it('should clean an empty queue', async () => {
-    await queue.waitUntilReady();
-
     const waitCleaned = new Promise<void>(resolve => {
       queue.on('cleaned', (jobs, type) => {
         expect(type).to.be.eql('completed');
@@ -63,6 +62,16 @@ describe('Cleaner', () => {
 
     await completing;
     await worker.close();
+  });
+
+  it('should succeed when the limit is higher than the actual number of jobs', async () => {
+    await queue.add('test', { some: 'data' });
+    await queue.add('test', { some: 'data' });
+    await delay(100);
+    const deletedJobs = await queue.clean(0, 100, 'wait');
+    expect(deletedJobs).to.have.length(2);
+    const remainingJobsCount = await queue.count();
+    expect(remainingJobsCount).to.be.eql(0);
   });
 
   it('should only remove a job outside of the grace period', async () => {
@@ -158,7 +167,6 @@ describe('Cleaner', () => {
     describe('when parent belongs to same queue', async () => {
       describe('when parent has more than 1 pending children in the same queue', async () => {
         it('removes parent record', async () => {
-          await queue.waitUntilReady();
           const name = 'child-job';
 
           const flow = new FlowProducer({ connection });
@@ -193,7 +201,6 @@ describe('Cleaner', () => {
 
       describe('when parent has only 1 pending child in the same queue', async () => {
         it('deletes parent and its dependency keys', async () => {
-          await queue.waitUntilReady();
           const name = 'child-job';
 
           let first = true;
@@ -245,7 +252,6 @@ describe('Cleaner', () => {
 
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
-          await queue.waitUntilReady();
           const childrenQueueName = `test-${v4()}`;
           const childrenQueue = new Queue(childrenQueueName, { connection });
           await childrenQueue.waitUntilReady();
@@ -284,7 +290,6 @@ describe('Cleaner', () => {
     describe('when parent belongs to different queue', async () => {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
-          await queue.waitUntilReady();
           const parentQueueName = `test-${v4()}`;
           const parentQueue = new Queue(parentQueueName, { connection });
           await parentQueue.waitUntilReady();
@@ -333,7 +338,6 @@ describe('Cleaner', () => {
 
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
-          await queue.waitUntilReady();
           const parentQueueName = `test-${v4()}`;
           const parentQueue = new Queue(parentQueueName, { connection });
           await parentQueue.waitUntilReady();

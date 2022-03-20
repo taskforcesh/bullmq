@@ -42,8 +42,10 @@ local jobs = rcall(command, KEYS[1], rangeStart, rangeEnd)
 local deleted = {}
 local deletedCount = 0
 local jobTS
+local deletionMarker = ''
+local jobIdsLen = #jobs
 if ARGV[4] == "active" then
-  for _, job in ipairs(jobs) do
+  for i, job in ipairs(jobs) do
     if limit > 0 and deletedCount >= limit then
       break
     end
@@ -52,7 +54,9 @@ if ARGV[4] == "active" then
     if (rcall("EXISTS", jobKey .. ":lock") == 0) then
       jobTS = rcall("HGET", jobKey, "timestamp")
       if (not jobTS or jobTS < ARGV[2]) then
-        rcall("LREM", KEYS[1], 0, job)
+        -- replace the entry with a deletion marker; the actual deletion will
+        -- occur at the end of the script
+        rcall("LSET", KEYS[1], rangeEnd - jobIdsLen + i, deletionMarker)
         removeJob(job, true, ARGV[1])
         deletedCount = deletedCount + 1
         table.insert(deleted, job)
@@ -60,7 +64,7 @@ if ARGV[4] == "active" then
     end
   end
 else
-  for _, job in ipairs(jobs) do
+  for i, job in ipairs(jobs) do
     if limit > 0 and deletedCount >= limit then
       break
     end
@@ -69,7 +73,9 @@ else
     jobTS = rcall("HGET", jobKey, "timestamp")
     if (not jobTS or jobTS < ARGV[2]) then
       if isList then
-        rcall("LREM", KEYS[1], 0, job)
+        -- replace the entry with a deletion marker; the actual deletion will
+        -- occur at the end of the script
+        rcall("LSET", KEYS[1], rangeEnd - jobIdsLen + i, deletionMarker)
       end
       removeJob(job, true, ARGV[1])
       deletedCount = deletedCount + 1
@@ -84,6 +90,10 @@ else
       end
     end
   end
+end
+
+if isList then
+  rcall("LREM", KEYS[1], 0, deletionMarker)
 end
 
 rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", deletedCount)
