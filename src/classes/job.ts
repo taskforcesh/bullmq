@@ -127,10 +127,6 @@ export class Job<
     public opts: JobsOptions = {},
     public id?: string,
   ) {
-    if (id === '0') {
-      throw new Error('Custom id must not be 0');
-    }
-
     this.opts = Object.assign(
       {
         attempts: 0,
