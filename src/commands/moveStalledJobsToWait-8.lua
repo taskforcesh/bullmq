@@ -32,6 +32,9 @@ if rcall("EXISTS", KEYS[5]) == 1 then return {{}, {}} end
 
 rcall("SET", KEYS[5], ARGV[3], "PX", ARGV[4])
 
+-- Trim events before emiting them to avoid trimming events emitted in this script
+trimEvents(KEYS[6], KEYS[8])
+
 -- Move all stalled jobs to wait
 local stalling = rcall('SMEMBERS', KEYS[1])
 local stalled = {}
@@ -96,7 +99,5 @@ if (#active > 0) then
     rcall('SADD', KEYS[1], unpack(active, from, to))
   end
 end
-
-trimEvents(KEYS[6], KEYS[8])
 
 return {failed, stalled}

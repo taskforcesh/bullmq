@@ -21,7 +21,7 @@ export declare class QueueScheduler extends QueueBase
 
 |  Constructor | Modifiers | Description |
 |  --- | --- | --- |
-|  [(constructor)(name, { connection, autorun, ...opts })](./bullmq.queuescheduler._constructor_.md) |  | Constructs a new instance of the <code>QueueScheduler</code> class |
+|  [(constructor)(name, { connection, autorun, ...opts }, Connection)](./bullmq.queuescheduler._constructor_.md) |  | Constructs a new instance of the <code>QueueScheduler</code> class |
 
 ## Methods
 
