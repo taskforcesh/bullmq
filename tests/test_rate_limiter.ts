@@ -353,7 +353,7 @@ describe('Rate Limiter', function () {
       },
     });
 
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,
@@ -427,7 +427,7 @@ describe('Rate Limiter', function () {
       },
     });
 
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,
@@ -443,7 +443,7 @@ describe('Rate Limiter', function () {
         try {
           const timeDiff = Date.now() - startTime;
           // In some test envs, these timestamps can drift.
-          expect(timeDiff).to.be.gte(20);
+          expect(timeDiff).to.be.gte(15);
           expect(timeDiff).to.be.below(325);
 
           let count = 0;
