@@ -3,8 +3,8 @@ import { JobsOptions, RepeatOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { Scripts } from './scripts';
-
-const parser = require('cron-parser');
+import { CronDate, parseExpression } from 'cron-parser';
+import { Options } from 'semver';
 
 export class Repeat extends QueueBase {
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -222,7 +222,7 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
-  const interval = parser.parseExpression(opts.cron, {
+  const interval = parseExpression(opts.cron, {
     ...opts,
     currentDate,
   });
