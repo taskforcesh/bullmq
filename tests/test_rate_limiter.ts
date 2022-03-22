@@ -27,7 +27,7 @@ describe('Rate Limiter', function () {
   });
 
   it('should put a job into the delayed queue when limit is hit', async function () {
-    this.timeout(5000);
+    this.timeout(6000);
     const numJobs = 5;
     const worker = new Worker(queueName, async () => {}, {
       connection,
