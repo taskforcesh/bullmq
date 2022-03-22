@@ -594,7 +594,7 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
-  describe('when tz option is provided', function () {
+  describe('when utc option is provided', function () {
     it('repeats once a day for 5 days', async function () {
       this.timeout(10000);
       const queueScheduler = new QueueScheduler(queueName, { connection });
@@ -625,6 +625,7 @@ describe('repeat', function () {
             cron: '0 1 * * *',
             endDate: new Date('2017-05-10 13:13:00'),
             tz: 'Europe/Athens',
+            utc: true,
           },
         },
       );
