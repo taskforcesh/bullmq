@@ -371,8 +371,6 @@ describe('events', function () {
       },
     });
 
-    await queueEvents.client;
-
     const worker = new Worker(
       queueName,
       async () => {
@@ -387,6 +385,8 @@ describe('events', function () {
       queueEvents.once('drained', resolve);
     });
 
+    const client = await trimmedQueue.client;
+
     await trimmedQueue.addBulk([
       { name: 'test', data: { foo: 'bar' } },
       { name: 'test', data: { foo: 'baz' } },
@@ -395,8 +395,6 @@ describe('events', function () {
 
     await waitDrainedEvent;
     await worker.close();
-
-    const client = await trimmedQueue.client;
 
     const [[id, [_, event]]] = await client.xrevrange(
       trimmedQueue.keys.events,
