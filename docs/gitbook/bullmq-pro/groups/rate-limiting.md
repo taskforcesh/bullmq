@@ -16,7 +16,7 @@ The rate limit is configured on the worker instances:
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
 const worker = new WorkerPro('myQueue', processFn, {
-    groups: {
+    group: {
       limit: {
         max: 100,  // Limit to 100 jobs per second per group
         duration 1000,

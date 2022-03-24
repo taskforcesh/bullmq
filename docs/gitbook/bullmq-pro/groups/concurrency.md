@@ -10,7 +10,7 @@ You enable the concurrency setting like this:
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
 const worker = new WorkerPro('myQueue', processFn, {
-    groups: {
+    group: {
       concurrency: 3 // Limit to max 3 parallel jobs per group
     },
     concurrency: 100
