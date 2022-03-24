@@ -254,6 +254,14 @@ export class Queue<
     this.emit('paused');
   }
 
+  async close(): Promise<void> {
+    if (!this.closing) {
+      if (this._repeat) {
+        await this._repeat.close();
+      }
+    }
+    return super.close();
+  }
   /**
    * Resumes the processing of this queue globally.
    *

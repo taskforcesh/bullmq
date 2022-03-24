@@ -3,8 +3,7 @@ import { JobsOptions, RepeatOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { Scripts } from './scripts';
-import { CronDate, parseExpression } from 'cron-parser';
-import { Options } from 'semver';
+import { parseExpression } from 'cron-parser';
 
 export class Repeat extends QueueBase {
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
