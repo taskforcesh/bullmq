@@ -50,17 +50,21 @@ describe('Cleaner', () => {
       worker.on(
         'completed',
         after(2, async () => {
-          const jobs = await queue.clean(0, 0);
-          expect(jobs.length).to.be.eql(2);
           resolve();
         }),
       );
     });
 
-    await queue.add('test', { some: 'data' });
-    await queue.add('test', { some: 'data' });
+    await queue.addBulk([
+      { name: 'test', data: { some: 'data' } },
+      { name: 'test', data: { some: 'data' } },
+    ]);
 
     await completing;
+
+    const jobs = await queue.clean(0, 0);
+    expect(jobs.length).to.be.eql(2);
+
     await worker.close();
   });
 
