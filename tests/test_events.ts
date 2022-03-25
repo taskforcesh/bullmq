@@ -103,7 +103,10 @@ describe('events', function () {
   });
 
   it('emits cleaned global event when jobs were cleaned', async function () {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      autorun: false,
+    });
     const numJobs = 50;
 
     worker.on(
@@ -126,6 +129,8 @@ describe('events', function () {
       data: { foo: 'bar' },
     }));
     await queue.addBulk(jobs);
+
+    worker.run();
 
     await cleaned;
 
