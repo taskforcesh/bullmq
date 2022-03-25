@@ -11,14 +11,6 @@
     ARGV[4]  set name, can be any of 'wait', 'active', 'paused', 'delayed', 'completed', or 'failed'
 ]]
 local rcall = redis.call
-local command = "ZRANGE"
-local isList = false
-
-if ARGV[4] == "wait" or ARGV[4] == "active" or ARGV[4] == "paused" then
-  command = "LRANGE"
-  isList = true
-end
-
 local rangeStart = 0
 local rangeEnd = -1
 
@@ -38,11 +30,8 @@ end
 --- @include "includes/batches"
 --- @include "includes/removeJob"
 
-local deleted
-local deletedCount = 0
-
 local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
-  local jobs = rcall(command, listKey, rangeStart, rangeEnd)
+  local jobs = rcall("LRANGE", listKey, rangeStart, rangeEnd)
   local deleted = {}
   local deletedCount = 0
   local jobTS
@@ -77,11 +66,11 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
 
   rcall("LREM", listKey, 0, deletionMarker)
 
-  return deleted
+  return {deleted, deletedCount}
 end
 
 local function cleanActive(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
-  local jobs = rcall(command, listKey, rangeStart, rangeEnd)
+  local jobs = rcall("LRANGE", listKey, rangeStart, rangeEnd)
   local deleted = {}
   local deletedCount = 0
   local jobTS
@@ -118,11 +107,11 @@ local function cleanActive(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestam
 
   rcall("LREM", setKey, 0, deletionMarker)
 
-  return deleted
+  return {deleted, deletedCount}
 end
 
 local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
-  local jobs = rcall(command, setKey, rangeStart, rangeEnd)
+  local jobs = rcall("ZRANGE", setKey, rangeStart, rangeEnd)
   local deleted = {}
   local deletedCount = 0
   local jobTS
@@ -149,11 +138,11 @@ local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
     end
   end
   
-  return deleted
+  return {deleted, deletedCount}
 end
 
 local function cleanDelayed(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
-  local jobs = rcall(command, setKey, rangeStart, rangeEnd)
+  local jobs = rcall("ZRANGE", setKey, rangeStart, rangeEnd)
   local deleted = {}
   local deletedCount = 0
   local jobTS
@@ -188,19 +177,20 @@ local function cleanDelayed(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestam
     end
   end
   
-  return deleted
+  return {deleted, deletedCount}
 end
 
+local result
 if ARGV[4] == "active" then
-  deleted = cleanActive(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
+  result = cleanActive(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
 elseif ARGV[4] == "delayed" then
-  deleted = cleanDelayed(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
+  result = cleanDelayed(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
-  deleted = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
 else
-  deleted = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
+  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
 end
 
-rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", deletedCount)
+rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", result[2])
 
-return deleted
+return result[1]
