@@ -109,6 +109,7 @@ describe('events', function () {
     worker.on(
       'completed',
       after(50, async function () {
+        await delay(1);
         await queue.clean(0, 0, 'completed');
       }),
     );

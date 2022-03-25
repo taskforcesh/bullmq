@@ -61,6 +61,7 @@ describe('Cleaner', () => {
     ]);
 
     await completing;
+    await delay(1);
 
     const jobs = await queue.clean(0, 0);
     expect(jobs.length).to.be.eql(2);
