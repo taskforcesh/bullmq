@@ -351,7 +351,7 @@ export class QueueGetters<
    *
    * @param start - Start point of the metrics, where 0
    * is the newest point to be returned.
-   * @param end - End poinf of the metrics, where -1 is the
+   * @param end - End point of the metrics, where -1 is the
    * oldest point to be returned.
    *
    * @returns - Returns an object with queue metrics.

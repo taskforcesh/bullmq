@@ -379,13 +379,17 @@ describe('events', function () {
       { connection },
     );
 
+    await trimmedQueue.waitUntilReady();
     await worker.waitUntilReady();
 
-    const waitDrainedEvent = new Promise(resolve => {
-      queueEvents.once('drained', resolve);
-    });
-
     const client = await trimmedQueue.client;
+
+    const waitDrainedEvent = new Promise<void>(resolve => {
+      queueEvents.once('drained', async () => {
+        await worker.close();
+        resolve();
+      });
+    });
 
     await trimmedQueue.addBulk([
       { name: 'test', data: { foo: 'bar' } },
@@ -394,7 +398,6 @@ describe('events', function () {
     ]);
 
     await waitDrainedEvent;
-    await worker.close();
 
     const [[id, [_, event]]] = await client.xrevrange(
       trimmedQueue.keys.events,

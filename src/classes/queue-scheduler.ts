@@ -236,11 +236,11 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  private async updateDelaySet(timestamp: number) {
+  private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
       return Scripts.updateDelaySet(this, timestamp);
     }
-    return [0, 0];
+    return [0, '0'];
   }
 
   private async moveStalledJobsToWait() {

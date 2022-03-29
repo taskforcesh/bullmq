@@ -114,7 +114,11 @@ export class Repeat extends QueueBase {
     return Job.create<T, R, N>(this, name, data, mergedOpts);
   }
 
-  async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {
+  async removeRepeatable(
+    name: string,
+    repeat: RepeatOptions,
+    jobId?: string,
+  ): Promise<void> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
     const repeatJobId = getRepeatJobId(
       name,
@@ -126,7 +130,7 @@ export class Repeat extends QueueBase {
     return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
   }
 
-  async removeRepeatableByKey(repeatJobKey: string) {
+  async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
     const data = this.keyToData(repeatJobKey);
 
     const repeatJobId = getRepeatJobId(
@@ -176,7 +180,7 @@ export class Repeat extends QueueBase {
     return jobs;
   }
 
-  async getRepeatableCount() {
+  async getRepeatableCount(): Promise<number> {
     const client = await this.client;
     return client.zcard(this.toKey('repeat'));
   }
