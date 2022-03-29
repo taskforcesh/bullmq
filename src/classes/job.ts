@@ -10,6 +10,7 @@ import {
   WorkerOptions,
 } from '../interfaces';
 import {
+  FinishedStatus, 
   JobsOptions,
   JobState,
   JobJsonSandbox,
@@ -39,7 +40,6 @@ export interface MoveToChildrenOpts {
   };
 }
 
-type ValueOf<T> = T[keyof T];
 export interface DependenciesOpts {
   processed?: {
     cursor?: number;
@@ -927,7 +927,7 @@ export class Job<
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
-  async retry(state: 'completed' | 'failed' = 'failed'): Promise<void> {
+  async retry(state: FinishedStatus = 'failed'): Promise<void> {
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;

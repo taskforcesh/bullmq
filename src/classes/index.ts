@@ -4,7 +4,7 @@ export * from './child-processor';
 export * from './compat';
 export * from './flow-producer';
 export * from './job';
-export * from './master';
+// export * from './master'; this file must not be exported
 export * from './process-utils';
 export * from './queue-base';
 export * from './queue-events';

@@ -63,6 +63,15 @@ describe('Job', function () {
       expect(createdJob.id).to.be.equal(customJobId);
     });
 
+    describe('when custom jobId is provided as empty string', function () {
+      it('should ignore the empty custom id and generates a numeric id', async function () {
+        const job = await Job.create(queue, 'test', data, {
+          jobId: '',
+        });
+        expect(job.id).to.be.equal('2');
+      });
+    });
+
     it('should set default size limit and succeed in creating job', async () => {
       const data = { foo: 'bar' }; // 13 bytes
       const opts = { sizeLimit: 20 };

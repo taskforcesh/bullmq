@@ -371,18 +371,24 @@ describe('events', function () {
       },
     });
 
-    await queueEvents.client;
-
     const worker = new Worker(
       queueName,
       async () => {
-        await delay(50);
+        await delay(100);
       },
       { connection },
     );
 
-    const waitDrainedEvent = new Promise(resolve => {
-      queueEvents.once('drained', resolve);
+    await trimmedQueue.waitUntilReady();
+    await worker.waitUntilReady();
+
+    const client = await trimmedQueue.client;
+
+    const waitDrainedEvent = new Promise<void>(resolve => {
+      queueEvents.once('drained', async () => {
+        await worker.close();
+        resolve();
+      });
     });
 
     await trimmedQueue.addBulk([
@@ -392,9 +398,6 @@ describe('events', function () {
     ]);
 
     await waitDrainedEvent;
-    await worker.close();
-
-    const client = await trimmedQueue.client;
 
     const [[id, [_, event]]] = await client.xrevrange(
       trimmedQueue.keys.events,

@@ -143,13 +143,17 @@ export const asyncSend = <T extends procSendLike>(
   msg: any,
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
-    proc.send(msg, (err: Error) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
+    if (typeof proc.send === 'function') {
+      proc.send(msg, (err: Error) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    } else {
+      resolve();
+    }
   });
 };
 

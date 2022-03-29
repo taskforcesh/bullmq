@@ -77,6 +77,9 @@ local jobCounter = rcall("INCR", KEYS[4])
 -- Includes
 --- @include "includes/updateParentDepsIfNeeded"
 
+-- Trim events before emiting them to avoid trimming events emitted in this script
+trimEvents(KEYS[3], KEYS[8])
+
 local parentDependenciesKey = args[7]
 if args[2] == "" then
   jobId = jobCounter
@@ -173,7 +176,5 @@ end
 if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end
-
-trimEvents(KEYS[3], KEYS[8])
 
 return jobId .. "" -- convert to string
