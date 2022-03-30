@@ -415,6 +415,60 @@ describe('events', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
+  describe('when opts.maxLenEvents is set as 0', function () {
+    it('should trim events automatically, having more precedence than opts attribute', async () => {
+      const trimmedQueue = new Queue(queueName, {
+        connection,
+        streams: {
+          events: {
+            maxLen: 10,
+          },
+        },
+      });
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(100);
+        },
+        { connection },
+      );
+
+      await trimmedQueue.waitUntilReady();
+      await worker.waitUntilReady();
+
+      const client = await trimmedQueue.client;
+      await client.hset(trimmedQueue.toKey('meta'), 'opts.maxLenEvents', 0);
+
+      const completing = new Promise(resolve => {
+        worker.on('completed', after(3, resolve));
+      });
+
+      await trimmedQueue.addBulk([
+        { name: 'test', data: { foo: 'bar' } },
+        { name: 'test', data: { foo: 'baz' } },
+        { name: 'test', data: { foo: 'bar' } },
+      ]);
+
+      await completing;
+
+      const [[id, [_, event]]] = await client.xrevrange(
+        trimmedQueue.keys.events,
+        '+',
+        '-',
+      );
+
+      expect(event).to.be.equal('completed');
+
+      const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+      expect(eventsLength).to.be.equal(1);
+
+      await trimmedQueue.close();
+      await removeAllQueueData(new IORedis(), queueName);
+    });
+  });
+
   it('should trim events manually', async () => {
     const queueName = 'test-manual-' + v4();
     const trimmedQueue = new Queue(queueName, { connection });

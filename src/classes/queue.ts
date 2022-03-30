@@ -1,5 +1,6 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
+import { Packr } from 'msgpackr';
 import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
 import { isRedisInstance, jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
@@ -8,6 +9,13 @@ import { Repeat } from './repeat';
 import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
 import { FinishedStatus } from '../types';
+
+const packer = new Packr({
+  useRecords: false,
+  encodeUndefinedAsNil: true,
+});
+
+const pack = packer.pack;
 
 export interface ObliterateOpts {
   /**
@@ -115,10 +123,11 @@ export class Queue<
     this.waitUntilReady()
       .then(client => {
         if (!this.closing) {
-          client.hset(
+          (<any>client).addQueueOpts(
             this.keys.meta,
-            'opts.maxLenEvents',
-            get(opts, 'streams.events.maxLen', 10000),
+            pack({
+              maxLenEvents: get(opts, 'streams.events.maxLen', 10000),
+            }),
           );
         }
       })
