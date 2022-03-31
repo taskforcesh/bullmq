@@ -115,8 +115,6 @@ local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
   local deleted = {}
   local deletedCount = 0
   local jobTS
-  local deletionMarker = ''
-  local jobIdsLen = #jobs
   for i, job in ipairs(jobs) do
     if limit > 0 and deletedCount >= limit then
       break
@@ -146,8 +144,6 @@ local function cleanDelayed(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestam
   local deleted = {}
   local deletedCount = 0
   local jobTS
-  local deletionMarker = ''
-  local jobIdsLen = #jobs
   for i, job in ipairs(jobs) do
     if limit > 0 and deletedCount >= limit then
       break
