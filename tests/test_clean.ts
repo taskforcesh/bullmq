@@ -118,6 +118,7 @@ describe('Cleaner', () => {
     const worker = new Worker(
       queueName,
       async () => {
+        await delay(100);
         throw new Error('It failed');
       },
       { connection, autorun: false },
