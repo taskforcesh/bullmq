@@ -20,9 +20,7 @@ describe('connection', () => {
   });
 
   describe('persistent', () => {
-    let options: IORedis.RedisOptions;
-
-    beforeEach(async () => {
+    it('should override maxRetriesPerRequest: null as redis options', async () => {
       const queue = new QueueBase(queueName, {
         connection: {
           host: 'localhost',
@@ -30,18 +28,14 @@ describe('connection', () => {
         },
       });
 
-      options = <IORedis.RedisOptions>(await queue.client).options;
-    });
+      const options = <IORedis.RedisOptions>(await queue.client).options;
 
-    it('should override maxRetriesPerRequest: null as redis options', () => {
       expect(options.maxRetriesPerRequest).to.be.equal(null);
     });
   });
 
   describe('non-persistent', () => {
-    let options: IORedis.RedisOptions;
-
-    beforeEach(async () => {
+    it('should not override any redis options', async () => {
       const queue = new QueueBase(queueName, {
         connection: {
           host: 'localhost',
@@ -50,10 +44,8 @@ describe('connection', () => {
         persistentConnection: false,
       });
 
-      options = <IORedis.RedisOptions>(await queue.client).options;
-    });
+      const options = <IORedis.RedisOptions>(await queue.client).options;
 
-    it('should not override any redis options', () => {
       expect(options.maxRetriesPerRequest).to.be.equal(20);
     });
   });
