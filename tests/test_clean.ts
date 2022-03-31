@@ -120,14 +120,21 @@ describe('Cleaner', () => {
       async () => {
         throw new Error('It failed');
       },
-      { connection },
+      { connection, autorun: false },
     );
     await worker.waitUntilReady();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
 
-    await delay(100);
+    const failing = new Promise(resolve => {
+      worker.on('failed', after(2, resolve));
+    });
+
+    worker.run();
+
+    await failing;
+
     const jobs = await queue.clean(0, 0, 'failed');
     expect(jobs.length).to.be.eql(2);
     const count = await queue.count();

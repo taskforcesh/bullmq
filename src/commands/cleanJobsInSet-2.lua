@@ -30,6 +30,22 @@ end
 --- @include "includes/batches"
 --- @include "includes/removeJob"
 
+local function getTimestamp(jobKey, attributes)
+  if #attributes == 1 then
+    return rcall("HGET", jobKey, attributes[1])
+  end
+
+  local jobTs
+  for _, ts in ipairs(rcall("HMGET", jobKey, unpack(attributes))) do
+    if (ts) then
+      jobTs = ts
+      break
+    end
+  end
+  
+  return jobTs
+end
+
 local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, skipCheckLock)
   local jobs = rcall("LRANGE", listKey, rangeStart, rangeEnd)
   local deleted = {}
@@ -49,12 +65,7 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp,
       -- * processedOn represents when the job was last attempted, but it doesn't get populated until the job is first tried
       -- * timestamp is the original job submission time
       -- Fetch all three of these (in that order) and use the first one that is set so that we'll leave jobs that have been active within the grace period:
-      for _, ts in ipairs(rcall("HMGET", jobKey, "finishedOn", "processedOn", "timestamp")) do
-        if (ts) then
-          jobTS = ts
-          break
-        end
-      end
+      jobTS = getTimestamp(jobKey, {"finishedOn", "processedOn", "timestamp"})
       if (not jobTS or jobTS < timestamp) then
         -- replace the entry with a deletion marker; the actual deletion will
         -- occur at the end of the script
@@ -71,7 +82,7 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp,
   return {deleted, deletedCount}
 end
 
-local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
+local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, attributes)
   local jobs = rcall("ZRANGE", setKey, rangeStart, rangeEnd)
   local deleted = {}
   local deletedCount = 0
@@ -83,44 +94,7 @@ local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
   
     local jobKey = jobKeyPrefix .. job
     -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
-    jobTS = rcall("HGET", jobKey, "finishedOn")
-    if (not jobTS or jobTS < timestamp) then
-      removeJob(job, true, jobKeyPrefix)
-      deletedCount = deletedCount + 1
-      table.insert(deleted, job)
-    end
-  end
-
-  if(#deleted > 0) then
-    for from, to in batches(#deleted, 7000) do
-      rcall("ZREM", setKey, unpack(deleted, from, to))
-    end
-  end
-  
-  return {deleted, deletedCount}
-end
-
-local function cleanDelayed(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
-  local jobs = rcall("ZRANGE", setKey, rangeStart, rangeEnd)
-  local deleted = {}
-  local deletedCount = 0
-  local jobTS
-  for i, job in ipairs(jobs) do
-    if limit > 0 and deletedCount >= limit then
-      break
-    end
-  
-    local jobKey = jobKeyPrefix .. job
-    -- Find the right timestamp of the job to compare to maxTimestamp:
-    -- * processedOn represents when the job was last attempted, but it doesn't get populated until the job is first tried
-    -- * timestamp is the original job submission time
-    -- Fetch all 2 of these (in that order) and use the first one that is set so that we'll leave jobs that have been active within the grace period:
-    for _, ts in ipairs(rcall("HMGET", jobKey, "processedOn", "timestamp")) do
-      if (ts) then
-        jobTS = ts
-        break
-      end
-    end
+    jobTS = getTimestamp(jobKey, attributes)
     if (not jobTS or jobTS < timestamp) then
       removeJob(job, true, jobKeyPrefix)
       deletedCount = deletedCount + 1
@@ -141,11 +115,11 @@ local result
 if ARGV[4] == "active" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false)
 elseif ARGV[4] == "delayed" then
-  result = cleanDelayed(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
+  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], {"processedOn", "timestamp"})
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true)
 else
-  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
+  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], {"finishedOn"} )
 end
 
 rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", result[2])
