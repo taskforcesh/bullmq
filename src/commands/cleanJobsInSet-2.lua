@@ -30,7 +30,7 @@ end
 --- @include "includes/batches"
 --- @include "includes/removeJob"
 
-local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
+local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, skipCheckLock)
   local jobs = rcall("LRANGE", listKey, rangeStart, rangeEnd)
   local deleted = {}
   local deletedCount = 0
@@ -43,46 +43,7 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
     end
   
     local jobKey = jobKeyPrefix .. job
-    -- Find the right timestamp of the job to compare to maxTimestamp:
-    -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
-    -- * processedOn represents when the job was last attempted, but it doesn't get populated until the job is first tried
-    -- * timestamp is the original job submission time
-    -- Fetch all three of these (in that order) and use the first one that is set so that we'll leave jobs that have been active within the grace period:
-    for _, ts in ipairs(rcall("HMGET", jobKey, "finishedOn", "processedOn", "timestamp")) do
-      if (ts) then
-        jobTS = ts
-        break
-      end
-    end
-    if (not jobTS or jobTS < timestamp) then
-      -- replace the entry with a deletion marker; the actual deletion will
-      -- occur at the end of the script
-      rcall("LSET", listKey, rangeEnd - jobIdsLen + i, deletionMarker)
-      removeJob(job, true, jobKeyPrefix)
-      deletedCount = deletedCount + 1
-      table.insert(deleted, job)
-    end
-  end
-
-  rcall("LREM", listKey, 0, deletionMarker)
-
-  return {deleted, deletedCount}
-end
-
-local function cleanActive(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp)
-  local jobs = rcall("LRANGE", listKey, rangeStart, rangeEnd)
-  local deleted = {}
-  local deletedCount = 0
-  local jobTS
-  local deletionMarker = ''
-  local jobIdsLen = #jobs
-  for i, job in ipairs(jobs) do
-    if limit > 0 and deletedCount >= limit then
-      break
-    end
-  
-    local jobKey = jobKeyPrefix .. job
-    if (rcall("EXISTS", jobKey .. ":lock") == 0) then
+    if (skipCheckLock or rcall("EXISTS", jobKey .. ":lock") == 0) then
       -- Find the right timestamp of the job to compare to maxTimestamp:
       -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
       -- * processedOn represents when the job was last attempted, but it doesn't get populated until the job is first tried
@@ -105,7 +66,7 @@ local function cleanActive(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestam
     end
   end
 
-  rcall("LREM", setKey, 0, deletionMarker)
+  rcall("LREM", listKey, 0, deletionMarker)
 
   return {deleted, deletedCount}
 end
@@ -178,11 +139,11 @@ end
 
 local result
 if ARGV[4] == "active" then
-  result = cleanActive(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false)
 elseif ARGV[4] == "delayed" then
   result = cleanDelayed(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
-  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true)
 else
   result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2])
 end
