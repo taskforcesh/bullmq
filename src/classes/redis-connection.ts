@@ -150,7 +150,8 @@ export class RedisConnection extends EventEmitter {
 
     if (opts && opts.skipVersionCheck !== true && !this.closing) {
       this.version = await this.getRedisVersion();
-      if (semver.lt(this.version, RedisConnection.minimumVersion)) {
+      const version = semver.valid(semver.coerce(this.version));
+      if (semver.lt(version, RedisConnection.minimumVersion)) {
         throw new Error(
           `Redis version needs to be greater than ${RedisConnection.minimumVersion} Current: ${this.version}`,
         );
