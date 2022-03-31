@@ -35,6 +35,7 @@
 
       opts - token - lock token
       opts - keepJobs
+      opts - limiter
       opts - lockDuration - lock duration in milliseconds
       opts - parent - parent data
       opts - parentKey

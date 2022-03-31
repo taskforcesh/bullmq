@@ -125,9 +125,8 @@ export class Queue<
         if (!this.closing) {
           (<any>client).addQueueOpts(
             this.keys.meta,
-            pack({
-              maxLenEvents: get(opts, 'streams.events.maxLen', 10000),
-            }),
+            get(opts, 'streams.events.maxLen', 10000),
+            pack(this.limiter),
           );
         }
       })

@@ -4,13 +4,11 @@
     Input:
       KEYS[1] 'meta'
 
-      ARGV[1] msgpacked arguments array
-            [1]  maxLenEvents
+      ARGV[1] maxLenEvents
+      ARGV[2] limiter
 ]]
 local rcall = redis.call
 
-local opts = cmsgpack.unpack(ARGV[1])
+local limiter = cjson.encode(cmsgpack.unpack(ARGV[2]))
 
-local queueOpts = cjson.encode(opts)
-
-rcall("HSET", KEYS[1], "opts", queueOpts)
+rcall("HMSET", KEYS[1], "maxLenEvents", ARGV[1], "limiter", limiter)

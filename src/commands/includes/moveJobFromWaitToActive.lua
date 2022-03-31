@@ -22,13 +22,21 @@
 
 local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts)
   -- Check if we need to perform rate limiting.
-  local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
+  local limiter
+  if not opts['limiter'] then
+    local rawLimiter = rcall("HGET", keyPrefix .. "meta", "limiter")
+    if rawLimiter ~= false then
+      limiter = cjson.decode(rawLimiter)
+    end
+  end
 
-  if(maxJobs) then
+  local maxJobs = tonumber((opts['limiter'] and opts['limiter']['max']) or (limiter and limiter['max']))
+
+  if maxJobs then
     local rateLimiterKey = keys[6];
 
     local groupKey
-    local groupKeyOpt = opts['limiter'] and opts['limiter']['groupKey'] or ""
+    local groupKeyOpt = (opts['limiter'] and opts['limiter']['groupKey']) or (limiter and limiter['groupKey']) or ""
     if groupKeyOpt ~= "" then
       groupKey = string.match(jobId, "[^:]+$")
       if groupKey ~= jobId then
@@ -46,7 +54,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
       jobCounter = tonumber(rcall("INCR", rateLimiterKey))
     end
 
-    local limiterDuration = opts['limiter'] and opts['limiter']['duration']
+    local limiterDuration = (opts['limiter'] and opts['limiter']['duration']) or (limiter and limiter['duration'])
     -- check if rate limit hit
     if jobCounter ~= nil and jobCounter > maxJobs then
       local exceedingJobs = jobCounter - maxJobs

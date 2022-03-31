@@ -3,15 +3,11 @@
 ]]
 
 local function trimEvents(metaKey, eventStreamKey)
-  local opts
-  local maxEvents = rcall("HMGET", metaKey, "opts.maxLenEvents", "opts")
-  if maxEvents[2] then
-    opts = cjson.decode(maxEvents[2])
-  end
+  local maxEvents = rcall("HMGET", metaKey, "opts.maxLenEvents", "maxLenEvents")
   if maxEvents[1] ~= false then
     rcall("XTRIM", eventStreamKey, "MAXLEN", "~", maxEvents[1])
-  elseif (opts and opts["maxLenEvents"]) ~= nil then
-    rcall("XTRIM", eventStreamKey, "MAXLEN", "~", opts["maxLenEvents"])
+  elseif maxEvents[2] ~= false then
+    rcall("XTRIM", eventStreamKey, "MAXLEN", "~", maxEvents[2])
   else
     rcall("XTRIM", eventStreamKey, "MAXLEN", "~", 10000)
   end

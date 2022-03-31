@@ -151,6 +151,46 @@ describe('Rate Limiter', function () {
       await worker.close();
     });
 
+    describe('when limiter options are provided only in queue', function () {
+      it('moves job to delayed status when is in rate limit', async function () {
+        const rateLimitedQueue = new Queue(queueName, {
+          connection,
+          limiter: {
+            max: 1,
+            duration: 1000,
+            groupKey: 'accountId',
+          },
+        });
+        const worker = new Worker(queueName, null, {
+          connection,
+        });
+        const job = await rateLimitedQueue.add('rate test', {
+          accountId: 'account1',
+        });
+        const job2 = await rateLimitedQueue.add('rate test', {
+          accountId: 'account1',
+        });
+
+        await worker.getNextJob('0');
+        await worker.getNextJob('0');
+        const isActive = await job.isActive();
+        expect(isActive).to.be.equal(true);
+
+        const isDelayed = await job2.isDelayed();
+        expect(isDelayed).to.be.equal(true);
+
+        await job.moveToCompleted('return value', '0');
+        await job2.promote();
+        await worker.getNextJob('0');
+
+        const isStillDelayed = await job2.isDelayed();
+        expect(isStillDelayed).to.be.equal(true);
+
+        await rateLimitedQueue.close();
+        await worker.close();
+      });
+    });
+
     it('moves job to wait status after rate limit', async function () {
       const rateLimitedQueue = new Queue(queueName, {
         connection,
