@@ -126,7 +126,7 @@ export class Queue<
           (<any>client).addQueueOpts(
             this.keys.meta,
             get(opts, 'streams.events.maxLen', 10000),
-            pack(this.limiter),
+            this.limiter ? pack(this.limiter) : '',
           );
         }
       })
