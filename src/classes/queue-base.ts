@@ -69,8 +69,9 @@ export class QueueBase extends EventEmitter {
     return Buffer.from(this.name).toString('base64');
   }
 
-  protected clientName(): string {
-    return this.opts.prefix + ':' + this.base64Name();
+  protected clientName(suffix = ''): string {
+    const queueNameBase64 = this.base64Name();
+    return `${this.opts.prefix}:${queueNameBase64}${suffix}`;
   }
 
   close(): Promise<void> {
