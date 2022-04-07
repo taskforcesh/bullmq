@@ -15,6 +15,7 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
+  WORKER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -298,7 +299,7 @@ export class Worker<
           // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
           //
           try {
-            await client.client('setname', this.clientName());
+            await client.client('setname', this.clientName(WORKER_SUFFIX));
           } catch (err) {
             if (!clientCommandMessageReg.test((<Error>err).message)) {
               throw err;

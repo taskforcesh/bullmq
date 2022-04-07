@@ -46,9 +46,11 @@ describe('Jobs getters', function () {
   });
 
   describe('.getWorkers', () => {
-    it('gets all workers for this queue', async function () {
+    it('gets all workers for this queue only', async function () {
       const worker = new Worker(queueName, async () => {}, { connection });
+      const queueScheduler = new QueueScheduler(queueName, { connection });
       await worker.waitUntilReady();
+      await queueScheduler.waitUntilReady();
       await delay(10);
 
       const workers = await queue.getWorkers();
@@ -63,6 +65,7 @@ describe('Jobs getters', function () {
 
       await worker.close();
       await worker2.close();
+      await queueScheduler.close();
     });
 
     it('gets only workers related only to one queue', async function () {
