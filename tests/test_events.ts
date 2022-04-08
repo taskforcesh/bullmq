@@ -94,6 +94,7 @@ describe('events', function () {
   });
 
   it('should emit global waiting event when a job has been added', async function () {
+    await delay(100);
     const waiting = new Promise(resolve => {
       queueEvents.on('waiting', resolve);
 
