@@ -104,10 +104,16 @@ describe('events', function () {
   });
 
   it('emits cleaned global event when jobs were cleaned', async function () {
-    const worker = new Worker(queueName, async () => {}, {
-      connection,
-      autorun: false,
-    });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(5);
+      },
+      {
+        connection,
+        autorun: false,
+      },
+    );
     const numJobs = 50;
 
     worker.on(
