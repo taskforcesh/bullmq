@@ -10,7 +10,7 @@ import {
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
-import { JobState, JobJsonSandbox } from '../types';
+import { FinishedStatus, JobState, JobJsonSandbox } from '../types';
 import {
   errorObject,
   isEmpty,
@@ -297,7 +297,7 @@ export class Job<
     }
   }
 
-  toJSON() {
+  toJSON(): Omit<this, 'queue'> {
     const { queue, ...withoutQueue } = this;
     return withoutQueue;
   }
@@ -341,7 +341,7 @@ export class Job<
    *
    * @param data - the data that will replace the current jobs data.
    */
-  async update(data: DataType): Promise<void> {
+  update(data: DataType): Promise<void> {
     this.data = data;
 
     return Scripts.updateData<DataType, ReturnType, NameType>(
@@ -356,7 +356,7 @@ export class Job<
    *
    * @param progress - number or object to be saved as progress.
    */
-  async updateProgress(progress: number | object): Promise<void> {
+  updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
     return Scripts.updateProgress(this.queue, this, progress);
   }
@@ -507,9 +507,6 @@ export class Job<
         this.opts.removeOnFail,
         token,
         fetchNext,
-        this.opts.attempts && this.attemptsMade >= this.opts.attempts
-          ? this.attemptsMade
-          : 0,
       );
       (<any>multi).moveToFinished(args);
       command = 'failed';
@@ -564,6 +561,9 @@ export class Job<
     return (await this.isInList('wait')) || (await this.isInList('paused'));
   }
 
+  /**
+   * @returns the queue name this job belongs to.
+   */
   get queueName(): string {
     return this.queue.name;
   }
@@ -880,7 +880,7 @@ export class Job<
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
-  async retry(state: 'completed' | 'failed' = 'failed'): Promise<void> {
+  async retry(state: FinishedStatus = 'failed'): Promise<void> {
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
@@ -896,14 +896,14 @@ export class Job<
     this.discarded = true;
   }
 
-  private async isInZSet(set: string) {
+  private async isInZSet(set: string): Promise<boolean> {
     const client = await this.queue.client;
 
     const score = await client.zscore(this.queue.toKey(set), this.id);
     return score !== null;
   }
 
-  private async isInList(list: string) {
+  private async isInList(list: string): Promise<boolean> {
     return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
   }
 

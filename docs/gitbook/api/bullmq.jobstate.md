@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-export declare type JobState = FinishedTarget | 'active' | 'delayed' | 'waiting' | 'waiting-children';
+export declare type JobState = FinishedStatus | 'active' | 'delayed' | 'waiting' | 'waiting-children';
 ```
-<b>References:</b> [FinishedTarget](./bullmq.finishedtarget.md)
+<b>References:</b> [FinishedStatus](./bullmq.finishedstatus.md)
 

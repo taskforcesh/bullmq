@@ -1,8 +1,8 @@
 # Pausing queues
 
-BullMQ supports pausing queues globally or locally. A queue is paused globally when no workers will pick up any jobs from the queue. When you pause a queue, the workers that are currently busy processing a job, will continue working on that job until it completes \(or failed\), and then will just keep idling until the queue has been unpaused.
+BullMQ supports pausing queues globally or locally. A queue is paused globally when no workers will pick up any jobs from the queue. When you pause a queue, the workers that are currently busy processing a job, will continue working on that job until it completes (or failed), and then will just keep idling until the queue has been unpaused.
 
-Pausing a queue is performed by calling the _**pause**_ method on a [queue](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.md) instance:
+Pausing a queue is performed by calling the _**pause**_ method on a [queue](../../api/bullmq.queue.md) instance:
 
 ```typescript
 await myQueue.pause();
@@ -16,9 +16,7 @@ await myWorker.pause();
 
 The call above will wait for all the jobs currently being processed by this worker, if you do not want to wait for current jobs to complete before the call completes you can pass "true" to just pause the worker ignoring any running jobs:
 
-```
+```typescript
 await myWorker.pause(true);
 ```
-
-
 

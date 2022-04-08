@@ -10,10 +10,12 @@ import {
   WorkerOptions,
 } from '../interfaces';
 import {
+  clientCommandMessageReg,
   delay,
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
+  WORKER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -296,7 +298,13 @@ export class Worker<
           // every worker is a hash key workername:workerId with json holding
           // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
           //
-          await this.setClientName(client);
+          try {
+            await client.client('setname', this.clientName(WORKER_SUFFIX));
+          } catch (err) {
+            if (!clientCommandMessageReg.test((<Error>err).message)) {
+              throw err;
+            }
+          }
 
           const opts: WorkerOptions = <WorkerOptions>this.opts;
 
@@ -367,7 +375,10 @@ export class Worker<
    * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
+  async getNextJob(
+    token: string,
+    { block = true }: GetNextJobOptions = {},
+  ): Promise<Job<DataType, ResultType, NameType>> {
     if (this.paused) {
       if (block) {
         await this.paused;
@@ -636,7 +647,7 @@ export class Worker<
    *
    * @returns Promise that resolves when the worker has been closed.
    */
-  close(force = false) {
+  close(force = false): Promise<void> {
     if (this.closing) {
       return this.closing;
     }

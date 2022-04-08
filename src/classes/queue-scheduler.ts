@@ -3,9 +3,15 @@ import {
   RedisClient,
   StreamReadRaw,
 } from '../interfaces';
-import { array2obj, isRedisInstance } from '../utils';
+import {
+  array2obj,
+  clientCommandMessageReg,
+  isRedisInstance,
+  QUEUE_SCHEDULER_SUFFIX,
+} from '../utils';
 import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
+import { RedisConnection } from './redis-connection';
 
 export interface QueueSchedulerListener {
   /**
@@ -47,16 +53,21 @@ export class QueueScheduler extends QueueBase {
   constructor(
     name: string,
     { connection, autorun = true, ...opts }: QueueSchedulerOptions = {},
+    Connection?: typeof RedisConnection,
   ) {
-    super(name, {
-      maxStalledCount: 1,
-      stalledInterval: 30000,
-      ...opts,
-      connection: isRedisInstance(connection)
-        ? (<RedisClient>connection).duplicate()
-        : connection,
-      sharedConnection: false,
-    });
+    super(
+      name,
+      {
+        maxStalledCount: 1,
+        stalledInterval: 30000,
+        ...opts,
+        connection: isRedisInstance(connection)
+          ? (<RedisClient>connection).duplicate()
+          : connection,
+        sharedConnection: false,
+      },
+      Connection,
+    );
 
     if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
@@ -109,7 +120,16 @@ export class QueueScheduler extends QueueBase {
         const key = this.keys.delay;
         const opts = this.opts as QueueSchedulerOptions;
 
-        await this.setClientName(client);
+        try {
+          await client.client(
+            'setname',
+            this.clientName(QUEUE_SCHEDULER_SUFFIX),
+          );
+        } catch (err) {
+          if (!clientCommandMessageReg.test((<Error>err).message)) {
+            throw err;
+          }
+        }
 
         const [nextTimestamp, streamId = '0-0'] = await this.updateDelaySet(
           Date.now(),
@@ -224,11 +244,11 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  private async updateDelaySet(timestamp: number) {
+  private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
       return Scripts.updateDelaySet(this, timestamp);
     }
-    return [0, 0];
+    return [0, '0'];
   }
 
   private async moveStalledJobsToWait() {
@@ -245,14 +265,6 @@ export class QueueScheduler extends QueueBase {
       );
       stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
     }
-  }
-
-  /**
-   * @override
-   */
-  protected clientName(): string {
-    const queueNameBase64 = this.base64Name();
-    return `${this.opts.prefix}:${queueNameBase64}:qs`;
   }
 
   close(): Promise<void> {

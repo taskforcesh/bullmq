@@ -294,29 +294,32 @@ describe('Pause', function () {
   });
 
   it('pauses fast when queue is drained', async function () {
-    const worker = new Worker(queueName, async () => {}, {
-      connection,
-    });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(50);
+      },
+      {
+        connection,
+      },
+    );
     await worker.waitUntilReady();
 
-    await queue.add('test', {});
+    const waitDrainedEvent = new Promise<void>(resolve => {
+      queueEvents.once('drained', async () => {
+        const start = new Date().getTime();
+        await queue.pause();
 
-    return new Promise((resolve, reject) => {
-      queueEvents.on('drained', async () => {
-        try {
-          const start = new Date().getTime();
-          await queue.pause();
-
-          const finish = new Date().getTime();
-          expect(finish - start).to.be.lt(1000);
-        } catch (err) {
-          reject(err);
-        } finally {
-          await worker.close();
-        }
+        const finish = new Date().getTime();
+        expect(finish - start).to.be.lt(1000);
         resolve();
       });
     });
+
+    await queue.add('test', {});
+
+    await waitDrainedEvent;
+    await worker.close();
   });
 
   it('gets the right response from isPaused', async () => {

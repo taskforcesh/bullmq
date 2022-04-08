@@ -23,7 +23,7 @@ import {
   WorkerOptions,
   KeepJobs,
 } from '../interfaces';
-import { JobState, FinishedTarget, FinishedPropValAttribute } from '../types';
+import { JobState, FinishedStatus, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
@@ -247,31 +247,36 @@ export class Scripts {
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
-    target: FinishedTarget,
+    target: FinishedStatus,
     token: string,
     fetchNext = true,
   ) {
     const queueKeys = queue.keys;
     const opts: WorkerOptions = <WorkerOptions>queue.opts;
 
+    const metricsKey = queue.toKey(`metrics:${target}`);
+
     const keys = [
-      queueKeys.active,
-      queueKeys[target],
-      queue.toKey(job.id),
       queueKeys.wait,
+      queueKeys.active,
       queueKeys.priority,
       queueKeys.events,
-      queueKeys.meta,
       queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.delay,
+      queueKeys[target],
+      queue.toKey(job.id),
+      queueKeys.meta,
+      metricsKey,
     ];
 
-    const keepJobs = pack(
+    const keepJobs =
       typeof shouldRemove === 'object'
         ? shouldRemove
         : typeof shouldRemove === 'number'
         ? { count: shouldRemove }
-        : { count: shouldRemove ? 0 : -1 },
-    );
+        : { count: shouldRemove ? 0 : -1 };
 
     const args = [
       job.id,
@@ -279,17 +284,22 @@ export class Scripts {
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      keepJobs,
       JSON.stringify({ jobId: job.id, val: val }),
-      !fetchNext || queue.closing || opts.limiter ? 0 : 1,
+      !fetchNext || queue.closing ? 0 : 1,
       queueKeys[''],
-      token,
-      opts.lockDuration,
-      job.opts?.parent?.id,
-      job.opts?.parent?.queue,
-      job.parentKey,
-      job.opts.attempts,
-      job.attemptsMade,
+      pack({
+        token,
+        keepJobs,
+        limiter: opts.limiter,
+        lockDuration: opts.lockDuration,
+        parent: job.opts?.parent,
+        parentKey: job.parentKey,
+        attempts: job.opts.attempts,
+        attemptsMade: job.attemptsMade,
+        maxMetricsSize: opts.metrics?.maxDataPoints
+          ? opts.metrics?.maxDataPoints
+          : '',
+      }),
     ];
 
     return keys.concat(args);
@@ -305,7 +315,7 @@ export class Scripts {
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
-    target: FinishedTarget,
+    target: FinishedStatus,
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
@@ -377,7 +387,7 @@ export class Scripts {
   static moveToCompleted<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
-    returnvalue: any,
+    returnvalue: R,
     removeOnComplete: boolean | number | KeepJobs,
     token: string,
     fetchNext: boolean,
@@ -401,7 +411,6 @@ export class Scripts {
     removeOnFailed: boolean | number | KeepJobs,
     token: string,
     fetchNext = false,
-    retriesExhausted = 0,
   ) {
     return this.moveToFinishedArgs(
       queue,
@@ -646,24 +655,31 @@ export class Scripts {
 
   private static retryJobsArgs(
     queue: MinimalQueue,
+    state: FinishedStatus,
     count: number,
+    timestamp: number,
   ): (string | number)[] {
     const keys: (string | number)[] = [
       queue.toKey(''),
       queue.keys.events,
-      queue.toKey('failed'),
+      queue.toKey(state),
       queue.toKey('wait'),
     ];
 
-    const args = [count];
+    const args = [count, timestamp];
 
     return keys.concat(args);
   }
 
-  static async retryJobs(queue: MinimalQueue, count = 1000): Promise<number> {
+  static async retryJobs(
+    queue: MinimalQueue,
+    state: FinishedStatus = 'failed',
+    count = 1000,
+    timestamp = new Date().getTime(),
+  ): Promise<number> {
     const client = await queue.client;
 
-    const args = this.retryJobsArgs(queue, count);
+    const args = this.retryJobsArgs(queue, state, count, timestamp);
 
     return (<any>client).retryJobs(args);
   }
@@ -671,9 +687,9 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
+   * @param queue -
    * @param job -
-   * @param {Object} options
-   * @param {String} options.state The expected job state. If the job is not found
+   * @param state - The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
    *
    * @returns Returns a promise that evaluates to a return code:
@@ -732,12 +748,15 @@ export class Scripts {
       queueKeys.delay,
     ];
 
-    const args: (string | number | boolean)[] = [
+    const args: (string | number | boolean | Buffer)[] = [
       queueKeys[''],
-      token,
-      opts.lockDuration,
       Date.now(),
       jobId,
+      pack({
+        token,
+        lockDuration: opts.lockDuration,
+        limiter: opts.limiter,
+      }),
     ];
 
     if (opts.limiter) {
@@ -746,7 +765,7 @@ export class Scripts {
     }
 
     const result = await (<any>client).moveToActive(
-      (<(string | number | boolean)[]>keys).concat(args),
+      (<(string | number | boolean | Buffer)[]>keys).concat(args),
     );
 
     if (typeof result === 'number') {
@@ -759,7 +778,10 @@ export class Scripts {
    * It checks if the job in the top of the delay set should be moved back to the
    * top of the  wait queue (so that it will be processed as soon as possible)
    */
-  static async updateDelaySet(queue: MinimalQueue, delayedTimestamp: number) {
+  static async updateDelaySet(
+    queue: MinimalQueue,
+    delayedTimestamp: number,
+  ): Promise<[number, string]> {
     const client = await queue.client;
 
     const keys: (string | number)[] = [

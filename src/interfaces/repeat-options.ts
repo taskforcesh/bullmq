@@ -1,25 +1,15 @@
+import { ParserOptions } from 'cron-parser';
+
 /**
  * Settings for repeatable jobs
  *
  * @see {@link https://docs.bullmq.io/guide/jobs/repeatable}
  */
-export interface RepeatOptions {
+export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   /**
    * A cron pattern
    */
   cron?: string;
-  /**
-   * Timezone
-   */
-  tz?: string;
-  /**
-   * Start date when the repeat job should start repeating (only with `cron`).
-   */
-  startDate?: Date | string | number;
-  /**
-   * End date when the repeat job should stop repeating.
-   */
-  endDate?: Date | string | number;
   /**
    * Number of times the job should repeat at max.
    */

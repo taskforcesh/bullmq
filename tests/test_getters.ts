@@ -73,9 +73,11 @@ describe('Jobs getters', function () {
   });
 
   describe('.getWorkers', () => {
-    it('gets all workers for this queue', async function () {
+    it('gets all workers for this queue only', async function () {
       const worker = new Worker(queueName, async () => {}, { connection });
+      const queueScheduler = new QueueScheduler(queueName, { connection });
       await worker.waitUntilReady();
+      await queueScheduler.waitUntilReady();
       await delay(10);
 
       const workers = await queue.getWorkers();
@@ -90,6 +92,7 @@ describe('Jobs getters', function () {
 
       await worker.close();
       await worker2.close();
+      await queueScheduler.close();
     });
 
     it('gets only workers related only to one queue', async function () {
@@ -478,6 +481,47 @@ describe('Jobs getters', function () {
       after(2, async function () {
         try {
           const jobs = await queue.getJobs(['completed', 'waiting']);
+          expect(jobs).to.be.an('array');
+          expect(jobs).to.have.length(3);
+          await worker.close();
+          done();
+        } catch (err) {
+          done(err);
+        }
+      }),
+    );
+
+    queue.add('test', { foo: 1 });
+    queue.add('test', { foo: 2 });
+  });
+
+  it('should return deduplicated jobs for duplicates types', async function () {
+    queue.add('test', { foo: 1 });
+    const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);
+
+    expect(jobs).to.be.an('array');
+    expect(jobs).to.have.length(1);
+  });
+
+  it('should return jobs for all types', function (done) {
+    let counter = 0;
+    const worker = new Worker(
+      queueName,
+      async () => {
+        counter++;
+        if (counter == 2) {
+          await queue.add('test', { foo: 3 });
+          return queue.pause();
+        }
+      },
+      { connection },
+    );
+
+    worker.on(
+      'completed',
+      after(2, async function () {
+        try {
+          const jobs = await queue.getJobs();
           expect(jobs).to.be.an('array');
           expect(jobs).to.have.length(3);
           await worker.close();

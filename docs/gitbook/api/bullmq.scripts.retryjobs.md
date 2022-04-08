@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static retryJobs(queue: MinimalQueue, count?: number): Promise<number>;
+static retryJobs(queue: MinimalQueue, state?: FinishedStatus, count?: number, timestamp?: number): Promise<number>;
 ```
 
 ## Parameters
@@ -15,7 +15,9 @@ static retryJobs(queue: MinimalQueue, count?: number): Promise<number>;
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
+|  state | [FinishedStatus](./bullmq.finishedstatus.md) |  |
 |  count | number |  |
+|  timestamp | number |  |
 
 <b>Returns:</b>
 

@@ -1,8 +1,8 @@
 # Get Flow Tree
 
-In some situations you need to get a job and all of its children, grandchildren and so on.
+In some situations, you need to get a job and all of its children, grandchildren and so on.
 
-The pattern to solve this requirement consists on using [getFlow](./bullmq.flowproducer.getflow.md) method.
+The pattern to solve this requirement consists on using [getFlow](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.flowproducer.getflow.md) method.
 
 ```typescript
 const flow = new FlowProducer({ connection });

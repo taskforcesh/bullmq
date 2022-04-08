@@ -134,32 +134,41 @@ export function isNotConnectionError(error: Error): boolean {
   );
 }
 
+interface procSendLike {
+  send?(message: any, callback?: (error: Error | null) => void): boolean;
+}
+
+export const asyncSend = <T extends procSendLike>(
+  proc: T,
+  msg: any,
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (typeof proc.send === 'function') {
+      proc.send(msg, (err: Error) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    } else {
+      resolve();
+    }
+  });
+};
+
 export const childSend = (
   proc: NodeJS.Process,
   msg: ChildMessage,
-): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    proc.send(msg, (err: Error) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
-  });
-};
+): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
 
 export const parentSend = (
   child: ChildProcess,
   msg: ParentMessage,
-): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    child.send(msg, (err: Error) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
-  });
-};
+): Promise<void> => asyncSend<ChildProcess>(child, msg);
+
+export const WORKER_SUFFIX = ':w';
+
+export const QUEUE_SCHEDULER_SUFFIX = ':qs';
+
+export const QUEUE_EVENT_SUFFIX = ':qe';

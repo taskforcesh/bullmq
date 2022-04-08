@@ -30,6 +30,7 @@
   * [Getters](guide/jobs/getters.md)
 * [Flows](guide/flows/README.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
+* [Metrics](guide/metrics/metrics.md)
 * [Rate limiting](guide/rate-limiting.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
 * [Returning job data](guide/returning-job-data.md)
@@ -41,6 +42,7 @@
 
 * [Manually processing jobs](patterns/manually-fetching-jobs.md)
 * [Producer - Consumer](patterns/producer-consumer.md)
+* [Named Processor](patterns/named-processor.md)
 * [Flows](patterns/flows.md)
 * [Real time updates](patterns/real-time-updates.md)
 * [Sender - Receiver](patterns/sender-receiver.md)
@@ -54,9 +56,11 @@
 
 * [Introduction](bullmq-pro/introduction.md)
 * [Install](bullmq-pro/install.md)
-* [Observables](bullmq-pro/observables.md)
+* [Observables](bullmq-pro/observables/README.md)
+  * [Cancelation](bullmq-pro/observables/cancelation.md)
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
+  * [Concurrency](bullmq-pro/groups/concurrency.md)
 
 ## Bull
 
@@ -66,6 +70,7 @@
 * [Important Notes](bull/important-notes.md)
 * [Reference](https://github.com/OptimalBits/bull/blob/develop/REFERENCE.md)
 * [Patterns](bull/patterns/README.md)
+  * [Persistent connections](bull/patterns/persistent-connections.md)
   * [Message queue](bull/patterns/message-queue.md)
   * [Returning Job Completions](bull/patterns/returning-job-completions.md)
   * [Reusing Redis Connections](bull/patterns/reusing-redis-connections.md)
@@ -78,4 +83,3 @@
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
-

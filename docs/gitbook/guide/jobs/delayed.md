@@ -9,13 +9,11 @@ Delayed jobs will only be processed if there is at least one [`QueueScheduler`](
 This is an example on how to add delayed jobs:
 
 ```typescript
-import { Queue, QueueScheduler } from 'bullmq'
+import { Queue, QueueScheduler } from 'bullmq';
 
 const myQueueScheduler = new QueueScheduler('Paint');
 const myQueue = new Queue('Paint');
 
 // Add a job that will be delayed at least 5 seconds.
 await myQueue.add('house', { color: 'white' }, { delay: 5000 });
-
 ```
-
