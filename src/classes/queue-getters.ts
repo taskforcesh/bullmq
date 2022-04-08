@@ -6,6 +6,7 @@ import { Job } from './job';
 import {
   clientCommandMessageReg,
   QUEUE_SCHEDULER_SUFFIX,
+  QUEUE_EVENT_SUFFIX,
   WORKER_SUFFIX,
 } from '../utils';
 import { JobType } from '../types';
@@ -344,6 +345,19 @@ export class QueueGetters<
   > {
     return this.baseGetClients(QUEUE_SCHEDULER_SUFFIX);
   }
+
+  /**
+   * Get queue events list related to the queue.
+   *
+   * @returns - Returns an array with queue events info.
+   */
+     async getQueueEvents(): Promise<
+     {
+       [index: string]: string;
+     }[]
+   > {
+     return this.baseGetClients(QUEUE_EVENT_SUFFIX);
+   }
 
   /**
    * Get queue metrics related to the queue.

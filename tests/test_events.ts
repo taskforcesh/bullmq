@@ -18,6 +18,7 @@ describe('events', function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
+    await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
 
@@ -93,6 +94,7 @@ describe('events', function () {
   });
 
   it('should emit global waiting event when a job has been added', async function () {
+    await delay(100);
     const waiting = new Promise(resolve => {
       queueEvents.on('waiting', resolve);
 
@@ -103,10 +105,16 @@ describe('events', function () {
   });
 
   it('emits cleaned global event when jobs were cleaned', async function () {
-    const worker = new Worker(queueName, async () => {}, {
-      connection,
-      autorun: false,
-    });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(5);
+      },
+      {
+        connection,
+        autorun: false,
+      },
+    );
     const numJobs = 50;
 
     worker.on(
@@ -269,6 +277,7 @@ describe('events', function () {
         connection,
       },
     );
+    await worker.waitUntilReady();
     const testName = 'test';
     const testData = { foo: 'bar' };
 

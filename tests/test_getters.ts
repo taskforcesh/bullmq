@@ -6,7 +6,13 @@ import { after } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueScheduler, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  Queue,
+  QueueEvents,
+  QueueScheduler,
+  Worker,
+} from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', function () {
@@ -22,6 +28,27 @@ describe('Jobs getters', function () {
   afterEach(async function () {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
+  });
+
+  describe('.getQueueEvents', () => {
+    it('gets all queueEvents for this queue', async function () {
+      const queueEvent = new QueueEvents(queueName, { connection });
+      await queueEvent.waitUntilReady();
+      await delay(10);
+
+      const queueEvents = await queue.getQueueEvents();
+      expect(queueEvents).to.have.length(1);
+
+      const queueEvent2 = new QueueEvents(queueName, { connection });
+      await queueEvent2.waitUntilReady();
+      await delay(10);
+
+      const nextQueueEvents = await queue.getQueueEvents();
+      expect(nextQueueEvents).to.have.length(2);
+
+      await queueEvent.close();
+      await queueEvent2.close();
+    });
   });
 
   describe('.getQueueSchedulers', () => {
