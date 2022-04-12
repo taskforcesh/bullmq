@@ -6,7 +6,13 @@ import { after } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueScheduler, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  Queue,
+  QueueEvents,
+  QueueScheduler,
+  Worker,
+} from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', function () {
@@ -22,6 +28,27 @@ describe('Jobs getters', function () {
   afterEach(async function () {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
+  });
+
+  describe('.getQueueEvents', () => {
+    it('gets all queueEvents for this queue', async function () {
+      const queueEvent = new QueueEvents(queueName, { connection });
+      await queueEvent.waitUntilReady();
+      await delay(10);
+
+      const queueEvents = await queue.getQueueEvents();
+      expect(queueEvents).to.have.length(1);
+
+      const queueEvent2 = new QueueEvents(queueName, { connection });
+      await queueEvent2.waitUntilReady();
+      await delay(10);
+
+      const nextQueueEvents = await queue.getQueueEvents();
+      expect(nextQueueEvents).to.have.length(2);
+
+      await queueEvent.close();
+      await queueEvent2.close();
+    });
   });
 
   describe('.getQueueSchedulers', () => {
@@ -46,9 +73,11 @@ describe('Jobs getters', function () {
   });
 
   describe('.getWorkers', () => {
-    it('gets all workers for this queue', async function () {
+    it('gets all workers for this queue only', async function () {
       const worker = new Worker(queueName, async () => {}, { connection });
+      const queueScheduler = new QueueScheduler(queueName, { connection });
       await worker.waitUntilReady();
+      await queueScheduler.waitUntilReady();
       await delay(10);
 
       const workers = await queue.getWorkers();
@@ -63,6 +92,7 @@ describe('Jobs getters', function () {
 
       await worker.close();
       await worker2.close();
+      await queueScheduler.close();
     });
 
     it('gets only workers related only to one queue', async function () {

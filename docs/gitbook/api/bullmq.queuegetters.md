@@ -30,6 +30,7 @@ export declare class QueueGetters<DataType, ResultType, NameType extends string>
 |  [getJobLogs(jobId, start, end, asc)](./bullmq.queuegetters.getjoblogs.md) |  |  |
 |  [getJobs(types, start, end, asc)](./bullmq.queuegetters.getjobs.md) |  |  |
 |  [getMetrics(type, start, end)](./bullmq.queuegetters.getmetrics.md) |  | Get queue metrics related to the queue.<!-- -->This method returns the gathered metrics for the queue. The metrics are represented as an array of job counts per unit of time (1 minute). |
+|  [getQueueEvents()](./bullmq.queuegetters.getqueueevents.md) |  | Get queue events list related to the queue. |
 |  [getQueueSchedulers()](./bullmq.queuegetters.getqueueschedulers.md) |  | Get queue schedulers list related to the queue. |
 |  [getRanges(types, start, end, asc)](./bullmq.queuegetters.getranges.md) |  |  |
 |  [getWaiting(start, end)](./bullmq.queuegetters.getwaiting.md) |  |  |

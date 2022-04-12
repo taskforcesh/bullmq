@@ -50,17 +50,22 @@ describe('Cleaner', () => {
       worker.on(
         'completed',
         after(2, async () => {
-          const jobs = await queue.clean(0, 0);
-          expect(jobs.length).to.be.eql(2);
           resolve();
         }),
       );
     });
 
-    await queue.add('test', { some: 'data' });
-    await queue.add('test', { some: 'data' });
+    await queue.addBulk([
+      { name: 'test', data: { some: 'data' } },
+      { name: 'test', data: { some: 'data' } },
+    ]);
 
     await completing;
+    await delay(1);
+
+    const jobs = await queue.clean(0, 0);
+    expect(jobs.length).to.be.eql(2);
+
     await worker.close();
   });
 
@@ -113,16 +118,24 @@ describe('Cleaner', () => {
     const worker = new Worker(
       queueName,
       async () => {
+        await delay(100);
         throw new Error('It failed');
       },
-      { connection },
+      { connection, autorun: false },
     );
     await worker.waitUntilReady();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
 
-    await delay(100);
+    const failing = new Promise(resolve => {
+      worker.on('failed', after(2, resolve));
+    });
+
+    worker.run();
+
+    await failing;
+
     const jobs = await queue.clean(0, 0, 'failed');
     expect(jobs.length).to.be.eql(2);
     const count = await queue.count();

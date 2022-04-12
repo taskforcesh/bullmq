@@ -9,5 +9,5 @@ Name of the backoff strategy.
 <b>Signature:</b>
 
 ```typescript
-type: string;
+type: 'fixed' | 'exponential' | (string & {});
 ```
