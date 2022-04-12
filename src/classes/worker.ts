@@ -146,7 +146,11 @@ export class Worker<
   ) {
     super(
       name,
-      { ...opts, sharedConnection: isRedisInstance(opts.connection) },
+      {
+        ...opts,
+        sharedConnection: isRedisInstance(opts.connection),
+        blockingConnection: true,
+      },
       Connection,
     );
 

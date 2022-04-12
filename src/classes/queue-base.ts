@@ -32,7 +32,11 @@ export class QueueBase extends EventEmitter {
       );
     }
 
-    this.connection = new Connection(opts.connection, opts.sharedConnection);
+    this.connection = new Connection(
+      opts.connection,
+      opts.sharedConnection,
+      opts.blockingConnection,
+    );
     this.connection.on('error', this.emit.bind(this, 'error'));
 
     const queueKeys = new QueueKeys(opts.prefix);
