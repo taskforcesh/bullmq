@@ -703,20 +703,4 @@ export class Worker<
 
     reconnect && (await this.blockingConnection.reconnect());
   }
-
-  private async retryIfFailed<T>(fn: () => Promise<T>, delayInMs: number) {
-    const retry = 1;
-    do {
-      try {
-        return await fn();
-      } catch (err) {
-        this.emit('error', <Error>err);
-        if (delayInMs) {
-          await delay(delayInMs);
-        } else {
-          return;
-        }
-      }
-    } while (retry);
-  }
 }

@@ -15,11 +15,11 @@ import { RedisConnection } from './redis-connection';
 
 export interface QueueSchedulerListener {
   /**
-   * Listen to 'stalled' event.
+   * Listen to 'error' event.
    *
-   * This event is triggered when a job gets stalled.
+   * This event is triggered when an error is throw.
    */
-  stalled: (jobId: string, prev: string) => void;
+  error: (failedReason: Error) => void;
 
   /**
    * Listen to 'failed' event.
@@ -27,6 +27,13 @@ export interface QueueSchedulerListener {
    * This event is triggered when a job has thrown an exception.
    */
   failed: (jobId: string, failedReason: Error, prev: string) => void;
+
+  /**
+   * Listen to 'stalled' event.
+   *
+   * This event is triggered when a job gets stalled.
+   */
+  stalled: (jobId: string, prev: string) => void;
 }
 
 /**
@@ -46,6 +53,7 @@ export interface QueueSchedulerListener {
  *
  */
 export class QueueScheduler extends QueueBase {
+  opts: QueueSchedulerOptions;
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
   private running = false;
@@ -69,7 +77,12 @@ export class QueueScheduler extends QueueBase {
       Connection,
     );
 
-    if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
+    this.opts = {
+      runRetryDelay: 15000,
+      ...this.opts,
+    };
+
+    if (!this.opts.stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
     }
 
@@ -142,7 +155,10 @@ export class QueueScheduler extends QueueBase {
 
         while (!this.closing) {
           // Check if at least the min stalled check time has passed.
-          await this.moveStalledJobsToWait();
+          await this.retryIfFailed(
+            () => this.moveStalledJobsToWait(),
+            this.opts.runRetryDelay,
+          );
 
           // Listen to the delay event stream from lastDelayStreamTimestamp
           // Can we use XGROUPS to reduce redundancy?
@@ -152,11 +168,9 @@ export class QueueScheduler extends QueueBase {
             Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
           );
 
-          const data = await this.readDelayedData(
-            client,
-            key,
-            streamLastId,
-            blockTime,
+          const data = await this.retryIfFailed(
+            () => this.readDelayedData(client, key, streamLastId, blockTime),
+            this.opts.runRetryDelay,
           );
 
           if (data && data[0]) {
@@ -186,7 +200,11 @@ export class QueueScheduler extends QueueBase {
           const delay = this.nextTimestamp - now;
 
           if (delay <= 0) {
-            const [nextTimestamp, id] = await this.updateDelaySet(now);
+            const [nextTimestamp, id] = await await this.retryIfFailed(
+              () => this.updateDelaySet(now),
+              this.opts.runRetryDelay,
+            );
+
             if (nextTimestamp) {
               this.nextTimestamp = nextTimestamp;
               streamLastId = id;
