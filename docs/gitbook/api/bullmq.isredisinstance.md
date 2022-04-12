@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-export declare function isRedisInstance(obj: any): boolean;
+export declare function isRedisInstance(obj: any): obj is Redis | Cluster;
 ```
 
 ## Parameters
@@ -18,5 +18,5 @@ export declare function isRedisInstance(obj: any): boolean;
 
 <b>Returns:</b>
 
-boolean
+obj is Redis \| Cluster
 

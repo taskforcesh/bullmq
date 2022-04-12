@@ -48,6 +48,7 @@
 |  [getParentKey(opts)](./bullmq.getparentkey.md) |  |
 |  [isEmpty(obj)](./bullmq.isempty.md) |  |
 |  [isNotConnectionError(error)](./bullmq.isnotconnectionerror.md) |  |
+|  [isRedisCluster(obj)](./bullmq.isrediscluster.md) |  |
 |  [isRedisInstance(obj)](./bullmq.isredisinstance.md) |  |
 |  [jobIdForGroup(jobOpts, data, queueOpts)](./bullmq.jobidforgroup.md) |  |
 |  [killAsync(child, signal, timeoutMs)](./bullmq.killasync.md) | Sends a kill signal to a child resolving when the child has exited, resorting to SIGKILL if the given timeout is reached |
@@ -126,6 +127,7 @@
 |  [BackoffFunction](./bullmq.backofffunction.md) |  |
 |  [BulkJobOptions](./bullmq.bulkjoboptions.md) |  |
 |  [CleanedEventCallback3](./bullmq.cleanedeventcallback3.md) |  |
+|  [ClusterOptions](./bullmq.clusteroptions.md) |  |
 |  [CompletedEventCallback3](./bullmq.completedeventcallback3.md) |  |
 |  [ConnectionOptions](./bullmq.connectionoptions.md) |  |
 |  [EntryId](./bullmq.entryid.md) |  |
