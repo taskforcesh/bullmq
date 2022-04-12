@@ -10,7 +10,7 @@ import {
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
-import { JobState, JobJsonSandbox } from '../types';
+import { FinishedStatus, JobState, JobJsonSandbox } from '../types';
 import {
   errorObject,
   isEmpty,
@@ -880,7 +880,7 @@ export class Job<
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
-  async retry(state: 'completed' | 'failed' = 'failed'): Promise<void> {
+  async retry(state: FinishedStatus = 'failed'): Promise<void> {
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;

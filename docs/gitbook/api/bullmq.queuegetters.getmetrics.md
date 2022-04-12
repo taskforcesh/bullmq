@@ -20,7 +20,7 @@ getMetrics(type: 'completed' | 'failed', start?: number, end?: number): Promise<
 |  --- | --- | --- |
 |  type | 'completed' \| 'failed' |  |
 |  start | number | Start point of the metrics, where 0 is the newest point to be returned. |
-|  end | number | End poinf of the metrics, where -1 is the oldest point to be returned. |
+|  end | number | End point of the metrics, where -1 is the oldest point to be returned. |
 
 <b>Returns:</b>
 

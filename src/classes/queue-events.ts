@@ -1,10 +1,12 @@
 import { QueueEventsOptions, RedisClient, StreamReadRaw } from '../interfaces';
 import {
   array2obj,
+  clientCommandMessageReg,
   DELAY_TIME_5,
   delay,
   isNotConnectionError,
   isRedisInstance,
+  QUEUE_EVENT_SUFFIX
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
@@ -221,6 +223,17 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
+        try {
+          await client.client(
+            'setname',
+            this.clientName(QUEUE_EVENT_SUFFIX),
+          );
+        } catch (err) {
+          if (!clientCommandMessageReg.test((<Error>err).message)) {
+            throw err;
+          }
+        }
+      
         await this.consumeEvents(client);
       } catch (error) {
         this.running = false;

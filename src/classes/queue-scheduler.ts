@@ -3,7 +3,12 @@ import {
   RedisClient,
   StreamReadRaw,
 } from '../interfaces';
-import { array2obj, clientCommandMessageReg, isRedisInstance } from '../utils';
+import {
+  array2obj,
+  clientCommandMessageReg,
+  isRedisInstance,
+  QUEUE_SCHEDULER_SUFFIX,
+} from '../utils';
 import { QueueBase } from './queue-base';
 import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
@@ -116,7 +121,10 @@ export class QueueScheduler extends QueueBase {
         const opts = this.opts as QueueSchedulerOptions;
 
         try {
-          await client.client('setname', this.clientName());
+          await client.client(
+            'setname',
+            this.clientName(QUEUE_SCHEDULER_SUFFIX),
+          );
         } catch (err) {
           if (!clientCommandMessageReg.test((<Error>err).message)) {
             throw err;
@@ -236,11 +244,11 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  private async updateDelaySet(timestamp: number) {
+  private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
       return Scripts.updateDelaySet(this, timestamp);
     }
-    return [0, 0];
+    return [0, '0'];
   }
 
   private async moveStalledJobsToWait() {
@@ -257,11 +265,6 @@ export class QueueScheduler extends QueueBase {
       );
       stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
     }
-  }
-
-  protected clientName(): string {
-    const queueNameBase64 = this.base64Name();
-    return `${this.opts.prefix}:${queueNameBase64}:qs`;
   }
 
   close(): Promise<void> {

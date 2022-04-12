@@ -143,13 +143,17 @@ export const asyncSend = <T extends procSendLike>(
   msg: any,
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
-    proc.send(msg, (err: Error) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
+    if (typeof proc.send === 'function') {
+      proc.send(msg, (err: Error) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    } else {
+      resolve();
+    }
   });
 };
 
@@ -162,3 +166,9 @@ export const parentSend = (
   child: ChildProcess,
   msg: ParentMessage,
 ): Promise<void> => asyncSend<ChildProcess>(child, msg);
+
+export const WORKER_SUFFIX = ':w';
+
+export const QUEUE_SCHEDULER_SUFFIX = ':qs';
+
+export const QUEUE_EVENT_SUFFIX = ':qe';

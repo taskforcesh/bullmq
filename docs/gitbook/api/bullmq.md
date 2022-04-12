@@ -113,7 +113,10 @@
 |  [DELAY\_TIME\_5](./bullmq.delay_time_5.md) |  |
 |  [errorObject](./bullmq.errorobject.md) |  |
 |  [parentSend](./bullmq.parentsend.md) |  |
+|  [QUEUE\_EVENT\_SUFFIX](./bullmq.queue_event_suffix.md) |  |
+|  [QUEUE\_SCHEDULER\_SUFFIX](./bullmq.queue_scheduler_suffix.md) |  |
 |  [scriptLoader](./bullmq.scriptloader.md) |  |
+|  [WORKER\_SUFFIX](./bullmq.worker_suffix.md) |  |
 
 ## Type Aliases
 

@@ -3,8 +3,7 @@ import { JobsOptions, RepeatOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { Scripts } from './scripts';
-
-const parser = require('cron-parser');
+import { parseExpression } from 'cron-parser';
 
 export class Repeat extends QueueBase {
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -115,7 +114,11 @@ export class Repeat extends QueueBase {
     return Job.create<T, R, N>(this, name, data, mergedOpts);
   }
 
-  async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {
+  async removeRepeatable(
+    name: string,
+    repeat: RepeatOptions,
+    jobId?: string,
+  ): Promise<void> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
     const repeatJobId = getRepeatJobId(
       name,
@@ -127,7 +130,7 @@ export class Repeat extends QueueBase {
     return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
   }
 
-  async removeRepeatableByKey(repeatJobKey: string) {
+  async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
     const data = this.keyToData(repeatJobKey);
 
     const repeatJobId = getRepeatJobId(
@@ -177,7 +180,7 @@ export class Repeat extends QueueBase {
     return jobs;
   }
 
-  async getRepeatableCount() {
+  async getRepeatableCount(): Promise<number> {
     const client = await this.client;
     return client.zcard(this.toKey('repeat'));
   }
@@ -222,7 +225,7 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
-  const interval = parser.parseExpression(opts.cron, {
+  const interval = parseExpression(opts.cron, {
     ...opts,
     currentDate,
   });

@@ -53,11 +53,46 @@ Sign up at [Taskforce.sh](https://taskforce.sh)
 
 Some notable organizations using BullMQ:
 
-[<img src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FUvwInTAmk7hxAViDwJzU%2Fclipart1565701.png?alt=media&token=e1df5b23-8eb7-4d32-94b9-076c523c361b" width="200" alt="Microsoft" style="padding: 200px"/>](https://github.com/microsoft/lage)
-[<img src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FvT30DUqsi61gL8edn3R2%2Fwordmark-logo.png?alt=media&token=a2994d3e-b54c-46d3-8759-3e8065905dd5" width="200" alt="Vendure" style="padding: 200px"/>](https://github.com/vendure-ecommerce/vendure)
-[<img src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FCJ5XmotpBBsuSgD8CilC%2Fdatawrapper-logo.png?alt=media&token=584a85b7-5275-4cf7-8296-0eba798fd50e" width="200" alt="Datawrapper" style="padding: 200px"/>](https://github.com/datawrapper/datawrapper)
-
-
+<table cellspacing="0" cellpadding="0">
+  <tr>
+    <td valign="center">
+       <a href="https://github.com/microsoft/lage">
+        <img
+          src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FUvwInTAmk7hxAViDwJzU%2Fclipart1565701.png?alt=media"
+          width="150"
+          alt="Microsoft"
+        />
+       </a>
+    </td>
+    <td valign="center">
+       <a href="https://github.com/vendure-ecommerce/vendure">
+        <img
+          src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FvT30DUqsi61gL8edn3R2%2Fwordmark-logo.png?alt=media"
+          width="150"
+          alt="Vendure"
+        />
+       </a>
+    </td>
+        <td valign="center">
+       <a href="https://github.com/datawrapper/datawrapper">
+        <img
+          src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FCJ5XmotpBBsuSgD8CilC%2Fdatawrapper-logo.png?alt=media"
+          width="150"
+          alt="Datawrapper"
+        />
+       </a>
+    </td>
+        <td valign="center">
+       <a href="https://github.com/teamcurri">
+        <img
+          src="https://user-images.githubusercontent.com/659829/161662129-ae645bc4-c1e9-48ff-997e-4cee281a964a.png"
+          width="150"
+          alt="Curri"
+        />
+       </a>
+    </td>
+  <tr>
+</table>
 # The gist
 
 Install:

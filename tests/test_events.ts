@@ -18,6 +18,7 @@ describe('events', function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
+    await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
 
@@ -93,6 +94,7 @@ describe('events', function () {
   });
 
   it('should emit global waiting event when a job has been added', async function () {
+    await delay(100);
     const waiting = new Promise(resolve => {
       queueEvents.on('waiting', resolve);
 
@@ -103,27 +105,45 @@ describe('events', function () {
   });
 
   it('emits cleaned global event when jobs were cleaned', async function () {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(5);
+      },
+      {
+        connection,
+        autorun: false,
+      },
+    );
+    const numJobs = 50;
 
     worker.on(
       'completed',
       after(50, async function () {
+        await delay(1);
         await queue.clean(0, 0, 'completed');
       }),
     );
 
-    for (let i = 0; i < 50; i++) {
-      await queue.add('test', { foo: 'bar' });
-    }
-
-    await new Promise<void>(resolve => {
+    const cleaned = new Promise<void>(resolve => {
       queueEvents.once('cleaned', async ({ count }) => {
         expect(count).to.be.eql('50');
-        const actualCount = await queue.count();
-        expect(actualCount).to.be.equal(0);
         resolve();
       });
     });
+
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'test',
+      data: { foo: 'bar' },
+    }));
+    await queue.addBulk(jobs);
+
+    worker.run();
+
+    await cleaned;
+
+    const actualCount = await queue.count();
+    expect(actualCount).to.be.equal(0);
   });
 
   it('emits drained global event when all jobs have been processed', async function () {
@@ -257,6 +277,7 @@ describe('events', function () {
         connection,
       },
     );
+    await worker.waitUntilReady();
     const testName = 'test';
     const testData = { foo: 'bar' };
 
@@ -371,8 +392,6 @@ describe('events', function () {
       },
     });
 
-    await queueEvents.client;
-
     const worker = new Worker(
       queueName,
       async () => {
@@ -381,10 +400,18 @@ describe('events', function () {
       { connection },
     );
 
+    await trimmedQueue.waitUntilReady();
     await worker.waitUntilReady();
 
-    const waitDrainedEvent = new Promise(resolve => {
-      queueEvents.once('drained', resolve);
+    const client = await trimmedQueue.client;
+
+    const waitCompletedEvent = new Promise<void>(resolve => {
+      queueEvents.on(
+        'completed',
+        after(3, async () => {
+          resolve();
+        }),
+      );
     });
 
     await trimmedQueue.addBulk([
@@ -393,10 +420,7 @@ describe('events', function () {
       { name: 'test', data: { foo: 'bar' } },
     ]);
 
-    await waitDrainedEvent;
-    await worker.close();
-
-    const client = await trimmedQueue.client;
+    await waitCompletedEvent;
 
     const [[id, [_, event]]] = await client.xrevrange(
       trimmedQueue.keys.events,
@@ -404,12 +428,13 @@ describe('events', function () {
       '-',
     );
 
-    expect(event).to.be.equal('drained');
+    expect(event).to.be.equal('completed');
 
     const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-    expect(eventsLength).to.be.lte(12);
+    expect(eventsLength).to.be.lte(1);
 
+    await worker.close();
     await trimmedQueue.close();
     await removeAllQueueData(new IORedis(), queueName);
   });

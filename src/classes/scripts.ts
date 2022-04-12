@@ -387,7 +387,7 @@ export class Scripts {
   static moveToCompleted<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
-    returnvalue: any,
+    returnvalue: R,
     removeOnComplete: boolean | number | KeepJobs,
     token: string,
     fetchNext: boolean,
@@ -778,7 +778,10 @@ export class Scripts {
    * It checks if the job in the top of the delay set should be moved back to the
    * top of the  wait queue (so that it will be processed as soon as possible)
    */
-  static async updateDelaySet(queue: MinimalQueue, delayedTimestamp: number) {
+  static async updateDelaySet(
+    queue: MinimalQueue,
+    delayedTimestamp: number,
+  ): Promise<[number, string]> {
     const client = await queue.client;
 
     const keys: (string | number)[] = [

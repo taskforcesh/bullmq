@@ -538,7 +538,7 @@ describe('repeat', function () {
   });
 
   it('should repeat once a day for 5 days', async function () {
-    this.timeout(100000);
+    this.timeout(10000);
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
@@ -592,6 +592,67 @@ describe('repeat', function () {
     await queueScheduler.close();
     await worker.close();
     delayStub.restore();
+  });
+
+  describe('when utc option is provided', function () {
+    it('repeats once a day for 5 days', async function () {
+      this.timeout(10000);
+      const queueScheduler = new QueueScheduler(queueName, { connection });
+      await queueScheduler.waitUntilReady();
+
+      const date = new Date('2017-05-05 13:12:00');
+      this.clock.setSystemTime(date);
+
+      const nextTick = ONE_DAY + 10 * ONE_SECOND;
+      const delay = 5 * ONE_SECOND + 500;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          this.clock.tick(nextTick);
+        },
+        { connection },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
+        console.log('delay');
+      });
+
+      await queue.add(
+        'repeat',
+        { foo: 'bar' },
+        {
+          repeat: {
+            cron: '0 1 * * *',
+            endDate: new Date('2017-05-10 13:13:00'),
+            tz: 'Europe/Athens',
+            utc: true,
+          },
+        },
+      );
+      this.clock.tick(nextTick + delay);
+
+      let prev: Job;
+      let counter = 0;
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async job => {
+          if (prev) {
+            expect(prev.timestamp).to.be.lt(job.timestamp);
+            expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+          }
+          prev = job;
+
+          counter++;
+          if (counter == 5) {
+            resolve();
+          }
+        });
+      });
+
+      await completing;
+      await queueScheduler.close();
+      await worker.close();
+      delayStub.restore();
+    });
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {

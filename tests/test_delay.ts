@@ -37,6 +37,7 @@ describe('Delayed jobs', function () {
     await queueEvents.waitUntilReady();
 
     const worker = new Worker(queueName, async () => {}, { connection });
+    await worker.waitUntilReady();
 
     const timestamp = Date.now();
     let publishHappened = false;
@@ -91,11 +92,12 @@ describe('Delayed jobs', function () {
       await queueEvents.waitUntilReady();
 
       const worker = new Worker(queueName, async () => {}, { connection });
+      await worker.waitUntilReady();
 
       const timestamp = Date.now();
       let publishHappened = false;
 
-      const delayed = new Promise<void>((resolve, reject) => {
+      const delayed = new Promise<void>(resolve => {
         queueEvents.on('delayed', () => {
           publishHappened = true;
           resolve();

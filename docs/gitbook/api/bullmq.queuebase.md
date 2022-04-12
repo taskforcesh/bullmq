@@ -35,7 +35,7 @@ export declare class QueueBase extends EventEmitter
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
 |  [base64Name()](./bullmq.queuebase.base64name.md) |  |  |
-|  [clientName()](./bullmq.queuebase.clientname.md) |  |  |
+|  [clientName(suffix)](./bullmq.queuebase.clientname.md) |  |  |
 |  [close()](./bullmq.queuebase.close.md) |  |  |
 |  [disconnect()](./bullmq.queuebase.disconnect.md) |  |  |
 |  [emit(event, args)](./bullmq.queuebase.emit.md) |  |  |
