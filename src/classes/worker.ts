@@ -148,7 +148,7 @@ export class Worker<
       {
         ...opts,
         sharedConnection: isRedisInstance(opts.connection),
-        persistentConnection: true,
+        blockingConnection: true,
       },
       Connection,
     );

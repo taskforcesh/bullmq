@@ -199,7 +199,7 @@ export class QueueEvents extends QueueBase {
         connection: isRedisInstance(connection)
           ? (<RedisClient>connection).duplicate()
           : connection,
-        persistentConnection: true,
+        blockingConnection: true,
       },
       Connection,
     );

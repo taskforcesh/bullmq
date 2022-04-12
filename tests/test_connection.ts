@@ -19,7 +19,7 @@ describe('connection', () => {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  describe('persistent', () => {
+  describe('blocking', () => {
     it('should override maxRetriesPerRequest: null as redis options', async () => {
       const queue = new QueueBase(queueName, {
         connection: {
@@ -34,14 +34,14 @@ describe('connection', () => {
     });
   });
 
-  describe('non-persistent', () => {
+  describe('non-blocking', () => {
     it('should not override any redis options', async () => {
       const queue = new QueueBase(queueName, {
         connection: {
           host: 'localhost',
           maxRetriesPerRequest: 20,
         },
-        persistentConnection: false,
+        blockingConnection: false,
       });
 
       const options = <IORedis.RedisOptions>(await queue.client).options;

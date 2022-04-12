@@ -35,7 +35,7 @@ export class QueueBase extends EventEmitter {
     this.connection = new Connection(
       opts.connection,
       opts.sharedConnection,
-      opts.persistentConnection,
+      opts.blockingConnection,
     );
     this.connection.on('error', this.emit.bind(this, 'error'));
 

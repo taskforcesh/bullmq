@@ -23,7 +23,7 @@ export interface QueueBaseOptions {
   /**
    * Denotes commands should retry indefinitely.
    */
-  persistentConnection?: boolean;
+  blockingConnection?: boolean;
 
   /**
    * Prefix for all queue keys.

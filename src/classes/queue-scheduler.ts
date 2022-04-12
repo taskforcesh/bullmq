@@ -60,7 +60,7 @@ export class QueueScheduler extends QueueBase {
           ? (<RedisClient>connection).duplicate()
           : connection,
         sharedConnection: false,
-        persistentConnection: true,
+        blockingConnection: true,
       },
       Connection,
     );

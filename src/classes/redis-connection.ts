@@ -39,12 +39,12 @@ export class RedisConnection extends EventEmitter {
   constructor(
     opts?: ConnectionOptions,
     private readonly shared: boolean = false,
-    private readonly persistent = true,
+    private readonly blocking = true,
   ) {
     super();
 
     if (!isRedisInstance(opts)) {
-      this.checkPersistentOptions(overrideMessage, opts);
+      this.checkBlockingOptions(overrideMessage, opts);
 
       this.opts = {
         port: 6379,
@@ -55,7 +55,7 @@ export class RedisConnection extends EventEmitter {
         ...opts,
       };
 
-      if (this.persistent) {
+      if (this.blocking) {
         this.opts.maxRetriesPerRequest = null;
       }
     } else {
@@ -64,7 +64,7 @@ export class RedisConnection extends EventEmitter {
         ? this._client.options.redisOptions
         : this._client.options;
 
-      this.checkPersistentOptions(deprecationMessage, this.opts);
+      this.checkBlockingOptions(deprecationMessage, this.opts);
     }
 
     this.checkUpstashHost(this.opts.host);
@@ -77,8 +77,8 @@ export class RedisConnection extends EventEmitter {
     this.initializing.catch(err => this.emit('error', err));
   }
 
-  private checkPersistentOptions(msg: string, options?: RedisOptions) {
-    if (this.persistent && options && options.maxRetriesPerRequest) {
+  private checkBlockingOptions(msg: string, options?: RedisOptions) {
+    if (this.blocking && options && options.maxRetriesPerRequest) {
       console.error(msg);
     }
   }
