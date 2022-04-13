@@ -6,6 +6,9 @@ import {
 import {
   array2obj,
   clientCommandMessageReg,
+  DELAY_TIME_5,
+  delay,
+  isNotConnectionError,
   isRedisInstance,
   QUEUE_SCHEDULER_SUFFIX,
 } from '../utils';
@@ -184,14 +187,20 @@ export class QueueScheduler extends QueueBase {
             // for all kind of scenarios.
             //
             if (!this.closing) {
-              await client.xtrim(key, 'MAXLEN', '~', 100);
+              try {
+                await client.xtrim(key, 'MAXLEN', '~', 100);
+              } catch (error) {
+                if (isNotConnectionError(error as Error)) {
+                  throw error;
+                }
+              }
             }
           }
 
           const now = Date.now();
-          const delay = this.nextTimestamp - now;
+          const delayT = this.nextTimestamp - now;
 
-          if (delay <= 0) {
+          if (delayT <= 0) {
             const [nextTimestamp, id] = await this.updateDelaySet(now);
 
             if (nextTimestamp) {
@@ -204,6 +213,7 @@ export class QueueScheduler extends QueueBase {
         }
         this.running = false;
       } catch (error) {
+        console.log('el error', error);
         this.running = false;
         throw error;
       }
@@ -236,14 +246,24 @@ export class QueueScheduler extends QueueBase {
           );
         } catch (err) {
           // We can ignore closed connection errors
-          if ((<Error>err).message !== 'Connection is closed.') {
+          if (isNotConnectionError(err as Error)) {
             throw err;
           }
+
+          await delay(DELAY_TIME_5);
         } finally {
           this.isBlocked = false;
         }
       } else {
-        data = await client.xread('STREAMS', key, streamLastId);
+        try {
+          data = await client.xread('STREAMS', key, streamLastId);
+        } catch (error) {
+          if (isNotConnectionError(error as Error)) {
+            throw error;
+          }
+
+          await delay(DELAY_TIME_5);
+        }
       }
 
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
@@ -253,24 +273,39 @@ export class QueueScheduler extends QueueBase {
 
   private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
-      return Scripts.updateDelaySet(this, timestamp);
+      try {
+        const result = await Scripts.updateDelaySet(this, timestamp);
+        return result;
+      } catch (error) {
+        if (isNotConnectionError(error as Error)) {
+          throw error;
+        }
+      }
     }
     return [0, '0'];
   }
 
   private async moveStalledJobsToWait() {
     if (!this.closing) {
-      const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
+      try {
+        const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
 
-      failed.forEach((jobId: string) =>
-        this.emit(
-          'failed',
-          jobId,
-          new Error('job stalled more than allowable limit'),
-          'active',
-        ),
-      );
-      stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
+        failed.forEach((jobId: string) =>
+          this.emit(
+            'failed',
+            jobId,
+            new Error('job stalled more than allowable limit'),
+            'active',
+          ),
+        );
+        stalled.forEach((jobId: string) =>
+          this.emit('stalled', jobId, 'active'),
+        );
+      } catch (error) {
+        if (isNotConnectionError(error as Error)) {
+          throw error;
+        }
+      }
     }
   }
 

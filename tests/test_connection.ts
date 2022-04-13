@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { v4 } from 'uuid';
-import { Queue, Job, Worker, QueueBase } from '../src/classes';
+import { Queue, Job, Worker, QueueBase, QueueScheduler } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
 describe('connection', () => {
@@ -75,6 +75,7 @@ describe('connection', () => {
     });
 
     const worker = new Worker(queueName, processor, { connection });
+    const queueScheduler = new QueueScheduler(queueName, { connection });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up
@@ -85,6 +86,7 @@ describe('connection', () => {
     });
 
     const workerClient = await worker.client;
+    const queueSchedulerClient = await queueScheduler.client;
     const queueClient = await queue.client;
 
     // Simulate disconnect
@@ -94,8 +96,11 @@ describe('connection', () => {
     (<any>workerClient).stream.end();
     workerClient.emit('error', new Error('ECONNRESET'));
 
+    (<any>queueSchedulerClient).stream.end();
+    queueSchedulerClient.emit('error', new Error('ECONNRESET'));
+
     // add something to the queue
-    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'bar' }, { delay: 2000 });
 
     await processing;
     await worker.close();

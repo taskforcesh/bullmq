@@ -13,7 +13,6 @@ import {
   Worker,
 } from '../src/classes';
 import { KeepJobs, JobsOptions } from '../src/interfaces';
-
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('workers', function () {
@@ -1322,7 +1321,7 @@ describe('workers', function () {
 
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           expect(processing).to.be.equal(false);
           processing = true;
           await delay(50);
@@ -1355,7 +1354,7 @@ describe('workers', function () {
 
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           try {
             nbProcessing++;
             expect(nbProcessing).to.be.lessThan(5);
@@ -1400,7 +1399,7 @@ describe('workers', function () {
 
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           try {
             if (++i === 4) {
               // Pause when all 4 works are processing
