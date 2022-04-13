@@ -173,7 +173,6 @@ export class Worker<
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
-      runRetryDelay: 15000,
       autorun: true,
       ...this.opts,
     };
@@ -338,13 +337,7 @@ export class Worker<
             if (processing.size < opts.concurrency) {
               const token = tokens.pop();
 
-              processing.set(
-                this.retryIfFailed<Job<DataType, ResultType, NameType>>(
-                  () => this.getNextJob(token),
-                  this.opts.runRetryDelay,
-                ),
-                token,
-              );
+              processing.set(this.getNextJob(token), token);
             }
 
             /*
@@ -363,13 +356,7 @@ export class Worker<
             const job = await completed;
             if (job) {
               // reuse same token if next job is available to process
-              processing.set(
-                this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () => this.processJob(job, token),
-                  this.opts.runRetryDelay,
-                ),
-                token,
-              );
+              processing.set(this.processJob(job, token), token);
             } else {
               tokens.push(token);
             }

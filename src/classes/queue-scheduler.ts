@@ -79,7 +79,6 @@ export class QueueScheduler extends QueueBase {
     );
 
     this.opts = {
-      runRetryDelay: 15000,
       ...this.opts,
     };
 
@@ -156,10 +155,7 @@ export class QueueScheduler extends QueueBase {
 
         while (!this.closing) {
           // Check if at least the min stalled check time has passed.
-          await this.retryIfFailed(
-            () => this.moveStalledJobsToWait(),
-            this.opts.runRetryDelay,
-          );
+          await this.moveStalledJobsToWait();
 
           // Listen to the delay event stream from lastDelayStreamTimestamp
           // Can we use XGROUPS to reduce redundancy?
@@ -169,9 +165,11 @@ export class QueueScheduler extends QueueBase {
             Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
           );
 
-          const data = await this.retryIfFailed(
-            () => this.readDelayedData(client, key, streamLastId, blockTime),
-            this.opts.runRetryDelay,
+          const data = await this.readDelayedData(
+            client,
+            key,
+            streamLastId,
+            blockTime,
           );
 
           if (data && data[0]) {
@@ -201,10 +199,7 @@ export class QueueScheduler extends QueueBase {
           const delay = this.nextTimestamp - now;
 
           if (delay <= 0) {
-            const [nextTimestamp, id] = await await this.retryIfFailed(
-              () => this.updateDelaySet(now),
-              this.opts.runRetryDelay,
-            );
+            const [nextTimestamp, id] = await this.updateDelaySet(now);
 
             if (nextTimestamp) {
               this.nextTimestamp = nextTimestamp;
