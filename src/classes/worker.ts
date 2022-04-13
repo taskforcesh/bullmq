@@ -174,6 +174,7 @@ export class Worker<
       concurrency: 1,
       lockDuration: 30000,
       autorun: true,
+      runRetryDelay: 15000,
       ...this.opts,
     };
 
@@ -337,7 +338,13 @@ export class Worker<
             if (processing.size < opts.concurrency) {
               const token = tokens.pop();
 
-              processing.set(this.getNextJob(token), token);
+              processing.set(
+                this.retryIfFailed<Job<DataType, ResultType, NameType>>(
+                  () => this.getNextJob(token),
+                  this.opts.runRetryDelay,
+                ),
+                token,
+              );
             }
 
             /*
@@ -356,7 +363,13 @@ export class Worker<
             const job = await completed;
             if (job) {
               // reuse same token if next job is available to process
-              processing.set(this.processJob(job, token), token);
+              processing.set(
+                this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
+                  () => this.processJob(job, token),
+                  this.opts.runRetryDelay,
+                ),
+                token,
+              );
             } else {
               tokens.push(token);
             }
@@ -708,5 +721,21 @@ export class Worker<
     }
 
     reconnect && (await this.blockingConnection.reconnect());
+  }
+
+  private async retryIfFailed<T>(fn: () => Promise<T>, delayInMs: number) {
+    const retry = 1;
+    do {
+      try {
+        return await fn();
+      } catch (err) {
+        this.emit('error', <Error>err);
+        if (delayInMs) {
+          await delay(delayInMs);
+        } else {
+          return;
+        }
+      }
+    } while (retry);
   }
 }

@@ -213,7 +213,6 @@ export class QueueScheduler extends QueueBase {
         }
         this.running = false;
       } catch (error) {
-        console.log('el error', error);
         this.running = false;
         throw error;
       }
