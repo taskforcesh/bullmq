@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-emit<U extends keyof WorkerListener>(event: U, ...args: Parameters<WorkerListener[U]>): boolean;
+emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(event: U, ...args: Parameters<WorkerListener<DataType, ResultType, NameType>[U]>): boolean;
 ```
 
 ## Parameters
@@ -15,7 +15,7 @@ emit<U extends keyof WorkerListener>(event: U, ...args: Parameters<WorkerListene
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  event | U |  |
-|  args | Parameters&lt;[WorkerListener](./bullmq.workerlistener.md)<!-- -->\[U\]&gt; |  |
+|  args | Parameters&lt;[WorkerListener](./bullmq.workerlistener.md)<!-- -->&lt;DataType, ResultType, NameType&gt;\[U\]&gt; |  |
 
 <b>Returns:</b>
 

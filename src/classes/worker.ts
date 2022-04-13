@@ -29,13 +29,17 @@ import { TimerManager } from './timer-manager';
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-export interface WorkerListener {
+export interface WorkerListener<
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
+> {
   /**
    * Listen to 'active' event.
    *
    * This event is triggered when a job enters the 'active' state.
    */
-  active: (job: Job, prev: string) => void;
+  active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
 
   /**
    * Listen to 'closing' event.
@@ -56,7 +60,11 @@ export interface WorkerListener {
    *
    * This event is triggered when a job has successfully completed.
    */
-  completed: (job: Job, result: any, prev: string) => void;
+  completed: (
+    job: Job<DataType, ResultType, NameType>,
+    result: ResultType,
+    prev: string,
+  ) => void;
 
   /**
    * Listen to 'drained' event.
@@ -79,7 +87,11 @@ export interface WorkerListener {
    *
    * This event is triggered when a job has thrown an exception.
    */
-  failed: (job: Job, error: Error, prev: string) => void;
+  failed: (
+    job: Job<DataType, ResultType, NameType>,
+    error: Error,
+    prev: string,
+  ) => void;
 
   /**
    * Listen to 'paused' event.
@@ -96,7 +108,10 @@ export interface WorkerListener {
    * progress or any other data from within a processor to the rest of the
    * world.
    */
-  progress: (job: Job, progress: number | object) => void;
+  progress: (
+    job: Job<DataType, ResultType, NameType>,
+    progress: number | object,
+  ) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -146,7 +161,11 @@ export class Worker<
   ) {
     super(
       name,
-      { ...opts, sharedConnection: isRedisInstance(opts.connection) },
+      {
+        ...opts,
+        sharedConnection: isRedisInstance(opts.connection),
+        blockingConnection: true,
+      },
       Connection,
     );
 
@@ -207,32 +226,32 @@ export class Worker<
     this.on('error', err => console.error(err));
   }
 
-  emit<U extends keyof WorkerListener>(
+  emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
     event: U,
-    ...args: Parameters<WorkerListener[U]>
+    ...args: Parameters<WorkerListener<DataType, ResultType, NameType>[U]>
   ): boolean {
     return super.emit(event, ...args);
   }
 
-  off<U extends keyof WorkerListener>(
+  off<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
     eventName: U,
-    listener: WorkerListener[U],
+    listener: WorkerListener<DataType, ResultType, NameType>[U],
   ): this {
     super.off(eventName, listener);
     return this;
   }
 
-  on<U extends keyof WorkerListener>(
+  on<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
     event: U,
-    listener: WorkerListener[U],
+    listener: WorkerListener<DataType, ResultType, NameType>[U],
   ): this {
     super.on(event, listener);
     return this;
   }
 
-  once<U extends keyof WorkerListener>(
+  once<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
     event: U,
-    listener: WorkerListener[U],
+    listener: WorkerListener<DataType, ResultType, NameType>[U],
   ): this {
     super.once(event, listener);
     return this;

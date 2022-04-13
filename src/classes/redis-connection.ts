@@ -6,17 +6,21 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
 import { scriptLoader } from '../commands';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
-import { isRedisInstance, isNotConnectionError } from '../utils';
+import {
+  isRedisCluster,
+  isRedisInstance,
+  isNotConnectionError,
+} from '../utils';
 
 import * as path from 'path';
 
 const overrideMessage = [
-  'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false',
-  'and will be overrided by BullMQ.',
+  'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
+  'and will be overridden by BullMQ.',
 ].join(' ');
 
 const deprecationMessage = [
-  'BullMQ: DEPRECATION WARNING! Your redis options maxRetriesPerRequest must be null and enableReadyCheck false.',
+  'BullMQ: DEPRECATION WARNING! Your redis options maxRetriesPerRequest must be null.',
   'On the next versions having this settings will throw an exception',
 ].join(' ');
 
@@ -26,19 +30,21 @@ export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
   protected _client: RedisClient;
 
+  private readonly opts: RedisOptions;
   private initializing: Promise<RedisClient>;
   private closing: boolean;
   private version: string;
   private handleClientError: (e: Error) => void;
 
   constructor(
-    private readonly opts?: ConnectionOptions,
+    opts?: ConnectionOptions,
     private readonly shared: boolean = false,
+    private readonly blocking = true,
   ) {
     super();
 
     if (!isRedisInstance(opts)) {
-      this.checkOptions(overrideMessage, <RedisOptions>opts);
+      this.checkBlockingOptions(overrideMessage, opts);
 
       this.opts = {
         port: 6379,
@@ -47,20 +53,21 @@ export class RedisConnection extends EventEmitter {
           return Math.min(Math.exp(times), 20000);
         },
         ...opts,
-        maxRetriesPerRequest: null,
-        enableReadyCheck: false,
       };
-      this.checkUpstashHost(this.opts.host);
-    } else {
-      this._client = <RedisClient>opts;
-      let options = <IORedis.RedisOptions>this._client.options;
-      if ((<IORedis.ClusterOptions>options)?.redisOptions) {
-        options = (<IORedis.ClusterOptions>options).redisOptions;
-      }
 
-      this.checkOptions(deprecationMessage, options);
-      this.checkUpstashHost(options.host);
+      if (this.blocking) {
+        this.opts.maxRetriesPerRequest = null;
+      }
+    } else {
+      this._client = opts;
+      this.opts = isRedisCluster(this._client)
+        ? this._client.options.redisOptions
+        : this._client.options;
+
+      this.checkBlockingOptions(deprecationMessage, this.opts);
     }
+
+    this.checkUpstashHost(this.opts.host);
 
     this.handleClientError = (err: Error): void => {
       this.emit('error', err);
@@ -70,8 +77,8 @@ export class RedisConnection extends EventEmitter {
     this.initializing.catch(err => this.emit('error', err));
   }
 
-  private checkOptions(msg: string, options?: IORedis.RedisOptions) {
-    if (options && (options.maxRetriesPerRequest || options.enableReadyCheck)) {
+  private checkBlockingOptions(msg: string, options?: RedisOptions) {
+    if (this.blocking && options && options.maxRetriesPerRequest) {
       console.error(msg);
     }
   }
@@ -138,9 +145,8 @@ export class RedisConnection extends EventEmitter {
   }
 
   private async init() {
-    const opts = this.opts as RedisOptions;
     if (!this._client) {
-      this._client = new IORedis(opts);
+      this._client = new IORedis(this.opts);
     }
 
     this._client.on('error', this.handleClientError);
@@ -148,7 +154,7 @@ export class RedisConnection extends EventEmitter {
     await RedisConnection.waitUntilReady(this._client);
     await this.loadCommands();
 
-    if (opts && opts.skipVersionCheck !== true && !this.closing) {
+    if (this.opts && this.opts.skipVersionCheck !== true && !this.closing) {
       this.version = await this.getRedisVersion();
       const version = semver.valid(semver.coerce(this.version));
       if (semver.lt(version, RedisConnection.minimumVersion)) {

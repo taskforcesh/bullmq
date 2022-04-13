@@ -15,7 +15,7 @@ export declare class RedisConnection extends EventEmitter
 
 |  Constructor | Modifiers | Description |
 |  --- | --- | --- |
-|  [(constructor)(opts, shared)](./bullmq.redisconnection._constructor_.md) |  | Constructs a new instance of the <code>RedisConnection</code> class |
+|  [(constructor)(opts, shared, blocking)](./bullmq.redisconnection._constructor_.md) |  | Constructs a new instance of the <code>RedisConnection</code> class |
 
 ## Properties
 
