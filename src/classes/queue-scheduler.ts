@@ -15,13 +15,6 @@ import { RedisConnection } from './redis-connection';
 
 export interface QueueSchedulerListener {
   /**
-   * Listen to 'error' event.
-   *
-   * This event is triggered when an error is throw.
-   */
-  error: (failedReason: Error) => void;
-
-  /**
    * Listen to 'failed' event.
    *
    * This event is triggered when a job has thrown an exception.
