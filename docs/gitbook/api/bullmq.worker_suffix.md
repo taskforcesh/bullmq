@@ -7,5 +7,5 @@
 <b>Signature:</b>
 
 ```typescript
-WORKER_SUFFIX = ":w"
+WORKER_SUFFIX = ""
 ```
