@@ -241,7 +241,7 @@ describe('Delayed jobs', function () {
   });
 
   it('should process delayed jobs in correct order', async function () {
-    this.timeout(3000);
+    this.timeout(3500);
     let order = 0;
     const numJobs = 10;
     const queueScheduler = new QueueScheduler(queueName, { connection });
@@ -254,7 +254,7 @@ describe('Delayed jobs', function () {
         order++;
         try {
           expect(order).to.be.equal(job.data.order);
-          if (order === 10) {
+          if (order === numJobs) {
             resolve();
           }
         } catch (err) {
@@ -271,7 +271,7 @@ describe('Delayed jobs', function () {
       name: 'test',
       data: { order: numJobs - index },
       opts: {
-        delay: (numJobs - index) * 200,
+        delay: 500 + (numJobs - index) * 150,
       },
     }));
 
