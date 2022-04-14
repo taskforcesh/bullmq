@@ -74,10 +74,6 @@ export class QueueScheduler extends QueueBase {
       Connection,
     );
 
-    this.opts = {
-      ...this.opts,
-    };
-
     if (!this.opts.stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
     }
