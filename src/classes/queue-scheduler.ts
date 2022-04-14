@@ -151,7 +151,7 @@ export class QueueScheduler extends QueueBase {
 
         while (!this.closing) {
           // Check if at least the min stalled check time has passed.
-          await this.moveStalledJobsToWait();
+          await this.checkConnectionError(() => this.moveStalledJobsToWait());
 
           // Listen to the delay event stream from lastDelayStreamTimestamp
           // Can we use XGROUPS to reduce redundancy?
@@ -187,20 +187,16 @@ export class QueueScheduler extends QueueBase {
             // for all kind of scenarios.
             //
             if (!this.closing) {
-              try {
-                await client.xtrim(key, 'MAXLEN', '~', 100);
-              } catch (error) {
-                if (isNotConnectionError(error as Error)) {
-                  throw error;
-                }
-              }
+              await this.checkConnectionError<number>(() =>
+                client.xtrim(key, 'MAXLEN', '~', 100),
+              );
             }
           }
 
           const now = Date.now();
-          const delayT = this.nextTimestamp - now;
+          const nextDelayedJobDelay = this.nextTimestamp - now;
 
-          if (delayT <= 0) {
+          if (nextDelayedJobDelay <= 0) {
             const [nextTimestamp, id] = await this.updateDelaySet(now);
 
             if (nextTimestamp) {
@@ -254,15 +250,10 @@ export class QueueScheduler extends QueueBase {
           this.isBlocked = false;
         }
       } else {
-        try {
-          data = await client.xread('STREAMS', key, streamLastId);
-        } catch (error) {
-          if (isNotConnectionError(error as Error)) {
-            throw error;
-          }
-
-          await delay(DELAY_TIME_5);
-        }
+        data = await this.checkConnectionError(
+          () => client.xread('STREAMS', key, streamLastId),
+          DELAY_TIME_5,
+        );
       }
 
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
@@ -272,39 +263,28 @@ export class QueueScheduler extends QueueBase {
 
   private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
-      try {
-        const result = await Scripts.updateDelaySet(this, timestamp);
-        return result;
-      } catch (error) {
-        if (isNotConnectionError(error as Error)) {
-          throw error;
-        }
-      }
+      const result = await this.checkConnectionError(() =>
+        Scripts.updateDelaySet(this, timestamp),
+      );
+
+      return result;
     }
     return [0, '0'];
   }
 
   private async moveStalledJobsToWait() {
     if (!this.closing) {
-      try {
-        const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
+      const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
 
-        failed.forEach((jobId: string) =>
-          this.emit(
-            'failed',
-            jobId,
-            new Error('job stalled more than allowable limit'),
-            'active',
-          ),
-        );
-        stalled.forEach((jobId: string) =>
-          this.emit('stalled', jobId, 'active'),
-        );
-      } catch (error) {
-        if (isNotConnectionError(error as Error)) {
-          throw error;
-        }
-      }
+      failed.forEach((jobId: string) =>
+        this.emit(
+          'failed',
+          jobId,
+          new Error('job stalled more than allowable limit'),
+          'active',
+        ),
+      );
+      stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
     }
   }
 
