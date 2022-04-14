@@ -82,8 +82,8 @@ describe('Delayed jobs', function () {
   });
 
   it('should reconnect after client is disconnected', async function () {
-    const delayT = 500;
-    const numJobs = 20;
+    const delayT = 1000;
+    const numJobs = 5;
 
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
@@ -114,7 +114,7 @@ describe('Delayed jobs', function () {
           expect(jobs.length).to.be.equal(0);
 
           const delayedJobs = await queue.getDelayed();
-          expect(delayedJobs.length).to.be.equal(19);
+          expect(delayedJobs.length).to.be.equal(4);
           expect(publishHappened).to.be.eql(true);
           await client.disconnect();
           resolve();
@@ -136,7 +136,7 @@ describe('Delayed jobs', function () {
       name: 'test',
       data: { index },
       opts: {
-        delay: delayT + index * 120,
+        delay: delayT + index * 500,
       },
     }));
 
@@ -241,8 +241,9 @@ describe('Delayed jobs', function () {
   });
 
   it('should process delayed jobs in correct order', async function () {
-    this.timeout(2000);
+    this.timeout(3000);
     let order = 0;
+    const numJobs = 10;
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
 
@@ -266,18 +267,15 @@ describe('Delayed jobs', function () {
 
     worker.on('failed', function (job, err) {});
 
-    await Promise.all([
-      queue.add('test', { order: 1 }, { delay: 100 }),
-      queue.add('test', { order: 6 }, { delay: 600 }),
-      queue.add('test', { order: 10 }, { delay: 1000 }),
-      queue.add('test', { order: 2 }, { delay: 200 }),
-      queue.add('test', { order: 9 }, { delay: 900 }),
-      queue.add('test', { order: 5 }, { delay: 500 }),
-      queue.add('test', { order: 3 }, { delay: 300 }),
-      queue.add('test', { order: 7 }, { delay: 700 }),
-      queue.add('test', { order: 4 }, { delay: 400 }),
-      queue.add('test', { order: 8 }, { delay: 800 }),
-    ]);
+    const jobs = Array.from(Array(numJobs).keys()).map(index => ({
+      name: 'test',
+      data: { order: numJobs - index },
+      opts: {
+        delay: (numJobs - index) * 200,
+      },
+    }));
+
+    await queue.addBulk(jobs);
 
     await processing;
 
