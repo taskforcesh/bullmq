@@ -171,7 +171,7 @@ export const parentSend = (
   msg: ParentMessage,
 ): Promise<void> => asyncSend<ChildProcess>(child, msg);
 
-export const WORKER_SUFFIX = ':w';
+export const WORKER_SUFFIX = '';
 
 export const QUEUE_SCHEDULER_SUFFIX = ':qs';
 
