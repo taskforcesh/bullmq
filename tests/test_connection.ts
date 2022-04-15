@@ -74,6 +74,7 @@ describe('connection', () => {
         expect(() => new QueueBase(queueName, { connection })).to.throw(
           'BullMQ: Upstash is not compatible with BullMQ.',
         );
+        await connection.disconnect();
       });
     });
 
@@ -95,6 +96,7 @@ describe('connection', () => {
         expect(() => new QueueBase(queueName, { connection })).to.throw(
           'BullMQ: Upstash is not compatible with BullMQ.',
         );
+        await connection.disconnect();
       });
     });
   });

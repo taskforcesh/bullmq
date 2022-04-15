@@ -69,15 +69,10 @@ export class RedisConnection extends EventEmitter {
         );
         this.checkUpstashHost(this._client.options.redisOptions?.host || hosts);
       } else {
-        let options = <IORedis.RedisOptions>this._client.options;
-        if ((<IORedis.ClusterOptions>options)?.redisOptions) {
-          options = (<IORedis.ClusterOptions>options).redisOptions;
-        }
+        this.opts = this._client.options;
+
         this.checkUpstashHost(this.opts.host);
       }
-      this.opts = isRedisCluster(this._client)
-        ? (<IORedis.Cluster>this._client).options.redisOptions
-        : this._client.options;
 
       this.checkBlockingOptions(deprecationMessage, this.opts);
     }
