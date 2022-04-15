@@ -297,7 +297,7 @@ export class Job<
     }
   }
 
-  toJSON(): Omit<this, 'queue'> {
+  toJSON() {
     const { queue, ...withoutQueue } = this;
     return withoutQueue;
   }
