@@ -855,7 +855,7 @@ export class Job<
   moveToWaitingChildren(
     token: string,
     opts: MoveToChildrenOpts = {},
-  ): Promise<boolean | Error> {
+  ): Promise<boolean> {
     return Scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
   }
 
