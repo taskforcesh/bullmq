@@ -27,7 +27,7 @@
     "coverage": "nyc --reporter=text npm run test",
     "coveralls": "nyc report --reporter=text-lcov | coveralls",
     "cm": "git cz",
-    "docs": "typedoc src/index.ts",
+    "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
     "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
