@@ -62,6 +62,43 @@ describe('connection', () => {
         'BullMQ: Upstash is not compatible with BullMQ.',
       );
     });
+
+    describe('when using Cluster instance', async () => {
+      it('throws an error', async () => {
+        const connection = new IORedis.Cluster([
+          {
+            host: 'https://upstash.io',
+          },
+        ]);
+
+        expect(() => new QueueBase(queueName, { connection })).to.throw(
+          'BullMQ: Upstash is not compatible with BullMQ.',
+        );
+        await connection.disconnect();
+      });
+    });
+
+    describe('when using redisOptions', async () => {
+      it('throws an error', async () => {
+        const connection = new IORedis.Cluster(
+          [
+            {
+              host: 'localhost',
+            },
+          ],
+          {
+            redisOptions: {
+              host: 'https://upstash.io',
+            },
+          },
+        );
+
+        expect(() => new QueueBase(queueName, { connection })).to.throw(
+          'BullMQ: Upstash is not compatible with BullMQ.',
+        );
+        await connection.disconnect();
+      });
+    });
   });
 
   it('should recover from a connection loss', async () => {

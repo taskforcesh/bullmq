@@ -48,7 +48,7 @@
     "cron-parser": "^4.2.1",
     "get-port": "^5.1.1",
     "glob": "^7.2.0",
-    "ioredis": "^4.28.2",
+    "ioredis": "^4.28.5",
     "lodash": "^4.17.21",
     "msgpackr": "^1.4.6",
     "semver": "^6.3.0",

@@ -383,6 +383,7 @@ describe('Obliterate', function () {
     const worker = new Worker(
       queue.name,
       async job => {
+        await delay(100);
         return job.log('Lorem Ipsum Dolor Sit Amet');
       },
       { connection },
