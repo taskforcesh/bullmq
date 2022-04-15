@@ -9,7 +9,7 @@ Moves the job to the waiting-children set.
 <b>Signature:</b>
 
 ```typescript
-moveToWaitingChildren(token: string, opts?: MoveToChildrenOpts): Promise<boolean | Error>;
+moveToWaitingChildren(token: string, opts?: MoveToChildrenOpts): Promise<boolean>;
 ```
 
 ## Parameters
@@ -21,7 +21,7 @@ moveToWaitingChildren(token: string, opts?: MoveToChildrenOpts): Promise<boolean
 
 <b>Returns:</b>
 
-Promise&lt;boolean \| Error&gt;
+Promise&lt;boolean&gt;
 
 true if the job was moved
 
