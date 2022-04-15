@@ -105,6 +105,7 @@
     "test-console": "^2.0.0",
     "ts-mocha": "^8.0.0",
     "ts-node": "^8.10.2",
+    "typedoc": "^0.22.15",
     "typescript": "3.9.10"
   },
   "nyc": {
