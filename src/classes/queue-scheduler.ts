@@ -18,6 +18,13 @@ import { RedisConnection } from './redis-connection';
 
 export interface QueueSchedulerListener {
   /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an exception is thrown.
+   */
+  error: (args: Error) => void;
+
+  /**
    * Listen to 'failed' event.
    *
    * This event is triggered when a job has thrown an exception.
@@ -80,7 +87,7 @@ export class QueueScheduler extends QueueBase {
 
     if (autorun) {
       this.run().catch(error => {
-        console.error(error);
+        this.emit('error', error);
       });
     }
   }
