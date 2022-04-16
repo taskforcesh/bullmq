@@ -58,16 +58,24 @@ export class RedisConnection extends EventEmitter {
       if (this.blocking) {
         this.opts.maxRetriesPerRequest = null;
       }
+
+      this.checkUpstashHost(this.opts.host);
     } else {
       this._client = opts;
-      this.opts = isRedisCluster(this._client)
-        ? this._client.options.redisOptions
-        : this._client.options;
+
+      if (isRedisCluster(this._client)) {
+        const hosts = (<any>this._client).startupNodes.map(
+          (node: { host: string }) => node.host,
+        );
+        this.checkUpstashHost(this._client.options.redisOptions?.host || hosts);
+      } else {
+        this.opts = this._client.options;
+
+        this.checkUpstashHost(this.opts.host);
+      }
 
       this.checkBlockingOptions(deprecationMessage, this.opts);
     }
-
-    this.checkUpstashHost(this.opts.host);
 
     this.handleClientError = (err: Error): void => {
       this.emit('error', err);
@@ -83,8 +91,11 @@ export class RedisConnection extends EventEmitter {
     }
   }
 
-  private checkUpstashHost(host: string | undefined) {
-    if (host?.endsWith('upstash.io')) {
+  private checkUpstashHost(host: string[] | string | undefined) {
+    const includesUpstash = Array.isArray(host)
+      ? host.some(node => node.endsWith('upstash.io'))
+      : host?.endsWith('upstash.io');
+    if (includesUpstash) {
       throw new Error(upstashMessage);
     }
   }
