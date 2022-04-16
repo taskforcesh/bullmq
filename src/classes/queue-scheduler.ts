@@ -253,9 +253,8 @@ export class QueueScheduler extends QueueBase {
           this.isBlocked = false;
         }
       } else {
-        data = await this.checkConnectionError(
-          () => client.xread('STREAMS', key, streamLastId),
-          DELAY_TIME_5,
+        data = await this.checkConnectionError(() =>
+          client.xread('STREAMS', key, streamLastId),
         );
       }
 

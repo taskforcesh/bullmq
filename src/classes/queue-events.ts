@@ -2,7 +2,6 @@ import { QueueEventsOptions, RedisClient, StreamReadRaw } from '../interfaces';
 import {
   array2obj,
   clientCommandMessageReg,
-  DELAY_TIME_5,
   isRedisInstance,
   QUEUE_EVENT_SUFFIX,
 } from '../utils';
@@ -248,9 +247,8 @@ export class QueueEvents extends QueueBase {
 
     while (!this.closing) {
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
-      const data: StreamReadRaw = await this.checkConnectionError(
-        () => client.xread('BLOCK', opts.blockingTimeout, 'STREAMS', key, id),
-        DELAY_TIME_5,
+      const data: StreamReadRaw = await this.checkConnectionError(() =>
+        client.xread('BLOCK', opts.blockingTimeout, 'STREAMS', key, id),
       );
       if (data) {
         const stream = data[0];
