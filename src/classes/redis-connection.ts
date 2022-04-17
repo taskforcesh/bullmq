@@ -137,7 +137,6 @@ export class RedisConnection extends EventEmitter {
       const endHandler = () => {
         client.removeListener('ready', handleReady);
         client.removeListener('error', errorHandler);
-        console.log('se emite el error');
         reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
       };
 
