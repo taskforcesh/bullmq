@@ -22,7 +22,7 @@ export interface QueueSchedulerListener {
    *
    * This event is triggered when an exception is thrown.
    */
-  error: (args: Error) => void;
+  error: (error: Error) => void;
 
   /**
    * Listen to 'failed' event.

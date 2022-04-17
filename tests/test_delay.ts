@@ -23,6 +23,7 @@ describe('Delayed jobs', function () {
   beforeEach(async function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection });
+    await queue.waitUntilReady();
   });
 
   afterEach(async function () {
@@ -106,6 +107,17 @@ describe('Delayed jobs', function () {
       });
     });
 
+    const queueSchedulerError = new Promise<void>(resolve => {
+      queueScheduler.on('error', async function (error) {
+        expect(error.message).to.be.equal('Connection is closed.');
+        resolve();
+      });
+    });
+
+    worker.on('error', async function () {});
+
+    queueEvents.on('error', async function () {});
+
     const completed = new Promise<void>((resolve, reject) => {
       queueEvents.on('completed', async function () {
         try {
@@ -144,6 +156,8 @@ describe('Delayed jobs', function () {
 
     await delayed;
     await completed;
+
+    await queueSchedulerError;
 
     await delay(2000);
 

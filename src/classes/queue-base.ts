@@ -3,6 +3,7 @@ import { QueueBaseOptions, RedisClient } from '../interfaces';
 import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
+
 export class QueueBase extends EventEmitter {
   toKey: (type: string) => string;
   keys: KeysMap;
@@ -96,13 +97,14 @@ export class QueueBase extends EventEmitter {
     try {
       return await fn();
     } catch (error) {
-      this.emit('error', <Error>error);
-      if (!isNotConnectionError(error as Error)) {
-        if (delayInMs) {
-          await delay(delayInMs);
-        } else {
-          return;
-        }
+      if (isNotConnectionError(error as Error)) {
+        this.emit('error', <Error>error);
+      }
+
+      if (delayInMs) {
+        await delay(delayInMs);
+      } else {
+        return;
       }
     }
   }
