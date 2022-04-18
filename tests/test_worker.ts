@@ -1228,7 +1228,7 @@ describe('workers', function () {
     await worker.close();
   });
 
-  it('emit error if lock is lost', async function () {
+  it('emits error if lock is lost', async function () {
     this.timeout(10000);
 
     const worker = new Worker(
@@ -1254,7 +1254,7 @@ describe('workers', function () {
 
     const errorMessage = `Missing lock for job ${job.id}. failed`;
     const workerError = new Promise<void>(resolve => {
-      worker.on('error', error => {
+      worker.once('error', error => {
         expect(error.message).to.be.equal(errorMessage);
         resolve();
       });

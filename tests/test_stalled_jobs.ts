@@ -32,7 +32,7 @@ describe('stalled jobs', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         return delay(10000);
       },
       {
