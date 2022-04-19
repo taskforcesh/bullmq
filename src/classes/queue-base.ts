@@ -101,7 +101,7 @@ export class QueueBase extends EventEmitter {
         this.emit('error', <Error>error);
       }
 
-      if (delayInMs) {
+      if (!this.closing && delayInMs) {
         await delay(delayInMs);
       } else {
         return;
