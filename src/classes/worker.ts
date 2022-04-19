@@ -173,8 +173,8 @@ export class Worker<
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
-      runRetryDelay: 15000,
       autorun: true,
+      runRetryDelay: 15000,
       ...this.opts,
     };
 

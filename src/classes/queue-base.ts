@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { KeysMap, QueueKeys } from './queue-keys';
 
@@ -87,5 +88,24 @@ export class QueueBase extends EventEmitter {
 
   disconnect(): Promise<void> {
     return this.connection.disconnect();
+  }
+
+  protected async checkConnectionError<T>(
+    fn: () => Promise<T>,
+    delayInMs = DELAY_TIME_5,
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (isNotConnectionError(error as Error)) {
+        this.emit('error', <Error>error);
+      }
+
+      if (!this.closing && delayInMs) {
+        await delay(delayInMs);
+      } else {
+        return;
+      }
+    }
   }
 }

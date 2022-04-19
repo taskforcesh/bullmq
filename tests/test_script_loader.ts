@@ -282,7 +282,7 @@ describe('scriptLoader', () => {
 
     it('caches loadScripts calls per directory', async () => {
       const loader = new ScriptLoader();
-      sinon.spy(loader, 'loadScripts');
+      const loadScriptSpy = sinon.spy(loader, 'loadScripts');
 
       const dirname = __dirname + '/fixtures/scripts/dir-test';
       const dirname1 = __dirname + '/fixtures/scripts/load';
@@ -302,6 +302,7 @@ describe('scriptLoader', () => {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       expect(loader.loadScripts.calledTwice);
+      loadScriptSpy.restore();
     });
 
     it('throws error if no lua files are found in a directory', async () => {
@@ -326,16 +327,17 @@ describe('scriptLoader', () => {
     const path = __dirname + '/fixtures/scripts/load';
     let client: RedisClient;
     let connection: RedisConnection;
-    let loader: ScriptLoader;
+    //let loader: ScriptLoader;
 
     beforeEach(async () => {
       connection = new RedisConnection();
+      connection.on('error', () => {});
       client = await connection.client;
-      loader = new ScriptLoader();
+      await RedisConnection.waitUntilReady(client);
     });
 
     afterEach(async () => {
-      connection.disconnect();
+      await connection.disconnect();
     });
 
     it('properly sets commands on the instance', async () => {
@@ -344,20 +346,21 @@ describe('scriptLoader', () => {
     });
 
     it('sets commands on a client only once', async () => {
-      sinon.spy(loader, 'loadScripts');
+      const loadScriptSpy = sinon.spy(loader, 'loadScripts');
       await loader.load(client, path);
       await loader.load(client, path);
       await loader.load(client, path);
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       expect(loader.loadScripts.calledOnce);
+      loadScriptSpy.restore();
     });
   });
 
   describe('.clearCache', () => {
     it('can clear the command cache', async () => {
       const loader = new ScriptLoader();
-      sinon.spy(loader, 'loadScripts');
+      const loadScriptSpy = sinon.spy(loader, 'loadScripts');
 
       const dirname = __dirname + '/fixtures/scripts/dir-test';
       const dirname1 = __dirname + '/fixtures/scripts/load';
@@ -379,6 +382,7 @@ describe('scriptLoader', () => {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       expect(loader.loadScripts.callCount - origCallCount).to.eq(2);
+      loadScriptSpy.restore();
     });
   });
 });

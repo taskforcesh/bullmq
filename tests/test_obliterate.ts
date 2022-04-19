@@ -376,8 +376,6 @@ describe('Obliterate', function () {
   });
 
   it('should remove job logs', async () => {
-    const job = await queue.add('test', {});
-
     const queueEvents = new QueueEvents(queue.name, { connection });
 
     const worker = new Worker(
@@ -389,6 +387,8 @@ describe('Obliterate', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    const job = await queue.add('test', {});
 
     await job.waitUntilFinished(queueEvents);
 

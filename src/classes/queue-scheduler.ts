@@ -6,6 +6,9 @@ import {
 import {
   array2obj,
   clientCommandMessageReg,
+  DELAY_TIME_5,
+  delay,
+  isNotConnectionError,
   isRedisInstance,
   QUEUE_SCHEDULER_SUFFIX,
 } from '../utils';
@@ -15,11 +18,11 @@ import { RedisConnection } from './redis-connection';
 
 export interface QueueSchedulerListener {
   /**
-   * Listen to 'stalled' event.
+   * Listen to 'error' event.
    *
-   * This event is triggered when a job gets stalled.
+   * This event is triggered when an exception is thrown.
    */
-  stalled: (jobId: string, prev: string) => void;
+  error: (error: Error) => void;
 
   /**
    * Listen to 'failed' event.
@@ -27,6 +30,13 @@ export interface QueueSchedulerListener {
    * This event is triggered when a job has thrown an exception.
    */
   failed: (jobId: string, failedReason: Error, prev: string) => void;
+
+  /**
+   * Listen to 'stalled' event.
+   *
+   * This event is triggered when a job gets stalled.
+   */
+  stalled: (jobId: string, prev: string) => void;
 }
 
 /**
@@ -46,6 +56,7 @@ export interface QueueSchedulerListener {
  *
  */
 export class QueueScheduler extends QueueBase {
+  opts: QueueSchedulerOptions;
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
   private running = false;
@@ -70,13 +81,13 @@ export class QueueScheduler extends QueueBase {
       Connection,
     );
 
-    if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
+    if (!this.opts.stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
     }
 
     if (autorun) {
       this.run().catch(error => {
-        console.error(error);
+        this.emit('error', error);
       });
     }
   }
@@ -143,7 +154,7 @@ export class QueueScheduler extends QueueBase {
 
         while (!this.closing) {
           // Check if at least the min stalled check time has passed.
-          await this.moveStalledJobsToWait();
+          await this.checkConnectionError(() => this.moveStalledJobsToWait());
 
           // Listen to the delay event stream from lastDelayStreamTimestamp
           // Can we use XGROUPS to reduce redundancy?
@@ -179,15 +190,18 @@ export class QueueScheduler extends QueueBase {
             // for all kind of scenarios.
             //
             if (!this.closing) {
-              await client.xtrim(key, 'MAXLEN', '~', 100);
+              await this.checkConnectionError<number>(() =>
+                client.xtrim(key, 'MAXLEN', '~', 100),
+              );
             }
           }
 
           const now = Date.now();
-          const delay = this.nextTimestamp - now;
+          const nextDelayedJobDelay = this.nextTimestamp - now;
 
-          if (delay <= 0) {
+          if (nextDelayedJobDelay <= 0) {
             const [nextTimestamp, id] = await this.updateDelaySet(now);
+
             if (nextTimestamp) {
               this.nextTimestamp = nextTimestamp;
               streamLastId = id;
@@ -230,14 +244,18 @@ export class QueueScheduler extends QueueBase {
           );
         } catch (err) {
           // We can ignore closed connection errors
-          if ((<Error>err).message !== 'Connection is closed.') {
+          if (isNotConnectionError(err as Error)) {
             throw err;
           }
+
+          await delay(DELAY_TIME_5);
         } finally {
           this.isBlocked = false;
         }
       } else {
-        data = await client.xread('STREAMS', key, streamLastId);
+        data = await this.checkConnectionError(() =>
+          client.xread('STREAMS', key, streamLastId),
+        );
       }
 
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
@@ -247,7 +265,11 @@ export class QueueScheduler extends QueueBase {
 
   private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
-      return Scripts.updateDelaySet(this, timestamp);
+      const result = await this.checkConnectionError(() =>
+        Scripts.updateDelaySet(this, timestamp),
+      );
+
+      return result;
     }
     return [0, '0'];
   }

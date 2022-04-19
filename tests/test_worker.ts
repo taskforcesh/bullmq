@@ -13,7 +13,6 @@ import {
   Worker,
 } from '../src/classes';
 import { KeepJobs, JobsOptions } from '../src/interfaces';
-
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('workers', function () {
@@ -1229,7 +1228,7 @@ describe('workers', function () {
     await worker.close();
   });
 
-  it('emit error if lock is lost', async function () {
+  it('emits error if lock is lost', async function () {
     this.timeout(10000);
 
     const worker = new Worker(
@@ -1255,7 +1254,7 @@ describe('workers', function () {
 
     const errorMessage = `Missing lock for job ${job.id}. failed`;
     const workerError = new Promise<void>(resolve => {
-      worker.on('error', error => {
+      worker.once('error', error => {
         expect(error.message).to.be.equal(errorMessage);
         resolve();
       });
@@ -1322,7 +1321,7 @@ describe('workers', function () {
 
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           expect(processing).to.be.equal(false);
           processing = true;
           await delay(50);
@@ -1355,7 +1354,7 @@ describe('workers', function () {
 
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           try {
             nbProcessing++;
             expect(nbProcessing).to.be.lessThan(5);
@@ -1400,7 +1399,7 @@ describe('workers', function () {
 
       const worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           try {
             if (++i === 4) {
               // Pause when all 4 works are processing
