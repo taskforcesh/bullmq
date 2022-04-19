@@ -166,6 +166,7 @@ export class RedisConnection extends EventEmitter {
     }
 
     this._client.on('error', this.handleClientError);
+    // ioredis treats connection errors as a different event ('close')
     this._client.on('close', this.handleClientClose);
 
     await RedisConnection.waitUntilReady(this._client);
