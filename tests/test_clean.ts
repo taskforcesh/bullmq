@@ -125,11 +125,19 @@ describe('Cleaner', () => {
     );
     await worker.waitUntilReady();
 
-    await queue.add('test', { some: 'data' });
-    await queue.add('test', { some: 'data' });
+    await queue.addBulk([
+      {
+        name: 'test',
+        data: { some: 'data' },
+      },
+      {
+        name: 'test',
+        data: { some: 'data' },
+      },
+    ]);
 
     const failing = new Promise(resolve => {
-      worker.on('failed', after(2, resolve));
+      queueEvents.on('failed', after(2, resolve));
     });
 
     worker.run();
