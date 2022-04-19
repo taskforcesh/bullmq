@@ -93,6 +93,7 @@ Some notable organizations using BullMQ:
     </td>
   <tr>
 </table>
+
 # The gist
 
 Install:
