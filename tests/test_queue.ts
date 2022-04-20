@@ -149,6 +149,8 @@ describe('queues', function () {
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
+
+            await flow.close();
           });
         });
 
@@ -177,6 +179,8 @@ describe('queues', function () {
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
+
+            await flow.close();
           });
         });
 
@@ -214,6 +218,8 @@ describe('queues', function () {
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(1);
+
+            await flow.close();
           });
         });
       });
@@ -262,6 +268,7 @@ describe('queues', function () {
             );
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
+            await flow.close();
             await removeAllQueueData(new IORedis(), parentQueueName);
           });
         });
@@ -303,6 +310,7 @@ describe('queues', function () {
             );
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
+            await flow.close();
             await removeAllQueueData(new IORedis(), parentQueueName);
           });
         });

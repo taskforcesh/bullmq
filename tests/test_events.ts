@@ -347,6 +347,7 @@ describe('events', function () {
     await waitingChildren;
 
     await worker.close();
+    await flow.close();
     await removeAllQueueData(new IORedis(), childrenQueueName);
   });
 

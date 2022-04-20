@@ -595,6 +595,7 @@ describe('Jobs getters', function () {
       });
 
       await worker.close();
+      await flow.close();
     });
   });
 });
