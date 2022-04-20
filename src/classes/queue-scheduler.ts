@@ -254,6 +254,10 @@ export class QueueScheduler extends QueueBase {
         Scripts.updateDelaySet(this, timestamp),
       );
 
+      if (!result) {
+        return [0, '0'];
+      }
+
       return result;
     }
     return [0, '0'];

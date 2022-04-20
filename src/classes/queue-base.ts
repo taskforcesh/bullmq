@@ -38,7 +38,9 @@ export class QueueBase extends EventEmitter {
       opts.sharedConnection,
       opts.blockingConnection,
     );
-    this.connection.on('error', this.emit.bind(this, 'error'));
+
+    this.connection.on('error', (error: Error) => this.emit('error', error));
+    this.connection.on('close', (error: Error) => this.emit('error', error));
 
     const queueKeys = new QueueKeys(opts.prefix);
     this.keys = queueKeys.getKeys(name);
