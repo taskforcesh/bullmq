@@ -59,9 +59,9 @@ export class QueueBase extends EventEmitter {
     } catch (err) {
       try {
         return super.emit('error', err);
-      } catch (err) {
+      } catch (error) {
         // We give up if the error event also throws an exception.
-        console.error(err);
+        console.error(error);
       }
     }
   }

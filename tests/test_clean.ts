@@ -18,6 +18,7 @@ describe('Cleaner', () => {
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
     await queue.waitUntilReady();
+    queueEvents.on('error', () => {});
   });
 
   afterEach(async function () {
@@ -54,6 +55,8 @@ describe('Cleaner', () => {
         }),
       );
     });
+
+    worker.on('error', () => {});
 
     await queue.addBulk([
       { name: 'test', data: { some: 'data' } },
@@ -217,6 +220,7 @@ describe('Cleaner', () => {
 
           const failedCount = await queue.getJobCountByTypes('failed');
           expect(failedCount).to.be.eql(0);
+          await flow.close();
         });
       });
 

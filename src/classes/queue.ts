@@ -315,7 +315,7 @@ export class Queue<
    * @returns 1 if it managed to remove the job or 0 if the job or
    * any of its dependencies was locked.
    */
-  async remove(jobId: string): Promise<number> {
+  remove(jobId: string): Promise<number> {
     return Scripts.remove(this, jobId);
   }
 

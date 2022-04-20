@@ -222,8 +222,6 @@ export class Worker<
         this.run().catch(error => this.emit('error', error));
       }
     }
-
-    this.on('error', err => console.error(err));
   }
 
   emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
