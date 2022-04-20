@@ -415,10 +415,8 @@ export class Worker<
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
         if (
-          !(
-            (this.paused || this.closing) &&
-            (<Error>err).message === 'Connection is closed.'
-          )
+          !(this.paused || this.closing) &&
+          isNotConnectionError(<Error>err)
         ) {
           throw err;
         }
