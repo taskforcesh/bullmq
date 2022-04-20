@@ -20,7 +20,7 @@ Another way to reduce the chance for stalled jobs is using so called "sandboxed"
 ```typescript
 import { Worker } from 'bullmq';
 
-const worker = new Worker('Paint', painter);
+const worker = new Worker('Paint', 'painter.ts');
 ```
 {% endcode %}
 
