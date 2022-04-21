@@ -40,7 +40,11 @@ export class QueueBase extends EventEmitter {
     );
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
-    this.connection.on('close', (error: Error) => this.emit('error', error));
+    this.connection.on('close', (error: Error) => {
+      if (!this.closing) {
+        this.emit('error', error);
+      }
+    });
 
     const queueKeys = new QueueKeys(opts.prefix);
     this.keys = queueKeys.getKeys(name);
@@ -61,9 +65,9 @@ export class QueueBase extends EventEmitter {
     } catch (err) {
       try {
         return super.emit('error', err);
-      } catch (error) {
+      } catch (err) {
         // We give up if the error event also throws an exception.
-        console.error(error);
+        console.error(err);
       }
     }
   }
