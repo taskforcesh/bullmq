@@ -217,6 +217,7 @@ describe('Cleaner', () => {
 
           const failedCount = await queue.getJobCountByTypes('failed');
           expect(failedCount).to.be.eql(0);
+          await flow.close();
         });
       });
 
@@ -268,6 +269,7 @@ describe('Cleaner', () => {
           expect(keys.length).to.be.eql(6);
 
           await worker.close();
+          await flow.close();
         });
       });
 
@@ -304,6 +306,8 @@ describe('Cleaner', () => {
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(1);
+
+          await flow.close();
         });
       });
     });
@@ -353,6 +357,7 @@ describe('Cleaner', () => {
           const parentWaitCount = await parentQueue.getJobCountByTypes('wait');
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
+          await flow.close();
           await removeAllQueueData(new IORedis(), parentQueueName);
         });
       });
@@ -391,6 +396,7 @@ describe('Cleaner', () => {
           const parentWaitCount = await parentQueue.getJobCountByTypes('wait');
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
+          await flow.close();
           await removeAllQueueData(new IORedis(), parentQueueName);
         });
       });

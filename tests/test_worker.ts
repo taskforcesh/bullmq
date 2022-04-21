@@ -2242,6 +2242,7 @@ describe('workers', function () {
 
       const count = await queue.getCompletedCount();
       expect(count).to.equal(1);
+      await delay(10);
       await queue.clean(0, 0);
 
       await expect(retriedJob.retry()).to.be.rejectedWith(

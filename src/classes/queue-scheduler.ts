@@ -6,9 +6,6 @@ import {
 import {
   array2obj,
   clientCommandMessageReg,
-  DELAY_TIME_5,
-  delay,
-  isNotConnectionError,
   isRedisInstance,
   QUEUE_SCHEDULER_SUFFIX,
 } from '../utils';
@@ -164,11 +161,8 @@ export class QueueScheduler extends QueueBase {
             Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
           );
 
-          const data = await this.readDelayedData(
-            client,
-            key,
-            streamLastId,
-            blockTime,
+          const data = await this.checkConnectionError(() =>
+            this.readDelayedData(client, key, streamLastId, blockTime),
           );
 
           if (data && data[0]) {
@@ -242,20 +236,11 @@ export class QueueScheduler extends QueueBase {
             key,
             streamLastId,
           );
-        } catch (err) {
-          // We can ignore closed connection errors
-          if (isNotConnectionError(err as Error)) {
-            throw err;
-          }
-
-          await delay(DELAY_TIME_5);
         } finally {
           this.isBlocked = false;
         }
       } else {
-        data = await this.checkConnectionError(() =>
-          client.xread('STREAMS', key, streamLastId),
-        );
+        data = await client.xread('STREAMS', key, streamLastId);
       }
 
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
@@ -268,6 +253,10 @@ export class QueueScheduler extends QueueBase {
       const result = await this.checkConnectionError(() =>
         Scripts.updateDelaySet(this, timestamp),
       );
+
+      if (!result) {
+        return [0, '0'];
+      }
 
       return result;
     }

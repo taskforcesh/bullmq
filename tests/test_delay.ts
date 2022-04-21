@@ -84,7 +84,7 @@ describe('Delayed jobs', function () {
 
   it('should reconnect after client is disconnected', async function () {
     const delayT = 1000;
-    const numJobs = 5;
+    const numJobs = 3;
 
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();
@@ -114,10 +114,6 @@ describe('Delayed jobs', function () {
       });
     });
 
-    worker.on('error', async function () {});
-
-    queueEvents.on('error', async function () {});
-
     const completed = new Promise<void>((resolve, reject) => {
       queueEvents.on('completed', async function () {
         try {
@@ -126,7 +122,7 @@ describe('Delayed jobs', function () {
           expect(jobs.length).to.be.equal(0);
 
           const delayedJobs = await queue.getDelayed();
-          expect(delayedJobs.length).to.be.equal(4);
+          expect(delayedJobs.length).to.be.equal(numJobs - 1);
           expect(publishHappened).to.be.eql(true);
           await client.disconnect();
           resolve();
@@ -148,7 +144,7 @@ describe('Delayed jobs', function () {
       name: 'test',
       data: { index },
       opts: {
-        delay: delayT + index * 500,
+        delay: delayT + index * 1000,
       },
     }));
 

@@ -155,6 +155,35 @@ export interface QueueEventsListener {
 export class QueueEvents extends QueueBase {
   private running = false;
 
+  constructor(
+    name: string,
+    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+    Connection?: typeof RedisConnection,
+  ) {
+    super(
+      name,
+      {
+        ...opts,
+        connection: isRedisInstance(connection)
+          ? (<RedisClient>connection).duplicate()
+          : connection,
+        blockingConnection: true,
+      },
+      Connection,
+    );
+
+    this.opts = Object.assign(
+      {
+        blockingTimeout: 10000,
+      },
+      this.opts,
+    );
+
+    if (autorun) {
+      this.run().catch(error => this.emit('error', error));
+    }
+  }
+
   emit<U extends keyof QueueEventsListener>(
     event: U,
     ...args: Parameters<QueueEventsListener[U]>
@@ -184,35 +213,6 @@ export class QueueEvents extends QueueBase {
   ): this {
     super.once(event, listener);
     return this;
-  }
-
-  constructor(
-    name: string,
-    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
-    Connection?: typeof RedisConnection,
-  ) {
-    super(
-      name,
-      {
-        ...opts,
-        connection: isRedisInstance(connection)
-          ? (<RedisClient>connection).duplicate()
-          : connection,
-        blockingConnection: true,
-      },
-      Connection,
-    );
-
-    this.opts = Object.assign(
-      {
-        blockingTimeout: 10000,
-      },
-      this.opts,
-    );
-
-    if (autorun) {
-      this.run().catch(error => this.emit('error', error));
-    }
   }
 
   async run(): Promise<void> {

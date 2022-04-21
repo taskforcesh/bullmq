@@ -222,8 +222,6 @@ export class Worker<
         this.run().catch(error => this.emit('error', error));
       }
     }
-
-    this.on('error', err => console.error(err));
   }
 
   emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
@@ -417,10 +415,8 @@ export class Worker<
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
         if (
-          !(
-            (this.paused || this.closing) &&
-            (<Error>err).message === 'Connection is closed.'
-          )
+          !(this.paused || this.closing) &&
+          isNotConnectionError(<Error>err)
         ) {
           throw err;
         }

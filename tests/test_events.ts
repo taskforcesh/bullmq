@@ -240,7 +240,7 @@ describe('events', function () {
   });
 
   it('emits error event when there is an error on other events', async function () {
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       drainDelay: 1,
       connection,
     });
@@ -347,6 +347,7 @@ describe('events', function () {
     await waitingChildren;
 
     await worker.close();
+    await flow.close();
     await removeAllQueueData(new IORedis(), childrenQueueName);
   });
 
