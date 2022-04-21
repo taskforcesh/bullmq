@@ -18,7 +18,6 @@ describe('Cleaner', () => {
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
     await queue.waitUntilReady();
-    queueEvents.on('error', () => {});
   });
 
   afterEach(async function () {
