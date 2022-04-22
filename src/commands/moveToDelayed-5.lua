@@ -24,6 +24,15 @@ local rcall = redis.call
 
 if rcall("EXISTS", KEYS[3]) == 1 then
 
+  if ARGV[3] ~= "0" then
+    local lockKey = KEYS[3] .. ':lock'
+    if rcall("GET", lockKey) == ARGV[3] then
+      rcall("DEL", lockKey)
+    end
+  else
+      return -2
+  end
+
   local jobId = ARGV[2]
   local score = tonumber(ARGV[1])
   local delayedTimestamp = (score / 0x1000)

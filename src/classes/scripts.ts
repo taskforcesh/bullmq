@@ -510,6 +510,7 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
+    token: string,
   ): string[] {
     //
     // Bake in the job id first 12 bits into the timestamp
@@ -529,7 +530,7 @@ export class Scripts {
     });
     keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
 
-    return keys.concat([JSON.stringify(timestamp), jobId]);
+    return keys.concat([JSON.stringify(timestamp), jobId, token]);
   }
 
   static moveToWaitingChildrenArgs(
@@ -564,10 +565,11 @@ export class Scripts {
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
+    token = '0',
   ): Promise<void> {
     const client = await queue.client;
 
-    const args = this.moveToDelayedArgs(queue, jobId, timestamp);
+    const args = this.moveToDelayedArgs(queue, jobId, timestamp, token);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');

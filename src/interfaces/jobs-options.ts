@@ -2,7 +2,8 @@ import { RepeatOptions, KeepJobs, BackoffOptions } from './';
 
 export interface JobsOptions {
   /**
-   * Timestamp when the job was created. Defaults to `Date.now()`.
+   * Timestamp when the job was created.
+   * @defaultValue Date.now()
    */
   timestamp?: number;
 
