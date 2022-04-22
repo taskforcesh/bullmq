@@ -40,3 +40,4 @@ BullMQ is used by many organizations big and small, here are some notable exampl
 
 ![](.gitbook/assets/datawrapper-logo.png)
 
+![](<.gitbook/assets/curri-small (1).png>)
