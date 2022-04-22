@@ -1,8 +1,8 @@
 # Table of contents
 
-* [What is BullMQ](what-is-bullmq.md)
-* [Quick Start](README.md)
-* [API Reference](https://api.docs.bullmq.io/)
+* [What is BullMQ](README.md)
+* [Quick Start](<README (1).md>)
+* [API Reference](https://api.docs.bullmq.io)
 * [Changelog](changelog.md)
 
 ## Guide
@@ -61,7 +61,7 @@
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
-* [API Reference](https://api.bullmq.pro/)
+* [API Reference](https://api.bullmq.pro)
 
 ## Bull
 

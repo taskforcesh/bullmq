@@ -1,6 +1,6 @@
 # Introduction
 
-BullMQ is based in 5 classes that together can be used to resolve many different problems. These classes are [_**Queue**_](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.md), [_**Worker**_](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.worker.md), [_**QueueScheduler**_](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queuescheduler.md), [_**QueueEvents**_](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queueevents.md) and [_**FlowProducer**_](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.flowproducer.md).
+BullMQ is based in 5 classes that together can be used to resolve many different problems. These classes are [_**Queue**_](https://api.docs.bullmq.io/classes/Queue.html), [_**Worker**_](https://api.docs.bullmq.io/classes/Worker.html), [_**QueueScheduler**_](https://api.docs.bullmq.io/classes/QueueScheduler.html), [_**QueueEvents**_](https://api.docs.bullmq.io/classes/QueueEvents.html) and [_**FlowProducer**_](https://api.docs.bullmq.io/classes/FlowProducer.html).
 
 The first class you should know about is the _Queue_ class. This class represents a queue and can be used for adding _**jobs**_ to the queue as well as some other basic manipulation such as pausing, cleaning or getting data from the queue.
 
