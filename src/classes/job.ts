@@ -486,6 +486,7 @@ export class Job<
           queue,
           this.id,
           Date.now() + delay,
+          token,
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';

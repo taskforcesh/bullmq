@@ -336,7 +336,7 @@ export class Queue<
    *
    * @param grace - The grace period
    * @param limit - Max number of jobs to clean
-   * @param type - Default completed - The type of job to clean
+   * @param type - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
    * @returns Id jobs from the deleted records
    */

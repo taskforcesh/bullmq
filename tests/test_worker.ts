@@ -1266,6 +1266,58 @@ describe('workers', function () {
     await queueScheduler.close();
   });
 
+  describe('when retrying jobs', () => {
+    it('deletes token after moving jobs to delayed', async function () {
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (job.attemptsMade !== 3) {
+            throw new Error('error');
+          }
+          return delay(100);
+        },
+        {
+          connection,
+          lockDuration: 10000,
+          lockRenewTime: 3000, // The lock will not be updated
+        },
+      );
+      await worker.waitUntilReady();
+
+      const queueScheduler = new QueueScheduler(queueName, {
+        connection,
+      });
+      await queueScheduler.waitUntilReady();
+      const client = await queue.client;
+
+      const job = await queue.add(
+        'test',
+        { bar: 'baz' },
+        { attempts: 3, backoff: 100 },
+      );
+
+      worker.on('failed', async () => {
+        const token = await client.get(`bull:${queueName}:${job.id}:lock`);
+        expect(token).to.be.null;
+      });
+
+      const workerCompleted = new Promise<void>(resolve => {
+        worker.once('completed', () => {
+          resolve();
+        });
+      });
+
+      await workerCompleted;
+
+      const token = await client.get(`bull:${queueName}:${job.id}:lock`);
+
+      expect(token).to.be.null;
+
+      await worker.close();
+      await queueScheduler.close();
+    });
+  });
+
   it('continue processing after a worker has stalled', async function () {
     let first = true;
     this.timeout(10000);
