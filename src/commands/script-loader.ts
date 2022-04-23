@@ -446,11 +446,11 @@ export class ScriptLoader {
   }
 
   /**
-   * Attach all lua scripts in a given directory to a client instance
+   * Transpile lua scripts in one file, specifying an specific directory to be saved
    * @param pathname - the path to the directory containing the scripts
    * @param writeDir - the path to the directory where scripts will be saved
    */
-  async preprocessScripts(pathname: string, writeDir: string): Promise<void> {
+  async transpileScripts(pathname: string, writeDir: string): Promise<void> {
     const writeFilenamePath = path.normalize(writeDir);
 
     if (!fs.existsSync(writeFilenamePath)) {
