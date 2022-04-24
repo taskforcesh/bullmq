@@ -171,12 +171,13 @@ describe('stalled jobs', function () {
 
   it('jobs not stalled while lock is extended', async function () {
     this.timeout(5000);
+    const numJobs = 4;
 
     const concurrency = 4;
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         return delay(4000);
       },
       {
@@ -190,12 +191,12 @@ describe('stalled jobs', function () {
       worker.on('active', after(concurrency, resolve));
     });
 
-    await Promise.all([
-      queue.add('test', { bar: 'baz' }),
-      queue.add('test', { bar1: 'baz1' }),
-      queue.add('test', { bar2: 'baz2' }),
-      queue.add('test', { bar3: 'baz3' }),
-    ]);
+    const jobs = Array.from(Array(numJobs).keys()).map(index => ({
+      name: 'test',
+      data: { bar: `baz-${index}` }
+    }));
+
+    await queue.addBulk(jobs);
 
     await allActive;
 
