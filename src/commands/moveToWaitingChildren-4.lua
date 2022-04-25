@@ -37,7 +37,8 @@ end
 
 if ARGV[1] ~= "0" then
   if rcall("GET", KEYS[1]) ~= ARGV[1] then
-      return -2
+    rcall("DEL", lockKey)
+    return -2
   end
 end
 
