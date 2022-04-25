@@ -28,9 +28,9 @@ if rcall("EXISTS", KEYS[3]) == 1 then
     local lockKey = KEYS[3] .. ':lock'
     if rcall("GET", lockKey) == ARGV[3] then
       rcall("DEL", lockKey)
-    end
-  else
+    else
       return -2
+    end
   end
 
   local jobId = ARGV[2]

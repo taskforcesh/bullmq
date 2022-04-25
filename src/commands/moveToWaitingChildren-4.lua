@@ -36,8 +36,9 @@ local function move_to_waiting_children (activeKey, waitingChildrenKey, jobId, t
 end
 
 if ARGV[1] ~= "0" then
-  if rcall("GET", KEYS[1]) ~= ARGV[1] then
-    rcall("DEL", lockKey)
+  if rcall("GET", KEYS[1]) == ARGV[1] then
+    rcall("DEL", KEYS[1])
+  else
     return -2
   end
 end

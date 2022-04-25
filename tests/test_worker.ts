@@ -2510,7 +2510,9 @@ describe('workers', function () {
           { idx: 1, baz: 'something' },
           { idx: 2, qux: 'something' },
         ];
+        const client = await queue.client;
         const parentToken = 'parent-token';
+        const parentToken2 = 'parent-token2';
         const childToken = 'child-token';
 
         const parentQueueName = `parent-queue-${v4()}`;
@@ -2568,6 +2570,8 @@ describe('workers', function () {
           },
         );
 
+        const token = await client.get(`bull:${queueName}:${parent.id}:lock`);
+        expect(token).to.be.null;
         expect(processed2).to.deep.equal({
           [`bull:${queueName}:${child1.id}`]: 'return value1',
         });
@@ -2602,9 +2606,13 @@ describe('workers', function () {
         const { processed: processed4, unprocessed: unprocessed4 } =
           await parent.getDependencies();
         const isWaitingChildren2 = await parent.isWaitingChildren();
-        const movedToWaitingChildren2 = await parent.moveToWaitingChildren(
-          parentToken,
-        );
+
+        expect(isWaitingChildren2).to.be.false;
+        const updatedParent = (await parentWorker.getNextJob(
+          parentToken2,
+        )) as Job;
+        const movedToWaitingChildren2 =
+          await updatedParent.moveToWaitingChildren(parentToken2);
 
         expect(processed4).to.deep.equal({
           [`bull:${queueName}:${child1.id}`]: 'return value1',
@@ -2612,7 +2620,6 @@ describe('workers', function () {
           [`bull:${queueName}:${child3.id}`]: 'return value3',
         });
         expect(unprocessed4).to.have.length(0);
-        expect(isWaitingChildren2).to.be.false;
         expect(movedToWaitingChildren2).to.be.false;
 
         await childrenWorker.close();
@@ -2673,6 +2680,17 @@ describe('workers', function () {
 
           await expect(
             parent.moveToWaitingChildren(parentToken, {
+              child: {
+                id: child1.id,
+                queue: 'bull:' + queueName,
+              },
+            }),
+          ).to.be.rejectedWith(
+            `Missing lock for job ${parent.id}. moveToWaitingChildren`,
+          );
+
+          await expect(
+            parent.moveToWaitingChildren('0', {
               child: {
                 id: child1.id,
                 queue: 'bull:' + queueName,
