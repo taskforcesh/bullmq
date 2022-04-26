@@ -21,7 +21,7 @@
 ]]
 local rcall = redis.call
 
-local function move_to_waiting_children (activeKey, waitingChildrenKey, jobId, timestamp. lockKey, token)
+local function move_to_waiting_children (activeKey, waitingChildrenKey, jobId, timestamp, lockKey, token)
   if token ~= "0" then
     if rcall("GET", lockKey) == token then
       rcall("DEL", lockKey)
