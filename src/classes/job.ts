@@ -842,8 +842,8 @@ export class Job<
    * @param timestamp - timestamp where the job should be moved back to "wait"
    * @returns
    */
-  moveToDelayed(timestamp: number): Promise<void> {
-    return Scripts.moveToDelayed(this.queue, this.id, timestamp);
+  moveToDelayed(timestamp: number, token?: string): Promise<void> {
+    return Scripts.moveToDelayed(this.queue, this.id, timestamp, token);
   }
 
   /**

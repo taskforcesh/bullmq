@@ -1832,6 +1832,69 @@ describe('workers', function () {
         await queueScheduler.close();
       });
 
+      describe('when moving job to delayed in one step', () => {
+        it('should retry job after a delay time, keeping the current step', async function () {
+          this.timeout(8000);
+
+          const queueScheduler = new QueueScheduler(queueName, { connection });
+          await queueScheduler.waitUntilReady();
+
+          enum Step {
+            Initial,
+            Second,
+            Finish,
+          }
+
+          const worker = new Worker(
+            queueName,
+            async (job, token) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await job.moveToDelayed(Date.now() + 200, token);
+                    await job.update({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    return;
+                  }
+                  case Step.Second: {
+                    await job.update({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection },
+          );
+
+          await worker.waitUntilReady();
+
+          const start = Date.now();
+          await queue.add('test', { step: Step.Initial });
+
+          await new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              const elapse = Date.now() - start;
+              expect(elapse).to.be.greaterThan(200);
+              expect(job.returnvalue).to.be.eql(Step.Finish);
+              expect(job.attemptsMade).to.be.eql(2);
+              resolve();
+            });
+          });
+
+          await worker.close();
+          await queueScheduler.close();
+        });
+      });
+
       describe('when creating children at runtime', () => {
         it('should wait children as one step of the parent job', async function () {
           this.timeout(8000);
