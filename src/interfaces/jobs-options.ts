@@ -1,6 +1,6 @@
-import { RepeatOptions, KeepJobs, BackoffOptions } from './';
+import { KeepJobs, BackoffOptions } from './';
 
-export interface JobsOptions {
+export interface JobOptionsBase {
   /**
    * Timestamp when the job was created.
    * @defaultValue Date.now()
@@ -27,11 +27,6 @@ export interface JobsOptions {
    * @defaultValue 0
    */
   attempts?: number;
-
-  /**
-   * Repeat this job, for example based on a `cron` schedule.
-   */
-  repeat?: RepeatOptions;
 
   /**
    * Rate limiter key to use if rate limiter enabled.

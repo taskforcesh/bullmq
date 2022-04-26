@@ -11,7 +11,7 @@ import {
   Repeat,
   Worker,
 } from '../src/classes';
-import { JobsOptions } from '../src/interfaces';
+import { JobsOptions } from '../src/types';
 import { removeAllQueueData } from '../src/utils';
 
 const moment = require('moment');
@@ -78,7 +78,7 @@ describe('repeat', function () {
       });
     });
 
-    await queue.add(
+    const job = await queue.add(
       'test',
       { foo: 'bar' },
       {
@@ -88,6 +88,8 @@ describe('repeat', function () {
         },
       },
     );
+
+    expect(job.opts.repeat.repeatJobKey).to.not.be.undefined;
 
     this.clock.tick(every + 1);
 

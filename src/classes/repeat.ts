@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { JobsOptions, RepeatOptions } from '../interfaces';
+import { JobsOptions, RepeatOptions } from '../types';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { Scripts } from './scripts';
@@ -11,7 +11,7 @@ export class Repeat extends QueueBase {
     data: T,
     opts: JobsOptions,
     skipCheckExists?: boolean,
-  ) {
+  ): Promise<Job<T, R, N>> {
     const repeatOpts = { ...opts.repeat };
     const prevMillis = opts.prevMillis || 0;
     const currentCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
@@ -107,7 +107,7 @@ export class Repeat extends QueueBase {
       prevMillis: nextMillis,
     };
 
-    mergedOpts.repeat = { ...opts.repeat, count: currentCount };
+    mergedOpts.repeat = { ...opts.repeat, count: currentCount, repeatJobKey };
 
     await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 

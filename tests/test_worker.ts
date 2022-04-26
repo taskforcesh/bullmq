@@ -12,7 +12,8 @@ import {
   UnrecoverableError,
   Worker,
 } from '../src/classes';
-import { KeepJobs, JobsOptions } from '../src/interfaces';
+import { KeepJobs } from '../src/interfaces';
+import { JobsOptions } from '../src/types';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('workers', function () {

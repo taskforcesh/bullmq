@@ -5,12 +5,16 @@ import {
   BackoffOptions,
   JobJson,
   JobJsonRaw,
-  JobsOptions,
   ParentKeys,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
-import { FinishedStatus, JobState, JobJsonSandbox } from '../types';
+import {
+  FinishedStatus,
+  JobsOptions,
+  JobState,
+  JobJsonSandbox,
+} from '../types';
 import {
   errorObject,
   isEmpty,
