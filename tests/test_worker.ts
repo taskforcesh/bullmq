@@ -1832,6 +1832,69 @@ describe('workers', function () {
         await queueScheduler.close();
       });
 
+      describe('when moving job to delayed in one step', () => {
+        it('should retry job after a delay time, keeping the current step', async function () {
+          this.timeout(8000);
+
+          const queueScheduler = new QueueScheduler(queueName, { connection });
+          await queueScheduler.waitUntilReady();
+
+          enum Step {
+            Initial,
+            Second,
+            Finish,
+          }
+
+          const worker = new Worker(
+            queueName,
+            async (job, token) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await job.moveToDelayed(Date.now() + 200, token);
+                    await job.update({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    return;
+                  }
+                  case Step.Second: {
+                    await job.update({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection },
+          );
+
+          await worker.waitUntilReady();
+
+          const start = Date.now();
+          await queue.add('test', { step: Step.Initial });
+
+          await new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              const elapse = Date.now() - start;
+              expect(elapse).to.be.greaterThan(200);
+              expect(job.returnvalue).to.be.eql(Step.Finish);
+              expect(job.attemptsMade).to.be.eql(2);
+              resolve();
+            });
+          });
+
+          await worker.close();
+          await queueScheduler.close();
+        });
+      });
+
       describe('when creating children at runtime', () => {
         it('should wait children as one step of the parent job', async function () {
           this.timeout(8000);
@@ -2510,7 +2573,9 @@ describe('workers', function () {
           { idx: 1, baz: 'something' },
           { idx: 2, qux: 'something' },
         ];
+        const client = await queue.client;
         const parentToken = 'parent-token';
+        const parentToken2 = 'parent-token2';
         const childToken = 'child-token';
 
         const parentQueueName = `parent-queue-${v4()}`;
@@ -2568,6 +2633,8 @@ describe('workers', function () {
           },
         );
 
+        const token = await client.get(`bull:${queueName}:${parent.id}:lock`);
+        expect(token).to.be.null;
         expect(processed2).to.deep.equal({
           [`bull:${queueName}:${child1.id}`]: 'return value1',
         });
@@ -2602,9 +2669,13 @@ describe('workers', function () {
         const { processed: processed4, unprocessed: unprocessed4 } =
           await parent.getDependencies();
         const isWaitingChildren2 = await parent.isWaitingChildren();
-        const movedToWaitingChildren2 = await parent.moveToWaitingChildren(
-          parentToken,
-        );
+
+        expect(isWaitingChildren2).to.be.false;
+        const updatedParent = (await parentWorker.getNextJob(
+          parentToken2,
+        )) as Job;
+        const movedToWaitingChildren2 =
+          await updatedParent.moveToWaitingChildren(parentToken2);
 
         expect(processed4).to.deep.equal({
           [`bull:${queueName}:${child1.id}`]: 'return value1',
@@ -2612,7 +2683,6 @@ describe('workers', function () {
           [`bull:${queueName}:${child3.id}`]: 'return value3',
         });
         expect(unprocessed4).to.have.length(0);
-        expect(isWaitingChildren2).to.be.false;
         expect(movedToWaitingChildren2).to.be.false;
 
         await childrenWorker.close();
@@ -2673,6 +2743,17 @@ describe('workers', function () {
 
           await expect(
             parent.moveToWaitingChildren(parentToken, {
+              child: {
+                id: child1.id,
+                queue: 'bull:' + queueName,
+              },
+            }),
+          ).to.be.rejectedWith(
+            `Missing lock for job ${parent.id}. moveToWaitingChildren`,
+          );
+
+          await expect(
+            parent.moveToWaitingChildren('0', {
               child: {
                 id: child1.id,
                 queue: 'bull:' + queueName,
