@@ -21,7 +21,15 @@
 ]]
 local rcall = redis.call
 
-local function move_to_waiting_children (activeKey, waitingChildrenKey, jobId, timestamp)
+local function move_to_waiting_children (activeKey, waitingChildrenKey, jobId, timestamp. lockKey, token)
+  if token ~= "0" then
+    if rcall("GET", lockKey) == token then
+      rcall("DEL", lockKey)
+    else
+      return -2
+    end
+  end
+
   local score = tonumber(timestamp)
 
   local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
@@ -35,24 +43,16 @@ local function move_to_waiting_children (activeKey, waitingChildrenKey, jobId, t
   return 0
 end
 
-if ARGV[1] ~= "0" then
-  if rcall("GET", KEYS[1]) == ARGV[1] then
-    rcall("DEL", KEYS[1])
-  else
-    return -2
-  end
-end
-
 if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
     if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
-      return move_to_waiting_children(KEYS[2], KEYS[3], ARGV[4], ARGV[3])
+      return move_to_waiting_children(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], ARGV[1])
     end
 
     return 1
   else
     if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
-      return move_to_waiting_children(KEYS[2], KEYS[3], ARGV[4], ARGV[3])
+      return move_to_waiting_children(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], ARGV[1])
     end
 
     return 1
