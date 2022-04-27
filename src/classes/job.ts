@@ -14,6 +14,9 @@ import {
   JobsOptions,
   JobState,
   JobJsonSandbox,
+  RedisJobOptions,
+  RedisRepeatOptions,
+  RepeatOptions,
 } from '../types';
 import {
   errorObject,
@@ -237,7 +240,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = JSON.parse(json.opts || '{}');
+    const opts = Job.optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
       queue,
@@ -280,6 +283,32 @@ export class Job<
     return job;
   }
 
+  private static optsFromJSON(rawOpts?: string): JobsOptions {
+    const opts = JSON.parse(rawOpts || '{}');
+
+    const redisRepeatOpts = opts.repeat ?? {};
+
+    const repeatOptionEntries = Object.entries(redisRepeatOpts) as Array<
+      [keyof RedisRepeatOptions, any]
+    >;
+    const repeatOptions = repeatOptionEntries.reduce<
+      Partial<Record<string, any>>
+    >((acc, item) => {
+      const [attributeName, value] = item;
+      if (attributeName === 'rjk') {
+        acc.repeatJobKey = value;
+      } else {
+        acc[attributeName] = value;
+      }
+      return acc;
+    }, {});
+
+    return {
+      ...opts,
+      ...(opts.repeat ? { repeat: repeatOptions } : {}),
+    } as JobsOptions;
+  }
+
   /**
    * Fetches a Job from the queue given the passed job id.
    *
@@ -315,7 +344,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: this.opts,
+      opts: this.optsAsJSON(this.opts),
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,
@@ -325,6 +354,28 @@ export class Job<
       stacktrace: JSON.stringify(this.stacktrace),
       returnvalue: JSON.stringify(this.returnvalue),
     };
+  }
+
+  private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+    const repeatOptionEntries = Object.entries(opts.repeat || {}) as Array<
+      [keyof RepeatOptions, any]
+    >;
+    const repeatOptions = repeatOptionEntries.reduce<
+      Partial<Record<string, any>>
+    >((acc, item) => {
+      const [attributeName, value] = item;
+      if (attributeName === 'repeatJobKey') {
+        acc.rjk = value;
+      } else {
+        acc[attributeName] = value;
+      }
+      return acc;
+    }, {});
+
+    return {
+      ...opts,
+      ...(opts.repeat ? { repeat: repeatOptions } : {}),
+    } as RedisJobOptions;
   }
 
   /**

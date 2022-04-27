@@ -1,4 +1,4 @@
-import { JobsOptions } from './jobs-options';
+import { JobsOptions } from '../types';
 
 export interface JobJson {
   id: string;

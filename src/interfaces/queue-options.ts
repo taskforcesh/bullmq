@@ -1,4 +1,4 @@
-import { JobsOptions } from './jobs-options';
+import { JobsOptions } from '../types';
 import { ConnectionOptions } from './redis-options';
 
 export enum ClientType {

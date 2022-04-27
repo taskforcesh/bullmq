@@ -6,11 +6,11 @@ import { v4 } from 'uuid';
 import { get } from 'lodash';
 import {
   RedisClient,
-  JobsOptions,
   QueueOptions,
   ChildMessage,
   ParentMessage,
 } from './interfaces';
+import { JobsOptions } from './types';
 import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };
