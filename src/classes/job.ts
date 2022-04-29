@@ -210,11 +210,15 @@ export class Job<
       });
     }
 
-    const result = (await multi.exec()) as [null | Error, string][];
-    result.forEach((res, index: number) => {
-      const [err, id] = res;
+    const results = (await multi.exec()) as [null | Error, string][];
+    for (let index = 0; index < results.length; ++index) {
+      const [err, id] = results[index];
+      if (err) {
+        throw err;
+      }
+
       jobInstances[index].id = id;
-    });
+    }
 
     return jobInstances;
   }
