@@ -1,5 +1,5 @@
 --[[
-  Functions to remove jobs by max age.
+  Functions to remove jobs by max count.
 ]]
 
 -- Includes

@@ -83,12 +83,12 @@ if (#stalling > 0) then
 
                   if removeOnFailType == "number" then
                     removeJobsByMaxCount(ARGV[3], opts["removeOnFail"], KEYS[4], ARGV[2])
-                  elseif removeOnFailType == "boolean" or removeOnFailType == "nil" then
+                  elseif removeOnFailType == "boolean" then
                     if opts["removeOnFail"] then
                       removeJob(jobId, false, ARGV[2])
                       rcall("ZREM", KEYS[4], jobId)
                     end                  
-                  else
+                  elseif removeOnFailType ~= "nil" then
                     local maxAge = opts["removeOnFail"]["age"]
                     local maxCount = opts["removeOnFail"]["count"]
 
