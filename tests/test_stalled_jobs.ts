@@ -169,6 +169,286 @@ describe('stalled jobs', function () {
     await queueScheduler.close();
   });
 
+  describe('when stalled jobs stall more than allowable stalled limit', function () {
+    it('moves jobs to failed', async function () {
+      this.timeout(6000);
+
+      const queueEvents = new QueueEvents(queueName, { connection });
+      await queueEvents.waitUntilReady();
+
+      const concurrency = 4;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          return delay(10000);
+        },
+        {
+          connection,
+          lockDuration: 1000,
+          concurrency,
+        },
+      );
+
+      const allActive = new Promise(resolve => {
+        worker.on('active', after(concurrency, resolve));
+      });
+
+      await worker.waitUntilReady();
+
+      await Promise.all([
+        queue.add('test', { bar: 'baz' }, { removeOnFail: true }),
+        queue.add('test', { bar1: 'baz1' }, { removeOnFail: true }),
+        queue.add('test', { bar2: 'baz2' }, { removeOnFail: true }),
+        queue.add('test', { bar3: 'baz3' }, { removeOnFail: true }),
+      ]);
+
+      await allActive;
+
+      const queueScheduler = new QueueScheduler(queueName, {
+        connection,
+        stalledInterval: 100,
+        maxStalledCount: 0,
+      });
+      await queueScheduler.waitUntilReady();
+
+      await worker.close(true);
+
+      const errorMessage = 'job stalled more than allowable limit';
+      const allFailed = new Promise<void>(resolve => {
+        queueScheduler.on(
+          'failed',
+          after(concurrency, async (jobId, failedReason, prev) => {
+            const job = await queue.getJob(jobId);
+            expect(job).to.be.undefined;
+            expect(prev).to.be.equal('active');
+            expect(failedReason.message).to.be.equal(errorMessage);
+            resolve();
+          }),
+        );
+      });
+
+      const globalAllFailed = new Promise<void>(resolve => {
+        queueEvents.on('failed', ({ failedReason }) => {
+          expect(failedReason).to.be.equal(errorMessage);
+          resolve();
+        });
+      });
+
+      await allFailed;
+      await globalAllFailed;
+
+      await queueEvents.close();
+      await queueScheduler.close();
+    });
+
+    describe('when removeOnFail is provided as a number', function () {
+      it('keeps the specified number of jobs in failed', async function () {
+        this.timeout(6000);
+        const concurrency = 4;
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            return delay(10000);
+          },
+          {
+            connection,
+            lockDuration: 1000,
+            concurrency,
+          },
+        );
+
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
+
+        await worker.waitUntilReady();
+
+        const jobs = Array.from(Array(4).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+          opts: {
+            removeOnFail: 3,
+          },
+        }));
+
+        await queue.addBulk(jobs);
+
+        await allActive;
+
+        const queueScheduler = new QueueScheduler(queueName, {
+          connection,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+        });
+        await queueScheduler.waitUntilReady();
+
+        await worker.close(true);
+
+        const errorMessage = 'job stalled more than allowable limit';
+        const allFailed = new Promise<void>(resolve => {
+          queueScheduler.on(
+            'failed',
+            after(concurrency, async (jobId, failedReason, prev) => {
+              const failedCount = await queue.getFailedCount();
+              expect(failedCount).to.equal(3);
+
+              const job = await queue.getJob(jobId);
+              expect(job.data.index).to.be.equal(3);
+              expect(prev).to.be.equal('active');
+              expect(failedReason.message).to.be.equal(errorMessage);
+              resolve();
+            }),
+          );
+        });
+
+        await allFailed;
+
+        await queueScheduler.close();
+      });
+    });
+
+    describe('when removeOnFail is provided as boolean', function () {
+      it('keeps the jobs with removeOnFail as false in failed', async function () {
+        this.timeout(6000);
+        const concurrency = 4;
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            return delay(10000);
+          },
+          {
+            connection,
+            lockDuration: 1000,
+            concurrency,
+          },
+        );
+
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
+
+        await worker.waitUntilReady();
+
+        const jobs = Array.from(Array(4).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+          opts: {
+            removeOnFail: index % 2 == 1,
+          },
+        }));
+
+        await queue.addBulk(jobs);
+
+        await allActive;
+
+        const queueScheduler = new QueueScheduler(queueName, {
+          connection,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+        });
+        await queueScheduler.waitUntilReady();
+
+        await worker.close(true);
+
+        const errorMessage = 'job stalled more than allowable limit';
+        const allFailed = new Promise<void>(resolve => {
+          queueScheduler.on(
+            'failed',
+            after(concurrency, async (jobId, failedReason, prev) => {
+              const job = await queue.getJob(jobId);
+              expect(job).to.be.undefined;
+              const failedCount = await queue.getFailedCount();
+              expect(failedCount).to.equal(2);
+
+              expect(prev).to.be.equal('active');
+              expect(failedReason.message).to.be.equal(errorMessage);
+              resolve();
+            }),
+          );
+        });
+
+        await allFailed;
+
+        await queueScheduler.close();
+      });
+    });
+
+    describe('when removeOnFail is provided as a object', function () {
+      it('keeps the specified number of jobs in failed respecting the age', async function () {
+        this.timeout(6000);
+        const concurrency = 4;
+
+        const queueScheduler = new QueueScheduler(queueName, {
+          connection,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+        });
+        await queueScheduler.waitUntilReady();
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            if (job.data.index < 2) {
+              throw new Error('fail');
+            }
+            return delay(10000);
+          },
+          {
+            connection,
+            lockDuration: 1000,
+            concurrency,
+          },
+        );
+
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
+
+        await worker.waitUntilReady();
+
+        const jobs = Array.from(Array(4).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+          opts: {
+            removeOnFail: {
+              count: 4,
+              age: 1,
+            },
+          },
+        }));
+
+        await queue.addBulk(jobs);
+
+        await allActive;
+
+        await worker.close(true);
+
+        const errorMessage = 'job stalled more than allowable limit';
+        const allFailed = new Promise<void>(resolve => {
+          queueScheduler.on('failed', async (jobId, failedReason, prev) => {
+            if (jobId == '4') {
+              const failedCount = await queue.getFailedCount();
+              expect(failedCount).to.equal(2);
+
+              const job = await queue.getJob(jobId);
+              expect(job.data.index).to.be.equal(3);
+              expect(prev).to.be.equal('active');
+              expect(failedReason.message).to.be.equal(errorMessage);
+              resolve();
+            }
+          });
+        });
+
+        await allFailed;
+
+        await queueScheduler.close();
+      });
+    });
+  });
+
   it('jobs not stalled while lock is extended', async function () {
     this.timeout(5000);
     const numJobs = 4;
@@ -193,7 +473,7 @@ describe('stalled jobs', function () {
 
     const jobs = Array.from(Array(numJobs).keys()).map(index => ({
       name: 'test',
-      data: { bar: `baz-${index}` }
+      data: { bar: `baz-${index}` },
     }));
 
     await queue.addBulk(jobs);

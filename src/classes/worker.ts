@@ -683,7 +683,7 @@ export class Worker<
             // since we're not waiting for the job to end attach
             // an error handler to avoid crashing the whole process
             closePoolPromise?.catch(err => {
-              console.error(err);
+              this.emit('error', err);
             });
             return;
           }
