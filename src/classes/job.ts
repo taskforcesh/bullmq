@@ -7,6 +7,7 @@ import {
   JobJsonRaw,
   ParentKeys,
   RedisClient,
+  RepeatOptionsBase,
   WorkerOptions,
 } from '../interfaces';
 import {
@@ -289,23 +290,18 @@ export class Job<
 
   private static optsFromJSON(rawOpts?: string): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
+    const redisRepeatOpts: RedisRepeatOptions = opts.repeat ?? {};
 
-    const redisRepeatOpts = opts.repeat ?? {};
-
-    const repeatOptionEntries = Object.entries(redisRepeatOpts) as Array<
-      [keyof RedisRepeatOptions, any]
-    >;
-    const repeatOptions = repeatOptionEntries.reduce<
-      Partial<Record<string, any>>
-    >((acc, item) => {
-      const [attributeName, value] = item;
+    const repeatOptions: RepeatOptions = {};
+    let attributeName: keyof RedisRepeatOptions;
+    for (attributeName in redisRepeatOpts) {
       if (attributeName === 'rjk') {
-        acc.repeatJobKey = value;
+        repeatOptions.repeatJobKey = redisRepeatOpts[attributeName];
       } else {
-        acc[attributeName] = value;
+        (repeatOptions[attributeName] as any) =
+          redisRepeatOpts[attributeName as keyof RepeatOptionsBase];
       }
-      return acc;
-    }, {});
+    }
 
     return {
       ...opts,
@@ -361,20 +357,18 @@ export class Job<
   }
 
   private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
-    const repeatOptionEntries = Object.entries(opts.repeat || {}) as Array<
-      [keyof RepeatOptions, any]
-    >;
-    const repeatOptions = repeatOptionEntries.reduce<
-      Partial<Record<string, any>>
-    >((acc, item) => {
-      const [attributeName, value] = item;
+    const repeatOpts: RepeatOptions = opts.repeat || {};
+
+    const repeatOptions: RedisRepeatOptions = {};
+    let attributeName: keyof RepeatOptions;
+    for (attributeName in repeatOpts) {
       if (attributeName === 'repeatJobKey') {
-        acc.rjk = value;
+        repeatOptions.rjk = repeatOpts[attributeName];
       } else {
-        acc[attributeName] = value;
+        (repeatOptions[attributeName] as any) =
+          repeatOpts[attributeName as keyof RepeatOptionsBase];
       }
-      return acc;
-    }, {});
+    }
 
     return {
       ...opts,
