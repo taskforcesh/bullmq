@@ -217,11 +217,15 @@ export class Job<
       });
     }
 
-    const result = (await multi.exec()) as [null | Error, string][];
-    result.forEach((res, index: number) => {
-      const [err, id] = res;
+    const results = (await multi.exec()) as [null | Error, string][];
+    for (let index = 0; index < results.length; ++index) {
+      const [err, id] = results[index];
+      if (err) {
+        throw err;
+      }
+
       jobInstances[index].id = id;
-    });
+    }
 
     return jobInstances;
   }
@@ -895,10 +899,11 @@ export class Job<
    * Moves the job to the delay set.
    *
    * @param timestamp - timestamp where the job should be moved back to "wait"
+   * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(timestamp: number): Promise<void> {
-    return Scripts.moveToDelayed(this.queue, this.id, timestamp);
+  moveToDelayed(timestamp: number, token?: string): Promise<void> {
+    return Scripts.moveToDelayed(this.queue, this.id, timestamp, token);
   }
 
   /**
