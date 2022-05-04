@@ -221,6 +221,106 @@ describe('Cleaner', () => {
         });
       });
 
+      describe('when parent has all processed children in the same queue', async () => {
+        describe('when parent completes', async () => {
+          it('deletes parent and its dependency keys', async () => {
+            const name = 'child-job';
+
+            const worker = new Worker(
+              queue.name,
+              async () => {
+                return delay(10);
+              },
+              { connection },
+            );
+            await worker.waitUntilReady();
+
+            const completing = new Promise(resolve => {
+              worker.on('completed', after(4, resolve));
+            });
+
+            const flow = new FlowProducer({ connection });
+            await flow.add({
+              name: 'parent-job',
+              queueName,
+              data: {},
+              children: [
+                { name, data: { idx: 0, foo: 'bar' }, queueName },
+                { name, data: { idx: 1, foo: 'baz' }, queueName },
+                { name, data: { idx: 2, foo: 'qux' }, queueName },
+              ],
+            });
+
+            await completing;
+            await queue.clean(0, 0, 'completed');
+
+            const client = await queue.client;
+            const keys = await client.keys(`bull:${queue.name}:*`);
+
+            expect(keys.length).to.be.eql(3);
+
+            const jobs = await queue.getJobCountByTypes('completed');
+            expect(jobs).to.be.equal(0);
+
+            await worker.close();
+            await flow.close();
+          });
+        });
+
+        describe('when parent fails', async () => {
+          it('deletes parent dependencies and keeps parent', async () => {
+            const name = 'child-job';
+
+            const worker = new Worker(
+              queue.name,
+              async job => {
+                if (job.data.idx === 3) {
+                  throw new Error('error');
+                }
+                return delay(10);
+              },
+              { connection },
+            );
+            await worker.waitUntilReady();
+
+            const failing = new Promise(resolve => {
+              worker.on('failed', resolve);
+            });
+
+            const flow = new FlowProducer({ connection });
+            const tree = await flow.add({
+              name: 'parent-job',
+              queueName,
+              data: { idx: 3 },
+              children: [
+                { name, data: { idx: 0, foo: 'bar' }, queueName },
+                { name, data: { idx: 1, foo: 'baz' }, queueName },
+                { name, data: { idx: 2, foo: 'qux' }, queueName },
+              ],
+            });
+
+            await failing;
+            await queue.clean(0, 0, 'completed');
+
+            const client = await queue.client;
+            const keys = await client.keys(`bull:${queue.name}:*`);
+            expect(keys.length).to.be.eql(5);
+
+            const parentState = await tree.job.getState();
+            expect(parentState).to.be.equal('failed');
+
+            const job = queue.getJob(tree.job.id);
+            expect(job).to.not.be.undefined;
+
+            const jobs = await queue.getJobCountByTypes('completed');
+            expect(jobs).to.be.equal(0);
+
+            await worker.close();
+            await flow.close();
+          });
+        });
+      });
+
       describe('when parent has only 1 pending child in the same queue', async () => {
         it('deletes parent and its dependency keys', async () => {
           const name = 'child-job';
@@ -248,7 +348,7 @@ describe('Cleaner', () => {
           });
 
           const flow = new FlowProducer({ connection });
-          await flow.add({
+          const tree = await flow.add({
             name: 'parent-job',
             queueName,
             data: {},
@@ -267,6 +367,12 @@ describe('Cleaner', () => {
           const keys = await client.keys(`bull:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(6);
+
+          const jobs = await queue.getJobCountByTypes('completed');
+          expect(jobs).to.be.equal(2);
+
+          const parentState = await tree.job.getState();
+          expect(parentState).to.be.equal('unknown');
 
           await worker.close();
           await flow.close();
@@ -308,6 +414,104 @@ describe('Cleaner', () => {
           expect(countAfterEmpty).to.be.eql(1);
 
           await flow.close();
+        });
+      });
+
+      describe('when creating children at runtime and call clean when parent is active', () => {
+        it('does not delete parent record', async function () {
+          this.timeout(4000);
+
+          enum Step {
+            Initial,
+            Second,
+            Third,
+            Finish,
+          }
+
+          const worker = new Worker(
+            queueName,
+            async (job, token) => {
+              if (job.name === 'child') {
+                await delay(100);
+                throw new Error('error');
+              }
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await queue.add(
+                      'child',
+                      { foo: 'bar' },
+                      {
+                        parent: {
+                          id: job.id,
+                          queue: `${job.prefix}:${job.queueName}`,
+                        },
+                      },
+                    );
+                    await delay(1000);
+                    await job.update({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    break;
+                  }
+                  case Step.Second: {
+                    await delay(100);
+                    await job.update({
+                      step: Step.Third,
+                    });
+                    step = Step.Third;
+                    break;
+                  }
+                  case Step.Third: {
+                    const shouldWait = await job.moveToWaitingChildren(token);
+                    if (!shouldWait) {
+                      await job.update({
+                        step: Step.Finish,
+                      });
+                      step = Step.Finish;
+                      return Step.Finish;
+                    }
+                    break;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection, concurrency: 2 },
+          );
+          await worker.waitUntilReady();
+
+          const parent = await queue.add(
+            'parent',
+            { step: Step.Initial },
+            {
+              attempts: 3,
+              backoff: 1000,
+            },
+          );
+
+          await new Promise<void>(resolve => {
+            worker.on('failed', async () => {
+              await queue.clean(0, 0, 'failed');
+              resolve();
+            });
+          });
+
+          const job = await queue.getJob(parent.id);
+          expect(job).to.not.be.undefined;
+
+          const jobs = await queue.getJobCountByTypes('completed');
+          expect(jobs).to.be.equal(0);
+
+          const parentState = await parent.getState();
+
+          expect(parentState).to.be.equal('active');
+
+          await worker.close();
         });
       });
     });
