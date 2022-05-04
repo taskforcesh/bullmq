@@ -268,7 +268,7 @@ describe('Cleaner', () => {
         });
 
         describe('when parent fails', async () => {
-          it('deletes parent and its dependency keys', async () => {
+          it('deletes parent dependencies and keeps parent', async () => {
             const name = 'child-job';
 
             const worker = new Worker(
@@ -304,10 +304,13 @@ describe('Cleaner', () => {
 
             const client = await queue.client;
             const keys = await client.keys(`bull:${queue.name}:*`);
+            expect(keys.length).to.be.eql(5);
 
             const parentState = await tree.job.getState();
-            console.log(keys, parentState);
-            expect(keys.length).to.be.eql(3);
+            expect(parentState).to.be.equal('failed');
+
+            const job = queue.getJob(tree.job.id);
+            expect(job).to.not.be.undefined;
 
             const jobs = await queue.getJobCountByTypes('completed');
             expect(jobs).to.be.equal(0);
