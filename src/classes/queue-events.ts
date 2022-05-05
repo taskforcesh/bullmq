@@ -102,7 +102,7 @@ export interface QueueEventsListener {
    * This event is triggered when a job has been manually
    * removed from the queue.
    */
-  removed: (args: { jobId: string }, id: string) => void;
+  removed: (args: { jobId: string; prev: string }, id: string) => void;
 
   /**
    * Listen to 'resumed' event.

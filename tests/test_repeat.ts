@@ -935,7 +935,15 @@ describe('repeat', function () {
     let delayed = await queue.getDelayed();
     expect(delayed.length).to.be.eql(1);
 
-    await queue.removeRepeatable('myTestJob', repeat);
+    await new Promise<void>(resolve => {
+      queueEvents.on('removed', async ({ jobId, prev }) => {
+        expect(jobId).to.be.equal(delayed[0].id);
+        expect(prev).to.be.equal('delayed');
+        resolve();
+      });
+
+      queue.removeRepeatable('myTestJob', repeat);
+    });
 
     delayed = await queue.getDelayed();
     expect(delayed.length).to.be.eql(0);
