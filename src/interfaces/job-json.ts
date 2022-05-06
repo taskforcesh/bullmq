@@ -14,6 +14,7 @@ export interface JobJson {
   stacktrace: string;
   returnvalue: string;
   parentKey?: string;
+  repeatJobKey?: string;
 }
 
 export interface JobJsonRaw {
@@ -31,4 +32,5 @@ export interface JobJsonRaw {
   returnvalue: string;
   parentKey?: string;
   parent?: string;
+  rjk?: string;
 }

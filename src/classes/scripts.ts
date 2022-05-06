@@ -107,6 +107,7 @@ export class Scripts {
       parentOpts.parentKey || null,
       parentOpts.waitChildrenKey || null,
       parentOpts.parentDependenciesKey || null,
+      job.repeatJobKey,
     ];
 
     let encodedOpts;

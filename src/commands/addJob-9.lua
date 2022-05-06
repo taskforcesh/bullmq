@@ -31,8 +31,9 @@
             [3]  name
             [4]  timestamp
             [5]  parentKey?
-            [6] waitChildrenKey key.
-            [7] parent dependencies key.
+            [6]  waitChildrenKey key.
+            [7]  parent dependencies key.
+            [8]  repeat job key
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -51,6 +52,7 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
+local repeatJobKey = args[8]
 local parentId
 local parentQueueKey
 local parentData
@@ -110,11 +112,21 @@ local priority = opts['priority'] or 0
 local timestamp = args[4]
 
 if parentKey ~= nil then
-  rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-    "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey, "parent", parentData)
+  if repeatJobKey ~= nil then
+    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+      "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey, "parent", parentData, "rjk", repeatJobKey)
+  else
+    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+      "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey, "parent", parentData)
+  end
 else
-  rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-    "timestamp", timestamp, "delay", delay, "priority", priority )
+  if repeatJobKey ~= nil then
+    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+      "timestamp", timestamp, "delay", delay, "priority", priority,  "rjk", repeatJobKey )
+  else
+    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+      "timestamp", timestamp, "delay", delay, "priority", priority )
+  end
 end
 
 -- TODO: do not send data and opts to the event added (for performance reasons).

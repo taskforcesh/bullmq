@@ -105,9 +105,10 @@ export class Repeat extends QueueBase {
       delay: delay < 0 || hasImmediately ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
+      repeatJobKey,
     };
 
-    mergedOpts.repeat = { ...opts.repeat, count: currentCount, repeatJobKey };
+    mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
     await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 

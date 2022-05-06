@@ -89,7 +89,7 @@ describe('repeat', function () {
       },
     );
 
-    expect(job.opts.repeat.repeatJobKey).to.not.be.undefined;
+    expect(job.repeatJobKey).to.not.be.undefined;
 
     this.clock.tick(every + 1);
 
@@ -792,10 +792,12 @@ describe('repeat', function () {
   it('should be able to remove repeatable jobs by key', async () => {
     const repeat = { cron: '*/2 * * * * *' };
 
-    const job = await queue.add('remove', { foo: 'bar' }, { repeat });
+    const createdJob = await queue.add('remove', { foo: 'bar' }, { repeat });
+    const job = await queue.getJob(createdJob.id);
     const repeatableJobs = await queue.getRepeatableJobs();
     expect(repeatableJobs).to.have.length(1);
-    await queue.removeRepeatableByKey(job.opts.repeat.repeatJobKey);
+    await queue.removeRepeatableByKey(createdJob.repeatJobKey);
+    expect(job.repeatJobKey).to.not.be.undefined;
     const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
     expect(repeatableJobsAfterRemove).to.have.length(0);
   });
