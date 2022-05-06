@@ -5,20 +5,12 @@ import {
   BackoffOptions,
   JobJson,
   JobJsonRaw,
+  JobsOptions,
   ParentKeys,
   RedisClient,
-  RepeatOptionsBase,
   WorkerOptions,
 } from '../interfaces';
-import {
-  FinishedStatus,
-  JobsOptions,
-  JobState,
-  JobJsonSandbox,
-  RedisJobOptions,
-  RedisRepeatOptions,
-  RepeatOptions,
-} from '../types';
+import { FinishedStatus, JobState, JobJsonSandbox } from '../types';
 import {
   errorObject,
   isEmpty,
@@ -254,7 +246,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = Job.optsFromJSON(json.opts);
+    const opts = JSON.parse(json.opts || '{}');
 
     const job = new this<T, R, N>(
       queue,
@@ -301,27 +293,6 @@ export class Job<
     return job;
   }
 
-  private static optsFromJSON(rawOpts?: string): JobsOptions {
-    const opts = JSON.parse(rawOpts || '{}');
-    const redisRepeatOpts: RedisRepeatOptions = opts.repeat ?? {};
-
-    const repeatOptions: RepeatOptions = {};
-    let attributeName: keyof RedisRepeatOptions;
-    for (attributeName in redisRepeatOpts) {
-      if (attributeName === 'rjk') {
-        repeatOptions.repeatJobKey = redisRepeatOpts[attributeName];
-      } else {
-        (repeatOptions[attributeName] as any) =
-          redisRepeatOpts[attributeName as keyof RepeatOptionsBase];
-      }
-    }
-
-    return {
-      ...opts,
-      ...(opts.repeat ? { repeat: repeatOptions } : {}),
-    } as JobsOptions;
-  }
-
   /**
    * Fetches a Job from the queue given the passed job id.
    *
@@ -357,7 +328,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: this.optsAsJSON(this.opts),
+      opts: this.opts,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,
@@ -368,26 +339,6 @@ export class Job<
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     };
-  }
-
-  private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
-    const repeatOpts: RepeatOptions = opts.repeat || {};
-
-    const repeatOptions: RedisRepeatOptions = {};
-    let attributeName: keyof RepeatOptions;
-    for (attributeName in repeatOpts) {
-      if (attributeName === 'repeatJobKey') {
-        repeatOptions.rjk = repeatOpts[attributeName];
-      } else {
-        (repeatOptions[attributeName] as any) =
-          repeatOpts[attributeName as keyof RepeatOptionsBase];
-      }
-    }
-
-    return {
-      ...opts,
-      ...(opts.repeat ? { repeat: repeatOptions } : {}),
-    } as RedisJobOptions;
   }
 
   /**

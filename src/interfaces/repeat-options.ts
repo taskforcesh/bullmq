@@ -5,7 +5,7 @@ import { ParserOptions } from 'cron-parser';
  *
  * @see {@link https://docs.bullmq.io/guide/jobs/repeatable}
  */
-export interface RepeatOptionsBase extends Omit<ParserOptions, 'iterator'> {
+export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   /**
    * A cron pattern
    */

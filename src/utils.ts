@@ -5,12 +5,12 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
 import { get } from 'lodash';
 import {
-  RedisClient,
-  QueueOptions,
   ChildMessage,
+  JobsOptions,
   ParentMessage,
+  QueueOptions,
+  RedisClient,
 } from './interfaces';
-import { JobsOptions } from './types';
 import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };

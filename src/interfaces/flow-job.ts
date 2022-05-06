@@ -1,4 +1,4 @@
-import { JobsOptions } from '../types';
+import { JobsOptions } from '../interfaces';
 import { QueueOptions } from './queue-options';
 
 export interface FlowJob {

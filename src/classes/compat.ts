@@ -27,13 +27,14 @@ import { Queue } from './queue';
 import { Worker } from './worker';
 import { QueueEvents } from './queue-events';
 import {
+  JobsOptions,
+  Processor,
   QueueOptions,
   QueueEventsOptions,
   QueueSchedulerOptions,
+  RepeatOptions,
   WorkerOptions,
-  Processor,
 } from '../interfaces';
-import { JobsOptions, RepeatOptions } from '../types';
 
 type CommonOptions = QueueSchedulerOptions &
   QueueOptions &

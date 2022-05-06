@@ -1,4 +1,4 @@
-import { JobsOptions } from '../types';
+import { JobsOptions } from './jobs-options';
 import { JobJson } from './job-json';
 
 /**
