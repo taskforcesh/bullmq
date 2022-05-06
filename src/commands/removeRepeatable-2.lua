@@ -17,6 +17,7 @@ if(millis) then
   local repeatJobId = ARGV[1] .. millis
   if(rcall("ZREM", KEYS[2], repeatJobId) == 1) then
     rcall("DEL", ARGV[3] .. repeatJobId)
+    rcall("XADD", ARGV[3] .. "events", "*", "event", "removed", "jobId", repeatJobId, "prev", "delayed");
   end
 end
 

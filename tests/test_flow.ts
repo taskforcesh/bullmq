@@ -1760,6 +1760,9 @@ describe('flows', () => {
       expect(await tree.children[1].job.getState()).to.be.equal('unknown');
       expect(await tree.job.getState()).to.be.equal('unknown');
 
+      const jobs = await queue.getJobCountByTypes('waiting');
+      expect(jobs).to.be.equal(0);
+
       await flow.close();
       await parentQueue.close();
       await removeAllQueueData(new IORedis(), parentQueueName);
@@ -1837,6 +1840,9 @@ describe('flows', () => {
           const childJob = await Job.fromId(queue, child.job.id);
           expect(childJob).to.be.undefined;
         }
+
+        const jobs = await queue.getJobCountByTypes('completed');
+        expect(jobs).to.be.equal(0);
 
         expect(await tree.children[0].job.getState()).to.be.equal('unknown');
         expect(await tree.children[1].job.getState()).to.be.equal('unknown');

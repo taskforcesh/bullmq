@@ -31,18 +31,20 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
         local parentId = getJobIdFromKey(parentKey)
         local parentPrefix = getJobKeyPrefix(parentKey, parentId)
 
-        rcall("ZREM", parentPrefix .. "waiting-children", parentId)
+        local numRemovedElements = rcall("ZREM", parentPrefix .. "waiting-children", parentId)
 
-        if hard then  
-          if parentPrefix == baseKey then
-            removeParentDependencyKey(parentKey, hard, nil, baseKey)
-            rcall("DEL", parentKey, parentKey .. ':logs',
-              parentKey .. ':dependencies', parentKey .. ':processed')
+        if numRemovedElements == 1 then
+          if hard then
+            if parentPrefix == baseKey then
+              removeParentDependencyKey(parentKey, hard, nil, baseKey)
+              rcall("DEL", parentKey, parentKey .. ':logs',
+                parentKey .. ':dependencies', parentKey .. ':processed')
+            else
+              moveParentToWait(parentPrefix, parentId)
+            end
           else
-            moveParentToWait(parentPrefix, parentId)
+            moveParentToWait(parentPrefix, parentId, true)
           end
-        else
-          moveParentToWait(parentPrefix, parentId, true)
         end
       end
     end
@@ -59,18 +61,20 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
           local parentId = getJobIdFromKey(missedParentKey)
           local parentPrefix = getJobKeyPrefix(missedParentKey, parentId)
 
-          rcall("ZREM", parentPrefix .. "waiting-children", parentId)
+          local numRemovedElements = rcall("ZREM", parentPrefix .. "waiting-children", parentId)
 
-          if hard then  
-            if parentPrefix == baseKey then
-              removeParentDependencyKey(missedParentKey, hard, nil, baseKey)
-              rcall("DEL", missedParentKey, missedParentKey .. ':logs',
-                missedParentKey .. ':dependencies', missedParentKey .. ':processed')
+          if numRemovedElements == 1 then
+            if hard then
+              if parentPrefix == baseKey then
+                removeParentDependencyKey(missedParentKey, hard, nil, baseKey)
+                rcall("DEL", missedParentKey, missedParentKey .. ':logs',
+                  missedParentKey .. ':dependencies', missedParentKey .. ':processed')
+              else
+                moveParentToWait(parentPrefix, parentId)
+              end
             else
-              moveParentToWait(parentPrefix, parentId)
+              moveParentToWait(parentPrefix, parentId, true)
             end
-          else
-            moveParentToWait(parentPrefix, parentId, true)
           end
         end
       end
