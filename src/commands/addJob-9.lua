@@ -111,23 +111,21 @@ local delay = opts['delay'] or 0
 local priority = opts['priority'] or 0
 local timestamp = args[4]
 
+local optionalValues = {}
 if parentKey ~= nil then
-  if repeatJobKey ~= nil then
-    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-      "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey, "parent", parentData, "rjk", repeatJobKey)
-  else
-    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-      "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey, "parent", parentData)
-  end
-else
-  if repeatJobKey ~= nil then
-    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-      "timestamp", timestamp, "delay", delay, "priority", priority,  "rjk", repeatJobKey )
-  else
-    rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-      "timestamp", timestamp, "delay", delay, "priority", priority )
-  end
+  table.insert(optionalValues, "parentKey")
+  table.insert(optionalValues, parentKey)
+  table.insert(optionalValues, "parent")
+  table.insert(optionalValues, parentData)
 end
+
+if repeatJobKey ~= nil then
+  table.insert(optionalValues, "rjk")
+  table.insert(optionalValues, repeatJobKey)
+end
+
+rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+  "timestamp", timestamp, "delay", delay, "priority", priority, unpack(optionalValues))
 
 -- TODO: do not send data and opts to the event added (for performance reasons).
 rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3], "data", ARGV[2], "opts", jsonOpts)
