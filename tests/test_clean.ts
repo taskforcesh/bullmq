@@ -143,6 +143,7 @@ describe('Cleaner', () => {
     worker.run();
 
     await failing;
+    await delay(50);
 
     const jobs = await queue.clean(0, 0, 'failed');
     expect(jobs.length).to.be.eql(2);
