@@ -137,7 +137,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         end
 
         if maxCount ~= nil and maxCount > 0 then
-            removeJobsByMaxCount(timestamp, maxCount, targetSet, prefix)
+            removeJobsByMaxCount(maxCount, targetSet, prefix)
         end
     else
         rcall("DEL", jobIdKey, jobIdKey .. ':logs', jobIdKey .. ':processed')

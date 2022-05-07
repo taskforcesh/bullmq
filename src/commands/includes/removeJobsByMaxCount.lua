@@ -5,7 +5,7 @@
 -- Includes
 --- @include "removeJob"
 
-local function removeJobsByMaxCount(timestamp, maxCount, targetSet, prefix)
+local function removeJobsByMaxCount(maxCount, targetSet, prefix)
   local start = maxCount
   local jobIds = rcall("ZREVRANGE", targetSet, start, -1)
   for i, jobId in ipairs(jobIds) do
