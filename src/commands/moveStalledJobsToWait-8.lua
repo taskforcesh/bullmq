@@ -82,7 +82,7 @@ if (#stalling > 0) then
                         failedReason)
 
                   if removeOnFailType == "number" then
-                    removeJobsByMaxCount(ARGV[3], opts["removeOnFail"], KEYS[4], ARGV[2])
+                    removeJobsByMaxCount(opts["removeOnFail"], KEYS[4], ARGV[2])
                   elseif removeOnFailType == "boolean" then
                     if opts["removeOnFail"] then
                       removeJob(jobId, false, ARGV[2])
