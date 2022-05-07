@@ -97,7 +97,7 @@ if (#stalling > 0) then
                     end
             
                     if maxCount ~= nil and maxCount > 0 then
-                      removeJobsByMaxCount(ARGV[3], maxCount, KEYS[4], ARGV[2])
+                      removeJobsByMaxCount(maxCount, KEYS[4], ARGV[2])
                     end
                   end
 
