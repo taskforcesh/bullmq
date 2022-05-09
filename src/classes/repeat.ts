@@ -4,6 +4,7 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import { Scripts } from './scripts';
 import { parseExpression } from 'cron-parser';
+import { rrulestr } from 'rrule';
 
 export class Repeat extends QueueBase {
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -156,7 +157,7 @@ export class Repeat extends QueueBase {
     };
   }
 
-  async getRepeatableJobs(start = 0, end = -1, asc = false) {
+  async getRepeatableJobs(start = 0, end = -1, asc = false): Promise<object[]> {
     const client = await this.client;
 
     const key = this.keys.repeat;
@@ -201,7 +202,12 @@ function getRepeatJobId(
 function getRepeatKey(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
-  const suffix = (repeat.cron ? repeat.cron : String(repeat.every)) || '';
+  const suffix =
+    (repeat.rrule
+      ? repeat.rrule
+      : repeat.cron
+      ? repeat.cron
+      : String(repeat.every)) || '';
   const jobId = repeat.jobId ? repeat.jobId : '';
 
   return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
@@ -211,6 +217,12 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
   if (opts.cron && opts.every) {
     throw new Error(
       'Both .cron and .every options are defined for this repeatable job',
+    );
+  }
+
+  if (opts.cron && opts.rrule) {
+    throw new Error(
+      'Both .cron and .rrule options are defined for this repeatable job',
     );
   }
 
@@ -225,6 +237,15 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
+
+  if (opts.rrule) {
+    const rrule = rrulestr(opts.rrule);
+
+    const next_occurrence = rrule.after(currentDate, true);
+
+    return next_occurrence.getTime();
+  }
+
   const interval = parseExpression(opts.cron, {
     ...opts,
     currentDate,

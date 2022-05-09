@@ -1091,6 +1091,23 @@ describe('repeat', function () {
     );
   });
 
+  it('should throw an error when using .cron and .rrule simultaneously', async function () {
+    await expect(
+      queue.add(
+        'repeat',
+        { type: 'm' },
+        {
+          repeat: {
+            rrule: 'FREQ=DAILY;INTERVAL=2;COUNT=4',
+            cron: '* /1 * * * * *',
+          },
+        },
+      ),
+    ).to.be.rejectedWith(
+      'Both .cron and .rrule options are defined for this repeatable job',
+    );
+  });
+
   it('should emit a waiting event when adding a repeatable job to the waiting list', async function () {
     const queueScheduler = new QueueScheduler(queueName, { connection });
     await queueScheduler.waitUntilReady();

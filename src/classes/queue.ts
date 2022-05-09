@@ -291,7 +291,11 @@ export class Queue<
    * @param asc - Determine the order in which jobs are returned based on their
    * next execution time.
    */
-  async getRepeatableJobs(start?: number, end?: number, asc?: boolean) {
+  async getRepeatableJobs(
+    start?: number,
+    end?: number,
+    asc?: boolean,
+  ): Promise<object> {
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
 
@@ -299,11 +303,11 @@ export class Queue<
     name: NameType,
     repeatOpts: RepeatOptions,
     jobId?: string,
-  ) {
+  ): Promise<void> {
     return (await this.repeat).removeRepeatable(name, repeatOpts, jobId);
   }
 
-  async removeRepeatableByKey(key: string) {
+  async removeRepeatableByKey(key: string): Promise<void> {
     return (await this.repeat).removeRepeatableByKey(key);
   }
 

@@ -7,6 +7,10 @@ import { ParserOptions } from 'cron-parser';
  */
 export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   /**
+   * A RRULE pattern
+   */
+  rrule?: string;
+  /**
    * A cron pattern
    */
   cron?: string;
