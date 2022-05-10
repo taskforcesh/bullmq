@@ -71,14 +71,24 @@ local function removeJob( prefix, jobId, parentKey)
         end
     end
 
-    rcall("LREM", prefix .. "active", 0, jobId)
-    rcall("LREM", prefix .. "wait", 0, jobId)
-    rcall("ZREM", prefix .. "delayed", jobId)
-    rcall("LREM", prefix .. "paused", 0, jobId)
-    rcall("ZREM", prefix .. "completed", jobId)
-    rcall("ZREM", prefix .. "failed", jobId)
+    local prev = "unknown"
+    if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
+        prev = "wait"
+    elseif rcall("ZREM", prefix .. "waiting-children", jobId) == 1 then
+        prev = "waiting-children"
+    elseif rcall("ZREM", prefix .. "delayed", jobId) == 1 then
+        prev = "delayed"
+    elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
+        prev = "paused"
+    elseif rcall("ZREM", prefix .. "completed", jobId) == 1 then
+        prev = "completed"
+    elseif rcall("ZREM", prefix .. "failed", jobId) == 1 then
+        prev = "failed"
+    elseif rcall("LREM", prefix .. "active", 0, jobId) == 1 then
+        prev = "active"
+    end
+    
     rcall("ZREM", prefix .. "priority", jobId)
-    rcall("ZREM", prefix .. "waiting-children", jobId)
     rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
 
     -- -- delete keys related to rate limiter
@@ -89,7 +99,7 @@ local function removeJob( prefix, jobId, parentKey)
         --     rcall("HDEL", limiterIndexTable, jobId)
     -- end
 
-    rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", "unknown");
+    rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", prev);
 end
 
 local prefix = getJobKeyPrefix(KEYS[1], ARGV[1])
