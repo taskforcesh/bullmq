@@ -118,7 +118,7 @@ export class Repeat extends QueueBase {
     name: string,
     repeat: RepeatOptions,
     jobId?: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
     const repeatJobId = getRepeatJobId(
       name,
@@ -130,7 +130,7 @@ export class Repeat extends QueueBase {
     return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
   }
 
-  async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
+  async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
     const repeatJobId = getRepeatJobId(
