@@ -299,12 +299,18 @@ export class Queue<
     name: NameType,
     repeatOpts: RepeatOptions,
     jobId?: string,
-  ) {
-    return (await this.repeat).removeRepeatable(name, repeatOpts, jobId);
+  ): Promise<boolean> {
+    const repeat = await this.repeat;
+    const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
+
+    return !removed;
   }
 
-  async removeRepeatableByKey(key: string) {
-    return (await this.repeat).removeRepeatableByKey(key);
+  async removeRepeatableByKey(key: string): Promise<boolean> {
+    const repeat = await this.repeat;
+    const removed = await repeat.removeRepeatableByKey(key);
+
+    return !removed;
   }
 
   /**

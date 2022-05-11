@@ -752,10 +752,11 @@ describe('repeat', function () {
     let processor;
 
     const processing = new Promise<void>((resolve, reject) => {
-      processor = async (job: Job) => {
+      processor = async () => {
         counter++;
         if (counter == numJobs) {
-          await queue.removeRepeatable('remove', repeat);
+          const removed = await queue.removeRepeatable('remove', repeat);
+          expect(removed).to.be.true;
           this.clock.tick(nextTick);
           const delayed = await queue.getDelayed();
           expect(delayed).to.be.empty;
@@ -793,9 +794,24 @@ describe('repeat', function () {
     await queue.add('remove', { foo: 'bar' }, { repeat });
     const repeatableJobs = await queue.getRepeatableJobs();
     expect(repeatableJobs).to.have.length(1);
-    await queue.removeRepeatableByKey(repeatableJobs[0].key);
+    const removed = await queue.removeRepeatableByKey(repeatableJobs[0].key);
+    expect(removed).to.be.true;
     const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
     expect(repeatableJobsAfterRemove).to.have.length(0);
+  });
+
+  describe('when repeatable job does not exist', function () {
+    it('returns false', async () => {
+      const repeat = { cron: '*/2 * * * * *' };
+
+      await queue.add('remove', { foo: 'bar' }, { repeat });
+      const repeatableJobs = await queue.getRepeatableJobs();
+      expect(repeatableJobs).to.have.length(1);
+      const removed = await queue.removeRepeatableByKey(repeatableJobs[0].key);
+      expect(removed).to.be.true;
+      const removed2 = await queue.removeRepeatableByKey(repeatableJobs[0].key);
+      expect(removed2).to.be.false;
+    });
   });
 
   it('should allow removing a customId repeatable job', async function () {
