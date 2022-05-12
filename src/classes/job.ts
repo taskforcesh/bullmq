@@ -309,7 +309,7 @@ export class Job<
   }
 
   toJSON() {
-    const { queue, ...withoutQueue } = this;
+    const { queue, scripts, ...withoutQueue } = this;
     return withoutQueue;
   }
 
