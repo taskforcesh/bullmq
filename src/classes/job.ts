@@ -109,7 +109,7 @@ export class Job<
 
   private discarded: boolean;
 
-  private scripts: Scripts;
+  protected scripts: Scripts;
 
   constructor(
     protected queue: MinimalQueue,
@@ -300,7 +300,11 @@ export class Job<
       const jobData = await client.hgetall(queue.toKey(jobId));
       return isEmpty(jobData)
         ? undefined
-        : Job.fromJSON<T, R, N>(queue, (<unknown>jobData) as JobJsonRaw, jobId);
+        : this.fromJSON<T, R, N>(
+            queue,
+            (<unknown>jobData) as JobJsonRaw,
+            jobId,
+          );
     }
   }
 

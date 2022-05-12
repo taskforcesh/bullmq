@@ -200,7 +200,7 @@ export class Queue<
     } else {
       const jobId = jobIdForGroup(opts, data, { limiter: this.limiter });
 
-      const job = await Job.create<DataType, ResultType, NameType>(
+      const job = await this.Job.create<DataType, ResultType, NameType>(
         this,
         name,
         data,
@@ -213,6 +213,10 @@ export class Queue<
       this.emit('waiting', job);
       return job;
     }
+  }
+
+  protected get Job(): typeof Job {
+    return Job;
   }
 
   /**

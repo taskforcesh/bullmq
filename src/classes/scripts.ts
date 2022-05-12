@@ -54,7 +54,7 @@ export type ParentOpts = {
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
-  constructor(private queue: MinimalQueue) {}
+  constructor(protected queue: MinimalQueue) {}
 
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
@@ -242,7 +242,7 @@ export class Scripts {
     target: FinishedStatus,
     token: string,
     fetchNext = true,
-  ) {
+  ): (string | number | boolean | Buffer)[] {
     const queueKeys = this.queue.keys;
     const opts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
@@ -297,7 +297,7 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  private async moveToFinished<
+  protected async moveToFinished<
     DataType = any,
     ReturnType = any,
     NameType extends string = string,
@@ -617,7 +617,7 @@ export class Scripts {
     return keys.concat([pushCmd, jobId]);
   }
 
-  private retryJobsArgs(
+  protected retryJobsArgs(
     state: FinishedStatus,
     count: number,
     timestamp: number,
