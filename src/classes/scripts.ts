@@ -168,7 +168,7 @@ export class Scripts {
   async removeRepeatable(
     repeatJobId: string,
     repeatJobKey: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const client = await this.queue.client;
     const args = this.removeRepeatableArgs(repeatJobId, repeatJobKey);
 
