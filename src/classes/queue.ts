@@ -251,7 +251,7 @@ export class Queue<
    * and in that case it will add it there instead of the wait list.
    */
   async pause(): Promise<void> {
-    await Scripts.pause(this, true);
+    await this.scripts.pause(this, true);
     this.emit('paused');
   }
 
@@ -270,7 +270,7 @@ export class Queue<
    * queue.
    */
   async resume(): Promise<void> {
-    await Scripts.pause(this, false);
+    await this.scripts.pause(this, false);
     this.emit('resumed');
   }
 
@@ -316,7 +316,7 @@ export class Queue<
    * any of its dependencies was locked.
    */
   remove(jobId: string): Promise<number> {
-    return Scripts.remove(this, jobId);
+    return this.scripts.remove(this, jobId);
   }
 
   /**
@@ -327,7 +327,7 @@ export class Queue<
    * delayed jobs.
    */
   drain(delayed = false): Promise<void> {
-    return Scripts.drain(this, delayed);
+    return this.scripts.drain(this, delayed);
   }
 
   /**
@@ -351,7 +351,7 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    const jobs = await Scripts.cleanJobsInSet(
+    const jobs = await this.scripts.cleanJobsInSet(
       this,
       type,
       Date.now() - grace,
@@ -378,7 +378,7 @@ export class Queue<
 
     let cursor = 0;
     do {
-      cursor = await Scripts.obliterate(this, {
+      cursor = await this.scripts.obliterate(this, {
         force: false,
         count: 1000,
         ...opts,
@@ -398,7 +398,7 @@ export class Queue<
   ): Promise<void> {
     let cursor = 0;
     do {
-      cursor = await Scripts.retryJobs(
+      cursor = await this.scripts.retryJobs(
         this,
         opts.state,
         opts.count,

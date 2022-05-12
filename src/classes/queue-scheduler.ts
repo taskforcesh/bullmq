@@ -251,7 +251,7 @@ export class QueueScheduler extends QueueBase {
   private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
       const result = await this.checkConnectionError(() =>
-        Scripts.updateDelaySet(this, timestamp),
+        this.scripts.updateDelaySet(this, timestamp),
       );
 
       if (!result) {
@@ -265,7 +265,7 @@ export class QueueScheduler extends QueueBase {
 
   private async moveStalledJobsToWait() {
     if (!this.closing) {
-      const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
+      const [failed, stalled] = await this.scripts.moveStalledJobsToWait(this);
 
       failed.forEach((jobId: string) =>
         this.emit(

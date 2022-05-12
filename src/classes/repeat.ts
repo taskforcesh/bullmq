@@ -127,7 +127,7 @@ export class Repeat extends QueueBase {
       jobId || repeat.jobId,
     );
 
-    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
   }
 
   async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
@@ -140,7 +140,7 @@ export class Repeat extends QueueBase {
       data.id,
     );
 
-    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
   }
 
   private keyToData(key: string) {

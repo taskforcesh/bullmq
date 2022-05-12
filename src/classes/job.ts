@@ -109,6 +109,8 @@ export class Job<
 
   private discarded: boolean;
 
+  private scripts: Scripts;
+
   constructor(
     protected queue: MinimalQueue,
     /**
@@ -146,6 +148,7 @@ export class Job<
       : undefined;
 
     this.toKey = queue.toKey.bind(queue);
+    this.scripts = new Scripts();
   }
 
   /**
@@ -348,7 +351,7 @@ export class Job<
   update(data: DataType): Promise<void> {
     this.data = data;
 
-    return Scripts.updateData<DataType, ReturnType, NameType>(
+    return this.scripts.updateData<DataType, ReturnType, NameType>(
       this.queue,
       this,
       data,
@@ -362,7 +365,7 @@ export class Job<
    */
   updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
-    return Scripts.updateProgress(this.queue, this, progress);
+    return this.scripts.updateProgress(this.queue, this, progress);
   }
 
   /**
@@ -387,7 +390,7 @@ export class Job<
     const queue = this.queue;
     const job = this;
 
-    const removed = await Scripts.remove(queue, job.id);
+    const removed = await this.scripts.remove(queue, job.id);
     if (removed) {
       queue.emit('removed', job);
     } else {
@@ -402,7 +405,7 @@ export class Job<
    * @param duration - lock duration in milliseconds
    */
   extendLock(token: string, duration: number): Promise<number> {
-    return Scripts.extendLock(this.queue, this.id, token, duration);
+    return this.scripts.extendLock(this.queue, this.id, token, duration);
   }
 
   /**
@@ -430,7 +433,7 @@ export class Job<
       throw errorObject.value;
     }
 
-    return Scripts.moveToCompleted(
+    return this.scripts.moveToCompleted(
       this.queue,
       this,
       stringifiedReturnValue,
@@ -486,7 +489,7 @@ export class Job<
       if (delay === -1) {
         moveToFailed = true;
       } else if (delay) {
-        const args = Scripts.moveToDelayedArgs(
+        const args = this.scripts.moveToDelayedArgs(
           queue,
           this.id,
           Date.now() + delay,
@@ -496,7 +499,7 @@ export class Job<
         command = 'delayed';
       } else {
         // Retry immediately
-        (<any>multi).retryJob(Scripts.retryJobArgs(queue, this));
+        (<any>multi).retryJob(this.scripts.retryJobArgs(queue, this));
         command = 'retry';
       }
     } else {
@@ -505,7 +508,7 @@ export class Job<
     }
 
     if (moveToFailed) {
-      const args = Scripts.moveToFailedArgs(
+      const args = this.scripts.moveToFailedArgs(
         queue,
         this,
         message,
@@ -520,7 +523,7 @@ export class Job<
     const results = await multi.exec();
     const code = results[results.length - 1][1];
     if (code < 0) {
-      throw Scripts.finishedErrors(code, this.id, command, 'active');
+      throw this.scripts.finishedErrors(code, this.id, command, 'active');
     }
   }
 
@@ -584,7 +587,7 @@ export class Job<
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
   getState(): Promise<JobState | 'unknown'> {
-    return Scripts.getState(this.queue, this.id);
+    return this.scripts.getState(this.queue, this.id);
   }
 
   /**
@@ -594,7 +597,7 @@ export class Job<
    * @returns void
    */
   changeDelay(delay: number): Promise<void> {
-    return Scripts.changeDelay(this.queue, this.id, delay);
+    return this.scripts.changeDelay(this.queue, this.id, delay);
   }
 
   /**
@@ -824,7 +827,7 @@ export class Job<
       // that has already happened. We block checking the job until the queue events object is actually listening to
       // Redis so there's no chance that it will miss events.
       await queueEvents.waitUntilReady();
-      const [status, result] = (await Scripts.isFinished(
+      const [status, result] = (await this.scripts.isFinished(
         this.queue,
         jobId,
         true,
@@ -848,7 +851,7 @@ export class Job<
    * @returns
    */
   moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    return Scripts.moveToDelayed(this.queue, this.id, timestamp, token);
+    return this.scripts.moveToDelayed(this.queue, this.id, timestamp, token);
   }
 
   /**
@@ -862,7 +865,7 @@ export class Job<
     token: string,
     opts: MoveToChildrenOpts = {},
   ): Promise<boolean> {
-    return Scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
+    return this.scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
   }
 
   /**
@@ -872,9 +875,9 @@ export class Job<
     const queue = this.queue;
     const jobId = this.id;
 
-    const code = await Scripts.promote(queue, jobId);
+    const code = await this.scripts.promote(queue, jobId);
     if (code < 0) {
-      throw Scripts.finishedErrors(code, this.id, 'promote', 'delayed');
+      throw this.scripts.finishedErrors(code, this.id, 'promote', 'delayed');
     }
   }
 
@@ -892,7 +895,7 @@ export class Job<
     this.processedOn = null;
     this.returnvalue = null;
 
-    return Scripts.reprocessJob(this.queue, this, state);
+    return this.scripts.reprocessJob(this.queue, this, state);
   }
 
   /**
@@ -910,7 +913,11 @@ export class Job<
   }
 
   private async isInList(list: string): Promise<boolean> {
-    return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
+    return this.scripts.isJobInList(
+      this.queue,
+      this.queue.toKey(list),
+      this.id,
+    );
   }
 
   /**
@@ -939,7 +946,7 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
-    return Scripts.addJob(
+    return this.scripts.addJob(
       client,
       queue,
       jobData,

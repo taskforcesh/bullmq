@@ -55,7 +55,7 @@ export type ParentOpts = {
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
-  static async isJobInList(
+  async isJobInList(
     queue: MinimalQueue,
     listKey: string,
     jobId: string,
@@ -70,7 +70,7 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  static async addJob(
+  async addJob(
     client: RedisClient,
     queue: MinimalQueue,
     job: JobJson,
@@ -137,7 +137,7 @@ export class Scripts {
     return result;
   }
 
-  static async pause(queue: MinimalQueue, pause: boolean): Promise<void> {
+  async pause(queue: MinimalQueue, pause: boolean): Promise<void> {
     const client = await queue.client;
 
     let src = 'wait',
@@ -154,7 +154,7 @@ export class Scripts {
     return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
 
-  static removeRepeatableArgs(
+  private removeRepeatableArgs(
     queue: MinimalQueue,
     repeatJobId: string,
     repeatJobKey: string,
@@ -168,7 +168,7 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async removeRepeatable(
+  async removeRepeatable(
     queue: MinimalQueue,
     repeatJobId: string,
     repeatJobKey: string,
@@ -179,14 +179,14 @@ export class Scripts {
     return (<any>client).removeRepeatable(args);
   }
 
-  static async remove(queue: MinimalQueue, jobId: string): Promise<number> {
+  async remove(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
     const keys = [jobId].map(name => queue.toKey(name));
     return (<any>client).removeJob(keys.concat([jobId]));
   }
 
-  static async extendLock(
+  async extendLock(
     queue: MinimalQueue,
     jobId: string,
     token: string,
@@ -203,7 +203,7 @@ export class Scripts {
     return (<any>client).extendLock(args);
   }
 
-  static async updateData<T = any, R = any, N extends string = string>(
+  async updateData<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
     data: T,
@@ -220,7 +220,7 @@ export class Scripts {
     }
   }
 
-  static async updateProgress<T = any, R = any, N extends string = string>(
+  async updateProgress<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
     progress: number | object,
@@ -241,7 +241,7 @@ export class Scripts {
     queue.emit('progress', job, progress);
   }
 
-  static moveToFinishedArgs<T = any, R = any, N extends string = string>(
+  protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
     val: any,
@@ -305,7 +305,7 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  private static async moveToFinished<
+  private async moveToFinished<
     DataType = any,
     ReturnType = any,
     NameType extends string = string,
@@ -340,7 +340,7 @@ export class Scripts {
     }
   }
 
-  static finishedErrors(
+  finishedErrors(
     code: number,
     jobId: string,
     command: string,
@@ -362,7 +362,10 @@ export class Scripts {
     }
   }
 
-  static drainArgs(queue: MinimalQueue, delayed: boolean): (string | number)[] {
+  private drainArgs(
+    queue: MinimalQueue,
+    delayed: boolean,
+  ): (string | number)[] {
     const queueKeys = queue.keys;
 
     const keys: (string | number)[] = [
@@ -377,14 +380,14 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async drain(queue: MinimalQueue, delayed: boolean): Promise<void> {
+  async drain(queue: MinimalQueue, delayed: boolean): Promise<void> {
     const client = await queue.client;
     const args = this.drainArgs(queue, delayed);
 
     return (<any>client).drain(args);
   }
 
-  static moveToCompleted<T = any, R = any, N extends string = string>(
+  moveToCompleted<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
     returnvalue: R,
@@ -404,7 +407,7 @@ export class Scripts {
     );
   }
 
-  static moveToFailedArgs<T = any, R = any, N extends string = string>(
+  moveToFailedArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
     failedReason: string,
@@ -424,7 +427,7 @@ export class Scripts {
     );
   }
 
-  static async isFinished(
+  async isFinished(
     queue: MinimalQueue,
     jobId: string,
     returnValue = false,
@@ -440,7 +443,7 @@ export class Scripts {
     );
   }
 
-  static async getState(
+  async getState(
     queue: MinimalQueue,
     jobId: string,
   ): Promise<JobState | 'unknown'> {
@@ -464,7 +467,7 @@ export class Scripts {
     return (<any>client).getStateV2(keys.concat([jobId]));
   }
 
-  static async changeDelay(
+  async changeDelay(
     queue: MinimalQueue,
     jobId: string,
     delay: number,
@@ -479,7 +482,7 @@ export class Scripts {
     }
   }
 
-  static changeDelayArgs(
+  private changeDelayArgs(
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
@@ -506,7 +509,7 @@ export class Scripts {
   }
 
   // Note: We have an issue here with jobs using custom job ids
-  static moveToDelayedArgs(
+  moveToDelayedArgs(
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
@@ -533,7 +536,7 @@ export class Scripts {
     return keys.concat([JSON.stringify(timestamp), jobId, token]);
   }
 
-  static moveToWaitingChildrenArgs(
+  moveToWaitingChildrenArgs(
     queue: MinimalQueue,
     jobId: string,
     token: string,
@@ -561,7 +564,7 @@ export class Scripts {
     ]);
   }
 
-  static async moveToDelayed(
+  async moveToDelayed(
     queue: MinimalQueue,
     jobId: string,
     timestamp: number,
@@ -587,7 +590,7 @@ export class Scripts {
    * @throws JobNotInState
    * This exception is thrown if job is not in active state.
    */
-  static async moveToWaitingChildren(
+  async moveToWaitingChildren(
     queue: MinimalQueue,
     jobId: string,
     token: string,
@@ -618,7 +621,7 @@ export class Scripts {
    *
    * @returns Id jobs from the deleted records.
    */
-  static async cleanJobsInSet(
+  async cleanJobsInSet(
     queue: MinimalQueue,
     set: string,
     timestamp: number,
@@ -636,7 +639,7 @@ export class Scripts {
     ]);
   }
 
-  static retryJobArgs<T = any, R = any, N extends string = string>(
+  retryJobArgs<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
   ): string[] {
@@ -653,7 +656,7 @@ export class Scripts {
     return keys.concat([pushCmd, jobId]);
   }
 
-  private static retryJobsArgs(
+  private retryJobsArgs(
     queue: MinimalQueue,
     state: FinishedStatus,
     count: number,
@@ -671,7 +674,7 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async retryJobs(
+  async retryJobs(
     queue: MinimalQueue,
     state: FinishedStatus = 'failed',
     count = 1000,
@@ -698,7 +701,7 @@ export class Scripts {
    * -1 means the job is currently locked and can't be retried.
    * -2 means the job was not found in the expected set
    */
-  static async reprocessJob<T = any, R = any, N extends string = string>(
+  async reprocessJob<T = any, R = any, N extends string = string>(
     queue: MinimalQueue,
     job: Job<T, R, N>,
     state: 'failed' | 'completed',
@@ -728,7 +731,7 @@ export class Scripts {
     }
   }
 
-  static async moveToActive<T, R, N extends string>(
+  async moveToActive<T, R, N extends string>(
     worker: Worker<T, R, N>,
     token: string,
     jobId?: string,
@@ -778,7 +781,7 @@ export class Scripts {
    * It checks if the job in the top of the delay set should be moved back to the
    * top of the  wait queue (so that it will be processed as soon as possible)
    */
-  static async updateDelaySet(
+  async updateDelaySet(
     queue: MinimalQueue,
     delayedTimestamp: number,
   ): Promise<[number, string]> {
@@ -799,7 +802,7 @@ export class Scripts {
     return (<any>client).updateDelaySet(keys.concat(args));
   }
 
-  static async promote(queue: MinimalQueue, jobId: string): Promise<number> {
+  async promote(queue: MinimalQueue, jobId: string): Promise<number> {
     const client = await queue.client;
 
     const keys = [
@@ -824,7 +827,7 @@ export class Scripts {
    * (e.g. if the job handler keeps crashing),
    * we limit the number stalled job recoveries to settings.maxStalledCount.
    */
-  static async moveStalledJobsToWait(queue: QueueScheduler) {
+  async moveStalledJobsToWait(queue: QueueScheduler) {
     const client = await queue.client;
 
     const opts = queue.opts as QueueSchedulerOptions;
@@ -847,7 +850,7 @@ export class Scripts {
     return (<any>client).moveStalledJobsToWait(keys.concat(args));
   }
 
-  static async obliterate(
+  async obliterate(
     queue: MinimalQueue,
     opts: { force: boolean; count: number },
   ): Promise<number> {
