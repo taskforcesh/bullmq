@@ -2,7 +2,6 @@ import { createHash } from 'crypto';
 import { JobsOptions, RepeatOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { Scripts } from './scripts';
 import { parseExpression } from 'cron-parser';
 
 export class Repeat extends QueueBase {
@@ -127,7 +126,7 @@ export class Repeat extends QueueBase {
       jobId || repeat.jobId,
     );
 
-    return this.scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
   async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
@@ -140,7 +139,7 @@ export class Repeat extends QueueBase {
       data.id,
     );
 
-    return this.scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
   private keyToData(key: string) {

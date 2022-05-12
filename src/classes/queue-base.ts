@@ -51,7 +51,7 @@ export class QueueBase extends EventEmitter {
     const queueKeys = new QueueKeys(opts.prefix);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.scripts = new Scripts();
+    this.scripts = new Scripts(this);
   }
 
   get client(): Promise<RedisClient> {
