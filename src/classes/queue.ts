@@ -215,6 +215,9 @@ export class Queue<
     }
   }
 
+  /**
+   * Helper to easily extend Job class calls.
+   */
   protected get Job(): typeof Job {
     return Job;
   }
