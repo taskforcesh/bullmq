@@ -689,15 +689,11 @@ export class Scripts {
     }
   }
 
-  async moveToActive<T, R, N extends string>(
-    worker: Worker<T, R, N>,
-    token: string,
-    jobId?: string,
-  ) {
-    const client = await worker.client;
-    const opts = worker.opts;
+  async moveToActive<T, R, N extends string>(token: string, jobId?: string) {
+    const client = await this.queue.client;
+    const opts = this.queue.opts as WorkerOptions;
 
-    const queueKeys = worker.keys;
+    const queueKeys = this.queue.keys;
     const keys = [
       queueKeys.wait,
       queueKeys.active,
