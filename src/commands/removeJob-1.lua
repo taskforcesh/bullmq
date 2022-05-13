@@ -42,7 +42,7 @@ local function isLocked( prefix, jobId)
     return true
 end
 
-local getPrevState( prefix, jobId)
+local function getPrevState( prefix, jobId)
     if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
         return "wait"
     elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
