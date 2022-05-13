@@ -42,6 +42,26 @@ local function isLocked( prefix, jobId)
     return true
 end
 
+local getPrevState( prefix, jobId)
+    if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
+        return "wait"
+    elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
+        return "paused"
+    elseif rcall("LREM", prefix .. "active", 0, jobId) == 1 then
+        return "active"
+    elseif rcall("ZREM", prefix .. "waiting-children", jobId) == 1 then
+        return "waiting-children"
+    elseif rcall("ZREM", prefix .. "delayed", jobId) == 1 then
+        return "delayed"
+    elseif rcall("ZREM", prefix .. "completed", jobId) == 1 then
+        return "completed"
+    elseif rcall("ZREM", prefix .. "failed", jobId) == 1 then
+        return "failed"
+    end
+    
+    return "unknown"
+end
+
 local function removeJob( prefix, jobId, parentKey)
     local jobKey = prefix .. jobId;
 
@@ -71,22 +91,7 @@ local function removeJob( prefix, jobId, parentKey)
         end
     end
 
-    local prev = "unknown"
-    if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
-        prev = "wait"
-    elseif rcall("ZREM", prefix .. "waiting-children", jobId) == 1 then
-        prev = "waiting-children"
-    elseif rcall("ZREM", prefix .. "delayed", jobId) == 1 then
-        prev = "delayed"
-    elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
-        prev = "paused"
-    elseif rcall("ZREM", prefix .. "completed", jobId) == 1 then
-        prev = "completed"
-    elseif rcall("ZREM", prefix .. "failed", jobId) == 1 then
-        prev = "failed"
-    elseif rcall("LREM", prefix .. "active", 0, jobId) == 1 then
-        prev = "active"
-    end
+    local prev = getPrevState(prefix, jobId)
     
     rcall("ZREM", prefix .. "priority", jobId)
     rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
