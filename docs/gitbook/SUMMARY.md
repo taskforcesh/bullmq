@@ -62,6 +62,7 @@
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
 * [API Reference](https://api.bullmq.pro)
+* [Changelog](bullmq-pro/changelog.md)
 
 ## Bull
 

@@ -173,7 +173,7 @@ export class Scripts {
     queue: MinimalQueue,
     repeatJobId: string,
     repeatJobKey: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const client = await queue.client;
     const args = this.removeRepeatableArgs(queue, repeatJobId, repeatJobKey);
 
