@@ -10,7 +10,6 @@ import {
   QUEUE_SCHEDULER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
-import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
 
 export interface QueueSchedulerListener {
@@ -251,7 +250,7 @@ export class QueueScheduler extends QueueBase {
   private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
       const result = await this.checkConnectionError(() =>
-        Scripts.updateDelaySet(this, timestamp),
+        this.scripts.updateDelaySet(timestamp),
       );
 
       if (!result) {
@@ -265,7 +264,7 @@ export class QueueScheduler extends QueueBase {
 
   private async moveStalledJobsToWait() {
     if (!this.closing) {
-      const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
+      const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
 
       failed.forEach((jobId: string) =>
         this.emit(

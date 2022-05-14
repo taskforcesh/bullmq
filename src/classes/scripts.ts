@@ -27,7 +27,6 @@ import { JobState, FinishedStatus, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey } from '../utils';
 import { Worker } from './worker';
-import { QueueScheduler } from './queue-scheduler';
 import { QueueBase } from './queue-base';
 import { Job, MoveToChildrenOpts } from './job';
 
@@ -55,14 +54,12 @@ export type ParentOpts = {
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
-  static async isJobInList(
-    queue: MinimalQueue,
-    listKey: string,
-    jobId: string,
-  ): Promise<boolean> {
-    const client = await queue.client;
+  constructor(protected queue: MinimalQueue) {}
+
+  async isJobInList(listKey: string, jobId: string): Promise<boolean> {
+    const client = await this.queue.client;
     let result;
-    if (semver.lt(queue.redisVersion, '6.0.6')) {
+    if (semver.lt(this.queue.redisVersion, '6.0.6')) {
       result = await (<any>client).isJobInList([listKey, jobId]);
     } else {
       result = await (<any>client).lpos(listKey, jobId);
@@ -70,9 +67,8 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  static async addJob(
+  async addJob(
     client: RedisClient,
-    queue: MinimalQueue,
     job: JobJson,
     opts: JobsOptions,
     jobId: string,
@@ -82,7 +78,7 @@ export class Scripts {
       parentDependenciesKey: null,
     },
   ): Promise<string> {
-    const queueKeys = queue.keys;
+    const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.wait,
       queueKeys.paused,
@@ -137,8 +133,8 @@ export class Scripts {
     return result;
   }
 
-  static async pause(queue: MinimalQueue, pause: boolean): Promise<void> {
-    const client = await queue.client;
+  async pause(pause: boolean): Promise<void> {
+    const client = await this.queue.client;
 
     let src = 'wait',
       dst = 'paused';
@@ -147,19 +143,20 @@ export class Scripts {
       dst = 'wait';
     }
 
-    const keys = [src, dst, 'meta'].map((name: string) => queue.toKey(name));
+    const keys = [src, dst, 'meta'].map((name: string) =>
+      this.queue.toKey(name),
+    );
 
-    keys.push(queue.keys.events);
+    keys.push(this.queue.keys.events);
 
     return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
 
-  static removeRepeatableArgs(
-    queue: MinimalQueue,
+  private removeRepeatableArgs(
     repeatJobId: string,
     repeatJobKey: string,
   ): string[] {
-    const queueKeys = queue.keys;
+    const queueKeys = this.queue.keys;
 
     const keys = [queueKeys.repeat, queueKeys.delayed];
 
@@ -168,34 +165,32 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async removeRepeatable(
-    queue: MinimalQueue,
+  async removeRepeatable(
     repeatJobId: string,
     repeatJobKey: string,
   ): Promise<number> {
-    const client = await queue.client;
-    const args = this.removeRepeatableArgs(queue, repeatJobId, repeatJobKey);
+    const client = await this.queue.client;
+    const args = this.removeRepeatableArgs(repeatJobId, repeatJobKey);
 
     return (<any>client).removeRepeatable(args);
   }
 
-  static async remove(queue: MinimalQueue, jobId: string): Promise<number> {
-    const client = await queue.client;
+  async remove(jobId: string): Promise<number> {
+    const client = await this.queue.client;
 
-    const keys = [jobId].map(name => queue.toKey(name));
+    const keys = [jobId].map(name => this.queue.toKey(name));
     return (<any>client).removeJob(keys.concat([jobId]));
   }
 
-  static async extendLock(
-    queue: MinimalQueue,
+  async extendLock(
     jobId: string,
     token: string,
     duration: number,
   ): Promise<number> {
-    const client = await queue.client;
+    const client = await this.queue.client;
     const args = [
-      queue.toKey(jobId) + ':lock',
-      queue.keys.stalled,
+      this.queue.toKey(jobId) + ':lock',
+      this.queue.keys.stalled,
       token,
       duration,
       jobId,
@@ -203,14 +198,13 @@ export class Scripts {
     return (<any>client).extendLock(args);
   }
 
-  static async updateData<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+  async updateData<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
     data: T,
   ): Promise<void> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
-    const keys = [queue.toKey(job.id)];
+    const keys = [this.queue.toKey(job.id)];
     const dataJson = JSON.stringify(data);
 
     const result = await (<any>client).updateData(keys.concat([dataJson]));
@@ -220,14 +214,13 @@ export class Scripts {
     }
   }
 
-  static async updateProgress<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+  async updateProgress<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
     progress: number | object,
   ): Promise<void> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
-    const keys = [queue.toKey(job.id), queue.keys.events];
+    const keys = [this.queue.toKey(job.id), this.queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
     const result = await (<any>client).updateProgress(
@@ -238,11 +231,10 @@ export class Scripts {
       throw this.finishedErrors(result, job.id, 'updateProgress');
     }
 
-    queue.emit('progress', job, progress);
+    this.queue.emit('progress', job, progress);
   }
 
-  static moveToFinishedArgs<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+  protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
     val: any,
     propVal: FinishedPropValAttribute,
@@ -250,11 +242,11 @@ export class Scripts {
     target: FinishedStatus,
     token: string,
     fetchNext = true,
-  ) {
-    const queueKeys = queue.keys;
-    const opts: WorkerOptions = <WorkerOptions>queue.opts;
+  ): (string | number | boolean | Buffer)[] {
+    const queueKeys = this.queue.keys;
+    const opts: WorkerOptions = <WorkerOptions>this.queue.opts;
 
-    const metricsKey = queue.toKey(`metrics:${target}`);
+    const metricsKey = this.queue.toKey(`metrics:${target}`);
 
     const keys = [
       queueKeys.wait,
@@ -266,7 +258,7 @@ export class Scripts {
       queueKeys.delayed,
       queueKeys.delay,
       queueKeys[target],
-      queue.toKey(job.id),
+      this.queue.toKey(job.id),
       queueKeys.meta,
       metricsKey,
     ];
@@ -285,7 +277,7 @@ export class Scripts {
       typeof val === 'undefined' ? 'null' : val,
       target,
       JSON.stringify({ jobId: job.id, val: val }),
-      !fetchNext || queue.closing ? 0 : 1,
+      !fetchNext || this.queue.closing ? 0 : 1,
       queueKeys[''],
       pack({
         token,
@@ -305,12 +297,11 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  private static async moveToFinished<
+  protected async moveToFinished<
     DataType = any,
     ReturnType = any,
     NameType extends string = string,
   >(
-    queue: MinimalQueue,
     job: Job<DataType, ReturnType, NameType>,
     val: any,
     propVal: FinishedPropValAttribute,
@@ -319,10 +310,9 @@ export class Scripts {
     token: string,
     fetchNext: boolean,
   ): Promise<JobData | []> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
     const args = this.moveToFinishedArgs<DataType, ReturnType, NameType>(
-      queue,
       job,
       val,
       propVal,
@@ -340,7 +330,7 @@ export class Scripts {
     }
   }
 
-  static finishedErrors(
+  finishedErrors(
     code: number,
     jobId: string,
     command: string,
@@ -362,8 +352,8 @@ export class Scripts {
     }
   }
 
-  static drainArgs(queue: MinimalQueue, delayed: boolean): (string | number)[] {
-    const queueKeys = queue.keys;
+  private drainArgs(delayed: boolean): (string | number)[] {
+    const queueKeys = this.queue.keys;
 
     const keys: (string | number)[] = [
       queueKeys.wait,
@@ -377,15 +367,14 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async drain(queue: MinimalQueue, delayed: boolean): Promise<void> {
-    const client = await queue.client;
-    const args = this.drainArgs(queue, delayed);
+  async drain(delayed: boolean): Promise<void> {
+    const client = await this.queue.client;
+    const args = this.drainArgs(delayed);
 
     return (<any>client).drain(args);
   }
 
-  static moveToCompleted<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+  moveToCompleted<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
     returnvalue: R,
     removeOnComplete: boolean | number | KeepJobs,
@@ -393,7 +382,6 @@ export class Scripts {
     fetchNext: boolean,
   ): Promise<JobData | []> {
     return this.moveToFinished<T, R, N>(
-      queue,
       job,
       returnvalue,
       'returnvalue',
@@ -404,8 +392,7 @@ export class Scripts {
     );
   }
 
-  static moveToFailedArgs<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+  moveToFailedArgs<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
     failedReason: string,
     removeOnFailed: boolean | number | KeepJobs,
@@ -413,7 +400,6 @@ export class Scripts {
     fetchNext = false,
   ) {
     return this.moveToFinishedArgs(
-      queue,
       job,
       failedReason,
       'failedReason',
@@ -424,15 +410,14 @@ export class Scripts {
     );
   }
 
-  static async isFinished(
-    queue: MinimalQueue,
+  async isFinished(
     jobId: string,
     returnValue = false,
   ): Promise<number | [number, string]> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
-    const keys = ['completed', 'failed', jobId].map(function (key: string) {
-      return queue.toKey(key);
+    const keys = ['completed', 'failed', jobId].map((key: string) => {
+      return this.queue.toKey(key);
     });
 
     return (<any>client).isFinished(
@@ -440,11 +425,8 @@ export class Scripts {
     );
   }
 
-  static async getState(
-    queue: MinimalQueue,
-    jobId: string,
-  ): Promise<JobState | 'unknown'> {
-    const client = await queue.client;
+  async getState(jobId: string): Promise<JobState | 'unknown'> {
+    const client = await this.queue.client;
 
     const keys = [
       'completed',
@@ -454,36 +436,28 @@ export class Scripts {
       'wait',
       'paused',
       'waiting-children',
-    ].map(function (key: string) {
-      return queue.toKey(key);
+    ].map((key: string) => {
+      return this.queue.toKey(key);
     });
 
-    if (semver.lt(queue.redisVersion, '6.0.6')) {
+    if (semver.lt(this.queue.redisVersion, '6.0.6')) {
       return (<any>client).getState(keys.concat([jobId]));
     }
     return (<any>client).getStateV2(keys.concat([jobId]));
   }
 
-  static async changeDelay(
-    queue: MinimalQueue,
-    jobId: string,
-    delay: number,
-  ): Promise<void> {
-    const client = await queue.client;
+  async changeDelay(jobId: string, delay: number): Promise<void> {
+    const client = await this.queue.client;
 
     const delayTimestamp = Date.now() + delay;
-    const args = this.changeDelayArgs(queue, jobId, delayTimestamp);
+    const args = this.changeDelayArgs(jobId, delayTimestamp);
     const result = await (<any>client).changeDelay(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
     }
   }
 
-  static changeDelayArgs(
-    queue: MinimalQueue,
-    jobId: string,
-    timestamp: number,
-  ): string[] {
+  private changeDelayArgs(jobId: string, timestamp: number): string[] {
     //
     // Bake in the job id first 12 bits into the timestamp
     // to guarantee correct execution order of delayed jobs
@@ -497,21 +471,16 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['delayed', jobId].map(function (name) {
-      return queue.toKey(name);
+    const keys = ['delayed', jobId].map(name => {
+      return this.queue.toKey(name);
     });
-    keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
+    keys.push.apply(keys, [this.queue.keys.events, this.queue.keys.delay]);
 
     return keys.concat([JSON.stringify(timestamp), jobId]);
   }
 
   // Note: We have an issue here with jobs using custom job ids
-  static moveToDelayedArgs(
-    queue: MinimalQueue,
-    jobId: string,
-    timestamp: number,
-    token: string,
-  ): string[] {
+  moveToDelayedArgs(jobId: string, timestamp: number, token: string): string[] {
     //
     // Bake in the job id first 12 bits into the timestamp
     // to guarantee correct execution order of delayed jobs
@@ -525,16 +494,15 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['active', 'delayed', jobId].map(function (name) {
-      return queue.toKey(name);
+    const keys = ['active', 'delayed', jobId].map(name => {
+      return this.queue.toKey(name);
     });
-    keys.push.apply(keys, [queue.keys.events, queue.keys.delay]);
+    keys.push.apply(keys, [this.queue.keys.events, this.queue.keys.delay]);
 
     return keys.concat([JSON.stringify(timestamp), jobId, token]);
   }
 
-  static moveToWaitingChildrenArgs(
-    queue: MinimalQueue,
+  moveToWaitingChildrenArgs(
     jobId: string,
     token: string,
     opts?: MoveToChildrenOpts,
@@ -548,8 +516,8 @@ export class Scripts {
     }
 
     const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      function (name) {
-        return queue.toKey(name);
+      name => {
+        return this.queue.toKey(name);
       },
     );
 
@@ -561,15 +529,14 @@ export class Scripts {
     ]);
   }
 
-  static async moveToDelayed(
-    queue: MinimalQueue,
+  async moveToDelayed(
     jobId: string,
     timestamp: number,
     token = '0',
   ): Promise<void> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
-    const args = this.moveToDelayedArgs(queue, jobId, timestamp, token);
+    const args = this.moveToDelayedArgs(jobId, timestamp, token);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
@@ -587,15 +554,14 @@ export class Scripts {
    * @throws JobNotInState
    * This exception is thrown if job is not in active state.
    */
-  static async moveToWaitingChildren(
-    queue: MinimalQueue,
+  async moveToWaitingChildren(
     jobId: string,
     token: string,
     opts: MoveToChildrenOpts = {},
   ): Promise<boolean> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
-    const args = this.moveToWaitingChildrenArgs(queue, jobId, token, opts);
+    const args = this.moveToWaitingChildrenArgs(jobId, token, opts);
     const result = await (<any>client).moveToWaitingChildren(args);
 
     switch (result) {
@@ -618,52 +584,49 @@ export class Scripts {
    *
    * @returns Id jobs from the deleted records.
    */
-  static async cleanJobsInSet(
-    queue: MinimalQueue,
+  async cleanJobsInSet(
     set: string,
     timestamp: number,
     limit = 0,
   ): Promise<string[]> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
     return (<any>client).cleanJobsInSet([
-      queue.toKey(set),
-      queue.toKey('events'),
-      queue.toKey(''),
+      this.queue.toKey(set),
+      this.queue.toKey('events'),
+      this.queue.toKey(''),
       timestamp,
       limit,
       set,
     ]);
   }
 
-  static retryJobArgs<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+  retryJobArgs<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
   ): string[] {
     const jobId = job.id;
 
-    const keys = ['active', 'wait', jobId].map(function (name) {
-      return queue.toKey(name);
+    const keys = ['active', 'wait', jobId].map(name => {
+      return this.queue.toKey(name);
     });
 
-    keys.push(queue.keys.events);
+    keys.push(this.queue.keys.events);
 
     const pushCmd = (job.opts.lifo ? 'R' : 'L') + 'PUSH';
 
     return keys.concat([pushCmd, jobId]);
   }
 
-  private static retryJobsArgs(
-    queue: MinimalQueue,
+  protected retryJobsArgs(
     state: FinishedStatus,
     count: number,
     timestamp: number,
   ): (string | number)[] {
     const keys: (string | number)[] = [
-      queue.toKey(''),
-      queue.keys.events,
-      queue.toKey(state),
-      queue.toKey('wait'),
+      this.queue.toKey(''),
+      this.queue.keys.events,
+      this.queue.toKey(state),
+      this.queue.toKey('wait'),
     ];
 
     const args = [count, timestamp];
@@ -671,15 +634,14 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  static async retryJobs(
-    queue: MinimalQueue,
+  async retryJobs(
     state: FinishedStatus = 'failed',
     count = 1000,
     timestamp = new Date().getTime(),
   ): Promise<number> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
-    const args = this.retryJobsArgs(queue, state, count, timestamp);
+    const args = this.retryJobsArgs(state, count, timestamp);
 
     return (<any>client).retryJobs(args);
   }
@@ -698,18 +660,17 @@ export class Scripts {
    * -1 means the job is currently locked and can't be retried.
    * -2 means the job was not found in the expected set
    */
-  static async reprocessJob<T = any, R = any, N extends string = string>(
-    queue: MinimalQueue,
+  async reprocessJob<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
     state: 'failed' | 'completed',
   ): Promise<void> {
-    const client = await queue.client;
+    const client = await this.queue.client;
 
     const keys = [
-      queue.toKey(job.id),
-      queue.keys.events,
-      queue.toKey(state),
-      queue.toKey('wait'),
+      this.queue.toKey(job.id),
+      this.queue.keys.events,
+      this.queue.toKey(state),
+      this.queue.toKey('wait'),
     ];
 
     const args = [
@@ -728,15 +689,11 @@ export class Scripts {
     }
   }
 
-  static async moveToActive<T, R, N extends string>(
-    worker: Worker<T, R, N>,
-    token: string,
-    jobId?: string,
-  ) {
-    const client = await worker.client;
-    const opts = worker.opts;
+  async moveToActive<T, R, N extends string>(token: string, jobId?: string) {
+    const client = await this.queue.client;
+    const opts = this.queue.opts as WorkerOptions;
 
-    const queueKeys = worker.keys;
+    const queueKeys = this.queue.keys;
     const keys = [
       queueKeys.wait,
       queueKeys.active,
@@ -778,39 +735,36 @@ export class Scripts {
    * It checks if the job in the top of the delay set should be moved back to the
    * top of the  wait queue (so that it will be processed as soon as possible)
    */
-  static async updateDelaySet(
-    queue: MinimalQueue,
-    delayedTimestamp: number,
-  ): Promise<[number, string]> {
-    const client = await queue.client;
+  async updateDelaySet(delayedTimestamp: number): Promise<[number, string]> {
+    const client = await this.queue.client;
 
     const keys: (string | number)[] = [
-      queue.keys.delayed,
-      queue.keys.wait,
-      queue.keys.priority,
-      queue.keys.paused,
-      queue.keys.meta,
-      queue.keys.events,
-      queue.keys.delay,
+      this.queue.keys.delayed,
+      this.queue.keys.wait,
+      this.queue.keys.priority,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+      this.queue.keys.events,
+      this.queue.keys.delay,
     ];
 
-    const args = [queue.toKey(''), delayedTimestamp];
+    const args = [this.queue.toKey(''), delayedTimestamp];
 
     return (<any>client).updateDelaySet(keys.concat(args));
   }
 
-  static async promote(queue: MinimalQueue, jobId: string): Promise<number> {
-    const client = await queue.client;
+  async promote(jobId: string): Promise<number> {
+    const client = await this.queue.client;
 
     const keys = [
-      queue.keys.delayed,
-      queue.keys.wait,
-      queue.keys.paused,
-      queue.keys.priority,
-      queue.keys.events,
+      this.queue.keys.delayed,
+      this.queue.keys.wait,
+      this.queue.keys.paused,
+      this.queue.keys.priority,
+      this.queue.keys.events,
     ];
 
-    const args = [queue.toKey(''), jobId];
+    const args = [this.queue.toKey(''), jobId];
 
     return (<any>client).promote(keys.concat(args));
   }
@@ -824,36 +778,36 @@ export class Scripts {
    * (e.g. if the job handler keeps crashing),
    * we limit the number stalled job recoveries to settings.maxStalledCount.
    */
-  static async moveStalledJobsToWait(queue: QueueScheduler) {
-    const client = await queue.client;
+  async moveStalledJobsToWait() {
+    const client = await this.queue.client;
 
-    const opts = queue.opts as QueueSchedulerOptions;
+    const opts = this.queue.opts as QueueSchedulerOptions;
     const keys: (string | number)[] = [
-      queue.keys.stalled,
-      queue.keys.wait,
-      queue.keys.active,
-      queue.keys.failed,
-      queue.keys['stalled-check'],
-      queue.keys.meta,
-      queue.keys.paused,
-      queue.keys.events,
+      this.queue.keys.stalled,
+      this.queue.keys.wait,
+      this.queue.keys.active,
+      this.queue.keys.failed,
+      this.queue.keys['stalled-check'],
+      this.queue.keys.meta,
+      this.queue.keys.paused,
+      this.queue.keys.events,
     ];
     const args = [
       opts.maxStalledCount,
-      queue.toKey(''),
+      this.queue.toKey(''),
       Date.now(),
       opts.stalledInterval,
     ];
     return (<any>client).moveStalledJobsToWait(keys.concat(args));
   }
 
-  static async obliterate(
-    queue: MinimalQueue,
-    opts: { force: boolean; count: number },
-  ): Promise<number> {
-    const client = await queue.client;
+  async obliterate(opts: { force: boolean; count: number }): Promise<number> {
+    const client = await this.queue.client;
 
-    const keys: (string | number)[] = [queue.keys.meta, queue.toKey('')];
+    const keys: (string | number)[] = [
+      this.queue.keys.meta,
+      this.queue.toKey(''),
+    ];
     const args = [opts.count, opts.force ? 'force' : null];
 
     const result = await (<any>client).obliterate(keys.concat(args));

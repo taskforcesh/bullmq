@@ -5,7 +5,6 @@ import { isRedisInstance, jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
-import { Scripts } from './scripts';
 import { RedisConnection } from './redis-connection';
 import { FinishedStatus } from '../types';
 
@@ -201,7 +200,7 @@ export class Queue<
     } else {
       const jobId = jobIdForGroup(opts, data, { limiter: this.limiter });
 
-      const job = await Job.create<DataType, ResultType, NameType>(
+      const job = await this.Job.create<DataType, ResultType, NameType>(
         this,
         name,
         data,
@@ -214,6 +213,13 @@ export class Queue<
       this.emit('waiting', job);
       return job;
     }
+  }
+
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
   }
 
   /**
@@ -251,7 +257,7 @@ export class Queue<
    * and in that case it will add it there instead of the wait list.
    */
   async pause(): Promise<void> {
-    await Scripts.pause(this, true);
+    await this.scripts.pause(true);
     this.emit('paused');
   }
 
@@ -270,7 +276,7 @@ export class Queue<
    * queue.
    */
   async resume(): Promise<void> {
-    await Scripts.pause(this, false);
+    await this.scripts.pause(false);
     this.emit('resumed');
   }
 
@@ -322,7 +328,7 @@ export class Queue<
    * any of its dependencies was locked.
    */
   remove(jobId: string): Promise<number> {
-    return Scripts.remove(this, jobId);
+    return this.scripts.remove(jobId);
   }
 
   /**
@@ -333,7 +339,7 @@ export class Queue<
    * delayed jobs.
    */
   drain(delayed = false): Promise<void> {
-    return Scripts.drain(this, delayed);
+    return this.scripts.drain(delayed);
   }
 
   /**
@@ -357,8 +363,7 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    const jobs = await Scripts.cleanJobsInSet(
-      this,
+    const jobs = await this.scripts.cleanJobsInSet(
       type,
       Date.now() - grace,
       limit,
@@ -384,7 +389,7 @@ export class Queue<
 
     let cursor = 0;
     do {
-      cursor = await Scripts.obliterate(this, {
+      cursor = await this.scripts.obliterate({
         force: false,
         count: 1000,
         ...opts,
@@ -404,8 +409,7 @@ export class Queue<
   ): Promise<void> {
     let cursor = 0;
     do {
-      cursor = await Scripts.retryJobs(
-        this,
+      cursor = await this.scripts.retryJobs(
         opts.state,
         opts.count,
         opts.timestamp,
