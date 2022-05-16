@@ -216,13 +216,6 @@ export class Queue<
   }
 
   /**
-   * Helper to easily extend Job class calls.
-   */
-  protected get Job(): typeof Job {
-    return Job;
-  }
-
-  /**
    * Adds an array of jobs to the queue.
    *
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
@@ -231,7 +224,7 @@ export class Queue<
   addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
   ): Promise<Job<DataType, DataType, NameType>[]> {
-    return Job.createBulk<DataType, DataType, NameType>(
+    return this.Job.createBulk<DataType, DataType, NameType>(
       this,
       jobs.map(job => ({
         name: job.name,
