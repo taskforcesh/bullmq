@@ -42,7 +42,7 @@ local function isLocked( prefix, jobId)
     return true
 end
 
-local function getPrevState( prefix, jobId)
+local function removeJobFromAnyState( prefix, jobId)
     if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
         return "wait"
     elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
@@ -91,7 +91,7 @@ local function removeJob( prefix, jobId, parentKey)
         end
     end
 
-    local prev = getPrevState(prefix, jobId)
+    local prev = removeJobFromAnyState(prefix, jobId)
     
     rcall("ZREM", prefix .. "priority", jobId)
     rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
