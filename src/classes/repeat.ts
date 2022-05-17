@@ -110,7 +110,7 @@ export class Repeat extends QueueBase {
 
     await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 
-    return Job.create<T, R, N>(this, name, data, mergedOpts);
+    return this.Job.create<T, R, N>(this, name, data, mergedOpts);
   }
 
   async removeRepeatable(

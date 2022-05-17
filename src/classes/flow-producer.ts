@@ -157,6 +157,13 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
+  }
+
+  /**
    * Adds multiple flows.
    *
    * A flow is a tree-like structure of jobs that depend on each other.
@@ -280,7 +287,7 @@ export class FlowProducer extends EventEmitter {
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
     const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
 
-    const job = await Job.fromId(queue, node.id);
+    const job = await this.Job.fromId(queue, node.id);
 
     if (job) {
       const { processed = {}, unprocessed = [] } = await job.getDependencies({

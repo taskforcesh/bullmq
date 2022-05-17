@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
 import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
+import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
 
@@ -60,6 +61,13 @@ export class QueueBase extends EventEmitter {
 
   get redisVersion(): string {
     return this.connection.redisVersion;
+  }
+
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
   }
 
   emit(event: string | symbol, ...args: any[]): boolean {

@@ -20,7 +20,7 @@ export class QueueGetters<
   getJob(
     jobId: string,
   ): Promise<Job<DataType, ResultType, NameType> | undefined> {
-    return Job.fromId(this, jobId) as Promise<
+    return this.Job.fromId(this, jobId) as Promise<
       Job<DataType, ResultType, NameType>
     >;
   }
@@ -48,6 +48,13 @@ export class QueueGetters<
           return callback(key, count ? 'llen' : 'lrange');
       }
     });
+  }
+
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
   }
 
   private sanitizeJobTypes(types: JobType[] | JobType | undefined): JobType[] {
@@ -268,7 +275,7 @@ export class QueueGetters<
     return Promise.all(
       jobIds.map(
         jobId =>
-          Job.fromId(this, jobId) as Promise<
+          this.Job.fromId(this, jobId) as Promise<
             Job<DataType, ResultType, NameType>
           >,
       ),
@@ -351,13 +358,13 @@ export class QueueGetters<
    *
    * @returns - Returns an array with queue events info.
    */
-     async getQueueEvents(): Promise<
-     {
-       [index: string]: string;
-     }[]
-   > {
-     return this.baseGetClients(QUEUE_EVENT_SUFFIX);
-   }
+  async getQueueEvents(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
+    return this.baseGetClients(QUEUE_EVENT_SUFFIX);
+  }
 
   /**
    * Get queue metrics related to the queue.
