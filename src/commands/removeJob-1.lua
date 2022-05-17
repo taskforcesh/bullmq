@@ -42,6 +42,26 @@ local function isLocked( prefix, jobId)
     return true
 end
 
+local function removeJobFromAnyState( prefix, jobId)
+    if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
+        return "wait"
+    elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
+        return "paused"
+    elseif rcall("LREM", prefix .. "active", 0, jobId) == 1 then
+        return "active"
+    elseif rcall("ZREM", prefix .. "waiting-children", jobId) == 1 then
+        return "waiting-children"
+    elseif rcall("ZREM", prefix .. "delayed", jobId) == 1 then
+        return "delayed"
+    elseif rcall("ZREM", prefix .. "completed", jobId) == 1 then
+        return "completed"
+    elseif rcall("ZREM", prefix .. "failed", jobId) == 1 then
+        return "failed"
+    end
+    
+    return "unknown"
+end
+
 local function removeJob( prefix, jobId, parentKey)
     local jobKey = prefix .. jobId;
 
@@ -71,14 +91,9 @@ local function removeJob( prefix, jobId, parentKey)
         end
     end
 
-    rcall("LREM", prefix .. "active", 0, jobId)
-    rcall("LREM", prefix .. "wait", 0, jobId)
-    rcall("ZREM", prefix .. "delayed", jobId)
-    rcall("LREM", prefix .. "paused", 0, jobId)
-    rcall("ZREM", prefix .. "completed", jobId)
-    rcall("ZREM", prefix .. "failed", jobId)
+    local prev = removeJobFromAnyState(prefix, jobId)
+    
     rcall("ZREM", prefix .. "priority", jobId)
-    rcall("ZREM", prefix .. "waiting-children", jobId)
     rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
 
     -- -- delete keys related to rate limiter
@@ -89,7 +104,7 @@ local function removeJob( prefix, jobId, parentKey)
         --     rcall("HDEL", limiterIndexTable, jobId)
     -- end
 
-    rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", "unknown");
+    rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", prev);
 end
 
 local prefix = getJobKeyPrefix(KEYS[1], ARGV[1])

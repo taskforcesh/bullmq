@@ -2,13 +2,16 @@ import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
 import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
+import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
+import { Scripts } from './scripts';
 
 export class QueueBase extends EventEmitter {
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void>;
 
+  protected scripts: Scripts;
   protected connection: RedisConnection;
 
   constructor(
@@ -49,6 +52,7 @@ export class QueueBase extends EventEmitter {
     const queueKeys = new QueueKeys(opts.prefix);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
+    this.scripts = new Scripts(this);
   }
 
   get client(): Promise<RedisClient> {
@@ -57,6 +61,13 @@ export class QueueBase extends EventEmitter {
 
   get redisVersion(): string {
     return this.connection.redisVersion;
+  }
+
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
   }
 
   emit(event: string | symbol, ...args: any[]): boolean {

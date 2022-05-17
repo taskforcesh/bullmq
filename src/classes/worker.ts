@@ -23,7 +23,6 @@ import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
-import { Scripts } from './scripts';
 import { TimerManager } from './timer-manager';
 
 // note: sandboxed processors would also like to define concurrency per process
@@ -266,7 +265,7 @@ export class Worker<
     data: JobJsonRaw,
     jobId: string,
   ): Job<DataType, ResultType, NameType> {
-    return Job.fromJSON(this, data, jobId) as Job<
+    return this.Job.fromJSON(this, data, jobId) as Job<
       DataType,
       ResultType,
       NameType
@@ -430,7 +429,7 @@ export class Worker<
     token: string,
     jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
+    const [jobData, id] = await this.scripts.moveToActive(token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
 

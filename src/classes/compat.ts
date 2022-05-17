@@ -276,9 +276,11 @@ export class Queue3<T = any> extends EventEmitter {
    *
    * name: The name of the to be removed job
    */
-  async removeRepeatable(name: string, opts: RepeatOptions): Promise<void> {
+  async removeRepeatable(name: string, opts: RepeatOptions): Promise<boolean> {
     const repeat = await this.queue.repeat;
-    return repeat.removeRepeatable(name, opts, opts.jobId);
+    const removed = await repeat.removeRepeatable(name, opts, opts.jobId);
+
+    return !removed;
   }
 
   /**

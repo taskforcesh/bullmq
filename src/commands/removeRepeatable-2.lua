@@ -8,6 +8,10 @@
     ARGV[1] repeat job id
     ARGV[2] repeat job key
     ARGV[3] queue key
+
+  Output:
+    0 - OK
+    1 - Missing repeat job
 ]]
 local rcall = redis.call
 local millis = rcall("ZSCORE", KEYS[1], ARGV[2])
@@ -21,4 +25,8 @@ if(millis) then
   end
 end
 
-rcall("ZREM", KEYS[1], ARGV[2]);
+if(rcall("ZREM", KEYS[1], ARGV[2]) == 1) then
+  return 0
+end
+
+return 1
