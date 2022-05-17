@@ -69,6 +69,7 @@ export class RedisConnection extends EventEmitter {
           (node: { host: string }) => node.host,
         );
         this.checkUpstashHost(this._client.options.redisOptions?.host || hosts);
+        this.opts = this._client.options.redisOptions;
       } else {
         this.opts = this._client.options;
 
