@@ -5,6 +5,7 @@ import { Job } from './job';
 import { Scripts } from './scripts';
 import { parseExpression } from 'cron-parser';
 import { rrulestr } from 'rrule';
+import { JobInformation3 } from './compat';
 
 export class Repeat extends QueueBase {
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -38,7 +39,8 @@ export class Repeat extends QueueBase {
     const nextMillis = getNextMillis(now, repeatOpts);
 
     const hasImmediately =
-      (repeatOpts.every || repeatOpts.cron) && repeatOpts.immediately;
+      (repeatOpts.every || repeatOpts.cron || repeatOpts.rrule) &&
+      repeatOpts.immediately;
     const offset = hasImmediately ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
@@ -133,7 +135,6 @@ export class Repeat extends QueueBase {
 
   async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
     const data = this.keyToData(repeatJobKey);
-
     const repeatJobId = getRepeatJobId(
       data.name,
       '',
@@ -146,6 +147,10 @@ export class Repeat extends QueueBase {
 
   private keyToData(key: string) {
     const data = key.split(':');
+    const rrule =
+      data[4] === 'RRULE' || data[4] === 'DTSTART'
+        ? data.slice(4).join(':')
+        : null;
 
     return {
       key,
@@ -153,11 +158,16 @@ export class Repeat extends QueueBase {
       id: data[1] || null,
       endDate: parseInt(data[2]) || null,
       tz: data[3] || null,
-      cron: data[4],
+      ...(!rrule && { cron: data[4] }),
+      ...(rrule && { rrule }),
     };
   }
 
-  async getRepeatableJobs(start = 0, end = -1, asc = false): Promise<object[]> {
+  async getRepeatableJobs(
+    start = 0,
+    end = -1,
+    asc = false,
+  ): Promise<JobInformation3[]> {
     const client = await this.client;
 
     const key = this.keys.repeat;
@@ -167,14 +177,8 @@ export class Repeat extends QueueBase {
 
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
-      const data = result[i].split(':');
       jobs.push({
-        key: result[i],
-        name: data[0],
-        id: data[1] || null,
-        endDate: parseInt(data[2]) || null,
-        tz: data[3] || null,
-        cron: data[4],
+        ...this.keyToData(result[i]),
         next: parseInt(result[i + 1]),
       });
     }
@@ -220,10 +224,20 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
     );
   }
 
+  if (opts.rrule && opts.every) {
+    throw new Error(
+      'Both .rrule and .every options are defined for this repeatable job',
+    );
+  }
+
   if (opts.cron && opts.rrule) {
     throw new Error(
       'Both .cron and .rrule options are defined for this repeatable job',
     );
+  }
+
+  if (opts.rrule && opts.tz) {
+    throw new Error('.tz is not supported for .rrule jobs');
   }
 
   if (opts.every) {
@@ -240,10 +254,12 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
 
   if (opts.rrule) {
     const rrule = rrulestr(opts.rrule);
+    if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
+      throw new Error('DTSTART must be defined to use COUNT with rrule');
+    }
 
-    const next_occurrence = rrule.after(currentDate, true);
-
-    return next_occurrence.getTime();
+    const next_occurrence = rrule.after(currentDate, false);
+    return next_occurrence?.getTime();
   }
 
   const interval = parseExpression(opts.cron, {

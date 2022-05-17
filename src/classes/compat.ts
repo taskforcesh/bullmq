@@ -860,7 +860,8 @@ export interface JobInformation3 {
   id?: string;
   endDate?: number;
   tz?: string;
-  cron: string;
+  cron?: string;
+  rrule?: string;
   next: number;
 }
 
