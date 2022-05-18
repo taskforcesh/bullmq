@@ -892,10 +892,10 @@
   resolved "https://registry.yarnpkg.com/@types/retry/-/retry-0.12.0.tgz#2b35eccfcee7d38cd72ad99232fbd58bffb3c84d"
   integrity sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==
 
-"@types/semver@^6.2.3":
-  version "6.2.3"
-  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-6.2.3.tgz#5798ecf1bec94eaa64db39ee52808ec0693315aa"
-  integrity sha512-KQf+QAMWKMrtBMsB8/24w53tEsxllMj6TuA80TT/5igJalLI/zm0L3oXRbIAl4Ohfc85gyHX/jhMwsVkmhLU4A==
+"@types/semver@^7.3.9":
+  version "7.3.9"
+  resolved "https://registry.yarnpkg.com/@types/semver/-/semver-7.3.9.tgz#152c6c20a7688c30b967ec1841d31ace569863fc"
+  integrity sha512-L/TMpyURfBkf+o/526Zb6kd/tchUP3iBDEPjqjb+U2MAJhVRxxrmr2fwpe08E7QsV7YLcpq0tUaQ9O9x97ZIxQ==
 
 "@types/sinon@^7.5.2":
   version "7.5.2"
@@ -1345,9 +1345,9 @@ builtins@^5.0.0:
     semver "^7.0.0"
 
 cacache@*, cacache@^16.0.0, cacache@^16.0.2, cacache@^16.0.6:
-  version "16.0.7"
-  resolved "https://registry.yarnpkg.com/cacache/-/cacache-16.0.7.tgz#74a5d9bc4c17b4c0b373c1f5d42dadf5dc06638d"
-  integrity sha512-a4zfQpp5vm4Ipdvbj+ZrPonikRhm6WBEd4zT1Yc1DXsmAxrPgDwWBLF/u/wTVXSFPIgOJ1U3ghSa2Xm4s3h28w==
+  version "16.1.0"
+  resolved "https://registry.yarnpkg.com/cacache/-/cacache-16.1.0.tgz#87a6bae558a511c9cb2a13768073e240ca76153a"
+  integrity sha512-Pk4aQkwCW82A4jGKFvcGkQFqZcMspfP9YWq9Pr87/ldDvlWf718zeI6KWCdKt/jeihu6BytHRUicJPB1K2k8EQ==
   dependencies:
     "@npmcli/fs" "^2.1.0"
     "@npmcli/move-file" "^2.0.0"
@@ -4256,9 +4256,9 @@ marked@^2.0.0:
   integrity sha512-/Q+7MGzaETqifOMWYEA7HVMaZb4XbcRfaOzcSsHZEith83KGlvaSG33u0SKu89Mj5h+T8V2hM+8O45Qc5XTgwA==
 
 marked@^4.0.12:
-  version "4.0.15"
-  resolved "https://registry.yarnpkg.com/marked/-/marked-4.0.15.tgz#0216b7c9d5fcf6ac5042343c41d81a8b1b5e1b4a"
-  integrity sha512-esX5lPdTfG4p8LDkv+obbRCyOKzB+820ZZyMOXJZygZBHrH9b3xXR64X4kT3sPe9Nx8qQXbmcz6kFSMt4Nfk6Q==
+  version "4.0.16"
+  resolved "https://registry.yarnpkg.com/marked/-/marked-4.0.16.tgz#9ec18fc1a723032eb28666100344d9428cf7a264"
+  integrity sha512-wahonIQ5Jnyatt2fn8KqF/nIqZM8mh3oRu2+l5EANGMhu6RFjiSG52QNE2eWzFMI94HqYSgN184NurgNG6CztA==
 
 memorystream@^0.3.1:
   version "0.3.1"
@@ -5218,9 +5218,9 @@ package-hash@^3.0.0:
     release-zalgo "^1.0.0"
 
 pacote@*, pacote@^13.0.3, pacote@^13.0.5:
-  version "13.3.0"
-  resolved "https://registry.yarnpkg.com/pacote/-/pacote-13.3.0.tgz#e221febc17ce2435ce9f31de411832327a34c5ad"
-  integrity sha512-auhJAUlfC2TALo6I0s1vFoPvVFgWGx+uz/PnIojTTgkGwlK3Np8sGJ0ghfFhiuzJXTZoTycMLk8uLskdntPbDw==
+  version "13.4.0"
+  resolved "https://registry.yarnpkg.com/pacote/-/pacote-13.4.0.tgz#c0a6eafa28ef0e4d3b238a852b13e29528be0788"
+  integrity sha512-GCeiEtCeaXBB00lqsVek87pozP16AguQ2OeW5COVD/ItTFkidfbd1zX1+s7P4k+mjmpqB6RPcCgAGY7/zM8rtQ==
   dependencies:
     "@npmcli/git" "^3.0.0"
     "@npmcli/installed-package-contents" "^1.0.7"
