@@ -253,6 +253,7 @@ describe('Cleaner', () => {
             });
 
             await completing;
+            await delay(100);
             await queue.clean(0, 0, 'completed');
 
             const client = await queue.client;
