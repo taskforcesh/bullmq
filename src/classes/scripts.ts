@@ -13,7 +13,6 @@ const packer = new Packr({
 
 const pack = packer.pack;
 
-import * as semver from 'semver';
 import {
   JobJson,
   JobJsonRaw,
@@ -25,8 +24,7 @@ import {
 } from '../interfaces';
 import { JobState, FinishedStatus, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
-import { array2obj, getParentKey } from '../utils';
-import { Worker } from './worker';
+import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { QueueBase } from './queue-base';
 import { Job, MoveToChildrenOpts } from './job';
 
@@ -59,7 +57,7 @@ export class Scripts {
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
     let result;
-    if (semver.lt(this.queue.redisVersion, '6.0.6')) {
+    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
       result = await (<any>client).isJobInList([listKey, jobId]);
     } else {
       result = await (<any>client).lpos(listKey, jobId);
@@ -440,7 +438,7 @@ export class Scripts {
       return this.queue.toKey(key);
     });
 
-    if (semver.lt(this.queue.redisVersion, '6.0.6')) {
+    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
       return (<any>client).getState(keys.concat([jobId]));
     }
     return (<any>client).getStateV2(keys.concat([jobId]));

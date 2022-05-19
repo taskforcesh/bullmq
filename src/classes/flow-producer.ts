@@ -212,7 +212,7 @@ export class FlowProducer extends EventEmitter {
     const jobsOpts = get(queueOpts, 'defaultJobOptions');
     const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
 
-    const job = new Job(
+    const job = new this.Job(
       queue,
       node.name,
       node.data,
