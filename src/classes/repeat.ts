@@ -161,6 +161,7 @@ export class Repeat extends QueueBase {
 
   private keyToData(key: string) {
     const data = key.split(':');
+    const cron = data.slice(4).join(':') || null;
 
     return {
       key,
@@ -168,7 +169,7 @@ export class Repeat extends QueueBase {
       id: data[1] || null,
       endDate: parseInt(data[2]) || null,
       tz: data[3] || null,
-      cron: data[4],
+      cron,
     };
   }
 

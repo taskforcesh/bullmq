@@ -3,6 +3,7 @@ import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
+import { rrulestr } from 'rrule';
 import {
   Job,
   Queue,
@@ -418,6 +419,84 @@ describe('repeat', function () {
     await worker.close();
     await removeAllQueueData(new IORedis(), queueName2);
     delayStub.restore();
+  });
+
+  describe('when custom cron strategy is provided', function () {
+    it('should repeat every 2 seconds', async function () {
+      this.timeout(20000);
+      const settings = {
+        cronStrategies: {
+          rrule: (millis, opts) => {
+            const currentDate =
+              opts.startDate && new Date(opts.startDate) > new Date(millis)
+                ? new Date(opts.startDate)
+                : new Date(millis);
+            const rrule = rrulestr(opts.cron);
+            if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
+              throw new Error(
+                'DTSTART must be defined to use COUNT with rrule',
+              );
+            }
+
+            const next_occurrence = rrule.after(currentDate, false);
+            return next_occurrence?.getTime();
+          },
+        },
+      };
+      const currentQueue = new Queue(queueName, { connection, settings });
+      const queueScheduler = new QueueScheduler(queueName, { connection });
+      await queueScheduler.waitUntilReady();
+
+      const nextTick = 2 * ONE_SECOND + 100;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          this.clock.tick(nextTick);
+        },
+        { connection, settings },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+
+      await currentQueue.add(
+        'test',
+        { foo: 'bar' },
+        {
+          repeat: {
+            cron: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
+            type: 'rrule',
+          },
+        },
+      );
+
+      this.clock.tick(nextTick);
+
+      let prev: any;
+      let counter = 0;
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', async job => {
+          if (prev) {
+            expect(prev.timestamp).to.be.lt(job.timestamp);
+            expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+          }
+          prev = job;
+          counter++;
+          if (counter == 5) {
+            resolve();
+          }
+        });
+      });
+
+      await completing;
+      await currentQueue.close();
+      await worker.close();
+      await queueScheduler.close();
+      delayStub.restore();
+    });
   });
 
   it('should repeat every 2 seconds and start immediately', async function () {
