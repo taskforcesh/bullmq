@@ -1,5 +1,6 @@
 import { JobsOptions } from './jobs-options';
 import { ConnectionOptions } from './redis-options';
+import { AdvancedRepeatOptions } from './advanced-options';
 
 export enum ClientType {
   blocking = 'blocking',
@@ -62,6 +63,15 @@ export interface QueueOptions extends QueueBaseOptions {
       maxLen: number;
     };
   };
+
+  settings?: AdvancedRepeatOptions;
+}
+
+/**
+ * Options for the Repeat class.
+ */
+export interface RepeatBaseOptions extends QueueBaseOptions {
+  settings?: AdvancedRepeatOptions;
 }
 
 /**

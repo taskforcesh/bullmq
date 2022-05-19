@@ -1,10 +1,23 @@
 import { createHash } from 'crypto';
-import { JobsOptions, RepeatOptions } from '../interfaces';
+import { JobsOptions, RepeatBaseOptions, RepeatOptions } from '../interfaces';
+import { CronStrategy } from '../types';
+import { Crons } from './crons';
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { parseExpression } from 'cron-parser';
+import { RedisConnection } from './redis-connection';
 
 export class Repeat extends QueueBase {
+  private cronStrategies: Record<string, CronStrategy>;
+  constructor(
+    name: string,
+    opts?: RepeatBaseOptions,
+    Connection?: typeof RedisConnection,
+  ) {
+    super(name, opts, Connection);
+
+    this.cronStrategies = opts.settings && opts.settings.cronStrategies;
+  }
+
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
     name: N,
     data: T,
@@ -33,7 +46,11 @@ export class Repeat extends QueueBase {
 
     now = prevMillis < now ? now : prevMillis;
 
-    const nextMillis = getNextMillis(now, repeatOpts);
+    const nextMillis = await Crons.calculate(
+      repeatOpts,
+      this.cronStrategies,
+      now,
+    );
 
     const hasImmediately =
       (repeatOpts.every || repeatOpts.cron) && repeatOpts.immediately;
@@ -204,36 +221,6 @@ function getRepeatKey(name: string, repeat: RepeatOptions) {
   const jobId = repeat.jobId ? repeat.jobId : '';
 
   return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
-}
-
-function getNextMillis(millis: number, opts: RepeatOptions) {
-  if (opts.cron && opts.every) {
-    throw new Error(
-      'Both .cron and .every options are defined for this repeatable job',
-    );
-  }
-
-  if (opts.every) {
-    return (
-      Math.floor(millis / opts.every) * opts.every +
-      (opts.immediately ? 0 : opts.every)
-    );
-  }
-
-  const currentDate =
-    opts.startDate && new Date(opts.startDate) > new Date(millis)
-      ? new Date(opts.startDate)
-      : new Date(millis);
-  const interval = parseExpression(opts.cron, {
-    ...opts,
-    currentDate,
-  });
-
-  try {
-    return interval.next().getTime();
-  } catch (e) {
-    // Ignore error
-  }
 }
 
 function md5(str: string) {
