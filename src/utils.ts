@@ -4,6 +4,7 @@ import { Cluster, Redis } from 'ioredis';
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
 import { get } from 'lodash';
+import * as semver from 'semver';
 import {
   RedisClient,
   JobsOptions,
@@ -165,6 +166,15 @@ export const childSend = (
   proc: NodeJS.Process,
   msg: ChildMessage,
 ): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
+
+export const isRedisVersionLowerThan = (
+  currentVersion: string,
+  minimumVersion: string,
+): boolean => {
+  const version = semver.valid(semver.coerce(currentVersion));
+
+  return semver.lt(version, minimumVersion);
+};
 
 export const parentSend = (
   child: ChildProcess,

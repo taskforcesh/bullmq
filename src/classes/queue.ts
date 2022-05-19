@@ -1,12 +1,12 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
 import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
+import { FinishedStatus } from '../types';
 import { isRedisInstance, jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
-import { FinishedStatus } from '../types';
 
 export interface ObliterateOpts {
   /**
