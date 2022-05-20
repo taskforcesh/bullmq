@@ -84,7 +84,7 @@ export class RedisConnection extends EventEmitter {
     };
 
     this.handleClientClose = (): void => {
-      this.emit('close', new Error(CONNECTION_CLOSED_ERROR_MSG));
+      this.emit('close');
     };
 
     this.initializing = this.init();

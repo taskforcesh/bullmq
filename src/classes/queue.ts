@@ -1,6 +1,11 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
-import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
+import {
+  IoredisListener,
+  JobsOptions,
+  QueueOptions,
+  RepeatOptions,
+} from '../interfaces';
 import { FinishedStatus } from '../types';
 import { isRedisInstance, jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
@@ -21,7 +26,8 @@ export interface ObliterateOpts {
   count?: number;
 }
 
-export interface QueueListener<DataType, ResultType, NameType extends string> {
+export interface QueueListener<DataType, ResultType, NameType extends string>
+  extends IoredisListener {
   /**
    * Listen to 'cleaned' event.
    *

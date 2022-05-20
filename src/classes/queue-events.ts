@@ -1,4 +1,9 @@
-import { QueueEventsOptions, RedisClient, StreamReadRaw } from '../interfaces';
+import {
+  IoredisListener,
+  QueueEventsOptions,
+  RedisClient,
+  StreamReadRaw,
+} from '../interfaces';
 import {
   array2obj,
   clientCommandMessageReg,
@@ -8,7 +13,7 @@ import {
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
-export interface QueueEventsListener {
+export interface QueueEventsListener extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
