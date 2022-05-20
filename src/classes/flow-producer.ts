@@ -87,7 +87,10 @@ export class FlowProducer extends EventEmitter {
 
   protected connection: RedisConnection;
 
-  constructor(public opts: QueueBaseOptions = {}) {
+  constructor(
+    public opts: QueueBaseOptions = {},
+    Connection: typeof RedisConnection = RedisConnection,
+  ) {
     super();
 
     this.opts = {
@@ -95,7 +98,7 @@ export class FlowProducer extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new RedisConnection(opts.connection);
+    this.connection = new Connection(opts.connection);
     this.connection.on('error', this.emit.bind(this, 'error'));
 
     this.queueKeys = new QueueKeys(opts.prefix);
@@ -212,7 +215,7 @@ export class FlowProducer extends EventEmitter {
     const jobsOpts = get(queueOpts, 'defaultJobOptions');
     const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
 
-    const job = new Job(
+    const job = new this.Job(
       queue,
       node.name,
       node.data,

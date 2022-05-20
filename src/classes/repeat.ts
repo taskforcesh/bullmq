@@ -3,7 +3,6 @@ import { JobsOptions, RepeatBaseOptions, RepeatOptions } from '../interfaces';
 import { CronStrategy } from '../types';
 import { Crons } from './crons';
 import { QueueBase } from './queue-base';
-import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 
 export class Repeat extends QueueBase {

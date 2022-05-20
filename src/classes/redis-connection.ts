@@ -3,13 +3,13 @@ import * as IORedis from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import * as semver from 'semver';
 import { scriptLoader } from '../commands';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import {
+  isNotConnectionError,
   isRedisCluster,
   isRedisInstance,
-  isNotConnectionError,
+  isRedisVersionLowerThan,
 } from '../utils';
 
 import * as path from 'path';
@@ -65,6 +65,7 @@ export class RedisConnection extends EventEmitter {
       this._client = opts;
 
       if (isRedisCluster(this._client)) {
+        this.opts = this._client.options.redisOptions;
         const hosts = (<any>this._client).startupNodes.map(
           (node: { host: string }) => node.host,
         );
@@ -174,8 +175,9 @@ export class RedisConnection extends EventEmitter {
 
     if (this.opts && this.opts.skipVersionCheck !== true && !this.closing) {
       this.version = await this.getRedisVersion();
-      const version = semver.valid(semver.coerce(this.version));
-      if (semver.lt(version, RedisConnection.minimumVersion)) {
+      if (
+        isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
+      ) {
         throw new Error(
           `Redis version needs to be greater than ${RedisConnection.minimumVersion} Current: ${this.version}`,
         );

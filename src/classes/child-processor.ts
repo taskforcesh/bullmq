@@ -1,6 +1,5 @@
 import { promisify } from 'util';
 import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
-
 import { childSend } from '../utils';
 
 enum ChildStatus {
