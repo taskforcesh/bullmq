@@ -3,8 +3,8 @@
     In order to be able to remove a job, it cannot be active.
 
     Input:
-      KEYS[1] jobId
-      ARGV[1]  jobId
+      KEYS[1] queue prefix
+      ARGV[1] jobId
 
     Events:
       'removed'
@@ -14,53 +14,9 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/destructureJobKey"
+--- @include "includes/isLocked"
+--- @include "includes/removeJobFromAnyState"
 --- @include "includes/removeParentDependencyKey"
-
--- recursively check if there are no locks on the
--- jobs to be removed.
-local function isLocked( prefix, jobId)
-    local jobKey = prefix .. jobId;
-
-    -- Check if this job is locked
-    local lockKey = jobKey .. ':lock'
-    local lock = rcall("GET", lockKey)
-    if not lock then
-        local dependencies = rcall("SMEMBERS", jobKey .. ":dependencies")
-        if (#dependencies > 0) then
-            for i, childJobKey in ipairs(dependencies) do
-                -- We need to get the jobId for this job.
-                local childJobId = getJobIdFromKey(childJobKey)
-                local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
-                local result = isLocked( childJobPrefix, childJobId )
-                if result then
-                    return true
-                end
-            end
-        end
-        return false
-    end
-    return true
-end
-
-local function removeJobFromAnyState( prefix, jobId)
-    if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
-        return "wait"
-    elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
-        return "paused"
-    elseif rcall("LREM", prefix .. "active", 0, jobId) == 1 then
-        return "active"
-    elseif rcall("ZREM", prefix .. "waiting-children", jobId) == 1 then
-        return "waiting-children"
-    elseif rcall("ZREM", prefix .. "delayed", jobId) == 1 then
-        return "delayed"
-    elseif rcall("ZREM", prefix .. "completed", jobId) == 1 then
-        return "completed"
-    elseif rcall("ZREM", prefix .. "failed", jobId) == 1 then
-        return "failed"
-    end
-    
-    return "unknown"
-end
 
 local function removeJob( prefix, jobId, parentKey)
     local jobKey = prefix .. jobId;
@@ -107,7 +63,7 @@ local function removeJob( prefix, jobId, parentKey)
     rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", prev);
 end
 
-local prefix = getJobKeyPrefix(KEYS[1], ARGV[1])
+local prefix = KEYS[1]
 
 if not isLocked(prefix, ARGV[1]) then
     removeJob(prefix, ARGV[1])

@@ -176,7 +176,7 @@ export class Scripts {
   async remove(jobId: string): Promise<number> {
     const client = await this.queue.client;
 
-    const keys = [jobId].map(name => this.queue.toKey(name));
+    const keys = [''].map(name => this.queue.toKey(name));
     return (<any>client).removeJob(keys.concat([jobId]));
   }
 
