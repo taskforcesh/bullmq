@@ -4,6 +4,7 @@ import * as path from 'path';
 import { v4 } from 'uuid';
 import {
   GetNextJobOptions,
+  IoredisListener,
   JobJsonRaw,
   Processor,
   RedisClient,
@@ -32,7 +33,7 @@ export interface WorkerListener<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
-> {
+> extends IoredisListener {
   /**
    * Listen to 'active' event.
    *

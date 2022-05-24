@@ -1,4 +1,5 @@
 import {
+  IoredisListener,
   QueueSchedulerOptions,
   RedisClient,
   StreamReadRaw,
@@ -12,7 +13,7 @@ import {
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
-export interface QueueSchedulerListener {
+export interface QueueSchedulerListener extends IoredisListener {
   /**
    * Listen to 'error' event.
    *

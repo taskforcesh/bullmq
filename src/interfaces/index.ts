@@ -4,6 +4,7 @@ export * from './child-command';
 export * from './child-message';
 export * from './connection';
 export * from './flow-job';
+export * from './ioredis-events';
 export * from './job-json';
 export * from './jobs-options';
 export * from './keep-jobs';

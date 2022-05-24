@@ -100,6 +100,7 @@ export class FlowProducer extends EventEmitter {
 
     this.connection = new Connection(opts.connection);
     this.connection.on('error', this.emit.bind(this, 'error'));
+    this.connection.on('close', this.emit.bind(this, 'ioredis:close'));
 
     this.queueKeys = new QueueKeys(opts.prefix);
   }
