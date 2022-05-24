@@ -42,6 +42,18 @@ export interface QueueOptions extends QueueBaseOptions {
    */
   limiter?: {
     /**
+     * Max number of jobs to process in the time period
+     * specified in `duration`.
+     */
+    max?: number;
+
+    /**
+     * Time in milliseconds. During this time, a maximum
+     * of `max` jobs will be processed.
+     */
+    duration?: number;
+
+    /**
      * Group key to be used by the limiter when
      * limiting by group keys.
      */
