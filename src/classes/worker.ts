@@ -302,7 +302,7 @@ export class Worker<
       if (!this.running) {
         try {
           this.running = true;
-          const client = await this.client;
+          const client = await this.blockingConnection.client;
 
           if (this.closing) {
             return;
