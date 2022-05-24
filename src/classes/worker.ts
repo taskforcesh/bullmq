@@ -283,6 +283,10 @@ export class Worker<
     return this.blockingConnection.client;
   }
 
+  set concurrency(concurrency: number) {
+    this.opts = { ...this.opts, concurrency };
+  }
+
   get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
@@ -322,16 +326,15 @@ export class Worker<
             }
           }
 
-          const opts: WorkerOptions = <WorkerOptions>this.opts;
-
           const processing = (this.processing = new Map());
 
-          const tokens: string[] = Array.from(
-            { length: opts.concurrency },
-            () => v4(),
-          );
-
           while (!this.closing) {
+            const opts: WorkerOptions = <WorkerOptions>this.opts;
+            const tokens: string[] = Array.from(
+              { length: opts.concurrency },
+              () => v4(),
+            );
+
             if (processing.size < opts.concurrency) {
               const token = tokens.pop();
 
