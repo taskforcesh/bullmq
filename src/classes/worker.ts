@@ -328,15 +328,15 @@ export class Worker<
 
           const processing = (this.processing = new Map());
 
-          while (!this.closing) {
-            const opts: WorkerOptions = <WorkerOptions>this.opts;
-            const tokens: string[] = Array.from(
-              { length: opts.concurrency },
-              () => v4(),
-            );
+          let concurrency = this.opts.concurrency;
+          const tokens: string[] = Array.from({ length: concurrency }, () =>
+            v4(),
+          );
 
-            if (processing.size < opts.concurrency) {
-              const token = tokens.pop();
+          while (!this.closing) {
+            const getNextJob = processing.size < concurrency;
+            if (getNextJob) {
+              const token = tokens.pop() || v4();
 
               processing.set(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
@@ -365,14 +365,19 @@ export class Worker<
               // reuse same token if next job is available to process
               processing.set(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () => this.processJob(job, token),
+                  () =>
+                    this.processJob(job, token, processing.size <= concurrency),
                   this.opts.runRetryDelay,
                 ),
                 token,
               );
             } else {
-              tokens.push(token);
+              if (getNextJob) {
+                tokens.push(token);
+              }
             }
+
+            concurrency = this.opts.concurrency;
           }
           this.running = false;
           return Promise.all([...processing.keys()]);
@@ -523,6 +528,7 @@ export class Worker<
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
+    fetchNext = true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -572,7 +578,7 @@ export class Worker<
       const completed = await job.moveToCompleted(
         result,
         token,
-        !(this.closing || this.paused),
+        fetchNext && !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
       const [jobData, jobId] = completed || [];
