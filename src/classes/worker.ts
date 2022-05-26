@@ -333,9 +333,10 @@ export class Worker<
             v4(),
           );
 
+          const shouldGetNextJob = () => processing.size < concurrency;
+
           while (!this.closing) {
-            const getNextJob = processing.size < concurrency;
-            if (getNextJob) {
+            if (shouldGetNextJob()) {
               const token = tokens.pop() || v4();
 
               processing.set(
@@ -366,13 +367,17 @@ export class Worker<
               processing.set(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
                   () =>
-                    this.processJob(job, token, processing.size <= concurrency),
+                    this.processJob(
+                      job,
+                      token,
+                      () => processing.size <= concurrency,
+                    ),
                   this.opts.runRetryDelay,
                 ),
                 token,
               );
             } else {
-              if (getNextJob) {
+              if (shouldGetNextJob()) {
                 tokens.push(token);
               }
             }
@@ -528,7 +533,7 @@ export class Worker<
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
-    fetchNext = true,
+    fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -578,7 +583,7 @@ export class Worker<
       const completed = await job.moveToCompleted(
         result,
         token,
-        fetchNext && !(this.closing || this.paused),
+        fetchNextCallback() && !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
       const [jobData, jobId] = completed || [];

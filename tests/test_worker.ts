@@ -1531,14 +1531,14 @@ describe('workers', function () {
                 } else {
                   expect(nbProcessing).to.be.lessThan(3);
                 }
-                wait += 100;
+                wait += 50;
 
                 await delay(wait);
-                if (pendingMessageToProcess > 7) {
+                if (pendingMessageToProcess > 11) {
                   expect(nbProcessing).to.be.eql(
                     Math.min(pendingMessageToProcess, 4),
                   );
-                } else if (pendingMessageToProcess == 7) {
+                } else if (pendingMessageToProcess == 11) {
                   expect(nbProcessing).to.be.eql(3);
                 } else {
                   expect(nbProcessing).to.be.eql(
