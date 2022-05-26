@@ -1,3 +1,10 @@
+# [1.84.0](https://github.com/taskforcesh/bullmq/compare/v1.83.2...v1.84.0) (2022-05-26)
+
+
+### Features
+
+* **flow-producer:** add event listener types ([#1257](https://github.com/taskforcesh/bullmq/issues/1257)) ([19ed099](https://github.com/taskforcesh/bullmq/commit/19ed099905cbb4f071370b2b6d67d9a378e3a8f8))
+
 ## [1.83.2](https://github.com/taskforcesh/bullmq/compare/v1.83.1...v1.83.2) (2022-05-24)
 
 
