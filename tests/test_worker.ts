@@ -1913,6 +1913,8 @@ describe('workers', function () {
             Finish,
           }
 
+          let waitingChildrenStepExecutions = 0;
+
           const worker = new Worker(
             parentQueueName,
             async (job, token) => {
@@ -1937,9 +1939,6 @@ describe('workers', function () {
                     break;
                   }
                   case Step.Second: {
-                    if (job.attemptsMade < 3) {
-                      throw new Error('Not yet!');
-                    }
                     await queue.add(
                       'child-2',
                       { foo: 'bar' },
@@ -1957,6 +1956,7 @@ describe('workers', function () {
                     break;
                   }
                   case Step.Third: {
+                    waitingChildrenStepExecutions++;
                     const shouldWait = await job.moveToWaitingChildren(token);
                     if (!shouldWait) {
                       await job.update({
@@ -1964,8 +1964,9 @@ describe('workers', function () {
                       });
                       step = Step.Finish;
                       return Step.Finish;
+                    } else {
+                      return;
                     }
-                    break;
                   }
                   default: {
                     throw new Error('invalid step');
@@ -2003,6 +2004,7 @@ describe('workers', function () {
             });
           });
 
+          expect(waitingChildrenStepExecutions).to.be.equal(2);
           await worker.close();
           await childrenWorker.close();
           await parentQueue.close();
