@@ -26,7 +26,7 @@ import { JobState, FinishedStatus, FinishedPropValAttribute } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { QueueBase } from './queue-base';
-import { Job, MoveToChildrenOpts } from './job';
+import { Job, MoveToWaitingChildrenOpts } from './job';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -503,15 +503,11 @@ export class Scripts {
   moveToWaitingChildrenArgs(
     jobId: string,
     token: string,
-    opts?: MoveToChildrenOpts,
+    opts?: MoveToWaitingChildrenOpts,
   ): string[] {
-    let timestamp = Math.max(0, opts.timestamp ?? 0);
+    const timestamp = Date.now();
 
     const childKey = getParentKey(opts.child);
-
-    if (timestamp > 0) {
-      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
-    }
 
     const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
       name => {
@@ -555,7 +551,7 @@ export class Scripts {
   async moveToWaitingChildren(
     jobId: string,
     token: string,
-    opts: MoveToChildrenOpts = {},
+    opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
     const client = await this.queue.client;
 
