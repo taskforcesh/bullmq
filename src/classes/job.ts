@@ -27,8 +27,7 @@ const logger = debuglog('bull');
 
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
-export interface MoveToChildrenOpts {
-  timestamp?: number;
+export interface MoveToWaitingChildrenOpts {
   child?: {
     id: string;
     queue: string;
@@ -859,7 +858,7 @@ export class Job<
    */
   moveToWaitingChildren(
     token: string,
-    opts: MoveToChildrenOpts = {},
+    opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
     return this.scripts.moveToWaitingChildren(this.id, token, opts);
   }
