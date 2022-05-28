@@ -329,10 +329,9 @@ export class Worker<
           const processing = (this.processing = new Map());
 
           let concurrency = this.opts.concurrency;
-          const shouldGetNextJob = () => processing.size < concurrency;
 
           while (!this.closing) {
-            if (shouldGetNextJob()) {
+            if (processing.size < concurrency) {
               const token = v4();
 
               processing.set(
