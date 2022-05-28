@@ -328,10 +328,8 @@ export class Worker<
 
           const processing = (this.processing = new Map());
 
-          let concurrency = this.opts.concurrency;
-
           while (!this.closing) {
-            if (processing.size < concurrency) {
+            if (processing.size < this.opts.concurrency) {
               const token = v4();
 
               processing.set(
@@ -365,14 +363,14 @@ export class Worker<
                     this.processJob(
                       job,
                       token,
-                      () => processing.size <= concurrency,
+                      () => processing.size <= this.opts.concurrency,
                     ),
                   this.opts.runRetryDelay,
                 ),
                 token,
               );
             }
-            concurrency = this.opts.concurrency;
+            this.concurrency = this.opts.concurrency;
           }
           this.running = false;
           return Promise.all([...processing.keys()]);
