@@ -131,7 +131,7 @@ export class Worker<
   ResultType = any,
   NameType extends string = string,
 > extends QueueBase {
-  opts: WorkerOptions;
+  readonly opts: WorkerOptions;
 
   private drained: boolean;
   private waiting = false;
@@ -284,7 +284,7 @@ export class Worker<
   }
 
   set concurrency(concurrency: number) {
-    this.opts = { ...this.opts, concurrency };
+    this.opts.concurrency = concurrency;
   }
 
   get repeat(): Promise<Repeat> {
