@@ -329,15 +329,11 @@ export class Worker<
           const processing = (this.processing = new Map());
 
           let concurrency = this.opts.concurrency;
-          const tokens: string[] = Array.from({ length: concurrency }, () =>
-            v4(),
-          );
-
           const shouldGetNextJob = () => processing.size < concurrency;
 
           while (!this.closing) {
             if (shouldGetNextJob()) {
-              const token = tokens.pop() || v4();
+              const token = v4();
 
               processing.set(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
@@ -376,12 +372,7 @@ export class Worker<
                 ),
                 token,
               );
-            } else {
-              if (shouldGetNextJob()) {
-                tokens.push(token);
-              }
             }
-
             concurrency = this.opts.concurrency;
           }
           this.running = false;
