@@ -370,7 +370,6 @@ export class Worker<
                 token,
               );
             }
-            this.concurrency = this.opts.concurrency;
           }
           this.running = false;
           return Promise.all([...processing.keys()]);
