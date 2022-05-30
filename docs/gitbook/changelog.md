@@ -1,3 +1,10 @@
+# [1.85.0](https://github.com/taskforcesh/bullmq/compare/v1.84.1...v1.85.0) (2022-05-30)
+
+
+### Features
+
+* **worker:** change the number of concurrent processes ([#1256](https://github.com/taskforcesh/bullmq/issues/1256)) ref [#22](https://github.com/taskforcesh/bullmq/issues/22) ([940dc8f](https://github.com/taskforcesh/bullmq/commit/940dc8f34d9a46dc9c8384661461bf0558e97600))
+
 ## [1.84.1](https://github.com/taskforcesh/bullmq/compare/v1.84.0...v1.84.1) (2022-05-27)
 
 
