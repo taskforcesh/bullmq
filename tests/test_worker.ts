@@ -1443,6 +1443,154 @@ describe('workers', function () {
       await worker.close();
     });
 
+    describe('when changing concurrency', () => {
+      describe('when increasing value', () => {
+        it('should process job respecting the current concurrency set', async function () {
+          this.timeout(10000);
+          let nbProcessing = 0;
+          let pendingMessageToProcess = 16;
+          let wait = 10;
+
+          const worker = new Worker(
+            queueName,
+            async job => {
+              try {
+                nbProcessing++;
+                if (job.data.index < 8) {
+                  expect(nbProcessing).to.be.lessThan(5);
+                } else {
+                  expect(nbProcessing).to.be.lessThan(9);
+                }
+
+                wait += 100;
+
+                await delay(wait);
+                if (job.data.index < 8) {
+                  expect(nbProcessing).to.be.eql(
+                    Math.min(pendingMessageToProcess, 4),
+                  );
+                } else {
+                  expect(nbProcessing).to.be.eql(
+                    Math.min(pendingMessageToProcess, 8),
+                  );
+                }
+                pendingMessageToProcess--;
+                nbProcessing--;
+              } catch (err) {
+                console.error(err);
+              }
+            },
+            {
+              connection,
+              concurrency: 4,
+            },
+          );
+          await worker.waitUntilReady();
+
+          const waiting1 = new Promise((resolve, reject) => {
+            worker.on('completed', after(8, resolve));
+            worker.on('failed', reject);
+          });
+
+          const jobs = Array.from(Array(16).keys()).map(index => ({
+            name: 'test',
+            data: { index },
+          }));
+
+          await queue.addBulk(jobs);
+
+          await waiting1;
+
+          worker.concurrency = 8;
+
+          const waiting2 = new Promise((resolve, reject) => {
+            worker.on('completed', after(8, resolve));
+            worker.on('failed', reject);
+          });
+
+          await waiting2;
+
+          await worker.close();
+        });
+      });
+
+      describe('when decreasing value', () => {
+        it('should process job respecting the current concurrency set', async function () {
+          this.timeout(10000);
+          let nbProcessing = 0;
+          let pendingMessageToProcess = 20;
+          let wait = 100;
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              try {
+                nbProcessing++;
+                if (pendingMessageToProcess > 7) {
+                  expect(nbProcessing).to.be.lessThan(5);
+                } else {
+                  expect(nbProcessing).to.be.lessThan(3);
+                }
+                wait += 50;
+
+                await delay(wait);
+                if (pendingMessageToProcess > 11) {
+                  expect(nbProcessing).to.be.eql(
+                    Math.min(pendingMessageToProcess, 4),
+                  );
+                } else if (pendingMessageToProcess == 11) {
+                  expect(nbProcessing).to.be.eql(3);
+                } else {
+                  expect(nbProcessing).to.be.eql(
+                    Math.min(pendingMessageToProcess, 2),
+                  );
+                }
+                pendingMessageToProcess--;
+                nbProcessing--;
+              } catch (err) {
+                console.error(err);
+              }
+            },
+            {
+              connection,
+              concurrency: 4,
+            },
+          );
+          await worker.waitUntilReady();
+
+          let processed = 0;
+          const waiting1 = new Promise<void>((resolve, reject) => {
+            worker.on('completed', async () => {
+              processed++;
+              if (processed === 8) {
+                worker.concurrency = 2;
+                resolve();
+              }
+            });
+            worker.on('failed', reject);
+          });
+
+          const jobs = Array.from(Array(20).keys()).map(index => ({
+            name: 'test',
+            data: { index },
+          }));
+
+          await queue.addBulk(jobs);
+
+          await waiting1;
+
+          const waiting2 = new Promise((resolve, reject) => {
+            worker.on('completed', after(12, resolve));
+            worker.on('failed', reject);
+          });
+
+          await waiting2;
+
+          await worker.close();
+        });
+      });
+    });
+
     it('should wait for all concurrent processing in case of pause', async function () {
       this.timeout(10000);
 
