@@ -9,7 +9,7 @@ Constructs a new instance of the `QueueScheduler` class
 <b>Signature:</b>
 
 ```typescript
-constructor(name: string, { connection, autorun, ...opts }?: QueueSchedulerOptions);
+constructor(name: string, { connection, autorun, ...opts }?: QueueSchedulerOptions, Connection?: typeof RedisConnection);
 ```
 
 ## Parameters
@@ -18,4 +18,5 @@ constructor(name: string, { connection, autorun, ...opts }?: QueueSchedulerOptio
 |  --- | --- | --- |
 |  name | string |  |
 |  { connection, autorun, ...opts } | [QueueSchedulerOptions](./bullmq.queuescheduleroptions.md) |  |
+|  Connection | typeof [RedisConnection](./bullmq.redisconnection.md) |  |
 

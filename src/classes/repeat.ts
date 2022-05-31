@@ -1,10 +1,7 @@
 import { createHash } from 'crypto';
-import { isUndefined } from 'lodash';
 import { JobsOptions, RepeatOptions } from '../interfaces';
 import { QueueBase } from './queue-base';
-import { Job } from './job';
-
-const parser = require('cron-parser');
+import { parseExpression } from 'cron-parser';
 
 export class Repeat extends QueueBase {
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -27,7 +24,7 @@ export class Repeat extends QueueBase {
     let now = Date.now();
 
     if (
-      !isUndefined(repeatOpts.endDate) &&
+      !(typeof repeatOpts.endDate === undefined) &&
       now > new Date(repeatOpts.endDate).getTime()
     ) {
       return;
@@ -37,7 +34,8 @@ export class Repeat extends QueueBase {
 
     const nextMillis = getNextMillis(now, repeatOpts);
 
-    const hasImmediately = repeatOpts.every && repeatOpts.immediately;
+    const hasImmediately =
+      (repeatOpts.every || repeatOpts.cron) && repeatOpts.immediately;
     const offset = hasImmediately ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
@@ -111,12 +109,14 @@ export class Repeat extends QueueBase {
 
     await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 
-    return Job.create<T, R, N>(this, name, data, mergedOpts);
+    return this.Job.create<T, R, N>(this, name, data, mergedOpts);
   }
 
-  async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {
-    const client = await this.client;
-
+  async removeRepeatable(
+    name: string,
+    repeat: RepeatOptions,
+    jobId?: string,
+  ): Promise<number> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
     const repeatJobId = getRepeatJobId(
       name,
@@ -125,22 +125,11 @@ export class Repeat extends QueueBase {
       jobId || repeat.jobId,
     );
 
-    const queueKey = this.keys[''];
-
-    return (<any>client).removeRepeatable(
-      this.keys.repeat,
-      this.keys.delayed,
-      repeatJobId,
-      repeatJobKey,
-      queueKey,
-    );
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
-  async removeRepeatableByKey(repeatJobKey: string) {
-    const client = await this.client;
-
+  async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
-    const queueKey = this.keys[''];
 
     const repeatJobId = getRepeatJobId(
       data.name,
@@ -149,13 +138,7 @@ export class Repeat extends QueueBase {
       data.id,
     );
 
-    return (<any>client).removeRepeatable(
-      this.keys.repeat,
-      this.keys.delayed,
-      repeatJobId,
-      repeatJobKey,
-      queueKey,
-    );
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
   private keyToData(key: string) {
@@ -195,7 +178,7 @@ export class Repeat extends QueueBase {
     return jobs;
   }
 
-  async getRepeatableCount() {
+  async getRepeatableCount(): Promise<number> {
     const client = await this.client;
     return client.zcard(this.toKey('repeat'));
   }
@@ -240,7 +223,7 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
-  const interval = parser.parseExpression(opts.cron, {
+  const interval = parseExpression(opts.cron, {
     ...opts,
     currentDate,
   });

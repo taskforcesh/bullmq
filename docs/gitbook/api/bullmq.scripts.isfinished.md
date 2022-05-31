@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static isFinished(queue: MinimalQueue, jobId: string): Promise<number>;
+static isFinished(queue: MinimalQueue, jobId: string, returnValue?: boolean): Promise<number | [number, string]>;
 ```
 
 ## Parameters
@@ -16,8 +16,9 @@ static isFinished(queue: MinimalQueue, jobId: string): Promise<number>;
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
 |  jobId | string |  |
+|  returnValue | boolean |  |
 
 <b>Returns:</b>
 
-Promise&lt;number&gt;
+Promise&lt;number \| \[number, string\]&gt;
 

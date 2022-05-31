@@ -7,15 +7,15 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: 'cleaned', listener: (jobs: string[], type: string) => void): this;
+on<U extends keyof QueueListener<DataType, ResultType, NameType>>(event: U, listener: QueueListener<DataType, ResultType, NameType>[U]): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'cleaned' |  |
-|  listener | (jobs: string\[\], type: string) =&gt; void |  |
+|  event | U |  |
+|  listener | [QueueListener](./bullmq.queuelistener.md)<!-- -->&lt;DataType, ResultType, NameType&gt;\[U\] |  |
 
 <b>Returns:</b>
 

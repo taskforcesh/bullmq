@@ -7,5 +7,5 @@
 <b>Signature:</b>
 
 ```typescript
-opts: string;
+opts: JobsOptions;
 ```

@@ -1,12 +1,19 @@
 import { EventEmitter } from 'events';
+import { get } from 'lodash';
 import { Redis, Pipeline } from 'ioredis';
 import { v4 } from 'uuid';
-import { QueueBaseOptions } from '../interfaces/queue-options';
-import { FlowJob, FlowQueuesOpts, FlowOpts } from '../interfaces/flow-job';
-import { jobIdForGroup } from '../utils';
+import {
+  FlowJob,
+  FlowQueuesOpts,
+  FlowOpts,
+  IoredisListener,
+  QueueBaseOptions,
+  RedisClient,
+} from '../interfaces';
+import { getParentKey, jobIdForGroup } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
-import { RedisClient, RedisConnection } from './redis-connection';
+import { RedisConnection } from './redis-connection';
 
 export interface AddNodeOpts {
   multi: Pipeline;
@@ -65,6 +72,15 @@ export interface JobNode {
   children?: JobNode[];
 }
 
+export interface FlowProducerListener extends IoredisListener {
+  /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an error is throw.
+   */
+  error: (failedReason: Error) => void;
+}
+
 /**
  * This class allows to add jobs with dependencies between them in such
  * a way that it is possible to build complex flows.
@@ -81,7 +97,10 @@ export class FlowProducer extends EventEmitter {
 
   protected connection: RedisConnection;
 
-  constructor(public opts: QueueBaseOptions = {}) {
+  constructor(
+    public opts: QueueBaseOptions = {},
+    Connection: typeof RedisConnection = RedisConnection,
+  ) {
     super();
 
     this.opts = {
@@ -89,10 +108,42 @@ export class FlowProducer extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new RedisConnection(opts.connection);
-    this.connection.on('error', this.emit.bind(this, 'error'));
+    this.connection = new Connection(opts.connection);
+    this.connection.on('error', error => this.emit('error', error));
+    this.connection.on('close', this.emit.bind(this, 'ioredis:close'));
 
     this.queueKeys = new QueueKeys(opts.prefix);
+  }
+
+  emit<U extends keyof FlowProducerListener>(
+    event: U,
+    ...args: Parameters<FlowProducerListener[U]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  off<U extends keyof FlowProducerListener>(
+    eventName: U,
+    listener: FlowProducerListener[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof FlowProducerListener>(
+    event: U,
+    listener: FlowProducerListener[U],
+  ): this {
+    super.on(event, listener);
+    return this;
+  }
+
+  once<U extends keyof FlowProducerListener>(
+    event: U,
+    listener: FlowProducerListener[U],
+  ): this {
+    super.once(event, listener);
+    return this;
   }
 
   /**
@@ -151,6 +202,13 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
+  }
+
+  /**
    * Adds multiple flows.
    *
    * A flow is a tree-like structure of jobs that depend on each other.
@@ -190,26 +248,33 @@ export class FlowProducer extends EventEmitter {
    * @returns
    */
   private addNode({ multi, node, parent, queuesOpts }: AddNodeOpts): JobNode {
-    const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
+    const queue = this.queueFromNode(
+      node,
+      new QueueKeys(node.prefix || this.opts.prefix),
+    );
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
+    const jobsOpts = get(queueOpts, 'defaultJobOptions');
     const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
 
-    const job = new Job(
+    const job = new this.Job(
       queue,
       node.name,
       node.data,
       {
+        ...(jobsOpts ? jobsOpts : {}),
         ...node.opts,
         parent: parent?.parentOpts,
       },
       jobId,
     );
 
+    const parentKey = getParentKey(parent?.parentOpts);
+
     if (node.children && node.children.length > 0) {
       // Create parent job, will be a job in status "waiting-children".
       const parentId = jobId;
-      const queueKeysParent = new QueueKeys(node.prefix);
+      const queueKeysParent = new QueueKeys(node.prefix || this.opts.prefix);
       const waitChildrenKey = queueKeysParent.toKey(
         node.queueName,
         'waiting-children',
@@ -218,8 +283,7 @@ export class FlowProducer extends EventEmitter {
       job.addJob(<Redis>(multi as unknown), {
         parentDependenciesKey: parent?.parentDependenciesKey,
         waitChildrenKey,
-        parentId: parent?.parentOpts?.id,
-        parentQueueKey: parent?.parentOpts?.queue,
+        parentKey,
       });
 
       const parentDependenciesKey = `${queueKeysParent.toKey(
@@ -244,8 +308,7 @@ export class FlowProducer extends EventEmitter {
     } else {
       job.addJob(<Redis>(multi as unknown), {
         parentDependenciesKey: parent?.parentDependenciesKey,
-        parentId: parent?.parentOpts?.id,
-        parentQueueKey: parent?.parentOpts?.queue,
+        parentKey,
       });
 
       return { job };
@@ -269,7 +332,7 @@ export class FlowProducer extends EventEmitter {
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
     const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
 
-    const job = await Job.fromId(queue, node.id);
+    const job = await this.Job.fromId(queue, node.id);
 
     if (job) {
       const { processed = {}, unprocessed = [] } = await job.getDependencies({
@@ -351,14 +414,14 @@ export class FlowProducer extends EventEmitter {
     };
   }
 
-  close() {
+  close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
     }
     return this.closing;
   }
 
-  disconnect() {
+  disconnect(): Promise<void> {
     return this.connection.disconnect();
   }
 }

@@ -10,6 +10,12 @@
 export declare class ChildPool 
 ```
 
+## Constructors
+
+|  Constructor | Modifiers | Description |
+|  --- | --- | --- |
+|  [(constructor)(masterFile)](./bullmq.childpool._constructor_.md) |  | Constructs a new instance of the <code>ChildPool</code> class |
+
 ## Properties
 
 |  Property | Modifiers | Type | Description |

@@ -9,7 +9,7 @@ Drains the queue, i.e., removes all jobs that are waiting or delayed, but not ac
 <b>Signature:</b>
 
 ```typescript
-drain(delayed?: boolean): Promise<[Error, any][]>;
+drain(delayed?: boolean): Promise<void>;
 ```
 
 ## Parameters
@@ -20,5 +20,5 @@ drain(delayed?: boolean): Promise<[Error, any][]>;
 
 <b>Returns:</b>
 
-Promise&lt;\[Error, any\]\[\]&gt;
+Promise&lt;void&gt;
 

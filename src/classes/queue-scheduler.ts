@@ -1,17 +1,39 @@
-import { QueueSchedulerOptions } from '../interfaces';
-import { array2obj, isRedisInstance } from '../utils';
+import {
+  IoredisListener,
+  QueueSchedulerOptions,
+  RedisClient,
+  StreamReadRaw,
+} from '../interfaces';
+import {
+  array2obj,
+  clientCommandMessageReg,
+  isRedisInstance,
+  QUEUE_SCHEDULER_SUFFIX,
+} from '../utils';
 import { QueueBase } from './queue-base';
-import { Scripts } from './scripts';
-import { StreamReadRaw } from '../interfaces/redis-streams';
-import { RedisClient } from './redis-connection';
+import { RedisConnection } from './redis-connection';
 
-export declare interface QueueScheduler {
-  on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
-  on(
-    event: 'failed',
-    listener: (jobId: string, failedReason: Error, prev: string) => void,
-  ): this;
-  on(event: string, listener: Function): this;
+export interface QueueSchedulerListener extends IoredisListener {
+  /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an exception is thrown.
+   */
+  error: (error: Error) => void;
+
+  /**
+   * Listen to 'failed' event.
+   *
+   * This event is triggered when a job has thrown an exception.
+   */
+  failed: (jobId: string, failedReason: Error, prev: string) => void;
+
+  /**
+   * Listen to 'stalled' event.
+   *
+   * This event is triggered when a job gets stalled.
+   */
+  stalled: (jobId: string, prev: string) => void;
 }
 
 /**
@@ -31,6 +53,7 @@ export declare interface QueueScheduler {
  *
  */
 export class QueueScheduler extends QueueBase {
+  opts: QueueSchedulerOptions;
   private nextTimestamp = Number.MAX_VALUE;
   private isBlocked = false;
   private running = false;
@@ -38,35 +61,84 @@ export class QueueScheduler extends QueueBase {
   constructor(
     name: string,
     { connection, autorun = true, ...opts }: QueueSchedulerOptions = {},
+    Connection?: typeof RedisConnection,
   ) {
-    super(name, {
-      maxStalledCount: 1,
-      stalledInterval: 30000,
-      ...opts,
-      connection: isRedisInstance(connection)
-        ? (<RedisClient>connection).duplicate()
-        : connection,
-      sharedConnection: false,
-    });
+    super(
+      name,
+      {
+        maxStalledCount: 1,
+        stalledInterval: 30000,
+        ...opts,
+        connection: isRedisInstance(connection)
+          ? (<RedisClient>connection).duplicate()
+          : connection,
+        sharedConnection: false,
+        blockingConnection: true,
+      },
+      Connection,
+    );
 
-    if (!(this.opts as QueueSchedulerOptions).stalledInterval) {
+    if (!this.opts.stalledInterval) {
       throw new Error('Stalled interval cannot be zero or undefined');
     }
 
     if (autorun) {
       this.run().catch(error => {
-        console.error(error);
+        this.emit('error', error);
       });
     }
   }
 
-  async run() {
+  emit<U extends keyof QueueSchedulerListener>(
+    event: U,
+    ...args: Parameters<QueueSchedulerListener[U]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  off<U extends keyof QueueSchedulerListener>(
+    eventName: U,
+    listener: QueueSchedulerListener[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof QueueSchedulerListener>(
+    event: U,
+    listener: QueueSchedulerListener[U],
+  ): this {
+    super.on(event, listener);
+    return this;
+  }
+
+  once<U extends keyof QueueSchedulerListener>(
+    event: U,
+    listener: QueueSchedulerListener[U],
+  ): this {
+    super.once(event, listener);
+    return this;
+  }
+
+  async run(): Promise<void> {
     if (!this.running) {
       try {
+        this.running = true;
         const client = await this.waitUntilReady();
 
         const key = this.keys.delay;
         const opts = this.opts as QueueSchedulerOptions;
+
+        try {
+          await client.client(
+            'setname',
+            this.clientName(QUEUE_SCHEDULER_SUFFIX),
+          );
+        } catch (err) {
+          if (!clientCommandMessageReg.test((<Error>err).message)) {
+            throw err;
+          }
+        }
 
         const [nextTimestamp, streamId = '0-0'] = await this.updateDelaySet(
           Date.now(),
@@ -78,9 +150,8 @@ export class QueueScheduler extends QueueBase {
         }
 
         while (!this.closing) {
-          this.running = true;
           // Check if at least the min stalled check time has passed.
-          await this.moveStalledJobsToWait();
+          await this.checkConnectionError(() => this.moveStalledJobsToWait());
 
           // Listen to the delay event stream from lastDelayStreamTimestamp
           // Can we use XGROUPS to reduce redundancy?
@@ -90,11 +161,8 @@ export class QueueScheduler extends QueueBase {
             Math.min(opts.stalledInterval, Math.max(nextDelay, 0)),
           );
 
-          const data = await this.readDelayedData(
-            client,
-            key,
-            streamLastId,
-            blockTime,
+          const data = await this.checkConnectionError(() =>
+            this.readDelayedData(client, key, streamLastId, blockTime),
           );
 
           if (data && data[0]) {
@@ -116,15 +184,18 @@ export class QueueScheduler extends QueueBase {
             // for all kind of scenarios.
             //
             if (!this.closing) {
-              await client.xtrim(key, 'MAXLEN', '~', 100);
+              await this.checkConnectionError<number>(() =>
+                client.xtrim(key, 'MAXLEN', '~', 100),
+              );
             }
           }
 
           const now = Date.now();
-          const delay = this.nextTimestamp - now;
+          const nextDelayedJobDelay = this.nextTimestamp - now;
 
-          if (delay <= 0) {
+          if (nextDelayedJobDelay <= 0) {
             const [nextTimestamp, id] = await this.updateDelaySet(now);
+
             if (nextTimestamp) {
               this.nextTimestamp = nextTimestamp;
               streamLastId = id;
@@ -165,11 +236,6 @@ export class QueueScheduler extends QueueBase {
             key,
             streamLastId,
           );
-        } catch (err) {
-          // We can ignore closed connection errors
-          if (err.message !== 'Connection is closed.') {
-            throw err;
-          }
         } finally {
           this.isBlocked = false;
         }
@@ -182,16 +248,24 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  private async updateDelaySet(timestamp: number) {
+  private async updateDelaySet(timestamp: number): Promise<[number, string]> {
     if (!this.closing) {
-      return Scripts.updateDelaySet(this, timestamp);
+      const result = await this.checkConnectionError(() =>
+        this.scripts.updateDelaySet(timestamp),
+      );
+
+      if (!result) {
+        return [0, '0'];
+      }
+
+      return result;
     }
-    return [0, 0];
+    return [0, '0'];
   }
 
   private async moveStalledJobsToWait() {
     if (!this.closing) {
-      const [failed, stalled] = await Scripts.moveStalledJobsToWait(this);
+      const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
 
       failed.forEach((jobId: string) =>
         this.emit(
@@ -205,7 +279,7 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
-  async close() {
+  close(): Promise<void> {
     if (this.closing) {
       return this.closing;
     }

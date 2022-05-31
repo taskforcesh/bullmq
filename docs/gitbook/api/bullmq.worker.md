@@ -2,23 +2,53 @@
 
 [Home](./index.md) &gt; [bullmq](./bullmq.md) &gt; [Worker](./bullmq.worker.md)
 
-## Worker interface
+## Worker class
+
+This class represents a worker that is able to process jobs from the queue. As soon as the class is instantiated it will start processing jobs.
 
 <b>Signature:</b>
 
 ```typescript
-export declare interface Worker 
+export declare class Worker<DataType = any, ResultType = any, NameType extends string = string> extends QueueBase 
 ```
+<b>Extends:</b> [QueueBase](./bullmq.queuebase.md)
+
+## Constructors
+
+|  Constructor | Modifiers | Description |
+|  --- | --- | --- |
+|  [(constructor)(name, processor, opts, Connection)](./bullmq.worker._constructor_.md) |  | Constructs a new instance of the <code>Worker</code> class |
+
+## Properties
+
+|  Property | Modifiers | Type | Description |
+|  --- | --- | --- | --- |
+|  [opts](./bullmq.worker.opts.md) |  | [WorkerOptions](./bullmq.workeroptions.md) |  |
+|  [paused](./bullmq.worker.paused.md) |  | Promise&lt;void&gt; |  |
+|  [processFn](./bullmq.worker.processfn.md) |  | [Processor](./bullmq.processor.md)<!-- -->&lt;DataType, ResultType, NameType&gt; |  |
+|  [repeat](./bullmq.worker.repeat.md) |  | Promise&lt;[Repeat](./bullmq.repeat.md)<!-- -->&gt; |  |
+|  [timerManager](./bullmq.worker.timermanager.md) |  | [TimerManager](./bullmq.timermanager.md) |  |
 
 ## Methods
 
-|  Method | Description |
-|  --- | --- |
-|  [on(event, listener)](./bullmq.worker.on.md) |  |
-|  [on(event, listener)](./bullmq.worker.on_1.md) |  |
-|  [on(event, listener)](./bullmq.worker.on_2.md) |  |
-|  [on(event, listener)](./bullmq.worker.on_3.md) |  |
-|  [on(event, listener)](./bullmq.worker.on_4.md) |  |
-|  [on(event, listener)](./bullmq.worker.on_5.md) |  |
-|  [on(event, listener)](./bullmq.worker.on_6.md) |  |
+|  Method | Modifiers | Description |
+|  --- | --- | --- |
+|  [callProcessJob(job, token)](./bullmq.worker.callprocessjob.md) |  |  |
+|  [close(force)](./bullmq.worker.close.md) |  | Closes the worker and related redis connections.<!-- -->This method waits for current jobs to finalize before returning. |
+|  [createJob(data, jobId)](./bullmq.worker.createjob.md) |  |  |
+|  [delay()](./bullmq.worker.delay.md) |  | This function is exposed only for testing purposes. |
+|  [emit(event, args)](./bullmq.worker.emit.md) |  |  |
+|  [getNextJob(token, { block })](./bullmq.worker.getnextjob.md) |  | Returns a promise that resolves to the next job in queue. |
+|  [isPaused()](./bullmq.worker.ispaused.md) |  | Checks if worker is paused. |
+|  [isRunning()](./bullmq.worker.isrunning.md) |  | Checks if worker is currently running. |
+|  [moveToActive(token, jobId)](./bullmq.worker.movetoactive.md) |  |  |
+|  [nextJobFromJobData(jobData, jobId)](./bullmq.worker.nextjobfromjobdata.md) |  |  |
+|  [off(eventName, listener)](./bullmq.worker.off.md) |  |  |
+|  [on(event, listener)](./bullmq.worker.on.md) |  |  |
+|  [once(event, listener)](./bullmq.worker.once.md) |  |  |
+|  [pause(doNotWaitActive)](./bullmq.worker.pause.md) |  | Pauses the processing of this queue only for this worker. |
+|  [processJob(job, token)](./bullmq.worker.processjob.md) |  |  |
+|  [resume()](./bullmq.worker.resume.md) |  | Resumes processing of this worker (if paused). |
+|  [run()](./bullmq.worker.run.md) |  |  |
+|  [waitUntilReady()](./bullmq.worker.waituntilready.md) |  | Waits until the worker is ready to start processing jobs. In general only useful when writing tests. |
 

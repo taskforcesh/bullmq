@@ -9,7 +9,7 @@ Constructs a new instance of the `Worker` class
 <b>Signature:</b>
 
 ```typescript
-constructor(name: string, processor?: string | Processor<T, R, N>, opts?: WorkerOptions);
+constructor(name: string, processor?: string | Processor<DataType, ResultType, NameType>, opts?: WorkerOptions, Connection?: typeof RedisConnection);
 ```
 
 ## Parameters
@@ -17,6 +17,7 @@ constructor(name: string, processor?: string | Processor<T, R, N>, opts?: Worker
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  name | string |  |
-|  processor | string \| [Processor](./bullmq.processor.md)<!-- -->&lt;T, R, N&gt; |  |
+|  processor | string \| [Processor](./bullmq.processor.md)<!-- -->&lt;DataType, ResultType, NameType&gt; |  |
 |  opts | [WorkerOptions](./bullmq.workeroptions.md) |  |
+|  Connection | typeof [RedisConnection](./bullmq.redisconnection.md) |  |
 

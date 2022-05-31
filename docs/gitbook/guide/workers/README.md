@@ -9,25 +9,51 @@ Failed jobs can be automatically retried, see [Retrying failing jobs](../retryin
 A worker is instantiated with the Worker class, and the work itself will be performed in the process function. Process functions are meant to be asynchronous so either use the "async" keyword or return a promise.
 
 ```typescript
-import { Worker, Job } from 'bullmq'
+import { Worker, Job } from 'bullmq';
 
 const worker = new Worker(queueName, async (job: Job) => {
+  // Optionally report some progress
+  await job.updateProgress(42);
 
+  // Optionally sending an object as progress
+  await job.updateProgress({ foo: 'bar' });
+
+  // Do something with job
+  return 'some value';
+});
+```
+
+{% hint style="info" %}
+When a worker instance is created, it launches the processor immediately
+{% endhint %}
+
+In order to decide when your processor should start its execution, pass autorun as false as part of worker options:
+
+```typescript
+import { Worker, Job } from 'bullmq';
+
+const worker = new Worker(
+  queueName,
+  async (job: Job) => {
     // Optionally report some progress
-    job.updateProgress(42);
-    
+    await job.updateProgress(42);
+
     // Optionally sending an object as progress
-    job.updateProgress({ foo: 'bar' });
+    await job.updateProgress({ foo: 'bar' });
 
     // Do something with job
     return 'some value';
-});
+  },
+  { autorun: false },
+);
+
+worker.run();
 ```
 
 Note that a processor can optionally return a value. This value can be retrieved either by getting the job and accessing the "returnvalue" property or by listening to the "completed" event:
 
 ```typescript
-worker.on("completed", (job: Job, returnvalue: any) => {
+worker.on('completed', (job: Job, returnvalue: any) => {
   // Do something with the return value.
 });
 ```
@@ -35,7 +61,7 @@ worker.on("completed", (job: Job, returnvalue: any) => {
 Inside the worker process function it is also possible to emit progress events. Calling "job.progress" you can specify a number or an object if you have more complex needs. The "progress" event can be listened in the same way as the "completed" event:
 
 ```typescript
-worker.on("progress", (job: Job, progress: number | object) => {
+worker.on('progress', (job: Job, progress: number | object) => {
   // Do something with the return value.
 });
 ```
@@ -43,7 +69,7 @@ worker.on("progress", (job: Job, progress: number | object) => {
 Finally, when the process fails with an exception it is possible to listen for the "failed" event too:
 
 ```typescript
-worker.on("failed", (job: Job, failedReason: string) => {
+worker.on('failed', (job: Job, error: Error) => {
   // Do something with the return value.
 });
 ```
@@ -51,27 +77,27 @@ worker.on("failed", (job: Job, failedReason: string) => {
 It is also possible to listen to global events in order to get notifications of job completions, progress and failures:
 
 ```typescript
-import { QueueEvents } from 'bullmq'
+import { QueueEvents } from 'bullmq';
 
-const queueEvents = new QueueEvents('Paint')
+const queueEvents = new QueueEvents('Paint');
 
-queueEvents.on('completed', (jobId: string, returnvalue: any) => {
-    // Called every time a job is completed in any worker.
+queueEvents.on('completed', ({ jobId: string, returnvalue: any }) => {
+  // Called every time a job is completed in any worker.
 });
 
-queueEvents.on('failed', (jobId: string, failedReason: string) => {
-    // jobId received a progress event
+queueEvents.on('failed', ({ jobId: string, failedReason: string }) => {
+  // jobId received a progress event
 });
 
-queueEvents.on('progress', (jobId: string, progress: number | object) => {
-    // jobId received a progress event
+queueEvents.on('progress', ({jobId: string, data: number | object}) => {
+  // jobId received a progress event
 });
 ```
 
 Finally, you should attach an error listener to your worker to avoid NodeJS raising an unhandled exception when an error occurs, something like this:
 
 ```typescript
-worker.on('error', (err) => {
+worker.on('error', err => {
   // log the error
   console.error(err);
 });
@@ -81,13 +107,15 @@ worker.on('error', (err) => {
 If the error handler is missing, your worker may stop processing jobs when an error is emitted!. More info [here](https://nodejs.org/api/events.html#events_error_events).
 {% endhint %}
 
-### Typescript typings
+## Typescript typings
 
 It is also possible to specify the data types for the Job data and return value using generics:
 
 ```typescript
-const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {
-
-});
+const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {});
 ```
 
+## Read more:
+
+- 💡 [Worker API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.worker.md)
+- 💡 [Queue Events API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queueevents.md)

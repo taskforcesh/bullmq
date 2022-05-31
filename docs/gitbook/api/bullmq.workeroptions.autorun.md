@@ -4,6 +4,8 @@
 
 ## WorkerOptions.autorun property
 
+Condition to start processor at instance creation.
+
 <b>Signature:</b>
 
 ```typescript

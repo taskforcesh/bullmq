@@ -1,14 +1,14 @@
 --[[
   Release lock
 
-     Input:
-        KEYS[1] 'lock',
+    Input:
+      KEYS[1] 'lock',
+    
+      ARGV[1]  token
+      ARGV[2]  lock duration in milliseconds
       
-        ARGV[1]  token
-        ARGV[2]  lock duration in milliseconds
-      
-      Output:
-        "OK" if lock extented succesfully.
+    Output:
+      "OK" if lock extented succesfully.
 ]]
 local rcall = redis.call
 

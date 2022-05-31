@@ -25,7 +25,7 @@
     "@typescript-eslint/no-explicit-any": "off",
 
     "@typescript-eslint/ban-types": [
-      "error",
+      1,
       {
         "extendDefaults": true,
         "types": {
@@ -42,12 +42,13 @@
     "space-before-function-paren": [
       "error",
       {
-        "anonymous": "never",
+        "anonymous": "ignore",
         "named": "never",
         "asyncArrow": "always"
       }
     ],
     "arrow-parens": [2, "as-needed", { "requireForBlockBody": false }],
+    "curly": "error",
     "no-async-promise-executor": 0,
     "no-extraneous-class": 0,
     "@typescript-eslint/no-inferrable-types": 2,

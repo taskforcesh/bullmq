@@ -9,5 +9,5 @@ The name of the Job
 <b>Signature:</b>
 
 ```typescript
-name: N;
+name: NameType;
 ```

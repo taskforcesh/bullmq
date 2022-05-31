@@ -4,6 +4,8 @@
 
 ## QueueGetters.getDelayedCount() method
 
+Returns the number of jobs in delayed status.
+
 <b>Signature:</b>
 
 ```typescript

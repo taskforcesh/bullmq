@@ -7,17 +7,17 @@
 <b>Signature:</b>
 
 ```typescript
-processJob(job: Job<T, R, N>, token: string): Promise<void | Job<any, any, string>>;
+processJob(job: Job<DataType, ResultType, NameType>, token: string): Promise<void | Job<DataType, ResultType, NameType>>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  job | [Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; |  |
+|  job | [Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt; |  |
 |  token | string |  |
 
 <b>Returns:</b>
 
-Promise&lt;void \| [Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;&gt;
+Promise&lt;void \| [Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt;&gt;
 

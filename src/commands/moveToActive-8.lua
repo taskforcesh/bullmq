@@ -22,21 +22,23 @@
 
       -- Arguments
       ARGV[1] key prefix
-      ARGV[2] lock token
-      ARGV[3] lock duration in milliseconds
-      ARGV[4] timestamp
-      ARGV[5] optional job ID
+      ARGV[2] timestamp
+      ARGV[3] optional job ID
+      ARGV[4] opts
 
-      ARGV[6] optional jobs per time unit (rate limiter)
-      ARGV[7] optional time unit (rate limiter)
-      ARGV[8] optional rate limit by key
+      opts - token - lock token
+      opts - lockDuration
+      opts - limiter
 ]]
 
 local jobId
 local rcall = redis.call
 
-if(ARGV[5] ~= "") then
-  jobId = ARGV[5]
+-- Includes
+--- @include "includes/moveJobFromWaitToActive"
+
+if(ARGV[3] ~= "") then
+  jobId = ARGV[3]
 
   -- clean stalled key
   rcall("SREM", KEYS[5], jobId)
@@ -46,55 +48,7 @@ else
 end
 
 if jobId then
-  -- Check if we need to perform rate limiting.
-  local maxJobs = tonumber(ARGV[6])
+  local opts = cmsgpack.unpack(ARGV[4])
 
-  if(maxJobs) then
-    local rateLimiterKey = KEYS[6];
-
-    if(ARGV[8]) then
-      local groupKey = string.match(jobId, "[^:]+$")
-      if groupKey ~= nil then
-        rateLimiterKey = rateLimiterKey .. ":" .. groupKey
-      end
-    end
-
-    local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
-    -- check if rate limit hit
-    if jobCounter > maxJobs then
-      local exceedingJobs = jobCounter - maxJobs
-      local expireTime = tonumber(rcall("PTTL", rateLimiterKey))
-      local delay = expireTime + ((exceedingJobs - 1) * ARGV[7]) / maxJobs;
-      local timestamp = delay + tonumber(ARGV[4])
-      
-      -- put job into delayed queue
-      rcall("ZADD", KEYS[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
-      rcall("XADD", KEYS[4], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
-      rcall("XADD", KEYS[8], "*", "nextTimestamp", timestamp);
-      -- remove from active queue
-      rcall("LREM", KEYS[2], 1, jobId)
-
-      -- Return when we can process more jobs
-      return expireTime
-    else
-      if jobCounter == 1 then
-        rcall("PEXPIRE", rateLimiterKey, ARGV[7])
-      end
-    end
-  end
-
-  local jobKey = ARGV[1] .. jobId
-  local lockKey = jobKey .. ':lock'
-
-  -- get a lock
-  rcall("SET", lockKey, ARGV[2], "PX", ARGV[3])
-  rcall("ZREM", KEYS[3], jobId) -- remove from priority
-
-  rcall("XADD", KEYS[4], "*", "event", "active", "jobId", jobId, "prev", "waiting")
-
-  rcall("HSET", jobKey, "processedOn", ARGV[4])
-
-  return {rcall("HGETALL", jobKey), jobId} -- get job data
-else
-  rcall("XADD", KEYS[4], "*", "event", "drained");
+  return moveJobFromWaitToActive(KEYS, ARGV[1], jobId, ARGV[2], opts)
 end

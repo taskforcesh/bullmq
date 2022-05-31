@@ -23,23 +23,20 @@
 ]]
 local rcall = redis.call
 
-local function batches(n, batchSize)
-  local i = 0
-
-  return function()
-    local from = i * batchSize + 1
-    i = i + 1
-    if (from <= n) then
-      local to = math.min(from + batchSize - 1, n)
-      return from, to
-    end
-  end
-end
+-- Includes
+--- @include "includes/batches"
+--- @include "includes/removeJob"
+--- @include "includes/removeJobsByMaxAge"
+--- @include "includes/removeJobsByMaxCount"
+--- @include "includes/trimEvents"
 
 -- Check if we need to check for stalled jobs now.
 if rcall("EXISTS", KEYS[5]) == 1 then return {{}, {}} end
 
 rcall("SET", KEYS[5], ARGV[3], "PX", ARGV[4])
+
+-- Trim events before emiting them to avoid trimming events emitted in this script
+trimEvents(KEYS[6], KEYS[8])
 
 -- Move all stalled jobs to wait
 local stalling = rcall('SMEMBERS', KEYS[1])
@@ -73,14 +70,38 @@ if (#stalling > 0) then
                 local stalledCount = rcall("HINCRBY", jobKey, "stalledCounter",
                                            1)
                 if (stalledCount > MAX_STALLED_JOB_COUNT) then
-                    local failedReason = "job stalled more than allowable limit" 
-                    rcall("ZADD", KEYS[4], ARGV[3], jobId)
-                    rcall("HSET", jobKey, "failedReason",
-                          failedReason)
-                    rcall("XADD", KEYS[8], "*", "event", "failed", "jobId",
-                          jobId, 'prev', 'active', 'failedReason',
-                          failedReason)
-                    table.insert(failed, jobId)
+                  local rawOpts = rcall("HGET",jobKey, "opts")
+                  local opts = cjson.decode(rawOpts)
+                  local removeOnFailType = type(opts["removeOnFail"])
+                  rcall("ZADD", KEYS[4], ARGV[3], jobId)
+                  local failedReason = "job stalled more than allowable limit" 
+                  rcall("HMSET", jobKey, "failedReason",
+                        failedReason, "finishedOn", ARGV[3])
+                  rcall("XADD", KEYS[8], "*", "event", "failed", "jobId",
+                        jobId, 'prev', 'active', 'failedReason',
+                        failedReason)
+
+                  if removeOnFailType == "number" then
+                    removeJobsByMaxCount(opts["removeOnFail"], KEYS[4], ARGV[2])
+                  elseif removeOnFailType == "boolean" then
+                    if opts["removeOnFail"] then
+                      removeJob(jobId, false, ARGV[2])
+                      rcall("ZREM", KEYS[4], jobId)
+                    end
+                  elseif removeOnFailType ~= "nil" then
+                    local maxAge = opts["removeOnFail"]["age"]
+                    local maxCount = opts["removeOnFail"]["count"]
+
+                    if maxAge ~= nil then
+                      removeJobsByMaxAge(ARGV[3], maxAge, KEYS[4], ARGV[2])
+                    end
+
+                    if maxCount ~= nil and maxCount > 0 then
+                      removeJobsByMaxCount(maxCount, KEYS[4], ARGV[2])
+                    end
+                  end
+
+                  table.insert(failed, jobId)                    
                 else
                     -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
                     rcall("RPUSH", dst, jobId)
@@ -105,8 +126,5 @@ if (#active > 0) then
     rcall('SADD', KEYS[1], unpack(active, from, to))
   end
 end
-
-local maxEvents = rcall("HGET", KEYS[6], "opts.maxLenEvents")
-if maxEvents then rcall("XTRIM", KEYS[8], "MAXLEN", "~", maxEvents) end
 
 return {failed, stalled}

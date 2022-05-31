@@ -6,7 +6,7 @@ export interface FlowJob {
   queueName: string;
   data?: any;
   prefix?: string;
-  opts?: Omit<JobsOptions, 'parent'>;
+  opts?: Omit<JobsOptions, 'parent' | 'repeat'>;
   children?: FlowJob[];
 }
 
@@ -16,5 +16,8 @@ export type FlowQueuesOpts = Record<
 >;
 
 export interface FlowOpts {
+  /**
+   * Map of options for Queue classes.
+   */
   queuesOptions: FlowQueuesOpts;
 }

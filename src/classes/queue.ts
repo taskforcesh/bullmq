@@ -1,15 +1,84 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
-import { JobsOptions, QueueOptions, RepeatOptions } from '../interfaces';
+import {
+  IoredisListener,
+  JobsOptions,
+  QueueOptions,
+  RepeatOptions,
+} from '../interfaces';
+import { FinishedStatus } from '../types';
 import { isRedisInstance, jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
-import { Scripts } from './scripts';
+import { RedisConnection } from './redis-connection';
 
-export declare interface Queue {
-  on(event: 'cleaned', listener: (jobs: string[], type: string) => void): this;
-  on(event: string, listener: Function): this;
+export interface ObliterateOpts {
+  /**
+   * Use force = true to force obliteration even with active jobs in the queue
+   * @defaultValue false
+   */
+  force?: boolean;
+  /**
+   * Use count with the maximum number of deleted keys per iteration
+   * @defaultValue 1000
+   */
+  count?: number;
+}
+
+export interface QueueListener<DataType, ResultType, NameType extends string>
+  extends IoredisListener {
+  /**
+   * Listen to 'cleaned' event.
+   *
+   * This event is triggered when the queue calls clean method.
+   */
+  cleaned: (jobs: string[], type: string) => void;
+
+  /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an error is thrown.
+   */
+  error: (err: Error) => void;
+
+  /**
+   * Listen to 'paused' event.
+   *
+   * This event is triggered when the queue is paused.
+   */
+  paused: () => void;
+
+  /**
+   * Listen to 'progress' event.
+   *
+   * This event is triggered when the job updates its progress.
+   */
+  progress: (
+    job: Job<DataType, ResultType, NameType>,
+    progress: number | object,
+  ) => void;
+
+  /**
+   * Listen to 'removed' event.
+   *
+   * This event is triggered when a job is removed.
+   */
+  removed: (job: Job<DataType, ResultType, NameType>) => void;
+
+  /**
+   * Listen to 'resumed' event.
+   *
+   * This event is triggered when the queue is resumed.
+   */
+  resumed: () => void;
+
+  /**
+   * Listen to 'waiting' event.
+   *
+   * This event is triggered when the queue creates a new job.
+   */
+  waiting: (job: Job<DataType, ResultType, NameType>) => void;
 }
 
 /**
@@ -20,10 +89,10 @@ export declare interface Queue {
  *
  */
 export class Queue<
-  T = any,
-  R = any,
-  N extends string = string
-> extends QueueGetters {
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
+> extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
   jobsOpts: JobsOptions;
   limiter: {
@@ -31,11 +100,20 @@ export class Queue<
   } = null;
   private _repeat: Repeat;
 
-  constructor(name: string, opts?: QueueOptions) {
-    super(name, {
-      sharedConnection: isRedisInstance(opts?.connection),
-      ...opts,
-    });
+  constructor(
+    name: string,
+    opts?: QueueOptions,
+    Connection?: typeof RedisConnection,
+  ) {
+    super(
+      name,
+      {
+        sharedConnection: isRedisInstance(opts?.connection),
+        blockingConnection: false,
+        ...opts,
+      },
+      Connection,
+    );
 
     this.jobsOpts = get(opts, 'defaultJobOptions');
     this.limiter = get(opts, 'limiter');
@@ -56,11 +134,42 @@ export class Queue<
       });
   }
 
+  emit<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+    event: U,
+    ...args: Parameters<QueueListener<DataType, ResultType, NameType>[U]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  off<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+    eventName: U,
+    listener: QueueListener<DataType, ResultType, NameType>[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+    event: U,
+    listener: QueueListener<DataType, ResultType, NameType>[U],
+  ): this {
+    super.on(event, listener);
+    return this;
+  }
+
+  once<U extends keyof QueueListener<DataType, ResultType, NameType>>(
+    event: U,
+    listener: QueueListener<DataType, ResultType, NameType>[U],
+  ): this {
+    super.once(event, listener);
+    return this;
+  }
+
   /**
    * Returns this instance current default job options.
    */
-  get defaultJobOptions() {
-    return this.jobsOpts;
+  get defaultJobOptions(): JobsOptions {
+    return { ...this.jobsOpts };
   }
 
   get repeat(): Promise<Repeat> {
@@ -83,22 +192,30 @@ export class Queue<
    * @param data - Arbitrary data to append to the job.
    * @param opts - Job options that affects how the job is going to be processed.
    */
-  async add(name: N, data: T, opts?: JobsOptions) {
+  async add(
+    name: NameType,
+    data: DataType,
+    opts?: JobsOptions,
+  ): Promise<Job<DataType, ResultType, NameType>> {
     if (opts && opts.repeat) {
-      return (await this.repeat).addNextRepeatableJob<T, R, N>(
-        name,
-        data,
-        { ...this.jobsOpts, ...opts },
-        true,
-      );
+      return (await this.repeat).addNextRepeatableJob<
+        DataType,
+        ResultType,
+        NameType
+      >(name, data, { ...this.jobsOpts, ...opts }, true);
     } else {
       const jobId = jobIdForGroup(opts, data, { limiter: this.limiter });
 
-      const job = await Job.create<T, R, N>(this, name, data, {
-        ...this.jobsOpts,
-        ...opts,
-        jobId,
-      });
+      const job = await this.Job.create<DataType, ResultType, NameType>(
+        this,
+        name,
+        data,
+        {
+          ...this.jobsOpts,
+          ...opts,
+          jobId,
+        },
+      );
       this.emit('waiting', job);
       return job;
     }
@@ -110,8 +227,10 @@ export class Queue<
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
    */
-  async addBulk(jobs: { name: N; data: T; opts?: BulkJobOptions }[]) {
-    return Job.createBulk(
+  addBulk(
+    jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
+  ): Promise<Job<DataType, DataType, NameType>[]> {
+    return this.Job.createBulk<DataType, DataType, NameType>(
       this,
       jobs.map(job => ({
         name: job.name,
@@ -126,21 +245,29 @@ export class Queue<
   }
 
   /**
-    Pauses the processing of this queue globally.
-
-    We use an atomic RENAME operation on the wait queue. Since
-    we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue
-    is renamed to 'paused', no new jobs will be processed (the current ones
-    will run until finalized).
-
-    Adding jobs requires a LUA script to check first if the paused list exist
-    and in that case it will add it there instead of the wait list.
-  */
+   * Pauses the processing of this queue globally.
+   *
+   * We use an atomic RENAME operation on the wait queue. Since
+   * we have blocking calls with BRPOPLPUSH on the wait queue, as long as the queue
+   * is renamed to 'paused', no new jobs will be processed (the current ones
+   * will run until finalized).
+   *
+   * Adding jobs requires a LUA script to check first if the paused list exist
+   * and in that case it will add it there instead of the wait list.
+   */
   async pause(): Promise<void> {
-    await Scripts.pause(this, true);
+    await this.scripts.pause(true);
     this.emit('paused');
   }
 
+  async close(): Promise<void> {
+    if (!this.closing) {
+      if (this._repeat) {
+        await this._repeat.close();
+      }
+    }
+    return super.close();
+  }
   /**
    * Resumes the processing of this queue globally.
    *
@@ -148,7 +275,7 @@ export class Queue<
    * queue.
    */
   async resume(): Promise<void> {
-    await Scripts.pause(this, false);
+    await this.scripts.pause(false);
     this.emit('resumed');
   }
 
@@ -173,24 +300,34 @@ export class Queue<
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
 
-  async removeRepeatable(name: N, repeatOpts: RepeatOptions, jobId?: string) {
-    return (await this.repeat).removeRepeatable(name, repeatOpts, jobId);
+  async removeRepeatable(
+    name: NameType,
+    repeatOpts: RepeatOptions,
+    jobId?: string,
+  ): Promise<boolean> {
+    const repeat = await this.repeat;
+    const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
+
+    return !removed;
   }
 
-  async removeRepeatableByKey(key: string) {
-    return (await this.repeat).removeRepeatableByKey(key);
+  async removeRepeatableByKey(key: string): Promise<boolean> {
+    const repeat = await this.repeat;
+    const removed = await repeat.removeRepeatableByKey(key);
+
+    return !removed;
   }
 
   /**
    * Removes the given job from the queue as well as all its
    * dependencies.
    *
-   * @param jobId - The if of the job to remove
-   * @returns 1 if it managed to remove the job or -1 if the job or
+   * @param jobId - The id of the job to remove
+   * @returns 1 if it managed to remove the job or 0 if the job or
    * any of its dependencies was locked.
    */
-  async remove(jobId: string) {
-    return Scripts.remove(this, jobId);
+  remove(jobId: string): Promise<number> {
+    return this.scripts.remove(jobId);
   }
 
   /**
@@ -199,38 +336,9 @@ export class Queue<
    *
    * @param delayed - Pass true if it should also clean the
    * delayed jobs.
-   *
    */
-  async drain(delayed = false) {
-    // TODO: Convert to an atomic LUA script.
-
-    // Get all jobIds and empty all lists atomically.
-    const client = await this.client;
-
-    let multi = client.multi();
-
-    multi.lrange(this.toKey('wait'), 0, -1);
-    multi.lrange(this.toKey('paused'), 0, -1);
-    if (delayed) {
-      // TODO: get delayed jobIds too!
-      multi.del(this.toKey('delayed'));
-    }
-    multi.del(this.toKey('wait'));
-    multi.del(this.toKey('paused'));
-    multi.del(this.toKey('priority'));
-
-    const [waiting, paused] = await multi.exec();
-    const waitingJobs = waiting[1];
-    const pausedJobs = paused[1];
-
-    const jobKeys = pausedJobs.concat(waitingJobs).map(this.toKey, this);
-
-    if (jobKeys.length) {
-      multi = client.multi();
-
-      multi.del(...jobKeys);
-      return multi.exec();
-    }
+  drain(delayed = false): Promise<void> {
+    return this.scripts.drain(delayed);
   }
 
   /**
@@ -238,9 +346,10 @@ export class Queue<
    * grace period.
    *
    * @param grace - The grace period
-   * @param The - Max number of jobs to clean
-   * @param {string} [type=completed] - The type of job to clean
+   * @param limit - Max number of jobs to clean
+   * @param type - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
+   * @returns Id jobs from the deleted records
    */
   async clean(
     grace: number,
@@ -253,8 +362,7 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    const jobs = await Scripts.cleanJobsInSet(
-      this,
+    const jobs = await this.scripts.cleanJobsInSet(
       type,
       Date.now() - grace,
       limit,
@@ -273,16 +381,14 @@ export class Queue<
    * Note: This operation requires to iterate on all the jobs stored in the queue
    * and can be slow for very large queues.
    *
-   * @param { { force: boolean, count: number }} opts. Use force = true to force obliteration even
-   * with active jobs in the queue. Use count with the maximum number of deleted keys per iteration,
-   * 1000 is the default.
+   * @param opts - Obliterate options.
    */
-  async obliterate(opts?: { force?: boolean; count?: number }): Promise<void> {
+  async obliterate(opts?: ObliterateOpts): Promise<void> {
     await this.pause();
 
     let cursor = 0;
     do {
-      cursor = await Scripts.obliterate(this, {
+      cursor = await this.scripts.obliterate({
         force: false,
         count: 1000,
         ...opts,
@@ -291,11 +397,31 @@ export class Queue<
   }
 
   /**
+   * Retry all the failed jobs.
+   *
+   * @param opts - contains number to limit how many jobs will be moved to wait status per iteration,
+   * state (failed, completed) failed by default or from which timestamp.
+   * @returns
+   */
+  async retryJobs(
+    opts: { count?: number; state?: FinishedStatus; timestamp?: number } = {},
+  ): Promise<void> {
+    let cursor = 0;
+    do {
+      cursor = await this.scripts.retryJobs(
+        opts.state,
+        opts.count,
+        opts.timestamp,
+      );
+    } while (cursor);
+  }
+
+  /**
    * Trim the event stream to an approximately maxLength.
    *
-   * @param maxLength
+   * @param maxLength -
    */
-  async trimEvents(maxLength: number) {
+  async trimEvents(maxLength: number): Promise<number> {
     const client = await this.client;
     return client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
   }

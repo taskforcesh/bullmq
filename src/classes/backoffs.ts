@@ -1,4 +1,4 @@
-import { Job } from '../classes/job';
+import { Job } from './job';
 import { BackoffOptions } from '../interfaces/backoff-options';
 
 interface BuiltInStrategies {
@@ -17,14 +17,14 @@ export type BackoffFunction = (
 
 export class Backoffs {
   static builtinStrategies: BuiltInStrategies = {
-    fixed: function(delay: number) {
-      return function() {
+    fixed: function (delay: number) {
+      return function (): number {
         return delay;
       };
     },
 
-    exponential: function(delay: number) {
-      return function(attemptsMade: number) {
+    exponential: function (delay: number) {
+      return function (attemptsMade: number): number {
         return Math.round((Math.pow(2, attemptsMade) - 1) * delay);
       };
     },

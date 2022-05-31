@@ -4,6 +4,8 @@
 
 ## FlowOpts.queuesOptions property
 
+Map of options for Queue classes.
+
 <b>Signature:</b>
 
 ```typescript

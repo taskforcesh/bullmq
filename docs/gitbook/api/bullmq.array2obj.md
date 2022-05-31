@@ -7,9 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-export declare function array2obj(arr: string[]): {
-    [index: string]: string;
-};
+export declare function array2obj(arr: string[]): Record<string, string>;
 ```
 
 ## Parameters
@@ -20,5 +18,5 @@ export declare function array2obj(arr: string[]): {
 
 <b>Returns:</b>
 
-{ \[index: string\]: string; }
+Record&lt;string, string&gt;
 

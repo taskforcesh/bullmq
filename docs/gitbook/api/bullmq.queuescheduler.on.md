@@ -7,15 +7,15 @@
 <b>Signature:</b>
 
 ```typescript
-on(event: 'stalled', listener: (jobId: string, prev: string) => void): this;
+on<U extends keyof QueueSchedulerListener>(event: U, listener: QueueSchedulerListener[U]): this;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  event | 'stalled' |  |
-|  listener | (jobId: string, prev: string) =&gt; void |  |
+|  event | U |  |
+|  listener | [QueueSchedulerListener](./bullmq.queueschedulerlistener.md)<!-- -->\[U\] |  |
 
 <b>Returns:</b>
 

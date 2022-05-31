@@ -17,5 +17,5 @@ getWorkers(): Promise<{
 
 Promise&lt;{ \[index: string\]: string; }\[\]&gt;
 
-{<!-- -->Object<!-- -->} Returns an array with workers info.
+- Returns an array with workers info.
 

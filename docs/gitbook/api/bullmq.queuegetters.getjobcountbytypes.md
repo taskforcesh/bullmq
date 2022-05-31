@@ -4,17 +4,21 @@
 
 ## QueueGetters.getJobCountByTypes() method
 
+Job counts by type
+
+Queue\#getJobCountByTypes('completed') =<!-- -->&gt; completed count Queue\#getJobCountByTypes('completed,failed') =<!-- -->&gt; completed + failed count Queue\#getJobCountByTypes('completed', 'failed') =<!-- -->&gt; completed + failed count Queue\#getJobCountByTypes('completed', 'waiting', 'failed') =<!-- -->&gt; completed + waiting + failed count
+
 <b>Signature:</b>
 
 ```typescript
-getJobCountByTypes(...types: string[]): Promise<number>;
+getJobCountByTypes(...types: JobType[]): Promise<number>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  types | string\[\] |  |
+|  types | [JobType](./bullmq.jobtype.md)<!-- -->\[\] |  |
 
 <b>Returns:</b>
 

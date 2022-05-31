@@ -1,13 +1,26 @@
-import { Cluster } from 'ioredis';
+import { Cluster, Redis } from 'ioredis';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
-import { get, isUndefined } from 'lodash';
-import { RedisClient } from './classes/redis-connection';
-import { JobsOptions } from './interfaces/jobs-options';
-import { QueueOptions } from './interfaces/queue-options';
+import { get } from 'lodash';
+import * as semver from 'semver';
+import {
+  RedisClient,
+  JobsOptions,
+  QueueOptions,
+  ChildMessage,
+  ParentMessage,
+} from './interfaces';
+import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
-export function tryCatch(fn: (...args: any) => any, ctx: any, args: any[]) {
+export function tryCatch(
+  fn: (...args: any) => any,
+  ctx: any,
+  args: any[],
+): any {
   try {
     return fn.apply(ctx, args);
   } catch (e) {
@@ -18,8 +31,8 @@ export function tryCatch(fn: (...args: any) => any, ctx: any, args: any[]) {
 
 /**
  * Checks the size of string for ascii/non-ascii characters
- * (Reference: https://stackoverflow.com/a/23318053/1347170)
- * @param {string} str
+ * @see https://stackoverflow.com/a/23318053/1347170
+ * @param str -
  */
 export function lengthInUtf8Bytes(str: string): number {
   return Buffer.byteLength(str, 'utf8');
@@ -34,7 +47,7 @@ export function isEmpty(obj: object): boolean {
   return true;
 }
 
-export function array2obj(arr: string[]) {
+export function array2obj(arr: string[]): Record<string, string> {
   const obj: { [index: string]: string } = {};
   for (let i = 0; i < arr.length; i += 2) {
     obj[arr[i]] = arr[i + 1];
@@ -48,12 +61,16 @@ export function delay(ms: number): Promise<void> {
   });
 }
 
-export function isRedisInstance(obj: any): boolean {
+export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
   }
   const redisApi = ['connect', 'disconnect', 'duplicate'];
   return redisApi.every(name => typeof obj[name] === 'function');
+}
+
+export function isRedisCluster(obj: unknown): obj is Cluster {
+  return isRedisInstance(obj) && (<Cluster>obj).isCluster;
 }
 
 export async function removeAllQueueData(
@@ -101,10 +118,71 @@ export function jobIdForGroup(
   const jobId = jobOpts?.jobId;
   const groupKeyPath = get(queueOpts, 'limiter.groupKey');
   const groupKey = get(data, groupKeyPath);
-  if (groupKeyPath && !isUndefined(groupKey)) {
+  if (groupKeyPath && !(typeof groupKey === 'undefined')) {
     return `${jobId || v4()}:${groupKey}`;
   }
   return jobId;
 }
 
-export const clientCommandMessageReg = /ERR unknown command ['`]\s*client\s*['`]/;
+export const clientCommandMessageReg =
+  /ERR unknown command ['`]\s*client\s*['`]/;
+
+export const DELAY_TIME_5 = 5000;
+
+export const DELAY_TIME_1 = 100;
+
+export function isNotConnectionError(error: Error): boolean {
+  const errorMessage = `${(error as Error).message}`;
+  return (
+    errorMessage !== CONNECTION_CLOSED_ERROR_MSG &&
+    !errorMessage.includes('ECONNREFUSED')
+  );
+}
+
+interface procSendLike {
+  send?(message: any, callback?: (error: Error | null) => void): boolean;
+}
+
+export const asyncSend = <T extends procSendLike>(
+  proc: T,
+  msg: any,
+): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    if (typeof proc.send === 'function') {
+      proc.send(msg, (err: Error) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    } else {
+      resolve();
+    }
+  });
+};
+
+export const childSend = (
+  proc: NodeJS.Process,
+  msg: ChildMessage,
+): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
+
+export const isRedisVersionLowerThan = (
+  currentVersion: string,
+  minimumVersion: string,
+): boolean => {
+  const version = semver.valid(semver.coerce(currentVersion));
+
+  return semver.lt(version, minimumVersion);
+};
+
+export const parentSend = (
+  child: ChildProcess,
+  msg: ParentMessage,
+): Promise<void> => asyncSend<ChildProcess>(child, msg);
+
+export const WORKER_SUFFIX = '';
+
+export const QUEUE_SCHEDULER_SUFFIX = ':qs';
+
+export const QUEUE_EVENT_SUFFIX = ':qe';

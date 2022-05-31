@@ -4,6 +4,8 @@
 
 ## QueueGetters.getFailedCount() method
 
+Returns the number of jobs in failed status.
+
 <b>Signature:</b>
 
 ```typescript

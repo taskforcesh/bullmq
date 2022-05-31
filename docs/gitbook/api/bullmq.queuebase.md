@@ -15,7 +15,7 @@ export declare class QueueBase extends EventEmitter
 
 |  Constructor | Modifiers | Description |
 |  --- | --- | --- |
-|  [(constructor)(name, opts)](./bullmq.queuebase._constructor_.md) |  | Constructs a new instance of the <code>QueueBase</code> class |
+|  [(constructor)(name, opts, Connection)](./bullmq.queuebase._constructor_.md) |  | Constructs a new instance of the <code>QueueBase</code> class |
 
 ## Properties
 
@@ -24,7 +24,7 @@ export declare class QueueBase extends EventEmitter
 |  [client](./bullmq.queuebase.client.md) |  | Promise&lt;[RedisClient](./bullmq.redisclient.md)<!-- -->&gt; |  |
 |  [closing](./bullmq.queuebase.closing.md) |  | Promise&lt;void&gt; |  |
 |  [connection](./bullmq.queuebase.connection.md) |  | [RedisConnection](./bullmq.redisconnection.md) |  |
-|  [keys](./bullmq.queuebase.keys.md) |  | KeysMap |  |
+|  [keys](./bullmq.queuebase.keys.md) |  | [KeysMap](./bullmq.keysmap.md) |  |
 |  [name](./bullmq.queuebase.name.md) |  | string |  |
 |  [opts](./bullmq.queuebase.opts.md) |  | [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
 |  [redisVersion](./bullmq.queuebase.redisversion.md) |  | string |  |
@@ -35,7 +35,7 @@ export declare class QueueBase extends EventEmitter
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
 |  [base64Name()](./bullmq.queuebase.base64name.md) |  |  |
-|  [clientName()](./bullmq.queuebase.clientname.md) |  |  |
+|  [clientName(suffix)](./bullmq.queuebase.clientname.md) |  |  |
 |  [close()](./bullmq.queuebase.close.md) |  |  |
 |  [disconnect()](./bullmq.queuebase.disconnect.md) |  |  |
 |  [emit(event, args)](./bullmq.queuebase.emit.md) |  |  |
