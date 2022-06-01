@@ -239,6 +239,7 @@ export class Scripts {
     shouldRemove: boolean | number | KeepJobs,
     target: FinishedStatus,
     token: string,
+    timestamp: number,
     fetchNext = true,
   ): (string | number | boolean | Buffer)[] {
     const queueKeys = this.queue.keys;
@@ -270,7 +271,7 @@ export class Scripts {
 
     const args = [
       job.id,
-      Date.now(),
+      timestamp,
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
@@ -310,6 +311,7 @@ export class Scripts {
   ): Promise<JobData | []> {
     const client = await this.queue.client;
 
+    const timestamp = Date.now();
     const args = this.moveToFinishedArgs<DataType, ReturnType, NameType>(
       job,
       val,
@@ -317,14 +319,19 @@ export class Scripts {
       shouldRemove,
       target,
       token,
+      timestamp,
       fetchNext,
     );
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
       throw this.finishedErrors(result, job.id, 'finished', 'active');
-    } else if (result) {
-      return raw2jobData(result);
+    } else {
+      job.finishedOn = timestamp;
+
+      if (result) {
+        return raw2jobData(result);
+      }
     }
   }
 
@@ -396,7 +403,8 @@ export class Scripts {
     removeOnFailed: boolean | number | KeepJobs,
     token: string,
     fetchNext = false,
-  ) {
+  ): (string | number | boolean | Buffer)[] {
+    const timestamp = Date.now();
     return this.moveToFinishedArgs(
       job,
       failedReason,
@@ -404,6 +412,7 @@ export class Scripts {
       removeOnFailed,
       'failed',
       token,
+      timestamp,
       fetchNext,
     );
   }
