@@ -536,13 +536,14 @@ describe('repeat', function () {
         const date = new Date('2017-02-07 9:24:00');
         this.clock.setSystemTime(date);
 
+        const repeat = {
+          cron: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
+        };
         await currentQueue.add(
           'rrule',
           { foo: 'bar' },
           {
-            repeat: {
-              cron: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
-            },
+            repeat,
           },
         );
 
@@ -560,6 +561,9 @@ describe('repeat', function () {
             prev = job;
             counter++;
             if (counter == 5) {
+              const removed = await queue.removeRepeatable('rrule', repeat);
+              expect(removed).to.be.true;
+
               resolve();
             }
           });
