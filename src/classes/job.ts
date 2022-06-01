@@ -17,6 +17,7 @@ import {
   getParentKey,
   lengthInUtf8Bytes,
   tryCatch,
+  jobIdForGroup,
 } from '../utils';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
@@ -468,6 +469,7 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
+    let finishedOn;
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
@@ -513,6 +515,7 @@ export class Job<
         fetchNext,
       );
       (<any>multi).moveToFinished(args);
+      finishedOn = args[13];
       command = 'failed';
     }
 
@@ -520,6 +523,10 @@ export class Job<
     const code = results[results.length - 1][1];
     if (code < 0) {
       throw this.scripts.finishedErrors(code, this.id, command, 'active');
+    }
+
+    if (finishedOn) {
+      this.finishedOn = finishedOn as number;
     }
   }
 

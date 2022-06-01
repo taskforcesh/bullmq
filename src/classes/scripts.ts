@@ -403,7 +403,7 @@ export class Scripts {
     removeOnFailed: boolean | number | KeepJobs,
     token: string,
     fetchNext = false,
-  ) {
+  ): (string | number | boolean | Buffer)[] {
     const timestamp = Date.now();
     return this.moveToFinishedArgs(
       job,
