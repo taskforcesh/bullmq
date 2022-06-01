@@ -326,11 +326,13 @@ export class Scripts {
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
       throw this.finishedErrors(result, job.id, 'finished', 'active');
-    } else if (result) {
-      return raw2jobData(result);
-    }
+    } else {
+      job.finishedOn = timestamp;
 
-    job.finishedOn = timestamp;
+      if (result) {
+        return raw2jobData(result);
+      }
+    }
   }
 
   finishedErrors(
