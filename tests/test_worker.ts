@@ -1012,6 +1012,7 @@ describe('workers', function () {
     await new Promise<void>(resolve => {
       worker.once('failed', async (job, err) => {
         expect(job).to.be.ok;
+        expect(job.finishedOn).to.be.string;
         expect(job.data.foo).to.be.eql('bar');
         expect(err).to.be.eql(jobError);
         resolve();
