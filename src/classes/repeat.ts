@@ -1,9 +1,9 @@
+import { parseExpression } from 'cron-parser';
 import { createHash } from 'crypto';
 import { JobsOptions, RepeatBaseOptions, RepeatOptions } from '../interfaces';
 import { CronStrategy } from '../types';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
-import { parseExpression } from 'cron-parser';
 
 export class Repeat extends QueueBase {
   private cronStrategy: CronStrategy;
@@ -212,6 +212,15 @@ function getRepeatJobId(
   //return `repeat:${name}:${namespace}:${nextMillis}`;
 }
 
+function getRepeatKey(name: string, repeat: RepeatOptions) {
+  const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
+  const tz = repeat.tz || '';
+  const suffix = (repeat.cron ? repeat.cron : String(repeat.every)) || '';
+  const jobId = repeat.jobId ? repeat.jobId : '';
+
+  return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
+}
+
 export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
   if (opts.cron && opts.every) {
     throw new Error(
@@ -241,15 +250,6 @@ export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
     // Ignore error
   }
 };
-
-function getRepeatKey(name: string, repeat: RepeatOptions) {
-  const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
-  const tz = repeat.tz || '';
-  const suffix = (repeat.cron ? repeat.cron : String(repeat.every)) || '';
-  const jobId = repeat.jobId ? repeat.jobId : '';
-
-  return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
-}
 
 function md5(str: string) {
   return createHash('md5').update(str).digest('hex');
