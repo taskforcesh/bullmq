@@ -10,6 +10,7 @@ import {
   QueueEvents,
   QueueScheduler,
   Repeat,
+  getNextMillis,
   Worker,
 } from '../src/classes';
 import { JobsOptions } from '../src/interfaces';
@@ -425,22 +426,18 @@ describe('repeat', function () {
     it('should repeat every 2 seconds', async function () {
       this.timeout(20000);
       const settings = {
-        cronStrategies: {
-          rrule: (millis, opts) => {
-            const currentDate =
-              opts.startDate && new Date(opts.startDate) > new Date(millis)
-                ? new Date(opts.startDate)
-                : new Date(millis);
-            const rrule = rrulestr(opts.cron);
-            if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
-              throw new Error(
-                'DTSTART must be defined to use COUNT with rrule',
-              );
-            }
+        cronStrategy: (millis, opts) => {
+          const currentDate =
+            opts.startDate && new Date(opts.startDate) > new Date(millis)
+              ? new Date(opts.startDate)
+              : new Date(millis);
+          const rrule = rrulestr(opts.cron);
+          if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
+            throw new Error('DTSTART must be defined to use COUNT with rrule');
+          }
 
-            const next_occurrence = rrule.after(currentDate, false);
-            return next_occurrence?.getTime();
-          },
+          const next_occurrence = rrule.after(currentDate, false);
+          return next_occurrence?.getTime();
         },
       };
       const currentQueue = new Queue(queueName, { connection, settings });
@@ -467,7 +464,6 @@ describe('repeat', function () {
         {
           repeat: {
             cron: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
-            type: 'rrule',
           },
         },
       );
@@ -496,6 +492,118 @@ describe('repeat', function () {
       await worker.close();
       await queueScheduler.close();
       delayStub.restore();
+    });
+
+    describe('when differentiating strategy by job name', function () {
+      it('should repeat every 2 seconds', async function () {
+        this.timeout(10000);
+        const settings = {
+          cronStrategy: (millis, opts, name) => {
+            if (name === 'rrule') {
+              const currentDate =
+                opts.startDate && new Date(opts.startDate) > new Date(millis)
+                  ? new Date(opts.startDate)
+                  : new Date(millis);
+              const rrule = rrulestr(opts.cron);
+              if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
+                throw new Error(
+                  'DTSTART must be defined to use COUNT with rrule',
+                );
+              }
+
+              const next_occurrence = rrule.after(currentDate, false);
+              return next_occurrence?.getTime();
+            } else {
+              return getNextMillis(millis, opts);
+            }
+          },
+        };
+        const currentQueue = new Queue(queueName, { connection, settings });
+        const queueScheduler = new QueueScheduler(queueName, { connection });
+        await queueScheduler.waitUntilReady();
+
+        const nextTick = 2 * ONE_SECOND + 100;
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            this.clock.tick(nextTick);
+          },
+          { connection, settings },
+        );
+        const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+
+        const date = new Date('2017-02-07 9:24:00');
+        this.clock.setSystemTime(date);
+
+        await currentQueue.add(
+          'rrule',
+          { foo: 'bar' },
+          {
+            repeat: {
+              cron: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
+            },
+          },
+        );
+
+        this.clock.tick(nextTick);
+
+        let prev: any;
+        let counter = 0;
+
+        const completing = new Promise<void>(resolve => {
+          worker.on('completed', async job => {
+            if (prev) {
+              expect(prev.timestamp).to.be.lt(job.timestamp);
+              expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+            }
+            prev = job;
+            counter++;
+            if (counter == 5) {
+              resolve();
+            }
+          });
+        });
+
+        await completing;
+
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            repeat: {
+              cron: '*/2 * * * * *',
+              startDate: new Date('2017-02-07 9:24:05'),
+            },
+          },
+        );
+
+        this.clock.tick(nextTick);
+
+        let prev2: Job;
+        let counter2 = 0;
+
+        const completing2 = new Promise<void>(resolve => {
+          worker.on('completed', async job => {
+            if (prev2) {
+              expect(prev2.timestamp).to.be.lt(job.timestamp);
+              expect(job.timestamp - prev2.timestamp).to.be.gte(2000);
+            }
+            prev2 = job;
+            counter2++;
+            if (counter2 == 5) {
+              resolve();
+            }
+          });
+        });
+
+        await completing2;
+
+        await currentQueue.close();
+        await worker.close();
+        await queueScheduler.close();
+        delayStub.restore();
+      });
     });
   });
 

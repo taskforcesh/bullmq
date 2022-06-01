@@ -4,7 +4,7 @@ export interface AdvancedRepeatOptions {
   /**
    * A set of custom cron strategies keyed by name.
    */
-  cronStrategies?: Record<string, CronStrategy>;
+  cronStrategy?: CronStrategy;
 }
 
 export interface AdvancedOptions extends AdvancedRepeatOptions {

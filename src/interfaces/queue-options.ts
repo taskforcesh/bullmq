@@ -1,6 +1,6 @@
+import { AdvancedRepeatOptions } from './advanced-options';
 import { JobsOptions } from './jobs-options';
 import { ConnectionOptions } from './redis-options';
-import { AdvancedRepeatOptions } from './advanced-options';
 
 export enum ClientType {
   blocking = 'blocking',

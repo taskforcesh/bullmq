@@ -7,10 +7,6 @@ import { ParserOptions } from 'cron-parser';
  */
 export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   /**
-   * A type for custom cron pattern
-   */
-  type?: string;
-  /**
    * A cron pattern
    */
   cron?: string;

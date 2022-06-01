@@ -1,12 +1,13 @@
 import { createHash } from 'crypto';
 import { JobsOptions, RepeatBaseOptions, RepeatOptions } from '../interfaces';
 import { CronStrategy } from '../types';
-import { Crons } from './crons';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
+import { parseExpression } from 'cron-parser';
 
 export class Repeat extends QueueBase {
-  private cronStrategies: Record<string, CronStrategy>;
+  private cronStrategy: CronStrategy;
+
   constructor(
     name: string,
     opts?: RepeatBaseOptions,
@@ -14,7 +15,8 @@ export class Repeat extends QueueBase {
   ) {
     super(name, opts, Connection);
 
-    this.cronStrategies = opts.settings && opts.settings.cronStrategies;
+    this.cronStrategy =
+      (opts.settings && opts.settings.cronStrategy) || getNextMillis;
   }
 
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -45,11 +47,7 @@ export class Repeat extends QueueBase {
 
     now = prevMillis < now ? now : prevMillis;
 
-    const nextMillis = await Crons.calculate(
-      repeatOpts,
-      this.cronStrategies,
-      now,
-    );
+    const nextMillis = await this.cronStrategy(now, repeatOpts, name);
 
     const hasImmediately =
       (repeatOpts.every || repeatOpts.cron) && repeatOpts.immediately;
@@ -213,6 +211,36 @@ function getRepeatJobId(
   // return `repeat:${jobId || ''}:${name}:${namespace}:${nextMillis}`;
   //return `repeat:${name}:${namespace}:${nextMillis}`;
 }
+
+export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
+  if (opts.cron && opts.every) {
+    throw new Error(
+      'Both .cron and .every options are defined for this repeatable job',
+    );
+  }
+
+  if (opts.every) {
+    return (
+      Math.floor(millis / opts.every) * opts.every +
+      (opts.immediately ? 0 : opts.every)
+    );
+  }
+
+  const currentDate =
+    opts.startDate && new Date(opts.startDate) > new Date(millis)
+      ? new Date(opts.startDate)
+      : new Date(millis);
+  const interval = parseExpression(opts.cron, {
+    ...opts,
+    currentDate,
+  });
+
+  try {
+    return interval.next().getTime();
+  } catch (e) {
+    // Ignore error
+  }
+};
 
 function getRepeatKey(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
