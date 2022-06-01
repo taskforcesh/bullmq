@@ -43,9 +43,9 @@ export class QueueBase extends EventEmitter {
     );
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
-    this.connection.on('close', (error: Error) => {
+    this.connection.on('close', () => {
       if (!this.closing) {
-        this.emit('error', error);
+        this.emit('ioredis:close');
       }
     });
 

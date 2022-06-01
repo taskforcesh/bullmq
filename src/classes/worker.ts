@@ -4,6 +4,7 @@ import * as path from 'path';
 import { v4 } from 'uuid';
 import {
   GetNextJobOptions,
+  IoredisListener,
   JobJsonRaw,
   Processor,
   RedisClient,
@@ -33,7 +34,7 @@ export interface WorkerListener<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
-> {
+> extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
@@ -132,7 +133,7 @@ export class Worker<
   ResultType = any,
   NameType extends string = string,
 > extends QueueBase {
-  opts: WorkerOptions;
+  readonly opts: WorkerOptions;
 
   private drained: boolean;
   private waiting = false;
@@ -284,6 +285,10 @@ export class Worker<
     return this.blockingConnection.client;
   }
 
+  set concurrency(concurrency: number) {
+    this.opts.concurrency = concurrency;
+  }
+
   get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
@@ -303,7 +308,7 @@ export class Worker<
       if (!this.running) {
         try {
           this.running = true;
-          const client = await this.client;
+          const client = await this.blockingConnection.client;
 
           if (this.closing) {
             return;
@@ -323,18 +328,11 @@ export class Worker<
             }
           }
 
-          const opts: WorkerOptions = <WorkerOptions>this.opts;
-
           const processing = (this.processing = new Map());
 
-          const tokens: string[] = Array.from(
-            { length: opts.concurrency },
-            () => v4(),
-          );
-
           while (!this.closing) {
-            if (processing.size < opts.concurrency) {
-              const token = tokens.pop();
+            if (processing.size < this.opts.concurrency) {
+              const token = v4();
 
               processing.set(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
@@ -363,13 +361,16 @@ export class Worker<
               // reuse same token if next job is available to process
               processing.set(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () => this.processJob(job, token),
+                  () =>
+                    this.processJob(
+                      job,
+                      token,
+                      () => processing.size <= this.opts.concurrency,
+                    ),
                   this.opts.runRetryDelay,
                 ),
                 token,
               );
-            } else {
-              tokens.push(token);
             }
           }
           this.running = false;
@@ -521,6 +522,7 @@ export class Worker<
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
+    fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -570,7 +572,7 @@ export class Worker<
       const completed = await job.moveToCompleted(
         result,
         token,
-        !(this.closing || this.paused),
+        fetchNextCallback() && !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
       const [jobData, jobId] = completed || [];

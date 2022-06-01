@@ -108,8 +108,7 @@ describe('Delayed jobs', function () {
     });
 
     const queueSchedulerError = new Promise<void>(resolve => {
-      queueScheduler.on('error', async function (error) {
-        expect(error.message).to.be.equal('Connection is closed.');
+      queueScheduler.on('ioredis:close', async function () {
         resolve();
       });
     });
