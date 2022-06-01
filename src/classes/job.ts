@@ -17,7 +17,6 @@ import {
   getParentKey,
   lengthInUtf8Bytes,
   tryCatch,
-  jobIdForGroup,
 } from '../utils';
 import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
