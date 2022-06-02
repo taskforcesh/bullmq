@@ -29,13 +29,20 @@ describe('Rate Limiter', function () {
   it('should put a job into the delayed queue when limit is hit', async function () {
     this.timeout(6000);
     const numJobs = 5;
-    const worker = new Worker(queueName, async () => {}, {
-      connection,
-      limiter: {
-        max: 1,
-        duration: 1000,
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(200);
       },
-    });
+      {
+        connection,
+        concurrency: 5,
+        limiter: {
+          max: 1,
+          duration: 1000,
+        },
+      },
+    );
     await worker.waitUntilReady();
 
     queueEvents.on('failed', () => {});
@@ -46,12 +53,7 @@ describe('Rate Limiter', function () {
     }));
     await queue.addBulk(jobs);
 
-    await Promise.all([
-      worker.getNextJob('test-token'),
-      worker.getNextJob('test-token'),
-      worker.getNextJob('test-token'),
-      worker.getNextJob('test-token'),
-    ]);
+    await delay(100);
 
     const delayedCount = await queue.getDelayedCount();
     expect(delayedCount).to.equal(numJobs - 1);
