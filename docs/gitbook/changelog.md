@@ -1,3 +1,10 @@
+## [1.85.3](https://github.com/taskforcesh/bullmq/compare/v1.85.2...v1.85.3) (2022-06-03)
+
+
+### Bug Fixes
+
+* **queue:** fix addBulk signature ResultType ([#1268](https://github.com/taskforcesh/bullmq/issues/1268)) ([f6770cc](https://github.com/taskforcesh/bullmq/commit/f6770cc383b68bf7b2fa655cd9eda713a06835aa))
+
 ## [1.85.2](https://github.com/taskforcesh/bullmq/compare/v1.85.1...v1.85.2) (2022-06-01)
 
 
