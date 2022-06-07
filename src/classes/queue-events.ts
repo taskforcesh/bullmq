@@ -1,15 +1,19 @@
-import { QueueEventsOptions, RedisClient, StreamReadRaw } from '../interfaces';
+import {
+  IoredisListener,
+  QueueEventsOptions,
+  RedisClient,
+  StreamReadRaw,
+} from '../interfaces';
 import {
   array2obj,
-  DELAY_TIME_5,
-  delay,
-  isNotConnectionError,
+  clientCommandMessageReg,
   isRedisInstance,
+  QUEUE_EVENT_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
-export interface QueueEventsListener {
+export interface QueueEventsListener extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
@@ -103,7 +107,7 @@ export interface QueueEventsListener {
    * This event is triggered when a job has been manually
    * removed from the queue.
    */
-  removed: (args: { jobId: string }, id: string) => void;
+  removed: (args: { jobId: string; prev: string }, id: string) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -156,6 +160,35 @@ export interface QueueEventsListener {
 export class QueueEvents extends QueueBase {
   private running = false;
 
+  constructor(
+    name: string,
+    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+    Connection?: typeof RedisConnection,
+  ) {
+    super(
+      name,
+      {
+        ...opts,
+        connection: isRedisInstance(connection)
+          ? (<RedisClient>connection).duplicate()
+          : connection,
+        blockingConnection: true,
+      },
+      Connection,
+    );
+
+    this.opts = Object.assign(
+      {
+        blockingTimeout: 10000,
+      },
+      this.opts,
+    );
+
+    if (autorun) {
+      this.run().catch(error => this.emit('error', error));
+    }
+  }
+
   emit<U extends keyof QueueEventsListener>(
     event: U,
     ...args: Parameters<QueueEventsListener[U]>
@@ -187,39 +220,19 @@ export class QueueEvents extends QueueBase {
     return this;
   }
 
-  constructor(
-    name: string,
-    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
-    Connection?: typeof RedisConnection,
-  ) {
-    super(
-      name,
-      {
-        ...opts,
-        connection: isRedisInstance(connection)
-          ? (<RedisClient>connection).duplicate()
-          : connection,
-      },
-      Connection,
-    );
-
-    this.opts = Object.assign(
-      {
-        blockingTimeout: 10000,
-      },
-      this.opts,
-    );
-
-    if (autorun) {
-      this.run().catch(error => this.emit('error', error));
-    }
-  }
-
   async run(): Promise<void> {
     if (!this.running) {
       try {
         this.running = true;
         const client = await this.client;
+
+        try {
+          await client.client('setname', this.clientName(QUEUE_EVENT_SUFFIX));
+        } catch (err) {
+          if (!clientCommandMessageReg.test((<Error>err).message)) {
+            throw err;
+          }
+        }
 
         await this.consumeEvents(client);
       } catch (error) {
@@ -231,59 +244,46 @@ export class QueueEvents extends QueueBase {
     }
   }
 
-  private async consumeEvents(client: RedisClient) {
+  private async consumeEvents(client: RedisClient): Promise<void> {
     const opts: QueueEventsOptions = this.opts;
 
     const key = this.keys.events;
     let id = opts.lastEventId || '$';
 
     while (!this.closing) {
-      try {
-        // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
-        const data: StreamReadRaw = (await client.xread(
-          'BLOCK',
-          opts.blockingTimeout,
-          'STREAMS',
-          key,
-          id,
-        )) as any;
+      // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
+      const data: StreamReadRaw = await this.checkConnectionError(() =>
+        client.xread('BLOCK', opts.blockingTimeout, 'STREAMS', key, id),
+      );
+      if (data) {
+        const stream = data[0];
+        const events = stream[1];
 
-        if (data) {
-          const stream = data[0];
-          const events = stream[1];
+        for (let i = 0; i < events.length; i++) {
+          id = events[i][0];
+          const args = array2obj(events[i][1]);
 
-          for (let i = 0; i < events.length; i++) {
-            id = events[i][0];
-            const args = array2obj(events[i][1]);
+          //
+          // TODO: we may need to have a separate xtream for progress data
+          // to avoid this hack.
+          switch (args.event) {
+            case 'progress':
+              args.data = JSON.parse(args.data);
+              break;
+            case 'completed':
+              args.returnvalue = JSON.parse(args.returnvalue);
+              break;
+          }
 
-            //
-            // TODO: we may need to have a separate xtream for progress data
-            // to avoid this hack.
-            switch (args.event) {
-              case 'progress':
-                args.data = JSON.parse(args.data);
-                break;
-              case 'completed':
-                args.returnvalue = JSON.parse(args.returnvalue);
-                break;
-            }
+          const { event, ...restArgs } = args;
 
-            const { event, ...restArgs } = args;
-
-            if (event === 'drained') {
-              this.emit(event, id);
-            } else {
-              this.emit(event as any, restArgs, id);
-              this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);
-            }
+          if (event === 'drained') {
+            this.emit(event, id);
+          } else {
+            this.emit(event as any, restArgs, id);
+            this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);
           }
         }
-      } catch (err) {
-        if (isNotConnectionError(err as Error)) {
-          throw err;
-        }
-
-        await delay(DELAY_TIME_5);
       }
     }
   }

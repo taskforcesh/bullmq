@@ -2,8 +2,6 @@ import { createHash } from 'crypto';
 import { RepeatOptions } from '../interfaces';
 import { JobsOptions } from '../types';
 import { QueueBase } from './queue-base';
-import { Job } from './job';
-import { Scripts } from './scripts';
 import { parseExpression } from 'cron-parser';
 
 export class Repeat extends QueueBase {
@@ -112,14 +110,14 @@ export class Repeat extends QueueBase {
 
     await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 
-    return Job.create<T, R, N>(this, name, data, mergedOpts);
+    return this.Job.create<T, R, N>(this, name, data, mergedOpts);
   }
 
   async removeRepeatable(
     name: string,
     repeat: RepeatOptions,
     jobId?: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
     const repeatJobId = getRepeatJobId(
       name,
@@ -128,10 +126,10 @@ export class Repeat extends QueueBase {
       jobId || repeat.jobId,
     );
 
-    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
-  async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
+  async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
     const repeatJobId = getRepeatJobId(
@@ -141,7 +139,7 @@ export class Repeat extends QueueBase {
       data.id,
     );
 
-    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
   private keyToData(key: string) {

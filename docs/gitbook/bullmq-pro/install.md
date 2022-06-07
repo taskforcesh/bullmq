@@ -29,3 +29,14 @@ const worker = new WorkerPro('myQueue', async job => {
   // Process job
 });
 ```
+
+### Using Docker
+
+If you use docker you must make sure that you also add the _**.npmrc**_ file above in your **Dockerfile**:
+
+```docker
+WORKDIR /app
+
+ADD .npmrc /app/.npmr
+```
+

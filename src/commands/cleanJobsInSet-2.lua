@@ -5,20 +5,12 @@
     KEYS[1]  set key,
     KEYS[2]  events stream key
 
-    ARGV[1]  jobId
+    ARGV[1]  jobKey prefix
     ARGV[2]  timestamp
     ARGV[3]  limit the number of jobs to be removed. 0 is unlimited
     ARGV[4]  set name, can be any of 'wait', 'active', 'paused', 'delayed', 'completed', or 'failed'
 ]]
 local rcall = redis.call
-local command = "ZRANGE"
-local isList = false
-
-if ARGV[4] == "wait" or ARGV[4] == "active" or ARGV[4] == "paused" then
-  command = "LRANGE"
-  isList = true
-end
-
 local rangeStart = 0
 local rangeEnd = -1
 
@@ -35,67 +27,20 @@ if limit > 0 then
 end
 
 -- Includes
---- @include "includes/batches"
---- @include "includes/removeJob"
+--- @include "includes/cleanList"
+--- @include "includes/cleanSet"
 
-local jobs = rcall(command, KEYS[1], rangeStart, rangeEnd)
-local deleted = {}
-local deletedCount = 0
-local jobTS
-local deletionMarker = ''
-local jobIdsLen = #jobs
+local result
 if ARGV[4] == "active" then
-  for i, job in ipairs(jobs) do
-    if limit > 0 and deletedCount >= limit then
-      break
-    end
-  
-    local jobKey = ARGV[1] .. job
-    if (rcall("EXISTS", jobKey .. ":lock") == 0) then
-      jobTS = rcall("HGET", jobKey, "timestamp")
-      if (not jobTS or jobTS < ARGV[2]) then
-        -- replace the entry with a deletion marker; the actual deletion will
-        -- occur at the end of the script
-        rcall("LSET", KEYS[1], rangeEnd - jobIdsLen + i, deletionMarker)
-        removeJob(job, true, ARGV[1])
-        deletedCount = deletedCount + 1
-        table.insert(deleted, job)
-      end
-    end
-  end
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false)
+elseif ARGV[4] == "delayed" then
+  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], {"processedOn", "timestamp"})
+elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true)
 else
-  for i, job in ipairs(jobs) do
-    if limit > 0 and deletedCount >= limit then
-      break
-    end
-  
-    local jobKey = ARGV[1] .. job
-    jobTS = rcall("HGET", jobKey, "timestamp")
-    if (not jobTS or jobTS < ARGV[2]) then
-      if isList then
-        -- replace the entry with a deletion marker; the actual deletion will
-        -- occur at the end of the script
-        rcall("LSET", KEYS[1], rangeEnd - jobIdsLen + i, deletionMarker)
-      end
-      removeJob(job, true, ARGV[1])
-      deletedCount = deletedCount + 1
-      table.insert(deleted, job)
-    end
-  end
-
-  if not isList then
-    if(#deleted > 0) then
-      for from, to in batches(#deleted, 7000) do
-        rcall("ZREM", KEYS[1], unpack(deleted, from, to))
-      end
-    end
-  end
+  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], {"finishedOn"} )
 end
 
-if isList then
-  rcall("LREM", KEYS[1], 0, deletionMarker)
-end
+rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", result[2])
 
-rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", deletedCount)
-
-return deleted
+return result[1]

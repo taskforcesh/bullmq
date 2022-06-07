@@ -478,6 +478,7 @@ describe('sandboxed process', () => {
     await completing;
 
     await worker.close();
+    await flow.close();
   });
 
   it('should process and fail', async () => {

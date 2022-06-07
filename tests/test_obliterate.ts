@@ -102,6 +102,8 @@ describe('Obliterate', function () {
 
           const failedCount = await queue.getJobCountByTypes('failed');
           expect(failedCount).to.be.eql(0);
+
+          await flow.close();
         });
       });
 
@@ -154,6 +156,7 @@ describe('Obliterate', function () {
           expect(keys.length).to.be.eql(0);
 
           await worker.close();
+          await flow.close();
         });
       });
 
@@ -191,6 +194,8 @@ describe('Obliterate', function () {
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(1);
+
+          await flow.close();
         });
       });
     });
@@ -241,6 +246,7 @@ describe('Obliterate', function () {
           const parentWaitCount = await parentQueue.getJobCountByTypes('wait');
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
+          await flow.close();
           await removeAllQueueData(new IORedis(), parentQueueName);
         });
       });
@@ -280,6 +286,7 @@ describe('Obliterate', function () {
           const parentWaitCount = await parentQueue.getJobCountByTypes('wait');
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
+          await flow.close();
           await removeAllQueueData(new IORedis(), parentQueueName);
         });
       });
@@ -376,18 +383,19 @@ describe('Obliterate', function () {
   });
 
   it('should remove job logs', async () => {
-    const job = await queue.add('test', {});
-
     const queueEvents = new QueueEvents(queue.name, { connection });
 
     const worker = new Worker(
       queue.name,
       async job => {
+        await delay(100);
         return job.log('Lorem Ipsum Dolor Sit Amet');
       },
       { connection },
     );
     await worker.waitUntilReady();
+
+    const job = await queue.add('test', {});
 
     await job.waitUntilFinished(queueEvents);
 

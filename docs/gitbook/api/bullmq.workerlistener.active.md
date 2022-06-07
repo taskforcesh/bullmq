@@ -11,5 +11,5 @@ This event is triggered when a job enters the 'active' state.
 <b>Signature:</b>
 
 ```typescript
-active: (job: Job, prev: string) => void;
+active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
 ```

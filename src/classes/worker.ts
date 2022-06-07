@@ -4,6 +4,7 @@ import * as path from 'path';
 import { v4 } from 'uuid';
 import {
   GetNextJobOptions,
+  IoredisListener,
   JobJsonRaw,
   Processor,
   RedisClient,
@@ -15,6 +16,7 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
+  WORKER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -22,19 +24,22 @@ import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
-import { Scripts } from './scripts';
 import { TimerManager } from './timer-manager';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-export interface WorkerListener {
+export interface WorkerListener<
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
+> extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
    * This event is triggered when a job enters the 'active' state.
    */
-  active: (job: Job, prev: string) => void;
+  active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
 
   /**
    * Listen to 'closing' event.
@@ -55,7 +60,11 @@ export interface WorkerListener {
    *
    * This event is triggered when a job has successfully completed.
    */
-  completed: (job: Job, result: any, prev: string) => void;
+  completed: (
+    job: Job<DataType, ResultType, NameType>,
+    result: ResultType,
+    prev: string,
+  ) => void;
 
   /**
    * Listen to 'drained' event.
@@ -78,7 +87,11 @@ export interface WorkerListener {
    *
    * This event is triggered when a job has thrown an exception.
    */
-  failed: (job: Job, error: Error, prev: string) => void;
+  failed: (
+    job: Job<DataType, ResultType, NameType>,
+    error: Error,
+    prev: string,
+  ) => void;
 
   /**
    * Listen to 'paused' event.
@@ -95,7 +108,10 @@ export interface WorkerListener {
    * progress or any other data from within a processor to the rest of the
    * world.
    */
-  progress: (job: Job, progress: number | object) => void;
+  progress: (
+    job: Job<DataType, ResultType, NameType>,
+    progress: number | object,
+  ) => void;
 
   /**
    * Listen to 'resumed' event.
@@ -116,7 +132,7 @@ export class Worker<
   ResultType = any,
   NameType extends string = string,
 > extends QueueBase {
-  opts: WorkerOptions;
+  readonly opts: WorkerOptions;
 
   private drained: boolean;
   private waiting = false;
@@ -145,7 +161,11 @@ export class Worker<
   ) {
     super(
       name,
-      { ...opts, sharedConnection: isRedisInstance(opts.connection) },
+      {
+        ...opts,
+        sharedConnection: isRedisInstance(opts.connection),
+        blockingConnection: true,
+      },
       Connection,
     );
 
@@ -153,8 +173,8 @@ export class Worker<
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
-      runRetryDelay: 15000,
       autorun: true,
+      runRetryDelay: 15000,
       ...this.opts,
     };
 
@@ -202,36 +222,34 @@ export class Worker<
         this.run().catch(error => this.emit('error', error));
       }
     }
-
-    this.on('error', err => console.error(err));
   }
 
-  emit<U extends keyof WorkerListener>(
+  emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
     event: U,
-    ...args: Parameters<WorkerListener[U]>
+    ...args: Parameters<WorkerListener<DataType, ResultType, NameType>[U]>
   ): boolean {
     return super.emit(event, ...args);
   }
 
-  off<U extends keyof WorkerListener>(
+  off<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
     eventName: U,
-    listener: WorkerListener[U],
+    listener: WorkerListener<DataType, ResultType, NameType>[U],
   ): this {
     super.off(eventName, listener);
     return this;
   }
 
-  on<U extends keyof WorkerListener>(
+  on<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
     event: U,
-    listener: WorkerListener[U],
+    listener: WorkerListener<DataType, ResultType, NameType>[U],
   ): this {
     super.on(event, listener);
     return this;
   }
 
-  once<U extends keyof WorkerListener>(
+  once<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
     event: U,
-    listener: WorkerListener[U],
+    listener: WorkerListener<DataType, ResultType, NameType>[U],
   ): this {
     super.once(event, listener);
     return this;
@@ -248,7 +266,7 @@ export class Worker<
     data: JobJsonRaw,
     jobId: string,
   ): Job<DataType, ResultType, NameType> {
-    return Job.fromJSON(this, data, jobId) as Job<
+    return this.Job.fromJSON(this, data, jobId) as Job<
       DataType,
       ResultType,
       NameType
@@ -264,6 +282,10 @@ export class Worker<
   async waitUntilReady(): Promise<RedisClient> {
     await super.waitUntilReady();
     return this.blockingConnection.client;
+  }
+
+  set concurrency(concurrency: number) {
+    this.opts.concurrency = concurrency;
   }
 
   get repeat(): Promise<Repeat> {
@@ -285,7 +307,7 @@ export class Worker<
       if (!this.running) {
         try {
           this.running = true;
-          const client = await this.client;
+          const client = await this.blockingConnection.client;
 
           if (this.closing) {
             return;
@@ -298,25 +320,18 @@ export class Worker<
           // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
           //
           try {
-            await client.client('setname', this.clientName());
+            await client.client('setname', this.clientName(WORKER_SUFFIX));
           } catch (err) {
             if (!clientCommandMessageReg.test((<Error>err).message)) {
               throw err;
             }
           }
 
-          const opts: WorkerOptions = <WorkerOptions>this.opts;
-
           const processing = (this.processing = new Map());
 
-          const tokens: string[] = Array.from(
-            { length: opts.concurrency },
-            () => v4(),
-          );
-
           while (!this.closing) {
-            if (processing.size < opts.concurrency) {
-              const token = tokens.pop();
+            if (processing.size < this.opts.concurrency) {
+              const token = v4();
 
               processing.set(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
@@ -345,13 +360,16 @@ export class Worker<
               // reuse same token if next job is available to process
               processing.set(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () => this.processJob(job, token),
+                  () =>
+                    this.processJob(
+                      job,
+                      token,
+                      () => processing.size <= this.opts.concurrency,
+                    ),
                   this.opts.runRetryDelay,
                 ),
                 token,
               );
-            } else {
-              tokens.push(token);
             }
           }
           this.running = false;
@@ -397,10 +415,8 @@ export class Worker<
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
         if (
-          !(
-            (this.paused || this.closing) &&
-            (<Error>err).message === 'Connection is closed.'
-          )
+          !(this.paused || this.closing) &&
+          isNotConnectionError(<Error>err)
         ) {
           throw err;
         }
@@ -414,7 +430,7 @@ export class Worker<
     token: string,
     jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
+    const [jobData, id] = await this.scripts.moveToActive(token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
 
@@ -505,6 +521,7 @@ export class Worker<
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
+    fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -554,7 +571,7 @@ export class Worker<
       const completed = await job.moveToCompleted(
         result,
         token,
-        !(this.closing || this.paused),
+        fetchNextCallback() && !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
       const [jobData, jobId] = completed || [];
@@ -667,7 +684,7 @@ export class Worker<
             // since we're not waiting for the job to end attach
             // an error handler to avoid crashing the whole process
             closePoolPromise?.catch(err => {
-              console.error(err);
+              console.error(err); // TODO: emit error in next breaking change version
             });
             return;
           }

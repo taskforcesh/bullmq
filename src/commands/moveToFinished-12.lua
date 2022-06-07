@@ -52,14 +52,16 @@
 
     Events:
       'completed/failed'
-]] local rcall = redis.call
+]]
+local rcall = redis.call
 
 --- Includes
 --- @include "includes/collectMetrics"
 --- @include "includes/destructureJobKey"
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/moveParentToWaitIfNeeded"
---- @include "includes/removeJob"
+--- @include "includes/removeJobsByMaxAge"
+--- @include "includes/removeJobsByMaxCount"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
 
@@ -138,21 +140,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         local prefix = ARGV[8]
 
         if maxAge ~= nil then
-            local start = timestamp - maxAge * 1000
-            local jobIds = rcall("ZREVRANGEBYSCORE", targetSet, start, "-inf")
-            for i, jobId in ipairs(jobIds) do
-                removeJob(jobId, false, prefix)
-            end
-            rcall("ZREMRANGEBYSCORE", targetSet, "-inf", start)
+            removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix)
         end
 
         if maxCount ~= nil and maxCount > 0 then
-            local start = maxCount
-            local jobIds = rcall("ZREVRANGE", targetSet, start, -1)
-            for i, jobId in ipairs(jobIds) do
-                removeJob(jobId, false, prefix)
-            end
-            rcall("ZREMRANGEBYRANK", targetSet, 0, -(maxCount + 1))
+            removeJobsByMaxCount(maxCount, targetSet, prefix)
         end
     else
         rcall("DEL", jobIdKey, jobIdKey .. ':logs', jobIdKey .. ':processed')

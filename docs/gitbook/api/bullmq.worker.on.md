@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-on<U extends keyof WorkerListener>(event: U, listener: WorkerListener[U]): this;
+on<U extends keyof WorkerListener<DataType, ResultType, NameType>>(event: U, listener: WorkerListener<DataType, ResultType, NameType>[U]): this;
 ```
 
 ## Parameters
@@ -15,7 +15,7 @@ on<U extends keyof WorkerListener>(event: U, listener: WorkerListener[U]): this;
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  event | U |  |
-|  listener | [WorkerListener](./bullmq.workerlistener.md)<!-- -->\[U\] |  |
+|  listener | [WorkerListener](./bullmq.workerlistener.md)<!-- -->&lt;DataType, ResultType, NameType&gt;\[U\] |  |
 
 <b>Returns:</b>
 

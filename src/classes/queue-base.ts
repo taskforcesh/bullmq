@@ -1,13 +1,17 @@
 import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
+import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
+import { Scripts } from './scripts';
 
 export class QueueBase extends EventEmitter {
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void>;
 
+  protected scripts: Scripts;
   protected connection: RedisConnection;
 
   constructor(
@@ -32,12 +36,23 @@ export class QueueBase extends EventEmitter {
       );
     }
 
-    this.connection = new Connection(opts.connection, opts.sharedConnection);
-    this.connection.on('error', this.emit.bind(this, 'error'));
+    this.connection = new Connection(
+      opts.connection,
+      opts.sharedConnection,
+      opts.blockingConnection,
+    );
+
+    this.connection.on('error', (error: Error) => this.emit('error', error));
+    this.connection.on('close', () => {
+      if (!this.closing) {
+        this.emit('ioredis:close');
+      }
+    });
 
     const queueKeys = new QueueKeys(opts.prefix);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
+    this.scripts = new Scripts(this);
   }
 
   get client(): Promise<RedisClient> {
@@ -46,6 +61,13 @@ export class QueueBase extends EventEmitter {
 
   get redisVersion(): string {
     return this.connection.redisVersion;
+  }
+
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
   }
 
   emit(event: string | symbol, ...args: any[]): boolean {
@@ -69,8 +91,9 @@ export class QueueBase extends EventEmitter {
     return Buffer.from(this.name).toString('base64');
   }
 
-  protected clientName(): string {
-    return this.opts.prefix + ':' + this.base64Name();
+  protected clientName(suffix = ''): string {
+    const queueNameBase64 = this.base64Name();
+    return `${this.opts.prefix}:${queueNameBase64}${suffix}`;
   }
 
   close(): Promise<void> {
@@ -82,5 +105,24 @@ export class QueueBase extends EventEmitter {
 
   disconnect(): Promise<void> {
     return this.connection.disconnect();
+  }
+
+  protected async checkConnectionError<T>(
+    fn: () => Promise<T>,
+    delayInMs = DELAY_TIME_5,
+  ): Promise<T> {
+    try {
+      return await fn();
+    } catch (error) {
+      if (isNotConnectionError(error as Error)) {
+        this.emit('error', <Error>error);
+      }
+
+      if (!this.closing && delayInMs) {
+        await delay(delayInMs);
+      } else {
+        return;
+      }
+    }
   }
 }

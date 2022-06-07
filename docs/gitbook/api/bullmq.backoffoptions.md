@@ -17,5 +17,5 @@ export interface BackoffOptions
 |  Property | Type | Description |
 |  --- | --- | --- |
 |  [delay?](./bullmq.backoffoptions.delay.md) | number | <i>(Optional)</i> Delay in milliseconds. |
-|  [type](./bullmq.backoffoptions.type.md) | string | Name of the backoff strategy. |
+|  [type](./bullmq.backoffoptions.type.md) | 'fixed' \| 'exponential' \| (string &amp; {}) | Name of the backoff strategy. |
 

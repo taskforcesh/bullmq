@@ -3,7 +3,12 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { clientCommandMessageReg } from '../utils';
+import {
+  clientCommandMessageReg,
+  QUEUE_SCHEDULER_SUFFIX,
+  QUEUE_EVENT_SUFFIX,
+  WORKER_SUFFIX,
+} from '../utils';
 import { JobType } from '../types';
 import { Metrics } from '../interfaces';
 
@@ -15,7 +20,7 @@ export class QueueGetters<
   getJob(
     jobId: string,
   ): Promise<Job<DataType, ResultType, NameType> | undefined> {
-    return Job.fromId(this, jobId) as Promise<
+    return this.Job.fromId(this, jobId) as Promise<
       Job<DataType, ResultType, NameType>
     >;
   }
@@ -43,6 +48,13 @@ export class QueueGetters<
           return callback(key, count ? 'llen' : 'lrange');
       }
     });
+  }
+
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
   }
 
   private sanitizeJobTypes(types: JobType[] | JobType | undefined): JobType[] {
@@ -263,7 +275,7 @@ export class QueueGetters<
     return Promise.all(
       jobIds.map(
         jobId =>
-          Job.fromId(this, jobId) as Promise<
+          this.Job.fromId(this, jobId) as Promise<
             Job<DataType, ResultType, NameType>
           >,
       ),
@@ -298,12 +310,7 @@ export class QueueGetters<
     });
   }
 
-  /**
-   * Get worker list related to the queue.
-   *
-   * @returns - Returns an array with workers info.
-   */
-  async getWorkers(): Promise<
+  private async baseGetClients(suffix: string): Promise<
     {
       [index: string]: string;
     }[]
@@ -311,13 +318,26 @@ export class QueueGetters<
     const client = await this.client;
     const clients = await client.client('list');
     try {
-      const list = this.parseClientList(clients);
+      const list = this.parseClientList(clients, suffix);
       return list;
     } catch (err) {
       if (!clientCommandMessageReg.test((<Error>err).message)) {
         throw err;
       }
     }
+  }
+
+  /**
+   * Get worker list related to the queue.
+   *
+   * @returns - Returns an array with workers info.
+   */
+  getWorkers(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
+    return this.baseGetClients(WORKER_SUFFIX);
   }
 
   /**
@@ -330,16 +350,20 @@ export class QueueGetters<
       [index: string]: string;
     }[]
   > {
-    const client = await this.client;
-    const clients = await client.client('list');
-    try {
-      const list = this.parseClientList(clients, 'qs');
-      return list;
-    } catch (err) {
-      if (!clientCommandMessageReg.test((<Error>err).message)) {
-        throw err;
-      }
-    }
+    return this.baseGetClients(QUEUE_SCHEDULER_SUFFIX);
+  }
+
+  /**
+   * Get queue events list related to the queue.
+   *
+   * @returns - Returns an array with queue events info.
+   */
+  async getQueueEvents(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
+    return this.baseGetClients(QUEUE_EVENT_SUFFIX);
   }
 
   /**
@@ -403,10 +427,7 @@ export class QueueGetters<
         client[key] = value;
       });
       const name = client['name'];
-      if (
-        name &&
-        name === `${this.clientName()}${suffix ? `:${suffix}` : ''}`
-      ) {
+      if (name && name === `${this.clientName()}${suffix ? `${suffix}` : ''}`) {
         client['name'] = this.name;
         clients.push(client);
       }

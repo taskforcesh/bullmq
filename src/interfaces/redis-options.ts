@@ -1,7 +1,15 @@
-import { Redis, RedisOptions as BaseRedisOptions, ClusterOptions, Cluster } from 'ioredis';
+import type * as IORedis from 'ioredis';
 
-export type RedisOptions = (BaseRedisOptions | ClusterOptions) & {
+interface BaseOptions {
   skipVersionCheck?: boolean;
-};
+}
 
-export type ConnectionOptions = RedisOptions | Redis | Cluster;
+export type RedisOptions = IORedis.RedisOptions & BaseOptions;
+
+export type ClusterOptions = IORedis.ClusterOptions & BaseOptions;
+
+export type ConnectionOptions =
+  | RedisOptions
+  | ClusterOptions
+  | IORedis.Redis
+  | IORedis.Cluster;

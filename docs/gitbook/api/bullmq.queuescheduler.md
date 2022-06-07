@@ -27,7 +27,6 @@ export declare class QueueScheduler extends QueueBase
 
 |  Method | Modifiers | Description |
 |  --- | --- | --- |
-|  [clientName()](./bullmq.queuescheduler.clientname.md) |  |  |
 |  [close()](./bullmq.queuescheduler.close.md) |  |  |
 |  [emit(event, args)](./bullmq.queuescheduler.emit.md) |  |  |
 |  [isRunning()](./bullmq.queuescheduler.isrunning.md) |  |  |

@@ -23,6 +23,33 @@ const worker = new Worker(queueName, async (job: Job) => {
 });
 ```
 
+{% hint style="info" %}
+When a worker instance is created, it launches the processor immediately
+{% endhint %}
+
+In order to decide when your processor should start its execution, pass autorun as false as part of worker options:
+
+```typescript
+import { Worker, Job } from 'bullmq';
+
+const worker = new Worker(
+  queueName,
+  async (job: Job) => {
+    // Optionally report some progress
+    await job.updateProgress(42);
+
+    // Optionally sending an object as progress
+    await job.updateProgress({ foo: 'bar' });
+
+    // Do something with job
+    return 'some value';
+  },
+  { autorun: false },
+);
+
+worker.run();
+```
+
 Note that a processor can optionally return a value. This value can be retrieved either by getting the job and accessing the "returnvalue" property or by listening to the "completed" event:
 
 ```typescript
@@ -91,3 +118,4 @@ const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {});
 ## Read more:
 
 - 💡 [Worker API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.worker.md)
+- 💡 [Queue Events API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queueevents.md)

@@ -1,9 +1,10 @@
-import { Cluster } from 'ioredis';
+import { Cluster, Redis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
 import { get } from 'lodash';
+import * as semver from 'semver';
 import {
   RedisClient,
   QueueOptions,
@@ -60,12 +61,16 @@ export function delay(ms: number): Promise<void> {
   });
 }
 
-export function isRedisInstance(obj: any): boolean {
+export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
   }
   const redisApi = ['connect', 'disconnect', 'duplicate'];
   return redisApi.every(name => typeof obj[name] === 'function');
+}
+
+export function isRedisCluster(obj: unknown): obj is Cluster {
+  return isRedisInstance(obj) && (<Cluster>obj).isCluster;
 }
 
 export async function removeAllQueueData(
@@ -162,7 +167,22 @@ export const childSend = (
   msg: ChildMessage,
 ): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
 
+export const isRedisVersionLowerThan = (
+  currentVersion: string,
+  minimumVersion: string,
+): boolean => {
+  const version = semver.valid(semver.coerce(currentVersion));
+
+  return semver.lt(version, minimumVersion);
+};
+
 export const parentSend = (
   child: ChildProcess,
   msg: ParentMessage,
 ): Promise<void> => asyncSend<ChildProcess>(child, msg);
+
+export const WORKER_SUFFIX = '';
+
+export const QUEUE_SCHEDULER_SUFFIX = ':qs';
+
+export const QUEUE_EVENT_SUFFIX = ':qe';

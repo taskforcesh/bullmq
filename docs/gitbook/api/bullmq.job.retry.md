@@ -9,14 +9,14 @@ Attempts to retry the job. Only a job that has failed or completed can be retrie
 <b>Signature:</b>
 
 ```typescript
-retry(state?: 'completed' | 'failed'): Promise<void>;
+retry(state?: FinishedStatus): Promise<void>;
 ```
 
 ## Parameters
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  state | 'completed' \| 'failed' | completed / failed |
+|  state | [FinishedStatus](./bullmq.finishedstatus.md) | completed / failed |
 
 <b>Returns:</b>
 

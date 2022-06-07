@@ -11,5 +11,5 @@ This event is triggered when a job updates it progress, i.e. the Job\#\#updatePr
 <b>Signature:</b>
 
 ```typescript
-progress: (job: Job, progress: number | object) => void;
+progress: (job: Job<DataType, ResultType, NameType>, progress: number | object) => void;
 ```
