@@ -222,7 +222,8 @@ export class Queue<
   }
 
   /**
-   * Adds an array of jobs to the queue.
+   * Adds an array of jobs to the queue. This method may be faster than adding
+   * one job at a time in a sequence.
    *
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
@@ -260,6 +261,10 @@ export class Queue<
     this.emit('paused');
   }
 
+  /**
+   * Close the queue instance.
+   *
+   */
   async close(): Promise<void> {
     if (!this.closing) {
       if (this._repeat) {
@@ -300,6 +305,19 @@ export class Queue<
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
 
+  /**
+   * Removes a repeatable job.
+   *
+   * Note: you need to use the exact same repeatOpts when deleting a repeatable job
+   * than when adding it.
+   *
+   * @see removeRepeatableByKey
+   *
+   * @param name
+   * @param repeatOpts
+   * @param jobId
+   * @returns
+   */
   async removeRepeatable(
     name: NameType,
     repeatOpts: RepeatOptions,
@@ -311,6 +329,17 @@ export class Queue<
     return !removed;
   }
 
+  /**
+   * Removes a repeatable job by its key. Note that the key is the one used
+   * to store the repeatable job metadata and not one of the job iterations
+   * themselves. You can use "getRepeatableJobs" in order to get the keys.
+   *
+   *
+   * @see getRepeatableJobs
+   *
+   * @param key to the repeatable job.
+   * @returns
+   */
   async removeRepeatableByKey(key: string): Promise<boolean> {
     const repeat = await this.repeat;
     const removed = await repeat.removeRepeatableByKey(key);

@@ -220,6 +220,10 @@ export class QueueEvents extends QueueBase {
     return this;
   }
 
+  /**
+   * Manually starts running the event consumming loop. This shall be used if you do not
+   * use the default "autorun" option on the constructor.
+   */
   async run(): Promise<void> {
     if (!this.running) {
       try {
@@ -288,6 +292,11 @@ export class QueueEvents extends QueueBase {
     }
   }
 
+  /**
+   * Stops consuming events and close the underlying Redis connection if necessary.
+   *
+   * @returns
+   */
   close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.disconnect();

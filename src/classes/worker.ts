@@ -124,7 +124,8 @@ export interface WorkerListener<
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
- * As soon as the class is instantiated it will start processing jobs.
+ * As soon as the class is instantiated and a connection to Redis is established
+ * it will start processing jobs.
  *
  */
 export class Worker<
