@@ -120,6 +120,15 @@ export class QueueScheduler extends QueueBase {
     return this;
   }
 
+  /**
+   * Run the scheduler.
+   *
+   * This method will run the scheduler in the background,
+   * and will not return until the scheduler is closed.
+   *
+   * If the QueueScheduler was instantiated with autorun: false,
+   * then it is not needed to manually call this method.
+   */
   async run(): Promise<void> {
     if (!this.running) {
       try {
@@ -214,6 +223,12 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
+  /**
+   * isRunning
+   *
+   * @returns true if the scheduler is running
+   *
+   */
   isRunning(): boolean {
     return this.running;
   }
@@ -279,6 +294,10 @@ export class QueueScheduler extends QueueBase {
     }
   }
 
+  /**
+   * Close the scheduler.
+   *
+   */
   close(): Promise<void> {
     if (this.closing) {
       return this.closing;

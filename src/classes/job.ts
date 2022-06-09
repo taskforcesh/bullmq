@@ -45,6 +45,16 @@ export interface DependenciesOpts {
   };
 }
 
+/**
+ * Job
+ *
+ * This class represents a Job in the queue. Normally job are implicitly created when
+ * you add a job to the queue with methods such as Queue.addJob( ... )
+ *
+ * A Job instance is also passed to the Worker's process function.
+ *
+ * @class Job
+ */
 export class Job<
   DataType = any,
   ReturnType = any,
