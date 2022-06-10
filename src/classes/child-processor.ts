@@ -99,7 +99,7 @@ export class ChildProcessor {
 // https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
 if (!('toJSON' in Error.prototype)) {
   Object.defineProperty(Error.prototype, 'toJSON', {
-    value: function () {
+    value: function toJSONByBull() {
       const alt: any = {};
       const _this = this;
 
