@@ -230,14 +230,14 @@ describe('Cleaner', () => {
             const worker = new Worker(
               queue.name,
               async () => {
-                return delay(10);
+                return delay(20);
               },
               { connection },
             );
             await worker.waitUntilReady();
 
             const completing = new Promise(resolve => {
-              worker.on('completed', after(4, resolve));
+              queueEvents.on('completed', after(4, resolve));
             });
 
             const flow = new FlowProducer({ connection });
@@ -253,7 +253,7 @@ describe('Cleaner', () => {
             });
 
             await completing;
-            await delay(50);
+            await delay(100);
             await queue.clean(0, 0, 'completed');
 
             const client = await queue.client;

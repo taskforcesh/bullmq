@@ -27,8 +27,7 @@ const logger = debuglog('bull');
 
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
-export interface MoveToChildrenOpts {
-  timestamp?: number;
+export interface MoveToWaitingChildrenOpts {
   child?: {
     id: string;
     queue: string;
@@ -46,6 +45,16 @@ export interface DependenciesOpts {
   };
 }
 
+/**
+ * Job
+ *
+ * This class represents a Job in the queue. Normally job are implicitly created when
+ * you add a job to the queue with methods such as Queue.addJob( ... )
+ *
+ * A Job instance is also passed to the Worker's process function.
+ *
+ * @class Job
+ */
 export class Job<
   DataType = any,
   ReturnType = any,
@@ -114,6 +123,8 @@ export class Job<
 
   private discarded: boolean;
 
+  protected scripts: Scripts;
+
   constructor(
     protected queue: MinimalQueue,
     /**
@@ -155,6 +166,7 @@ export class Job<
       : undefined;
 
     this.toKey = queue.toKey.bind(queue);
+    this.scripts = new Scripts(queue);
   }
 
   /**
@@ -310,13 +322,17 @@ export class Job<
       const jobData = await client.hgetall(queue.toKey(jobId));
       return isEmpty(jobData)
         ? undefined
-        : Job.fromJSON<T, R, N>(queue, (<unknown>jobData) as JobJsonRaw, jobId);
+        : this.fromJSON<T, R, N>(
+            queue,
+            (<unknown>jobData) as JobJsonRaw,
+            jobId,
+          );
     }
   }
 
   toJSON() {
-    const { queue, ...withoutQueue } = this;
-    return withoutQueue;
+    const { queue, scripts, ...withoutQueueAndScripts } = this;
+    return withoutQueueAndScripts;
   }
 
   /**
@@ -362,11 +378,7 @@ export class Job<
   update(data: DataType): Promise<void> {
     this.data = data;
 
-    return Scripts.updateData<DataType, ReturnType, NameType>(
-      this.queue,
-      this,
-      data,
-    );
+    return this.scripts.updateData<DataType, ReturnType, NameType>(this, data);
   }
 
   /**
@@ -376,7 +388,7 @@ export class Job<
    */
   updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
-    return Scripts.updateProgress(this.queue, this, progress);
+    return this.scripts.updateProgress(this, progress);
   }
 
   /**
@@ -401,7 +413,7 @@ export class Job<
     const queue = this.queue;
     const job = this;
 
-    const removed = await Scripts.remove(queue, job.id);
+    const removed = await this.scripts.remove(job.id);
     if (removed) {
       queue.emit('removed', job);
     } else {
@@ -416,7 +428,7 @@ export class Job<
    * @param duration - lock duration in milliseconds
    */
   extendLock(token: string, duration: number): Promise<number> {
-    return Scripts.extendLock(this.queue, this.id, token, duration);
+    return this.scripts.extendLock(this.id, token, duration);
   }
 
   /**
@@ -444,8 +456,7 @@ export class Job<
       throw errorObject.value;
     }
 
-    return Scripts.moveToCompleted(
-      this.queue,
+    return this.scripts.moveToCompleted(
       this,
       stringifiedReturnValue,
       this.opts.removeOnComplete,
@@ -481,6 +492,7 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
+    let finishedOn;
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
@@ -500,8 +512,7 @@ export class Job<
       if (delay === -1) {
         moveToFailed = true;
       } else if (delay) {
-        const args = Scripts.moveToDelayedArgs(
-          queue,
+        const args = this.scripts.moveToDelayedArgs(
           this.id,
           Date.now() + delay,
           token,
@@ -510,7 +521,7 @@ export class Job<
         command = 'delayed';
       } else {
         // Retry immediately
-        (<any>multi).retryJob(Scripts.retryJobArgs(queue, this));
+        (<any>multi).retryJob(this.scripts.retryJobArgs(this));
         command = 'retry';
       }
     } else {
@@ -519,8 +530,7 @@ export class Job<
     }
 
     if (moveToFailed) {
-      const args = Scripts.moveToFailedArgs(
-        queue,
+      const args = this.scripts.moveToFailedArgs(
         this,
         message,
         this.opts.removeOnFail,
@@ -528,13 +538,18 @@ export class Job<
         fetchNext,
       );
       (<any>multi).moveToFinished(args);
+      finishedOn = args[13];
       command = 'failed';
     }
 
     const results = await multi.exec();
     const code = results[results.length - 1][1];
     if (code < 0) {
-      throw Scripts.finishedErrors(code, this.id, command, 'active');
+      throw this.scripts.finishedErrors(code, this.id, command, 'active');
+    }
+
+    if (finishedOn) {
+      this.finishedOn = finishedOn as number;
     }
   }
 
@@ -598,7 +613,7 @@ export class Job<
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
   getState(): Promise<JobState | 'unknown'> {
-    return Scripts.getState(this.queue, this.id);
+    return this.scripts.getState(this.id);
   }
 
   /**
@@ -608,7 +623,7 @@ export class Job<
    * @returns void
    */
   changeDelay(delay: number): Promise<void> {
-    return Scripts.changeDelay(this.queue, this.id, delay);
+    return this.scripts.changeDelay(this.id, delay);
   }
 
   /**
@@ -838,11 +853,10 @@ export class Job<
       // that has already happened. We block checking the job until the queue events object is actually listening to
       // Redis so there's no chance that it will miss events.
       await queueEvents.waitUntilReady();
-      const [status, result] = (await Scripts.isFinished(
-        this.queue,
-        jobId,
-        true,
-      )) as [number, string];
+      const [status, result] = (await this.scripts.isFinished(jobId, true)) as [
+        number,
+        string,
+      ];
       const finished = status != 0;
       if (finished) {
         if (status == -5 || status == 2) {
@@ -862,7 +876,7 @@ export class Job<
    * @returns
    */
   moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    return Scripts.moveToDelayed(this.queue, this.id, timestamp, token);
+    return this.scripts.moveToDelayed(this.id, timestamp, token);
   }
 
   /**
@@ -874,21 +888,20 @@ export class Job<
    */
   moveToWaitingChildren(
     token: string,
-    opts: MoveToChildrenOpts = {},
+    opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
-    return Scripts.moveToWaitingChildren(this.queue, this.id, token, opts);
+    return this.scripts.moveToWaitingChildren(this.id, token, opts);
   }
 
   /**
    * Promotes a delayed job so that it starts to be processed as soon as possible.
    */
   async promote(): Promise<void> {
-    const queue = this.queue;
     const jobId = this.id;
 
-    const code = await Scripts.promote(queue, jobId);
+    const code = await this.scripts.promote(jobId);
     if (code < 0) {
-      throw Scripts.finishedErrors(code, this.id, 'promote', 'delayed');
+      throw this.scripts.finishedErrors(code, this.id, 'promote', 'delayed');
     }
   }
 
@@ -906,7 +919,7 @@ export class Job<
     this.processedOn = null;
     this.returnvalue = null;
 
-    return Scripts.reprocessJob(this.queue, this, state);
+    return this.scripts.reprocessJob(this, state);
   }
 
   /**
@@ -924,7 +937,7 @@ export class Job<
   }
 
   private async isInList(list: string): Promise<boolean> {
-    return Scripts.isJobInList(this.queue, this.queue.toKey(list), this.id);
+    return this.scripts.isJobInList(this.queue.toKey(list), this.id);
   }
 
   /**
@@ -935,8 +948,6 @@ export class Job<
    * @returns
    */
   addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
-    const queue = this.queue;
-
     const jobData = this.asJSON();
 
     const exceedLimit =
@@ -953,17 +964,10 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
-    return Scripts.addJob(
-      client,
-      queue,
-      jobData,
-      this.opts,
-      this.id,
-      parentOpts,
-    );
+    return this.scripts.addJob(client, jobData, this.opts, this.id, parentOpts);
   }
 
-  private saveStacktrace(multi: Pipeline, err: Error) {
+  protected saveStacktrace(multi: Pipeline, err: Error) {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {

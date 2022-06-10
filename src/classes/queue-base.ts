@@ -2,15 +2,33 @@ import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
 import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
+import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
+import { Scripts } from './scripts';
 
+/**
+ * @class QueueBase
+ * @extends EventEmitter
+ *
+ * @description Base class for all classes that need to interact with queues.
+ * This class is normally not used directly, but extended by the other classes.
+ *
+ */
 export class QueueBase extends EventEmitter {
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void>;
 
+  protected scripts: Scripts;
   protected connection: RedisConnection;
 
+  /**
+   *
+   * @param name - The name of the queue.
+   * @param opts - Options for the queue.
+   * @param Connection - An optional "Connection" class used to instantiate a Connection. This is useful for
+   * testing with mockups and/or extending the Connection class and passing an alternate implementation.
+   */
   constructor(
     public readonly name: string,
     public opts: QueueBaseOptions = {},
@@ -40,25 +58,46 @@ export class QueueBase extends EventEmitter {
     );
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
-    this.connection.on('close', (error: Error) => {
+    this.connection.on('close', () => {
       if (!this.closing) {
-        this.emit('error', error);
+        this.emit('ioredis:close');
       }
     });
 
     const queueKeys = new QueueKeys(opts.prefix);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
+    this.scripts = new Scripts(this);
   }
 
+  /**
+   * Returns a promise that resolves to a redis client. Normally used only by subclasses.
+   */
   get client(): Promise<RedisClient> {
     return this.connection.client;
   }
 
+  /**
+   * Returns the version of the Redis instance the client is connected to,
+   */
   get redisVersion(): string {
     return this.connection.redisVersion;
   }
 
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
+  }
+
+  /**
+   * Emits an event. Normally used by subclasses to emit events.
+   *
+   * @param event - The emitted event.
+   * @param args -
+   * @returns
+   */
   emit(event: string | symbol, ...args: any[]): boolean {
     try {
       return super.emit(event, ...args);
@@ -85,6 +124,10 @@ export class QueueBase extends EventEmitter {
     return `${this.opts.prefix}:${queueNameBase64}${suffix}`;
   }
 
+  /**
+   *
+   * @returns Closes the connection and returns a promise that resolves when the connection is closed.
+   */
   close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
@@ -92,6 +135,10 @@ export class QueueBase extends EventEmitter {
     return this.closing;
   }
 
+  /**
+   *
+   * Force disconnects a connection.
+   */
   disconnect(): Promise<void> {
     return this.connection.disconnect();
   }
