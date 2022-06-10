@@ -24,9 +24,9 @@ export class QueueBase extends EventEmitter {
 
   /**
    *
-   * @param name The name of the queue.
-   * @param opts Options for the queue.
-   * @param Connection An optional "Connection" class used to instantiate a Connection. This is useful for
+   * @param name - The name of the queue.
+   * @param opts - Options for the queue.
+   * @param Connection - An optional "Connection" class used to instantiate a Connection. This is useful for
    * testing with mockups and/or extending the Connection class and passing an alternate implementation.
    */
   constructor(
@@ -78,7 +78,7 @@ export class QueueBase extends EventEmitter {
   }
 
   /**
-   * Returns thedis version of the Redis instance the client is connected to,
+   * Returns the version of the Redis instance the client is connected to,
    */
   get redisVersion(): string {
     return this.connection.redisVersion;
@@ -94,8 +94,8 @@ export class QueueBase extends EventEmitter {
   /**
    * Emits an event. Normally used by subclasses to emit events.
    *
-   * @param event The emitted event.
-   * @param args
+   * @param event - The emitted event.
+   * @param args -
    * @returns
    */
   emit(event: string | symbol, ...args: any[]): boolean {

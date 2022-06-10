@@ -114,6 +114,11 @@ export class Job<
    */
   parent?: ParentKeys;
 
+  /**
+   * Base repeat job key.
+   */
+  repeatJobKey?: string;
+
   protected toKey: (type: string) => string;
 
   private discarded: boolean;
@@ -138,13 +143,17 @@ export class Job<
     public opts: JobsOptions = {},
     public id?: string,
   ) {
+    const { repeatJobKey, ...restOpts } = this.opts;
+
     this.opts = Object.assign(
       {
         attempts: 0,
         delay: 0,
       },
-      opts,
+      restOpts,
     );
+
+    this.repeatJobKey = repeatJobKey;
 
     this.timestamp = opts.timestamp ? opts.timestamp : Date.now();
 
@@ -272,6 +281,10 @@ export class Job<
       job.processedOn = parseInt(json.processedOn);
     }
 
+    if (json.rjk) {
+      job.repeatJobKey = json.rjk;
+    }
+
     job.failedReason = json.failedReason;
     job.attemptsMade = parseInt(json.attemptsMade || '0');
 
@@ -339,6 +352,7 @@ export class Job<
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
+      repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     };
   }
@@ -953,7 +967,7 @@ export class Job<
     return this.scripts.addJob(client, jobData, this.opts, this.id, parentOpts);
   }
 
-  private saveStacktrace(multi: Pipeline, err: Error) {
+  protected saveStacktrace(multi: Pipeline, err: Error) {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {

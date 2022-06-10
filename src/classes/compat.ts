@@ -28,12 +28,12 @@ import { Worker } from './worker';
 import { QueueEvents } from './queue-events';
 import {
   JobsOptions,
+  Processor,
   QueueOptions,
-  RepeatOptions,
   QueueEventsOptions,
   QueueSchedulerOptions,
+  RepeatOptions,
   WorkerOptions,
-  Processor,
 } from '../interfaces';
 
 type CommonOptions = QueueSchedulerOptions &

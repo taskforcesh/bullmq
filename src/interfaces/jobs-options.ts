@@ -34,6 +34,11 @@ export interface JobsOptions {
   repeat?: RepeatOptions;
 
   /**
+   * Base repeat job key.
+   */
+  repeatJobKey?: string;
+
+  /**
    * Rate limiter key to use if rate limiter enabled.
    *
    * @see {@link https://docs.bullmq.io/guide/rate-limiting}

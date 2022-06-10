@@ -6,11 +6,11 @@ import { v4 } from 'uuid';
 import { get } from 'lodash';
 import * as semver from 'semver';
 import {
-  RedisClient,
-  JobsOptions,
-  QueueOptions,
   ChildMessage,
+  JobsOptions,
   ParentMessage,
+  QueueOptions,
+  RedisClient,
 } from './interfaces';
 import { ChildProcess } from 'child_process';
 

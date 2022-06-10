@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
 import { JobsOptions, RepeatOptions } from '../interfaces';
+import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { parseExpression } from 'cron-parser';
 
@@ -9,7 +10,7 @@ export class Repeat extends QueueBase {
     data: T,
     opts: JobsOptions,
     skipCheckExists?: boolean,
-  ) {
+  ): Promise<Job<T, R, N>> {
     const repeatOpts = { ...opts.repeat };
     const prevMillis = opts.prevMillis || 0;
     const currentCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
@@ -103,6 +104,7 @@ export class Repeat extends QueueBase {
       delay: delay < 0 || hasImmediately ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
+      repeatJobKey,
     };
 
     mergedOpts.repeat = { ...opts.repeat, count: currentCount };
