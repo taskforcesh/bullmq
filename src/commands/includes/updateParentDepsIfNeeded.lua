@@ -2,6 +2,9 @@
   Validate and move or add dependencies to parent.
 ]]
 
+-- Includes
+--- @include "addJobWithPriority"
+
 local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
   parentId, jobIdKey, returnvalue )
   local processedSet = parentKey .. ":processed"
@@ -9,12 +12,20 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
   local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
   if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
+    local targetKey
     if rcall("HEXISTS", parentQueueKey .. ":meta", "paused") ~= 1 then
-      rcall("RPUSH", parentQueueKey .. ":wait", parentId)
+      targetKey = parentQueueKey .. ":wait"
     else
-      rcall("RPUSH", parentQueueKey .. ":paused", parentId)
+      targetKey = parentQueueKey .. ":paused"
     end
-    local parentEventStream = parentQueueKey .. ":events"
-    rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+    local priority = rcall("HGET", parentKey, "priority")
+    -- Standard or priority add
+    if priority == 0 then
+      rcall("RPUSH", targetKey, parentId)
+    else
+      addJobWithPriority(parentQueueKey .. ":priority", priority, targetKey, parentId)
+    end
+
+    rcall("XADD", parentQueueKey .. ":events", "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
   end
 end
