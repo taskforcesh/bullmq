@@ -334,7 +334,10 @@ describe('flows', () => {
   describe('when priority is provided', async () => {
     it('processes children before the parent respecting priority option', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
+      const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
       const parentQueue = new Queue(parentQueueName, { connection });
+      const parentName = 'parent-job';
+      const grandchildrenName = 'grandchildren-job';
       const name = 'child-job';
       const values = [
         { bar: 'something' },
@@ -347,13 +350,19 @@ describe('flows', () => {
       const processingChildren = new Promise<void>(
         resolve =>
           (childrenProcessor = async (job: Job) => {
-            expect(job.data.idx).to.be.equal(processedChildren);
-            processedChildren++;
+            if (job.data.idx !== undefined) {
+              expect(job.data.idx).to.be.equal(processedChildren);
+              processedChildren++;
 
-            if (processedChildren == values.length) {
-              resolve();
+              if (processedChildren == values.length) {
+                resolve();
+              }
+              return values[job.data.idx];
             }
-            return values[job.data.idx];
+
+            if (job.name === 'test') {
+              await delay(500);
+            }
           }),
       );
 
@@ -374,8 +383,16 @@ describe('flows', () => {
       const childrenWorker = new Worker(queueName, childrenProcessor, {
         connection,
       });
+      const grandchildrenWorker = new Worker(
+        grandchildrenQueueName,
+        async () => {},
+        {
+          connection,
+        },
+      );
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
+      await grandchildrenWorker.waitUntilReady();
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
@@ -388,10 +405,11 @@ describe('flows', () => {
         });
       });
 
+      await queue.add('test', {});
       const flow = new FlowProducer({ connection });
       const tree = await flow.add(
         {
-          name: 'parent-job',
+          name: parentName,
           queueName: parentQueueName,
           data: {},
           children: [
@@ -399,18 +417,39 @@ describe('flows', () => {
               name,
               data: { idx: 1, foo: 'baz' },
               queueName,
+              children: [
+                {
+                  name: grandchildrenName,
+                  data: {},
+                  queueName: grandchildrenQueueName,
+                },
+              ],
               opts: { priority: 2 },
             },
             {
               name,
               data: { idx: 2, foo: 'qux' },
               queueName,
+              children: [
+                {
+                  name: grandchildrenName,
+                  data: {},
+                  queueName: grandchildrenQueueName,
+                },
+              ],
               opts: { priority: 3 },
             },
             {
               name,
               data: { idx: 0, foo: 'bar' },
               queueName,
+              children: [
+                {
+                  name: grandchildrenName,
+                  data: {},
+                  queueName: grandchildrenQueueName,
+                },
+              ],
               opts: { priority: 1 },
             },
           ],
@@ -451,6 +490,7 @@ describe('flows', () => {
 
       await completed;
       await parentWorker.close();
+      await grandchildrenWorker.close();
 
       await flow.close();
 
