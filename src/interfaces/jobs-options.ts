@@ -82,15 +82,9 @@ export interface JobsOptions extends BaseJobOptions {
   repeat?: RepeatOptions;
 
   /**
-   * Base repeat job key.
+   * Internal property used by repeatable jobs to save base repeat job key.
    */
   repeatJobKey?: string;
-
-  /**
-   * The number of milliseconds after which the job should be
-   * fail with a timeout error.
-   */
-  timeout?: number;
 
   /**
    * Override the job ID - by default, the job ID is a unique
