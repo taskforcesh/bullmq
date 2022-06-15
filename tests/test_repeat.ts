@@ -80,7 +80,7 @@ describe('repeat', function () {
       });
     });
 
-    await queue.add(
+    const job = await queue.add(
       'test',
       { foo: 'bar' },
       {
@@ -90,6 +90,8 @@ describe('repeat', function () {
         },
       },
     );
+
+    expect(job.repeatJobKey).to.not.be.undefined;
 
     this.clock.tick(every + 1);
 
@@ -982,10 +984,12 @@ describe('repeat', function () {
   it('should be able to remove repeatable jobs by key', async () => {
     const repeat = { cron: '*/2 * * * * *' };
 
-    await queue.add('remove', { foo: 'bar' }, { repeat });
+    const createdJob = await queue.add('remove', { foo: 'bar' }, { repeat });
+    const job = await queue.getJob(createdJob.id);
     const repeatableJobs = await queue.getRepeatableJobs();
     expect(repeatableJobs).to.have.length(1);
-    const removed = await queue.removeRepeatableByKey(repeatableJobs[0].key);
+    const removed = await queue.removeRepeatableByKey(createdJob.repeatJobKey);
+    expect(job.repeatJobKey).to.not.be.undefined;
     expect(removed).to.be.true;
     const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
     expect(repeatableJobsAfterRemove).to.have.length(0);
@@ -1026,7 +1030,7 @@ describe('repeat', function () {
     this.clock.tick(nextTick);
 
     const processing = new Promise<void>((resolve, reject) => {
-      processor = async (job: Job) => {
+      processor = async () => {
         counter++;
         if (counter == numJobs) {
           try {
@@ -1259,7 +1263,7 @@ describe('repeat', function () {
     await queue.add('repeat s', { type: 's' }, { repeat: { every: interval } });
     this.clock.tick(nextTick);
 
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, { connection });
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
     await worker.waitUntilReady();
 

@@ -31,8 +31,9 @@
             [3]  name
             [4]  timestamp
             [5]  parentKey?
-            [6] waitChildrenKey key.
-            [7] parent dependencies key.
+            [6]  waitChildrenKey key.
+            [7]  parent dependencies key.
+            [8]  repeat job key
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -51,6 +52,7 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
+local repeatJobKey = args[8]
 local parentId
 local parentQueueKey
 local parentData
@@ -109,13 +111,21 @@ local delay = opts['delay'] or 0
 local priority = opts['priority'] or 0
 local timestamp = args[4]
 
+local optionalValues = {}
 if parentKey ~= nil then
-  rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-    "timestamp", timestamp, "delay", delay, "priority", priority, "parentKey", parentKey, "parent", parentData)
-else
-  rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-    "timestamp", timestamp, "delay", delay, "priority", priority )
+  table.insert(optionalValues, "parentKey")
+  table.insert(optionalValues, parentKey)
+  table.insert(optionalValues, "parent")
+  table.insert(optionalValues, parentData)
 end
+
+if repeatJobKey ~= nil then
+  table.insert(optionalValues, "rjk")
+  table.insert(optionalValues, repeatJobKey)
+end
+
+rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+  "timestamp", timestamp, "delay", delay, "priority", priority, unpack(optionalValues))
 
 -- TODO: do not send data and opts to the event added (for performance reasons).
 rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3], "data", ARGV[2], "opts", jsonOpts)

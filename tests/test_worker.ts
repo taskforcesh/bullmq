@@ -12,7 +12,7 @@ import {
   UnrecoverableError,
   Worker,
 } from '../src/classes';
-import { KeepJobs, JobsOptions } from '../src/interfaces';
+import { JobsOptions, KeepJobs } from '../src/interfaces';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('workers', function () {
@@ -98,7 +98,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.once('completed', async job => {
           expect(job).to.be.ok;
-          expect(job.finishedOn).to.be.string;
+          expect(job.finishedOn).to.be.a('number');
           expect(job.data.foo).to.be.eql('bar');
           resolve();
         });
@@ -1012,6 +1012,7 @@ describe('workers', function () {
     await new Promise<void>(resolve => {
       worker.once('failed', async (job, err) => {
         expect(job).to.be.ok;
+        expect(job.finishedOn).to.be.a('number');
         expect(job.data.foo).to.be.eql('bar');
         expect(err).to.be.eql(jobError);
         resolve();

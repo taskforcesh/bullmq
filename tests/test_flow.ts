@@ -1258,6 +1258,7 @@ describe('flows', () => {
         (childrenProcessor = async (job: Job) => {
           processedChildren++;
 
+          await delay(50);
           if (processedChildren == values.length) {
             resolve();
           }
