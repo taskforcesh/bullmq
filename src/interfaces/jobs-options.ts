@@ -1,6 +1,6 @@
 import { RepeatOptions, KeepJobs, BackoffOptions } from './';
 
-export interface JobsOptions {
+export interface BaseJobOptions {
   /**
    * Timestamp when the job was created.
    * @defaultValue Date.now()
@@ -29,16 +29,6 @@ export interface JobsOptions {
   attempts?: number;
 
   /**
-   * Repeat this job, for example based on a `cron` schedule.
-   */
-  repeat?: RepeatOptions;
-
-  /**
-   * Base repeat job key.
-   */
-  repeatJobKey?: string;
-
-  /**
    * Rate limiter key to use if rate limiter enabled.
    *
    * @see {@link https://docs.bullmq.io/guide/rate-limiting}
@@ -56,21 +46,6 @@ export interface JobsOptions {
    * @see {@link https://docs.bullmq.io/guide/jobs/lifo}
    */
   lifo?: boolean;
-
-  /**
-   * The number of milliseconds after which the job should be
-   * fail with a timeout error.
-   */
-  timeout?: number;
-
-  /**
-   * Override the job ID - by default, the job ID is a unique
-   * integer, but you can use this setting to override it.
-   * If you use this option, it is up to you to ensure the
-   * jobId is unique. If you attempt to add a job with an id that
-   * already exists, it will not be added.
-   */
-  jobId?: string;
 
   /**
    * If true, removes the job when it successfully completes
@@ -95,6 +70,32 @@ export interface JobsOptions {
   stackTraceLimit?: number;
 
   /**
+   * Limits the size in bytes of the job's data payload (as a JSON serialized string).
+   */
+  sizeLimit?: number;
+}
+
+export interface JobsOptions extends BaseJobOptions {
+  /**
+   * Repeat this job, for example based on a `cron` schedule.
+   */
+  repeat?: RepeatOptions;
+
+  /**
+   * Internal property used by repeatable jobs to save base repeat job key.
+   */
+  repeatJobKey?: string;
+
+  /**
+   * Override the job ID - by default, the job ID is a unique
+   * integer, but you can use this setting to override it.
+   * If you use this option, it is up to you to ensure the
+   * jobId is unique. If you attempt to add a job with an id that
+   * already exists, it will not be added.
+   */
+  jobId?: string;
+
+  /**
    *
    */
   parent?: {
@@ -106,9 +107,4 @@ export interface JobsOptions {
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;
-
-  /**
-   * Limits the size in bytes of the job's data payload (as a JSON serialized string).
-   */
-  sizeLimit?: number;
 }
