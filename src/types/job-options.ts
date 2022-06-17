@@ -1,6 +1,6 @@
-import { JobOptionsBase } from '../interfaces';
+import { BaseJobOptions } from '../interfaces';
 
-export type JobsOptions = JobOptionsBase & {
+export type JobsOptions = BaseJobOptions & {
   /**
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
@@ -10,7 +10,7 @@ export type JobsOptions = JobOptionsBase & {
 /**
  * These fields are the ones stored in Redis with smaller keys for compactness.
  */
-export type RedisJobOptions = JobOptionsBase & {
+export type RedisJobOptions = BaseJobOptions & {
   /**
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
