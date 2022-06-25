@@ -139,7 +139,6 @@ export class Worker<
   private waiting = false;
   private running = false;
   private blockTimeout = 0;
-  private beingClosed = false;
 
   protected processFn: Processor<DataType, ResultType, NameType>;
 
@@ -469,7 +468,7 @@ export class Worker<
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
       }
-      if (!this.beingClosed) {
+      if (!this.closing) {
         await this.delay();
       }
     } finally {
@@ -671,7 +670,6 @@ export class Worker<
     if (this.closing) {
       return this.closing;
     }
-    this.beingClosed = true;
     this.closing = (async () => {
       this.emit('closing', 'closing queue');
 
