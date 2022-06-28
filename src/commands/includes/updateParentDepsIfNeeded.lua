@@ -14,7 +14,7 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
     else
       rcall("RPUSH", parentQueueKey .. ":paused", parentId)
     end
-    local parentEventStream = parentQueueKey .. ":events"
-    rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+
+    rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
   end
 end
