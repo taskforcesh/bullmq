@@ -633,7 +633,7 @@ export class Scripts {
       this.queue.toKey('wait'),
     ];
 
-    const args = [count, timestamp];
+    const args = [count, timestamp, state];
 
     return keys.concat(args);
   }
@@ -681,6 +681,7 @@ export class Scripts {
       job.id,
       (job.opts.lifo ? 'R' : 'L') + 'PUSH',
       state === 'failed' ? 'failedReason' : 'returnvalue',
+      state,
     ];
 
     const result = await (<any>client).reprocessJob(keys.concat(args));
