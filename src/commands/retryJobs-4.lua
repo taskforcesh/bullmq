@@ -7,8 +7,9 @@
     KEYS[3] state key (failed, completed)
     KEYS[4] wait state key
 
-    ARGV[1]  count
-    ARGV[2]  timestamp
+    ARGV[1] count
+    ARGV[2] timestamp
+    ARGV[3] prev state
 
   Output:
     1  means the operation is not completed
@@ -31,7 +32,7 @@ if (#jobs > 0) then
     rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason", "returnvalue")
 
     -- Emit waiting event
-    rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", key);
+    rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", key, "prev", ARGV[3]);
   end
 
   for from, to in batches(#jobs, 7000) do

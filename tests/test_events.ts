@@ -346,8 +346,9 @@ describe('events', function () {
       });
 
       const waiting = new Promise<void>(resolve => {
-        queueEvents.on('waiting', async ({ jobId }) => {
+        queueEvents.on('waiting', async ({ jobId, prev }) => {
           const job = await queue.getJob(jobId);
+          expect(prev).to.be.equal('waiting-children');
           if (job.name === name) {
             resolve();
           }
