@@ -12,7 +12,7 @@ This functionality enables the creation of flows where jobs are the node of tree
 Flows are added to a queue using the "_FlowProducer_" class.
 {% endhint %}
 
-In order to create "flows" you must use the [FlowProducer](https://api.docs.bullmq.io/classes/FlowProducer.html) class. The method "_add_" accepts an object with the following interface:
+In order to create "flows" you must use the [FlowProducer](https://api.docs.bullmq.io/classes/FlowProducer.html) class. The method [_**add**_](https://api.docs.bullmq.io/classes/FlowProducer.html#add) accepts an object with the following interface:
 
 ```typescript
 interface FlowJob {
@@ -193,6 +193,6 @@ await queue.remove(job.id);
 
 ## Read more:
 
-* 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
-* 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html)
-* 💡 [Job API Reference](https://api.docs.bullmq.io/classes/Job.html)
+- 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
+- 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html)
+- 💡 [Job API Reference](https://api.docs.bullmq.io/classes/Job.html)
