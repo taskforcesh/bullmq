@@ -164,6 +164,7 @@ describe('repeat', function () {
         endDate: 12345,
         tz: null,
         cron: '10 * * * * *',
+        pattern: '10 * * * * *',
         next: 10000,
       })
       .and.to.deep.include({
@@ -173,6 +174,7 @@ describe('repeat', function () {
         endDate: 610000,
         tz: null,
         cron: '2 10 * * * *',
+        pattern: '2 10 * * * *',
         next: 602000,
       })
       .and.to.deep.include({
@@ -182,6 +184,7 @@ describe('repeat', function () {
         endDate: null,
         tz: 'Africa/Accra',
         cron: '2 * * 4 * *',
+        pattern: '2 * * 4 * *',
         next: 259202000,
       })
       .and.to.deep.include({
@@ -191,6 +194,7 @@ describe('repeat', function () {
         endDate: null,
         tz: 'Africa/Abidjan',
         cron: '1 * * 5 * *',
+        pattern: '1 * * 5 * *',
         next: 345601000,
       });
   });
@@ -1298,7 +1302,7 @@ describe('repeat', function () {
         { repeat: { every: 5000, cron: '* /1 * * * * *' } },
       ),
     ).to.be.rejectedWith(
-      'Both .cron and .every options are defined for this repeatable job',
+      'Both .cron (or .pattern) and .every options are defined for this repeatable job',
     );
   });
 

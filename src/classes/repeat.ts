@@ -159,7 +159,7 @@ export class Repeat extends QueueBase {
     return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
-  private keyToData(key: string) {
+  private keyToData(key: string, next?: number) {
     const data = key.split(':');
     const pattern = data.slice(4).join(':') || null;
 
@@ -169,7 +169,9 @@ export class Repeat extends QueueBase {
       id: data[1] || null,
       endDate: parseInt(data[2]) || null,
       tz: data[3] || null,
+      cron: pattern,
       pattern,
+      next,
     };
   }
 
@@ -183,18 +185,7 @@ export class Repeat extends QueueBase {
 
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
-      const data = result[i].split(':');
-      const pattern = data.slice(4).join(':') || null;
-      jobs.push({
-        key: result[i],
-        name: data[0],
-        id: data[1] || null,
-        endDate: parseInt(data[2]) || null,
-        tz: data[3] || null,
-        cron: pattern || null,
-        pattern: pattern || null,
-        next: parseInt(result[i + 1]),
-      });
+      jobs.push(this.keyToData(result[i], parseInt(result[i + 1])));
     }
     return jobs;
   }
