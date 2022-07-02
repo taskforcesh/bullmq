@@ -31,7 +31,7 @@ await myQueue.add(
   { color: 'yellow' },
   {
     repeat: {
-      cron: '* 15 3 * * *',
+      pattern: '* 15 3 * * *',
     },
   },
 );
@@ -108,3 +108,68 @@ For instance, let's say that you have a job that is repeated every second, but t
 In this particular example, the worker will pick up the next job and also add the next repeatable job delayed 1 second since that is the repeatable interval. The worker will require 5 seconds to process the job, and if there is only 1 worker available then the next job will need to wait a full 5 seconds before it can be processed.
 
 On the other hand, if there were 5 workers available, then they will most likely be able to process all the repeatable jobs with the desired frequency of one job per second.
+
+# Repeat Strategy
+
+By default, we are using [cron-parser](https://www.npmjs.com/package/cron-parser) in out repeat strategy if it's not defined.
+
+User can define a different strategy to schedule repeatable jobs.
+
+```typescript
+import { Queue, QueueScheduler, Worker } from 'bullmq';
+import { rrulestr } from 'rrule';
+
+const settings = {
+  cronStrategy: (millis, opts) => {
+    const currentDate =
+      opts.startDate && new Date(opts.startDate) > new Date(millis)
+        ? new Date(opts.startDate)
+        : new Date(millis);
+    const rrule = rrulestr(opts.pattern);
+    if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
+      throw new Error('DTSTART must be defined to use COUNT with rrule');
+    }
+
+    const next_occurrence = rrule.after(currentDate, false);
+    return next_occurrence?.getTime();
+  },
+};
+
+const myQueueScheduler = new QueueScheduler('Paint');
+const myQueue = new Queue('Paint', { settings });
+
+// Repeat job every 10 seconds
+await myQueue.add(
+  'bird',
+  { color: 'bird' },
+  {
+    repeat: {
+      pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=;WKST=MO',
+    },
+    jobId: 'colibri',
+  },
+);
+
+await myQueue.add(
+  'bird',
+  { color: 'bird' },
+  {
+    repeat: {
+      pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=;WKST=MO',
+    },
+    jobId: 'pigeon',
+  },
+);
+
+const worker = new Worker(
+  'Paint',
+  async () => {
+    doSomething();
+  },
+  { settings },
+);
+```
+
+{% hint style="warning" %}
+As you may noticed, repeat strategy setting should be provided in queue and worker classes, in order to work as intended.
+{% endhint %}

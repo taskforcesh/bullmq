@@ -208,7 +208,7 @@ describe('repeat', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         this.clock.tick(nextTick);
       },
       { connection },
@@ -261,7 +261,7 @@ describe('repeat', function () {
 
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         this.clock.tick(nextTick);
       },
       { connection },
@@ -329,7 +329,7 @@ describe('repeat', function () {
       { foo: 'bar' },
       {
         repeat: {
-          cron: '*/2 * * * * *',
+          pattern: '*/2 * * * * *',
           startDate: new Date('2017-02-07 9:22:00'),
         },
       },
@@ -437,7 +437,7 @@ describe('repeat', function () {
             opts.startDate && new Date(opts.startDate) > new Date(millis)
               ? new Date(opts.startDate)
               : new Date(millis);
-          const rrule = rrulestr(opts.cron);
+          const rrule = rrulestr(opts.pattern);
           if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
             throw new Error('DTSTART must be defined to use COUNT with rrule');
           }
@@ -469,7 +469,7 @@ describe('repeat', function () {
         { foo: 'bar' },
         {
           repeat: {
-            cron: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
+            pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
           },
         },
       );
