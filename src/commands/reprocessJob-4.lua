@@ -10,6 +10,7 @@
     ARGV[1] job.id
     ARGV[2] (job.opts.lifo ? 'R' : 'L') + 'PUSH'
     ARGV[3] propVal - failedReason/returnvalue
+    ARGV[4] prev state - failed/completed
 
   Output:
     1  means the operation was a success
@@ -24,7 +25,7 @@ if (rcall("EXISTS", KEYS[1]) == 1) then
     rcall("HDEL", KEYS[1], "finishedOn", "processedOn", ARGV[3])
 
     -- Emit waiting event
-    rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId);
+    rcall("XADD", KEYS[2], "*", "event", "waiting", "jobId", jobId, "prev", ARGV[4]);
     return 1
   else
     return -3

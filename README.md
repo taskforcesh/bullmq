@@ -82,17 +82,30 @@ Some notable organizations using BullMQ:
         />
        </a>
     </td>
-        <td valign="center">
+    </tr>
+    <tr>
+      <td valign="center">
        <a href="https://github.com/teamcurri">
         <img
           src="https://user-images.githubusercontent.com/659829/161662129-ae645bc4-c1e9-48ff-997e-4cee281a964a.png"
           width="150"
           alt="Curri"
         />
-       </a>
+      </a>
     </td>
-  <tr>
+      <td valign="center">
+       <a href="https://novu.co">
+        <img
+          src="https://super-static-assets.s3.amazonaws.com/1e9f5a51-c4c6-4fca-b6e8-25fa0186f139/images/4052d2f1-dc73-4421-984c-cdd02e989fdb.png"
+          width="150"
+          alt="Curri"
+        />
+      </a>
+    </td>
+    </tr>
 </table>
+
+
 
 # The gist
 

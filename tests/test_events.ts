@@ -316,39 +316,63 @@ describe('events', function () {
     await worker.close();
   });
 
-  it('emits waiting-children event when one job is a parent', async function () {
-    const worker = new Worker(queueName, async job => {}, {
-      drainDelay: 1,
-      connection,
-    });
-    const name = 'parent-job';
-    const childrenQueueName = `children-queue-${v4()}`;
-
-    const waitingChildren = new Promise<void>(resolve => {
-      queueEvents.once('waiting-children', async ({ jobId }) => {
-        const job = await queue.getJob(jobId);
-        const state = await job.getState();
-        expect(state).to.be.equal('waiting-children');
-        expect(job.name).to.be.equal(name);
-        resolve();
+  describe('when one job is a parent', function () {
+    it('emits waiting-children and waiting event', async function () {
+      const worker = new Worker(queueName, async () => {}, {
+        drainDelay: 1,
+        connection,
       });
+      const name = 'parent-job';
+      const childrenQueueName = `children-queue-${v4()}`;
+
+      const childrenWorker = new Worker(
+        childrenQueueName,
+        async () => {
+          await delay(100);
+        },
+        {
+          drainDelay: 1,
+          connection,
+        },
+      );
+      const waitingChildren = new Promise<void>(resolve => {
+        queueEvents.once('waiting-children', async ({ jobId }) => {
+          const job = await queue.getJob(jobId);
+          const state = await job.getState();
+          expect(state).to.be.equal('waiting-children');
+          expect(job.name).to.be.equal(name);
+          resolve();
+        });
+      });
+
+      const waiting = new Promise<void>(resolve => {
+        queueEvents.on('waiting', async ({ jobId, prev }) => {
+          const job = await queue.getJob(jobId);
+          expect(prev).to.be.equal('waiting-children');
+          if (job.name === name) {
+            resolve();
+          }
+        });
+      });
+
+      const flow = new FlowProducer({ connection });
+      await flow.add({
+        name,
+        queueName,
+        data: {},
+        children: [
+          { name: 'test', data: { foo: 'bar' }, queueName: childrenQueueName },
+        ],
+      });
+
+      await waitingChildren;
+      await waiting;
+
+      await worker.close();
+      await childrenWorker.close();
+      await flow.close();
+      await removeAllQueueData(new IORedis(), childrenQueueName);
     });
-
-    const flow = new FlowProducer({ connection });
-    await flow.add({
-      name,
-      queueName,
-      data: {},
-      children: [
-        { name: 'test', data: { foo: 'bar' }, queueName: childrenQueueName },
-      ],
-    });
-
-    await waitingChildren;
-
-    await worker.close();
-    await flow.close();
-    await removeAllQueueData(new IORedis(), childrenQueueName);
   });
 
   it('should listen to global events', async () => {

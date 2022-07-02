@@ -17,18 +17,25 @@ In order to avoid stalled jobs, make sure that your worker does not keep Node.js
 Another way to reduce the chance for stalled jobs is using so called "sandboxed" processors. In this case, the workers will spawn new separate Node.js processes, running separately from the main process.
 
 {% code title="main.ts" %}
+
 ```typescript
 import { Worker } from 'bullmq';
 
 const worker = new Worker('Paint', painter);
 ```
+
 {% endcode %}
 
 {% code title="painter.ts" %}
+
 ```typescript
 export default = (job) => {
     // Paint something
 }
 ```
+
 {% endcode %}
 
+## Read more:
+
+- 💡 [Queue Scheduler API Reference](https://api.docs.bullmq.io/classes/QueueScheduler.html)

@@ -140,7 +140,7 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * This event is triggered when a job enters the 'waiting' state.
    */
-  waiting: (args: { jobId: string }, id: string) => void;
+  waiting: (args: { jobId: string; prev?: string }, id: string) => void;
 
   /**
    * Listen to 'waiting-children' event.
