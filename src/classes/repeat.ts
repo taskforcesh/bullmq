@@ -49,9 +49,10 @@ export class Repeat extends QueueBase {
     now = prevMillis < now ? now : prevMillis;
 
     const nextMillis = await this.cronStrategy(now, repeatOpts, name);
+    const pattern = repeatOpts.pattern || repeatOpts.cron;
 
     const hasImmediately =
-      (repeatOpts.every || repeatOpts.cron) && repeatOpts.immediately;
+      (repeatOpts.every || pattern) && repeatOpts.immediately;
     const offset = hasImmediately ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
@@ -160,7 +161,7 @@ export class Repeat extends QueueBase {
 
   private keyToData(key: string) {
     const data = key.split(':');
-    const cron = data.slice(4).join(':') || null;
+    const pattern = data.slice(4).join(':') || null;
 
     return {
       key,
@@ -168,7 +169,7 @@ export class Repeat extends QueueBase {
       id: data[1] || null,
       endDate: parseInt(data[2]) || null,
       tz: data[3] || null,
-      cron,
+      pattern,
     };
   }
 
@@ -183,13 +184,15 @@ export class Repeat extends QueueBase {
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
       const data = result[i].split(':');
+      const pattern = data.slice(4).join(':') || null;
       jobs.push({
         key: result[i],
         name: data[0],
         id: data[1] || null,
         endDate: parseInt(data[2]) || null,
         tz: data[3] || null,
-        cron: data[4],
+        cron: pattern || null,
+        pattern: pattern || null,
         next: parseInt(result[i + 1]),
       });
     }
@@ -217,16 +220,18 @@ function getRepeatJobId(
 function getRepeatKey(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
-  const suffix = (repeat.cron ? repeat.cron : String(repeat.every)) || '';
+  const pattern = repeat.pattern || repeat.cron;
+  const suffix = (pattern ? pattern : String(repeat.every)) || '';
   const jobId = repeat.jobId ? repeat.jobId : '';
 
   return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
 
 export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
-  if (opts.cron && opts.every) {
+  const pattern = opts.pattern || opts.cron;
+  if (pattern && opts.every) {
     throw new Error(
-      'Both .cron and .every options are defined for this repeatable job',
+      'Both .cron (or .pattern) and .every options are defined for this repeatable job',
     );
   }
 
@@ -241,7 +246,7 @@ export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
-  const interval = parseExpression(opts.cron, {
+  const interval = parseExpression(pattern, {
     ...opts,
     currentDate,
   });
