@@ -1,13 +1,13 @@
 import { parseExpression } from 'cron-parser';
 import { createHash } from 'crypto';
 import { JobsOptions, RepeatBaseOptions, RepeatOptions } from '../interfaces';
-import { CronStrategy } from '../types';
+import { RepeatStrategy } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
 export class Repeat extends QueueBase {
-  private cronStrategy: CronStrategy;
+  private cronStrategy: RepeatStrategy;
 
   constructor(
     name: string,

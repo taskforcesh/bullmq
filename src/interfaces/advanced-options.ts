@@ -1,10 +1,10 @@
-import { CronStrategy } from '../types';
+import { RepeatStrategy } from '../types';
 
 export interface AdvancedRepeatOptions {
   /**
    * A set of custom cron strategies keyed by name.
    */
-  cronStrategy?: CronStrategy;
+  cronStrategy?: RepeatStrategy;
 }
 
 export interface AdvancedOptions extends AdvancedRepeatOptions {
