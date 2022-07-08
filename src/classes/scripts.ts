@@ -605,20 +605,16 @@ export class Scripts {
     ]);
   }
 
-  retryJobArgs<T = any, R = any, N extends string = string>(
-    job: Job<T, R, N>,
-  ): string[] {
-    const jobId = job.id;
-
-    const keys = ['active', 'wait', jobId].map(name => {
+  retryJobArgs(jobId: string, lifo: boolean, token: string): string[] {
+    const keys = ['active', 'wait', 'paused', jobId].map(name => {
       return this.queue.toKey(name);
     });
 
     keys.push(this.queue.keys.events);
 
-    const pushCmd = (job.opts.lifo ? 'R' : 'L') + 'PUSH';
+    const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
 
-    return keys.concat([pushCmd, jobId]);
+    return keys.concat([pushCmd, jobId, token]);
   }
 
   protected retryJobsArgs(
