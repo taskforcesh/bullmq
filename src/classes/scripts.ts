@@ -606,7 +606,7 @@ export class Scripts {
   }
 
   retryJobArgs(jobId: string, lifo: boolean, token: string): string[] {
-    const keys = ['active', 'wait', 'paused', jobId].map(name => {
+    const keys = ['active', 'wait', 'paused', jobId, 'meta'].map(name => {
       return this.queue.toKey(name);
     });
 
@@ -690,7 +690,7 @@ export class Scripts {
     }
   }
 
-  async moveToActive<T, R, N extends string>(token: string, jobId?: string) {
+  async moveToActive(token: string, jobId?: string) {
     const client = await this.queue.client;
     const opts = this.queue.opts as WorkerOptions;
 

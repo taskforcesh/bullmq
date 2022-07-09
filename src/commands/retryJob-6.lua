@@ -6,7 +6,8 @@
       KEYS[2] 'wait'
       KEYS[3] 'paused'
       KEYS[4] job key
-      KEYS[5] events stream
+      KEYS[5] 'meta'
+      KEYS[6] events stream
 
       ARGV[1]  pushCmd
       ARGV[2]  jobId
@@ -34,7 +35,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   end
 
   local target
-  if rcall("HEXISTS", KEYS[6], "paused") ~= 1 then
+  if rcall("HEXISTS", KEYS[5], "paused") ~= 1 then
     target = KEYS[2]
   else
     target = KEYS[3]
@@ -44,7 +45,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   rcall(ARGV[1], target, ARGV[2])
 
   -- Emit waiting event
-  rcall("XADD", KEYS[5], "*", "event", "waiting", "jobId", ARGV[2], "prev", "failed");
+  rcall("XADD", KEYS[6], "*", "event", "waiting", "jobId", ARGV[2], "prev", "failed");
   
   return 0
 else
