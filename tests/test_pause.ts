@@ -152,7 +152,7 @@ describe('Pause', function () {
     let counter = 2;
     let process;
     const processPromise = new Promise<void>(resolve => {
-      process = async (job: Job) => {
+      process = async () => {
         expect(worker.isPaused()).to.be.eql(false);
         counter--;
         if (counter === 0) {
@@ -335,7 +335,7 @@ describe('Pause', function () {
   it('should pause and resume worker without error', async function () {
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         await delay(100);
       },
       { connection },
@@ -351,5 +351,46 @@ describe('Pause', function () {
     await delay(10);
 
     return worker.close();
+  });
+
+  describe('when backoff is 0', () => {
+    it('moves job into paused queue', async () => {
+      await queue.add('test', { foo: 'bar' }, { attempts: 2, backoff: 0 });
+
+      let worker: Worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(
+          queueName,
+          async job => {
+            await delay(10);
+            if (job.attemptsMade == 1) {
+              await queue.pause();
+              throw new Error('Not yet!');
+            }
+
+            resolve();
+          },
+          {
+            connection,
+          },
+        );
+      });
+
+      const waitingEvent = new Promise<void>(resolve => {
+        queueEvents.on('waiting', async ({ prev }) => {
+          if (prev === 'failed') {
+            const count = await queue.getJobCountByTypes('paused');
+            expect(count).to.be.equal(1);
+            await queue.resume();
+            resolve();
+          }
+        });
+      });
+
+      await waitingEvent;
+      await processing;
+
+      await worker.close();
+    });
   });
 });
