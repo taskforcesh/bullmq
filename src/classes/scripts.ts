@@ -649,7 +649,6 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param queue -
    * @param job -
    * @param state - The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
@@ -779,7 +778,7 @@ export class Scripts {
    * (e.g. if the job handler keeps crashing),
    * we limit the number stalled job recoveries to settings.maxStalledCount.
    */
-  async moveStalledJobsToWait() {
+  async moveStalledJobsToWait(): Promise<[string[], string[]]> {
     const client = await this.queue.client;
 
     const opts = this.queue.opts as QueueSchedulerOptions;
