@@ -7,7 +7,7 @@ import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
 export class Repeat extends QueueBase {
-  private cronStrategy: RepeatStrategy;
+  private repeatStrategy: RepeatStrategy;
 
   constructor(
     name: string,
@@ -16,8 +16,8 @@ export class Repeat extends QueueBase {
   ) {
     super(name, opts, Connection);
 
-    this.cronStrategy =
-      (opts.settings && opts.settings.cronStrategy) || getNextMillis;
+    this.repeatStrategy =
+      (opts.settings && opts.settings.repeatStrategy) || getNextMillis;
   }
 
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -48,7 +48,7 @@ export class Repeat extends QueueBase {
 
     now = prevMillis < now ? now : prevMillis;
 
-    const nextMillis = await this.cronStrategy(now, repeatOpts, name);
+    const nextMillis = await this.repeatStrategy(now, repeatOpts, name);
     const pattern = repeatOpts.pattern || repeatOpts.cron;
 
     const hasImmediately =

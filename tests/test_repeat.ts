@@ -432,7 +432,7 @@ describe('repeat', function () {
     it('should repeat every 2 seconds', async function () {
       this.timeout(20000);
       const settings = {
-        cronStrategy: (millis, opts) => {
+        repeatStrategy: (millis, opts) => {
           const currentDate =
             opts.startDate && new Date(opts.startDate) > new Date(millis)
               ? new Date(opts.startDate)
@@ -504,7 +504,7 @@ describe('repeat', function () {
       it('should repeat every 2 seconds', async function () {
         this.timeout(10000);
         const settings = {
-          cronStrategy: (millis, opts, name) => {
+          repeatStrategy: (millis, opts, name) => {
             if (name === 'rrule') {
               const currentDate =
                 opts.startDate && new Date(opts.startDate) > new Date(millis)

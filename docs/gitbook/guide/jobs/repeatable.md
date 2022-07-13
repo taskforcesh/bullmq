@@ -120,7 +120,7 @@ import { Queue, QueueScheduler, Worker } from 'bullmq';
 import { rrulestr } from 'rrule';
 
 const settings = {
-  cronStrategy: (millis, opts) => {
+  repeatStrategy: (millis, opts) => {
     const currentDate =
       opts.startDate && new Date(opts.startDate) > new Date(millis)
         ? new Date(opts.startDate)
@@ -171,5 +171,9 @@ const worker = new Worker(
 ```
 
 {% hint style="warning" %}
-As you may noticed, repeat strategy setting should be provided in queue and worker classes, in order to work as intended.
+As you may notice, repeat strategy setting should be provided in queue and worker classes, in order to work as intended.
+{% endhint %}
+
+{% hint style="info" %}
+Repeat strategy function receives an optional jobName parameter as the 3rd one.
 {% endhint %}

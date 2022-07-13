@@ -4,7 +4,7 @@ export interface AdvancedRepeatOptions {
   /**
    * A set of custom cron strategies keyed by name.
    */
-  cronStrategy?: RepeatStrategy;
+  repeatStrategy?: RepeatStrategy;
 }
 
 export interface AdvancedOptions extends AdvancedRepeatOptions {
