@@ -521,7 +521,9 @@ export class Job<
         command = 'delayed';
       } else {
         // Retry immediately
-        (<any>multi).retryJob(this.scripts.retryJobArgs(this));
+        (<any>multi).retryJob(
+          this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
+        );
         command = 'retry';
       }
     } else {
