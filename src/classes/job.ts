@@ -496,7 +496,7 @@ export class Job<
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
-      !(err instanceof UnrecoverableError)
+      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
       const opts = queue.opts as WorkerOptions;
 
