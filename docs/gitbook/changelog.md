@@ -1,3 +1,10 @@
+## [1.86.6](https://github.com/taskforcesh/bullmq/compare/v1.86.5...v1.86.6) (2022-07-14)
+
+
+### Bug Fixes
+
+* **retry-jobs:** consider paused queue ([#1321](https://github.com/taskforcesh/bullmq/issues/1321)) ([3e9703d](https://github.com/taskforcesh/bullmq/commit/3e9703d17fc9dc601d5d77e999f3e9a137f20843))
+
 ## [1.86.5](https://github.com/taskforcesh/bullmq/compare/v1.86.4...v1.86.5) (2022-07-09)
 
 
