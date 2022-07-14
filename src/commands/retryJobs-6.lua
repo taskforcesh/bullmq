@@ -5,7 +5,9 @@
     KEYS[1] base key
     KEYS[2] events stream
     KEYS[3] state key (failed, completed)
-    KEYS[4] wait state key
+    KEYS[4] 'wait'
+    KEYS[5] 'paused'
+    KEYS[6] 'meta'
 
     ARGV[1] count
     ARGV[2] timestamp
@@ -15,7 +17,6 @@
     1  means the operation is not completed
     0  means the operation is completed
 ]]
-local baseKey = KEYS[1]
 local maxCount = tonumber(ARGV[1])
 local timestamp = tonumber(ARGV[2])
 
@@ -25,10 +26,17 @@ local rcall = redis.call;
 --- @include "includes/batches"
 --- @include "includes/getZSetItems"
 
+local target
+if rcall("HEXISTS", KEYS[6], "paused") ~= 1 then
+  target = KEYS[4]
+else
+  target = KEYS[5]
+end
+
 local jobs = rcall('ZRANGEBYSCORE', KEYS[3], 0, timestamp, 'LIMIT', 0, maxCount)
 if (#jobs > 0) then
   for i, key in ipairs(jobs) do
-    local jobKey = baseKey .. key
+    local jobKey = KEYS[1] .. key
     rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason", "returnvalue")
 
     -- Emit waiting event
@@ -37,7 +45,7 @@ if (#jobs > 0) then
 
   for from, to in batches(#jobs, 7000) do
     rcall("ZREM", KEYS[3], unpack(jobs, from, to))
-    rcall("LPUSH", KEYS[4], unpack(jobs, from, to))
+    rcall("LPUSH", target, unpack(jobs, from, to))
   end
 end
 
