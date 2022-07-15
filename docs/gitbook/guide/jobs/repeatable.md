@@ -111,9 +111,9 @@ On the other hand, if there were 5 workers available, then they will most likely
 
 # Repeat Strategy
 
-By default, we are using [cron-parser](https://www.npmjs.com/package/cron-parser) in out repeat strategy if it's not defined.
+By default, we are using [cron-parser](https://www.npmjs.com/package/cron-parser) in the default repeat strategy for cron expressions.
 
-User can define a different strategy to schedule repeatable jobs.
+It is possible to define a different strategy to schedule repeatable jobs. For example we can create a custom one for RRULE:
 
 ```typescript
 import { Queue, QueueScheduler, Worker } from 'bullmq';
