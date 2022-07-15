@@ -670,8 +670,9 @@ export class Job<
       ];
 
       const transformedProcessed = Object.entries(processed).reduce(
-        (accumulator, [key, value]) => {
-          return { ...accumulator, [key]: JSON.parse(value) };
+        (accumulator: Record<string, any>, [key, value]) => {
+          accumulator[key] = JSON.parse(value);
+          return accumulator;
         },
         {},
       );
