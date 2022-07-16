@@ -171,7 +171,7 @@ const worker = new Worker(
 ```
 
 {% hint style="warning" %}
-As you may notice, repeat strategy setting should be provided in queue and worker classes, in order to work as intended.
+As you may notice, repeat strategy setting should be provided in Queue and Worker classes. The reason we need in both places is because the first time we add the job to the Queue we need to calculate when is the next iteration, but after that the Worker takes over and we use the worker settings.
 {% endhint %}
 
 {% hint style="info" %}
