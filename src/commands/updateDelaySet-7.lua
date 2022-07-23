@@ -20,6 +20,9 @@
 ]]
 local rcall = redis.call
 
+-- Includes
+--- @include "includes/getTargetQueueList"
+
 -- Try to get as much as 1000 jobs at once
 local jobs = rcall("ZRANGEBYSCORE", KEYS[1], 0, tonumber(ARGV[2]) * 0x1000,
                    "LIMIT", 0, 1000)
@@ -28,12 +31,7 @@ if (#jobs > 0) then
     rcall("ZREM", KEYS[1], unpack(jobs))
 
     -- check if we need to use push in paused instead of waiting
-    local target
-    if rcall("HEXISTS", KEYS[5], "paused") ~= 1 then
-        target = KEYS[2]
-    else
-        target = KEYS[4]
-    end
+    local target = getTargetQueueList(KEYS[5], KEYS[2], KEYS[4])
 
     for _, jobId in ipairs(jobs) do
         local priority =

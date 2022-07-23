@@ -59,6 +59,7 @@ local parentData
 
 -- Includes
 --- @include "includes/destructureJobKey"
+--- @include "includes/getTargetQueueList"
 --- @include "includes/trimEvents"
 
 if parentKey ~= nil then
@@ -145,18 +146,7 @@ elseif (delayedTimestamp ~= 0) then
           delayedTimestamp)
     rcall("XADD", KEYS[9], "*", "nextTimestamp", delayedTimestamp)
 else
-    local target
-
-    -- We check for the meta.paused key to decide if we are paused or not
-    -- (since an empty list and !EXISTS are not really the same)
-    local paused
-    if rcall("HEXISTS", KEYS[3], "paused") ~= 1 then
-        target = KEYS[1]
-        paused = false
-    else
-        target = KEYS[2]
-        paused = true
-    end
+    local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
 
     -- Standard or priority add
     if priority == 0 then
