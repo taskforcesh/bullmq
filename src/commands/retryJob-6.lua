@@ -23,6 +23,9 @@
 ]]
 local rcall = redis.call
 
+-- Includes
+--- @include "includes/getTargetQueueList"
+
 if rcall("EXISTS", KEYS[4]) == 1 then
 
   if ARGV[3] ~= "0" then
@@ -34,12 +37,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     end
   end
 
-  local target
-  if rcall("HEXISTS", KEYS[5], "paused") ~= 1 then
-    target = KEYS[2]
-  else
-    target = KEYS[3]
-  end
+  local target = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
 
   rcall("LREM", KEYS[1], 0, ARGV[2])
   rcall(ARGV[1], target, ARGV[2])

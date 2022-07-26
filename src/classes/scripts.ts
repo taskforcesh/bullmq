@@ -762,6 +762,7 @@ export class Scripts {
       this.queue.keys.delayed,
       this.queue.keys.wait,
       this.queue.keys.paused,
+      this.queue.keys.meta,
       this.queue.keys.priority,
       this.queue.keys.events,
     ];

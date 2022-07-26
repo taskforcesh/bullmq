@@ -24,14 +24,10 @@ local rcall = redis.call;
 
 -- Includes
 --- @include "includes/batches"
+--- @include "includes/getTargetQueueList"
 --- @include "includes/getZSetItems"
 
-local target
-if rcall("HEXISTS", KEYS[6], "paused") ~= 1 then
-  target = KEYS[4]
-else
-  target = KEYS[5]
-end
+local target = getTargetQueueList(KEYS[6], KEYS[4], KEYS[5])
 
 local jobs = rcall('ZRANGEBYSCORE', KEYS[3], 0, timestamp, 'LIMIT', 0, maxCount)
 if (#jobs > 0) then
