@@ -1,10 +1,10 @@
-import { JobsOptions } from './jobs-options';
+import { RedisJobOptions } from '../types';
 
 export interface JobJson {
   id: string;
   name: string;
   data: string;
-  opts: JobsOptions;
+  opts: RedisJobOptions;
   progress: number | object;
   attemptsMade: number;
   finishedOn?: number;

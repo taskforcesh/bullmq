@@ -13,7 +13,7 @@ import {
   QueueEvents,
   Worker,
 } from '../src/classes';
-import { JobsOptions } from '../src/interfaces';
+import { JobsOptions } from '../src/types';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
 
 describe('Job', function () {

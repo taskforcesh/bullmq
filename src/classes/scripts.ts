@@ -16,13 +16,17 @@ const pack = packer.pack;
 import {
   JobJson,
   JobJsonRaw,
-  JobsOptions,
   QueueSchedulerOptions,
   RedisClient,
   WorkerOptions,
   KeepJobs,
 } from '../interfaces';
-import { JobState, FinishedStatus, FinishedPropValAttribute } from '../types';
+import {
+  JobsOptions,
+  JobState,
+  FinishedStatus,
+  FinishedPropValAttribute,
+} from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { QueueBase } from './queue-base';
@@ -291,6 +295,7 @@ export class Scripts {
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
+        rdof: !!job.opts?.removeDependencyOnFail,
       }),
     ];
 

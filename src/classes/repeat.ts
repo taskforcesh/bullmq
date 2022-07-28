@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
-import { JobsOptions, RepeatOptions } from '../interfaces';
+import { RepeatOptions } from '../interfaces';
+import { JobsOptions } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { parseExpression } from 'cron-parser';

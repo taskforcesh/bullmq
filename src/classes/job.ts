@@ -5,12 +5,17 @@ import {
   BackoffOptions,
   JobJson,
   JobJsonRaw,
-  JobsOptions,
   ParentKeys,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
-import { FinishedStatus, JobState, JobJsonSandbox } from '../types';
+import {
+  FinishedStatus,
+  JobsOptions,
+  JobState,
+  JobJsonSandbox,
+  RedisJobOptions,
+} from '../types';
 import {
   errorObject,
   isEmpty,
@@ -258,7 +263,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = JSON.parse(json.opts || '{}');
+    const opts = Job.optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
       queue,
@@ -305,6 +310,28 @@ export class Job<
     return job;
   }
 
+  private static optsFromJSON(rawOpts?: string): JobsOptions {
+    const opts = JSON.parse(rawOpts || '{}');
+
+    const optionEntries = Object.entries(opts) as Array<
+      [keyof RedisJobOptions, any]
+    >;
+    const options = optionEntries.reduce<Partial<Record<string, any>>>(
+      (acc, item) => {
+        const [attributeName, value] = item;
+        if (attributeName === 'fpof') {
+          acc.failParentOnFail = value;
+        } else {
+          acc[attributeName] = value;
+        }
+        return acc;
+      },
+      {},
+    );
+
+    return options as JobsOptions;
+  }
+
   /**
    * Fetches a Job from the queue given the passed job id.
    *
@@ -344,7 +371,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: this.opts,
+      opts: this.optsAsJSON(this.opts),
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,
@@ -355,6 +382,26 @@ export class Job<
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     };
+  }
+
+  private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+    const optionEntries = Object.entries(opts) as Array<
+      [keyof JobsOptions, any]
+    >;
+    const options = optionEntries.reduce<Partial<Record<string, any>>>(
+      (acc, item) => {
+        const [attributeName, value] = item;
+        if (attributeName === 'failParentOnFail') {
+          acc.fpof = value;
+        } else {
+          acc[attributeName] = value;
+        }
+        return acc;
+      },
+      {},
+    );
+
+    return options as RedisJobOptions;
   }
 
   /**

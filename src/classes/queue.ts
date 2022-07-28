@@ -3,11 +3,10 @@ import { v4 } from 'uuid';
 import {
   BaseJobOptions,
   IoredisListener,
-  JobsOptions,
   QueueOptions,
   RepeatOptions,
 } from '../interfaces';
-import { FinishedStatus } from '../types';
+import { FinishedStatus, JobsOptions } from '../types';
 import { isRedisInstance, jobIdForGroup } from '../utils';
 import { BulkJobOptions, Job } from './job';
 import { QueueGetters } from './queue-getters';

@@ -1,4 +1,4 @@
-import { BaseJobOptions } from './jobs-options';
+import { DefaultJobOptions } from './base-job-options';
 import { ConnectionOptions } from './redis-options';
 
 export enum ClientType {
@@ -35,7 +35,7 @@ export interface QueueBaseOptions {
  * Options for the Queue class.
  */
 export interface QueueOptions extends QueueBaseOptions {
-  defaultJobOptions?: BaseJobOptions;
+  defaultJobOptions?: DefaultJobOptions;
 
   /**
    * Options for the rate limiter.
