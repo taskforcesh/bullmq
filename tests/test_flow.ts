@@ -944,7 +944,7 @@ describe('flows', () => {
       });
     }
 
-    await flow.add(
+    const { job } = await flow.add(
       {
         name: 'parent-job',
         queueName: parentQueueName,
@@ -965,6 +965,16 @@ describe('flows', () => {
     await running;
     await childrenWorker.close();
     await processingParent;
+
+    const { children } = await flow.getFlow({
+      queueName: parentQueueName,
+      id: job.id,
+    });
+
+    for (const { job: child } of children) {
+      expect(child).to.not.be.undefined;
+    }
+
     await parentWorker.close();
     await queueScheduler.close();
     await queueEvents.close();

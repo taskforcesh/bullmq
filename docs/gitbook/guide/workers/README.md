@@ -58,6 +58,8 @@ worker.on('completed', (job: Job, returnvalue: any) => {
 });
 ```
 
+#### Progress
+
 Inside the worker process function it is also possible to emit progress events. Calling "job.progress" you can specify a number or an object if you have more complex needs. The "progress" event can be listened in the same way as the "completed" event:
 
 ```typescript
@@ -104,7 +106,7 @@ worker.on('error', err => {
 ```
 
 {% hint style="danger" %}
-If the error handler is missing, your worker may stop processing jobs when an error is emitted!. More info [here](https://nodejs.org/api/events.html#events_error_events).
+If the error handler is missing, your worker may stop processing jobs when an error is emitted!. More info [here](https://nodejs.org/api/events.html#events\_error\_events).
 {% endhint %}
 
 ## Typescript typings
@@ -117,5 +119,5 @@ const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {});
 
 ## Read more:
 
-- 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/Worker.html)
-- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/QueueEvents.html)
+* 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/Worker.html)
+* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/QueueEvents.html)

@@ -675,22 +675,49 @@ describe('Job', function () {
       );
     });
 
-    it('should promote delayed job to the right queue if queue is paused', async () => {
-      await queue.add('normal', { foo: 'bar' });
-      const delayedJob = await queue.add(
-        'delayed',
-        { foo: 'bar' },
-        { delay: 1 },
-      );
+    describe('when queue is paused', () => {
+      it('should promote delayed job to the right queue', async () => {
+        await queue.add('normal', { foo: 'bar' });
+        const delayedJob = await queue.add(
+          'delayed',
+          { foo: 'bar' },
+          { delay: 100 },
+        );
 
-      await queue.pause();
-      await delayedJob.promote();
-      await queue.resume();
+        await queue.pause();
+        await delayedJob.promote();
 
-      const waitingJobsCount = await queue.getWaitingCount();
-      expect(waitingJobsCount).to.be.equal(2);
-      const delayedJobsNewState = await delayedJob.getState();
-      expect(delayedJobsNewState).to.be.equal('waiting');
+        const pausedJobsCount = await queue.getJobCountByTypes('paused');
+        expect(pausedJobsCount).to.be.equal(2);
+        await queue.resume();
+
+        const waitingJobsCount = await queue.getWaitingCount();
+        expect(waitingJobsCount).to.be.equal(2);
+        const delayedJobsNewState = await delayedJob.getState();
+        expect(delayedJobsNewState).to.be.equal('waiting');
+      });
+
+      describe('when queue is empty', () => {
+        it('should promote delayed job to the right queue', async () => {
+          const delayedJob = await queue.add(
+            'delayed',
+            { foo: 'bar' },
+            { delay: 100 },
+          );
+
+          await queue.pause();
+          await delayedJob.promote();
+
+          const pausedJobsCount = await queue.getJobCountByTypes('paused');
+          expect(pausedJobsCount).to.be.equal(1);
+          await queue.resume();
+
+          const waitingJobsCount = await queue.getWaitingCount();
+          expect(waitingJobsCount).to.be.equal(1);
+          const delayedJobsNewState = await delayedJob.getState();
+          expect(delayedJobsNewState).to.be.equal('waiting');
+        });
+      });
     });
   });
 

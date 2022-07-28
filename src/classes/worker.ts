@@ -468,7 +468,9 @@ export class Worker<
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
       }
-      await this.delay();
+      if (!this.closing) {
+        await this.delay();
+      }
     } finally {
       this.waiting = false;
     }

@@ -15,9 +15,9 @@ const job = (await worker.getNextJob(token)) as Job;
 // Access job.data and do something with the job
 // processJob(job.data)
 if (succeeded) {
-  await job.moveToCompleted('some return value', token);
+  await job.moveToCompleted('some return value', token, false);
 } else {
-  await job.moveToFailed(new Error('my error message'), token);
+  await job.moveToFailed(new Error('my error message'), token, false);
 }
 
 await worker.close();
@@ -46,7 +46,7 @@ await job.extendLock(token, 30000);
 
 ## Looping through jobs
 
-In many cases, you will have an "infinite" loop that processes jobs one by one like this example:
+In many cases, you will have an "infinite" loop that processes jobs one by one like the following example. Note that the third parameter in "job.moveToCompleted/moveToFailed" is not used, signalling that the next job should be returned automatically.
 
 ```typescript
 const worker = new Worker('my-queue');
