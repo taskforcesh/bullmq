@@ -57,12 +57,13 @@ local rcall = redis.call
 
 --- Includes
 --- @include "includes/destructureJobKey"
+--- @include "includes/collectMetrics"
 --- @include "includes/moveJobFromWaitToActive"
+--- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
---- @include "includes/collectMetrics"
 
 local jobIdKey = KEYS[10]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -123,10 +124,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                                         parentId, jobIdKey, ARGV[4])
             end
         elseif opts['rdof'] then
-            if rcall("ZREM", parentQueueKey .. ":waiting-children", jobId) == 1 then
-                rcall("ZADD", parentQueueKey .. ":failed", timestamp, parentId)
-                rcall("HMSET", parentKey, "failedReason", "child " .. jobId .. " failed", "finishedOn", timestamp)
-            end
+            moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey, parentId, jobId, timestamp)
         end
     end
 

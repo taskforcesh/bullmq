@@ -72,6 +72,11 @@ if parentKey ~= nil then
   local parent = {}
   parent['id'] = parentId
   parent['queueKey'] = parentQueueKey
+
+  if opts['fpof'] ~= nil then
+    parent['queueKey'] = opts['fpof']
+  end
+
   parentData = cjson.encode(parent)
 end
 
