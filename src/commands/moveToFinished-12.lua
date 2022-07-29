@@ -25,13 +25,13 @@
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
-      ARGV[3]  msg property
+      ARGV[3]  msg property returnvalue / failedReason
       ARGV[4]  return value / failed reason
       ARGV[5]  target (completed/failed)
       ARGV[6]  event data (? maybe just send jobid).
       ARGV[7]  fetch next?
       ARGV[8]  keys prefix
-      ARGV[9] opts
+      ARGV[9]  opts
 
       opts - token - lock token
       opts - keepJobs
@@ -41,6 +41,7 @@
       opts - attempts max attempts
       opts - attemptsMade
       opts - maxMetricsSize
+      opts - fpof - fail parent on fail
 
     Output:
       0 OK
@@ -114,11 +115,18 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     end
     if parentId ~= "" and ARGV[5] == "completed" then
         local parentKey = parentQueueKey .. ":" .. parentId
-        local dependenciesSet = parentKey .. ":dependencies"
-        local result = rcall("SREM", dependenciesSet, jobIdKey)
-        if result == 1 then
-            updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
-                                     parentId, jobIdKey, ARGV[4])
+        if ARGV[5] == "completed" then
+            local dependenciesSet = parentKey .. ":dependencies"
+            local result = rcall("SREM", dependenciesSet, jobIdKey)
+            if result == 1 then
+                updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
+                                        parentId, jobIdKey, ARGV[4])
+            end
+        elseif opts['rdof'] then
+            if rcall("ZREM", parentQueueKey .. ":waiting-children", jobId) == 1 then
+                rcall("ZADD", parentQueueKey .. ":failed", timestamp, parentId)
+                rcall("HMSET", parentKey, "failedReason", "child " .. jobId .. " failed", "finishedOn", timestamp)
+            end
         end
     end
 

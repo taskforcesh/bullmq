@@ -295,7 +295,7 @@ export class Scripts {
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
-        rdof: !!job.opts?.removeDependencyOnFail,
+        fpof: !!job.opts?.failParentOnFail,
       }),
     ];
 
