@@ -50,7 +50,7 @@
     "cron-parser": "^4.6.0",
     "get-port": "^5.1.1",
     "glob": "^8.0.3",
-    "ioredis": "^4.28.5",
+    "ioredis": "^5.2.2",
     "lodash": "^4.17.21",
     "msgpackr": "^1.6.2",
     "semver": "^7.3.7",
