@@ -47,7 +47,7 @@
   },
   "dependencies": {
     "cron-parser": "^4.2.1",
-    "get-port": "^5.1.1",
+    "get-port": "^6.1.2",
     "glob": "^7.2.0",
     "ioredis": "^5.2.2",
     "lodash": "^4.17.21",
@@ -74,7 +74,7 @@
     "@types/lodash.isarguments": "^3.1.7",
     "@types/mocha": "^5.2.7",
     "@types/msgpack": "^0.0.31",
-    "@types/node": "^12.20.25",
+    "@types/node": "14",
     "@types/semver": "^7.3.9",
     "@types/sinon": "^7.5.2",
     "@types/uuid": "^3.4.10",
