@@ -7,10 +7,8 @@
       KEYS[3] 'active', (LIST)
       KEYS[4] 'failed', (ZSET)
       KEYS[5] 'stalled-check', (KEY)
-
       KEYS[6] 'meta', (KEY)
       KEYS[7] 'paused', (LIST)
-
       KEYS[8] 'event stream' (STREAM)
 
       ARGV[1]  Max stalled job count
@@ -25,6 +23,10 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/batches"
+--- @include "includes/getTargetQueueList"
+--- @include "includes/removeJob"
+--- @include "includes/removeJobsByMaxAge"
+--- @include "includes/removeJobsByMaxCount"
 --- @include "includes/trimEvents"
 
 -- Check if we need to check for stalled jobs now.
@@ -40,15 +42,6 @@ local stalling = rcall('SMEMBERS', KEYS[1])
 local stalled = {}
 local failed = {}
 if (#stalling > 0) then
-
-    local dst
-    -- wait or paused destination
-    if rcall("HEXISTS", KEYS[6], "paused") ~= 1 then
-        dst = KEYS[2]
-    else
-        dst = KEYS[7]
-    end
-
     rcall('DEL', KEYS[1])
 
     local MAX_STALLED_JOB_COUNT = tonumber(ARGV[1])
@@ -67,24 +60,50 @@ if (#stalling > 0) then
                 local stalledCount = rcall("HINCRBY", jobKey, "stalledCounter",
                                            1)
                 if (stalledCount > MAX_STALLED_JOB_COUNT) then
-                    local failedReason = "job stalled more than allowable limit" 
-                    rcall("ZADD", KEYS[4], ARGV[3], jobId)
-                    rcall("HMSET", jobKey, "failedReason",
-                          failedReason, "finishedOn", ARGV[3])
-                    rcall("XADD", KEYS[8], "*", "event", "failed", "jobId",
-                          jobId, 'prev', 'active', 'failedReason',
-                          failedReason)
-                    table.insert(failed, jobId)
-                else
-                    -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                    rcall("RPUSH", dst, jobId)
-                    rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId",
-                          jobId, 'prev', 'active')
+                  local rawOpts = rcall("HGET",jobKey, "opts")
+                  local opts = cjson.decode(rawOpts)
+                  local removeOnFailType = type(opts["removeOnFail"])
+                  rcall("ZADD", KEYS[4], ARGV[3], jobId)
+                  local failedReason = "job stalled more than allowable limit" 
+                  rcall("HMSET", jobKey, "failedReason",
+                        failedReason, "finishedOn", ARGV[3])
+                  rcall("XADD", KEYS[8], "*", "event", "failed", "jobId",
+                        jobId, 'prev', 'active', 'failedReason',
+                        failedReason)
 
-                    -- Emit the stalled event
-                    rcall("XADD", KEYS[8], "*", "event", "stalled", "jobId",
-                          jobId)
-                    table.insert(stalled, jobId)
+                  if removeOnFailType == "number" then
+                    removeJobsByMaxCount(opts["removeOnFail"], KEYS[4], ARGV[2])
+                  elseif removeOnFailType == "boolean" then
+                    if opts["removeOnFail"] then
+                      removeJob(jobId, false, ARGV[2])
+                      rcall("ZREM", KEYS[4], jobId)
+                    end
+                  elseif removeOnFailType ~= "nil" then
+                    local maxAge = opts["removeOnFail"]["age"]
+                    local maxCount = opts["removeOnFail"]["count"]
+
+                    if maxAge ~= nil then
+                      removeJobsByMaxAge(ARGV[3], maxAge, KEYS[4], ARGV[2])
+                    end
+
+                    if maxCount ~= nil and maxCount > 0 then
+                      removeJobsByMaxCount(maxCount, KEYS[4], ARGV[2])
+                    end
+                  end
+
+                  table.insert(failed, jobId)                    
+                else
+                  local target = getTargetQueueList(KEYS[6], KEYS[2], KEYS[7])
+
+                  -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
+                  rcall("RPUSH", target, jobId)
+                  rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId",
+                        jobId, 'prev', 'active')
+
+                  -- Emit the stalled event
+                  rcall("XADD", KEYS[8], "*", "event", "stalled", "jobId",
+                        jobId)
+                  table.insert(stalled, jobId)
                 end
             end
         end

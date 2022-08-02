@@ -10,6 +10,7 @@
 * [Introduction](guide/introduction.md)
 * [Connections](guide/connections.md)
 * [Queues](guide/queues/README.md)
+  * [Adding bulks](guide/queues/adding-bulks.md)
   * [Removing Jobs](guide/queues/removing-jobs.md)
 * [Workers](guide/workers/README.md)
   * [Concurrency](guide/workers/concurrency.md)
@@ -24,7 +25,6 @@
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/prioritized.md)
-  * [Adding bulks](guide/jobs/adding-bulks.md)
   * [Removing job](guide/jobs/removing-job.md)
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
@@ -61,7 +61,9 @@
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
+  * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
 * [API Reference](https://api.bullmq.pro)
+* [Changelog](bullmq-pro/changelog.md)
 
 ## Bull
 

@@ -1,8 +1,7 @@
 import { createHash } from 'crypto';
 import { JobsOptions, RepeatOptions } from '../interfaces';
-import { QueueBase } from './queue-base';
 import { Job } from './job';
-import { Scripts } from './scripts';
+import { QueueBase } from './queue-base';
 import { parseExpression } from 'cron-parser';
 
 export class Repeat extends QueueBase {
@@ -11,7 +10,7 @@ export class Repeat extends QueueBase {
     data: T,
     opts: JobsOptions,
     skipCheckExists?: boolean,
-  ) {
+  ): Promise<Job<T, R, N>> {
     const repeatOpts = { ...opts.repeat };
     const prevMillis = opts.prevMillis || 0;
     const currentCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
@@ -105,20 +104,21 @@ export class Repeat extends QueueBase {
       delay: delay < 0 || hasImmediately ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
+      repeatJobKey,
     };
 
     mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
     await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 
-    return Job.create<T, R, N>(this, name, data, mergedOpts);
+    return this.Job.create<T, R, N>(this, name, data, mergedOpts);
   }
 
   async removeRepeatable(
     name: string,
     repeat: RepeatOptions,
     jobId?: string,
-  ): Promise<void> {
+  ): Promise<number> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
     const repeatJobId = getRepeatJobId(
       name,
@@ -127,10 +127,10 @@ export class Repeat extends QueueBase {
       jobId || repeat.jobId,
     );
 
-    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
-  async removeRepeatableByKey(repeatJobKey: string): Promise<void> {
+  async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
     const repeatJobId = getRepeatJobId(
@@ -140,7 +140,7 @@ export class Repeat extends QueueBase {
       data.id,
     );
 
-    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
   private keyToData(key: string) {

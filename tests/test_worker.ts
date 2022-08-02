@@ -12,7 +12,7 @@ import {
   UnrecoverableError,
   Worker,
 } from '../src/classes';
-import { KeepJobs, JobsOptions } from '../src/interfaces';
+import { JobsOptions, KeepJobs } from '../src/interfaces';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('workers', function () {
@@ -98,7 +98,7 @@ describe('workers', function () {
       await new Promise<void>(resolve => {
         worker.once('completed', async job => {
           expect(job).to.be.ok;
-          expect(job.finishedOn).to.be.string;
+          expect(job.finishedOn).to.be.a('number');
           expect(job.data.foo).to.be.eql('bar');
           resolve();
         });
@@ -1012,6 +1012,7 @@ describe('workers', function () {
     await new Promise<void>(resolve => {
       worker.once('failed', async (job, err) => {
         expect(job).to.be.ok;
+        expect(job.finishedOn).to.be.a('number');
         expect(job.data.foo).to.be.eql('bar');
         expect(err).to.be.eql(jobError);
         resolve();
@@ -1443,6 +1444,154 @@ describe('workers', function () {
       await worker.close();
     });
 
+    describe('when changing concurrency', () => {
+      describe('when increasing value', () => {
+        it('should process job respecting the current concurrency set', async function () {
+          this.timeout(10000);
+          let nbProcessing = 0;
+          let pendingMessageToProcess = 16;
+          let wait = 10;
+
+          const worker = new Worker(
+            queueName,
+            async job => {
+              try {
+                nbProcessing++;
+                if (job.data.index < 8) {
+                  expect(nbProcessing).to.be.lessThan(5);
+                } else {
+                  expect(nbProcessing).to.be.lessThan(9);
+                }
+
+                wait += 100;
+
+                await delay(wait);
+                if (job.data.index < 8) {
+                  expect(nbProcessing).to.be.eql(
+                    Math.min(pendingMessageToProcess, 4),
+                  );
+                } else {
+                  expect(nbProcessing).to.be.eql(
+                    Math.min(pendingMessageToProcess, 8),
+                  );
+                }
+                pendingMessageToProcess--;
+                nbProcessing--;
+              } catch (err) {
+                console.error(err);
+              }
+            },
+            {
+              connection,
+              concurrency: 4,
+            },
+          );
+          await worker.waitUntilReady();
+
+          const waiting1 = new Promise((resolve, reject) => {
+            worker.on('completed', after(8, resolve));
+            worker.on('failed', reject);
+          });
+
+          const jobs = Array.from(Array(16).keys()).map(index => ({
+            name: 'test',
+            data: { index },
+          }));
+
+          await queue.addBulk(jobs);
+
+          await waiting1;
+
+          worker.concurrency = 8;
+
+          const waiting2 = new Promise((resolve, reject) => {
+            worker.on('completed', after(8, resolve));
+            worker.on('failed', reject);
+          });
+
+          await waiting2;
+
+          await worker.close();
+        });
+      });
+
+      describe('when decreasing value', () => {
+        it('should process job respecting the current concurrency set', async function () {
+          this.timeout(10000);
+          let nbProcessing = 0;
+          let pendingMessageToProcess = 20;
+          let wait = 100;
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              try {
+                nbProcessing++;
+                if (pendingMessageToProcess > 7) {
+                  expect(nbProcessing).to.be.lessThan(5);
+                } else {
+                  expect(nbProcessing).to.be.lessThan(3);
+                }
+                wait += 50;
+
+                await delay(wait);
+                if (pendingMessageToProcess > 11) {
+                  expect(nbProcessing).to.be.eql(
+                    Math.min(pendingMessageToProcess, 4),
+                  );
+                } else if (pendingMessageToProcess == 11) {
+                  expect(nbProcessing).to.be.eql(3);
+                } else {
+                  expect(nbProcessing).to.be.eql(
+                    Math.min(pendingMessageToProcess, 2),
+                  );
+                }
+                pendingMessageToProcess--;
+                nbProcessing--;
+              } catch (err) {
+                console.error(err);
+              }
+            },
+            {
+              connection,
+              concurrency: 4,
+            },
+          );
+          await worker.waitUntilReady();
+
+          let processed = 0;
+          const waiting1 = new Promise<void>((resolve, reject) => {
+            worker.on('completed', async () => {
+              processed++;
+              if (processed === 8) {
+                worker.concurrency = 2;
+                resolve();
+              }
+            });
+            worker.on('failed', reject);
+          });
+
+          const jobs = Array.from(Array(20).keys()).map(index => ({
+            name: 'test',
+            data: { index },
+          }));
+
+          await queue.addBulk(jobs);
+
+          await waiting1;
+
+          const waiting2 = new Promise((resolve, reject) => {
+            worker.on('completed', after(12, resolve));
+            worker.on('failed', reject);
+          });
+
+          await waiting2;
+
+          await worker.close();
+        });
+      });
+    });
+
     it('should wait for all concurrent processing in case of pause', async function () {
       this.timeout(10000);
 
@@ -1832,6 +1981,69 @@ describe('workers', function () {
         await queueScheduler.close();
       });
 
+      describe('when moving job to delayed in one step', () => {
+        it('should retry job after a delay time, keeping the current step', async function () {
+          this.timeout(8000);
+
+          const queueScheduler = new QueueScheduler(queueName, { connection });
+          await queueScheduler.waitUntilReady();
+
+          enum Step {
+            Initial,
+            Second,
+            Finish,
+          }
+
+          const worker = new Worker(
+            queueName,
+            async (job, token) => {
+              let step = job.data.step;
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await job.moveToDelayed(Date.now() + 200, token);
+                    await job.update({
+                      step: Step.Second,
+                    });
+                    step = Step.Second;
+                    return;
+                  }
+                  case Step.Second: {
+                    await job.update({
+                      step: Step.Finish,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection },
+          );
+
+          await worker.waitUntilReady();
+
+          const start = Date.now();
+          await queue.add('test', { step: Step.Initial });
+
+          await new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              const elapse = Date.now() - start;
+              expect(elapse).to.be.greaterThan(200);
+              expect(job.returnvalue).to.be.eql(Step.Finish);
+              expect(job.attemptsMade).to.be.eql(2);
+              resolve();
+            });
+          });
+
+          await worker.close();
+          await queueScheduler.close();
+        });
+      });
+
       describe('when creating children at runtime', () => {
         it('should wait children as one step of the parent job', async function () {
           this.timeout(8000);
@@ -1849,6 +2061,8 @@ describe('workers', function () {
             Third,
             Finish,
           }
+
+          let waitingChildrenStepExecutions = 0;
 
           const worker = new Worker(
             parentQueueName,
@@ -1874,9 +2088,6 @@ describe('workers', function () {
                     break;
                   }
                   case Step.Second: {
-                    if (job.attemptsMade < 3) {
-                      throw new Error('Not yet!');
-                    }
                     await queue.add(
                       'child-2',
                       { foo: 'bar' },
@@ -1894,6 +2105,7 @@ describe('workers', function () {
                     break;
                   }
                   case Step.Third: {
+                    waitingChildrenStepExecutions++;
                     const shouldWait = await job.moveToWaitingChildren(token);
                     if (!shouldWait) {
                       await job.update({
@@ -1901,8 +2113,9 @@ describe('workers', function () {
                       });
                       step = Step.Finish;
                       return Step.Finish;
+                    } else {
+                      return;
                     }
-                    break;
                   }
                   default: {
                     throw new Error('invalid step');
@@ -1940,6 +2153,7 @@ describe('workers', function () {
             });
           });
 
+          expect(waitingChildrenStepExecutions).to.be.equal(2);
           await worker.close();
           await childrenWorker.close();
           await parentQueue.close();
@@ -2510,7 +2724,9 @@ describe('workers', function () {
           { idx: 1, baz: 'something' },
           { idx: 2, qux: 'something' },
         ];
+        const client = await queue.client;
         const parentToken = 'parent-token';
+        const parentToken2 = 'parent-token2';
         const childToken = 'child-token';
 
         const parentQueueName = `parent-queue-${v4()}`;
@@ -2568,6 +2784,8 @@ describe('workers', function () {
           },
         );
 
+        const token = await client.get(`bull:${queueName}:${parent.id}:lock`);
+        expect(token).to.be.null;
         expect(processed2).to.deep.equal({
           [`bull:${queueName}:${child1.id}`]: 'return value1',
         });
@@ -2602,9 +2820,13 @@ describe('workers', function () {
         const { processed: processed4, unprocessed: unprocessed4 } =
           await parent.getDependencies();
         const isWaitingChildren2 = await parent.isWaitingChildren();
-        const movedToWaitingChildren2 = await parent.moveToWaitingChildren(
-          parentToken,
-        );
+
+        expect(isWaitingChildren2).to.be.false;
+        const updatedParent = (await parentWorker.getNextJob(
+          parentToken2,
+        )) as Job;
+        const movedToWaitingChildren2 =
+          await updatedParent.moveToWaitingChildren(parentToken2);
 
         expect(processed4).to.deep.equal({
           [`bull:${queueName}:${child1.id}`]: 'return value1',
@@ -2612,7 +2834,6 @@ describe('workers', function () {
           [`bull:${queueName}:${child3.id}`]: 'return value3',
         });
         expect(unprocessed4).to.have.length(0);
-        expect(isWaitingChildren2).to.be.false;
         expect(movedToWaitingChildren2).to.be.false;
 
         await childrenWorker.close();
@@ -2673,6 +2894,17 @@ describe('workers', function () {
 
           await expect(
             parent.moveToWaitingChildren(parentToken, {
+              child: {
+                id: child1.id,
+                queue: 'bull:' + queueName,
+              },
+            }),
+          ).to.be.rejectedWith(
+            `Missing lock for job ${parent.id}. moveToWaitingChildren`,
+          );
+
+          await expect(
+            parent.moveToWaitingChildren('0', {
               child: {
                 id: child1.id,
                 queue: 'bull:' + queueName,

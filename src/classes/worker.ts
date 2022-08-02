@@ -4,6 +4,7 @@ import * as path from 'path';
 import { v4 } from 'uuid';
 import {
   GetNextJobOptions,
+  IoredisListener,
   JobJsonRaw,
   Processor,
   RedisClient,
@@ -23,7 +24,6 @@ import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
-import { Scripts } from './scripts';
 import { TimerManager } from './timer-manager';
 
 // note: sandboxed processors would also like to define concurrency per process
@@ -33,7 +33,7 @@ export interface WorkerListener<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
-> {
+> extends IoredisListener {
   /**
    * Listen to 'active' event.
    *
@@ -124,7 +124,8 @@ export interface WorkerListener<
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
- * As soon as the class is instantiated it will start processing jobs.
+ * As soon as the class is instantiated and a connection to Redis is established
+ * it will start processing jobs.
  *
  */
 export class Worker<
@@ -132,7 +133,7 @@ export class Worker<
   ResultType = any,
   NameType extends string = string,
 > extends QueueBase {
-  opts: WorkerOptions;
+  readonly opts: WorkerOptions;
 
   private drained: boolean;
   private waiting = false;
@@ -266,7 +267,7 @@ export class Worker<
     data: JobJsonRaw,
     jobId: string,
   ): Job<DataType, ResultType, NameType> {
-    return Job.fromJSON(this, data, jobId) as Job<
+    return this.Job.fromJSON(this, data, jobId) as Job<
       DataType,
       ResultType,
       NameType
@@ -282,6 +283,10 @@ export class Worker<
   async waitUntilReady(): Promise<RedisClient> {
     await super.waitUntilReady();
     return this.blockingConnection.client;
+  }
+
+  set concurrency(concurrency: number) {
+    this.opts.concurrency = concurrency;
   }
 
   get repeat(): Promise<Repeat> {
@@ -303,7 +308,7 @@ export class Worker<
       if (!this.running) {
         try {
           this.running = true;
-          const client = await this.client;
+          const client = await this.blockingConnection.client;
 
           if (this.closing) {
             return;
@@ -323,18 +328,11 @@ export class Worker<
             }
           }
 
-          const opts: WorkerOptions = <WorkerOptions>this.opts;
-
           const processing = (this.processing = new Map());
 
-          const tokens: string[] = Array.from(
-            { length: opts.concurrency },
-            () => v4(),
-          );
-
           while (!this.closing) {
-            if (processing.size < opts.concurrency) {
-              const token = tokens.pop();
+            if (processing.size < this.opts.concurrency) {
+              const token = v4();
 
               processing.set(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
@@ -363,13 +361,16 @@ export class Worker<
               // reuse same token if next job is available to process
               processing.set(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () => this.processJob(job, token),
+                  () =>
+                    this.processJob(
+                      job,
+                      token,
+                      () => processing.size <= this.opts.concurrency,
+                    ),
                   this.opts.runRetryDelay,
                 ),
                 token,
               );
-            } else {
-              tokens.push(token);
             }
           }
           this.running = false;
@@ -430,7 +431,7 @@ export class Worker<
     token: string,
     jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    const [jobData, id] = await Scripts.moveToActive(this, token, jobId);
+    const [jobData, id] = await this.scripts.moveToActive(token, jobId);
     return this.nextJobFromJobData(jobData, id);
   }
 
@@ -467,7 +468,9 @@ export class Worker<
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
       }
-      await this.delay();
+      if (!this.closing) {
+        await this.delay();
+      }
     } finally {
       this.waiting = false;
     }
@@ -521,6 +524,7 @@ export class Worker<
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
+    fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -570,7 +574,7 @@ export class Worker<
       const completed = await job.moveToCompleted(
         result,
         token,
-        !(this.closing || this.paused),
+        fetchNextCallback() && !(this.closing || this.paused),
       );
       this.emit('completed', job, result, 'active');
       const [jobData, jobId] = completed || [];
@@ -683,7 +687,7 @@ export class Worker<
             // since we're not waiting for the job to end attach
             // an error handler to avoid crashing the whole process
             closePoolPromise?.catch(err => {
-              console.error(err);
+              console.error(err); // TODO: emit error in next breaking change version
             });
             return;
           }

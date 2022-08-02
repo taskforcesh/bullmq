@@ -849,7 +849,7 @@ describe('flows', () => {
       });
     }
 
-    await flow.add(
+    const { job } = await flow.add(
       {
         name: 'parent-job',
         queueName: parentQueueName,
@@ -870,6 +870,16 @@ describe('flows', () => {
     await running;
     await childrenWorker.close();
     await processingParent;
+
+    const { children } = await flow.getFlow({
+      queueName: parentQueueName,
+      id: job.id,
+    });
+
+    for (const { job: child } of children) {
+      expect(child).to.not.be.undefined;
+    }
+
     await parentWorker.close();
     await queueScheduler.close();
     await queueEvents.close();
@@ -1258,6 +1268,7 @@ describe('flows', () => {
         (childrenProcessor = async (job: Job) => {
           processedChildren++;
 
+          await delay(50);
           if (processedChildren == values.length) {
             resolve();
           }
@@ -1759,6 +1770,9 @@ describe('flows', () => {
       expect(await tree.children[1].job.getState()).to.be.equal('unknown');
       expect(await tree.job.getState()).to.be.equal('unknown');
 
+      const jobs = await queue.getJobCountByTypes('waiting');
+      expect(jobs).to.be.equal(0);
+
       await flow.close();
       await parentQueue.close();
       await removeAllQueueData(new IORedis(), parentQueueName);
@@ -1836,6 +1850,9 @@ describe('flows', () => {
           const childJob = await Job.fromId(queue, child.job.id);
           expect(childJob).to.be.undefined;
         }
+
+        const jobs = await queue.getJobCountByTypes('completed');
+        expect(jobs).to.be.equal(0);
 
         expect(await tree.children[0].job.getState()).to.be.equal('unknown');
         expect(await tree.children[1].job.getState()).to.be.equal('unknown');

@@ -12,6 +12,13 @@ import {
 import { JobType } from '../types';
 import { Metrics } from '../interfaces';
 
+/**
+ *
+ * @class QueueGetters
+ * @extends QueueBase
+ *
+ * @description Provides different getters for different aspects of a queue.
+ */
 export class QueueGetters<
   DataType,
   ResultType,
@@ -20,7 +27,7 @@ export class QueueGetters<
   getJob(
     jobId: string,
   ): Promise<Job<DataType, ResultType, NameType> | undefined> {
-    return Job.fromId(this, jobId) as Promise<
+    return this.Job.fromId(this, jobId) as Promise<
       Job<DataType, ResultType, NameType>
     >;
   }
@@ -50,6 +57,13 @@ export class QueueGetters<
     });
   }
 
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
+  }
+
   private sanitizeJobTypes(types: JobType[] | JobType | undefined): JobType[] {
     const currentTypes = typeof types === 'string' ? [types] : types;
 
@@ -75,7 +89,7 @@ export class QueueGetters<
   }
 
   /**
-    Returns the number of jobs waiting to be processed.
+    Returns the number of jobs waiting to be processed. This includes jobs that are "waiting" or "delayed".
   */
   count(): Promise<number> {
     return this.getJobCountByTypes(
@@ -166,6 +180,12 @@ export class QueueGetters<
     return this.getJobCountByTypes('waiting-children');
   }
 
+  /**
+   * Returns the jobs that are in the "waiting" status.
+   * @param start zero based index from where to start returning jobs.
+   * @param end zeroo based index where to stop returning jobs.
+
+  */
   getWaiting(
     start = 0,
     end = -1,
@@ -173,6 +193,11 @@ export class QueueGetters<
     return this.getJobs(['waiting'], start, end, true);
   }
 
+  /**
+   * Returns the jobs that are in the "waiting" status.
+   * @param start zero based index from where to start returning jobs.
+   * @param end zeroo based index where to stop returning jobs.
+   */
   getWaitingChildren(
     start = 0,
     end = -1,
@@ -180,6 +205,11 @@ export class QueueGetters<
     return this.getJobs(['waiting-children'], start, end, true);
   }
 
+  /**
+   * Returns the jobs that are in the "active" status.
+   * @param start zero based index from where to start returning jobs.
+   * @param end zeroo based index where to stop returning jobs.
+   */
   getActive(
     start = 0,
     end = -1,
@@ -187,6 +217,11 @@ export class QueueGetters<
     return this.getJobs(['active'], start, end, true);
   }
 
+  /**
+   * Returns the jobs that are in the "delayed" status.
+   * @param start zero based index from where to start returning jobs.
+   * @param end zeroo based index where to stop returning jobs.
+   */
   getDelayed(
     start = 0,
     end = -1,
@@ -194,6 +229,11 @@ export class QueueGetters<
     return this.getJobs(['delayed'], start, end, true);
   }
 
+  /**
+   * Returns the jobs that are in the "completed" status.
+   * @param start zero based index from where to start returning jobs.
+   * @param end zeroo based index where to stop returning jobs.
+   */
   getCompleted(
     start = 0,
     end = -1,
@@ -201,6 +241,11 @@ export class QueueGetters<
     return this.getJobs(['completed'], start, end, false);
   }
 
+  /**
+   * Returns the jobs that are in the "failed" status.
+   * @param start zero based index from where to start returning jobs.
+   * @param end zeroo based index where to stop returning jobs.
+   */
   getFailed(
     start = 0,
     end = -1,
@@ -255,6 +300,13 @@ export class QueueGetters<
     return [...new Set(results)];
   }
 
+  /**
+   * Returns the jobs that are on the given statuses (note that JobType is synonym for job status)
+   * @param types the statuses of the jobs to return.
+   * @param start zero based index from where to start returning jobs.
+   * @param end zeroo based index where to stop returning jobs.
+   * @param asc if true, the jobs will be returned in ascending order.
+   */
   async getJobs(
     types?: JobType[] | JobType,
     start = 0,
@@ -268,13 +320,20 @@ export class QueueGetters<
     return Promise.all(
       jobIds.map(
         jobId =>
-          Job.fromId(this, jobId) as Promise<
+          this.Job.fromId(this, jobId) as Promise<
             Job<DataType, ResultType, NameType>
           >,
       ),
     );
   }
 
+  /**
+   * Returns the logs for a given Job.
+   * @param jobId the id of the job to get the logs for.
+   * @param start zero based index from where to start returning jobs.
+   * @param end zeroo based index where to stop returning jobs.
+   * @param asc if true, the jobs will be returned in ascending order.
+   */
   async getJobLogs(
     jobId: string,
     start = 0,
@@ -321,7 +380,8 @@ export class QueueGetters<
   }
 
   /**
-   * Get worker list related to the queue.
+   * Get the worker list related to the queue. i.e. all the known
+   * workers that are available to process jobs for this queue.
    *
    * @returns - Returns an array with workers info.
    */
@@ -351,13 +411,13 @@ export class QueueGetters<
    *
    * @returns - Returns an array with queue events info.
    */
-     async getQueueEvents(): Promise<
-     {
-       [index: string]: string;
-     }[]
-   > {
-     return this.baseGetClients(QUEUE_EVENT_SUFFIX);
-   }
+  async getQueueEvents(): Promise<
+    {
+      [index: string]: string;
+    }[]
+  > {
+    return this.baseGetClients(QUEUE_EVENT_SUFFIX);
+  }
 
   /**
    * Get queue metrics related to the queue.

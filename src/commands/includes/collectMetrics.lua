@@ -1,7 +1,9 @@
 --[[
   Functions to collect metrics based on a current and previous count of jobs.
   Granualarity is fixed at 1 minute.
-]] local function collectMetrics(metaKey, dataPointsList, maxDataPoints,
+]] 
+--- @include "batches"
+local function collectMetrics(metaKey, dataPointsList, maxDataPoints,
                                  timestamp)
     -- Increment current count
     local count = rcall("HINCRBY", metaKey, "count", 1) - 1
@@ -26,7 +28,10 @@
             for i = 2, N do
                 points[i] = 0
             end
-            rcall("LPUSH", dataPointsList, unpack(points))
+
+            for from, to in batches(#points, 7000) do
+                rcall("LPUSH", dataPointsList, unpack(points, from, to))
+            end
         else
             -- LPUSH delta to the list
             rcall("LPUSH", dataPointsList, delta)
