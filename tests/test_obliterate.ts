@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { Queue, QueueEvents, FlowProducer, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
@@ -13,7 +13,7 @@ describe('Obliterate', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
@@ -163,7 +163,7 @@ describe('Obliterate', function () {
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
           await queue.waitUntilReady();
-          const childrenQueueName = `test-${v4()}`;
+          const childrenQueueName = `test-${randomUUID()}`;
           const childrenQueue = new Queue(childrenQueueName, { connection });
           await childrenQueue.waitUntilReady();
           const name = 'child-job';
@@ -204,7 +204,7 @@ describe('Obliterate', function () {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
           await queue.waitUntilReady();
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, { connection });
           await parentQueue.waitUntilReady();
           const name = 'child-job';
@@ -254,7 +254,7 @@ describe('Obliterate', function () {
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
           await queue.waitUntilReady();
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, { connection });
           await parentQueue.waitUntilReady();
           const name = 'child-job';

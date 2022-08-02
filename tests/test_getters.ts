@@ -5,7 +5,7 @@ import { expect } from 'chai';
 import { after } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import * as IORedis from 'ioredis';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import {
   FlowProducer,
   Queue,
@@ -21,7 +21,7 @@ describe('Jobs getters', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
   });
 

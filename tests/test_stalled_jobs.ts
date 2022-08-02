@@ -3,7 +3,7 @@ import { delay, removeAllQueueData } from '../src/utils';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { expect } from 'chai';
 
 describe('stalled jobs', function () {
@@ -13,7 +13,7 @@ describe('stalled jobs', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
   });
 

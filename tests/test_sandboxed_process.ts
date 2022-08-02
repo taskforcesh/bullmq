@@ -11,7 +11,7 @@ import {
   Worker,
 } from '../src/classes';
 import { beforeEach } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { delay, removeAllQueueData } from '../src/utils';
 const { stdout, stderr } = require('test-console');
 
@@ -23,7 +23,7 @@ describe('sandboxed process', () => {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
@@ -444,7 +444,7 @@ describe('sandboxed process', () => {
 
   it('includes parent', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_parent.js';
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
 
     const worker = new Worker(queueName, processFile, {
       connection,

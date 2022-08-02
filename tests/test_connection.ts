@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { Queue, Job, Worker, QueueBase, QueueScheduler } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
@@ -10,7 +10,7 @@ describe('connection', () => {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection: { host: 'localhost' } });
   });
 

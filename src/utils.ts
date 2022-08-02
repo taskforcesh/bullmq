@@ -2,7 +2,7 @@ import { Cluster, Redis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { get } from 'lodash';
 import * as semver from 'semver';
 import {
@@ -119,7 +119,7 @@ export function jobIdForGroup(
   const groupKeyPath = get(queueOpts, 'limiter.groupKey');
   const groupKey = get(data, groupKeyPath);
   if (groupKeyPath && !(typeof groupKey === 'undefined')) {
-    return `${jobId || v4()}:${groupKey}`;
+    return `${jobId || randomUUID()}:${groupKey}`;
   }
   return jobId;
 }

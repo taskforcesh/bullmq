@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import {
   GetNextJobOptions,
   IoredisListener,
@@ -332,7 +332,7 @@ export class Worker<
 
           while (!this.closing) {
             if (processing.size < this.opts.concurrency) {
-              const token = v4();
+              const token = randomUUID();
 
               processing.set(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(

@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { Queue, Worker, Job } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
@@ -11,7 +11,7 @@ describe('bulk jobs', () => {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
   });
 
@@ -55,7 +55,7 @@ describe('bulk jobs', () => {
 
   it('should allow to pass parent option', async () => {
     const name = 'test';
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `parent-queue-${randomUUID()}`;
     const parentQueue = new Queue(parentQueueName, { connection });
 
     const parentWorker = new Worker(parentQueueName, null, { connection });

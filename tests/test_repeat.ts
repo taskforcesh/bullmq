@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import {
   Job,
   Queue,
@@ -37,7 +37,7 @@ describe('repeat', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
     repeat = new Repeat(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
@@ -356,7 +356,7 @@ describe('repeat', function () {
 
   it('should remove repeated job when using removeOnComplete', async function () {
     this.timeout(20000);
-    const queueName2 = `test-${v4()}`;
+    const queueName2 = `test-${randomUUID()}`;
     const queue2 = new Queue(queueName2, {
       connection,
       defaultJobOptions: {

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'events';
 import { get } from 'lodash';
 import { Redis, ChainableCommander } from 'ioredis';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import {
   FlowJob,
   FlowQueuesOpts,
@@ -255,7 +255,8 @@ export class FlowProducer extends EventEmitter {
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = get(queueOpts, 'defaultJobOptions');
-    const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
+    const jobId =
+      jobIdForGroup(node.opts, node.data, queueOpts) || randomUUID();
 
     const job = new this.Job(
       queue,

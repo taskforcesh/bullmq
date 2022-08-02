@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after, every, last } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
@@ -14,7 +14,7 @@ describe('Rate Limiter', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();

@@ -1,5 +1,5 @@
 import { get } from 'lodash';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import {
   BaseJobOptions,
   IoredisListener,
@@ -94,7 +94,7 @@ export class Queue<
   ResultType = any,
   NameType extends string = string,
 > extends QueueGetters<DataType, ResultType, NameType> {
-  token = v4();
+  token = randomUUID();
   jobsOpts: BaseJobOptions;
   limiter: {
     groupKey: string;

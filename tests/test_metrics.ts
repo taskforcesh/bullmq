@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { MetricsTime, Queue, QueueEvents, Repeat, Worker } from '../src';
 import { removeAllQueueData } from '../src/utils';
 
@@ -24,7 +24,7 @@ describe('metrics', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
     repeat = new Repeat(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });

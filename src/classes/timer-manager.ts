@@ -1,4 +1,4 @@
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 /**
  * Keeps track on timers created with setTimeout to help clearTimeout
@@ -21,7 +21,7 @@ export class TimerManager {
    * @param fn - Callback function that is executed after the timer expires
    */
   public setTimer(name: string, delay: number, fn: Function): string {
-    const id = v4();
+    const id = randomUUID();
     const timer = setTimeout(
       timeoutId => {
         this.clearTimer(timeoutId);

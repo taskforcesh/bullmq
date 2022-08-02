@@ -5,7 +5,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import {
   Job,
   Queue,
@@ -22,7 +22,7 @@ describe('Job', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection });
   });
 
@@ -108,7 +108,7 @@ describe('Job', function () {
     describe('when parent key is missing', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
-        const parentId = v4();
+        const parentId = randomUUID();
         const opts = { parent: { id: parentId, queue: queueName } };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
           `Missing key for parent job ${queueName}:${parentId}. addJob`,
@@ -220,7 +220,7 @@ describe('Job', function () {
       const values = [{ idx: 0, bar: 'something' }];
       const token = 'my-token';
       const token2 = 'my-token2';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection });
       const parentWorker = new Worker(parentQueueName, null, { connection });
@@ -375,7 +375,7 @@ describe('Job', function () {
       ];
       const token = 'my-token';
 
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection });
 

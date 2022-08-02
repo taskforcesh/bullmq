@@ -5,7 +5,7 @@ import { expect } from 'chai';
 import * as IORedis from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 import { Job, Worker } from '../src/classes';
 import { Queue3 } from '../src/classes/compat';
 import { delay, removeAllQueueData } from '../src/utils';
@@ -18,7 +18,7 @@ describe.skip('Compat', function () {
     let queueName: string;
 
     beforeEach(async function () {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue3(queueName, { connection });
     });
 
@@ -306,7 +306,7 @@ describe.skip('Compat', function () {
     let queueName: string;
 
     beforeEach(async function () {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue3(queueName, { connection });
     });
 
@@ -462,7 +462,7 @@ describe.skip('Compat', function () {
     let queueName: string;
 
     beforeEach(async function () {
-      queueName = `test-${v4()}`;
+      queueName = `test-${randomUUID()}`;
       queue = new Queue3(queueName, { connection });
     });
 
