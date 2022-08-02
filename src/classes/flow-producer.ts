@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { get } from 'lodash';
-import { Redis, Pipeline } from 'ioredis';
+import { Redis, ChainableCommander } from 'ioredis';
 import { v4 } from 'uuid';
 import {
   FlowJob,
@@ -16,7 +16,7 @@ import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
 
 export interface AddNodeOpts {
-  multi: Pipeline;
+  multi: ChainableCommander;
   node: FlowJob;
   parent?: {
     parentOpts: {
@@ -32,7 +32,7 @@ export interface AddNodeOpts {
 }
 
 export interface AddChildrenOpts {
-  multi: Pipeline;
+  multi: ChainableCommander;
   nodes: FlowJob[];
   parent: {
     parentOpts: {
@@ -242,7 +242,7 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis pipeline
+   * @param multi - ioredis ChainableCommander
    * @param node - the node representing a job to be added to some queue
    * @param parent - parent data sent to children to create the "links" to their parent
    * @returns
@@ -321,11 +321,11 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis pipeline
+   * @param multi - ioredis ChainableCommander
    * @param nodes - the nodes representing jobs to be added to some queue
    * @returns
    */
-  protected addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
+  protected addNodes(multi: ChainableCommander, nodes: FlowJob[]): JobNode[] {
     return nodes.map(node => this.addNode({ multi, node }));
   }
 
