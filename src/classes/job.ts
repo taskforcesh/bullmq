@@ -1,4 +1,4 @@
-import { Pipeline } from 'ioredis';
+import { ChainableCommander, Pipeline } from 'ioredis';
 import { fromPairs } from 'lodash';
 import { debuglog } from 'util';
 import {
@@ -547,7 +547,12 @@ export class Job<
     const results = await multi.exec();
     const code = results[results.length - 1][1];
     if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, command, 'active');
+      throw this.scripts.finishedErrors(
+        code as number,
+        this.id,
+        command,
+        'active',
+      );
     }
 
     if (finishedOn) {
@@ -710,12 +715,12 @@ export class Job<
       const [result1, result2] = await multi.exec();
 
       const [processedCursor, processed = []] = opts.processed
-        ? result1[1]
+        ? (result1[1] as [number[], string[] | undefined])
         : [];
       const [unprocessedCursor, unprocessed = []] = opts.unprocessed
         ? opts.processed
-          ? result2[1]
-          : result1[1]
+          ? (result2[1] as [number[], string[] | undefined])
+          : (result1[1] as [number[], string[] | undefined])
         : [];
 
       const transformedProcessed = processed.reduce(
@@ -970,7 +975,7 @@ export class Job<
     return this.scripts.addJob(client, jobData, this.opts, this.id, parentOpts);
   }
 
-  protected saveStacktrace(multi: Pipeline, err: Error) {
+  protected saveStacktrace(multi: ChainableCommander, err: Error): void {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {

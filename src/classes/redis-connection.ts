@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
@@ -69,7 +69,7 @@ export class RedisConnection extends EventEmitter {
         const hosts = (<any>this._client).startupNodes.map(
           (node: { host: string }) => node.host,
         );
-        this.checkUpstashHost(this._client.options.redisOptions?.host || hosts);
+        this.checkUpstashHost(hosts);
       } else {
         this.opts = this._client.options;
 

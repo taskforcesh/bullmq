@@ -130,9 +130,9 @@ export class QueueGetters<
       (<any>multi)[command](key);
     });
 
-    const res = await multi.exec();
+    const res = (await multi.exec()) as [Error, number][];
     const counts: { [index: string]: number } = {};
-    res.forEach((res: number[], index: number) => {
+    res.forEach((res, index) => {
       counts[currentTypes[index]] = res[1] || 0;
     });
     return counts;
@@ -352,12 +352,12 @@ export class QueueGetters<
     multi.llen(logsKey);
     return multi.exec().then(result => {
       if (!asc) {
-        result[0][1].reverse();
+        (result[0][1] as string[]).reverse();
       }
 
       return {
-        logs: result[0][1],
-        count: result[1][1],
+        logs: result[0][1] as [string],
+        count: result[1][1] as number,
       };
     });
   }
@@ -368,9 +368,9 @@ export class QueueGetters<
     }[]
   > {
     const client = await this.client;
-    const clients = await client.client('list');
+    const clients = await client.client('LIST');
     try {
-      const list = this.parseClientList(clients, suffix);
+      const list = this.parseClientList(clients as string, suffix);
       return list;
     } catch (err) {
       if (!clientCommandMessageReg.test((<Error>err).message)) {
@@ -448,9 +448,12 @@ export class QueueGetters<
     multi.llen(dataKey);
 
     const [hmget, range, len] = await multi.exec();
-    const [err, [count, prevTS, prevCount]] = hmget;
-    const [err2, data] = range;
-    const [err3, numPoints] = len;
+    const [err, [count, prevTS, prevCount]] = hmget as [
+      Error,
+      [string, string, string],
+    ];
+    const [err2, data] = range as [Error, []];
+    const [err3, numPoints] = len as [Error, number];
     if (err || err2) {
       throw err || err2 || err3;
     }
