@@ -74,7 +74,7 @@ if parentKey ~= nil then
   parent['queueKey'] = parentQueueKey
 
   if opts['fpof'] ~= nil then
-    parent['queueKey'] = opts['fpof']
+    parent['fpof'] = opts['fpof']
   end
 
   parentData = cjson.encode(parent)

@@ -1014,7 +1014,13 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
-    return this.scripts.addJob(client, jobData, this.opts, this.id, parentOpts);
+    return this.scripts.addJob(
+      client,
+      jobData,
+      jobData.opts,
+      this.id,
+      parentOpts,
+    );
   }
 
   protected saveStacktrace(multi: Pipeline, err: Error) {
