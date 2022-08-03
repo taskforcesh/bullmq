@@ -1,4 +1,4 @@
-import { ChainableCommander, Pipeline } from 'ioredis';
+import { ChainableCommander } from 'ioredis';
 import { fromPairs } from 'lodash';
 import { debuglog } from 'util';
 import {
