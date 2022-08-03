@@ -34,15 +34,15 @@ const myWorker = new Worker('myworker', async (job)=>{}, { connection });
 
 Note that in the second example, even though the ioredis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections. Please read on the [ioredis](https://github.com/luin/ioredis/blob/master/API.md) documentation on how to properly create an instance of `IORedis.`
 
+`When passing ioredis connections to BullMQ, be carefull not to use the "keyPrefix" option in ioredis (`[`https://luin.github.io/ioredis/interfaces/CommonRedisOptions.html#keyPrefix`](https://luin.github.io/ioredis/interfaces/CommonRedisOptions.html#keyPrefix)`), as this option is not compatible with BullMQ that has its own key prefixing mechanism.`&#x20;
+
 If you can afford many connections, by all means just use them. Redis connections have quite low overhead, so you should not need to care about reusing connections unless your service provider is imposing you hard limitations.
 
 {% hint style="danger" %}
-Make sure that your redis instance has the setting 
+Make sure that your redis instance has the setting&#x20;
 
 `maxmemory-policy=noeviction`
 
 in order to avoid automatic removal of keys which would cause unexpected errors in BullMQ
 {% endhint %}
-
-
 
