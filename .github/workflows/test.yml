@@ -20,7 +20,7 @@ jobs:
     name: coverage for node@lts, redis@7
     env:
       node-version: lts/*
-      redis-version: 7
+      redis-version: 7-alpine
 
     steps:
       - name: Checkout repository
@@ -50,12 +50,12 @@ jobs:
     strategy:
       matrix:
         node-version: [lts/*, lts/-1, current]
-        redis-version: [7]
+        redis-version: [7-alpine]
         include:
           - node-version: 'lts/*'
-            redis-version: 5
+            redis-version: 5-alpine
           - node-version: 'lts/*'
-            redis-version: 6
+            redis-version: 6-alpine
 
     steps:
       - name: Checkout repository
