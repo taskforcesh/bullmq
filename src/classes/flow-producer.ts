@@ -373,10 +373,10 @@ export class FlowProducer extends EventEmitter {
     maxChildren: number,
   ) {
     const getChild = (key: string) => {
-      const [prefix, queueName, id] = key.split(':');
+      const [prefix, queueName, id, groupId] = key.split(':');
 
       return this.getNode(client, {
-        id,
+        id: groupId ? `${id}:${groupId}` : id,
         queueName,
         prefix,
         depth,

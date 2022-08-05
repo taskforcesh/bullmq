@@ -1,7 +1,7 @@
 .DS_Store
 node_modules
 /dist
-
+/rawScripts
 # Log files
 npm-debug.log*
 yarn-debug.log*

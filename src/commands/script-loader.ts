@@ -484,7 +484,7 @@ async function getFilenamesByPattern(pattern: string): Promise<string[]> {
 // Determine the project root
 // https://stackoverflow.com/a/18721515
 function getPkgJsonDir(): string {
-  for (const modPath of (module.paths || [])) {
+  for (const modPath of module.paths || []) {
     try {
       const prospectivePkgJsonDir = path.dirname(modPath);
       fs.accessSync(modPath, fs.constants.F_OK);

@@ -12,7 +12,7 @@ This functionality enables the creation of flows where jobs are the node of tree
 Flows are added to a queue using the "_FlowProducer_" class.
 {% endhint %}
 
-In order to create "flows" you must use the [FlowProducer](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.flowproducer.md) class. The method "_add_" accepts an object with the following interface:
+In order to create "flows" you must use the [FlowProducer](https://api.docs.bullmq.io/classes/FlowProducer.html) class. The method [_**add**_](https://api.docs.bullmq.io/classes/FlowProducer.html#add) accepts an object with the following interface:
 
 ```typescript
 interface FlowJob {
@@ -140,7 +140,7 @@ const state = await job.getState();
 
 ## Provide options
 
-Something to take in count that when adding a flow, there is an extra param **opts**, where you can add your queue options, this is a dictionary of options for the queues that you use in your flow, these options would affect each of the jobs that belongs to the mapped queue options.
+When adding a flow it is also possible to provide an extra options object "**queueOptions"**, where you can add your specific options for every queue that is used in the flow. These options would affect each one of the jobs that are added to the flow using the FlowProducer.
 
 ```typescript
 import { FlowProducer } from 'bullmq';
@@ -193,5 +193,6 @@ await queue.remove(job.id);
 
 ## Read more:
 
-- 💡 [FlowProducer API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.flowproducer.md)
-- 💡 [Job API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.job.md)
+* 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
+* 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html)
+* 💡 [Job API Reference](https://api.docs.bullmq.io/classes/Job.html)

@@ -7,7 +7,7 @@ and schedule a regular delayed job for the job's first run. This first run will 
 a job that repeats every 15 minutes at 4:07, the job will first run at 4:15, then 4:30, and so on.
 
 The Repeatable Job configuration is not a job, so it will not show up in methods like `getJobs()`. To manage Repeatable Job
-configurations, use [`getRepeatableJobs()`](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.getrepeatablejobs.md) and similar. This also means repeated jobs do **not**
+configurations, use [`getRepeatableJobs()`](https://api.docs.bullmq.io/classes/Queue.html#getRepeatableJobs) and similar. This also means repeated jobs do **not**
 participate in evaluating `jobId` uniqueness - that is, a non-repeatable job can have the same `jobId` as a Repeatable Job
 configuration, and two Repeatable Job configurations can have the same `jobId` as long as they have different repeat options.
 
@@ -53,9 +53,9 @@ There are some important considerations regarding repeatable jobs:
 
 - Bull is smart enough not to add the same repeatable job if the repeat options are the same.
 - If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
-- repeatable jobs can be removed using the [removeRepeatable](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.removerepeatable.md) method or [removeRepeatableByKey](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.removerepeatablebykey.md).
+- repeatable jobs can be removed using the [removeRepeatable](https://api.docs.bullmq.io/classes/Queue.html#removeRepeatable) method or [removeRepeatableByKey](https://api.docs.bullmq.io/classes/Queue.html#removeRepeatableByKey).
 
-All repeatable jobs have a repeatable job key that holds some metadata of the repeatable job itself. It is possible to retrieve all the current repeatable jobs in the queue calling [getRepeatableJobs](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queue.getrepeatablejobs.md):
+All repeatable jobs have a repeatable job key that holds some metadata of the repeatable job itself. It is possible to retrieve all the current repeatable jobs in the queue calling [getRepeatableJobs](https://api.docs.bullmq.io/classes/Queue.html#getRepeatableJobs):
 
 ```typescript
 import { Queue } from 'bullmq';

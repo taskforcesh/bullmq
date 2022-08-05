@@ -605,20 +605,16 @@ export class Scripts {
     ]);
   }
 
-  retryJobArgs<T = any, R = any, N extends string = string>(
-    job: Job<T, R, N>,
-  ): string[] {
-    const jobId = job.id;
-
-    const keys = ['active', 'wait', jobId].map(name => {
+  retryJobArgs(jobId: string, lifo: boolean, token: string): string[] {
+    const keys = ['active', 'wait', 'paused', jobId, 'meta'].map(name => {
       return this.queue.toKey(name);
     });
 
     keys.push(this.queue.keys.events);
 
-    const pushCmd = (job.opts.lifo ? 'R' : 'L') + 'PUSH';
+    const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
 
-    return keys.concat([pushCmd, jobId]);
+    return keys.concat([pushCmd, jobId, token]);
   }
 
   protected retryJobsArgs(
@@ -631,9 +627,11 @@ export class Scripts {
       this.queue.keys.events,
       this.queue.toKey(state),
       this.queue.toKey('wait'),
+      this.queue.toKey('paused'),
+      this.queue.toKey('meta'),
     ];
 
-    const args = [count, timestamp];
+    const args = [count, timestamp, state];
 
     return keys.concat(args);
   }
@@ -653,7 +651,6 @@ export class Scripts {
   /**
    * Attempts to reprocess a job
    *
-   * @param queue -
    * @param job -
    * @param state - The expected job state. If the job is not found
    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
@@ -681,6 +678,7 @@ export class Scripts {
       job.id,
       (job.opts.lifo ? 'R' : 'L') + 'PUSH',
       state === 'failed' ? 'failedReason' : 'returnvalue',
+      state,
     ];
 
     const result = await (<any>client).reprocessJob(keys.concat(args));
@@ -693,7 +691,7 @@ export class Scripts {
     }
   }
 
-  async moveToActive<T, R, N extends string>(token: string, jobId?: string) {
+  async moveToActive(token: string, jobId?: string) {
     const client = await this.queue.client;
     const opts = this.queue.opts as WorkerOptions;
 
@@ -764,6 +762,7 @@ export class Scripts {
       this.queue.keys.delayed,
       this.queue.keys.wait,
       this.queue.keys.paused,
+      this.queue.keys.meta,
       this.queue.keys.priority,
       this.queue.keys.events,
     ];
@@ -782,7 +781,7 @@ export class Scripts {
    * (e.g. if the job handler keeps crashing),
    * we limit the number stalled job recoveries to settings.maxStalledCount.
    */
-  async moveStalledJobsToWait() {
+  async moveStalledJobsToWait(): Promise<[string[], string[]]> {
     const client = await this.queue.client;
 
     const opts = this.queue.opts as QueueSchedulerOptions;

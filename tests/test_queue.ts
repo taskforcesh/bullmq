@@ -571,5 +571,56 @@ describe('queues', function () {
         await worker.close();
       });
     });
+
+    describe('when queue is paused', () => {
+      it('moves retried jobs to paused', async () => {
+        await queue.waitUntilReady();
+        const jobCount = 8;
+
+        let fail = true;
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(10);
+            if (fail) {
+              throw new Error('failed');
+            }
+          },
+          { connection },
+        );
+        await worker.waitUntilReady();
+
+        let order = 0;
+        const failing = new Promise<void>(resolve => {
+          worker.on('failed', job => {
+            expect(order).to.be.eql(job.data.idx);
+            if (order === jobCount - 1) {
+              resolve();
+            }
+            order++;
+          });
+        });
+
+        for (const index of Array.from(Array(jobCount).keys())) {
+          await queue.add('test', { idx: index });
+        }
+
+        await failing;
+
+        const failedCount = await queue.getJobCounts('failed');
+        expect(failedCount.failed).to.be.equal(jobCount);
+
+        order = 0;
+
+        fail = false;
+        await queue.pause();
+        await queue.retryJobs({ count: 2 });
+
+        const pausedCount = await queue.getJobCounts('paused');
+        expect(pausedCount.paused).to.be.equal(jobCount);
+
+        await worker.close();
+      });
+    });
   });
 });

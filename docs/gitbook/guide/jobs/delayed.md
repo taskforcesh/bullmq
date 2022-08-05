@@ -17,3 +17,7 @@ const myQueue = new Queue('Paint');
 // Add a job that will be delayed at least 5 seconds.
 await myQueue.add('house', { color: 'white' }, { delay: 5000 });
 ```
+
+## Read more:
+
+- 💡 [Queue Scheduler API Reference](https://api.docs.bullmq.io/classes/QueueScheduler.html)

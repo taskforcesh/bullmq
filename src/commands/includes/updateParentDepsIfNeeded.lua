@@ -3,7 +3,11 @@
 ]]
 
 -- Includes
+<<<<<<< HEAD
 --- @include "addJobWithPriority"
+=======
+--- @include "getTargetQueueList"
+>>>>>>> master
 
 local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
   parentId, jobIdKey, returnvalue )
@@ -12,20 +16,15 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
   local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
   if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
-    local targetKey
-    if rcall("HEXISTS", parentQueueKey .. ":meta", "paused") ~= 1 then
-      targetKey = parentQueueKey .. ":wait"
-    else
-      targetKey = parentQueueKey .. ":paused"
-    end
+    local parentTarget = getTargetQueueList(parentQueueKey .. ":meta", parentQueueKey .. ":wait", parentQueueKey .. ":paused")
     local priority = rcall("HGET", parentKey, "priority")
     -- Standard or priority add
     if priority == 0 then
-      rcall("RPUSH", targetKey, parentId)
+      rcall("RPUSH", parentTarget, parentId)
     else
-      addJobWithPriority(parentQueueKey .. ":priority", priority, targetKey, parentId)
+      addJobWithPriority(parentQueueKey .. ":priority", priority, parentTarget, parentId)
     end
 
-    rcall("XADD", parentQueueKey .. ":events", "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+    rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
   end
 end

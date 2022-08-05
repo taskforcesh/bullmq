@@ -496,7 +496,7 @@ export class Job<
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
-      !(err instanceof UnrecoverableError)
+      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
       const opts = queue.opts as WorkerOptions;
 
@@ -521,7 +521,9 @@ export class Job<
         command = 'delayed';
       } else {
         // Retry immediately
-        (<any>multi).retryJob(this.scripts.retryJobArgs(this));
+        (<any>multi).retryJob(
+          this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
+        );
         command = 'retry';
       }
     } else {
@@ -668,8 +670,9 @@ export class Job<
       ];
 
       const transformedProcessed = Object.entries(processed).reduce(
-        (accumulator, [key, value]) => {
-          return { ...accumulator, [key]: JSON.parse(value) };
+        (accumulator: Record<string, any>, [key, value]) => {
+          accumulator[key] = JSON.parse(value);
+          return accumulator;
         },
         {},
       );

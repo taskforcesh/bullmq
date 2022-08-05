@@ -1,6 +1,7 @@
 import { get } from 'lodash';
 import { v4 } from 'uuid';
 import {
+  BaseJobOptions,
   IoredisListener,
   JobsOptions,
   QueueOptions,
@@ -94,7 +95,7 @@ export class Queue<
   NameType extends string = string,
 > extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
-  jobsOpts: JobsOptions;
+  jobsOpts: BaseJobOptions;
   limiter: {
     groupKey: string;
   } = null;

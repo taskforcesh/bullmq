@@ -23,3 +23,4 @@ const processorFile = path.join(__dirname, 'my_procesor.js');
 worker = new Worker(queueName, processorFile);
 ```
 
+If you are looking for a tutorial with code examples on how to use sandboxed processors using typescript you can find one [here](https://blog.taskforce.sh/using-typescript-with-bullmq/).
