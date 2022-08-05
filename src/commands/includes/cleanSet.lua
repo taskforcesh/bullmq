@@ -8,8 +8,20 @@
 --- @include "getTimestamp"
 --- @include "removeJob"
 
-local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, attributes)
-  local jobs = rcall("ZRANGE", setKey, rangeStart, rangeEnd)
+-- We use ZRANGEBYSCORE to make the case where we're deleting a limited number
+-- of items in a sorted set only run a single iteration. If we simply used
+-- ZRANGE, we may take a long time traversing through jobs that are within the
+-- grace period.
+local function getJobs(setKey, rangeStart, rangeEnd, maxTimestamp, limit)
+  if limit > 0 then
+    return rcall("ZRANGEBYSCORE", setKey, 0, maxTimestamp, "LIMIT", 0, limit)
+  else
+    return rcall("ZRANGE", setKey, rangeStart, rangeEnd)
+  end
+end
+
+local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, limit, attributes)
+  local jobs = getJobs(setKey, rangeStart, rangeEnd, timestamp, limit)
   local deleted = {}
   local deletedCount = 0
   local jobTS
