@@ -3,11 +3,8 @@
 ]]
 
 -- Includes
-<<<<<<< HEAD
 --- @include "addJobWithPriority"
-=======
 --- @include "getTargetQueueList"
->>>>>>> master
 
 local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
   parentId, jobIdKey, returnvalue )
