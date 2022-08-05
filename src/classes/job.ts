@@ -316,18 +316,16 @@ export class Job<
     const optionEntries = Object.entries(opts) as Array<
       [keyof RedisJobOptions, any]
     >;
-    const options = optionEntries.reduce<Partial<Record<string, any>>>(
-      (acc, item) => {
-        const [attributeName, value] = item;
-        if (attributeName === 'fpof') {
-          acc.failParentOnFail = value;
-        } else {
-          acc[attributeName] = value;
-        }
-        return acc;
-      },
-      {},
-    );
+
+    const options: Partial<Record<string, any>> = {};
+    for (const item of optionEntries) {
+      const [attributeName, value] = item;
+      if (attributeName === 'fpof') {
+        options.failParentOnFail = value;
+      } else {
+        options[attributeName] = value;
+      }
+    }
 
     return options as JobsOptions;
   }
@@ -388,18 +386,15 @@ export class Job<
     const optionEntries = Object.entries(opts) as Array<
       [keyof JobsOptions, any]
     >;
-    const options = optionEntries.reduce<Partial<Record<string, any>>>(
-      (acc, item) => {
-        const [attributeName, value] = item;
-        if (attributeName === 'failParentOnFail') {
-          acc.fpof = value;
-        } else {
-          acc[attributeName] = value;
-        }
-        return acc;
-      },
-      {},
-    );
+    const options: Partial<Record<string, any>> = {};
+    for (const item of optionEntries) {
+      const [attributeName, value] = item;
+      if (attributeName === 'failParentOnFail') {
+        options.fpof = value;
+      } else {
+        options[attributeName] = value;
+      }
+    }
 
     return options as RedisJobOptions;
   }
