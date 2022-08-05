@@ -107,7 +107,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- 2) move the job Id to parent "processed" set
     -- 3) push the results into parent "results" list
     -- 4) if parent's dependencies is empty, then move parent to "wait/paused". Note it may be a different queue!.
-    -- NOTE: Priorities not supported yet for parent jobs.
     if parentId == "" and parentKey ~= "" then
         parentId = getJobIdFromKey(parentKey)
         parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)

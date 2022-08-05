@@ -58,6 +58,7 @@ local parentQueueKey
 local parentData
 
 -- Includes
+--- @include "includes/addJobWithPriority"
 --- @include "includes/destructureJobKey"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/trimEvents"
@@ -155,16 +156,7 @@ else
         rcall(pushCmd, target, jobId)
     else
         -- Priority add
-        rcall("ZADD", KEYS[6], priority, jobId)
-        local count = rcall("ZCOUNT", KEYS[6], 0, priority)
-
-        local len = rcall("LLEN", target)
-        local id = rcall("LINDEX", target, len - (count - 1))
-        if id then
-            rcall("LINSERT", target, "BEFORE", id, jobId)
-        else
-            rcall("RPUSH", target, jobId)
-        end
+        addJobWithPriority(KEYS[6], priority, target, jobId)
     end
     -- Emit waiting event
     rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
