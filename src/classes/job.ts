@@ -121,7 +121,7 @@ export class Job<
 
   protected toKey: (type: string) => string;
 
-  private discarded: boolean;
+  protected discarded: boolean;
 
   protected scripts: Scripts;
 
