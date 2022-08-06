@@ -477,41 +477,55 @@ describe('Job', function () {
       await queueEvents.close();
     });
 
-    it('marks the job as failed when attempts made equal to attempts given', async function () {
-      const worker = new Worker(queueName, null, { connection });
-      const token = 'my-token';
-      await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
-      const job = (await worker.getNextJob(token)) as Job;
-      const isFailed = await job.isFailed();
-      expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), '0', true);
-      const isFailed2 = await job.isFailed();
-      expect(isFailed2).to.be.equal(true);
-      expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(1);
-      await worker.close();
+    describe('when attempts made equal to attempts given', function () {
+      it('marks the job as failed', async function () {
+        const worker = new Worker(queueName, null, { connection });
+        const token = 'my-token';
+        await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
+        const job = (await worker.getNextJob(token)) as Job;
+        const isFailed = await job.isFailed();
+
+        expect(isFailed).to.be.equal(false);
+
+        await job.moveToFailed(new Error('test error'), '0', true);
+        const state = await job.getState();
+        const isFailed2 = await job.isFailed();
+
+        expect(isFailed2).to.be.equal(true);
+        expect(state).to.be.equal('failed');
+        expect(job.stacktrace).not.be.equal(null);
+        expect(job.stacktrace.length).to.be.equal(1);
+        await worker.close();
+      });
     });
 
-    it('moves the job to delayed for retry if attempts are given and backoff is non zero', async function () {
-      const worker = new Worker(queueName, null, { connection });
-      const token = 'my-token';
-      await Job.create(
-        queue,
-        'test',
-        { foo: 'bar' },
-        { attempts: 3, backoff: 300 },
-      );
-      const job = (await worker.getNextJob(token)) as Job;
-      const isFailed = await job.isFailed();
-      expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), token, true);
-      const isFailed2 = await job.isFailed();
-      expect(isFailed2).to.be.equal(false);
-      expect(job.stacktrace).not.be.equal(null);
-      expect(job.stacktrace.length).to.be.equal(1);
-      const isDelayed = await job.isDelayed();
-      expect(isDelayed).to.be.equal(true);
-      await worker.close();
+    describe('when attempts are given and backoff is non zero', function () {
+      it('moves the job to delayed for retry', async function () {
+        const worker = new Worker(queueName, null, { connection });
+        const token = 'my-token';
+        await Job.create(
+          queue,
+          'test',
+          { foo: 'bar' },
+          { attempts: 3, backoff: 300 },
+        );
+        const job = (await worker.getNextJob(token)) as Job;
+        const isFailed = await job.isFailed();
+
+        expect(isFailed).to.be.equal(false);
+
+        await job.moveToFailed(new Error('test error'), token, true);
+        const state = await job.getState();
+        const isFailed2 = await job.isFailed();
+
+        expect(isFailed2).to.be.equal(false);
+        expect(job.stacktrace).not.be.equal(null);
+        expect(job.stacktrace.length).to.be.equal(1);
+        const isDelayed = await job.isDelayed();
+        expect(isDelayed).to.be.equal(true);
+        expect(state).to.be.equal('delayed');
+        await worker.close();
+      });
     });
 
     it('applies stacktrace limit on failure', async function () {
