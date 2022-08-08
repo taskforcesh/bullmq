@@ -1,5 +1,5 @@
 {
-  "name": "bullmq",
+  "name": "@chaos-labs/bullmq",
   "version": "1.87.0",
   "description": "Queue for messages and jobs based on Redis",
   "main": "dist/cjs/index.js",
