@@ -1,7 +1,7 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
 import { flatten } from 'lodash';
-import * as getPort from 'get-port';
+import getPort from 'get-port';
 import { killAsync } from './process-utils';
 import { ParentCommand, ChildCommand } from '../interfaces';
 import { parentSend } from '../utils';

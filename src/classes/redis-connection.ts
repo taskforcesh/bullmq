@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import * as IORedis from 'ioredis';
+import IORedis from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';

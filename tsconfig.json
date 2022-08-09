@@ -12,8 +12,8 @@
     "jsx": "preserve",
     "importHelpers": true,
     "moduleResolution": "node",
-    "esModuleInterop": false,
-    "allowSyntheticDefaultImports": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "strictNullChecks": false,
     "baseUrl": ".",
     "paths": {
