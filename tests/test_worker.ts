@@ -1721,39 +1721,38 @@ describe('workers', function () {
       });
     });
 
-    it('should not retry a job if it has been marked as unrecoverable', async () => {
-      let tries = 0;
+    describe('when job has been marked as discarded', () => {
+      it('does not retry a job', async () => {
+        const worker = new Worker(
+          queueName,
+          async job => {
+            expect(job.attemptsMade).to.equal(1);
+            job.discard();
+            throw new Error('unrecoverable error');
+          },
+          { connection },
+        );
 
-      const worker = new Worker(
-        queueName,
-        async job => {
-          tries++;
-          expect(tries).to.equal(1);
-          job.discard();
-          throw new Error('unrecoverable error');
-        },
-        { connection },
-      );
+        await worker.waitUntilReady();
 
-      await worker.waitUntilReady();
+        const job = await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 5,
+          },
+        );
 
-      const job = await queue.add(
-        'test',
-        { foo: 'bar' },
-        {
-          attempts: 5,
-        },
-      );
+        await new Promise(resolve => {
+          worker.on('failed', resolve);
+        });
 
-      await new Promise(resolve => {
-        worker.on('failed', resolve);
+        const state = await job.getState();
+
+        expect(state).to.be.equal('failed');
+
+        await worker.close();
       });
-
-      const state = await job.getState();
-
-      expect(state).to.be.equal('failed');
-
-      await worker.close();
     });
 
     it('should automatically retry a failed job if attempts is bigger than 1', async () => {
