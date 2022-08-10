@@ -125,6 +125,8 @@ export class Job<
 
   protected scripts: Scripts;
 
+  protected state: JobState;
+
   constructor(
     protected queue: MinimalQueue,
     /**
@@ -456,13 +458,17 @@ export class Job<
       throw errorObject.value;
     }
 
-    return this.scripts.moveToCompleted(
+    const result = await this.scripts.moveToCompleted(
       this,
       stringifiedReturnValue,
       this.opts.removeOnComplete,
       token,
       fetchNext,
     );
+
+    this.state = 'completed';
+
+    return result;
   }
 
   /**
@@ -492,6 +498,7 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
+    let state: JobState = 'failed';
     let finishedOn;
     if (
       this.attemptsMade < this.opts.attempts &&
@@ -519,12 +526,14 @@ export class Job<
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
+        state = 'delayed';
       } else {
         // Retry immediately
         (<any>multi).retryJob(
           this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
         );
         command = 'retry';
+        state = 'waiting';
       }
     } else {
       // If not, move to failed
@@ -553,6 +562,8 @@ export class Job<
     if (finishedOn) {
       this.finishedOn = finishedOn as number;
     }
+
+    this.state = state;
   }
 
   /**
@@ -595,6 +606,13 @@ export class Job<
    */
   async isWaiting(): Promise<boolean> {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
+  }
+
+  /**
+   * @returns the job state (this should be used internally by the worker).
+   */
+  get currentState(): JobState {
+    return this.state;
   }
 
   /**
@@ -878,8 +896,10 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    return this.scripts.moveToDelayed(this.id, timestamp, token);
+  async moveToDelayed(timestamp: number, token?: string): Promise<void> {
+    await this.scripts.moveToDelayed(this.id, timestamp, token);
+
+    this.state = 'delayed';
   }
 
   /**
@@ -889,11 +909,21 @@ export class Job<
    * @param opts - The options bag for moving a job to waiting-children.
    * @returns true if the job was moved
    */
-  moveToWaitingChildren(
+  async moveToWaitingChildren(
     token: string,
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
-    return this.scripts.moveToWaitingChildren(this.id, token, opts);
+    const result = await this.scripts.moveToWaitingChildren(
+      this.id,
+      token,
+      opts,
+    );
+
+    if (result) {
+      this.state = 'waiting-children';
+    }
+
+    return result;
   }
 
   /**
@@ -906,6 +936,8 @@ export class Job<
     if (code < 0) {
       throw this.scripts.finishedErrors(code, this.id, 'promote', 'delayed');
     }
+
+    this.state = 'waiting';
   }
 
   /**
@@ -922,7 +954,9 @@ export class Job<
     this.processedOn = null;
     this.returnvalue = null;
 
-    return this.scripts.reprocessJob(this, state);
+    await this.scripts.reprocessJob(this, state);
+
+    this.state = 'waiting';
   }
 
   /**

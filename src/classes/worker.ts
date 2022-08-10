@@ -571,12 +571,15 @@ export class Worker<
     // end copy-paste from Bull3
 
     const handleCompleted = async (result: ResultType) => {
-      const completed = await job.moveToCompleted(
-        result,
-        token,
-        fetchNextCallback() && !(this.closing || this.paused),
-      );
-      this.emit('completed', job, result, 'active');
+      let completed;
+      if (!job.currentState) {
+        completed = await job.moveToCompleted(
+          result,
+          token,
+          fetchNextCallback() && !(this.closing || this.paused),
+        );
+        this.emit('completed', job, result, 'active');
+      }
       const [jobData, jobId] = completed || [];
       return this.nextJobFromJobData(jobData, jobId);
     };
