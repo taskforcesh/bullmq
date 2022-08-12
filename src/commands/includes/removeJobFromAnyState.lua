@@ -21,6 +21,6 @@ local function removeJobFromAnyState( prefix, jobId)
   elseif rcall("ZREM", prefix .. "failed", jobId) == 1 then
       return "failed"
   end
-  
+
   return "unknown"
 end

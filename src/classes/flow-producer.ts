@@ -247,7 +247,7 @@ export class FlowProducer extends EventEmitter {
    * @param parent - parent data sent to children to create the "links" to their parent
    * @returns
    */
-  private addNode({ multi, node, parent, queuesOpts }: AddNodeOpts): JobNode {
+  protected addNode({ multi, node, parent, queuesOpts }: AddNodeOpts): JobNode {
     const queue = this.queueFromNode(
       node,
       new QueueKeys(node.prefix || this.opts.prefix),
@@ -325,7 +325,7 @@ export class FlowProducer extends EventEmitter {
    * @param nodes - the nodes representing jobs to be added to some queue
    * @returns
    */
-  private addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
+  protected addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
     return nodes.map(node => this.addNode({ multi, node }));
   }
 
