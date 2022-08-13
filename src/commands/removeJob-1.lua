@@ -48,7 +48,7 @@ local function removeJob( prefix, jobId, parentKey)
     end
 
     local prev = removeJobFromAnyState(prefix, jobId)
-    
+
     rcall("ZREM", prefix .. "priority", jobId)
     rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
 
