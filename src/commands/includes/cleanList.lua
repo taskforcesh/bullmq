@@ -7,7 +7,8 @@
 --- @include "getTimestamp"
 --- @include "removeJob"
 
-local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, skipCheckLock)
+local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd,
+  timestamp, skipCheckLock, deletePriority)
   local jobs = rcall("LRANGE", listKey, rangeStart, rangeEnd)
   local deleted = {}
   local deletedCount = 0
@@ -32,6 +33,9 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp,
         -- occur at the end of the script
         rcall("LSET", listKey, rangeEnd - jobIdsLen + i, deletionMarker)
         removeJob(job, true, jobKeyPrefix)
+        if deletePriority then
+          rcall("ZREM", jobKeyPrefix .. "priority", job)
+        end
         deletedCount = deletedCount + 1
         table.insert(deleted, job)
       end
