@@ -8,7 +8,7 @@
 --- @include "getTargetQueueList"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
-  local parentTarget = getTargetQueueList(parentPrefix .. ":meta", parentPrefix .. ":wait", parentPrefix .. ":paused")
+  local parentTarget = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait", parentPrefix .. "paused")
   rcall("RPUSH", parentTarget, parentId)
 
   if emitEvent then
