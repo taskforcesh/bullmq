@@ -120,7 +120,29 @@
     ],
     "exclude": [
       "bullmq-tests/test_*.ts"
-    ]
+    ],
+    "lines": 80,
+    "functions": 80,
+    "branches": 70,
+    "statements": 80,
+    "watermarks": {
+      "lines": [
+        80,
+        95
+      ],
+      "functions": [
+        80,
+        95
+      ],
+      "branches": [
+        80,
+        95
+      ],
+      "statements": [
+        80,
+        95
+      ]
+    }
   },
   "config": {
     "commitizen": {
