@@ -121,10 +121,10 @@
     "exclude": [
       "bullmq-tests/test_*.ts"
     ],
-    "lines": 80,
-    "functions": 80,
-    "branches": 70,
-    "statements": 80,
+    "lines": 50,
+    "functions": 50,
+    "branches": 50,
+    "statements": 50,
     "watermarks": {
       "lines": [
         80,
