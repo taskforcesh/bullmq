@@ -24,8 +24,7 @@
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/cjs/commands && copyfiles -f ./src/commands/*.lua ./dist/esm/commands",
     "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/cjs/commands/includes && copyfiles -f ./src/commands/includes/*.lua ./dist/esm/commands/includes",
-    "coverage": "nyc --reporter=text npm run test",
-    "coveralls": "nyc report --reporter=text-lcov | coveralls",
+    "coverage": "nyc --reporter=text --reporter=lcovonly yarn test",
     "cm": "git cz",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
@@ -120,7 +119,29 @@
     ],
     "exclude": [
       "bullmq-tests/test_*.ts"
-    ]
+    ],
+    "lines": 80,
+    "functions": 80,
+    "branches": 70,
+    "statements": 80,
+    "watermarks": {
+      "lines": [
+        80,
+        95
+      ],
+      "functions": [
+        80,
+        95
+      ],
+      "branches": [
+        80,
+        95
+      ],
+      "statements": [
+        80,
+        95
+      ]
+    }
   },
   "config": {
     "commitizen": {

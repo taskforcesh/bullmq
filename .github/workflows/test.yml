@@ -21,6 +21,7 @@ jobs:
     env:
       node-version: lts/*
       redis-version: 7-alpine
+      allowed_coverage_change: -0.25
 
     steps:
       - name: Checkout repository
@@ -37,10 +38,22 @@ jobs:
       - run: yarn install --frozen-lockfile --non-interactive
       - run: yarn build
       - run: yarn coverage
-      - name: Coverage
-        env:
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-        run: yarn coveralls
+      - name: Upload LCOV to Coveralls
+        if: ${{ ( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push' }}
+        uses: coverallsapp/github-action@3284643be2c47fb6432518ecec17f1255e8a06a6 # branch=master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check coverage change not below threshold
+        shell: bash
+        run: |
+          sleep 2
+          COVERAGE_CHANGE=$(curl -s https://coveralls.io/builds/${{ github.sha }}.json | jq '.coverage_change')
+          echo coverage changed by ${COVERAGE_CHANGE}%
+
+          if [[ -z "$(echo ${COVERAGE_CHANGE} ${{ env.allowed_coverage_change }} | awk '$1 >= $2')" ]]; then 
+            echo current coverage change ${COVERAGE_CHANGE}% below threshold ${{ env.allowed_coverage_change }}%
+            exit 1
+          fi
 
   compatibility:
     runs-on: ubuntu-latest
