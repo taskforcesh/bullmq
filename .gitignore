@@ -9,6 +9,7 @@ yarn-error.log*
 
 # Coverage files
 .nyc_output
+lcov.info
 
 # Editor directories and files
 .idea

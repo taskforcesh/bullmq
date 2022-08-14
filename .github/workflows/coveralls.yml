@@ -1,0 +1,48 @@
+# This workflow will do a clean install of node dependencies, build the source code and run tests and submit coverage to coveralls
+# Since submitting the coverage needs the COVERALLS_REPO_TOKEN secret, this action runs in a dedicated pipeline
+# Ref.: https://securitylab.github.com/research/github-actions-preventing-pwn-requests/
+
+name: Check code-coverage
+
+on:
+  workflow_run:
+    workflows: [Node.js Tests]
+    types:
+      - completed
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  submit-coverage:
+    runs-on: ubuntu-latest
+
+    name: submit coverage to coveralls
+    env:
+      coverage_change: -0.25
+
+    if: >
+      ${{ github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Download LCOV artifact
+        uses: dawidd6/action-download-artifact@ea71f332a90fd52416b1629b933dcf7e0ccd421d # tag=v2
+        with:
+          run_id: ${{ github.event.workflow_run.id }}
+          name: coverage
+      - name: Checkout repository
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
+      - name: Upload LCOV to Coveralls
+        uses: coverallsapp/github-action@3284643be2c47fb6432518ecec17f1255e8a06a6 # branch=master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          git-branch: ${{ github.event.workflow_run.head_branch }}
+          git-commit: ${{ github.event.workflow_run.head_sha }}
+          path-to-lcov: ./lcov.info
+      - name: check coverage change not below ${{ env.node-version }}
+        run: >
+          COVERAGE=$(curl -s https://coveralls.io/builds/${{ github.event.workflow_run.head_sha }}.json | jq '.coverage_change')
+          echo "coverage is ${COVERAGE}"
+          [ -z "$(echo $COVERAGE | awk '$1 >= ${{ env.node-version }}')" ] && exit 1 || exit 0

@@ -37,10 +37,12 @@ jobs:
       - run: yarn install --frozen-lockfile --non-interactive
       - run: yarn build
       - run: yarn coverage
-      - name: Coverage
-        env:
-          COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
-        run: yarn coveralls
+      - run: yarn nyc report --reporter=text-lcov >lcov.info
+      - name: upload coverage
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverage
+          path: lcov.info
 
   compatibility:
     runs-on: ubuntu-latest
