@@ -9,14 +9,15 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [14.x]
+        node-version: [lts/*]
 
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@2fddd8803e2f5c9604345a0b591c3020ee971a93 # tag=v3
         with:
           node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
       - name: yarn install
         run: |
           yarn install
@@ -26,7 +27,7 @@ jobs:
         env:
           CI: true
       - name: deploy
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@068dc23d9710f1ba62e86896f84735d869951305 # tag=v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs
