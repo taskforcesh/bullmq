@@ -34,7 +34,7 @@
     "eslint:fix": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore --fix",
     "lint": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore",
     "lint:staged": "lint-staged",
-    "prepare": "yarn build",
+    "prepublishOnly": "yarn build",
     "generate:raw:scripts": "ts-node --project tsconfig-cjs.json generateRawScripts.ts",
     "prettier": "prettier --config package.json src/**/*.ts",
     "pretty:quick": "pretty-quick --ignore-path ./.eslintignore --staged",
