@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "incremental": true,
     "types": ["node"],
     "target": "ES2017",
     "module": "ES2020",
