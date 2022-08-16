@@ -3,6 +3,10 @@ on:
   push:
     branches:
       - master
+
+env:
+  HUSKY: 0
+
 jobs:
   release:
     name: Release
