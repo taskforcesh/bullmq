@@ -41,7 +41,7 @@
     "lint:staged": "lint-staged",
     "prepublishOnly": "yarn build",
     "generate:raw:scripts": "ts-node --project tsconfig-cjs.json generateRawScripts.ts",
-    "postinstall": "husky install",
+    "prepare": "husky install",
     "prettier": "prettier --config package.json src/**/*.ts",
     "pretty:quick": "pretty-quick --ignore-path ./.eslintignore --staged",
     "semantic-release": "semantic-release",
