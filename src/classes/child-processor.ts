@@ -24,20 +24,14 @@ export class ChildProcessor {
   public async init(processorFile: string): Promise<void> {
     let processor;
     try {
-      // support es2015 module.
-      processor = await import(processorFile);
-    } catch(_err) {
-      try {
-        processor = require(processorFile);
-      } catch (err) {
-        this.status = ChildStatus.Errored;
-        return childSend(process, {
-          cmd: ParentCommand.InitFailed,
-          err: <Error>err,
-        });
-      }
+      processor = require(processorFile);
+    } catch (err) {
+      this.status = ChildStatus.Errored;
+      return childSend(process, {
+        cmd: ParentCommand.InitFailed,
+        err: <Error>err,
+      });
     }
-    
 
     if (processor.default) {
       // support es2015 module.
