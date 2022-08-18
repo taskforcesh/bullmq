@@ -159,6 +159,8 @@ export class Job<
       restOpts,
     );
 
+    this.delay = this.opts.delay;
+
     this.repeatJobKey = repeatJobKey;
 
     this.timestamp = opts.timestamp ? opts.timestamp : Date.now();
