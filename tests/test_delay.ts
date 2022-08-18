@@ -74,6 +74,7 @@ describe('Delayed jobs', function () {
     expect(job.id).to.be.ok;
     expect(job.data.delayed).to.be.eql('foobar');
     expect(job.opts.delay).to.be.eql(delay);
+    expect(job.delay).to.be.eql(delay);
 
     await delayed;
     await completed;

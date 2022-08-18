@@ -79,6 +79,12 @@ export class Job<
   stacktrace: string[] = null;
 
   /**
+   * An amount of milliseconds to wait until this job can be processed.
+   * @defaultValue 0
+   */
+  delay: number;
+
+  /**
    * Timestamp when the job was created (unless overridden with job options).
    */
   timestamp: number;
@@ -152,6 +158,8 @@ export class Job<
       },
       restOpts,
     );
+
+    this.delay = this.opts.delay;
 
     this.repeatJobKey = repeatJobKey;
 
@@ -270,7 +278,8 @@ export class Job<
 
     job.progress = JSON.parse(json.progress || '0');
 
-    // job.delay = parseInt(json.delay);
+    job.delay = parseInt(json.delay);
+
     job.timestamp = parseInt(json.timestamp);
 
     if (json.finishedOn) {

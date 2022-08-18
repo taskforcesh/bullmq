@@ -21,6 +21,7 @@ export interface JobJsonRaw {
   id: string;
   name: string;
   data: string;
+  delay: string;
   opts: string;
   progress: string;
   attemptsMade: string;
