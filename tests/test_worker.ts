@@ -1677,12 +1677,16 @@ describe('workers', function () {
           );
         });
 
+        const state = await job.getState();
+
+        expect(state).to.be.equal('failed');
+
         await worker.close();
       });
     });
 
     describe('when jobs do not fail and get the maximum attempts limit', () => {
-      it('should not emit retries-exhausted event', async () => {
+      it('does not emit retries-exhausted event', async () => {
         const worker = new Worker(queueName, async () => {}, { connection });
 
         await worker.waitUntilReady();
@@ -1694,7 +1698,7 @@ describe('workers', function () {
 
           queueEvents.on(
             'completed',
-            after(3, async function ({ jobId, returnvalue }) {
+            after(3, async function () {
               resolve();
             }),
           );
@@ -1718,35 +1722,38 @@ describe('workers', function () {
       });
     });
 
-    it('should not retry a job if it has been marked as unrecoverable', async () => {
-      let tries = 0;
+    describe('when job has been marked as discarded', () => {
+      it('does not retry a job', async () => {
+        const worker = new Worker(
+          queueName,
+          async job => {
+            expect(job.attemptsMade).to.equal(1);
+            job.discard();
+            throw new Error('unrecoverable error');
+          },
+          { connection },
+        );
 
-      const worker = new Worker(
-        queueName,
-        async job => {
-          tries++;
-          expect(tries).to.equal(1);
-          job.discard();
-          throw new Error('unrecoverable error');
-        },
-        { connection },
-      );
+        await worker.waitUntilReady();
 
-      await worker.waitUntilReady();
+        const job = await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 5,
+          },
+        );
 
-      await queue.add(
-        'test',
-        { foo: 'bar' },
-        {
-          attempts: 5,
-        },
-      );
+        await new Promise(resolve => {
+          worker.on('failed', resolve);
+        });
 
-      await new Promise(resolve => {
-        worker.on('failed', resolve);
+        const state = await job.getState();
+
+        expect(state).to.be.equal('failed');
+
+        await worker.close();
       });
-
-      await worker.close();
     });
 
     it('should automatically retry a failed job if attempts is bigger than 1', async () => {
@@ -1817,6 +1824,10 @@ describe('workers', function () {
         });
       });
 
+      const state = await job.getState();
+
+      expect(state).to.be.equal('failed');
+
       await worker.close();
     });
 
@@ -1883,7 +1894,7 @@ describe('workers', function () {
         await worker.waitUntilReady();
 
         const start = Date.now();
-        await queue.add(
+        const job = await queue.add(
           'test',
           { foo: 'bar' },
           {
@@ -1905,6 +1916,10 @@ describe('workers', function () {
             }),
           );
         });
+
+        const state = await job.getState();
+
+        expect(state).to.be.equal('failed');
 
         await worker.close();
         await queueScheduler.close();

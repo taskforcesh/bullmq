@@ -140,7 +140,7 @@ export class QueueScheduler extends QueueBase {
 
         try {
           await client.client(
-            'setname',
+            'SETNAME',
             this.clientName(QUEUE_SCHEDULER_SUFFIX),
           );
         } catch (err) {

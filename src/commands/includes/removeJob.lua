@@ -5,8 +5,8 @@
 -- Includes
 --- @include "removeParentDependencyKey"
 
-local function removeJob(key, hard, baseKey)
-  local jobKey = baseKey .. key
+local function removeJob(jobId, hard, baseKey)
+  local jobKey = baseKey .. jobId
   removeParentDependencyKey(jobKey, hard, nil, baseKey)
   rcall("DEL", jobKey, jobKey .. ':logs',
     jobKey .. ':dependencies', jobKey .. ':processed')

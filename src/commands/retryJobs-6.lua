@@ -25,7 +25,6 @@ local rcall = redis.call;
 -- Includes
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
---- @include "includes/getZSetItems"
 
 local target = getTargetQueueList(KEYS[6], KEYS[4], KEYS[5])
 

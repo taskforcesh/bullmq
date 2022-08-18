@@ -1,4 +1,4 @@
-import { Pipeline } from 'ioredis';
+import { ChainableCommander, Pipeline } from 'ioredis';
 import { fromPairs } from 'lodash';
 import { debuglog } from 'util';
 import {
@@ -126,7 +126,7 @@ export class Job<
 
   protected toKey: (type: string) => string;
 
-  private discarded: boolean;
+  protected discarded: boolean;
 
   protected scripts: Scripts;
 
@@ -587,13 +587,13 @@ export class Job<
     }
 
     const results = await multi.exec();
-    const code = results[results.length - 1][1];
+    const code = results[results.length - 1][1] as number;
     if (code < 0) {
       throw this.scripts.finishedErrors(code, this.id, command, 'active');
     }
 
-    if (finishedOn) {
-      this.finishedOn = finishedOn as number;
+    if (finishedOn && typeof finishedOn === 'number') {
+      this.finishedOn = finishedOn;
     }
   }
 
@@ -749,7 +749,7 @@ export class Job<
         );
       }
 
-      const [result1, result2] = await multi.exec();
+      const [result1, result2] = (await multi.exec()) as [Error, [number[], string[] | undefined]][];
 
       const [processedCursor, processed = []] = opts.processed
         ? result1[1]
@@ -1018,7 +1018,7 @@ export class Job<
     );
   }
 
-  protected saveStacktrace(multi: Pipeline, err: Error) {
+  protected saveStacktrace(multi: ChainableCommander, err: Error): void {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {

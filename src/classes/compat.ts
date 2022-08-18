@@ -878,23 +878,29 @@ export interface JobPromise3 {
 }
 
 export type ActiveEventCallback3<T = any> = (
-  job: Job,
+  job: Job<T>,
   jobPromise?: JobPromise3,
 ) => void;
 
-export type StalledEventCallback3<T = any> = (job: Job) => void;
+export type StalledEventCallback3<T = any> = (job: Job<T>) => void;
 
-export type ProgressEventCallback3<T = any> = (job: Job, progress: any) => void;
+export type ProgressEventCallback3<T = any> = (
+  job: Job<T>,
+  progress: any,
+) => void;
 
-export type CompletedEventCallback3<T = any> = (job: Job, result: any) => void;
+export type CompletedEventCallback3<T = any> = (
+  job: Job<T>,
+  result: any,
+) => void;
 
-export type FailedEventCallback3<T = any> = (job: Job, error: Error) => void;
+export type FailedEventCallback3<T = any> = (job: Job<T>, error: Error) => void;
 
 export type CleanedEventCallback3<T = any> = (
-  jobs: Array<Job>,
+  jobs: Array<Job<T>>,
   status: JobStatusClean3,
 ) => void;
 
-export type RemovedEventCallback3<T = any> = (job: Job) => void;
+export type RemovedEventCallback3<T = any> = (job: Job<T>) => void;
 
 export type WaitingEventCallback3 = (jobId: string) => void;
