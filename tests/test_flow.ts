@@ -9,7 +9,7 @@ import {
   JobNode,
 } from '../src/classes';
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { removeAllQueueData, delay } from '../src/utils';
