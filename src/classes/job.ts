@@ -1,4 +1,4 @@
-import { ChainableCommander, Pipeline } from 'ioredis';
+import { ChainableCommander } from 'ioredis';
 import { fromPairs } from 'lodash';
 import { debuglog } from 'util';
 import {
@@ -707,7 +707,10 @@ export class Job<
         );
       }
 
-      const [result1, result2] = (await multi.exec()) as [Error, [number[], string[] | undefined]][];
+      const [result1, result2] = (await multi.exec()) as [
+        Error,
+        [number[], string[] | undefined],
+      ][];
 
       const [processedCursor, processed = []] = opts.processed
         ? result1[1]

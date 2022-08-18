@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis, RedisOptions } from 'ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueBase, QueueScheduler } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
@@ -28,7 +28,7 @@ describe('connection', () => {
         },
       });
 
-      const options = <IORedis.RedisOptions>(await queue.client).options;
+      const options = <RedisOptions>(await queue.client).options;
 
       expect(options.maxRetriesPerRequest).to.be.equal(null);
     });
@@ -44,7 +44,7 @@ describe('connection', () => {
         blockingConnection: false,
       });
 
-      const options = <IORedis.RedisOptions>(await queue.client).options;
+      const options = <RedisOptions>(await queue.client).options;
 
       expect(options.maxRetriesPerRequest).to.be.equal(20);
     });

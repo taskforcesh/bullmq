@@ -8,7 +8,7 @@ import {
 import { describe, beforeEach, it } from 'mocha';
 import { after } from 'lodash';
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { removeAllQueueData, delay } from '../src/utils';
 
