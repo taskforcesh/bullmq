@@ -6,13 +6,6 @@
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "source": "./src/index.ts",
-  "exports": {
-    ".": {
-      "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.js",
-      "types": "./dist/esm/index.d.ts"
-    }
-  },
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
   "keywords": [
