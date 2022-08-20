@@ -1,4 +1,4 @@
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 import { after } from 'lodash';

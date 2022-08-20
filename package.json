@@ -1,18 +1,11 @@
 {
   "name": "bullmq",
-  "version": "1.88.1",
+  "version": "1.89.1",
   "description": "Queue for messages and jobs based on Redis",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "source": "./src/index.ts",
-  "exports": {
-    ".": {
-      "require": "./dist/cjs/index.js",
-      "import": "./dist/esm/index.js",
-      "types": "./dist/esm/index.d.ts"
-    }
-  },
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
   "keywords": [
@@ -84,14 +77,14 @@
     "@types/semver": "^7.3.9",
     "@types/sinon": "^7.5.2",
     "@types/uuid": "^3.4.10",
-    "@typescript-eslint/eslint-plugin": "^5.33.0",
+    "@typescript-eslint/eslint-plugin": "^4.32.0",
     "@typescript-eslint/parser": "^5.33.0",
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "commitizen": "^4.2.5",
     "copyfiles": "^2.4.1",
     "coveralls": "^3.1.1",
-    "eslint": "^8.22.0",
+    "eslint": "^7.32.0",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-mocha": "^10.1.0",
     "eslint-plugin-prettier": "4.2.1",
