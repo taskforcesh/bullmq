@@ -633,8 +633,9 @@ export class Job<
    * @param delay - milliseconds to be added to current time.
    * @returns void
    */
-  changeDelay(delay: number): Promise<void> {
-    return this.scripts.changeDelay(this.id, delay);
+  async changeDelay(delay: number): Promise<void> {
+    await this.scripts.changeDelay(this.id, delay);
+    this.delay = delay;
   }
 
   /**
