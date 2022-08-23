@@ -1,3 +1,10 @@
+## [1.89.2](https://github.com/taskforcesh/bullmq/compare/v1.89.1...v1.89.2) (2022-08-23)
+
+
+### Bug Fixes
+
+* **job:** update delay when changeDelay ([#1389](https://github.com/taskforcesh/bullmq/issues/1389)) fixes [#1160](https://github.com/taskforcesh/bullmq/issues/1160) ([d9b100d](https://github.com/taskforcesh/bullmq/commit/d9b100d04112c518ef2efbcf5586aa1226ccccab))
+
 ## [1.89.1](https://github.com/taskforcesh/bullmq/compare/v1.89.0...v1.89.1) (2022-08-19)
 
 
