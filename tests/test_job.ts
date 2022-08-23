@@ -597,6 +597,7 @@ describe('Job', function () {
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
+      expect(job.delay).to.be.equal(4000);
 
       await completing;
 

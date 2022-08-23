@@ -174,7 +174,14 @@ export class Job<
       : undefined;
 
     this.toKey = queue.toKey.bind(queue);
-    this.scripts = new Scripts(queue);
+    this.scripts = this.buildScripts(queue);
+  }
+
+  /**
+   * Helper to easily extend Scripts class calls.
+   */
+  protected buildScripts(queue: MinimalQueue): Scripts {
+    return new Scripts(queue);
   }
 
   /**
@@ -633,8 +640,9 @@ export class Job<
    * @param delay - milliseconds to be added to current time.
    * @returns void
    */
-  changeDelay(delay: number): Promise<void> {
-    return this.scripts.changeDelay(this.id, delay);
+  async changeDelay(delay: number): Promise<void> {
+    await this.scripts.changeDelay(this.id, delay);
+    this.delay = delay;
   }
 
   /**
