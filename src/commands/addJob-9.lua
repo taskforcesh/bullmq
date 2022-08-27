@@ -58,7 +58,9 @@ local parentQueueKey
 local parentData
 
 -- Includes
+--- @include "includes/addJobWithPriority"
 --- @include "includes/destructureJobKey"
+--- @include "includes/getTargetQueueList"
 --- @include "includes/trimEvents"
 
 if parentKey ~= nil then
@@ -145,18 +147,7 @@ elseif (delayedTimestamp ~= 0) then
           delayedTimestamp)
     rcall("XADD", KEYS[9], "*", "nextTimestamp", delayedTimestamp)
 else
-    local target
-
-    -- We check for the meta.paused key to decide if we are paused or not
-    -- (since an empty list and !EXISTS are not really the same)
-    local paused
-    if rcall("HEXISTS", KEYS[3], "paused") ~= 1 then
-        target = KEYS[1]
-        paused = false
-    else
-        target = KEYS[2]
-        paused = true
-    end
+    local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
 
     -- Standard or priority add
     if priority == 0 then
@@ -165,16 +156,7 @@ else
         rcall(pushCmd, target, jobId)
     else
         -- Priority add
-        rcall("ZADD", KEYS[6], priority, jobId)
-        local count = rcall("ZCOUNT", KEYS[6], 0, priority)
-
-        local len = rcall("LLEN", target)
-        local id = rcall("LINDEX", target, len - (count - 1))
-        if id then
-            rcall("LINSERT", target, "BEFORE", id, jobId)
-        else
-            rcall("RPUSH", target, jobId)
-        end
+        addJobWithPriority(KEYS[6], priority, target, jobId)
     end
     -- Emit waiting event
     rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)

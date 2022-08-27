@@ -1,4 +1,4 @@
-import { Pipeline } from 'ioredis';
+import { ChainableCommander } from 'ioredis';
 import { fromPairs } from 'lodash';
 import { debuglog } from 'util';
 import {
@@ -79,6 +79,12 @@ export class Job<
   stacktrace: string[] = null;
 
   /**
+   * An amount of milliseconds to wait until this job can be processed.
+   * @defaultValue 0
+   */
+  delay: number;
+
+  /**
    * Timestamp when the job was created (unless overridden with job options).
    */
   timestamp: number;
@@ -121,7 +127,7 @@ export class Job<
 
   protected toKey: (type: string) => string;
 
-  private discarded: boolean;
+  protected discarded: boolean;
 
   protected scripts: Scripts;
 
@@ -152,6 +158,8 @@ export class Job<
       },
       restOpts,
     );
+
+    this.delay = this.opts.delay;
 
     this.repeatJobKey = repeatJobKey;
 
@@ -270,7 +278,8 @@ export class Job<
 
     job.progress = JSON.parse(json.progress || '0');
 
-    // job.delay = parseInt(json.delay);
+    job.delay = parseInt(json.delay);
+
     job.timestamp = parseInt(json.timestamp);
 
     if (json.finishedOn) {
@@ -496,7 +505,7 @@ export class Job<
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
-      !(err instanceof UnrecoverableError)
+      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
       const opts = queue.opts as WorkerOptions;
 
@@ -545,13 +554,13 @@ export class Job<
     }
 
     const results = await multi.exec();
-    const code = results[results.length - 1][1];
+    const code = results[results.length - 1][1] as number;
     if (code < 0) {
       throw this.scripts.finishedErrors(code, this.id, command, 'active');
     }
 
-    if (finishedOn) {
-      this.finishedOn = finishedOn as number;
+    if (finishedOn && typeof finishedOn === 'number') {
+      this.finishedOn = finishedOn;
     }
   }
 
@@ -624,8 +633,9 @@ export class Job<
    * @param delay - milliseconds to be added to current time.
    * @returns void
    */
-  changeDelay(delay: number): Promise<void> {
-    return this.scripts.changeDelay(this.id, delay);
+  async changeDelay(delay: number): Promise<void> {
+    await this.scripts.changeDelay(this.id, delay);
+    this.delay = delay;
   }
 
   /**
@@ -670,8 +680,9 @@ export class Job<
       ];
 
       const transformedProcessed = Object.entries(processed).reduce(
-        (accumulator, [key, value]) => {
-          return { ...accumulator, [key]: JSON.parse(value) };
+        (accumulator: Record<string, any>, [key, value]) => {
+          accumulator[key] = JSON.parse(value);
+          return accumulator;
         },
         {},
       );
@@ -706,7 +717,10 @@ export class Job<
         );
       }
 
-      const [result1, result2] = await multi.exec();
+      const [result1, result2] = (await multi.exec()) as [
+        Error,
+        [number[], string[] | undefined],
+      ][];
 
       const [processedCursor, processed = []] = opts.processed
         ? result1[1]
@@ -969,7 +983,7 @@ export class Job<
     return this.scripts.addJob(client, jobData, this.opts, this.id, parentOpts);
   }
 
-  protected saveStacktrace(multi: Pipeline, err: Error) {
+  protected saveStacktrace(multi: ChainableCommander, err: Error): void {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {

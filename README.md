@@ -148,7 +148,7 @@ queueEvents.on('completed', ({ jobId }) => {
   console.log('done painting');
 });
 
-queueEvents.on('failed', ({ jobId: string, failedReason: string }) => {
+queueEvents.on('failed', ({ jobId, failedReason }: { jobId: string, failedReason: string }) => {
   console.error('error painting', failedReason);
 });
 ```

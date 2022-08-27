@@ -1,0 +1,87 @@
+# This workflow will do a clean install of node dependencies, build the source code and run tests across different versions of node
+# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
+
+name: Node.js Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master, next]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+
+    name: coverage for node@lts, redis@7
+    env:
+      node-version: lts/*
+      redis-version: 7-alpine
+      allowed_coverage_change: -0.25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
+      - name: Use Node.js
+        uses: actions/setup-node@2fddd8803e2f5c9604345a0b591c3020ee971a93 # tag=v3
+        with:
+          node-version: ${{ env.node-version }}
+          cache: 'yarn'
+      - name: Start Redis
+        uses: supercharge/redis-github-action@4b67a313c69bc7a90f162e8d810392fffe10d3b5 # tag=1.4.0
+        with:
+          redis-version: ${{ env.redis-version }}
+      - run: yarn install --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn coverage
+      - name: Upload LCOV to Coveralls
+        if: ${{ ( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push' }}
+        uses: coverallsapp/github-action@3284643be2c47fb6432518ecec17f1255e8a06a6 # branch=master
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check coverage change not below threshold
+        shell: bash
+        run: |
+          sleep 2
+          COVERAGE_CHANGE=$(curl -s https://coveralls.io/builds/${{ github.sha }}.json | jq '.coverage_change')
+          echo coverage changed by ${COVERAGE_CHANGE}%
+
+          if [[ -z "$(echo ${COVERAGE_CHANGE} ${{ env.allowed_coverage_change }} | awk '$1 >= $2')" ]]; then 
+            echo current coverage change ${COVERAGE_CHANGE}% below threshold ${{ env.allowed_coverage_change }}%
+            exit 1
+          fi
+
+  compatibility:
+    runs-on: ubuntu-latest
+
+    name: testing node@${{ matrix.node-version }}, redis@${{ matrix.redis-version }}
+
+    strategy:
+      matrix:
+        node-version: [lts/*, lts/-1, lts/-2, current]
+        redis-version: [7-alpine]
+        include:
+          - node-version: 'lts/*'
+            redis-version: 5-alpine
+          - node-version: 'lts/*'
+            redis-version: 6-alpine
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@2fddd8803e2f5c9604345a0b591c3020ee971a93 # tag=v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+      - name: Start Redis
+        uses: supercharge/redis-github-action@4b67a313c69bc7a90f162e8d810392fffe10d3b5 # tag=1.4.0
+        with:
+          redis-version: ${{ matrix.redis-version }}
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn test

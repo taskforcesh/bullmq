@@ -7,10 +7,8 @@
       KEYS[3] 'active', (LIST)
       KEYS[4] 'failed', (ZSET)
       KEYS[5] 'stalled-check', (KEY)
-
       KEYS[6] 'meta', (KEY)
       KEYS[7] 'paused', (LIST)
-
       KEYS[8] 'event stream' (STREAM)
 
       ARGV[1]  Max stalled job count
@@ -25,6 +23,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/batches"
+--- @include "includes/getTargetQueueList"
 --- @include "includes/removeJob"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
@@ -43,15 +42,6 @@ local stalling = rcall('SMEMBERS', KEYS[1])
 local stalled = {}
 local failed = {}
 if (#stalling > 0) then
-
-    local dst
-    -- wait or paused destination
-    if rcall("HEXISTS", KEYS[6], "paused") ~= 1 then
-        dst = KEYS[2]
-    else
-        dst = KEYS[7]
-    end
-
     rcall('DEL', KEYS[1])
 
     local MAX_STALLED_JOB_COUNT = tonumber(ARGV[1])
@@ -103,15 +93,17 @@ if (#stalling > 0) then
 
                   table.insert(failed, jobId)                    
                 else
-                    -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                    rcall("RPUSH", dst, jobId)
-                    rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId",
-                          jobId, 'prev', 'active')
+                  local target = getTargetQueueList(KEYS[6], KEYS[2], KEYS[7])
 
-                    -- Emit the stalled event
-                    rcall("XADD", KEYS[8], "*", "event", "stalled", "jobId",
-                          jobId)
-                    table.insert(stalled, jobId)
+                  -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
+                  rcall("RPUSH", target, jobId)
+                  rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId",
+                        jobId, 'prev', 'active')
+
+                  -- Emit the stalled event
+                  rcall("XADD", KEYS[8], "*", "event", "stalled", "jobId",
+                        jobId)
+                  table.insert(stalled, jobId)
                 end
             end
         end

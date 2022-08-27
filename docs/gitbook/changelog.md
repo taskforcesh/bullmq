@@ -1,3 +1,107 @@
+## [1.89.2](https://github.com/taskforcesh/bullmq/compare/v1.89.1...v1.89.2) (2022-08-23)
+
+
+### Bug Fixes
+
+* **job:** update delay when changeDelay ([#1389](https://github.com/taskforcesh/bullmq/issues/1389)) fixes [#1160](https://github.com/taskforcesh/bullmq/issues/1160) ([d9b100d](https://github.com/taskforcesh/bullmq/commit/d9b100d04112c518ef2efbcf5586aa1226ccccab))
+
+## [1.89.1](https://github.com/taskforcesh/bullmq/compare/v1.89.0...v1.89.1) (2022-08-19)
+
+
+### Bug Fixes
+
+* revert "chore: allow esm imports through exports field" ([#1388](https://github.com/taskforcesh/bullmq/issues/1388)) ([8e51272](https://github.com/taskforcesh/bullmq/commit/8e512724b1e8145bceb0152b70a934decf6d6864))
+
+# [1.89.0](https://github.com/taskforcesh/bullmq/compare/v1.88.2...v1.89.0) (2022-08-18)
+
+
+### Features
+
+* **job:** expose delay in instance ([#1386](https://github.com/taskforcesh/bullmq/issues/1386)) ([d4d0d2e](https://github.com/taskforcesh/bullmq/commit/d4d0d2e737c7ceb5eb34a2c50d53bd1081e0ad4a))
+
+## [1.88.2](https://github.com/taskforcesh/bullmq/compare/v1.88.1...v1.88.2) (2022-08-18)
+
+
+### Bug Fixes
+
+* revert "feat(sandbox): experimental support ESM" ([#1384](https://github.com/taskforcesh/bullmq/issues/1384)) ([7d180eb](https://github.com/taskforcesh/bullmq/commit/7d180eb18daa41062dcbca72213bc9d9f40153db))
+
+## [1.88.1](https://github.com/taskforcesh/bullmq/compare/v1.88.0...v1.88.1) (2022-08-17)
+
+
+### Bug Fixes
+
+* fix husky install ([edee918](https://github.com/taskforcesh/bullmq/commit/edee918e84ba895ed4ef63cabcc26b97d9c52d8d))
+
+# [1.88.0](https://github.com/taskforcesh/bullmq/compare/v1.87.2...v1.88.0) (2022-08-17)
+
+
+### Bug Fixes
+
+* **clean:** consider priority when cleaning waiting jobs ([#1357](https://github.com/taskforcesh/bullmq/issues/1357)) ([ced5be1](https://github.com/taskforcesh/bullmq/commit/ced5be1c9531953baa9cf87d6bda3faa5863270d))
+* **parent-priority-check:** use tonumber on priority ([#1370](https://github.com/taskforcesh/bullmq/issues/1370)) ([e2043c6](https://github.com/taskforcesh/bullmq/commit/e2043c6f4b8ad5faea8c13edde76aea60612fec6))
+
+
+### Features
+
+* **sandbox:** experimental support ESM ([ed0faff](https://github.com/taskforcesh/bullmq/commit/ed0faff3c67c436116eb625ffacb03e435caee3f))
+
+## [1.87.2](https://github.com/taskforcesh/bullmq/compare/v1.87.1...v1.87.2) (2022-08-13)
+
+
+### Bug Fixes
+
+* **move-parent-to-wait:** emit waiting instead of active event ([#1356](https://github.com/taskforcesh/bullmq/issues/1356)) ([53578dd](https://github.com/taskforcesh/bullmq/commit/53578dd1cbe31b49361a833b1aca449486f3b925))
+
+## [1.87.1](https://github.com/taskforcesh/bullmq/compare/v1.87.0...v1.87.1) (2022-08-09)
+
+
+### Bug Fixes
+
+* **job:** declare discarded as protected ([#1352](https://github.com/taskforcesh/bullmq/issues/1352)) ([870e01c](https://github.com/taskforcesh/bullmq/commit/870e01c4ab602c1e6e351cc369f3eac5f7afa083))
+
+# [1.87.0](https://github.com/taskforcesh/bullmq/compare/v1.86.10...v1.87.0) (2022-08-05)
+
+
+### Features
+
+* **flow:** consider priority when parent is moved ([#1286](https://github.com/taskforcesh/bullmq/issues/1286)) ([d49760d](https://github.com/taskforcesh/bullmq/commit/d49760d09420c5fcc99ab06c8fe36168755fd397))
+
+## [1.86.10](https://github.com/taskforcesh/bullmq/compare/v1.86.9...v1.86.10) (2022-07-29)
+
+
+### Performance Improvements
+
+* **clean-jobs-in-set:** use ZRANGEBYSCORE when limit > 0 ([#1338](https://github.com/taskforcesh/bullmq/issues/1338)) ([f0d9985](https://github.com/taskforcesh/bullmq/commit/f0d998541f03778ca2a092080a19e6bf7b7d0af1))
+
+## [1.86.9](https://github.com/taskforcesh/bullmq/compare/v1.86.8...v1.86.9) (2022-07-27)
+
+
+### Bug Fixes
+
+* **get-flow:** consider groupKey ([#1336](https://github.com/taskforcesh/bullmq/issues/1336)) fixes [#1334](https://github.com/taskforcesh/bullmq/issues/1334) ([9f31272](https://github.com/taskforcesh/bullmq/commit/9f31272fa8b3f5b8ab26f15e21bd80537c5baef0))
+
+## [1.86.8](https://github.com/taskforcesh/bullmq/compare/v1.86.7...v1.86.8) (2022-07-26)
+
+
+### Bug Fixes
+
+* **promote:** consider empty queue when paused ([#1335](https://github.com/taskforcesh/bullmq/issues/1335)) ([9f742e8](https://github.com/taskforcesh/bullmq/commit/9f742e88d6338ce9ac7e0413bdac411ab6cf675c))
+
+## [1.86.7](https://github.com/taskforcesh/bullmq/compare/v1.86.6...v1.86.7) (2022-07-15)
+
+
+### Bug Fixes
+
+* **sandboxed-process:** consider UnrecoverableError ([#1320](https://github.com/taskforcesh/bullmq/issues/1320)) fixes [#1317](https://github.com/taskforcesh/bullmq/issues/1317) ([c1269cc](https://github.com/taskforcesh/bullmq/commit/c1269cc772c6cec84d82ff790b9a7c9cc4242dcb))
+
+## [1.86.6](https://github.com/taskforcesh/bullmq/compare/v1.86.5...v1.86.6) (2022-07-14)
+
+
+### Bug Fixes
+
+* **retry-jobs:** consider paused queue ([#1321](https://github.com/taskforcesh/bullmq/issues/1321)) ([3e9703d](https://github.com/taskforcesh/bullmq/commit/3e9703d17fc9dc601d5d77e999f3e9a137f20843))
+
 ## [1.86.5](https://github.com/taskforcesh/bullmq/compare/v1.86.4...v1.86.5) (2022-07-09)
 
 

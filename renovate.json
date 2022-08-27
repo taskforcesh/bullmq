@@ -1,0 +1,26 @@
+{
+  "enabled": true,
+  "extends": [
+    ":enableRenovate",
+    ":automergeDisabled",
+    ":autodetectPinVersions",
+    ":dependencyDashboard",
+    "github>whitesource/merge-confidence:beta",
+    "group:monorepos",
+    "group:recommended",
+    "workarounds:all",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits",
+    ":disableDevDependencies"
+  ],
+  "labels": ["dependency"],
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "npm": {
+    "enabled": true
+  },
+  "github-actions": {
+    "enabled": true
+  }
+}

@@ -231,7 +231,7 @@ export class QueueEvents extends QueueBase {
         const client = await this.client;
 
         try {
-          await client.client('setname', this.clientName(QUEUE_EVENT_SUFFIX));
+          await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {
           if (!clientCommandMessageReg.test((<Error>err).message)) {
             throw err;

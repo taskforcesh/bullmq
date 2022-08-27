@@ -321,7 +321,7 @@ export class Worker<
           // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
           //
           try {
-            await client.client('setname', this.clientName(WORKER_SUFFIX));
+            await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
           } catch (err) {
             if (!clientCommandMessageReg.test((<Error>err).message)) {
               throw err;

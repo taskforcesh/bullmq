@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
   ChildProcessExt,
@@ -191,7 +191,7 @@ describe('sandboxed process', () => {
       await worker.waitUntilReady();
 
       const start = Date.now();
-      await queue.add(
+      const job = await queue.add(
         'test',
         { foo: 'bar' },
         {
@@ -213,6 +213,10 @@ describe('sandboxed process', () => {
           }),
         );
       });
+
+      const state = await job.getState();
+
+      expect(state).to.be.equal('failed');
 
       await worker.close();
       await queueScheduler.close();
