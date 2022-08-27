@@ -174,14 +174,7 @@ export class Job<
       : undefined;
 
     this.toKey = queue.toKey.bind(queue);
-    this.scripts = this.buildScripts(queue);
-  }
-
-  /**
-   * Helper to easily extend Scripts class calls.
-   */
-  protected buildScripts(queue: MinimalQueue): Scripts {
-    return new Scripts(queue);
+    this.scripts = new Scripts(queue);
   }
 
   /**

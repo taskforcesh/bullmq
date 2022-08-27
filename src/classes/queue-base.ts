@@ -67,7 +67,7 @@ export class QueueBase extends EventEmitter {
     const queueKeys = new QueueKeys(opts.prefix);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.scripts = this.buildScripts();
+    this.scripts = new Scripts(this);
   }
 
   /**
@@ -89,13 +89,6 @@ export class QueueBase extends EventEmitter {
    */
   protected get Job(): typeof Job {
     return Job;
-  }
-
-  /**
-   * Helper to easily extend Scripts class calls.
-   */
-  protected buildScripts(): Scripts {
-    return new Scripts(this);
   }
 
   /**
