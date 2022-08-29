@@ -1174,4 +1174,16 @@ describe('repeat', function () {
     await worker.close();
     await queueScheduler.close();
   });
+
+  it('should get repeatable jobs using the getJobs method of the queue', async function() {
+    const queueScheduler = new QueueScheduler(queueName, { connection });
+    await queueScheduler.waitUntilReady();
+
+    await queue.add('test', { foo: 'bar' }, { repeat: { every: 1000 } });
+
+    const queueJobs = await queue.getJobs(); // right: 'repeat:5b8589ce9156aede92c064e935c4edcf:1000'
+
+    expect(queueJobs.length).to.be.eql(1);
+    expect(queueJobs[0].data).to.be.eql({foo: 'bar'});
+  });
 });
