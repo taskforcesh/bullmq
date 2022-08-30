@@ -1,3 +1,4 @@
+import { AdvancedRepeatOptions } from './advanced-options';
 import { BaseJobOptions } from './jobs-options';
 import { ConnectionOptions } from './redis-options';
 
@@ -62,6 +63,15 @@ export interface QueueOptions extends QueueBaseOptions {
       maxLen: number;
     };
   };
+
+  settings?: AdvancedRepeatOptions;
+}
+
+/**
+ * Options for the Repeat class.
+ */
+export interface RepeatBaseOptions extends QueueBaseOptions {
+  settings?: AdvancedRepeatOptions;
 }
 
 /**
