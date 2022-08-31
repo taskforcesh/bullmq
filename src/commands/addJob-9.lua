@@ -70,6 +70,10 @@ if parentKey ~= nil then
 
   parentId = getJobIdFromKey(parentKey)
   parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
+  if rcall("ZSCORE", parentQueueKey ..":completed", parentId) ~= false then
+    return -6
+  end
+
   local parent = {}
   parent['id'] = parentId
   parent['queueKey'] = parentQueueKey

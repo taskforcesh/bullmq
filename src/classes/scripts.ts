@@ -355,6 +355,10 @@ export class Scripts {
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
         return new Error(`Missing key for parent job ${jobId}. ${command}`);
+      case ErrorCode.ParentJobCompleted:
+        return new Error(
+          `Parent job ${jobId} is already completed. ${command}`,
+        );
     }
   }
 
