@@ -94,9 +94,11 @@ export class Scripts {
       typeof jobId !== 'undefined' ? jobId : '',
       job.name,
       job.timestamp,
-      parentOpts.parentKey || null,
+      job.parentKey || null,
       parentOpts.waitChildrenKey || null,
       parentOpts.parentDependenciesKey || null,
+      job.parent?.id || null,
+      job.parent?.queueKey || null,
       job.repeatJobKey,
     ];
 

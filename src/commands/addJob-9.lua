@@ -33,8 +33,10 @@
             [5]  parentKey?
             [6]  waitChildrenKey key.
             [7]  parent dependencies key.
-            [8]  repeat job key
-
+            [8]  parentId?
+            [9]  parentQueueKey
+            [10] repeat job key
+            
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
 
@@ -52,14 +54,13 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
-local repeatJobKey = args[8]
-local parentId
-local parentQueueKey
+local repeatJobKey = args[10]
+local parentId = args[8]
+local parentQueueKey = args[9]
 local parentData
 
 -- Includes
 --- @include "includes/addJobWithPriority"
---- @include "includes/destructureJobKey"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/trimEvents"
 
@@ -68,8 +69,6 @@ if parentKey ~= nil then
     return -5
   end
 
-  parentId = getJobIdFromKey(parentKey)
-  parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
   local parent = {}
   parent['id'] = parentId
   parent['queueKey'] = parentQueueKey
