@@ -1,3 +1,17 @@
+# [1.90.0](https://github.com/taskforcesh/bullmq/compare/v1.89.2...v1.90.0) (2022-08-30)
+
+
+### Features
+
+* **repeat:** allow passing a cron strategy ([#1248](https://github.com/taskforcesh/bullmq/issues/1248)) ref [#1245](https://github.com/taskforcesh/bullmq/issues/1245) ([7f0534f](https://github.com/taskforcesh/bullmq/commit/7f0534f72449ae14a7415fa17a2eb2a70136a8b0))
+
+## [1.89.2](https://github.com/taskforcesh/bullmq/compare/v1.89.1...v1.89.2) (2022-08-23)
+
+
+### Bug Fixes
+
+* **job:** update delay when changeDelay ([#1389](https://github.com/taskforcesh/bullmq/issues/1389)) fixes [#1160](https://github.com/taskforcesh/bullmq/issues/1160) ([d9b100d](https://github.com/taskforcesh/bullmq/commit/d9b100d04112c518ef2efbcf5586aa1226ccccab))
+
 ## [1.89.1](https://github.com/taskforcesh/bullmq/compare/v1.89.0...v1.89.1) (2022-08-19)
 
 

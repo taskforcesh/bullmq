@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "1.89.1",
+  "version": "1.90.0",
   "description": "Queue for messages and jobs based on Redis",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -68,7 +68,6 @@
     "@types/chai": "^4.3.1",
     "@types/chai-as-promised": "^7.1.5",
     "@types/glob": "^7.2.0",
-    "@types/ioredis": "^4.28.2",
     "@types/lodash.defaults": "^4.2.7",
     "@types/lodash.isarguments": "^3.1.7",
     "@types/mocha": "^5.2.7",
@@ -101,6 +100,7 @@
     "prettier": "^2.7.1",
     "pretty-quick": "^3.1.3",
     "rimraf": "^3.0.2",
+    "rrule": "^2.6.9",
     "semantic-release": "^19.0.3",
     "sinon": "^14.0.0",
     "test-console": "^2.0.0",
