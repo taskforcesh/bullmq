@@ -97,8 +97,7 @@ export class Scripts {
       job.parentKey || null,
       parentOpts.waitChildrenKey || null,
       parentOpts.parentDependenciesKey || null,
-      job.parent?.id || null,
-      job.parent?.queueKey || null,
+      job.parent || null,
       job.repeatJobKey,
     ];
 
