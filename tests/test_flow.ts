@@ -1,4 +1,8 @@
 import { after, last } from 'lodash';
+import { expect } from 'chai';
+import { default as IORedis } from 'ioredis';
+import { beforeEach, describe, it } from 'mocha';
+import { v4 } from 'uuid';
 import {
   Job,
   Queue,
@@ -8,10 +12,6 @@ import {
   FlowProducer,
   JobNode,
 } from '../src/classes';
-import { expect } from 'chai';
-import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
-import { v4 } from 'uuid';
 import { removeAllQueueData, delay } from '../src/utils';
 
 describe('flows', () => {

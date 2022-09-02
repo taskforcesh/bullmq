@@ -33,8 +33,9 @@
             [5]  parentKey?
             [6]  waitChildrenKey key.
             [7]  parent dependencies key.
-            [8]  repeat job key
-
+            [8]  parent? {id, queueKey}
+            [9] repeat job key
+            
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
 
@@ -52,14 +53,12 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
-local repeatJobKey = args[8]
-local parentId
-local parentQueueKey
+local repeatJobKey = args[9]
+local parent = args[8]
 local parentData
 
 -- Includes
 --- @include "includes/addJobWithPriority"
---- @include "includes/destructureJobKey"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/trimEvents"
 
@@ -68,11 +67,6 @@ if parentKey ~= nil then
     return -5
   end
 
-  parentId = getJobIdFromKey(parentKey)
-  parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
-  local parent = {}
-  parent['id'] = parentId
-  parent['queueKey'] = parentQueueKey
   parentData = cjson.encode(parent)
 end
 
@@ -95,7 +89,7 @@ else
     if parentKey ~= nil then
       if rcall("ZSCORE", KEYS[7], jobId) ~= false then
         local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
-        updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue)
+        updateParentDepsIfNeeded(parentKey, parent['queueKey'], parentDependenciesKey, parent['id'], jobIdKey, returnvalue)
       else
         if parentDependenciesKey ~= nil then
           rcall("SADD", parentDependenciesKey, jobIdKey)
