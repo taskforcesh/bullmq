@@ -7,19 +7,19 @@
 
 local function removeJobFromAnyState( prefix, jobId)
   if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
-      return "wait"
+    return "wait"
   elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
-      return "paused"
+    return "paused"
   elseif rcall("LREM", prefix .. "active", 0, jobId) == 1 then
-      return "active"
+    return "active"
   elseif rcall("ZREM", prefix .. "waiting-children", jobId) == 1 then
-      return "waiting-children"
+    return "waiting-children"
   elseif rcall("ZREM", prefix .. "delayed", jobId) == 1 then
-      return "delayed"
+    return "delayed"
   elseif rcall("ZREM", prefix .. "completed", jobId) == 1 then
-      return "completed"
+    return "completed"
   elseif rcall("ZREM", prefix .. "failed", jobId) == 1 then
-      return "failed"
+    return "failed"
   end
 
   return "unknown"
