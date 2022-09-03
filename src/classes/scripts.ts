@@ -22,10 +22,10 @@ import {
   KeepJobs,
 } from '../interfaces';
 import {
-  JobsOptions,
   JobState,
   FinishedStatus,
   FinishedPropValAttribute,
+  RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
@@ -72,7 +72,7 @@ export class Scripts {
   async addJob(
     client: RedisClient,
     job: JobJson,
-    opts: JobsOptions,
+    opts: RedisJobOptions,
     jobId: string,
     parentOpts: ParentOpts = {
       parentKey: null,
@@ -93,14 +93,18 @@ export class Scripts {
       queueKeys.delay,
     ];
 
+    const fpof = opts.fpof ? { fpof: true } : {};
+    const parent = job.parent ? { ...job.parent, ...fpof } : null;
+
     const args = [
       queueKeys[''],
       typeof jobId !== 'undefined' ? jobId : '',
       job.name,
       job.timestamp,
-      parentOpts.parentKey || null,
+      job.parentKey || null,
       parentOpts.waitChildrenKey || null,
       parentOpts.parentDependenciesKey || null,
+      parent,
       job.repeatJobKey,
     ];
 

@@ -379,6 +379,8 @@ export class Job<
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
       opts: this.optsAsJSON(this.opts),
+      parent: this.parent ? { ...this.parent } : undefined,
+      parentKey: this.parentKey,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,
@@ -416,7 +418,6 @@ export class Job<
     return {
       ...this.asJSON(),
       queueName: this.queueName,
-      parent: this.parent ? { ...this.parent } : undefined,
       prefix: this.prefix,
     };
   }
