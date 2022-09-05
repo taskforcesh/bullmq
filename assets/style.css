@@ -1109,7 +1109,6 @@ ul.tsd-type-parameter-list h5 {
     background: var(--color-background-secondary);
     border-bottom: 1px var(--color-accent) solid;
     transition: transform 0.3s ease-in-out;
-    margin: 0 auto;
 }
 .tsd-page-toolbar a {
     color: var(--color-text);
@@ -1125,6 +1124,7 @@ ul.tsd-type-parameter-list h5 {
     display: flex;
     justify-content: space-between;
     height: 2.5rem;
+    margin: 0 auto;
 }
 .tsd-page-toolbar .table-cell {
     position: relative;
