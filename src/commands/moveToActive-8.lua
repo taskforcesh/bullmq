@@ -43,6 +43,10 @@ if(ARGV[3] ~= "") then
   -- clean stalled key
   rcall("SREM", KEYS[5], jobId)
 else
+  -- If the queue is paused we should just return.
+  local paused = rcall("HEXISTS", ARGV[1] .. "meta", "paused") == 1
+  if paused then return end
+
   -- no job ID, try non-blocking move from wait to active
   jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 end
