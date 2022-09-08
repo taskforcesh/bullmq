@@ -5,17 +5,15 @@
 ]]
 
 --- @include "destructureJobKey"
+--- @include "getTargetQueueList"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
-  if rcall("HEXISTS", parentPrefix .. "meta", "paused") ~= 1 then
-    rcall("RPUSH", parentPrefix .. "wait", parentId)
-  else
-    rcall("RPUSH", parentPrefix .. "paused", parentId)
-  end
+  local parentTarget = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait", parentPrefix .. "paused")
+  rcall("RPUSH", parentTarget, parentId)
 
   if emitEvent then
     local parentEventStream = parentPrefix .. "events"
-    rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+    rcall("XADD", parentEventStream, "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
   end
 end
 
@@ -78,6 +76,6 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
           end
         end
       end
-    end  
+    end
   end
 end

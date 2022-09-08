@@ -1,7 +1,6 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
 import { flatten } from 'lodash';
-import * as getPort from 'get-port';
 import { killAsync } from './process-utils';
 import { ParentCommand, ChildCommand } from '../interfaces';
 import { parentSend } from '../utils';
@@ -22,7 +21,7 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
       standard.push(arg);
     } else {
       const argName = arg.split('=')[0];
-      const port = await getPort();
+      const port = await (await import('get-port')).default();
       convertedArgs.push(`${argName}=${port}`);
     }
   }

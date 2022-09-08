@@ -1,4 +1,5 @@
 import { JobsOptions } from './jobs-options';
+import { ParentKeys } from './parent';
 
 export interface JobJson {
   id: string;
@@ -13,6 +14,7 @@ export interface JobJson {
   failedReason: string;
   stacktrace: string;
   returnvalue: string;
+  parent?: ParentKeys;
   parentKey?: string;
   repeatJobKey?: string;
 }
@@ -21,6 +23,7 @@ export interface JobJsonRaw {
   id: string;
   name: string;
   data: string;
+  delay: string;
   opts: string;
   progress: string;
   attemptsMade: string;

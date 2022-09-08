@@ -9,6 +9,8 @@ yarn-error.log*
 
 # Coverage files
 .nyc_output
+coverage
+coverage/*
 
 # Editor directories and files
 .idea

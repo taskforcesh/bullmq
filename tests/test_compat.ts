@@ -2,7 +2,7 @@
 'use strict';
 
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';

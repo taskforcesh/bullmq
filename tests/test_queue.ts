@@ -69,7 +69,7 @@ describe('Queue', function() {
 
 import { expect } from 'chai';
 import { after } from 'lodash';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';

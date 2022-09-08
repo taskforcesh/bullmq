@@ -2,7 +2,7 @@
 'use strict';
 
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
@@ -597,6 +597,7 @@ describe('Job', function () {
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
+      expect(job.delay).to.be.equal(4000);
 
       await completing;
 

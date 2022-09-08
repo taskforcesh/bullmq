@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
@@ -580,7 +580,14 @@ describe('Cleaner', () => {
             name: 'parent-job',
             queueName: parentQueueName,
             data: {},
-            children: [{ name, data: { idx: 0, foo: 'bar' }, queueName }],
+            children: [
+              {
+                name,
+                data: { idx: 0, foo: 'bar' },
+                opts: { priority: 1 },
+                queueName,
+              },
+            ],
           });
 
           const count = await queue.count();
@@ -610,9 +617,9 @@ describe('Cleaner', () => {
   });
 
   it('should clean the number of jobs requested', async () => {
-    await queue.add('test', { some: 'data' });
-    await queue.add('test', { some: 'data' });
-    await queue.add('test', { some: 'data' });
+    await queue.add('test', { some: 'data' }, { priority: 1 });
+    await queue.add('test', { some: 'data' }, { priority: 2 });
+    await queue.add('test', { some: 'data' }, { priority: 3 });
     await delay(100);
     const jobs = await queue.clean(0, 1, 'wait');
     expect(jobs.length).to.be.eql(1);

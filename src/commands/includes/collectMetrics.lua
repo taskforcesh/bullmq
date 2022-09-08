@@ -43,5 +43,4 @@ local function collectMetrics(metaKey, dataPointsList, maxDataPoints,
         -- update prev count with current count
         rcall("HSET", metaKey, "prevCount", count, "prevTS", timestamp)
     end
-
 end
