@@ -2016,7 +2016,7 @@ describe('workers', function () {
               while (step !== Step.Finish) {
                 switch (step) {
                   case Step.Initial: {
-                    await job.moveToDelayed(Date.now() + 200, token);
+                    await job.moveToDelayed(Date.now() + 200, token, true);
                     await job.update({
                       step: Step.Second,
                     });
@@ -2129,7 +2129,9 @@ describe('workers', function () {
                   }
                   case Step.Third: {
                     waitingChildrenStepExecutions++;
-                    const shouldWait = await job.moveToWaitingChildren(token);
+                    const shouldWait = await job.moveToWaitingChildren(token, {
+                      autoComplete: true,
+                    });
                     if (!shouldWait) {
                       await job.update({
                         step: Step.Finish,

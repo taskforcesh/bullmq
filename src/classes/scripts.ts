@@ -327,7 +327,9 @@ export class Scripts {
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'finished', 'active');
+      if (!(job.autoComplete && result == ErrorCode.JobLockNotExist)) {
+        throw this.finishedErrors(result, job.id, 'finished', 'active');
+      }
     } else {
       job.finishedOn = timestamp;
 

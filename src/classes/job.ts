@@ -28,6 +28,7 @@ const logger = debuglog('bull');
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
 export interface MoveToWaitingChildrenOpts {
+  autoComplete?: boolean;
   child?: {
     id: string;
     queue: string;
@@ -60,6 +61,7 @@ export class Job<
   ReturnType = any,
   NameType extends string = string,
 > {
+  autoComplete: boolean = false;
   /**
    * The progress a job has performed so far.
    * @defaultValue 0
@@ -130,8 +132,6 @@ export class Job<
   protected discarded: boolean;
 
   protected scripts: Scripts;
-
-  protected state: JobState;
 
   constructor(
     protected queue: MinimalQueue,
@@ -468,17 +468,13 @@ export class Job<
       throw errorObject.value;
     }
 
-    const result = await this.scripts.moveToCompleted(
+    return this.scripts.moveToCompleted(
       this,
       stringifiedReturnValue,
       this.opts.removeOnComplete,
       token,
       fetchNext,
     );
-
-    this.state = 'completed';
-
-    return result;
   }
 
   /**
@@ -572,8 +568,6 @@ export class Job<
     if (finishedOn && typeof finishedOn === 'number') {
       this.finishedOn = finishedOn;
     }
-
-    this.state = state;
   }
 
   /**
@@ -616,13 +610,6 @@ export class Job<
    */
   async isWaiting(): Promise<boolean> {
     return (await this.isInList('wait')) || (await this.isInList('paused'));
-  }
-
-  /**
-   * @returns the job state (this should be used internally by the worker).
-   */
-  get currentState(): JobState {
-    return this.state;
   }
 
   /**
@@ -910,10 +897,16 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  async moveToDelayed(timestamp: number, token?: string): Promise<void> {
+  async moveToDelayed(
+    timestamp: number,
+    token?: string,
+    autoComplete?: boolean,
+  ): Promise<void> {
     await this.scripts.moveToDelayed(this.id, timestamp, token);
 
-    this.state = 'delayed';
+    if (autoComplete) {
+      this.autoComplete = autoComplete;
+    }
   }
 
   /**
@@ -925,7 +918,7 @@ export class Job<
    */
   async moveToWaitingChildren(
     token: string,
-    opts: MoveToWaitingChildrenOpts = {},
+    opts: MoveToWaitingChildrenOpts = { autoComplete: false },
   ): Promise<boolean> {
     const result = await this.scripts.moveToWaitingChildren(
       this.id,
@@ -934,7 +927,7 @@ export class Job<
     );
 
     if (result) {
-      this.state = 'waiting-children';
+      this.autoComplete = opts.autoComplete;
     }
 
     return result;
@@ -950,8 +943,6 @@ export class Job<
     if (code < 0) {
       throw this.scripts.finishedErrors(code, this.id, 'promote', 'delayed');
     }
-
-    this.state = 'waiting';
   }
 
   /**
@@ -962,15 +953,13 @@ export class Job<
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
-  async retry(state: FinishedStatus = 'failed'): Promise<void> {
+  retry(state: FinishedStatus = 'failed'): Promise<void> {
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
     this.returnvalue = null;
 
-    await this.scripts.reprocessJob(this, state);
-
-    this.state = 'waiting';
+    return this.scripts.reprocessJob(this, state);
   }
 
   /**
