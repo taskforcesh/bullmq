@@ -53,7 +53,7 @@
     "msgpackr": "^1.6.2",
     "semver": "^7.3.7",
     "tslib": "^2.0.0",
-    "uuid": "^8.3.2"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.0.3",
