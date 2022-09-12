@@ -1,3 +1,10 @@
+## [1.90.2](https://github.com/taskforcesh/bullmq/compare/v1.90.1...v1.90.2) (2022-09-12)
+
+
+### Performance Improvements
+
+* **script-loader:** use cache to read script once ([#1410](https://github.com/taskforcesh/bullmq/issues/1410)) ([f956e93](https://github.com/taskforcesh/bullmq/commit/f956e937ae3488cdcd0e2eacbe3e096c8066ebd1))
+
 ## [1.90.1](https://github.com/taskforcesh/bullmq/compare/v1.90.0...v1.90.1) (2022-09-02)
 
 
