@@ -165,6 +165,7 @@ export class ScriptLoader {
   private async resolveDependencies(
     file: ScriptMetadata,
     cache?: Map<string, ScriptMetadata>,
+    isInclude = false,
     stack: string[] = [],
   ): Promise<void> {
     cache = cache ?? new Map<string, ScriptMetadata>();
@@ -277,7 +278,7 @@ export class ScriptLoader {
         tokens.push(token);
 
         file.includes.push(includeMetadata);
-        await this.resolveDependencies(includeMetadata, cache, stack);
+        await this.resolveDependencies(includeMetadata, cache, true, stack);
       }
 
       // Replace @includes with normalized path hashes
@@ -286,7 +287,12 @@ export class ScriptLoader {
     }
 
     file.content = content;
-    cache.set(file.path, file);
+
+    if (isInclude) {
+      cache.set(file.path, file);
+    } else {
+      cache.set(file.name, file);
+    }
 
     stack.pop();
   }
@@ -302,11 +308,11 @@ export class ScriptLoader {
     content: string,
     cache?: Map<string, ScriptMetadata>,
   ): Promise<ScriptMetadata> {
-    const meta = cache?.get(filename);
+    const { name, numberOfKeys } = splitFilename(filename);
+    const meta = cache?.get(name);
     if (meta?.content === content) {
       return meta;
     }
-    const { name, numberOfKeys } = splitFilename(filename);
     const fileInfo: ScriptMetadata = {
       path: filename,
       token: getPathHash(filename),
@@ -354,7 +360,8 @@ export class ScriptLoader {
   ): Promise<Command> {
     filename = path.resolve(filename);
 
-    let script = cache?.get(filename);
+    const { name: scriptName } = splitFilename(filename);
+    let script = cache?.get(scriptName);
     if (!script) {
       const content = (await readFile(filename)).toString();
       script = await this.parseScript(filename, content, cache);
@@ -426,7 +433,11 @@ export class ScriptLoader {
    * @param client - redis client to attach script to
    * @param pathname - the path to the directory containing the scripts
    */
-  async load(client: RedisClient, pathname: string): Promise<void> {
+  async load(
+    client: RedisClient,
+    pathname: string,
+    cache?: Map<string, ScriptMetadata>,
+  ): Promise<void> {
     let paths: Set<string> = this.clientScripts.get(client);
     if (!paths) {
       paths = new Set<string>();
@@ -434,7 +445,10 @@ export class ScriptLoader {
     }
     if (!paths.has(pathname)) {
       paths.add(pathname);
-      const scripts = await this.loadScripts(pathname);
+      const scripts = await this.loadScripts(
+        pathname,
+        cache ?? new Map<string, ScriptMetadata>(),
+      );
       scripts.forEach((command: Command) => {
         // Only define the command if not already defined
         if (!(client as any)[command.name]) {

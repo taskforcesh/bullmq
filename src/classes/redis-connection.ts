@@ -3,7 +3,7 @@ import { default as IORedis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { scriptLoader } from '../commands';
+import { scriptLoader, ScriptMetadata } from '../commands';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import {
   isNotConnectionError,
@@ -151,12 +151,13 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(): Promise<void> {
+  protected loadCommands(cache?: Map<string, ScriptMetadata>): Promise<void> {
     return (
       (<any>this._client)['bullmq:loadingCommands'] ||
       ((<any>this._client)['bullmq:loadingCommands'] = scriptLoader.load(
         this._client,
         path.join(__dirname, '../commands'),
+        cache ?? new Map<string, ScriptMetadata>(),
       ))
     );
   }
