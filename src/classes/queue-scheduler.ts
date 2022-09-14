@@ -20,20 +20,6 @@ export interface QueueSchedulerListener extends IoredisListener {
    * This event is triggered when an exception is thrown.
    */
   error: (error: Error) => void;
-
-  /**
-   * Listen to 'failed' event.
-   *
-   * This event is triggered when a job has thrown an exception.
-   */
-  failed: (jobId: string, failedReason: Error, prev: string) => void;
-
-  /**
-   * Listen to 'stalled' event.
-   *
-   * This event is triggered when a job gets stalled.
-   */
-  stalled: (jobId: string, prev: string) => void;
 }
 
 /**
@@ -159,9 +145,6 @@ export class QueueScheduler extends QueueBase {
         }
 
         while (!this.closing) {
-          // Check if at least the min stalled check time has passed.
-          await this.checkConnectionError(() => this.moveStalledJobsToWait());
-
           // Listen to the delay event stream from lastDelayStreamTimestamp
           // Can we use XGROUPS to reduce redundancy?
           const nextDelay = this.nextTimestamp - Date.now();
@@ -276,22 +259,6 @@ export class QueueScheduler extends QueueBase {
       return result;
     }
     return [0, '0'];
-  }
-
-  private async moveStalledJobsToWait() {
-    if (!this.closing) {
-      const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
-
-      failed.forEach((jobId: string) =>
-        this.emit(
-          'failed',
-          jobId,
-          new Error('job stalled more than allowable limit'),
-          'active',
-        ),
-      );
-      stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
-    }
   }
 
   /**
