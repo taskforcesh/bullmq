@@ -84,9 +84,12 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
   rcall("HINCRBY", jobKey, "attemptsMade", 1)
 
   local waitLen = rcall("LLEN", keys[1])
-  local activeLen = rcall("LLEN", keys[2])
-  if waitLen == 0 and activeLen == 0 then
-    rcall("XADD", keys[4], "*", "event", "drained");
+  if waitLen == 0 then
+    local activeLen = rcall("LLEN", keys[2])
+    
+    if activeLen == 1 then
+      rcall("XADD", keys[4], "*", "event", "drained")
+    end
   end
 
   return {rcall("HGETALL", jobKey), jobId} -- get job data
