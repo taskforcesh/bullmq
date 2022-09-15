@@ -22,7 +22,6 @@
 import { EventEmitter } from 'events';
 import { JobType } from '../types';
 import { Job } from './job';
-import { QueueScheduler } from './queue-scheduler';
 import { Queue } from './queue';
 import { Worker } from './worker';
 import { QueueEvents } from './queue-events';
@@ -31,15 +30,11 @@ import {
   Processor,
   QueueOptions,
   QueueEventsOptions,
-  QueueSchedulerOptions,
   RepeatOptions,
   WorkerOptions,
 } from '../interfaces';
 
-type CommonOptions = QueueSchedulerOptions &
-  QueueOptions &
-  WorkerOptions &
-  QueueEventsOptions;
+type CommonOptions = QueueOptions & WorkerOptions & QueueEventsOptions;
 
 /**
  * @deprecated Use Queue class instead {@link https://docs.bullmq.io/guide/queues}
@@ -54,7 +49,6 @@ export class Queue3<T = any> extends EventEmitter {
   private opts: CommonOptions;
   private readonly queue: Queue;
   private worker: Worker;
-  private queueScheduler: QueueScheduler;
 
   /**
    * This is the Queue constructor.
@@ -107,7 +101,6 @@ export class Queue3<T = any> extends EventEmitter {
     }
 
     this.worker = new Worker(this.name, processor, this.opts);
-    this.queueScheduler = new QueueScheduler(this.name, this.opts);
     await this.worker.client;
   }
 
@@ -186,9 +179,6 @@ export class Queue3<T = any> extends EventEmitter {
   close(): Promise<any> {
     const promises = [];
 
-    if (this.queueScheduler) {
-      promises.push(this.queueScheduler.close());
-    }
     if (this.queue) {
       promises.push(this.queue.close());
     }

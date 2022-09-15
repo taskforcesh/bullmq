@@ -2,13 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import {
-  Job,
-  Queue,
-  QueueEvents,
-  QueueScheduler,
-  Worker,
-} from '../src/classes';
+import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Pause', function () {
@@ -32,11 +26,8 @@ describe('Pause', function () {
   });
 
   // Skipped since some side effect makes this test fail
-  it.skip('should not processed delayed jobs', async function () {
+  it.skip('should not process delayed jobs', async function () {
     this.timeout(5000);
-
-    const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.waitUntilReady();
 
     let processed = false;
 
@@ -65,7 +56,6 @@ describe('Pause', function () {
     expect(counts2).to.have.property('paused', 1);
     expect(counts2).to.have.property('delayed', 0);
 
-    await queueScheduler.close();
     await worker.close();
   });
 

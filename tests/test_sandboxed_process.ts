@@ -7,7 +7,6 @@ import {
   Job,
   Queue,
   QueueEvents,
-  QueueScheduler,
   Worker,
 } from '../src/classes';
 import { beforeEach } from 'mocha';
@@ -177,9 +176,6 @@ describe('sandboxed process', () => {
     it('moves job to failed', async function () {
       this.timeout(6000);
 
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
-
       const processFile =
         __dirname + '/fixtures/fixture_processor_unrecoverable.js';
 
@@ -219,7 +215,6 @@ describe('sandboxed process', () => {
       expect(state).to.be.equal('failed');
 
       await worker.close();
-      await queueScheduler.close();
     });
   });
 

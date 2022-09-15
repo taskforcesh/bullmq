@@ -10,7 +10,6 @@ export * from './queue-base';
 export * from './queue-events';
 export * from './queue-getters';
 export * from './queue-keys';
-export * from './queue-scheduler';
 export * from './queue';
 export * from './redis-connection';
 export * from './repeat';

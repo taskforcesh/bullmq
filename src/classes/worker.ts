@@ -539,8 +539,6 @@ export class Worker<
       return;
     }
 
-    // code from Bull3..
-
     //
     // There are two cases to take into consideration regarding locks.
     // 1) The lock renewer fails to renew a lock, this should make this job
@@ -761,7 +759,6 @@ export class Worker<
         }, this.opts.stalledInterval);
       }
     } catch (err) {
-      console.log('Error in runStalledJobsCheck', err);
       this.emit('error', <Error>err);
     }
   }

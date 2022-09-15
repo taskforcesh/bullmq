@@ -62,6 +62,7 @@ local rcall = redis.call
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/collectMetrics"
+--- @include "includes/getNextDelayedTimestamp"
 
 local jobIdKey = KEYS[10]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -160,10 +161,29 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[7] == "1") then
-        -- move from wait to active
-        local jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
+        -- Check if there are delayed jobs that can be promoted
+        local jobId = rcall("ZRANGEBYSCORE", KEYS[7], 0, (timestamp + 1) * 0x1000, "LIMIT", 0, 1)[1]
         if jobId then
+            -- move from delay to active
+            rcall("ZREM", KEYS[7], jobId)
+            rcall("LPUSH", KEYS[2], jobId)
+        else
+            -- move from wait to active
+            jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
+        end
+
+        if jobId == "0" then
+            rcall("LREM", KEYS[2], 1, 0)
+        elseif jobId then
             return moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
+        end
+
+        -- Return the timestamp for the next delayed job if any.
+        local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
+        if (nextTimestamp ~= nil) then
+            -- The result is guaranteed to be positive, since the
+            -- ZTANGEBYSCORE command would have return a job otherwise.
+            return nextTimestamp - timestamp
         end
     end
 

@@ -17,7 +17,6 @@ import {
   JobJson,
   JobJsonRaw,
   JobsOptions,
-  QueueSchedulerOptions,
   RedisClient,
   WorkerOptions,
   KeepJobs,
@@ -86,7 +85,6 @@ export class Scripts {
       queueKeys.priority,
       queueKeys.completed,
       queueKeys.events,
-      queueKeys.delay,
     ];
 
     const args = [
@@ -331,7 +329,7 @@ export class Scripts {
     } else {
       job.finishedOn = timestamp;
 
-      if (result) {
+      if (typeof result !== 'undefined') {
         return raw2jobData(result);
       }
     }
@@ -356,6 +354,8 @@ export class Scripts {
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
         return new Error(`Missing key for parent job ${jobId}. ${command}`);
+      default:
+        return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
   }
 
@@ -784,7 +784,7 @@ export class Scripts {
   async moveStalledJobsToWait(): Promise<[string[], string[]]> {
     const client = await this.queue.client;
 
-    const opts = this.queue.opts as QueueSchedulerOptions;
+    const opts = this.queue.opts as WorkerOptions;
     const keys: (string | number)[] = [
       this.queue.keys.stalled,
       this.queue.keys.wait,

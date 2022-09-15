@@ -1,12 +1,5 @@
-import {
-  Queue,
-  Job,
-  Worker,
-  QueueEvents,
-  QueueScheduler,
-} from '../src/classes';
+import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { describe, beforeEach, it } from 'mocha';
-import { after } from 'lodash';
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
@@ -33,8 +26,8 @@ describe('Delayed jobs', function () {
 
   it('should process a delayed job only after delayed time', async function () {
     const delay = 1000;
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
+    const margin = 1.2;
+
     const queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
 
@@ -52,9 +45,17 @@ describe('Delayed jobs', function () {
     });
 
     const completed = new Promise<void>((resolve, reject) => {
-      queueEvents.on('completed', async function () {
+      worker.on('completed', async function (job) {
         try {
           expect(Date.now() > timestamp + delay);
+          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+            delay,
+          );
+          expect(
+            job.processedOn! - job.timestamp,
+            'processedOn is not within margin',
+          ).to.be.lessThan(delay * margin);
+
           const jobs = await queue.getWaiting();
           expect(jobs.length).to.be.equal(0);
 
@@ -78,107 +79,176 @@ describe('Delayed jobs', function () {
 
     await delayed;
     await completed;
-    await queueScheduler.close();
     await queueEvents.close();
     await worker.close();
   });
 
-  it('should reconnect after client is disconnected', async function () {
-    const delayT = 1000;
-    const numJobs = 3;
+  it('should process delayed jobs in correct order respecting delay', async function () {
+    this.timeout(3500);
+    let order = 0;
+    const numJobs = 12;
+    const margin = 1.2;
 
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
+    let processor;
 
-    const client = await queueScheduler.client;
-
-    const queueEvents = new QueueEvents(queueName, { connection });
-    await queueEvents.waitUntilReady();
-
-    const worker = new Worker(queueName, async () => {}, { connection });
-    await worker.waitUntilReady();
-
-    const timestamp = Date.now();
-    let publishHappened = false;
-
-    const delayed = new Promise<void>(resolve => {
-      queueEvents.on('delayed', () => {
-        publishHappened = true;
-        resolve();
-      });
-    });
-
-    const queueSchedulerError = new Promise<void>(resolve => {
-      queueScheduler.on('ioredis:close', async function () {
-        resolve();
-      });
-    });
-
-    const completed = new Promise<void>((resolve, reject) => {
-      queueEvents.on('completed', async function () {
+    const processing = new Promise<void>((resolve, reject) => {
+      processor = async (job: Job) => {
+        order++;
         try {
-          expect(Date.now() > timestamp + delayT);
-          const jobs = await queue.getWaiting();
-          expect(jobs.length).to.be.equal(0);
+          expect(order).to.be.equal(job.data.order);
+          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+            job.delay,
+          );
+          expect(
+            job.processedOn! - job.timestamp,
+            'processedOn is not within margin',
+          ).to.be.lessThan(job.delay * margin);
 
-          const delayedJobs = await queue.getDelayed();
-          expect(delayedJobs.length).to.be.equal(numJobs - 1);
-          expect(publishHappened).to.be.eql(true);
-          await client.disconnect();
-          resolve();
+          if (order === numJobs) {
+            resolve();
+          }
         } catch (err) {
           reject(err);
         }
-      });
+      };
     });
 
-    const workerCompleted = new Promise(resolve => {
-      worker.on(
-        'completed',
-        // after every job has been completed
-        after(numJobs - 1, resolve),
-      );
-    });
+    const worker = new Worker(queueName, processor, { connection });
+
+    worker.on('failed', function (job, err) {});
 
     const jobs = Array.from(Array(numJobs).keys()).map(index => ({
       name: 'test',
-      data: { index },
+      data: { order: numJobs - index },
       opts: {
-        delay: delayT + index * 1000,
+        delay: 500 + (numJobs - index) * 150,
       },
     }));
 
     await queue.addBulk(jobs);
-
-    await delayed;
-    await completed;
-
-    await queueSchedulerError;
-
-    await delay(2000);
-
-    expect(queueScheduler.isRunning()).to.be.equal(true);
-    await client.connect();
-
-    await workerCompleted;
-
-    await queueScheduler.close();
-    await queueEvents.close();
+    await processing;
     await worker.close();
+  });
+
+  it('should process delayed jobs concurrently respecting delay', async function () {
+    this.timeout(35000);
+    let order = 0;
+    const numJobs = 12;
+    const margin = 1.25;
+
+    let processor;
+
+    const processing = new Promise<void>((resolve, reject) => {
+      processor = async (job: Job) => {
+        order++;
+        try {
+          expect(order).to.be.equal(job.data.order);
+          expect(
+            job.processedOn! - job.timestamp,
+            'waited at least delay time',
+          ).to.be.greaterThanOrEqual(job.delay);
+          expect(
+            job.processedOn! - job.timestamp,
+            'processedOn is not within margin',
+          ).to.be.lessThan(job.delay * margin);
+
+          if (order === numJobs) {
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
+        }
+
+        await delay(1000);
+      };
+    });
+
+    const worker = new Worker(queueName, processor, {
+      connection,
+      concurrency: numJobs / 2,
+    });
+
+    const worker2 = new Worker(queueName, processor, {
+      connection,
+      concurrency: numJobs / 2,
+    });
+
+    await worker.waitUntilReady();
+    await worker2.waitUntilReady();
+
+    const jobs = Array.from(Array(numJobs).keys()).map(index => ({
+      name: 'test',
+      data: { order: numJobs - index },
+      opts: {
+        delay: 500 + (numJobs - index),
+      },
+    }));
+
+    await queue.addBulk(jobs);
+    await processing;
+    await worker.close();
+    await worker2.close();
+  });
+
+  it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function () {
+    let order = 1;
+    const numJobs = 27;
+
+    let worker: Worker;
+    const processing = new Promise<void>((resolve, reject) => {
+      worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          try {
+            expect(order).to.be.equal(job.data.order);
+
+            if (order === numJobs) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+
+          order++;
+        },
+        { connection },
+      );
+
+      worker.on('failed', function (job, err) {
+        reject();
+      });
+    });
+
+    const now = Date.now();
+    const promises: Promise<Job<any, any, string>>[] = [];
+    let i = 1;
+    for (i; i <= numJobs; i++) {
+      promises.push(
+        queue.add(
+          'test',
+          { order: i },
+          {
+            delay: 1000,
+            timestamp: now,
+          },
+        ),
+      );
+    }
+    await Promise.all(promises);
+    await processing;
+    await worker!.close();
   });
 
   describe('when autorun option is provided as false', function () {
     it('should process a delayed job only after delayed time', async function () {
       const delay = 1000;
-      const queueScheduler = new QueueScheduler(queueName, {
-        connection,
-        autorun: false,
-      });
-      await queueScheduler.waitUntilReady();
       const queueEvents = new QueueEvents(queueName, { connection });
       await queueEvents.waitUntilReady();
 
-      const worker = new Worker(queueName, async () => {}, { connection });
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        autorun: false,
+      });
       await worker.waitUntilReady();
 
       const timestamp = Date.now();
@@ -214,185 +284,12 @@ describe('Delayed jobs', function () {
       expect(job.data.delayed).to.be.eql('foobar');
       expect(job.opts.delay).to.be.eql(delay);
 
-      queueScheduler.run();
+      worker.run();
 
       await delayed;
       await completed;
-      await queueScheduler.close();
       await queueEvents.close();
       await worker.close();
     });
-
-    describe('when run method is called when queue-scheduler is running', function () {
-      it('throws an error', async function () {
-        const delay = 1000;
-        const maxJobs = 10;
-        const queueScheduler = new QueueScheduler(queueName, {
-          connection,
-          autorun: false,
-        });
-        await queueScheduler.waitUntilReady();
-
-        const worker = new Worker(queueName, async job => {}, { connection });
-        queueScheduler.run();
-
-        for (let i = 1; i <= maxJobs; i++) {
-          await queue.add('test', { foo: 'bar', num: i }, { delay });
-        }
-
-        await expect(queueScheduler.run()).to.be.rejectedWith(
-          'Queue Scheduler is already running.',
-        );
-
-        await queueScheduler.close();
-        await worker.close();
-      });
-    });
-  });
-
-  it('should process delayed jobs in correct order', async function () {
-    this.timeout(3500);
-    let order = 0;
-    const numJobs = 10;
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
-
-    let processor;
-
-    const processing = new Promise<void>((resolve, reject) => {
-      processor = async (job: Job) => {
-        order++;
-        try {
-          expect(order).to.be.equal(job.data.order);
-          if (order === numJobs) {
-            resolve();
-          }
-        } catch (err) {
-          reject(err);
-        }
-      };
-    });
-
-    const worker = new Worker(queueName, processor, { connection });
-
-    worker.on('failed', function (job, err) {});
-
-    const jobs = Array.from(Array(numJobs).keys()).map(index => ({
-      name: 'test',
-      data: { order: numJobs - index },
-      opts: {
-        delay: 500 + (numJobs - index) * 150,
-      },
-    }));
-
-    await queue.addBulk(jobs);
-
-    await processing;
-
-    await queueScheduler.close();
-    await worker.close();
-  });
-
-  it('should process delayed jobs in correct order even in case of restart', async function () {
-    this.timeout(5000);
-
-    let worker: Worker;
-    let order = 1;
-
-    let secondQueueScheduler: QueueScheduler;
-    const firstQueueScheduler = new QueueScheduler(queueName, { connection });
-    await firstQueueScheduler.waitUntilReady();
-
-    queue = new Queue(queueName, { connection });
-
-    const processing = new Promise<void>((resolve, reject) => {
-      worker = new Worker(
-        queueName,
-        async (job: Job) => {
-          try {
-            expect(order).to.be.equal(job.data.order);
-
-            if (order === 1) {
-              await firstQueueScheduler.close();
-              secondQueueScheduler = new QueueScheduler(queueName, {
-                connection,
-              });
-              await secondQueueScheduler.waitUntilReady();
-            }
-
-            if (order === 4) {
-              resolve();
-            }
-            order++;
-          } catch (err) {
-            reject(err);
-          }
-        },
-        { connection },
-      );
-    });
-
-    await Promise.all([
-      queue.add('test', { order: 2 }, { delay: 500 }),
-      queue.add('test', { order: 4 }, { delay: 1500 }),
-      queue.add('test', { order: 1 }, { delay: 200 }),
-      queue.add('test', { order: 3 }, { delay: 800 }),
-    ]);
-
-    await processing;
-
-    await queue.close();
-    worker && (await worker.close());
-    secondQueueScheduler && (await secondQueueScheduler.close());
-  });
-
-  it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function () {
-    let order = 1;
-
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
-
-    let worker: Worker;
-    const processing = new Promise((resolve, reject) => {
-      worker = new Worker(
-        queueName,
-        async (job: Job) => {
-          try {
-            expect(order).to.be.equal(job.data.order);
-
-            if (order === 12) {
-              resolve(worker.close());
-            }
-          } catch (err) {
-            reject(err);
-          }
-
-          order++;
-        },
-        { connection },
-      );
-    });
-
-    worker.on('failed', function (job, err) {});
-
-    const now = Date.now();
-    const promises = [];
-    let i = 1;
-    for (i; i <= 12; i++) {
-      promises.push(
-        queue.add(
-          'test',
-          { order: i },
-          {
-            delay: 1000,
-            timestamp: now,
-          },
-        ),
-      );
-    }
-    await Promise.all(promises);
-    await processing;
-    await queueScheduler.close();
-    await worker.close();
   });
 });

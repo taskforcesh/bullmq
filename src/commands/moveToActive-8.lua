@@ -30,25 +30,42 @@
       opts - lockDuration
       opts - limiter
 ]]
-
 local jobId
 local rcall = redis.call
 
 -- Includes
 --- @include "includes/moveJobFromWaitToActive"
+--- @include "includes/getNextDelayedTimestamp"
 
-if(ARGV[3] ~= "") then
-  jobId = ARGV[3]
+if (ARGV[3] ~= "") then
+    jobId = ARGV[3]
 
-  -- clean stalled key
-  rcall("SREM", KEYS[5], jobId)
+    -- clean stalled key
+    rcall("SREM", KEYS[5], jobId)
 else
-  -- no job ID, try non-blocking move from wait to active
-  jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
+    -- Check if there is a delayed job that we can pick
+    jobId = rcall("ZRANGEBYSCORE", KEYS[7], 0, tonumber(ARGV[2]) * 0x1000,
+                  "LIMIT", 0, 1)[1]
+    if jobId then
+        -- move from delay to active
+        rcall("ZREM", KEYS[7], jobId)
+        rcall("LPUSH", KEYS[2], jobId)
+    else
+        -- no job ID, try non-blocking move from wait to active
+        jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
+    end
 end
 
-if jobId then
-  local opts = cmsgpack.unpack(ARGV[4])
+-- If jobId is special ID 0, then there is no job to process
+if jobId == "0" then
+    rcall("LREM", KEYS[2], 1, 0)
+elseif jobId then
+    local opts = cmsgpack.unpack(ARGV[4])
+    return moveJobFromWaitToActive(KEYS, ARGV[1], jobId, ARGV[2], opts)
+end
 
-  return moveJobFromWaitToActive(KEYS, ARGV[1], jobId, ARGV[2], opts)
+-- Return the timestamp for the next delayed job if any.
+local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
+if (nextTimestamp ~= nil) then
+    return nextTimestamp - tonumber(ARGV[2])
 end
