@@ -1308,7 +1308,7 @@ describe('workers', function () {
     });
   });
 
-  it('continue processing after a worker has stalled', async function () {
+  it('continues processing after a worker has stalled', async function () {
     let first = true;
     this.timeout(10000);
 
