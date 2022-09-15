@@ -173,6 +173,43 @@ describe('events', function () {
     await worker.close();
   });
 
+  describe('when concurrency is greater than 1', function () {
+    it('emits drained global event when all jobs have been processed', async function () {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(500);
+        },
+        {
+          concurrency: 4,
+          drainDelay: 500,
+          connection,
+        },
+      );
+
+      const drained = new Promise<void>(resolve => {
+        queueEvents.once('drained', id => {
+          expect(id).to.be.string;
+          resolve();
+        });
+      });
+
+      await queue.addBulk([
+        { name: 'test', data: { foo: 'bar' } },
+        { name: 'test', data: { foo: 'baz' } },
+        { name: 'test', data: { foo: 'bax' } },
+        { name: 'test', data: { foo: 'bay' } },
+      ]);
+
+      await drained;
+
+      const jobs = await queue.getJobCountByTypes('completed');
+      expect(jobs).to.be.equal(4);
+
+      await worker.close();
+    });
+  });
+
   it('emits drained global event only once when worker is idle', async function () {
     const worker = new Worker(
       queueName,

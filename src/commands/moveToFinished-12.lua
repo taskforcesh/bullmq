@@ -167,6 +167,15 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         end
     end
 
+    local waitLen = rcall("LLEN", KEYS[1])
+    if waitLen == 0 then
+        local activeLen = rcall("LLEN", KEYS[2])
+
+        if activeLen == 0 then
+            rcall("XADD", KEYS[4], "*", "event", "drained")
+        end
+    end  
+
     return 0
 else
     return -1
