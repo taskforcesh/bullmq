@@ -1319,7 +1319,7 @@ describe('workers', function () {
     });
   });
 
-  it('continue processing after a worker has stalled', async function () {
+  it('continues processing after a worker has stalled', async function () {
     let first = true;
     this.timeout(10000);
 
@@ -1335,15 +1335,10 @@ describe('workers', function () {
         connection,
         lockDuration: 1000,
         lockRenewTime: 3000, // The lock will not be updated
+        stalledInterval: 100,
       },
     );
     await worker.waitUntilReady();
-
-    const queueScheduler = new QueueScheduler(queueName, {
-      connection,
-      stalledInterval: 100,
-    });
-    await queueScheduler.waitUntilReady();
 
     await queue.add('test', { bar: 'baz' });
 
@@ -1354,7 +1349,6 @@ describe('workers', function () {
     await completed;
 
     await worker.close();
-    await queueScheduler.close();
   });
 
   it('stalled interval cannot be zero', function () {
