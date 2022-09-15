@@ -484,17 +484,18 @@ describe('events', function () {
 
     await waitCompletedEvent;
 
-    const [[id, [_, event]]] = await client.xrevrange(
+    const [[id, [_, drained]], [, [, completed]]] = await client.xrevrange(
       trimmedQueue.keys.events,
       '+',
       '-',
     );
 
-    expect(event).to.be.equal('completed');
+    expect(drained).to.be.equal('drained');
+    expect(completed).to.be.equal('completed');
 
     const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-    expect(eventsLength).to.be.lte(1);
+    expect(eventsLength).to.be.lte(2);
 
     await worker.close();
     await trimmedQueue.close();
