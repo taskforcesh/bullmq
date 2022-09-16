@@ -14,5 +14,6 @@ export interface SandboxedJob<T = any, R = any>
   updateProgress: (value: object | number) => Promise<void>;
   log: (row: any) => void;
   update: (data: any) => Promise<void>;
+  getChildrenValues: <CT = any>() => Promise<{ [jobKey: string]: CT }>;
   returnValue: R;
 }

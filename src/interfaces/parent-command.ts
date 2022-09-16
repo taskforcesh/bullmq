@@ -7,4 +7,5 @@ export enum ParentCommand {
   Log,
   Progress,
   Update,
+  GetChildrenValues,
 }

@@ -1,5 +1,11 @@
 import { promisify } from 'util';
-import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
+import {
+  ChildCommand,
+  JobJson,
+  ParentCommand,
+  ParentMessage,
+  SandboxedJob,
+} from '../interfaces';
 import { childSend } from '../utils';
 
 enum ChildStatus {
@@ -186,6 +192,42 @@ function wrapJob(job: JobJson): SandboxedJob {
         cmd: ParentCommand.Update,
         value: data,
       });
+    },
+    /*
+     * Emulate the real job `getChildrenValues` function.
+     */
+    getChildrenValues: async <CT = any>(): Promise<{
+      [jobKey: string]: CT;
+    }> => {
+      let msgHandler: any;
+
+      const done = new Promise<{
+        [jobKey: string]: CT;
+      }>(resolve => {
+        msgHandler = async (msg: ParentMessage) => {
+          switch (msg.cmd) {
+            case ChildCommand.GetChildrenValues: {
+              resolve(msg.value);
+              break;
+            }
+          }
+        };
+      });
+
+      process.on('message', msgHandler);
+
+      try {
+        childSend(process, {
+          cmd: ParentCommand.GetChildrenValues,
+        });
+
+        const childrenValues = await done;
+        process.removeListener('message', msgHandler);
+
+        return childrenValues;
+      } catch (err) {
+        // TODO: how to handle this error? Is this try/catch needed at all?
+      }
     },
   };
 }

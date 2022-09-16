@@ -39,6 +39,16 @@ const sandbox = <T, R, N extends string>(
           case ParentCommand.Update:
             await job.update(msg.value);
             break;
+          case ParentCommand.GetChildrenValues:
+            {
+              const value = await job.getChildrenValues();
+              await parentSend(child, {
+                cmd: ChildCommand.GetChildrenValues,
+                value,
+              });
+            }
+
+            break;
         }
       };
 
