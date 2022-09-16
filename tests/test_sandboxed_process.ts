@@ -514,7 +514,7 @@ describe('sandboxed process', () => {
   });
 
   it('can get children values by calling getChildrenValues', async () => {
-    let childJobId: string | undefined;
+    const childJobId = 'child-job-id';
     const childProcessFile =
       __dirname + '/fixtures/fixture_processor_getChildrenValues_child.js';
     const parentProcessFile =
@@ -546,28 +546,14 @@ describe('sandboxed process', () => {
       });
     });
 
-    const childCompleting = new Promise<void>((resolve, reject) => {
-      childWorker.on('completed', async (job: Job) => {
-        try {
-          childJobId = job.id;
-          await childWorker.close();
-          resolve();
-        } catch (err) {
-          await childWorker.close();
-          reject(err);
-        }
-      });
-    });
-
     const flow = new FlowProducer({ connection });
     await flow.add({
       name: 'parent-job',
       queueName: parentQueueName,
       opts: { jobId: 'job-id' },
-      children: [{ name: 'child-job', queueName }],
+      children: [{ name: 'child-job', queueName, opts: { jobId: childJobId } }],
     });
 
-    await childCompleting;
     await parentCompleting;
     await parentWorker.close();
     await childWorker.close();
