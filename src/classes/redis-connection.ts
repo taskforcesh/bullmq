@@ -28,11 +28,14 @@ const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
+
+  closing: boolean;
+
   protected _client: RedisClient;
 
   private readonly opts: RedisOptions;
   private initializing: Promise<RedisClient>;
-  private closing: boolean;
+
   private version: string;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;

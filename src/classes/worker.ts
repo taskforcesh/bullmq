@@ -578,7 +578,7 @@ export class Worker<
     // end copy-paste from Bull3
 
     const handleCompleted = async (result: ResultType) => {
-      if (!this.closing) {
+      if (!this.connection.closing) {
         const completed = await job.moveToCompleted(
           result,
           token,
@@ -591,7 +591,7 @@ export class Worker<
     };
 
     const handleFailed = async (err: Error) => {
-      if (!this.closing) {
+      if (!this.connection.closing) {
         try {
           await job.moveToFailed(err, token);
           this.emit('failed', job, err, 'active');
