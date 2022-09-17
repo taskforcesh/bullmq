@@ -91,13 +91,23 @@ export class QueueGetters<
   /**
     Returns the number of jobs waiting to be processed. This includes jobs that are "waiting" or "delayed".
   */
-  count(): Promise<number> {
-    return this.getJobCountByTypes(
+  async count(): Promise<number> {
+    const count = await this.getJobCountByTypes(
       'waiting',
       'paused',
       'delayed',
       'waiting-children',
     );
+
+    // We need to check if last job in waiting list is a "marker" jobId
+    // and compensate for it.
+    const client = await this.client;
+    const jobId = await client.lindex(this.toKey('wait'), 0);
+    if (jobId === '0') {
+      return count - 1;
+    }
+
+    return count;
   }
 
   /**
