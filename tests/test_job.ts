@@ -738,6 +738,7 @@ describe('Job', function () {
       expect(waitingState).to.be.equal('waiting');
 
       const currentJob1 = (await worker.getNextJob(token)) as Job;
+      expect(currentJob1).to.not.be.undefined;
 
       await currentJob1.moveToFailed(new Error('test error'), token, true);
       const failedState = await currentJob1.getState();
