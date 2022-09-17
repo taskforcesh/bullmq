@@ -1348,7 +1348,7 @@ describe('workers', function () {
           connection,
           stalledInterval: 0,
         }),
-    ).to.throw('Stalled interval cannot be zero or undefined');
+    ).to.throw('stalledInterval must be greater than 0');
   });
 
   describe('Concurrency process', () => {
