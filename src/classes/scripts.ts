@@ -255,7 +255,7 @@ export class Scripts {
       queueKeys.stalled,
       queueKeys.limiter,
       queueKeys.delayed,
-      queueKeys.delay,
+      queueKeys.paused,
       queueKeys[target],
       this.queue.toKey(job.id),
       queueKeys.meta,
@@ -704,7 +704,8 @@ export class Scripts {
       queueKeys.stalled,
       queueKeys.limiter,
       queueKeys.delayed,
-      queueKeys.delay,
+      queueKeys.paused,
+      queueKeys.meta,
     ];
 
     const args: (string | number | boolean | Buffer)[] = [

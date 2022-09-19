@@ -99,15 +99,28 @@ export class QueueGetters<
       'waiting-children',
     );
 
-    // We need to check if last job in waiting list is a "marker" jobId
-    // and compensate for it.
-    const client = await this.client;
-    const jobId = await client.lindex(this.toKey('wait'), 0);
-    if (jobId === '0') {
+    if (await this.hasDelayedMarker('wait', 'paused')) {
       return count - 1;
     }
 
     return count;
+  }
+
+  private async hasDelayedMarker(
+    ...types: ('wait' | 'paused')[]
+  ): Promise<boolean> {
+    const client = await this.client;
+
+    const promises = [];
+    if (types.includes('wait')) {
+      promises.push(client.lindex(this.toKey('wait'), 0));
+    }
+
+    if (types.includes('paused')) {
+      promises.push(client.lindex(this.toKey('paused'), 0));
+    }
+
+    return (await Promise.all(promises)).some(value => value === '0');
   }
 
   /**
@@ -145,6 +158,19 @@ export class QueueGetters<
     res.forEach((res, index) => {
       counts[currentTypes[index]] = res[1] || 0;
     });
+
+    if (counts['wait'] > 0) {
+      if (await this.hasDelayedMarker('wait')) {
+        counts['wait']--;
+      }
+    }
+
+    if (counts['paused'] > 0) {
+      if (await this.hasDelayedMarker('paused')) {
+        counts['paused']--;
+      }
+    }
+
     return counts;
   }
 

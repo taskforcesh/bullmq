@@ -17,8 +17,9 @@
       KEYS[6] rate limiter key
       KEYS[7] delayed key
 
-      -- Delay events
-      KEYS[8] delay stream key
+      -- Promote delayed jobs
+      KEYS[8] paused key
+      KEYS[9] meta key
 
       -- Arguments
       ARGV[1] key prefix
@@ -36,24 +37,18 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/getNextDelayedTimestamp"
+--- @include "includes/promoteDelayedJobs"
+
+-- Check if there are delayed jobs that we can move to wait.
+promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[9], KEYS[4], ARGV[1], ARGV[2])
 
 if (ARGV[3] ~= "") then
     jobId = ARGV[3]
-
     -- clean stalled key
     rcall("SREM", KEYS[5], jobId)
 else
-    -- Check if there is a delayed job that we can pick
-    jobId = rcall("ZRANGEBYSCORE", KEYS[7], 0, tonumber(ARGV[2]) * 0x1000,
-                  "LIMIT", 0, 1)[1]
-    if jobId then
-        -- move from delay to active
-        rcall("ZREM", KEYS[7], jobId)
-        rcall("LPUSH", KEYS[2], jobId)
-    else
-        -- no job ID, try non-blocking move from wait to active
-        jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
-    end
+    -- no job ID, try non-blocking move from wait to active
+    jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 end
 
 -- If jobId is special ID 0, then there is no job to process
@@ -61,6 +56,7 @@ if jobId == "0" then
     rcall("LREM", KEYS[2], 1, 0)
 elseif jobId then
     local opts = cmsgpack.unpack(ARGV[4])
+    -- this script is not really moving, it is preparing the job for processing
     return moveJobFromWaitToActive(KEYS, ARGV[1], jobId, ARGV[2], opts)
 end
 

@@ -624,8 +624,7 @@ describe('Job', function () {
       expect(isWaiting).to.be.equal(true);
     });
 
-    // Delayed jobs currently cannot guarantee priority.
-    it.skip('should process a promoted job according to its priority', async function () {
+    it('should process a promoted job according to its priority', async function () {
       this.timeout(10000);
       const worker = new Worker(
         queueName,

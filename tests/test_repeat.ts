@@ -1157,8 +1157,7 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
-  // We do not support priorities with delayed jobs anymore
-  it.skip('should processes delayed jobs by priority', async function () {
+  it('should processes delayed jobs by priority', async function () {
     let currentPriority = 1;
     const nextTick = 1000;
 
@@ -1245,7 +1244,7 @@ describe('repeat', function () {
     );
   });
 
-  it.skip('should emit a waiting event when adding a repeatable job to the waiting list', async function () {
+  it('should emit a waiting event when adding a repeatable job to the waiting list', async function () {
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
     const nextTick = 1 * ONE_SECOND + 500;

@@ -25,8 +25,7 @@ describe('Pause', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  // Skipped since some side effect makes this test fail
-  it.skip('should not process delayed jobs', async function () {
+  it('should not process delayed jobs', async function () {
     this.timeout(5000);
 
     let processed = false;
@@ -47,14 +46,14 @@ describe('Pause', function () {
     expect(counts).to.have.property('waiting', 0);
     expect(counts).to.have.property('delayed', 1);
 
-    await delay(1000);
+    await delay(500);
     if (processed) {
       throw new Error('should not process delayed jobs in paused queue.');
     }
     const counts2 = await queue.getJobCounts('waiting', 'paused', 'delayed');
     expect(counts2).to.have.property('waiting', 0);
-    expect(counts2).to.have.property('paused', 1);
-    expect(counts2).to.have.property('delayed', 0);
+    expect(counts2).to.have.property('paused', 0);
+    expect(counts2).to.have.property('delayed', 1);
 
     await worker.close();
   });

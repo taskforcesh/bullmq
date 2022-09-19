@@ -132,43 +132,51 @@ describe('Delayed jobs', function () {
 
   it('should process delayed jobs concurrently respecting delay', async function () {
     this.timeout(35000);
-    let order = 0;
-    const numJobs = 12;
+    let count = 0;
+    const numJobs = 50;
     const margin = 1.25;
 
-    let processor;
+    let processor1, processor2;
 
-    const processing = new Promise<void>((resolve, reject) => {
-      processor = async (job: Job) => {
-        order++;
+    const createProcessor =
+      (
+        name: string,
+        resolve: (value: void | PromiseLike<void>) => void,
+        reject: (value: void | PromiseLike<void>) => void,
+      ) =>
+      async (job: Job) => {
+        count++;
         try {
-          expect(order).to.be.equal(job.data.order);
+          const delayed = job.processedOn! - job.timestamp;
           expect(
-            job.processedOn! - job.timestamp,
+            delayed,
             'waited at least delay time',
           ).to.be.greaterThanOrEqual(job.delay);
-          expect(
-            job.processedOn! - job.timestamp,
-            'processedOn is not within margin',
-          ).to.be.lessThan(job.delay * margin);
+          expect(delayed, 'processedOn is not within margin').to.be.lessThan(
+            job.delay * margin,
+          );
 
-          if (order === numJobs) {
+          if (count === numJobs) {
             resolve();
           }
         } catch (err) {
           reject(err);
         }
 
-        await delay(1000);
+        await delay(500);
       };
+
+    const processing = new Promise<void>((resolve, reject) => {
+      processor1 = createProcessor('worker 1', resolve, reject);
+      processor2 = createProcessor('worker 2', resolve, reject);
     });
 
-    const worker = new Worker(queueName, processor, {
+    const worker = new Worker(queueName, processor1, {
       connection,
       concurrency: numJobs / 2,
     });
 
-    const worker2 = new Worker(queueName, processor, {
+    const worker2 = new Worker(queueName, processor2, {
       connection,
       concurrency: numJobs / 2,
     });
@@ -192,7 +200,7 @@ describe('Delayed jobs', function () {
 
   it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function () {
     let order = 1;
-    const numJobs = 27;
+    const numJobs = 43;
 
     let worker: Worker;
     const processing = new Promise<void>((resolve, reject) => {

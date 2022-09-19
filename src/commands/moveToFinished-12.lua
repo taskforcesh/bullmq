@@ -15,8 +15,7 @@
       KEYS[6] rate limiter key
       KEYS[7] delayed key
 
-      -- Delay events
-      KEYS[8] delay stream key
+      KEYS[8] paused key
 
       KEYS[9] completed/failed key
       KEYS[10] jobId key
@@ -63,6 +62,7 @@ local rcall = redis.call
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/collectMetrics"
 --- @include "includes/getNextDelayedTimestamp"
+--- @include "includes/promoteDelayedJobs"
 
 local jobIdKey = KEYS[10]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -161,16 +161,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[7] == "1") then
+
         -- Check if there are delayed jobs that can be promoted
-        local jobId = rcall("ZRANGEBYSCORE", KEYS[7], 0, (timestamp + 1) * 0x1000, "LIMIT", 0, 1)[1]
-        if jobId then
-            -- move from delay to active
-            rcall("ZREM", KEYS[7], jobId)
-            rcall("LPUSH", KEYS[2], jobId)
-        else
-            -- move from wait to active
-            jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
-        end
+        promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[11], KEYS[4], ARGV[8], timestamp)
+
+        jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
         if jobId == "0" then
             rcall("LREM", KEYS[2], 1, 0)
@@ -182,7 +177,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
         if (nextTimestamp ~= nil) then
             -- The result is guaranteed to be positive, since the
-            -- ZTANGEBYSCORE command would have return a job otherwise.
+            -- ZRANGEBYSCORE command would have return a job otherwise.
             return nextTimestamp - timestamp
         end
     end
