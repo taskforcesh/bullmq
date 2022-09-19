@@ -31,7 +31,9 @@
 -- Check if we need to check for stalled jobs now.
 
 local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey, stalledCheckKey, metaKey, pausedKey, eventStreamKey, maxStalledJobCount, queueKeyPrefix, timestamp, maxCheckTime)
-    if rcall("EXISTS", stalledCheckKey) == 1 then return {{}, {}} end
+    if rcall("EXISTS", stalledCheckKey) == 1 then 
+        return {{}, {}}
+    end
 
     rcall("SET", stalledCheckKey, timestamp, "PX", maxCheckTime)
 
@@ -49,66 +51,72 @@ local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey, stall
 
         -- Remove from active list
         for i, jobId in ipairs(stalling) do
-            local jobKey = queueKeyPrefix .. jobId
 
-            -- Check that the lock is also missing, then we can handle this job as really stalled.
-            if (rcall("EXISTS", jobKey .. ":lock") == 0) then
-                --  Remove from the active queue.
+            if jobId == '0' then
+                -- If the jobId is a delay marker ID we just remove it.
                 local removed = rcall("LREM", activeKey, 1, jobId)
+            else
+                local jobKey = queueKeyPrefix .. jobId
 
-                if (removed > 0) then
-                    -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
-                    local stalledCount =
-                        rcall("HINCRBY", jobKey, "stalledCounter", 1)
-                    if (stalledCount > MAX_STALLED_JOB_COUNT) then
-                        local rawOpts = rcall("HGET", jobKey, "opts")
-                        local opts = cjson.decode(rawOpts)
-                        local removeOnFailType = type(opts["removeOnFail"])
-                        rcall("ZADD", failedKey, timestamp, jobId)
-                        local failedReason =
-                            "job stalled more than allowable limit"
-                        rcall("HMSET", jobKey, "failedReason", failedReason,
-                              "finishedOn", timestamp)
-                        rcall("XADD", eventStreamKey, "*", "event", "failed", "jobId",
-                              jobId, 'prev', 'active', 'failedReason',
-                              failedReason)
+                -- Check that the lock is also missing, then we can handle this job as really stalled.
+                if (rcall("EXISTS", jobKey .. ":lock") == 0) then
+                    --  Remove from the active queue.
+                    local removed = rcall("LREM", activeKey, 1, jobId)
 
-                        if removeOnFailType == "number" then
-                            removeJobsByMaxCount(opts["removeOnFail"], failedKey,
-                                                 queueKeyPrefix)
-                        elseif removeOnFailType == "boolean" then
-                            if opts["removeOnFail"] then
-                                removeJob(jobId, false, queueKeyPrefix)
-                                rcall("ZREM", failedKey, jobId)
+                    if (removed > 0) then
+                        -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
+                        local stalledCount =
+                            rcall("HINCRBY", jobKey, "stalledCounter", 1)
+                        if (stalledCount > MAX_STALLED_JOB_COUNT) then
+                            local rawOpts = rcall("HGET", jobKey, "opts")
+                            local opts = cjson.decode(rawOpts)
+                            local removeOnFailType = type(opts["removeOnFail"])
+                            rcall("ZADD", failedKey, timestamp, jobId)
+                            local failedReason =
+                                "job stalled more than allowable limit"
+                            rcall("HMSET", jobKey, "failedReason", failedReason,
+                                "finishedOn", timestamp)
+                            rcall("XADD", eventStreamKey, "*", "event", "failed", "jobId",
+                                jobId, 'prev', 'active', 'failedReason',
+                                failedReason)
+
+                            if removeOnFailType == "number" then
+                                removeJobsByMaxCount(opts["removeOnFail"], failedKey,
+                                                    queueKeyPrefix)
+                            elseif removeOnFailType == "boolean" then
+                                if opts["removeOnFail"] then
+                                    removeJob(jobId, false, queueKeyPrefix)
+                                    rcall("ZREM", failedKey, jobId)
+                                end
+                            elseif removeOnFailType ~= "nil" then
+                                local maxAge = opts["removeOnFail"]["age"]
+                                local maxCount = opts["removeOnFail"]["count"]
+
+                                if maxAge ~= nil then
+                                    removeJobsByMaxAge(timestamp, maxAge, failedKey,
+                                                    queueKeyPrefix)
+                                end
+
+                                if maxCount ~= nil and maxCount > 0 then
+                                    removeJobsByMaxCount(maxCount, failedKey, queueKeyPrefix)
+                                end
                             end
-                        elseif removeOnFailType ~= "nil" then
-                            local maxAge = opts["removeOnFail"]["age"]
-                            local maxCount = opts["removeOnFail"]["count"]
 
-                            if maxAge ~= nil then
-                                removeJobsByMaxAge(timestamp, maxAge, failedKey,
-                                                   queueKeyPrefix)
-                            end
+                            table.insert(failed, jobId)
+                        else
+                            local target = getTargetQueueList(metaKey, waitKey,
+                                                            pausedKey)
 
-                            if maxCount ~= nil and maxCount > 0 then
-                                removeJobsByMaxCount(maxCount, failedKey, queueKeyPrefix)
-                            end
+                            -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
+                            rcall("RPUSH", target, jobId)
+                            rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId",
+                                jobId, 'prev', 'active')
+
+                            -- Emit the stalled event
+                            rcall("XADD", eventStreamKey, "*", "event", "stalled", "jobId",
+                                jobId)
+                            table.insert(stalled, jobId)
                         end
-
-                        table.insert(failed, jobId)
-                    else
-                        local target = getTargetQueueList(metaKey, waitKey,
-                                                          pausedKey)
-
-                        -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                        rcall("RPUSH", target, jobId)
-                        rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId",
-                              jobId, 'prev', 'active')
-
-                        -- Emit the stalled event
-                        rcall("XADD", eventStreamKey, "*", "event", "stalled", "jobId",
-                              jobId)
-                        table.insert(stalled, jobId)
                     end
                 end
             end
