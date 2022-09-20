@@ -3,7 +3,7 @@ import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { Queue, QueueEvents, QueueScheduler, Worker } from '../src/classes';
+import { Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
@@ -65,9 +65,6 @@ describe('Rate Limiter', function () {
 
     const numJobs = 10;
 
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
-
     const worker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
@@ -108,16 +105,12 @@ describe('Rate Limiter', function () {
 
     await result;
     await worker.close();
-    await queueScheduler.close();
   });
 
   it('should obey the rate limit with max value greater than 1', async function () {
     this.timeout(20000);
 
     const numJobs = 10;
-
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
 
     const worker = new Worker(queueName, async () => {}, {
       connection,
@@ -159,7 +152,6 @@ describe('Rate Limiter', function () {
 
     await result;
     await worker.close();
-    await queueScheduler.close();
   });
 
   it('should obey the rate limit with workerDelay enabled', async function () {
@@ -167,9 +159,6 @@ describe('Rate Limiter', function () {
 
     const numJobs = 4;
     const startTime = new Date().getTime();
-
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
 
     const worker = new Worker(queueName, async () => {}, {
       connection,
@@ -209,7 +198,6 @@ describe('Rate Limiter', function () {
 
     await result;
     await worker.close();
-    await queueScheduler.close();
   });
 
   it.skip('should obey priority', async function () {
@@ -235,8 +223,6 @@ describe('Rate Limiter', function () {
     }
 
     const priorityBucketsBefore = { ...priorityBuckets };
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
 
     const worker = new Worker(
       queueName,
@@ -291,6 +277,5 @@ describe('Rate Limiter', function () {
 
     await result;
     await worker.close();
-    await queueScheduler.close();
   });
 });

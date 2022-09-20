@@ -66,8 +66,6 @@ jobs:
         redis-version: [7-alpine]
         include:
           - node-version: 'lts/*'
-            redis-version: 5-alpine
-          - node-version: 'lts/*'
             redis-version: 6-alpine
 
     steps:

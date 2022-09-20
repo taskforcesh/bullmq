@@ -259,7 +259,8 @@ describe('Cleaner', () => {
             const client = await queue.client;
             const keys = await client.keys(`bull:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(3);
+            // Expected keys: meta, id, stalled-check and events
+            expect(keys.length).to.be.eql(4);
 
             const jobs = await queue.getJobCountByTypes('completed');
             expect(jobs).to.be.equal(0);
@@ -306,12 +307,13 @@ describe('Cleaner', () => {
 
             const client = await queue.client;
             const keys = await client.keys(`bull:${queue.name}:*`);
-            expect(keys.length).to.be.eql(5);
+            // Expected keys: meta, id, stalled-check, events, failed and job
+            expect(keys.length).to.be.eql(6);
 
             const parentState = await tree.job.getState();
             expect(parentState).to.be.equal('failed');
 
-            const job = queue.getJob(tree.job.id);
+            const job = queue.getJob(tree.job.id!);
             expect(job).to.not.be.undefined;
 
             const jobs = await queue.getJobCountByTypes('completed');
@@ -368,7 +370,8 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`bull:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(6);
+          // Expected keys: meta, id, stalled-check, events, failed and 2 jobs
+          expect(keys.length).to.be.eql(7);
 
           const jobs = await queue.getJobCountByTypes('completed');
           expect(jobs).to.be.equal(2);

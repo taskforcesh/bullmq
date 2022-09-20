@@ -28,11 +28,15 @@ const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
+  static recommendedMinimumVersion = '6.2.0';
+
+  closing: boolean;
+
   protected _client: RedisClient;
 
   private readonly opts: RedisOptions;
   private initializing: Promise<RedisClient>;
-  private closing: boolean;
+
   private version: string;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
@@ -181,6 +185,18 @@ export class RedisConnection extends EventEmitter {
       ) {
         throw new Error(
           `Redis version needs to be greater than ${RedisConnection.minimumVersion} Current: ${this.version}`,
+        );
+      }
+
+      if (
+        isRedisVersionLowerThan(
+          this.version,
+          RedisConnection.recommendedMinimumVersion,
+        )
+      ) {
+        console.warn(
+          `It is highly recommeded to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
+           Current: ${this.version}`,
         );
       }
     }

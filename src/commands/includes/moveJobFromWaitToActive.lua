@@ -12,9 +12,6 @@
     keys[6] rate limiter key
     keys[7] delayed key
 
-    -- Delay events
-    keys[8] delay stream key
-
     opts - token - lock token
     opts - lockDuration
     opts - limiter
@@ -57,7 +54,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
       -- put job into delayed queue
       rcall("ZADD", keys[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
       rcall("XADD", keys[4], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
-      rcall("XADD", keys[8], "*", "nextTimestamp", timestamp);
+
       -- remove from active queue
       rcall("LREM", keys[2], 1, jobId)
 

@@ -6,13 +6,7 @@ import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import {
-  Job,
-  Queue,
-  QueueScheduler,
-  QueueEvents,
-  Worker,
-} from '../src/classes';
+import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/interfaces';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
 
@@ -567,9 +561,6 @@ describe('Job', function () {
     it('can change delay of a delayed job', async function () {
       this.timeout(8000);
 
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
-
       const worker = new Worker(queueName, async () => {}, { connection });
       await worker.waitUntilReady();
 
@@ -601,7 +592,6 @@ describe('Job', function () {
 
       await completing;
 
-      await queueScheduler.close();
       await worker.close();
     });
 
@@ -635,9 +625,6 @@ describe('Job', function () {
     });
 
     it('should process a promoted job according to its priority', async function () {
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
-
       this.timeout(10000);
       const worker = new Worker(
         queueName,
@@ -676,8 +663,6 @@ describe('Job', function () {
       await add('4', 1);
 
       await done;
-
-      await queueScheduler.close();
     });
 
     it('should not promote a job that is not delayed', async () => {
@@ -753,6 +738,7 @@ describe('Job', function () {
       expect(waitingState).to.be.equal('waiting');
 
       const currentJob1 = (await worker.getNextJob(token)) as Job;
+      expect(currentJob1).to.not.be.undefined;
 
       await currentJob1.moveToFailed(new Error('test error'), token, true);
       const failedState = await currentJob1.getState();

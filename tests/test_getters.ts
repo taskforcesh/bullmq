@@ -6,13 +6,7 @@ import { after } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
-import {
-  FlowProducer,
-  Queue,
-  QueueEvents,
-  QueueScheduler,
-  Worker,
-} from '../src/classes';
+import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', function () {
@@ -51,60 +45,10 @@ describe('Jobs getters', function () {
     });
   });
 
-  describe('.getQueueSchedulers', () => {
-    it('gets all queueSchedulers for this queue', async function () {
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
-      await delay(10);
-
-      const queueSchedulers = await queue.getQueueSchedulers();
-      expect(queueSchedulers).to.have.length(1);
-
-      const queueScheduler2 = new QueueScheduler(queueName, { connection });
-      await queueScheduler2.waitUntilReady();
-      await delay(10);
-
-      const nextQueueSchedulers = await queue.getQueueSchedulers();
-      expect(nextQueueSchedulers).to.have.length(2);
-
-      await queueScheduler.close();
-      await queueScheduler2.close();
-    });
-
-    describe('when sharing connection', () => {
-      it('gets all queueSchedulers for this queue', async function () {
-        const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
-        const queueScheduler = new QueueScheduler(queueName, {
-          connection: ioredisConnection,
-        });
-        await queueScheduler.waitUntilReady();
-        await delay(10);
-
-        const queueSchedulers = await queue.getQueueSchedulers();
-        expect(queueSchedulers).to.have.length(1);
-
-        const queueScheduler2 = new QueueScheduler(queueName, {
-          connection: ioredisConnection,
-        });
-        await queueScheduler2.waitUntilReady();
-        await delay(10);
-
-        const nextQueueSchedulers = await queue.getQueueSchedulers();
-        expect(nextQueueSchedulers).to.have.length(2);
-
-        await queueScheduler.close();
-        await queueScheduler2.close();
-        await ioredisConnection.quit();
-      });
-    });
-  });
-
   describe('.getWorkers', () => {
     it('gets all workers for this queue only', async function () {
       const worker = new Worker(queueName, async () => {}, { connection });
-      const queueScheduler = new QueueScheduler(queueName, { connection });
       await worker.waitUntilReady();
-      await queueScheduler.waitUntilReady();
       await delay(10);
 
       const workers = await queue.getWorkers();
@@ -119,7 +63,6 @@ describe('Jobs getters', function () {
 
       await worker.close();
       await worker2.close();
-      await queueScheduler.close();
     });
 
     it('gets only workers related only to one queue', async function () {
@@ -148,9 +91,7 @@ describe('Jobs getters', function () {
         const worker = new Worker(queueName, async () => {}, {
           connection: ioredisConnection,
         });
-        const queueScheduler = new QueueScheduler(queueName, { connection });
         await worker.waitUntilReady();
-        await queueScheduler.waitUntilReady();
         await delay(10);
 
         const workers = await queue.getWorkers();
@@ -167,7 +108,6 @@ describe('Jobs getters', function () {
 
         await worker.close();
         await worker2.close();
-        await queueScheduler.close();
         await ioredisConnection.quit();
       });
     });

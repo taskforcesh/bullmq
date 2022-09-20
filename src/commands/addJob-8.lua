@@ -23,7 +23,6 @@
       KEYS[6] 'priority'
       KEYS[7] 'completed'
       KEYS[8] events stream key
-      KEYS[9] delay stream key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -61,6 +60,7 @@ local parentData
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/trimEvents"
+--- @include "includes/getNextDelayedTimestamp"
 
 if parentKey ~= nil then
   if rcall("EXISTS", parentKey) ~= 1 then
@@ -139,7 +139,15 @@ elseif (delayedTimestamp ~= 0) then
     rcall("ZADD", KEYS[5], timestamp, jobId)
     rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay",
           delayedTimestamp)
-    rcall("XADD", KEYS[9], "*", "nextTimestamp", delayedTimestamp)
+    -- If wait list is empty, and this delayed job is the next one to be processed,
+    -- then we need to signal the workers by adding a dummy job (jobId 0) to the wait list.
+    local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
+    if rcall("LLEN", target) == 0 then
+      local nextTimestamp = getNextDelayedTimestamp(KEYS[5])
+      if delayedTimestamp < nextTimestamp then
+        rcall("LPUSH", target, 0)
+      end
+    end
 else
     local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
 
