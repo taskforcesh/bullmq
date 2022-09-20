@@ -371,6 +371,34 @@ describe('sandboxed process', () => {
     await worker.close();
   });
 
+  it('should process and update data', async () => {
+    const processFile = __dirname + '/fixtures/fixture_processor_update.js';
+
+    const worker = new Worker(queueName, processFile, {
+      connection,
+      drainDelay: 1,
+    });
+
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, value: any) => {
+        try {
+          expect(job.data).to.be.eql({ foo: 'baz' });
+          expect(value).to.be.eql('result');
+          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+          expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await queue.add('test', { bar: 'foo' });
+
+    await completing;
+    await worker.close();
+  });
+
   describe('when env variables are provided', () => {
     it('shares env variables', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_env.js';

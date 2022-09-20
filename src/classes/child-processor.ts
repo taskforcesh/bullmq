@@ -178,5 +178,14 @@ function wrapJob(job: JobJson): SandboxedJob {
         value: row,
       });
     },
+    /*
+     * Emulate the real job `update` function.
+     */
+    update: async (data: any) => {
+      childSend(process, {
+        cmd: ParentCommand.Update,
+        value: data,
+      });
+    },
   };
 }

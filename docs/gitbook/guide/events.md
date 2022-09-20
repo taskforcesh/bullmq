@@ -32,7 +32,7 @@ myWorker.on('failed', (job: Job) => {
 });
 ```
 
-The events above are local for the workers that actually completed the jobs, however, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [QueueEvents](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queueevents.md) class:
+The events above are local for the workers that actually completed the jobs, however, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [QueueEvents](../api/bullmq.queueevents.md) class:
 
 ```typescript
 import { QueueEvents } from 'bullmq';
@@ -51,9 +51,9 @@ queueEvents.on('progress', ({ jobId, data }: { jobId: string; data: number | obj
 The QueueEvents class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
 
 {% hint style="danger" %}
-The event stream is auto-trimmed so that its size does not grow too much, by default it is ~10.000 events, but this can be configured with the `streams.events.maxLen` option.
+The event stream is auto-trimmed so that its size does not grow too much, by default it is \~10.000 events, but this can be configured with the `streams.events.maxLen` option.
 {% endhint %}
 
 ## Read more:
 
-- 💡 [Queue Events API Reference](https://github.com/taskforcesh/bullmq/blob/master/docs/gitbook/api/bullmq.queueevents.md)
+- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/QueueEvents.html)
