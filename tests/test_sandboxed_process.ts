@@ -331,7 +331,8 @@ describe('sandboxed process', () => {
   });
 
   it('should process and update progress', async () => {
-    const processFile = __dirname + '/fixtures/fixture_processor_progress.js';
+    const processFile =
+      __dirname + '/fixtures/fixture_processor_update_progress.js';
 
     const worker = new Worker(queueName, processFile, {
       connection,
@@ -349,11 +350,6 @@ describe('sandboxed process', () => {
           expect(progresses).to.be.eql([10, 27, 78, 100]);
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
           expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
-          const logs = await queue.getJobLogs(job.id);
-          expect(logs).to.be.eql({
-            logs: ['10', '27', '78', '100'],
-            count: 4,
-          });
           resolve();
         } catch (err) {
           reject(err);
