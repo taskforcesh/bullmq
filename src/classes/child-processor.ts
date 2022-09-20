@@ -137,34 +137,11 @@ function wrapJob(job: JobJson): SandboxedJob {
     });
   };
 
-  const progress = (progress?: number | object) => {
-    console.warn(
-      [
-        'BullMQ: DEPRECATION WARNING! progress function in sandboxed processor is deprecated. This will',
-        'be removed in the next major release, you should use updateProgress method instead.',
-      ].join(' '),
-    );
-
-    if (progress) {
-      return updateProgress(progress);
-    } else {
-      // Return the last known progress value.
-      return progressValue;
-    }
-  };
-
   return {
     ...job,
     data: JSON.parse(job.data || '{}'),
     opts: job.opts,
     returnValue: JSON.parse(job.returnvalue || '{}'),
-    /**
-     * @deprecated Use updateProgress instead.
-     * Emulate the real job `progress` function.
-     * If no argument is given, it behaves as a sync getter.
-     * If an argument is given, it behaves as an async setter.
-     */
-    progress,
     /*
      * Emulate the real job `updateProgress` function, should works as `progress` function.
      */
