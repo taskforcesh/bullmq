@@ -123,8 +123,7 @@ end
 rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
   "timestamp", timestamp, "delay", delay, "priority", priority, unpack(optionalValues))
 
--- TODO: do not send data and opts to the event added (for performance reasons).
-rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3], "data", ARGV[2], "opts", jsonOpts)
+rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3])
 
 -- Check if job is delayed
 local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0

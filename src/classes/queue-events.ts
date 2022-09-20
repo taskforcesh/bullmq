@@ -26,10 +26,7 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * This event is triggered when a job is created.
    */
-  added: (
-    args: { jobId: string; name: string; data: string; opts: string },
-    id: string,
-  ) => void;
+  added: (args: { jobId: string; name: string }, id: string) => void;
 
   /**
    * Listen to 'cleaned' event.
