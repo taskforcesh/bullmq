@@ -319,11 +319,9 @@ describe('events', function () {
     const testData = { foo: 'bar' };
 
     const added = new Promise<void>(resolve => {
-      queueEvents.once('added', ({ jobId, name, data, opts }) => {
+      queueEvents.once('added', ({ jobId, name }) => {
         expect(jobId).to.be.equal('1');
         expect(name).to.be.equal(testName);
-        expect(data).to.be.equal(JSON.stringify(testData));
-        expect(JSON.parse(opts)).to.be.deep.equal({ attempts: 0, delay: 0 });
         resolve();
       });
 
