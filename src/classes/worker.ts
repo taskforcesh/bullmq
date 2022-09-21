@@ -189,7 +189,6 @@ export class Worker<
       lockDuration: 30000,
       maxStalledCount: 1,
       stalledInterval: 30000,
-      autorun: true,
       runRetryDelay: 15000,
       ...this.opts,
     };
@@ -235,10 +234,6 @@ export class Worker<
         ).bind(this);
       }
       this.timerManager = new TimerManager();
-
-      if (this.opts.autorun) {
-        this.run().catch(error => this.emit('error', error));
-      }
     }
   }
 

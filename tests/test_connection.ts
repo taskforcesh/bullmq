@@ -99,6 +99,8 @@ describe('connection', () => {
       // error event has to be observed or the exception will bubble up
     });
 
+    worker.run();
+
     const workerClient = await worker.client;
     const queueClient = await queue.client;
 
@@ -161,6 +163,8 @@ describe('connection', () => {
         await queue.add('test', { foo: 'bar' });
       }
     });
+
+    worker.run();
 
     await queue.waitUntilReady();
     await queue.add('test', { foo: 'bar' });

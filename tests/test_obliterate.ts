@@ -17,6 +17,7 @@ describe('Obliterate', function () {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -57,6 +58,8 @@ describe('Obliterate', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await job.waitUntilFinished(queueEvents);
 
@@ -133,6 +136,8 @@ describe('Obliterate', function () {
           const failing = new Promise(resolve => {
             worker.on('failed', resolve);
           });
+
+          worker.run();
 
           const flow = new FlowProducer({ connection });
           await flow.add({
@@ -305,7 +310,7 @@ describe('Obliterate', function () {
     let first = true;
     const worker = new Worker(
       queue.name,
-      async job => {
+      async () => {
         if (first) {
           first = false;
           throw new Error('failed first');
@@ -315,6 +320,8 @@ describe('Obliterate', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await job.waitUntilFinished(queueEvents);
 
@@ -340,7 +347,7 @@ describe('Obliterate', function () {
     let first = true;
     const worker = new Worker(
       queue.name,
-      async job => {
+      async () => {
         if (first) {
           first = false;
           throw new Error('failed first');
@@ -350,6 +357,8 @@ describe('Obliterate', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await job.waitUntilFinished(queueEvents);
     await queue.obliterate({ force: true });
@@ -384,6 +393,7 @@ describe('Obliterate', function () {
 
   it('should remove job logs', async () => {
     const queueEvents = new QueueEvents(queue.name, { connection });
+    queueEvents.run();
 
     const worker = new Worker(
       queue.name,
@@ -394,6 +404,8 @@ describe('Obliterate', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', {});
 
@@ -417,7 +429,7 @@ describe('Obliterate', function () {
     let fail = false;
     const worker = new Worker(
       queue.name,
-      async job => {
+      async () => {
         if (fail) {
           throw new Error('failed job');
         }
@@ -425,6 +437,8 @@ describe('Obliterate', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await lastCompletedJob.waitUntilFinished(queueEvents);
 

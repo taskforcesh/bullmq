@@ -18,6 +18,7 @@ describe('Rate Limiter Groups', function () {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -214,6 +215,8 @@ describe('Rate Limiter Groups', function () {
       });
     });
 
+    worker.run();
+
     const jobs = Array.from(Array(numJobs).keys()).map((_, index) => ({
       name: 'rate test',
       data: { accountId: index % numGroups },
@@ -286,6 +289,8 @@ describe('Rate Limiter Groups', function () {
         reject(err);
       });
     });
+
+    worker.run();
 
     for (let i = 0; i < numJobs; i++) {
       await rateLimitedQueue.add('rate test', {});

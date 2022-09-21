@@ -85,6 +85,9 @@ describe('flows', () => {
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
+    parentWorker.run();
+    childrenWorker.run();
+
     const flow = new FlowProducer({ connection });
     const tree = await flow.add({
       name: 'parent-job',
@@ -162,6 +165,8 @@ describe('flows', () => {
       });
       const delayTime = 1000;
       await parentWorker.waitUntilReady();
+
+      parentWorker.run();
 
       const flow = new FlowProducer({ connection });
       const tree = await flow.add({
@@ -259,6 +264,9 @@ describe('flows', () => {
       });
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
+
+      parentWorker.run();
+      childrenWorker.run();
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
@@ -388,6 +396,10 @@ describe('flows', () => {
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
       await grandchildrenWorker.waitUntilReady();
+
+      parentWorker.run();
+      childrenWorker.run();
+      grandchildrenWorker.run();
 
       const completed = new Promise<void>(resolve => {
         parentWorker.on('completed', async (job: Job) => {
@@ -545,6 +557,9 @@ describe('flows', () => {
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
+      parentWorker.run();
+      childrenWorker.run();
+
       const flow = new FlowProducer({ connection });
       const tree = await flow.add({
         name: 'parent-job',
@@ -637,6 +652,8 @@ describe('flows', () => {
           },
         ],
       });
+
+      worker.run();
 
       await completing1;
 
@@ -735,6 +752,9 @@ describe('flows', () => {
       });
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
+
+      parentWorker.run();
+      childrenWorker.run();
 
       const flow = new FlowProducer({ prefix: '{bull}', connection });
       const tree = await flow.add({
@@ -847,6 +867,10 @@ describe('flows', () => {
       await childrenWorker.waitUntilReady();
       await grandChildrenWorker.waitUntilReady();
 
+      parentWorker.run();
+      childrenWorker.run();
+      grandChildrenWorker.run();
+
       const flow = new FlowProducer({ connection });
       const tree = await flow.add({
         name: 'parent-job',
@@ -956,6 +980,10 @@ describe('flows', () => {
     });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
+
+    parentWorker.run();
+    childrenWorker.run();
+    queueEvents.run();
 
     const completed: { [index: string]: number[] } = {};
 
@@ -1100,6 +1128,9 @@ describe('flows', () => {
     });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
+
+    parentWorker.run();
+    childrenWorker.run();
 
     const otherValues = Array.from(Array(72).keys()).map(() => ({
       name,
@@ -1319,6 +1350,9 @@ describe('flows', () => {
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
+    parentWorker.run();
+    childrenWorker.run();
+
     const waitOnComplete = new Promise<void>((resolve, reject) => {
       parentWorker.on('completed', async job => {
         try {
@@ -1386,6 +1420,8 @@ describe('flows', () => {
     const parentWorker = new Worker(parentQueueName, parentProcessor, {
       connection,
     });
+
+    parentWorker.run();
 
     const flow = new FlowProducer({ connection });
     const tree = await flow.add({
@@ -1461,6 +1497,9 @@ describe('flows', () => {
     const childrenWorker = new Worker(queueName, childrenProcessor, {
       connection,
     });
+
+    parentWorker.run();
+    childrenWorker.run();
 
     const flow = new FlowProducer({ connection });
     const tree = await flow.add({
@@ -1582,6 +1621,9 @@ describe('flows', () => {
       connection,
     });
 
+    parentWorker.run();
+    childrenWorker.run();
+
     const flow = new FlowProducer({ connection });
     const tree = await flow.add({
       name: 'root-job',
@@ -1652,6 +1694,8 @@ describe('flows', () => {
       connection,
     });
 
+    childrenWorker.run();
+
     const flow = new FlowProducer({ connection });
     const tree = await flow.add({
       name: 'parent-job',
@@ -1708,6 +1752,9 @@ describe('flows', () => {
     const parentWorker = new Worker(parentQueueName, parentProcessor, {
       connection,
     });
+
+    parentWorker.run();
+    childrenWorker.run();
 
     const parentQueue = new Queue(parentQueueName, { connection });
     await parentQueue.pause();
@@ -1858,6 +1905,9 @@ describe('flows', () => {
       connection,
     });
 
+    parentWorker.run();
+    childrenWorker.run();
+
     await processingChildren;
     await childrenWorker.close();
 
@@ -1989,6 +2039,9 @@ describe('flows', () => {
         );
         await parentWorker.waitUntilReady();
         await childrenWorker.waitUntilReady();
+
+        parentWorker.run();
+        childrenWorker.run();
 
         const completing = new Promise(resolve => {
           parentWorker.on('completed', resolve);

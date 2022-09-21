@@ -30,9 +30,11 @@ describe('Delayed jobs', function () {
 
     const queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
 
     const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
+    worker.run();
 
     const timestamp = Date.now();
     let publishHappened = false;
@@ -62,7 +64,6 @@ describe('Delayed jobs', function () {
           const delayedJobs = await queue.getDelayed();
           expect(delayedJobs.length).to.be.equal(0);
           expect(publishHappened).to.be.eql(true);
-          await worker.close();
           resolve();
         } catch (err) {
           reject(err);
@@ -116,6 +117,8 @@ describe('Delayed jobs', function () {
     const worker = new Worker(queueName, processor, { connection });
 
     worker.on('failed', function (job, err) {});
+
+    worker.run();
 
     const jobs = Array.from(Array(numJobs).keys()).map(index => ({
       name: 'test',
@@ -184,6 +187,9 @@ describe('Delayed jobs', function () {
     await worker.waitUntilReady();
     await worker2.waitUntilReady();
 
+    worker.run();
+    worker2.run();
+
     const jobs = Array.from(Array(numJobs).keys()).map(index => ({
       name: 'test',
       data: { order: numJobs - index },
@@ -227,6 +233,8 @@ describe('Delayed jobs', function () {
       });
     });
 
+    worker.run();
+
     const now = Date.now();
     const promises: Promise<Job<any, any, string>>[] = [];
     let i = 1;
@@ -244,60 +252,6 @@ describe('Delayed jobs', function () {
     }
     await Promise.all(promises);
     await processing;
-    await worker!.close();
-  });
-
-  describe('when autorun option is provided as false', function () {
-    it('should process a delayed job only after delayed time', async function () {
-      const delay = 1000;
-      const queueEvents = new QueueEvents(queueName, { connection });
-      await queueEvents.waitUntilReady();
-
-      const worker = new Worker(queueName, async () => {}, {
-        connection,
-        autorun: false,
-      });
-      await worker.waitUntilReady();
-
-      const timestamp = Date.now();
-      let publishHappened = false;
-
-      const delayed = new Promise<void>(resolve => {
-        queueEvents.on('delayed', () => {
-          publishHappened = true;
-          resolve();
-        });
-      });
-
-      const completed = new Promise<void>((resolve, reject) => {
-        queueEvents.on('completed', async function () {
-          try {
-            expect(Date.now() > timestamp + delay);
-            const jobs = await queue.getWaiting();
-            expect(jobs.length).to.be.equal(0);
-
-            const delayedJobs = await queue.getDelayed();
-            expect(delayedJobs.length).to.be.equal(0);
-            expect(publishHappened).to.be.eql(true);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      const job = await queue.add('test', { delayed: 'foobar' }, { delay });
-
-      expect(job.id).to.be.ok;
-      expect(job.data.delayed).to.be.eql('foobar');
-      expect(job.opts.delay).to.be.eql(delay);
-
-      worker.run();
-
-      await delayed;
-      await completed;
-      await queueEvents.close();
-      await worker.close();
-    });
+    await worker.close();
   });
 });

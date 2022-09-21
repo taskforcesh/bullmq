@@ -18,6 +18,7 @@ describe('Cleaner', () => {
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
     await queue.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -55,6 +56,8 @@ describe('Cleaner', () => {
       );
     });
 
+    worker.run();
+
     await queue.addBulk([
       { name: 'test', data: { some: 'data' } },
       { name: 'test', data: { some: 'data' } },
@@ -82,6 +85,8 @@ describe('Cleaner', () => {
   it('should only remove a job outside of the grace period', async () => {
     const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
@@ -121,7 +126,7 @@ describe('Cleaner', () => {
         await delay(100);
         throw new Error('It failed');
       },
-      { connection, autorun: false },
+      { connection },
     );
     await worker.waitUntilReady();
 
@@ -236,6 +241,8 @@ describe('Cleaner', () => {
             );
             await worker.waitUntilReady();
 
+            worker.run();
+
             const completing = new Promise(resolve => {
               queueEvents.on('completed', after(4, resolve));
             });
@@ -289,6 +296,8 @@ describe('Cleaner', () => {
             const failing = new Promise(resolve => {
               worker.on('failed', resolve);
             });
+
+            worker.run();
 
             const flow = new FlowProducer({ connection });
             const tree = await flow.add({
@@ -350,6 +359,8 @@ describe('Cleaner', () => {
           const failing = new Promise(resolve => {
             worker.on('failed', resolve);
           });
+
+          worker.run();
 
           const flow = new FlowProducer({ connection });
           const tree = await flow.add({
@@ -499,6 +510,8 @@ describe('Cleaner', () => {
             },
           );
 
+          worker.run();
+
           await new Promise<void>(resolve => {
             worker.on('failed', async () => {
               await queue.clean(0, 0, 'failed');
@@ -639,6 +652,8 @@ describe('Cleaner', () => {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     const client = new IORedis();
 

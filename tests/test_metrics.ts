@@ -29,6 +29,7 @@ describe('metrics', function () {
     repeat = new Repeat(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -155,6 +156,8 @@ describe('metrics', function () {
       });
     });
 
+    worker.run();
+
     for (let i = 0; i < numJobs; i++) {
       await queue.add('test', { index: i });
     }
@@ -245,6 +248,8 @@ describe('metrics', function () {
       });
     });
 
+    worker.run();
+
     for (let i = 0; i < numJobs; i++) {
       await queue.add('test', { index: i });
     }
@@ -309,6 +314,8 @@ describe('metrics', function () {
         }
       });
     });
+
+    worker.run();
 
     for (let i = 0; i < numJobs; i++) {
       await queue.add('test', { index: i });
@@ -378,6 +385,8 @@ describe('metrics', function () {
         }
       });
     });
+
+    worker.run();
 
     for (let i = 0; i < numJobs; i++) {
       await queue.add('test', { index: i });

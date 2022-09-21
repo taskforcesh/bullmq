@@ -7,7 +7,6 @@ import { v4 } from 'uuid';
 import {
   Queue,
   QueueEvents,
-  QueueScheduler,
   Job,
   UnrecoverableError,
   Worker,
@@ -28,6 +27,7 @@ describe('workers', function () {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -51,6 +51,8 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -85,6 +87,8 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -142,6 +146,8 @@ describe('workers', function () {
       const worker = new Worker(queueName2, processor, { connection });
       await worker.waitUntilReady();
 
+      worker.run();
+
       for (let i = 1; i <= maxJobs; i++) {
         await queue1.add('test', { foo: 'bar', num: i });
       }
@@ -175,6 +181,8 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
 
@@ -242,6 +250,8 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
+      worker.run();
+
       const job = await queue.add(
         'test',
         { foo: 'bar' },
@@ -286,6 +296,8 @@ describe('workers', function () {
         { connection },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       const job = await newQueue.add('test', { foo: 'bar' });
       expect(job.id).to.be.ok;
@@ -350,6 +362,8 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
+      worker.run();
+
       const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8];
 
       const jobIds = await Promise.all(
@@ -396,6 +410,8 @@ describe('workers', function () {
       });
       await worker.waitUntilReady();
 
+      worker.run();
+
       const newQueue = new Queue(queueName, {
         defaultJobOptions: {
           removeOnFail: true,
@@ -433,6 +449,8 @@ describe('workers', function () {
         throw Error('error');
       });
       await worker.waitUntilReady();
+
+      worker.run();
 
       const newQueue = new Queue(queueName, {
         defaultJobOptions: {
@@ -500,6 +518,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
+    worker.run();
+
     await queue.pause();
     // Add a series of jobs in a predictable order
     const jobs = [
@@ -565,6 +585,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
+    worker.run();
+
     // wait for all jobs to enter the queue and then start processing
     await Promise.all([normalPriority, mediumPriority, highPriority]);
 
@@ -595,6 +617,8 @@ describe('workers', function () {
 
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
+
+    worker.run();
 
     for (let i = 1; i <= maxJobs; i++) {
       await queue.add('test', { foo: 'bar', num: i });
@@ -671,72 +695,22 @@ describe('workers', function () {
     });
   });
 
-  describe('when autorun option is provided as false', function () {
-    it('processes several jobs serially using process option as false', async () => {
-      let counter = 1;
+  describe('when run method is called when worker is running', function () {
+    it('throws error', async () => {
       const maxJobs = 10;
-
-      let processor;
-      const processing = new Promise<void>((resolve, reject) => {
-        processor = async (job: Job) => {
-          try {
-            expect(job.data.num).to.be.equal(counter);
-            expect(job.data.foo).to.be.equal('bar');
-            if (counter === maxJobs) {
-              resolve();
-            }
-            counter++;
-          } catch (err) {
-            reject(err);
-          }
-        };
-      });
-
-      const worker = new Worker(queueName, processor, { autorun: false });
+      const worker = new Worker(queueName, async () => {});
       await worker.waitUntilReady();
+      worker.run();
 
       for (let i = 1; i <= maxJobs; i++) {
         await queue.add('test', { foo: 'bar', num: i });
       }
 
-      worker.run();
+      await expect(worker.run()).to.be.rejectedWith(
+        'Worker is already running.',
+      );
 
-      await processing;
       await worker.close();
-    });
-
-    describe('when process function is not defined', function () {
-      it('throws error', async () => {
-        const worker = new Worker(queueName, undefined, { autorun: false });
-        await worker.waitUntilReady();
-
-        await expect(worker.run()).to.be.rejectedWith(
-          'No process function is defined.',
-        );
-
-        await worker.close();
-      });
-    });
-
-    describe('when run method is called when worker is running', function () {
-      it('throws error', async () => {
-        const maxJobs = 10;
-        const worker = new Worker(queueName, async () => {}, {
-          autorun: false,
-        });
-        await worker.waitUntilReady();
-        worker.run();
-
-        for (let i = 1; i <= maxJobs; i++) {
-          await queue.add('test', { foo: 'bar', num: i });
-        }
-
-        await expect(worker.run()).to.be.rejectedWith(
-          'Worker is already running.',
-        );
-
-        await worker.close();
-      });
     });
   });
 
@@ -766,6 +740,8 @@ describe('workers', function () {
 
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
+
+    worker.run();
 
     await processing;
 
@@ -799,6 +775,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, processor);
     await worker.waitUntilReady();
 
+    worker.run();
+
     await processing;
 
     await worker.close();
@@ -817,6 +795,8 @@ describe('workers', function () {
     const worker = new Worker(queueName, async () => {});
     await worker.waitUntilReady();
 
+    worker.run();
+
     await new Promise(resolve => {
       const resolveAfterAllJobs = after(jobs.length, resolve);
       worker.on('completed', resolveAfterAllJobs);
@@ -831,6 +811,8 @@ describe('workers', function () {
       return 37;
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -862,6 +844,8 @@ describe('workers', function () {
     });
     await worker.waitUntilReady();
 
+    worker.run();
+
     const waiting = new Promise<void>((resolve, reject) => {
       queueEvents.on('completed', async data => {
         try {
@@ -890,6 +874,8 @@ describe('workers', function () {
       return 37;
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -925,6 +911,8 @@ describe('workers', function () {
     });
     await worker.waitUntilReady();
 
+    worker.run();
+
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
@@ -946,6 +934,8 @@ describe('workers', function () {
     });
 
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -976,6 +966,8 @@ describe('workers', function () {
 
     await worker.waitUntilReady();
 
+    worker.run();
+
     const addedJob = await queue.add('test', { foo: 'bar' });
 
     const anotherWorker = new Worker(queueName, async () => {
@@ -1004,6 +996,8 @@ describe('workers', function () {
       throw jobError;
     });
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -1034,6 +1028,8 @@ describe('workers', function () {
     );
     await worker.waitUntilReady();
 
+    worker.run();
+
     const waiting = new Promise<void>((resolve, reject) => {
       worker.on('failed', () => {
         resolve();
@@ -1061,6 +1057,8 @@ describe('workers', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -1096,6 +1094,8 @@ describe('workers', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     const failing = new Promise<void>((resolve, reject) => {
       worker.once('failed', async (job, err) => {
@@ -1148,6 +1148,8 @@ describe('workers', function () {
     );
     await worker.waitUntilReady();
 
+    worker.run();
+
     let count = 1;
     const completing = new Promise<void>((resolve, reject) => {
       worker.once('completed', async (job, result) => {
@@ -1190,6 +1192,8 @@ describe('workers', function () {
       { connection },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     const job = await queue.add('test', { foo: 'bar' });
     expect(job.id).to.be.ok;
@@ -1246,6 +1250,8 @@ describe('workers', function () {
     );
     await worker.waitUntilReady();
 
+    worker.run();
+
     const job = await queue.add('test', { bar: 'baz' });
 
     const errorMessage = `Missing lock for job ${job.id}. failed`;
@@ -1278,6 +1284,8 @@ describe('workers', function () {
         },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       const client = await queue.client;
 
@@ -1329,6 +1337,8 @@ describe('workers', function () {
     );
     await worker.waitUntilReady();
 
+    worker.run();
+
     await queue.add('test', { bar: 'baz' });
 
     const completed = new Promise(resolve => {
@@ -1369,6 +1379,8 @@ describe('workers', function () {
         },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       await queue.add('test', {});
       await queue.add('test', {});
@@ -1415,6 +1427,8 @@ describe('workers', function () {
         },
       );
       await worker.waitUntilReady();
+
+      worker.run();
 
       const waiting = new Promise((resolve, reject) => {
         worker.on('completed', after(8, resolve));
@@ -1470,6 +1484,8 @@ describe('workers', function () {
             },
           );
           await worker.waitUntilReady();
+
+          worker.run();
 
           const waiting1 = new Promise((resolve, reject) => {
             worker.on('completed', after(8, resolve));
@@ -1542,6 +1558,8 @@ describe('workers', function () {
           );
           await worker.waitUntilReady();
 
+          worker.run();
+
           let processed = 0;
           const waiting1 = new Promise<void>((resolve, reject) => {
             worker.on('completed', async () => {
@@ -1613,6 +1631,8 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
+      worker.run();
+
       const waiting = new Promise((resolve, reject) => {
         const cb = after(8, resolve);
         worker.on('completed', cb);
@@ -1639,6 +1659,8 @@ describe('workers', function () {
         );
 
         await worker.waitUntilReady();
+
+        worker.run();
 
         const job = await queue.add(
           'test',
@@ -1672,6 +1694,8 @@ describe('workers', function () {
         const worker = new Worker(queueName, async () => {}, { connection });
 
         await worker.waitUntilReady();
+
+        worker.run();
 
         const completing = new Promise<void>((resolve, reject) => {
           queueEvents.on('retries-exhausted', async () => {
@@ -1718,6 +1742,8 @@ describe('workers', function () {
 
         await worker.waitUntilReady();
 
+        worker.run();
+
         const job = await queue.add(
           'test',
           { foo: 'bar' },
@@ -1755,6 +1781,8 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
+      worker.run();
+
       await queue.add(
         'test',
         { foo: 'bar' },
@@ -1786,6 +1814,8 @@ describe('workers', function () {
       );
 
       await worker.waitUntilReady();
+
+      worker.run();
 
       const job = await queue.add(
         'test',
@@ -1828,6 +1858,8 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
+      worker.run();
+
       const start = Date.now();
       await queue.add(
         'test',
@@ -1867,6 +1899,8 @@ describe('workers', function () {
         );
 
         await worker.waitUntilReady();
+
+        worker.run();
 
         const start = Date.now();
         const job = await queue.add(
@@ -1944,6 +1978,8 @@ describe('workers', function () {
 
         await worker.waitUntilReady();
 
+        worker.run();
+
         const start = Date.now();
         await queue.add(
           'test',
@@ -2008,6 +2044,8 @@ describe('workers', function () {
           );
 
           await worker.waitUntilReady();
+
+          worker.run();
 
           const start = Date.now();
           await queue.add('test', { step: Step.Initial });
@@ -2114,6 +2152,9 @@ describe('workers', function () {
           await childrenWorker.waitUntilReady();
           await worker.waitUntilReady();
 
+          worker.run();
+          childrenWorker.run();
+
           await parentQueue.add(
             'test',
             { step: Step.Initial },
@@ -2152,6 +2193,8 @@ describe('workers', function () {
       );
 
       await worker.waitUntilReady();
+
+      worker.run();
 
       const start = Date.now();
       await queue.add(
@@ -2202,6 +2245,8 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
+      worker.run();
+
       const start = Date.now();
       await queue.add(
         'test',
@@ -2247,6 +2292,8 @@ describe('workers', function () {
           },
         },
       );
+
+      worker.run();
 
       await queue.add(
         'test',
@@ -2299,6 +2346,8 @@ describe('workers', function () {
           },
         },
       );
+
+      worker.run();
 
       const start = Date.now();
       await queue.add(
@@ -2358,6 +2407,8 @@ describe('workers', function () {
         },
       );
 
+      worker.run();
+
       const start = Date.now();
       await queue.add(
         'test',
@@ -2402,6 +2453,9 @@ describe('workers', function () {
           },
         },
       );
+
+      worker.run();
+
       const start = Date.now();
       await queue.add(
         'test',
@@ -2440,6 +2494,8 @@ describe('workers', function () {
       );
 
       await worker.waitUntilReady();
+
+      worker.run();
 
       const failing = new Promise<void>(resolve => {
         worker.on('failed', async (job, err) => {
@@ -2496,6 +2552,8 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
+      worker.run();
+
       const failing = new Promise<void>(resolve => {
         worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
@@ -2548,6 +2606,8 @@ describe('workers', function () {
 
       await worker.waitUntilReady();
 
+      worker.run();
+
       const failing = new Promise<void>(resolve => {
         worker.on('failed', async (job, err) => {
           expect(job.data.foo).to.equal('bar');
@@ -2599,6 +2659,8 @@ describe('workers', function () {
       );
 
       await worker.waitUntilReady();
+
+      worker.run();
 
       const activating = new Promise(resolve => {
         worker.on('active', resolve);
@@ -3028,6 +3090,8 @@ describe('workers', function () {
       { connection, stalledInterval: 10 },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.add('test', { foo: 'bar' });
 

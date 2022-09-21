@@ -411,6 +411,8 @@ describe('queues', function () {
       );
       await worker.waitUntilReady();
 
+      worker.run();
+
       let order = 0;
       const failing = new Promise<void>(resolve => {
         worker.on('failed', job => {
@@ -467,6 +469,8 @@ describe('queues', function () {
         );
         await worker.waitUntilReady();
 
+        worker.run();
+
         const completing1 = new Promise(resolve => {
           worker.on('completed', after(jobCount, resolve));
         });
@@ -515,6 +519,8 @@ describe('queues', function () {
           { connection },
         );
         await worker.waitUntilReady();
+
+        worker.run();
 
         let order = 0;
         let timestamp;
@@ -581,6 +587,8 @@ describe('queues', function () {
           { connection },
         );
         await worker.waitUntilReady();
+
+        worker.run();
 
         let order = 0;
         const failing = new Promise<void>(resolve => {

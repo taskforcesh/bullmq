@@ -28,6 +28,7 @@ describe('Jobs getters', function () {
     it('gets all queueEvents for this queue', async function () {
       const queueEvent = new QueueEvents(queueName, { connection });
       await queueEvent.waitUntilReady();
+      queueEvent.run();
       await delay(10);
 
       const queueEvents = await queue.getQueueEvents();
@@ -35,6 +36,7 @@ describe('Jobs getters', function () {
 
       const queueEvent2 = new QueueEvents(queueName, { connection });
       await queueEvent2.waitUntilReady();
+      queueEvent2.run();
       await delay(10);
 
       const nextQueueEvents = await queue.getQueueEvents();
@@ -49,6 +51,7 @@ describe('Jobs getters', function () {
     it('gets all workers for this queue only', async function () {
       const worker = new Worker(queueName, async () => {}, { connection });
       await worker.waitUntilReady();
+      worker.run();
       await delay(10);
 
       const workers = await queue.getWorkers();
@@ -56,6 +59,7 @@ describe('Jobs getters', function () {
 
       const worker2 = new Worker(queueName, async () => {}, { connection });
       await worker2.waitUntilReady();
+      worker2.run();
       await delay(10);
 
       const nextWorkers = await queue.getWorkers();
@@ -72,6 +76,8 @@ describe('Jobs getters', function () {
       const worker2 = new Worker(queueName2, async () => {}, { connection });
       await worker.waitUntilReady();
       await worker2.waitUntilReady();
+      worker.run();
+      worker2.run();
 
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
@@ -92,6 +98,7 @@ describe('Jobs getters', function () {
           connection: ioredisConnection,
         });
         await worker.waitUntilReady();
+        worker.run();
         await delay(10);
 
         const workers = await queue.getWorkers();
@@ -101,6 +108,7 @@ describe('Jobs getters', function () {
           connection: ioredisConnection,
         });
         await worker2.waitUntilReady();
+        worker2.run();
         await delay(10);
 
         const nextWorkers = await queue.getWorkers();
@@ -175,6 +183,8 @@ describe('Jobs getters', function () {
     });
     const worker = new Worker(queueName, processor, { connection });
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
     await processing;
 
@@ -214,6 +224,8 @@ describe('Jobs getters', function () {
       });
     });
 
+    worker.run();
+
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { baz: 'qux' });
 
@@ -247,6 +259,8 @@ describe('Jobs getters', function () {
 
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { baz: 'qux' });
+
+    worker.run();
 
     await failed;
   });
@@ -285,6 +299,8 @@ describe('Jobs getters', function () {
       queue.add('test', { bar: 'qux' }),
       queue.add('test', { baz: 'xuq' }),
     ]);
+
+    worker.run();
 
     await failed;
   });
@@ -340,6 +356,8 @@ describe('Jobs getters', function () {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
     queue.add('test', { foo: 3 });
@@ -376,6 +394,8 @@ describe('Jobs getters', function () {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
     queue.add('test', { foo: 3 });
@@ -404,6 +424,8 @@ describe('Jobs getters', function () {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
     queue.add('test', { foo: 3 });
@@ -429,6 +451,8 @@ describe('Jobs getters', function () {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
     queue.add('test', { foo: 3 });
@@ -453,6 +477,8 @@ describe('Jobs getters', function () {
         }
       }),
     );
+
+    worker.run();
 
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
@@ -487,6 +513,8 @@ describe('Jobs getters', function () {
         }
       }),
     );
+
+    worker.run();
 
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
@@ -529,6 +557,8 @@ describe('Jobs getters', function () {
       }),
     );
 
+    worker.run();
+
     queue.add('test', { foo: 1 });
     queue.add('test', { foo: 2 });
   });
@@ -562,6 +592,8 @@ describe('Jobs getters', function () {
           resolve();
         });
       });
+
+      worker.run();
 
       const flow = new FlowProducer({ connection });
       await flow.add({

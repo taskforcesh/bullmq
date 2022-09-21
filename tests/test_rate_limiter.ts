@@ -18,6 +18,7 @@ describe('Rate Limiter', function () {
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+    queueEvents.run();
   });
 
   afterEach(async function () {
@@ -46,6 +47,8 @@ describe('Rate Limiter', function () {
     await worker.waitUntilReady();
 
     queueEvents.on('failed', () => {});
+
+    worker.run();
 
     const jobs = Array.from(Array(numJobs).keys()).map(() => ({
       name: 'test',
@@ -96,6 +99,8 @@ describe('Rate Limiter', function () {
       });
     });
 
+    worker.run();
+
     const startTime = new Date().getTime();
     const jobs = Array.from(Array(numJobs).keys()).map(() => ({
       name: 'rate test',
@@ -142,6 +147,8 @@ describe('Rate Limiter', function () {
         reject(err);
       });
     });
+
+    worker.run();
 
     const startTime = new Date().getTime();
     const jobs = Array.from(Array(numJobs).keys()).map(() => ({
@@ -191,6 +198,8 @@ describe('Rate Limiter', function () {
         reject(err);
       });
     });
+
+    worker.run();
 
     for (let i = 0; i < numJobs; i++) {
       await queue.add('rate test', {});
@@ -253,6 +262,8 @@ describe('Rate Limiter', function () {
       },
     );
     await worker.waitUntilReady();
+
+    worker.run();
 
     await queue.resume();
 

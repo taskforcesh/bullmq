@@ -28,6 +28,8 @@ describe('stalled jobs', function () {
     const queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
 
+    queueEvents.run();
+
     const concurrency = 4;
 
     const worker = new Worker(
@@ -48,6 +50,8 @@ describe('stalled jobs', function () {
     });
 
     await worker.waitUntilReady();
+
+    worker.run();
 
     await Promise.all([
       queue.add('test', { bar: 'baz' }),
@@ -80,6 +84,8 @@ describe('stalled jobs', function () {
       );
     });
 
+    worker2.run();
+
     await allStalled;
     await allStalledGlobalEvent;
 
@@ -98,6 +104,8 @@ describe('stalled jobs', function () {
 
     const queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
+
+    queueEvents.run();
 
     const concurrency = 4;
 
@@ -120,6 +128,8 @@ describe('stalled jobs', function () {
     });
 
     await worker.waitUntilReady();
+
+    worker.run();
 
     await Promise.all([
       queue.add('test', { bar: 'baz' }),
@@ -159,6 +169,8 @@ describe('stalled jobs', function () {
       });
     });
 
+    worker2.run();
+
     await allFailed;
     await globalAllFailed;
 
@@ -172,6 +184,8 @@ describe('stalled jobs', function () {
 
       const queueEvents = new QueueEvents(queueName, { connection });
       await queueEvents.waitUntilReady();
+
+      queueEvents.run();
 
       const concurrency = 4;
 
@@ -194,6 +208,8 @@ describe('stalled jobs', function () {
       });
 
       await worker.waitUntilReady();
+
+      worker.run();
 
       await Promise.all([
         queue.add('test', { bar: 'baz' }, { removeOnFail: true }),
@@ -233,6 +249,8 @@ describe('stalled jobs', function () {
         });
       });
 
+      worker2.run();
+
       await allFailed;
       await globalAllFailed;
 
@@ -264,6 +282,8 @@ describe('stalled jobs', function () {
         });
 
         await worker.waitUntilReady();
+
+        worker.run();
 
         const jobs = Array.from(Array(4).keys()).map(index => ({
           name: 'test',
@@ -302,6 +322,8 @@ describe('stalled jobs', function () {
           );
         });
 
+        worker2.run();
+
         await allFailed;
 
         await worker2.close();
@@ -332,6 +354,8 @@ describe('stalled jobs', function () {
         });
 
         await worker.waitUntilReady();
+
+        worker.run();
 
         const jobs = Array.from(Array(4).keys()).map(index => ({
           name: 'test',
@@ -370,6 +394,8 @@ describe('stalled jobs', function () {
           );
         });
 
+        worker2.run();
+
         await allFailed;
 
         await worker2.close();
@@ -403,6 +429,8 @@ describe('stalled jobs', function () {
         });
 
         await worker.waitUntilReady();
+
+        worker.run();
 
         const jobs = Array.from(Array(4).keys()).map(index => ({
           name: 'test',
@@ -443,6 +471,8 @@ describe('stalled jobs', function () {
           });
         });
 
+        worker2.run();
+
         await allFailed;
 
         await worker2.close();
@@ -473,6 +503,8 @@ describe('stalled jobs', function () {
       worker.on('active', after(concurrency, resolve));
     });
 
+    worker.run();
+
     const jobs = Array.from(Array(numJobs).keys()).map(index => ({
       name: 'test',
       data: { bar: `baz-${index}` },
@@ -491,6 +523,8 @@ describe('stalled jobs', function () {
     const allStalled = new Promise(resolve =>
       worker2.on('stalled', after(concurrency, resolve)),
     );
+
+    worker2.run();
 
     await delay(500); // Wait for jobs to become active
 

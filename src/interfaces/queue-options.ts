@@ -79,10 +79,6 @@ export interface RepeatBaseOptions extends QueueBaseOptions {
  */
 export interface QueueEventsOptions extends QueueBaseOptions {
   /**
-   * Condition to start listening to events at instance creation.
-   */
-  autorun?: boolean;
-  /**
    * Last event Id. If provided it is possible to continue
    * consuming events from a known Id instead of from the last
    * produced event.
