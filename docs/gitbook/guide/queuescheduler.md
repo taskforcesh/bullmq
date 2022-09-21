@@ -1,5 +1,11 @@
 # QueueScheduler
 
+
+
+{% hint style="danger" %}
+From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore, so the information below is only valid for older versions.
+{% endhint %}
+
 The QueueScheduler is a helper class used to manage stalled and delayed jobs for a given Queue.
 
 ```typescript
@@ -25,4 +31,4 @@ It is ok to have as many QueueScheduler instances as you want, just keep in mind
 
 ## Read more:
 
-- 💡 [Queue Scheduler API Reference](https://api.docs.bullmq.io/classes/QueueScheduler.html)
+* 💡 [Queue Scheduler API Reference](https://api.docs.bullmq.io/classes/QueueScheduler.html)
