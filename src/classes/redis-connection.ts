@@ -252,14 +252,27 @@ export class RedisConnection extends EventEmitter {
 
   private async getRedisVersion() {
     const doc = await this._client.info();
-    const prefix = 'redis_version:';
+    const redisPrefix = 'redis_version:';
+    const maxMemoryPolicyPrefix = 'maxmemory_policy:';
     const lines = doc.split('\r\n');
+    let redisVersion;
 
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].indexOf(prefix) === 0) {
-        return lines[i].substr(prefix.length);
+      if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
+        const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
+        if (maxMemoryPolicy !== 'noeviction') {
+          throw new Error(
+            `Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
+          );
+        }
+      }
+
+      if (lines[i].indexOf(redisPrefix) === 0) {
+        redisVersion = lines[i].substr(redisPrefix.length);
       }
     }
+
+    return redisVersion;
   }
 
   get redisVersion(): string {
