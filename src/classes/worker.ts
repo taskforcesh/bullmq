@@ -119,6 +119,14 @@ export interface WorkerListener<
    * This event is triggered when the queue is resumed.
    */
   resumed: () => void;
+
+  /**
+   * Listen to 'stalled' event.
+   *
+   * This event is triggered when a job has stalled and
+   * has been moved back to the wait list.
+   */
+  stalled: (jobId: string, prev: string) => void;
 }
 
 /**
@@ -134,6 +142,7 @@ export class Worker<
   NameType extends string = string,
 > extends QueueBase {
   readonly opts: WorkerOptions;
+  readonly id: string;
 
   private drained: boolean;
   private waiting = false;
@@ -170,10 +179,16 @@ export class Worker<
       Connection,
     );
 
+    if (this.opts.stalledInterval <= 0) {
+      throw new Error('stalledInterval must be greater than 0');
+    }
+
     this.opts = {
       drainDelay: 5,
       concurrency: 1,
       lockDuration: 30000,
+      maxStalledCount: 1,
+      stalledInterval: 30000,
       autorun: true,
       runRetryDelay: 15000,
       ...this.opts,
@@ -181,6 +196,8 @@ export class Worker<
 
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
+
+    this.id = v4();
 
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
@@ -314,12 +331,6 @@ export class Worker<
             return;
           }
 
-          // IDEA, How to store metadata associated to a worker.
-          // create a key from the worker ID associated to the given name.
-          // We keep a hash table bull:myqueue:workers where
-          // every worker is a hash key workername:workerId with json holding
-          // metadata of the worker. The worker key gets expired every 30 seconds or so, we renew the worker metadata.
-          //
           try {
             await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
           } catch (err) {
@@ -327,6 +338,8 @@ export class Worker<
               throw err;
             }
           }
+
+          this.runStalledJobsCheck();
 
           const processing = (this.processing = new Map());
 
@@ -530,8 +543,6 @@ export class Worker<
       return;
     }
 
-    // code from Bull3..
-
     //
     // There are two cases to take into consideration regarding locks.
     // 1) The lock renewer fails to renew a lock, this should make this job
@@ -571,25 +582,29 @@ export class Worker<
     // end copy-paste from Bull3
 
     const handleCompleted = async (result: ResultType) => {
-      const completed = await job.moveToCompleted(
-        result,
-        token,
-        fetchNextCallback() && !(this.closing || this.paused),
-      );
-      this.emit('completed', job, result, 'active');
-      const [jobData, jobId] = completed || [];
-      return this.nextJobFromJobData(jobData, jobId);
+      if (!this.connection.closing) {
+        const completed = await job.moveToCompleted(
+          result,
+          token,
+          fetchNextCallback() && !(this.closing || this.paused),
+        );
+        this.emit('completed', job, result, 'active');
+        const [jobData, jobId] = completed || [];
+        return this.nextJobFromJobData(jobData, jobId);
+      }
     };
 
     const handleFailed = async (err: Error) => {
-      try {
-        await job.moveToFailed(err, token);
-        this.emit('failed', job, err, 'active');
-      } catch (err) {
-        this.emit('error', <Error>err);
-        // It probably means that the job has lost the lock before completion
-        // The QueueScheduler will (or already has) moved the job back
-        // to the waiting list (as stalled)
+      if (!this.connection.closing) {
+        try {
+          await job.moveToFailed(err, token);
+          this.emit('failed', job, err, 'active');
+        } catch (err) {
+          this.emit('error', <Error>err);
+          // It probably means that the job has lost the lock before completion
+          // The QueueScheduler will (or already has) moved the job back
+          // to the waiting list (as stalled)
+        }
       }
     };
 
@@ -737,5 +752,49 @@ export class Worker<
         }
       }
     } while (retry);
+  }
+
+  private async runStalledJobsCheck() {
+    try {
+      if (!this.closing) {
+        await this.checkConnectionError(() => this.moveStalledJobsToWait());
+        setTimeout(async () => {
+          this.runStalledJobsCheck();
+        }, this.opts.stalledInterval);
+      }
+    } catch (err) {
+      this.emit('error', <Error>err);
+    }
+  }
+
+  private async moveStalledJobsToWait() {
+    const chunkSize = 50;
+    const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
+
+    stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
+
+    const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
+    for (let i = 0; i < failed.length; i++) {
+      jobPromises.push(
+        Job.fromId<DataType, ResultType, NameType>(this, failed[i]),
+      );
+
+      if (i % chunkSize === 0) {
+        this.notifyFailedJobs(await Promise.all(jobPromises));
+        jobPromises.length = 0;
+      }
+    }
+    this.notifyFailedJobs(await Promise.all(jobPromises));
+  }
+
+  private notifyFailedJobs(failedJobs: Job<DataType, ResultType, NameType>[]) {
+    failedJobs.forEach((job: Job<DataType, ResultType, NameType>) =>
+      this.emit(
+        'failed',
+        job,
+        new Error('job stalled more than allowable limit'),
+        'active',
+      ),
+    );
   }
 }

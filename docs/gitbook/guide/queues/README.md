@@ -34,6 +34,10 @@ The job will now wait **at** **least** 5 seconds before it is processed.
 In order for delay jobs to work you need to have at least one _QueueScheduler_ somewhere in your infrastructure. Read more [here](../queuescheduler.md).
 {% endhint %}
 
+{% hint style="danger" %}
+From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore.
+{% endhint %}
+
 There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remaining of this guide for more information regarding these options.
 
 ## Read more:

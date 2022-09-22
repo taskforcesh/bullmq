@@ -73,7 +73,7 @@ import { default as IORedis } from 'ioredis';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueScheduler, Worker } from '../src/classes';
+import { FlowProducer, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('queues', function () {
@@ -324,9 +324,6 @@ describe('queues', function () {
         const added = [];
         const delayed = [];
 
-        const queueScheduler = new QueueScheduler(queueName, { connection });
-        await queueScheduler.waitUntilReady();
-
         for (let i = 1; i <= maxJobs; i++) {
           added.push(queue.add('test', { foo: 'bar', num: i }));
         }
@@ -344,7 +341,6 @@ describe('queues', function () {
         await queue.drain(false);
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).to.be.eql(50);
-        await queueScheduler.close();
       });
     });
 
@@ -354,9 +350,6 @@ describe('queues', function () {
         const maxDelayedJobs = 50;
         const added = [];
         const delayed = [];
-
-        const queueScheduler = new QueueScheduler(queueName, { connection });
-        await queueScheduler.waitUntilReady();
 
         for (let i = 1; i <= maxJobs; i++) {
           added.push(queue.add('test', { foo: 'bar', num: i }));
@@ -375,7 +368,6 @@ describe('queues', function () {
         await queue.drain(true);
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).to.be.eql(0);
-        await queueScheduler.close();
       });
     });
 

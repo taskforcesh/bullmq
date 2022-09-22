@@ -190,7 +190,7 @@ describe('scriptLoader', () => {
       const fixture = __dirname + '/fixtures/scripts/fixture_path_mapped.lua';
       const cache = new Map<string, ScriptMetadata>();
       await loader.loadCommand(fixture, cache);
-      const info = cache.get(path.resolve(fixture));
+      const info = cache.get(path.basename(path.resolve(fixture), '.lua'));
 
       expect(info).to.not.eql(undefined);
       expect(info.includes.length).to.eql(1);
@@ -207,7 +207,7 @@ describe('scriptLoader', () => {
       const cache = new Map<string, ScriptMetadata>();
 
       await loader.loadCommand(fixture, cache);
-      const info = cache.get(path.resolve(fixture));
+      const info = cache.get(path.basename(path.resolve(fixture), '.lua'));
 
       expect(info).to.not.eql(undefined);
       expect(info.includes.length).to.eql(2);

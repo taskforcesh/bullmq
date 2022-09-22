@@ -3,7 +3,7 @@ import { default as IORedis } from 'ioredis';
 import { after, last } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { Queue, QueueEvents, QueueScheduler, Worker } from '../src/classes';
+import { Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter Groups', function () {
@@ -159,9 +159,6 @@ describe('Rate Limiter Groups', function () {
     const numJobs = 20;
     const startTime = Date.now();
 
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
-
     const rateLimitedQueue = new Queue(queueName, {
       connection,
       limiter: {
@@ -226,15 +223,11 @@ describe('Rate Limiter Groups', function () {
     await running;
     await rateLimitedQueue.close();
     await worker.close();
-    await queueScheduler.close();
   });
 
   it('should not obey rate limit by grouping if groupKey is missing', async function () {
     const numJobs = 20;
     const startTime = Date.now();
-
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
 
     const rateLimitedQueue = new Queue(queueName, {
       connection,
@@ -301,6 +294,5 @@ describe('Rate Limiter Groups', function () {
     await running;
     await rateLimitedQueue.close();
     await worker.close();
-    await queueScheduler.close();
   });
 });

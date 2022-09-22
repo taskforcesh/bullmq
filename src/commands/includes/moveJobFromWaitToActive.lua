@@ -12,9 +12,6 @@
     keys[6] rate limiter key
     keys[7] delayed key
 
-    -- Delay events
-    keys[8] delay stream key
-
     opts - token - lock token
     opts - lockDuration
     opts - limiter
@@ -57,7 +54,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
       -- put job into delayed queue
       rcall("ZADD", keys[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
       rcall("XADD", keys[4], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
-      rcall("XADD", keys[8], "*", "nextTimestamp", timestamp);
+
       -- remove from active queue
       rcall("LREM", keys[2], 1, jobId)
 
@@ -72,20 +69,16 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
 
   local jobKey = keyPrefix .. jobId
   local lockKey = jobKey .. ':lock'
-  
+
   -- get a lock
   if opts['token'] ~= "0" then
     rcall("SET", lockKey, opts['token'], "PX", opts['lockDuration'])
   end
-  
+
   rcall("ZREM", keys[3], jobId) -- remove from priority
   rcall("XADD", keys[4], "*", "event", "active", "jobId", jobId, "prev", "waiting")
   rcall("HSET", jobKey, "processedOn", processedOn)
   rcall("HINCRBY", jobKey, "attemptsMade", 1)
-  local len = rcall("LLEN", keys[1])
-  if len == 0 then
-    rcall("XADD", keys[4], "*", "event", "drained");
-  end
 
   return {rcall("HGETALL", jobKey), jobId} -- get job data
 end

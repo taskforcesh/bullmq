@@ -1241,15 +1241,10 @@ describe('workers', function () {
         connection,
         lockDuration: 1000,
         lockRenewTime: 3000, // The lock will not be updated
+        stalledInterval: 100,
       },
     );
     await worker.waitUntilReady();
-
-    const queueScheduler = new QueueScheduler(queueName, {
-      connection,
-      stalledInterval: 100,
-    });
-    await queueScheduler.waitUntilReady();
 
     const job = await queue.add('test', { bar: 'baz' });
 
@@ -1264,7 +1259,6 @@ describe('workers', function () {
     await workerError;
 
     await worker.close();
-    await queueScheduler.close();
   });
 
   describe('when retrying jobs', () => {
@@ -1285,10 +1279,6 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
-      const queueScheduler = new QueueScheduler(queueName, {
-        connection,
-      });
-      await queueScheduler.waitUntilReady();
       const client = await queue.client;
 
       const job = await queue.add(
@@ -1315,11 +1305,10 @@ describe('workers', function () {
       expect(token).to.be.null;
 
       await worker.close();
-      await queueScheduler.close();
     });
   });
 
-  it('continue processing after a worker has stalled', async function () {
+  it('continues processing after a worker has stalled', async function () {
     let first = true;
     this.timeout(10000);
 
@@ -1335,15 +1324,10 @@ describe('workers', function () {
         connection,
         lockDuration: 1000,
         lockRenewTime: 3000, // The lock will not be updated
+        stalledInterval: 100,
       },
     );
     await worker.waitUntilReady();
-
-    const queueScheduler = new QueueScheduler(queueName, {
-      connection,
-      stalledInterval: 100,
-    });
-    await queueScheduler.waitUntilReady();
 
     await queue.add('test', { bar: 'baz' });
 
@@ -1354,18 +1338,17 @@ describe('workers', function () {
     await completed;
 
     await worker.close();
-    await queueScheduler.close();
   });
 
   it('stalled interval cannot be zero', function () {
     this.timeout(10000);
     expect(
       () =>
-        new QueueScheduler(queueName, {
+        new Worker(queueName, async () => {}, {
           connection,
           stalledInterval: 0,
         }),
-    ).to.throw('Stalled interval cannot be zero or undefined');
+    ).to.throw('stalledInterval must be greater than 0');
   });
 
   describe('Concurrency process', () => {
@@ -1833,9 +1816,6 @@ describe('workers', function () {
     it('should retry a job after a delay if a fixed backoff is given', async function () {
       this.timeout(10000);
 
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
-
       const worker = new Worker(
         queueName,
         async job => {
@@ -1867,15 +1847,11 @@ describe('workers', function () {
       });
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     describe('when UnrecoverableError is throw', () => {
       it('moves job to failed', async function () {
         this.timeout(8000);
-
-        const queueScheduler = new QueueScheduler(queueName, { connection });
-        await queueScheduler.waitUntilReady();
 
         const worker = new Worker(
           queueName,
@@ -1921,16 +1897,12 @@ describe('workers', function () {
         expect(state).to.be.equal('failed');
 
         await worker.close();
-        await queueScheduler.close();
       });
     });
 
     describe('when providing a way to execute step jobs', () => {
       it('should retry a job after a delay if a fixed backoff is given, keeping the current step', async function () {
         this.timeout(8000);
-
-        const queueScheduler = new QueueScheduler(queueName, { connection });
-        await queueScheduler.waitUntilReady();
 
         enum Step {
           Initial,
@@ -1993,15 +1965,11 @@ describe('workers', function () {
         });
 
         await worker.close();
-        await queueScheduler.close();
       });
 
       describe('when moving job to delayed in one step', () => {
         it('should retry job after a delay time, keeping the current step', async function () {
           this.timeout(8000);
-
-          const queueScheduler = new QueueScheduler(queueName, { connection });
-          await queueScheduler.waitUntilReady();
 
           enum Step {
             Initial,
@@ -2055,7 +2023,6 @@ describe('workers', function () {
           });
 
           await worker.close();
-          await queueScheduler.close();
         });
       });
 
@@ -2064,11 +2031,6 @@ describe('workers', function () {
           this.timeout(8000);
           const parentQueueName = `parent-queue-${v4()}`;
           const parentQueue = new Queue(parentQueueName, { connection });
-
-          const queueScheduler = new QueueScheduler(parentQueueName, {
-            connection,
-          });
-          await queueScheduler.waitUntilReady();
 
           enum Step {
             Initial,
@@ -2172,16 +2134,12 @@ describe('workers', function () {
           await worker.close();
           await childrenWorker.close();
           await parentQueue.close();
-          await queueScheduler.close();
         });
       });
     });
 
     it('should retry a job after a delay if an exponential backoff is given', async function () {
       this.timeout(10000);
-
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -2218,13 +2176,10 @@ describe('workers', function () {
       });
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     it('should retry a job after a delay if a custom backoff is given', async function () {
       this.timeout(10000);
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -2268,7 +2223,6 @@ describe('workers', function () {
       });
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     it('should not retry a job if the custom backoff returns -1', async () => {
@@ -2323,8 +2277,6 @@ describe('workers', function () {
       class CustomError extends Error {}
 
       this.timeout(12000);
-      const queueScheduler = new QueueScheduler(queueName);
-      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -2369,7 +2321,6 @@ describe('workers', function () {
       });
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     it('should retry a job after a delay if a custom backoff is given based on the job data', async function () {
@@ -2378,8 +2329,6 @@ describe('workers', function () {
       }
 
       this.timeout(5000);
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -2430,14 +2379,10 @@ describe('workers', function () {
       });
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     it('should be able to handle a custom backoff if it returns a promise', async function () {
       this.timeout(10000);
-
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -2478,13 +2423,9 @@ describe('workers', function () {
       });
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     it('should not retry a job that has been removed', async () => {
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
-
       const failedError = new Error('failed');
       let attempts = 0;
       const worker = new Worker(
@@ -2536,14 +2477,11 @@ describe('workers', function () {
       expect(failedCount).to.equal(0);
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     it('should not retry a job that has been retried already', async () => {
       let attempts = 0;
       const failedError = new Error('failed');
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -2591,14 +2529,11 @@ describe('workers', function () {
       expect(failedCount).to.equal(0);
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     it('should only retry a job once after it has reached the max attempts', async () => {
       let attempts = 0;
       const failedError = new Error('failed');
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
 
       const worker = new Worker(
         queueName,
@@ -2652,7 +2587,6 @@ describe('workers', function () {
       expect(completedCount).to.equal(0);
 
       await worker.close();
-      await queueScheduler.close();
     });
 
     it('should not retry a job that is active', async () => {
@@ -2713,7 +2647,7 @@ describe('workers', function () {
 
   describe('Manually process jobs', () => {
     it('should allow to complete jobs manually', async () => {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, void 0, { connection });
       const token = 'my-token';
 
       await queue.add('test', { foo: 'bar' });
@@ -3086,17 +3020,12 @@ describe('workers', function () {
 
   it('should clear job from stalled set when job completed', async () => {
     const client = await queue.client;
-    const queueScheduler = new QueueScheduler(queueName, {
-      connection,
-      stalledInterval: 10,
-    });
-    await queueScheduler.waitUntilReady();
     const worker = new Worker(
       queueName,
       async () => {
         return delay(100);
       },
-      { connection },
+      { connection, stalledInterval: 10 },
     );
     await worker.waitUntilReady();
 
@@ -3113,6 +3042,5 @@ describe('workers', function () {
     await allStalled;
 
     await worker.close();
-    await queueScheduler.close();
   });
 });

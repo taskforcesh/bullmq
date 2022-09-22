@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "1.90.1",
+  "version": "2.0.1",
   "description": "Queue for messages and jobs based on Redis",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -53,7 +53,7 @@
     "msgpackr": "^1.6.2",
     "semver": "^7.3.7",
     "tslib": "^2.0.0",
-    "uuid": "^8.3.2"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^17.0.3",

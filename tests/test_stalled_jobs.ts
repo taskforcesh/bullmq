@@ -1,4 +1,4 @@
-import { Queue, QueueScheduler, Worker, QueueEvents } from '../src/classes';
+import { Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
@@ -38,6 +38,7 @@ describe('stalled jobs', function () {
       {
         connection,
         lockDuration: 1000,
+        stalledInterval: 100,
         concurrency,
       },
     );
@@ -57,15 +58,20 @@ describe('stalled jobs', function () {
 
     await allActive;
 
-    const queueScheduler = new QueueScheduler(queueName, {
-      connection,
-      stalledInterval: 100,
-    });
-    await queueScheduler.waitUntilReady();
     await worker.close(true);
 
+    const worker2 = new Worker(queueName, async job => {}, {
+      connection,
+      stalledInterval: 100,
+      concurrency,
+    });
+
+    const allStalledGlobalEvent = new Promise(resolve => {
+      queueEvents.on('stalled', after(concurrency, resolve));
+    });
+
     const allStalled = new Promise<void>(resolve => {
-      queueScheduler.on(
+      worker2.on(
         'stalled',
         after(concurrency, (jobId, prev) => {
           expect(prev).to.be.equal('active');
@@ -74,17 +80,8 @@ describe('stalled jobs', function () {
       );
     });
 
-    const allStalledGlobalEvent = new Promise(resolve => {
-      queueEvents.on('stalled', after(concurrency, resolve));
-    });
-
     await allStalled;
     await allStalledGlobalEvent;
-
-    const worker2 = new Worker(queueName, async job => {}, {
-      connection,
-      concurrency,
-    });
 
     const allCompleted = new Promise(resolve => {
       worker2.on('completed', after(concurrency, resolve));
@@ -93,7 +90,6 @@ describe('stalled jobs', function () {
     await allCompleted;
 
     await queueEvents.close();
-    await queueScheduler.close();
     await worker2.close();
   });
 
@@ -113,6 +109,8 @@ describe('stalled jobs', function () {
       {
         connection,
         lockDuration: 1000,
+        stalledInterval: 100,
+        maxStalledCount: 0,
         concurrency,
       },
     );
@@ -132,21 +130,20 @@ describe('stalled jobs', function () {
 
     await allActive;
 
-    const queueScheduler = new QueueScheduler(queueName, {
+    await worker.close(true);
+
+    const worker2 = new Worker(queueName, async job => {}, {
       connection,
       stalledInterval: 100,
       maxStalledCount: 0,
+      concurrency,
     });
-    await queueScheduler.waitUntilReady();
-
-    await worker.close(true);
 
     const errorMessage = 'job stalled more than allowable limit';
     const allFailed = new Promise<void>(resolve => {
-      queueScheduler.on(
+      worker2.on(
         'failed',
-        after(concurrency, async (jobId, failedReason, prev) => {
-          const job = await queue.getJob(jobId);
+        after(concurrency, async (job, failedReason, prev) => {
           expect(job.finishedOn).to.be.an('number');
           expect(prev).to.be.equal('active');
           expect(failedReason.message).to.be.equal(errorMessage);
@@ -166,7 +163,7 @@ describe('stalled jobs', function () {
     await globalAllFailed;
 
     await queueEvents.close();
-    await queueScheduler.close();
+    await worker2.close();
   });
 
   describe('when stalled jobs stall more than allowable stalled limit', function () {
@@ -186,6 +183,8 @@ describe('stalled jobs', function () {
         {
           connection,
           lockDuration: 1000,
+          stalledInterval: 100,
+          maxStalledCount: 0,
           concurrency,
         },
       );
@@ -205,21 +204,20 @@ describe('stalled jobs', function () {
 
       await allActive;
 
-      const queueScheduler = new QueueScheduler(queueName, {
+      await worker.close(true);
+
+      const worker2 = new Worker(queueName, async job => {}, {
         connection,
         stalledInterval: 100,
         maxStalledCount: 0,
+        concurrency,
       });
-      await queueScheduler.waitUntilReady();
-
-      await worker.close(true);
 
       const errorMessage = 'job stalled more than allowable limit';
       const allFailed = new Promise<void>(resolve => {
-        queueScheduler.on(
+        worker2.on(
           'failed',
-          after(concurrency, async (jobId, failedReason, prev) => {
-            const job = await queue.getJob(jobId);
+          after(concurrency, async (job, failedReason, prev) => {
             expect(job).to.be.undefined;
             expect(prev).to.be.equal('active');
             expect(failedReason.message).to.be.equal(errorMessage);
@@ -239,7 +237,7 @@ describe('stalled jobs', function () {
       await globalAllFailed;
 
       await queueEvents.close();
-      await queueScheduler.close();
+      await worker2.close();
     });
 
     describe('when removeOnFail is provided as a number', function () {
@@ -255,6 +253,8 @@ describe('stalled jobs', function () {
           {
             connection,
             lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
             concurrency,
           },
         );
@@ -277,24 +277,23 @@ describe('stalled jobs', function () {
 
         await allActive;
 
-        const queueScheduler = new QueueScheduler(queueName, {
+        await worker.close(true);
+
+        const worker2 = new Worker(queueName, async job => {}, {
           connection,
           stalledInterval: 100,
           maxStalledCount: 0,
+          concurrency,
         });
-        await queueScheduler.waitUntilReady();
-
-        await worker.close(true);
 
         const errorMessage = 'job stalled more than allowable limit';
         const allFailed = new Promise<void>(resolve => {
-          queueScheduler.on(
+          worker2.on(
             'failed',
-            after(concurrency, async (jobId, failedReason, prev) => {
+            after(concurrency, async (job, failedReason, prev) => {
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(3);
 
-              const job = await queue.getJob(jobId);
               expect(job.data.index).to.be.equal(3);
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
@@ -305,7 +304,7 @@ describe('stalled jobs', function () {
 
         await allFailed;
 
-        await queueScheduler.close();
+        await worker2.close();
       });
     });
 
@@ -322,6 +321,8 @@ describe('stalled jobs', function () {
           {
             connection,
             lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
             concurrency,
           },
         );
@@ -344,21 +345,20 @@ describe('stalled jobs', function () {
 
         await allActive;
 
-        const queueScheduler = new QueueScheduler(queueName, {
+        await worker.close(true);
+
+        const worker2 = new Worker(queueName, async job => {}, {
           connection,
           stalledInterval: 100,
           maxStalledCount: 0,
+          concurrency,
         });
-        await queueScheduler.waitUntilReady();
-
-        await worker.close(true);
 
         const errorMessage = 'job stalled more than allowable limit';
         const allFailed = new Promise<void>(resolve => {
-          queueScheduler.on(
+          worker2.on(
             'failed',
-            after(concurrency, async (jobId, failedReason, prev) => {
-              const job = await queue.getJob(jobId);
+            after(concurrency, async (job, failedReason, prev) => {
               expect(job).to.be.undefined;
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(2);
@@ -372,7 +372,7 @@ describe('stalled jobs', function () {
 
         await allFailed;
 
-        await queueScheduler.close();
+        await worker2.close();
       });
     });
 
@@ -380,13 +380,6 @@ describe('stalled jobs', function () {
       it('keeps the specified number of jobs in failed respecting the age', async function () {
         this.timeout(6000);
         const concurrency = 4;
-
-        const queueScheduler = new QueueScheduler(queueName, {
-          connection,
-          stalledInterval: 100,
-          maxStalledCount: 0,
-        });
-        await queueScheduler.waitUntilReady();
 
         const worker = new Worker(
           queueName,
@@ -399,6 +392,8 @@ describe('stalled jobs', function () {
           {
             connection,
             lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
             concurrency,
           },
         );
@@ -426,14 +421,20 @@ describe('stalled jobs', function () {
 
         await worker.close(true);
 
+        const worker2 = new Worker(queueName, async job => {}, {
+          connection,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+          concurrency,
+        });
+
         const errorMessage = 'job stalled more than allowable limit';
         const allFailed = new Promise<void>(resolve => {
-          queueScheduler.on('failed', async (jobId, failedReason, prev) => {
-            if (jobId == '4') {
+          worker2.on('failed', async (job, failedReason, prev) => {
+            if (job.id == '4') {
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(2);
 
-              const job = await queue.getJob(jobId);
               expect(job.data.index).to.be.equal(3);
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
@@ -444,7 +445,7 @@ describe('stalled jobs', function () {
 
         await allFailed;
 
-        await queueScheduler.close();
+        await worker2.close();
       });
     });
   });
@@ -463,6 +464,7 @@ describe('stalled jobs', function () {
       {
         connection,
         lockDuration: 100, // lockRenewTime would be half of it i.e. 500
+        stalledInterval: 50,
         concurrency,
       },
     );
@@ -480,13 +482,14 @@ describe('stalled jobs', function () {
 
     await allActive;
 
-    const queueScheduler = new QueueScheduler(queueName, {
+    const worker2 = new Worker(queueName, async job => {}, {
       connection,
       stalledInterval: 50,
+      concurrency,
     });
 
     const allStalled = new Promise(resolve =>
-      queueScheduler.on('stalled', after(concurrency, resolve)),
+      worker2.on('stalled', after(concurrency, resolve)),
     );
 
     await delay(500); // Wait for jobs to become active
@@ -498,6 +501,6 @@ describe('stalled jobs', function () {
 
     await allStalled;
 
-    await queueScheduler.close();
+    await worker2.close();
   });
 });
