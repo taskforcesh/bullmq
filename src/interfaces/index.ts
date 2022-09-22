@@ -14,7 +14,6 @@ export * from './parent-command';
 export * from './parent-message';
 export * from './parent';
 export * from './queue-options';
-export * from './queue-scheduler-options';
 export * from './rate-limiter-options';
 export * from './redis-options';
 export * from './redis-streams';

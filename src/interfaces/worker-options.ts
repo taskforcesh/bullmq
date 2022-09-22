@@ -36,6 +36,18 @@ export interface WorkerOptions extends QueueBaseOptions {
    */
   metrics?: MetricsOptions;
 
+  /**
+   * Amount of times a job can be recovered from a stalled state
+   * to the `wait` state. If this is exceeded, the job is moved
+   * to `failed`.
+   */
+  maxStalledCount?: number;
+
+  /**
+   * Number of milliseconds between stallness checks.
+   */
+  stalledInterval?: number;
+
   skipDelayCheck?: boolean;
   drainDelay?: number;
   lockDuration?: number;

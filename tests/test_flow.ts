@@ -6,7 +6,6 @@ import { v4 } from 'uuid';
 import {
   Job,
   Queue,
-  QueueScheduler,
   QueueEvents,
   Worker,
   FlowProducer,
@@ -131,9 +130,6 @@ describe('flows', () => {
 
   describe('when moving jobs from wait to active continuing', async () => {
     it('begins with attemptsMade as 1', async () => {
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
-
       let parentProcessor,
         counter = 0;
 
@@ -204,7 +200,6 @@ describe('flows', () => {
       expect(children).to.have.length(1);
 
       await processingParent;
-      await queueScheduler.close();
 
       await parentWorker.close();
 
@@ -533,9 +528,6 @@ describe('flows', () => {
           }
         }),
       ]);
-
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
 
       const parentWorker = new Worker(parentQueueName, parentProcessor, {
         connection,
@@ -932,9 +924,7 @@ describe('flows', () => {
     const numJobs = 20;
     const startTime = new Date().getTime();
 
-    const queueScheduler = new QueueScheduler(queueName, { connection });
     const queueEvents = new QueueEvents(queueName, { connection });
-    await queueScheduler.waitUntilReady();
     await queueEvents.waitUntilReady();
 
     const name = 'child-job';
@@ -1048,7 +1038,6 @@ describe('flows', () => {
     }
 
     await parentWorker.close();
-    await queueScheduler.close();
     await queueEvents.close();
 
     await flow.close();

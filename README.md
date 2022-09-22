@@ -181,9 +181,11 @@ Since there are a few job queue solutions, here is a table comparing them:
 
 # 🚀 Sponsor 🚀
 
-[![RedisGreen](https://www.redisgreen.com/images/rglogo/redisgreen_transparent_240x48.png)](https://dashboard.redisgreen.net/new?utm_campaign=BULLMQ)
+<a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">
+  <img src="https://www.memetria.com/images/logo/memetria-logo.svg" width=300 alt="Memetria for Redis" />
+</a>
 
-If you need high quality production Redis instances for your BullMQ project, please consider subscribing to [RedisGreen](https://dashboard.redisgreen.net/new?utm_campaign=BULLMQ), leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us sponsor the development of BullMQ!
+If you need high quality production Redis instances for your BullMQ project, please consider subscribing to [Memetria for Redis](https://dashboard.memetria.com/new?utm_campaign=BULLMQ), leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us sponsor the development of BullMQ!
 
 ## Contributing
 

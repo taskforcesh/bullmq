@@ -3,7 +3,7 @@ import { default as IORedis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { scriptLoader } from '../commands';
+import { scriptLoader, ScriptMetadata } from '../commands';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import {
   isNotConnectionError,
@@ -28,11 +28,15 @@ const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
+  static recommendedMinimumVersion = '6.2.0';
+
+  closing: boolean;
+
   protected _client: RedisClient;
 
   private readonly opts: RedisOptions;
   private initializing: Promise<RedisClient>;
-  private closing: boolean;
+
   private version: string;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
@@ -151,12 +155,13 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(): Promise<void> {
+  protected loadCommands(cache?: Map<string, ScriptMetadata>): Promise<void> {
     return (
       (<any>this._client)['bullmq:loadingCommands'] ||
       ((<any>this._client)['bullmq:loadingCommands'] = scriptLoader.load(
         this._client,
         path.join(__dirname, '../commands'),
+        cache ?? new Map<string, ScriptMetadata>(),
       ))
     );
   }
@@ -180,6 +185,18 @@ export class RedisConnection extends EventEmitter {
       ) {
         throw new Error(
           `Redis version needs to be greater than ${RedisConnection.minimumVersion} Current: ${this.version}`,
+        );
+      }
+
+      if (
+        isRedisVersionLowerThan(
+          this.version,
+          RedisConnection.recommendedMinimumVersion,
+        )
+      ) {
+        console.warn(
+          `It is highly recommeded to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
+           Current: ${this.version}`,
         );
       }
     }
@@ -235,14 +252,27 @@ export class RedisConnection extends EventEmitter {
 
   private async getRedisVersion() {
     const doc = await this._client.info();
-    const prefix = 'redis_version:';
+    const redisPrefix = 'redis_version:';
+    const maxMemoryPolicyPrefix = 'maxmemory_policy:';
     const lines = doc.split('\r\n');
+    let redisVersion;
 
     for (let i = 0; i < lines.length; i++) {
-      if (lines[i].indexOf(prefix) === 0) {
-        return lines[i].substr(prefix.length);
+      if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
+        const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
+        if (maxMemoryPolicy !== 'noeviction') {
+          throw new Error(
+            `Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
+          );
+        }
+      }
+
+      if (lines[i].indexOf(redisPrefix) === 0) {
+        redisVersion = lines[i].substr(redisPrefix.length);
       }
     }
+
+    return redisVersion;
   }
 
   get redisVersion(): string {
