@@ -97,12 +97,12 @@ describe('Delayed jobs', function () {
         try {
           expect(order).to.be.equal(job.data.order);
           expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
-            job.delay,
+            job.opts.delay,
           );
           expect(
             job.processedOn! - job.timestamp,
             'processedOn is not within margin',
-          ).to.be.lessThan(job.delay * margin);
+          ).to.be.lessThan(job.opts.delay * margin);
 
           if (order === numJobs) {
             resolve();
@@ -151,9 +151,9 @@ describe('Delayed jobs', function () {
           expect(
             delayed,
             'waited at least delay time',
-          ).to.be.greaterThanOrEqual(job.delay);
+          ).to.be.greaterThanOrEqual(job.opts.delay);
           expect(delayed, 'processedOn is not within margin').to.be.lessThan(
-            job.delay * margin,
+            job.opts.delay * margin,
           );
 
           if (count === numJobs) {
