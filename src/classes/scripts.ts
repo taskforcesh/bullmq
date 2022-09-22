@@ -734,28 +734,6 @@ export class Scripts {
     return raw2jobData(result);
   }
 
-  /**
-   * It checks if the job in the top of the delay set should be moved back to the
-   * top of the  wait queue (so that it will be processed as soon as possible)
-   */
-  async updateDelaySet(delayedTimestamp: number): Promise<[number, string]> {
-    const client = await this.queue.client;
-
-    const keys: (string | number)[] = [
-      this.queue.keys.delayed,
-      this.queue.keys.wait,
-      this.queue.keys.priority,
-      this.queue.keys.paused,
-      this.queue.keys.meta,
-      this.queue.keys.events,
-      this.queue.keys.delay,
-    ];
-
-    const args = [this.queue.toKey(''), delayedTimestamp];
-
-    return (<any>client).updateDelaySet(keys.concat(args));
-  }
-
   async promote(jobId: string): Promise<number> {
     const client = await this.queue.client;
 

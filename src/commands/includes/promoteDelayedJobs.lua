@@ -37,6 +37,7 @@ local function promoteDelayedJobs(delayedKey, waitKey, priorityKey, pausedKey,
             -- Emit waiting event
             rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId",
                   jobId, "prev", "delayed")
+            rcall("HSET", prefix .. jobId, "delay", 0)
         end
     end
 
