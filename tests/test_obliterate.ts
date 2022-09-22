@@ -3,7 +3,7 @@ import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { Queue, QueueEvents, FlowProducer, Worker } from '../src/classes';
+import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Obliterate', function () {
@@ -407,7 +407,7 @@ describe('Obliterate', function () {
 
   it('should obliterate a queue with high number of jobs in different statuses', async function () {
     this.timeout(6000);
-    const arr1 = [];
+    const arr1: Promise<Job<any, any, string>>[] = [];
     for (let i = 0; i < 300; i++) {
       arr1.push(queue.add('test', { foo: `barLoop${i}` }));
     }
@@ -430,7 +430,7 @@ describe('Obliterate', function () {
 
     fail = true;
 
-    const arr2 = [];
+    const arr2: Promise<Job<any, any, string>>[] = [];
     for (let i = 0; i < 300; i++) {
       arr2.push(queue.add('test', { foo: `barLoop${i}` }));
     }
@@ -441,7 +441,9 @@ describe('Obliterate', function () {
       lastFailedJob.waitUntilFinished(queueEvents),
     ).to.be.eventually.rejectedWith('failed job');
 
-    const arr3 = [];
+    await worker.close();
+
+    const arr3: Promise<Job<any, any, string>>[] = [];
     for (let i = 0; i < 1623; i++) {
       arr3.push(queue.add('test', { foo: `barLoop${i}` }, { delay: 10000 }));
     }
@@ -451,7 +453,5 @@ describe('Obliterate', function () {
     const client = await queue.client;
     const keys = await client.keys(`bull:${queue.name}*`);
     expect(keys.length).to.be.eql(0);
-
-    await worker.close();
   });
 });

@@ -173,6 +173,43 @@ describe('events', function () {
     await worker.close();
   });
 
+  describe('when concurrency is greater than 1', function () {
+    it('emits drained global event when all jobs have been processed', async function () {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(500);
+        },
+        {
+          concurrency: 4,
+          drainDelay: 500,
+          connection,
+        },
+      );
+
+      const drained = new Promise<void>(resolve => {
+        queueEvents.once('drained', id => {
+          expect(id).to.be.string;
+          resolve();
+        });
+      });
+
+      await queue.addBulk([
+        { name: 'test', data: { foo: 'bar' } },
+        { name: 'test', data: { foo: 'baz' } },
+        { name: 'test', data: { foo: 'bax' } },
+        { name: 'test', data: { foo: 'bay' } },
+      ]);
+
+      await drained;
+
+      const jobs = await queue.getJobCountByTypes('completed');
+      expect(jobs).to.be.equal(4);
+
+      await worker.close();
+    });
+  });
+
   it('emits drained global event only once when worker is idle', async function () {
     const worker = new Worker(
       queueName,
@@ -279,14 +316,11 @@ describe('events', function () {
     );
     await worker.waitUntilReady();
     const testName = 'test';
-    const testData = { foo: 'bar' };
 
     const added = new Promise<void>(resolve => {
-      queueEvents.once('added', ({ jobId, name, data, opts }) => {
+      queueEvents.once('added', ({ jobId, name }) => {
         expect(jobId).to.be.equal('1');
         expect(name).to.be.equal(testName);
-        expect(data).to.be.equal(JSON.stringify(testData));
-        expect(JSON.parse(opts)).to.be.deep.equal({ attempts: 0, delay: 0 });
         resolve();
       });
 
@@ -447,17 +481,18 @@ describe('events', function () {
 
     await waitCompletedEvent;
 
-    const [[id, [_, event]]] = await client.xrevrange(
+    const [[id, [_, drained]], [, [, completed]]] = await client.xrevrange(
       trimmedQueue.keys.events,
       '+',
       '-',
     );
 
-    expect(event).to.be.equal('completed');
+    expect(drained).to.be.equal('drained');
+    expect(completed).to.be.equal('completed');
 
     const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
-    expect(eventsLength).to.be.lte(1);
+    expect(eventsLength).to.be.lte(2);
 
     await worker.close();
     await trimmedQueue.close();

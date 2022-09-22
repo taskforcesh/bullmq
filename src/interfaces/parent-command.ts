@@ -1,9 +1,10 @@
 export enum ParentCommand {
+  Completed,
+  Error,
+  Failed,
   InitFailed,
   InitCompleted,
-  Completed,
-  Failed,
-  Error,
-  Progress,
   Log,
+  Progress,
+  Update,
 }
