@@ -101,7 +101,7 @@ const worker = new Worker(
         }
         case Step.Third: {
           const shouldWait = await job.moveToWaitingChildren(token, {
-            autoComplete: true,
+            autoComplete: true, // prevent missing lock error
           });
           if (!shouldWait) {
             await job.update({
@@ -126,3 +126,49 @@ const worker = new Worker(
 {% hint style="info" %}
 Bullmq-Pro: this pattern could be handled by using observables; in that case, we do not need to save next step.
 {% endhint %}
+
+# Delaying
+
+Another use case is to delay a job at runtime.
+
+This could be handled using the moveToDelayed method:
+
+```typescript
+enum Step {
+  Initial,
+  Second,
+  Finish,
+}
+
+const worker = new Worker(
+  queueName,
+  async job => {
+    let step = job.data.step;
+    while (step !== Step.Finish) {
+      switch (step) {
+        case Step.Initial: {
+          await doInitialStepStuff();
+          await job.moveToDelayed(Date.now() + 200, token, true);
+          await job.update({
+            step: Step.Second,
+          });
+          step = Step.Second;
+          break;
+        }
+        case Step.Second: {
+          await doSecondStepStuff();
+          await job.update({
+            step: Step.Finish,
+          });
+          step = Step.Finish;
+          return Step.Finish;
+        }
+        default: {
+          throw new Error('invalid step');
+        }
+      }
+    }
+  },
+  { connection },
+);
+```
