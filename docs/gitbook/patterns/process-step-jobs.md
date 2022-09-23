@@ -100,7 +100,9 @@ const worker = new Worker(
           break;
         }
         case Step.Third: {
-          const shouldWait = await job.moveToWaitingChildren(token);
+          const shouldWait = await job.moveToWaitingChildren(token, {
+            autoComplete: true,
+          });
           if (!shouldWait) {
             await job.update({
               step: Step.Finish,

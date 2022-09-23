@@ -504,7 +504,6 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
-    let state: JobState = 'failed';
     let finishedOn;
     if (
       this.attemptsMade < this.opts.attempts &&
@@ -532,14 +531,12 @@ export class Job<
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
-        state = 'delayed';
       } else {
         // Retry immediately
         (<any>multi).retryJob(
           this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
         );
         command = 'retry';
-        state = 'waiting';
       }
     } else {
       // If not, move to failed
