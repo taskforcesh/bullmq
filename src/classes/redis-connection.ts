@@ -11,7 +11,7 @@ import {
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';
-
+import * as scripts from '../scripts';
 import * as path from 'path';
 
 const overrideMessage = [
@@ -25,6 +25,12 @@ const deprecationMessage = [
 ].join(' ');
 
 const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
+
+export interface RawCommand {
+  content: string;
+  name: string;
+  keys: number;
+}
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -155,15 +161,16 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(cache?: Map<string, ScriptMetadata>): Promise<void> {
-    return (
-      (<any>this._client)['bullmq:loadingCommands'] ||
-      ((<any>this._client)['bullmq:loadingCommands'] = scriptLoader.load(
-        this._client,
-        path.join(__dirname, '../commands'),
-        cache ?? new Map<string, ScriptMetadata>(),
-      ))
-    );
+  protected loadCommands(): void {
+    for (const property in scripts as Record<string, RawCommand>) {
+      // Only define the command if not already defined
+      if (!(<any>this._client)[(<any>scripts)[property].name]) {
+        (<any>this._client).defineCommand((<any>scripts)[property].name, {
+          numberOfKeys: (<any>scripts)[property].keys,
+          lua: (<any>scripts)[property].content,
+        });
+      }
+    }
   }
 
   private async init() {
@@ -261,9 +268,9 @@ export class RedisConnection extends EventEmitter {
       if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
         const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
         if (maxMemoryPolicy !== 'noeviction') {
-          throw new Error(
+          /* throw new Error(
             `Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
-          );
+          );*/
         }
       }
 

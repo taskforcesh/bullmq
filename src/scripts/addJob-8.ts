@@ -1,8 +1,7 @@
---[[
+const content = `--[[
   Adds a job to the queue by doing the following:
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
-
     - if delayed:
       - computes timestamp.
       - adds to delayed zset.
@@ -13,7 +12,6 @@
          - FIFO
          - prioritized.
       - Adds the job to the "added" list so that workers gets notified.
-
     Input:
       KEYS[1] 'wait',
       KEYS[2] 'paused'
@@ -23,7 +21,6 @@
       KEYS[6] 'priority'
       KEYS[7] 'completed'
       KEYS[8] events stream key
-
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
             [2]  custom id (will not generate one automatically)
@@ -34,10 +31,8 @@
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9] repeat job key
-            
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
-
       Output:
         jobId  - OK
         -5     - Missing parent key
@@ -45,39 +40,96 @@
 local jobId
 local jobIdKey
 local rcall = redis.call
-
 local args = cmsgpack.unpack(ARGV[1])
-
 local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
-
 local parentKey = args[5]
 local repeatJobKey = args[9]
 local parent = args[8]
 local parentData
-
 -- Includes
---- @include "includes/addJobWithPriority"
---- @include "includes/getTargetQueueList"
---- @include "includes/trimEvents"
---- @include "includes/getNextDelayedTimestamp"
-
+--[[
+  Function to add job considering priority.
+]]
+local function addJobWithPriority(priorityKey, priority, targetKey, jobId)
+  rcall("ZADD", priorityKey, priority, jobId)
+  local count = rcall("ZCOUNT", priorityKey, 0, priority)
+  local len = rcall("LLEN", targetKey)
+  local id = rcall("LINDEX", targetKey, len - (count - 1))
+  if id then
+    rcall("LINSERT", targetKey, "BEFORE", id, jobId)
+  else
+    rcall("RPUSH", targetKey, jobId)
+  end
+end
+--[[
+  Function to check for the meta.paused key to decide if we are paused or not
+  (since an empty list and !EXISTS are not really the same).
+]]
+local function getTargetQueueList(queueMetaKey, waitKey, pausedKey)
+  if rcall("HEXISTS", queueMetaKey, "paused") ~= 1 then
+    return waitKey
+  else
+    return pausedKey
+  end
+end
+--[[
+  Function to trim events, default 10000.
+]]
+local function trimEvents(metaKey, eventStreamKey)
+  local maxEvents = rcall("HGET", metaKey, "opts.maxLenEvents")
+  if maxEvents ~= false then
+    rcall("XTRIM", eventStreamKey, "MAXLEN", "~", maxEvents)
+  else
+    rcall("XTRIM", eventStreamKey, "MAXLEN", "~", 10000)
+  end
+end
+--[[
+  Function to return the next delayed job timestamp.
+]] 
+local function getNextDelayedTimestamp(delayedKey)
+    local result = rcall("ZRANGE", delayedKey, 0, 0, "WITHSCORES")
+    if #result then
+      local nextTimestamp = tonumber(result[2])
+      if (nextTimestamp ~= nil) then 
+        nextTimestamp = nextTimestamp / 0x1000
+      end
+      return nextTimestamp
+    end
+end
 if parentKey ~= nil then
   if rcall("EXISTS", parentKey) ~= 1 then
     return -5
   end
-
   parentData = cjson.encode(parent)
 end
-
 local jobCounter = rcall("INCR", KEYS[4])
-
 -- Includes
---- @include "includes/updateParentDepsIfNeeded"
-
+--[[
+  Validate and move or add dependencies to parent.
+]]
+-- Includes
+local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
+  parentId, jobIdKey, returnvalue )
+  local processedSet = parentKey .. ":processed"
+  rcall("HSET", processedSet, jobIdKey, returnvalue)
+  local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
+  if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
+    rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
+    local parentTarget = getTargetQueueList(parentQueueKey .. ":meta", parentQueueKey .. ":wait",
+      parentQueueKey .. ":paused")
+    local priority = tonumber(rcall("HGET", parentKey, "priority"))
+    -- Standard or priority add
+    if priority == 0 then
+      rcall("RPUSH", parentTarget, parentId)
+    else
+      addJobWithPriority(parentQueueKey .. ":priority", priority, parentTarget, parentId)
+    end
+    rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
+  end
+end
 -- Trim events before emiting them to avoid trimming events emitted in this script
 trimEvents(KEYS[3], KEYS[8])
-
 local parentDependenciesKey = args[7]
 if args[2] == "" then
   jobId = jobCounter
@@ -101,13 +153,11 @@ else
     return jobId .. "" -- convert to string
   end
 end
-
 -- Store the job.
 local jsonOpts = cjson.encode(opts)
 local delay = opts['delay'] or 0
 local priority = opts['priority'] or 0
 local timestamp = args[4]
-
 local optionalValues = {}
 if parentKey ~= nil then
   table.insert(optionalValues, "parentKey")
@@ -115,20 +165,15 @@ if parentKey ~= nil then
   table.insert(optionalValues, "parent")
   table.insert(optionalValues, parentData)
 end
-
 if repeatJobKey ~= nil then
   table.insert(optionalValues, "rjk")
   table.insert(optionalValues, repeatJobKey)
 end
-
 rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
   "timestamp", timestamp, "delay", delay, "priority", priority, unpack(optionalValues))
-
 rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3])
-
 -- Check if job is delayed
 local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
-
 -- Check if job is a parent, if so add to the parents set
 local waitChildrenKey = args[6]
 if waitChildrenKey ~= nil then
@@ -150,7 +195,6 @@ elseif (delayedTimestamp ~= 0) then
     end
 else
     local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
-
     -- Standard or priority add
     if priority == 0 then
         -- LIFO or FIFO
@@ -163,12 +207,16 @@ else
     -- Emit waiting event
     rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
 end
-
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 -- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
 -- fail in this case.
 if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end
-
 return jobId .. "" -- convert to string
+`;
+export const addJob = {
+  name: 'addJob',
+  content,
+  keys: 8,
+};

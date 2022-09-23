@@ -39,6 +39,7 @@
     "pretty:quick": "pretty-quick --ignore-path ./.eslintignore --staged",
     "semantic-release": "semantic-release",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
+    "transform:commands": "node ./commandTransform.js ./rawScripts ./src/scripts",
     "test": "ts-mocha -p tsconfig-cjs.json --config ./.mocharc.js",
     "test:watch": "ts-mocha -p tsconfig-cjs.json --paths 'tests/test_*.ts' -w --watch-extensions ts",
     "tsc": "tsc",
