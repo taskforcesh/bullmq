@@ -30,6 +30,7 @@
   * [Getters](guide/jobs/getters.md)
 * [Flows](guide/flows/README.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
+  * [Fail Parent](guide/flows/fail-parent.md)
 * [Metrics](guide/metrics/metrics.md)
 * [Rate limiting](guide/rate-limiting.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)

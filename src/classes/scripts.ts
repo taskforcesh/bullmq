@@ -16,12 +16,16 @@ const pack = packer.pack;
 import {
   JobJson,
   JobJsonRaw,
-  JobsOptions,
   RedisClient,
   WorkerOptions,
   KeepJobs,
 } from '../interfaces';
-import { JobState, FinishedStatus, FinishedPropValAttribute } from '../types';
+import {
+  JobState,
+  FinishedStatus,
+  FinishedPropValAttribute,
+  RedisJobOptions,
+} from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { QueueBase } from './queue-base';
@@ -67,7 +71,7 @@ export class Scripts {
   async addJob(
     client: RedisClient,
     job: JobJson,
-    opts: JobsOptions,
+    opts: RedisJobOptions,
     jobId: string,
     parentOpts: ParentOpts = {
       parentKey: null,
@@ -87,6 +91,9 @@ export class Scripts {
       queueKeys.events,
     ];
 
+    const fpof = opts.fpof ? { fpof: true } : {};
+    const parent = job.parent ? { ...job.parent, ...fpof } : null;
+
     const args = [
       queueKeys[''],
       typeof jobId !== 'undefined' ? jobId : '',
@@ -95,7 +102,7 @@ export class Scripts {
       job.parentKey || null,
       parentOpts.waitChildrenKey || null,
       parentOpts.parentDependenciesKey || null,
-      job.parent || null,
+      parent,
       job.repeatJobKey,
     ];
 
@@ -290,6 +297,7 @@ export class Scripts {
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
+        fpof: !!job.opts?.failParentOnFailure,
       }),
     ];
 
