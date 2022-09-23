@@ -917,7 +917,7 @@ describe('flows', () => {
     });
   });
 
-  describe('when failParentOnFail option is provided', async () => {
+  describe('when failParentOnFailure option is provided', async () => {
     it('should move parent to failed when child is moved to failed', async () => {
       const name = 'child-job';
 
@@ -968,13 +968,13 @@ describe('flows', () => {
             name,
             data: { foo: 'qux' },
             queueName,
-            opts: { failParentOnFail: true },
+            opts: { failParentOnFailure: true },
             children: [
               {
                 name,
                 data: { foo: 'bar' },
                 queueName: grandChildrenQueueName,
-                opts: { failParentOnFail: true },
+                opts: { failParentOnFailure: true },
               },
               {
                 name,

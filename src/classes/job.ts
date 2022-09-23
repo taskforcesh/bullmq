@@ -335,10 +335,11 @@ export class Job<
     const options: Partial<Record<string, any>> = {};
     for (const item of optionEntries) {
       const [attributeName, value] = item;
-      if ((optsDecodeMap as Record<string, any>)[attributeName]) {
-        options[(optsDecodeMap as Record<string, any>)[attributeName]] = value;
+      if ((optsDecodeMap as Record<string, any>)[<string>attributeName]) {
+        options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
+          value;
       } else {
-        options[attributeName] = value;
+        options[<string>attributeName] = value;
       }
     }
 
@@ -406,10 +407,11 @@ export class Job<
     const options: Partial<Record<string, any>> = {};
     for (const item of optionEntries) {
       const [attributeName, value] = item;
-      if ((optsEncodeMap as Record<string, any>)[attributeName]) {
-        options[(optsEncodeMap as Record<string, any>)[attributeName]] = value;
+      if ((optsEncodeMap as Record<string, any>)[<string>attributeName]) {
+        options[(optsEncodeMap as Record<string, any>)[<string>attributeName]] =
+          value;
       } else {
-        options[attributeName] = value;
+        options[<string>attributeName] = value;
       }
     }
 

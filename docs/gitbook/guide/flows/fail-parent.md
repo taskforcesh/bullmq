@@ -2,7 +2,7 @@
 
 In some situations, you need to fail a job when one of its children fail.
 
-The pattern to solve this requirement consists on using **failParentOnFail** option.
+The pattern to solve this requirement consists on using **failParentOnFailure** option.
 
 ```typescript
 const flow = new FlowProducer({ connection });
@@ -16,20 +16,20 @@ const originalTree = await flow.add({
       name,
       data: { idx: 0, foo: 'bar' },
       queueName: 'childrenQueueName',
-      opts: { failParentOnFail: true },
+      opts: { failParentOnFailure: true },
       children: [
         {
           name,
           data: { idx: 1, foo: 'bah' },
           queueName: 'grandChildrenQueueName',
-          opts: { failParentOnFail: true },
+          opts: { failParentOnFailure: true },
         },
         {
           name,
           data: { idx: 2, foo: 'baz' },
           queueName: 'grandChildrenQueueName',
         },
-      ]
+      ],
     },
     {
       name,
@@ -38,7 +38,6 @@ const originalTree = await flow.add({
     },
   ],
 });
-
 ```
 
 {% hint style="info" %}

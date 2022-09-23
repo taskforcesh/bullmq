@@ -4,7 +4,7 @@ export type JobsOptions = BaseJobOptions & {
   /**
    * If true, moves parent to failed.
    */
-  failParentOnFail?: boolean;
+  failParentOnFailure?: boolean;
 };
 
 /**
