@@ -1,5 +1,5 @@
 import { ChainableCommander } from 'ioredis';
-import { fromPairs } from 'lodash';
+import { fromPairs, invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -31,6 +31,12 @@ import { UnrecoverableError } from './unrecoverable-error';
 const logger = debuglog('bull');
 
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
+
+const optsDecodeMap = {
+  fpof: 'failParentOnFailure',
+};
+
+const optsEncodeMap = invert(optsDecodeMap);
 
 export interface MoveToWaitingChildrenOpts {
   child?: {
@@ -329,8 +335,8 @@ export class Job<
     const options: Partial<Record<string, any>> = {};
     for (const item of optionEntries) {
       const [attributeName, value] = item;
-      if (attributeName === 'fpof') {
-        options.failParentOnFail = value;
+      if ((optsDecodeMap as Record<string, any>)[attributeName]) {
+        options[(optsDecodeMap as Record<string, any>)[attributeName]] = value;
       } else {
         options[attributeName] = value;
       }
@@ -400,8 +406,8 @@ export class Job<
     const options: Partial<Record<string, any>> = {};
     for (const item of optionEntries) {
       const [attributeName, value] = item;
-      if (attributeName === 'failParentOnFail') {
-        options.fpof = value;
+      if ((optsEncodeMap as Record<string, any>)[attributeName]) {
+        options[(optsEncodeMap as Record<string, any>)[attributeName]] = value;
       } else {
         options[attributeName] = value;
       }
