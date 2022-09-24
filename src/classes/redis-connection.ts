@@ -260,9 +260,13 @@ export class RedisConnection extends EventEmitter {
     for (let i = 0; i < lines.length; i++) {
       if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
         const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
-        if (maxMemoryPolicy !== 'noeviction') {
+        if (!maxMemoryPolicy) {
           console.warn(`Maxmemory policy could not be determined,
 please make sure you are using 'noeviction' to avoid issues`);
+        } else if (maxMemoryPolicy !== 'noeviction') {
+          throw new Error(
+            `Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
+          );
         }
       }
 
