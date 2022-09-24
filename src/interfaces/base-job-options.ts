@@ -1,6 +1,6 @@
 import { RepeatOptions, KeepJobs, BackoffOptions } from './';
 
-export interface BaseJobOptions {
+export interface DefaultJobOptions {
   /**
    * Timestamp when the job was created.
    * @defaultValue Date.now()
@@ -75,7 +75,7 @@ export interface BaseJobOptions {
   sizeLimit?: number;
 }
 
-export interface JobsOptions extends BaseJobOptions {
+export interface BaseJobOptions extends DefaultJobOptions {
   /**
    * Repeat this job, for example based on a `cron` schedule.
    */

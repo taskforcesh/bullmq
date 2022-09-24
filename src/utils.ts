@@ -7,11 +7,11 @@ import { get } from 'lodash';
 import * as semver from 'semver';
 import {
   ChildMessage,
-  JobsOptions,
   ParentMessage,
   QueueOptions,
   RedisClient,
 } from './interfaces';
+import { JobsOptions } from './types';
 import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };

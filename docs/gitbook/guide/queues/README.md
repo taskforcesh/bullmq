@@ -17,7 +17,7 @@ When you instance a Queue, BullMQ will just _upsert_ a small "meta-key", so if t
 The most important method is probably the [_**add**_](https://api.docs.bullmq.io/classes/Queue.html#add) method. This method allows you to add jobs to the queue in different fashions:
 
 ```typescript
-await queue.add('paint', { colour: 'red' });
+await queue.add('paint', { color: 'red' });
 ```
 
 The code above will add a job named _paint_ to the queue, with payload `{ color: 'red' }`. This job will now be stored in Redis in a list waiting for some worker to pick it up and process it. Workers may not be running when you add the job, however as soon as one worker is connected to the queue it will pick the job and process it.
@@ -25,7 +25,7 @@ The code above will add a job named _paint_ to the queue, with payload `{ color:
 When adding a job you can also specify an options object. This options object can dramatically change the behaviour of the added jobs. For example you can add a job that is delayed:
 
 ```typescript
-await queue.add('paint', { colour: 'blue' }, { delay: 5000 });
+await queue.add('paint', { color: 'blue' }, { delay: 5000 });
 ```
 
 The job will now wait **at** **least** 5 seconds before it is processed.

@@ -1,7 +1,7 @@
 import { parseExpression } from 'cron-parser';
 import { createHash } from 'crypto';
-import { JobsOptions, RepeatBaseOptions, RepeatOptions } from '../interfaces';
-import { RepeatStrategy } from '../types';
+import { RepeatBaseOptions, RepeatOptions } from '../interfaces';
+import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';

@@ -8,6 +8,7 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "addJobWithPriority"
 --- @include "getTargetQueueList"
 
 -- Try to get as much as 1000 jobs at once, and returns the nextTimestamp if
@@ -30,22 +31,13 @@ local function promoteDelayedJobs(delayedKey, waitKey, priorityKey, pausedKey,
                 -- LIFO or FIFO
                 rcall("LPUSH", target, jobId)
             else
-                -- Priority add
-                rcall("ZADD", priorityKey, priority, jobId)
-                local count = rcall("ZCOUNT", priorityKey, 0, priority)
-
-                local len = rcall("LLEN", target)
-                local id = rcall("LINDEX", target, len - (count - 1))
-                if id then
-                    rcall("LINSERT", target, "BEFORE", id, jobId)
-                else
-                    rcall("RPUSH", target, jobId)
-                end
+                addJobWithPriority(priorityKey, priority, target, jobId)
             end
 
             -- Emit waiting event
             rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId",
                   jobId, "prev", "delayed")
+            rcall("HSET", prefix .. jobId, "delay", 0)
         end
     end
 

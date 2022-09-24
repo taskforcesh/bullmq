@@ -7,7 +7,7 @@ import { after } from 'lodash';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { JobsOptions } from '../src/interfaces';
+import { JobsOptions } from '../src/types';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
 
 describe('Job', function () {
