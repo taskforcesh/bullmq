@@ -39,7 +39,6 @@ const optsDecodeMap = {
 const optsEncodeMap = invert(optsDecodeMap);
 
 export interface MoveToWaitingChildrenOpts {
-  autoComplete?: boolean;
   child?: {
     id: string;
     queue: string;
@@ -72,7 +71,11 @@ export class Job<
   ReturnType = any,
   NameType extends string = string,
 > {
+  /**
+   * By default jobs complete as soon as they finalize, but you can disable this behaviour by enabling autoComplete.
+   */
   autoComplete: boolean = false;
+
   /**
    * The progress a job has performed so far.
    * @defaultValue 0
@@ -944,16 +947,8 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  async moveToDelayed(
-    timestamp: number,
-    token?: string,
-    autoComplete?: boolean,
-  ): Promise<void> {
-    await this.scripts.moveToDelayed(this.id, timestamp, token);
-
-    if (autoComplete) {
-      this.autoComplete = autoComplete;
-    }
+  moveToDelayed(timestamp: number, token?: string): Promise<void> {
+    return this.scripts.moveToDelayed(this.id, timestamp, token);
   }
 
   /**
@@ -963,21 +958,11 @@ export class Job<
    * @param opts - The options bag for moving a job to waiting-children.
    * @returns true if the job was moved
    */
-  async moveToWaitingChildren(
+  moveToWaitingChildren(
     token: string,
-    opts: MoveToWaitingChildrenOpts = { autoComplete: false },
+    opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
-    const result = await this.scripts.moveToWaitingChildren(
-      this.id,
-      token,
-      opts,
-    );
-
-    if (result) {
-      this.autoComplete = opts.autoComplete;
-    }
-
-    return result;
+    return this.scripts.moveToWaitingChildren(this.id, token, opts);
   }
 
   /**

@@ -100,9 +100,8 @@ const worker = new Worker(
           break;
         }
         case Step.Third: {
-          const shouldWait = await job.moveToWaitingChildren(token, {
-            autoComplete: true, // prevent missing lock error
-          });
+          const shouldWait = await job.moveToWaitingChildren(token);
+          job.autoComplete = true; // prevent missing lock error
           if (!shouldWait) {
             await job.update({
               step: Step.Finish,
@@ -148,7 +147,8 @@ const worker = new Worker(
       switch (step) {
         case Step.Initial: {
           await doInitialStepStuff();
-          await job.moveToDelayed(Date.now() + 200, token, true);
+          await job.moveToDelayed(Date.now() + 200, token);
+          job.autoComplete = true;
           await job.update({
             step: Step.Second,
           });
@@ -172,3 +172,7 @@ const worker = new Worker(
   { connection },
 );
 ```
+
+{% hint style="warning" %}
+By default jobs complete as soon as they finalize, but you can disable this behaviour by enabling autoComplete.
+{% endhint %}
