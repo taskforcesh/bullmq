@@ -1,7 +1,7 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
 import { flatten } from 'lodash';
-import net from 'net';
+import { AddressInfo, createServer } from 'node:net';
 import { killAsync } from './process-utils';
 import { ParentCommand, ChildCommand } from '../interfaces';
 import { parentSend } from '../utils';
@@ -13,11 +13,11 @@ export interface ChildProcessExt extends ChildProcess {
 }
 
 const getFreePort = async () => {
-  return new Promise((resolve) => {
-    const server = net.createServer();
+  return new Promise(resolve => {
+    const server = createServer();
     server.listen(0, () => {
-      const port = server.address().port;
-      server.close((error: any) => resolve(port));
+      const { port } = (server.address() as AddressInfo);
+      server.close(() => resolve(port));
     });
   });
 };
