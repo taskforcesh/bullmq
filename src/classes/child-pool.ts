@@ -1,7 +1,7 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
 import { flatten } from 'lodash';
-import { AddressInfo, createServer } from 'node:net';
+import { AddressInfo, createServer } from 'net';
 import { killAsync } from './process-utils';
 import { ParentCommand, ChildCommand } from '../interfaces';
 import { parentSend } from '../utils';
