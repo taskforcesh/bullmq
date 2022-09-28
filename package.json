@@ -46,7 +46,6 @@
   },
   "dependencies": {
     "cron-parser": "^4.6.0",
-    "get-port": "6.1.2",
     "glob": "^8.0.3",
     "ioredis": "^5.2.2",
     "lodash": "^4.17.21",
