@@ -758,9 +758,11 @@ export class Worker<
     try {
       if (!this.closing) {
         await this.checkConnectionError(() => this.moveStalledJobsToWait());
-        setTimeout(async () => {
-          this.runStalledJobsCheck();
-        }, this.opts.stalledInterval);
+        this.timerManager.setTimer(
+          'checkStalledJobs',
+          this.opts.stalledInterval,
+          () => this.runStalledJobsCheck(),
+        );
       }
     } catch (err) {
       this.emit('error', <Error>err);
