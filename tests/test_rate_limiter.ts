@@ -26,23 +26,37 @@ describe('Rate Limiter', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should put a job into the delayed queue when limit is hit', async function () {
+  it('should keep jobs into the wait queue when limit is hit', async function () {
     this.timeout(6000);
     const numJobs = 5;
-    const worker = new Worker(
-      queueName,
-      async () => {
-        await delay(200);
-      },
-      {
-        connection,
-        concurrency: 5,
-        limiter: {
-          max: 1,
-          duration: 1000,
+    let parallelJobs = 0;
+    let count = 0;
+
+    let worker: Worker;
+    const processing = new Promise<void>((resolve, reject) => {
+      worker = new Worker(
+        queueName,
+        async () => {
+          count++;
+          parallelJobs++;
+          await delay(200);
+          parallelJobs--;
+          expect(parallelJobs).to.be.eql(0);
+          if (count == numJobs) {
+            resolve();
+          }
         },
-      },
-    );
+        {
+          connection,
+          concurrency: 5,
+          limiter: {
+            max: 1,
+            duration: 1000,
+          },
+        },
+      );
+    });
+
     await worker.waitUntilReady();
 
     queueEvents.on('failed', () => {});
@@ -53,10 +67,13 @@ describe('Rate Limiter', function () {
     }));
     await queue.addBulk(jobs);
 
-    await delay(100);
+    await delay(50);
 
-    const delayedCount = await queue.getDelayedCount();
-    expect(delayedCount).to.equal(numJobs - 1);
+    const waitingCount = await queue.getWaitingCount();
+    expect(waitingCount).to.be.lte(numJobs - 1);
+
+    await processing;
+
     await worker.close();
   });
 

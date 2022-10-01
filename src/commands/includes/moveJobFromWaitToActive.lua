@@ -24,36 +24,16 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
   if(maxJobs) then
     local rateLimiterKey = keys[6];
 
-    local groupKey
-    local groupKeyOpt = opts['limiter'] and opts['limiter']['groupKey'] or ""
-    if groupKeyOpt ~= "" then
-      groupKey = string.match(jobId, "[^:]+$")
-      if groupKey ~= jobId then
-        rateLimiterKey = rateLimiterKey .. ":" .. groupKey
-      end
-    end
-
-    local jobCounter
-    
-    if groupKey ~= nil then
-      if rateLimiterKey ~= keys[6] then
-        jobCounter = tonumber(rcall("INCR", rateLimiterKey))
-      end
-    else
-      jobCounter = tonumber(rcall("INCR", rateLimiterKey))
-    end
+    local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
 
     local limiterDuration = opts['limiter'] and opts['limiter']['duration']
     -- check if rate limit hit
     if jobCounter ~= nil and jobCounter > maxJobs then
       local exceedingJobs = jobCounter - maxJobs
       local expireTime = tonumber(rcall("PTTL", rateLimiterKey))
-      local delay = expireTime + ((exceedingJobs - 1) * limiterDuration) / maxJobs;
-      local timestamp = delay + tonumber(processedOn)
 
-      -- put job into delayed queue
-      rcall("ZADD", keys[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
-      rcall("XADD", keys[4], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
+      -- put job into wait queue
+      rcall("LPUSH", keys[1], jobId)
 
       -- remove from active queue
       rcall("LREM", keys[2], 1, jobId)

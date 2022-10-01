@@ -110,20 +110,6 @@ export function getParentKey(opts: { id: string; queue: string }): string {
   }
 }
 
-export function jobIdForGroup(
-  jobOpts: JobsOptions,
-  data: any,
-  queueOpts: QueueOptions,
-): string {
-  const jobId = jobOpts?.jobId;
-  const groupKeyPath = get(queueOpts, 'limiter.groupKey');
-  const groupKey = get(data, groupKeyPath);
-  if (groupKeyPath && !(typeof groupKey === 'undefined')) {
-    return `${jobId || v4()}:${groupKey}`;
-  }
-  return jobId;
-}
-
 export const clientCommandMessageReg =
   /ERR unknown command ['`]\s*client\s*['`]/;
 
