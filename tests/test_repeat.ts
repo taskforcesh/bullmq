@@ -490,7 +490,7 @@ describe('repeat', function () {
                 opts.startDate && new Date(opts.startDate) > new Date(millis)
                   ? new Date(opts.startDate)
                   : new Date(millis);
-              const rrule = rrulestr(opts.cron);
+              const rrule = rrulestr(opts.pattern);
               if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
                 throw new Error(
                   'DTSTART must be defined to use COUNT with rrule',

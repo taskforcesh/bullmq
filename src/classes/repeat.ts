@@ -49,7 +49,7 @@ export class Repeat extends QueueBase {
     now = prevMillis < now ? now : prevMillis;
 
     const nextMillis = await this.repeatStrategy(now, repeatOpts, name);
-    const pattern = repeatOpts.pattern || repeatOpts.cron;
+    const pattern = repeatOpts.pattern;
 
     const hasImmediately =
       (repeatOpts.every || pattern) && repeatOpts.immediately;
