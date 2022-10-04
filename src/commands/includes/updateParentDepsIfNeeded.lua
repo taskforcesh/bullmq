@@ -13,7 +13,8 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
   local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
   if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
-    local parentTarget = getTargetQueueList(parentQueueKey .. ":meta", parentQueueKey .. ":wait", parentQueueKey .. ":paused")
+    local parentTarget = getTargetQueueList(parentQueueKey .. ":meta", parentQueueKey .. ":wait",
+      parentQueueKey .. ":paused")
     local priority = tonumber(rcall("HGET", parentKey, "priority"))
     -- Standard or priority add
     if priority == 0 then

@@ -24,9 +24,11 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd,
     if (isWaiting or rcall("EXISTS", jobKey .. ":lock") == 0) then
       -- Find the right timestamp of the job to compare to maxTimestamp:
       -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
-      -- * processedOn represents when the job was last attempted, but it doesn't get populated until the job is first tried
+      -- * processedOn represents when the job was last attempted, but it doesn't get populated until
+      --   the job is first tried
       -- * timestamp is the original job submission time
-      -- Fetch all three of these (in that order) and use the first one that is set so that we'll leave jobs that have been active within the grace period:
+      -- Fetch all three of these (in that order) and use the first one that is set so that we'll leave jobs
+      -- that have been active within the grace period:
       jobTS = getTimestamp(jobKey, {"finishedOn", "processedOn", "timestamp"})
       if (not jobTS or jobTS < timestamp) then
         -- replace the entry with a deletion marker; the actual deletion will
