@@ -2094,7 +2094,6 @@ describe('workers', function () {
                   case Step.Third: {
                     waitingChildrenStepExecutions++;
                     const shouldWait = await job.moveToWaitingChildren(token);
-                    job.autoComplete = true;
                     if (!shouldWait) {
                       await job.update({
                         step: Step.Finish,
@@ -2102,6 +2101,7 @@ describe('workers', function () {
                       step = Step.Finish;
                       return Step.Finish;
                     } else {
+                      job.autoComplete = true;
                       return;
                     }
                   }
@@ -2116,7 +2116,7 @@ describe('workers', function () {
           const childrenWorker = new Worker(
             queueName,
             async () => {
-              await delay(100);
+              await delay(200);
             },
             {
               connection,

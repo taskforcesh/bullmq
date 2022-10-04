@@ -101,7 +101,6 @@ const worker = new Worker(
         }
         case Step.Third: {
           const shouldWait = await job.moveToWaitingChildren(token);
-          job.autoComplete = true; // prevent missing lock error
           if (!shouldWait) {
             await job.update({
               step: Step.Finish,
@@ -109,6 +108,7 @@ const worker = new Worker(
             step = Step.Finish;
             return Step.Finish;
           } else {
+            job.autoComplete = true; // prevent missing lock error
             return;
           }
         }
