@@ -4,9 +4,9 @@
 import { expect } from 'chai';
 import { after } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueScheduler, Worker } from '../src/classes';
+import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', function () {
@@ -24,29 +24,29 @@ describe('Jobs getters', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  describe('.getQueueSchedulers', () => {
-    it('gets all queueSchedulers for this queue', async function () {
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
+  describe('.getQueueEvents', () => {
+    it('gets all queueEvents for this queue', async function () {
+      const queueEvent = new QueueEvents(queueName, { connection });
+      await queueEvent.waitUntilReady();
       await delay(10);
 
-      const queueSchedulers = await queue.getQueueSchedulers();
-      expect(queueSchedulers).to.have.length(1);
+      const queueEvents = await queue.getQueueEvents();
+      expect(queueEvents).to.have.length(1);
 
-      const queueScheduler2 = new QueueScheduler(queueName, { connection });
-      await queueScheduler2.waitUntilReady();
+      const queueEvent2 = new QueueEvents(queueName, { connection });
+      await queueEvent2.waitUntilReady();
       await delay(10);
 
-      const nextQueueSchedulers = await queue.getQueueSchedulers();
-      expect(nextQueueSchedulers).to.have.length(2);
+      const nextQueueEvents = await queue.getQueueEvents();
+      expect(nextQueueEvents).to.have.length(2);
 
-      await queueScheduler.close();
-      await queueScheduler2.close();
+      await queueEvent.close();
+      await queueEvent2.close();
     });
   });
 
   describe('.getWorkers', () => {
-    it('gets all workers for this queue', async function () {
+    it('gets all workers for this queue only', async function () {
       const worker = new Worker(queueName, async () => {}, { connection });
       await worker.waitUntilReady();
       await delay(10);
@@ -83,6 +83,33 @@ describe('Jobs getters', function () {
       await worker.close();
       await worker2.close();
       await removeAllQueueData(new IORedis(), queueName2);
+    });
+
+    describe('when sharing connection', () => {
+      it('gets all workers for this queue only', async function () {
+        const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
+        const worker = new Worker(queueName, async () => {}, {
+          connection: ioredisConnection,
+        });
+        await worker.waitUntilReady();
+        await delay(10);
+
+        const workers = await queue.getWorkers();
+        expect(workers).to.have.length(1);
+
+        const worker2 = new Worker(queueName, async () => {}, {
+          connection: ioredisConnection,
+        });
+        await worker2.waitUntilReady();
+        await delay(10);
+
+        const nextWorkers = await queue.getWorkers();
+        expect(nextWorkers).to.have.length(2);
+
+        await worker.close();
+        await worker2.close();
+        await ioredisConnection.quit();
+      });
     });
   });
 
@@ -465,6 +492,47 @@ describe('Jobs getters', function () {
     queue.add('test', { foo: 2 });
   });
 
+  it('should return deduplicated jobs for duplicates types', async function () {
+    queue.add('test', { foo: 1 });
+    const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);
+
+    expect(jobs).to.be.an('array');
+    expect(jobs).to.have.length(1);
+  });
+
+  it('should return jobs for all types', function (done) {
+    let counter = 0;
+    const worker = new Worker(
+      queueName,
+      async () => {
+        counter++;
+        if (counter == 2) {
+          await queue.add('test', { foo: 3 });
+          return queue.pause();
+        }
+      },
+      { connection },
+    );
+
+    worker.on(
+      'completed',
+      after(2, async function () {
+        try {
+          const jobs = await queue.getJobs();
+          expect(jobs).to.be.an('array');
+          expect(jobs).to.have.length(3);
+          await worker.close();
+          done();
+        } catch (err) {
+          done(err);
+        }
+      }),
+    );
+
+    queue.add('test', { foo: 1 });
+    queue.add('test', { foo: 2 });
+  });
+
   it('should return 0 if queue is empty', async function () {
     const count = await queue.getJobCountByTypes();
     expect(count).to.be.a('number');
@@ -524,6 +592,7 @@ describe('Jobs getters', function () {
       });
 
       await worker.close();
+      await flow.close();
     });
   });
 });

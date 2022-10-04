@@ -1,6 +1,5 @@
 import { promisify } from 'util';
 import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
-
 import { childSend } from '../utils';
 
 enum ChildStatus {
@@ -100,7 +99,7 @@ export class ChildProcessor {
 // https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
 if (!('toJSON' in Error.prototype)) {
   Object.defineProperty(Error.prototype, 'toJSON', {
-    value: function () {
+    value: function toJSONByBull() {
       const alt: any = {};
       const _this = this;
 
@@ -138,34 +137,11 @@ function wrapJob(job: JobJson): SandboxedJob {
     });
   };
 
-  const progress = (progress?: number | object) => {
-    console.warn(
-      [
-        'BullMQ: DEPRECATION WARNING! progress function in sandboxed processor is deprecated. This will',
-        'be removed in the next major release, you should use updateProgress method instead.',
-      ].join(' '),
-    );
-
-    if (progress) {
-      return updateProgress(progress);
-    } else {
-      // Return the last known progress value.
-      return progressValue;
-    }
-  };
-
   return {
     ...job,
     data: JSON.parse(job.data || '{}'),
     opts: job.opts,
     returnValue: JSON.parse(job.returnvalue || '{}'),
-    /**
-     * @deprecated Use updateProgress instead.
-     * Emulate the real job `progress` function.
-     * If no argument is given, it behaves as a sync getter.
-     * If an argument is given, it behaves as an async setter.
-     */
-    progress,
     /*
      * Emulate the real job `updateProgress` function, should works as `progress` function.
      */
@@ -177,6 +153,15 @@ function wrapJob(job: JobJson): SandboxedJob {
       childSend(process, {
         cmd: ParentCommand.Log,
         value: row,
+      });
+    },
+    /*
+     * Emulate the real job `update` function.
+     */
+    update: async (data: any) => {
+      childSend(process, {
+        cmd: ParentCommand.Update,
+        value: data,
       });
     },
   };

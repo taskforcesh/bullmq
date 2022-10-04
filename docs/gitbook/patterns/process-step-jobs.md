@@ -107,8 +107,9 @@ const worker = new Worker(
             });
             step = Step.Finish;
             return Step.Finish;
+          } else {
+            return;
           }
-          break;
         }
         default: {
           throw new Error('invalid step');

@@ -7,5 +7,5 @@
 <b>Signature:</b>
 
 ```typescript
-asyncSend: (proc: procSendLike, msg: any) => Promise<void>
+asyncSend: <T extends procSendLike>(proc: T, msg: any) => Promise<void>
 ```

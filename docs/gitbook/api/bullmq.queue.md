@@ -38,6 +38,7 @@ export declare class Queue<DataType = any, ResultType = any, NameType extends st
 |  [add(name, data, opts)](./bullmq.queue.add.md) |  | Adds a new job to the queue. |
 |  [addBulk(jobs)](./bullmq.queue.addbulk.md) |  | Adds an array of jobs to the queue. |
 |  [clean(grace, limit, type)](./bullmq.queue.clean.md) |  | Cleans jobs from a queue. Similar to drain but keeps jobs within a certain grace period. |
+|  [close()](./bullmq.queue.close.md) |  |  |
 |  [drain(delayed)](./bullmq.queue.drain.md) |  | Drains the queue, i.e., removes all jobs that are waiting or delayed, but not active, completed or failed. |
 |  [emit(event, args)](./bullmq.queue.emit.md) |  |  |
 |  [getRepeatableJobs(start, end, asc)](./bullmq.queue.getrepeatablejobs.md) |  | Get all repeatable meta jobs. |

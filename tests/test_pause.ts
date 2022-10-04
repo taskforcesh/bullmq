@@ -1,14 +1,8 @@
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import {
-  Job,
-  Queue,
-  QueueEvents,
-  QueueScheduler,
-  Worker,
-} from '../src/classes';
+import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Pause', function () {
@@ -31,12 +25,8 @@ describe('Pause', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  // Skipped since some side effect makes this test fail
-  it.skip('should not processed delayed jobs', async function () {
+  it('should not process delayed jobs', async function () {
     this.timeout(5000);
-
-    const queueScheduler = new QueueScheduler(queueName);
-    await queueScheduler.waitUntilReady();
 
     let processed = false;
 
@@ -56,16 +46,15 @@ describe('Pause', function () {
     expect(counts).to.have.property('waiting', 0);
     expect(counts).to.have.property('delayed', 1);
 
-    await delay(1000);
+    await delay(500);
     if (processed) {
       throw new Error('should not process delayed jobs in paused queue.');
     }
     const counts2 = await queue.getJobCounts('waiting', 'paused', 'delayed');
     expect(counts2).to.have.property('waiting', 0);
-    expect(counts2).to.have.property('paused', 1);
-    expect(counts2).to.have.property('delayed', 0);
+    expect(counts2).to.have.property('paused', 0);
+    expect(counts2).to.have.property('delayed', 1);
 
-    await queueScheduler.close();
     await worker.close();
   });
 
@@ -152,7 +141,7 @@ describe('Pause', function () {
     let counter = 2;
     let process;
     const processPromise = new Promise<void>(resolve => {
-      process = async (job: Job) => {
+      process = async () => {
         expect(worker.isPaused()).to.be.eql(false);
         counter--;
         if (counter === 0) {
@@ -294,29 +283,32 @@ describe('Pause', function () {
   });
 
   it('pauses fast when queue is drained', async function () {
-    const worker = new Worker(queueName, async () => {}, {
-      connection,
-    });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(50);
+      },
+      {
+        connection,
+      },
+    );
     await worker.waitUntilReady();
 
-    await queue.add('test', {});
+    const waitDrainedEvent = new Promise<void>(resolve => {
+      queueEvents.once('drained', async () => {
+        const start = new Date().getTime();
+        await queue.pause();
 
-    return new Promise((resolve, reject) => {
-      queueEvents.on('drained', async () => {
-        try {
-          const start = new Date().getTime();
-          await queue.pause();
-
-          const finish = new Date().getTime();
-          expect(finish - start).to.be.lt(1000);
-        } catch (err) {
-          reject(err);
-        } finally {
-          await worker.close();
-        }
+        const finish = new Date().getTime();
+        expect(finish - start).to.be.lt(1000);
         resolve();
       });
     });
+
+    await queue.add('test', {});
+
+    await waitDrainedEvent;
+    await worker.close();
   });
 
   it('gets the right response from isPaused', async () => {
@@ -332,7 +324,7 @@ describe('Pause', function () {
   it('should pause and resume worker without error', async function () {
     const worker = new Worker(
       queueName,
-      async job => {
+      async () => {
         await delay(100);
       },
       { connection },
@@ -348,5 +340,46 @@ describe('Pause', function () {
     await delay(10);
 
     return worker.close();
+  });
+
+  describe('when backoff is 0', () => {
+    it('moves job into paused queue', async () => {
+      await queue.add('test', { foo: 'bar' }, { attempts: 2, backoff: 0 });
+
+      let worker: Worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(
+          queueName,
+          async job => {
+            await delay(10);
+            if (job.attemptsMade == 1) {
+              await queue.pause();
+              throw new Error('Not yet!');
+            }
+
+            resolve();
+          },
+          {
+            connection,
+          },
+        );
+      });
+
+      const waitingEvent = new Promise<void>(resolve => {
+        queueEvents.on('waiting', async ({ prev }) => {
+          if (prev === 'failed') {
+            const count = await queue.getJobCountByTypes('paused');
+            expect(count).to.be.equal(1);
+            await queue.resume();
+            resolve();
+          }
+        });
+      });
+
+      await waitingEvent;
+      await processing;
+
+      await worker.close();
+    });
   });
 });

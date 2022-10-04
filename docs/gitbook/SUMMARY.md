@@ -1,8 +1,8 @@
 # Table of contents
 
-* [Quick Start](README.md)
-* [What is BullMQ](what-is-bullmq.md)
-* [API Reference](index.md)
+* [What is BullMQ](README.md)
+* [Quick Start](<README (1).md>)
+* [API Reference](https://api.docs.bullmq.io)
 * [Changelog](changelog.md)
 
 ## Guide
@@ -10,6 +10,7 @@
 * [Introduction](guide/introduction.md)
 * [Connections](guide/connections.md)
 * [Queues](guide/queues/README.md)
+  * [Adding bulks](guide/queues/adding-bulks.md)
   * [Removing Jobs](guide/queues/removing-jobs.md)
 * [Workers](guide/workers/README.md)
   * [Concurrency](guide/workers/concurrency.md)
@@ -24,12 +25,13 @@
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/prioritized.md)
-  * [Adding bulks](guide/jobs/adding-bulks.md)
   * [Removing job](guide/jobs/removing-job.md)
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
 * [Flows](guide/flows/README.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
+  * [Fail Parent](guide/flows/fail-parent.md)
+* [Metrics](guide/metrics/metrics.md)
 * [Rate limiting](guide/rate-limiting.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
 * [Returning job data](guide/returning-job-data.md)
@@ -55,9 +57,14 @@
 
 * [Introduction](bullmq-pro/introduction.md)
 * [Install](bullmq-pro/install.md)
-* [Observables](bullmq-pro/observables.md)
+* [Observables](bullmq-pro/observables/README.md)
+  * [Cancelation](bullmq-pro/observables/cancelation.md)
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
+  * [Concurrency](bullmq-pro/groups/concurrency.md)
+  * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
+* [API Reference](https://api.bullmq.pro)
+* [Changelog](bullmq-pro/changelog.md)
 
 ## Bull
 

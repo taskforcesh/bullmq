@@ -1,8 +1,7 @@
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis, RedisOptions } from 'ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueBase } from '../src/classes';
-import { RedisClient } from '../src/interfaces';
 import { removeAllQueueData } from '../src/utils';
 
 describe('connection', () => {
@@ -20,26 +19,56 @@ describe('connection', () => {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should override maxRetriesPerRequest: null and enableReadyCheck: false as redis options', async () => {
-    const opts = {
-      connection: {
-        host: 'localhost',
-        maxRetriesPerRequest: 20,
-        enableReadyCheck: true,
-      },
-    };
+  describe('blocking', () => {
+    it('should override maxRetriesPerRequest: null as redis options', async () => {
+      const queue = new QueueBase(queueName, {
+        connection: {
+          host: 'localhost',
+          maxRetriesPerRequest: 20,
+        },
+      });
 
-    function checkOptions(client: RedisClient) {
-      expect(
-        (<IORedis.RedisOptions>client.options).maxRetriesPerRequest,
-      ).to.be.equal(null);
-      expect(
-        (<IORedis.RedisOptions>client.options).enableReadyCheck,
-      ).to.be.equal(false);
-    }
+      const options = <RedisOptions>(await queue.client).options;
 
-    const queue = new QueueBase(queueName, opts);
-    checkOptions(await queue.client);
+      expect(options.maxRetriesPerRequest).to.be.equal(null);
+    });
+  });
+
+  describe('non-blocking', () => {
+    it('should not override any redis options', async () => {
+      const queue = new QueueBase(queueName, {
+        connection: {
+          host: 'localhost',
+          maxRetriesPerRequest: 20,
+        },
+        blockingConnection: false,
+      });
+
+      const options = <RedisOptions>(await queue.client).options;
+
+      expect(options.maxRetriesPerRequest).to.be.equal(20);
+    });
+  });
+
+  describe('when maxmemory-policy is different than noeviction in Redis', () => {
+    it('throws an error', async () => {
+      const opts = {
+        connection: {
+          host: 'localhost',
+        },
+      };
+
+      const queue = new QueueBase(queueName, opts);
+      const client = await queue.client;
+      await client.config('SET', 'maxmemory-policy', 'volatile-lru');
+
+      const queue2 = new QueueBase(`${queueName}2`, opts);
+
+      await expect(queue2.client).to.be.eventually.rejectedWith(
+        'Eviction policy is volatile-lru. It should be "noeviction"',
+      );
+      await client.config('SET', 'maxmemory-policy', 'noeviction');
+    });
   });
 
   describe('when host belongs to Upstash', async () => {
@@ -53,6 +82,21 @@ describe('connection', () => {
       expect(() => new QueueBase(queueName, opts)).to.throw(
         'BullMQ: Upstash is not compatible with BullMQ.',
       );
+    });
+
+    describe('when using Cluster instance', async () => {
+      it('throws an error', async () => {
+        const connection = new IORedis.Cluster([
+          {
+            host: 'https://upstash.io',
+          },
+        ]);
+
+        expect(() => new QueueBase(queueName, { connection })).to.throw(
+          'BullMQ: Upstash is not compatible with BullMQ.',
+        );
+        await connection.disconnect();
+      });
     });
   });
 
@@ -87,7 +131,7 @@ describe('connection', () => {
     workerClient.emit('error', new Error('ECONNRESET'));
 
     // add something to the queue
-    await queue.add('test', { foo: 'bar' });
+    await queue.add('test', { foo: 'bar' }, { delay: 2000 });
 
     await processing;
     await worker.close();

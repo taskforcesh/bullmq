@@ -1,7 +1,7 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
 import { flatten } from 'lodash';
-import * as getPort from 'get-port';
+import { AddressInfo, createServer } from 'net';
 import { killAsync } from './process-utils';
 import { ParentCommand, ChildCommand } from '../interfaces';
 import { parentSend } from '../utils';
@@ -11,6 +11,16 @@ const CHILD_KILL_TIMEOUT = 30_000;
 export interface ChildProcessExt extends ChildProcess {
   processFile?: string;
 }
+
+const getFreePort = async () => {
+  return new Promise(resolve => {
+    const server = createServer();
+    server.listen(0, () => {
+      const { port } = (server.address() as AddressInfo);
+      server.close(() => resolve(port));
+    });
+  });
+};
 
 const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
   const standard: string[] = [];
@@ -22,7 +32,7 @@ const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
       standard.push(arg);
     } else {
       const argName = arg.split('=')[0];
-      const port = await getPort();
+      const port = await getFreePort();
       convertedArgs.push(`${argName}=${port}`);
     }
   }

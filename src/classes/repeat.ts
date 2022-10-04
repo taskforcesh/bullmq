@@ -1,18 +1,31 @@
+import { parseExpression } from 'cron-parser';
 import { createHash } from 'crypto';
-import { JobsOptions, RepeatOptions } from '../interfaces';
-import { QueueBase } from './queue-base';
+import { RepeatBaseOptions, RepeatOptions } from '../interfaces';
+import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
-import { Scripts } from './scripts';
-
-const parser = require('cron-parser');
+import { QueueBase } from './queue-base';
+import { RedisConnection } from './redis-connection';
 
 export class Repeat extends QueueBase {
+  private repeatStrategy: RepeatStrategy;
+
+  constructor(
+    name: string,
+    opts?: RepeatBaseOptions,
+    Connection?: typeof RedisConnection,
+  ) {
+    super(name, opts, Connection);
+
+    this.repeatStrategy =
+      (opts.settings && opts.settings.repeatStrategy) || getNextMillis;
+  }
+
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
     name: N,
     data: T,
     opts: JobsOptions,
     skipCheckExists?: boolean,
-  ) {
+  ): Promise<Job<T, R, N>> {
     const repeatOpts = { ...opts.repeat };
     const prevMillis = opts.prevMillis || 0;
     const currentCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
@@ -35,10 +48,11 @@ export class Repeat extends QueueBase {
 
     now = prevMillis < now ? now : prevMillis;
 
-    const nextMillis = getNextMillis(now, repeatOpts);
+    const nextMillis = await this.repeatStrategy(now, repeatOpts, name);
+    const pattern = repeatOpts.pattern || repeatOpts.cron;
 
     const hasImmediately =
-      (repeatOpts.every || repeatOpts.cron) && repeatOpts.immediately;
+      (repeatOpts.every || pattern) && repeatOpts.immediately;
     const offset = hasImmediately ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
@@ -106,16 +120,21 @@ export class Repeat extends QueueBase {
       delay: delay < 0 || hasImmediately ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
+      repeatJobKey,
     };
 
     mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
     await client.zadd(this.keys.repeat, nextMillis.toString(), repeatJobKey);
 
-    return Job.create<T, R, N>(this, name, data, mergedOpts);
+    return this.Job.create<T, R, N>(this, name, data, mergedOpts);
   }
 
-  async removeRepeatable(name: string, repeat: RepeatOptions, jobId?: string) {
+  async removeRepeatable(
+    name: string,
+    repeat: RepeatOptions,
+    jobId?: string,
+  ): Promise<number> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
     const repeatJobId = getRepeatJobId(
       name,
@@ -124,10 +143,10 @@ export class Repeat extends QueueBase {
       jobId || repeat.jobId,
     );
 
-    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
-  async removeRepeatableByKey(repeatJobKey: string) {
+  async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
     const repeatJobId = getRepeatJobId(
@@ -137,11 +156,12 @@ export class Repeat extends QueueBase {
       data.id,
     );
 
-    return Scripts.removeRepeatable(this, repeatJobId, repeatJobKey);
+    return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
-  private keyToData(key: string) {
+  private keyToData(key: string, next?: number) {
     const data = key.split(':');
+    const pattern = data.slice(4).join(':') || null;
 
     return {
       key,
@@ -149,7 +169,9 @@ export class Repeat extends QueueBase {
       id: data[1] || null,
       endDate: parseInt(data[2]) || null,
       tz: data[3] || null,
-      cron: data[4],
+      cron: pattern,
+      pattern,
+      next,
     };
   }
 
@@ -163,21 +185,12 @@ export class Repeat extends QueueBase {
 
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
-      const data = result[i].split(':');
-      jobs.push({
-        key: result[i],
-        name: data[0],
-        id: data[1] || null,
-        endDate: parseInt(data[2]) || null,
-        tz: data[3] || null,
-        cron: data[4],
-        next: parseInt(result[i + 1]),
-      });
+      jobs.push(this.keyToData(result[i], parseInt(result[i + 1])));
     }
     return jobs;
   }
 
-  async getRepeatableCount() {
+  async getRepeatableCount(): Promise<number> {
     const client = await this.client;
     return client.zcard(this.toKey('repeat'));
   }
@@ -198,16 +211,18 @@ function getRepeatJobId(
 function getRepeatKey(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
-  const suffix = (repeat.cron ? repeat.cron : String(repeat.every)) || '';
+  const pattern = repeat.pattern || repeat.cron;
+  const suffix = (pattern ? pattern : String(repeat.every)) || '';
   const jobId = repeat.jobId ? repeat.jobId : '';
 
   return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
 
-function getNextMillis(millis: number, opts: RepeatOptions) {
-  if (opts.cron && opts.every) {
+export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
+  const pattern = opts.pattern || opts.cron;
+  if (pattern && opts.every) {
     throw new Error(
-      'Both .cron and .every options are defined for this repeatable job',
+      'Both .cron (or .pattern) and .every options are defined for this repeatable job',
     );
   }
 
@@ -222,7 +237,7 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
     opts.startDate && new Date(opts.startDate) > new Date(millis)
       ? new Date(opts.startDate)
       : new Date(millis);
-  const interval = parser.parseExpression(opts.cron, {
+  const interval = parseExpression(pattern, {
     ...opts,
     currentDate,
   });
@@ -232,7 +247,7 @@ function getNextMillis(millis: number, opts: RepeatOptions) {
   } catch (e) {
     // Ignore error
   }
-}
+};
 
 function md5(str: string) {
   return createHash('md5').update(str).digest('hex');

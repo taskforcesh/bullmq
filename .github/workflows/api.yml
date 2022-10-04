@@ -1,0 +1,34 @@
+name: Api build
+on:
+  push:
+    branches: [master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [lts/*]
+
+    steps:
+      - uses: actions/checkout@2541b1294d2704b0964813337f33b291d3f8596b # tag=v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@969bd2663942d722d85b6a8626225850c2f7be4b # tag=v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+      - name: yarn install
+        run: |
+          yarn install
+      - name: build
+        run: |
+          yarn docs
+        env:
+          CI: true
+      - name: deploy
+        uses: peaceiris/actions-gh-pages@068dc23d9710f1ba62e86896f84735d869951305 # tag=v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          cname: 'api.docs.bullmq.io'

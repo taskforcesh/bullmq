@@ -5,23 +5,22 @@
 ]]
 
 --- @include "destructureJobKey"
+--- @include "getTargetQueueList"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
-  if rcall("HEXISTS", parentPrefix .. "meta", "paused") ~= 1 then
-    rcall("RPUSH", parentPrefix .. "wait", parentId)
-  else
-    rcall("RPUSH", parentPrefix .. "paused", parentId)
-  end
+  local parentTarget = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait", parentPrefix .. "paused")
+  rcall("RPUSH", parentTarget, parentId)
 
   if emitEvent then
     local parentEventStream = parentPrefix .. "events"
-    rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+    rcall("XADD", parentEventStream, "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
   end
 end
 
-local function removeParentDependencyKey(jobKey, hard, baseKey)
-  local parentKey = rcall("HGET", jobKey, "parentKey")
-  if( (type(parentKey) == "string") and parentKey ~= "" and (rcall("EXISTS", parentKey) == 1)) then
+local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
+  if parentKey then
+    local parentProcessedKey = parentKey .. ":processed"
+    rcall("HDEL", parentProcessedKey, jobKey)
     local parentDependenciesKey = parentKey .. ":dependencies"
     local result = rcall("SREM", parentDependenciesKey, jobKey)
     if result > 0 then
@@ -30,21 +29,53 @@ local function removeParentDependencyKey(jobKey, hard, baseKey)
         local parentId = getJobIdFromKey(parentKey)
         local parentPrefix = getJobKeyPrefix(parentKey, parentId)
 
-        rcall("ZREM", parentPrefix .. "waiting-children", parentId)
+        local numRemovedElements = rcall("ZREM", parentPrefix .. "waiting-children", parentId)
 
-        if hard then  
-          if parentPrefix == baseKey then
-            removeParentDependencyKey(parentKey, hard, baseKey)
-            rcall("DEL", parentKey, parentKey .. ':logs',
-              parentKey .. ':dependencies', parentKey .. ':processed')
+        if numRemovedElements == 1 then
+          if hard then
+            if parentPrefix == baseKey then
+              removeParentDependencyKey(parentKey, hard, nil, baseKey)
+              rcall("DEL", parentKey, parentKey .. ':logs',
+                parentKey .. ':dependencies', parentKey .. ':processed')
+            else
+              moveParentToWait(parentPrefix, parentId)
+            end
           else
-            moveParentToWait(parentPrefix, parentId)
+            moveParentToWait(parentPrefix, parentId, true)
           end
-        else
-          moveParentToWait(parentPrefix, parentId, true)
+        end
+      end
+    end
+  else
+    local missedParentKey = rcall("HGET", jobKey, "parentKey")
+    if( (type(missedParentKey) == "string") and missedParentKey ~= "" and (rcall("EXISTS", missedParentKey) == 1)) then
+      local parentProcessedKey = missedParentKey .. ":processed"
+      rcall("HDEL", parentProcessedKey, jobKey)
+      local parentDependenciesKey = missedParentKey .. ":dependencies"
+      local result = rcall("SREM", parentDependenciesKey, jobKey)
+      if result > 0 then
+        local pendingDependencies = rcall("SCARD", parentDependenciesKey)
+        if pendingDependencies == 0 then
+          local parentId = getJobIdFromKey(missedParentKey)
+          local parentPrefix = getJobKeyPrefix(missedParentKey, parentId)
+
+          local numRemovedElements = rcall("ZREM", parentPrefix .. "waiting-children", parentId)
+
+          if numRemovedElements == 1 then
+            if hard then
+              if parentPrefix == baseKey then
+                removeParentDependencyKey(missedParentKey, hard, nil, baseKey)
+                rcall("DEL", missedParentKey, missedParentKey .. ':logs',
+                  missedParentKey .. ':dependencies', missedParentKey .. ':processed')
+              else
+                moveParentToWait(parentPrefix, parentId)
+              end
+            else
+              moveParentToWait(parentPrefix, parentId, true)
+            end
+          end
         end
       end
     end
   end
 end
-

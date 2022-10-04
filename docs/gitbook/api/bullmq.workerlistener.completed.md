@@ -11,5 +11,5 @@ This event is triggered when a job has successfully completed.
 <b>Signature:</b>
 
 ```typescript
-completed: (job: Job, result: any, prev: string) => void;
+completed: (job: Job<DataType, ResultType, NameType>, result: ResultType, prev: string) => void;
 ```

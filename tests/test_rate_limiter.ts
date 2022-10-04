@@ -1,10 +1,10 @@
-import { Queue, QueueEvents, QueueScheduler, Worker } from '../src/classes';
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
-import { after, every, last } from 'lodash';
+import { default as IORedis } from 'ioredis';
+import { after, every } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { removeAllQueueData } from '../src/utils';
+import { Queue, QueueEvents, Worker } from '../src/classes';
+import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
   let queue: Queue;
@@ -27,47 +27,45 @@ describe('Rate Limiter', function () {
   });
 
   it('should put a job into the delayed queue when limit is hit', async function () {
-    const worker = new Worker(queueName, async job => {}, {
-      connection,
-      limiter: {
-        max: 1,
-        duration: 1000,
+    this.timeout(6000);
+    const numJobs = 5;
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(200);
       },
-    });
+      {
+        connection,
+        concurrency: 5,
+        limiter: {
+          max: 1,
+          duration: 1000,
+        },
+      },
+    );
     await worker.waitUntilReady();
 
     queueEvents.on('failed', () => {});
 
-    await Promise.all([
-      queue.add('test', {}),
-      queue.add('test', {}),
-      queue.add('test', {}),
-      queue.add('test', {}),
-      queue.add('test', {}),
-    ]);
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
 
-    await Promise.all([
-      worker.getNextJob('test-token'),
-      worker.getNextJob('test-token'),
-      worker.getNextJob('test-token'),
-      worker.getNextJob('test-token'),
-    ]);
+    await delay(100);
 
     const delayedCount = await queue.getDelayedCount();
-    expect(delayedCount).to.equal(4);
+    expect(delayedCount).to.equal(numJobs - 1);
     await worker.close();
   });
 
   it('should obey the rate limit', async function () {
     this.timeout(20000);
 
-    const numJobs = 4;
-    const startTime = new Date().getTime();
+    const numJobs = 10;
 
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
-
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,
@@ -98,13 +96,62 @@ describe('Rate Limiter', function () {
       });
     });
 
-    for (let i = 0; i < numJobs; i++) {
-      await queue.add('rate test', {});
-    }
+    const startTime = new Date().getTime();
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'rate test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
 
     await result;
     await worker.close();
-    await queueScheduler.close();
+  });
+
+  it('should obey the rate limit with max value greater than 1', async function () {
+    this.timeout(20000);
+
+    const numJobs = 10;
+
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      limiter: {
+        max: 2,
+        duration: 1000,
+      },
+    });
+
+    const result = new Promise<void>((resolve, reject) => {
+      queueEvents.on(
+        'completed',
+        // after every job has been completed
+        after(numJobs, async () => {
+          await worker.close();
+
+          try {
+            const timeDiff = new Date().getTime() - startTime;
+            expect(timeDiff).to.be.gte(numJobs / 2 - 1 * 1000);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
+
+      queueEvents.on('failed', async err => {
+        await worker.close();
+        reject(err);
+      });
+    });
+
+    const startTime = new Date().getTime();
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'rate test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
+
+    await result;
+    await worker.close();
   });
 
   it('should obey the rate limit with workerDelay enabled', async function () {
@@ -113,10 +160,7 @@ describe('Rate Limiter', function () {
     const numJobs = 4;
     const startTime = new Date().getTime();
 
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
-
-    const worker = new Worker(queueName, async job => {}, {
+    const worker = new Worker(queueName, async () => {}, {
       connection,
       limiter: {
         max: 1,
@@ -154,194 +198,6 @@ describe('Rate Limiter', function () {
 
     await result;
     await worker.close();
-    await queueScheduler.close();
-  });
-
-  describe('when added job does not contain groupKey and fails', function () {
-    it('should move job to wait after retry', async function () {
-      const rateLimitedQueue = new Queue(queueName, {
-        connection,
-        limiter: {
-          groupKey: 'accountId',
-        },
-      });
-      const worker = new Worker(queueName, null, {
-        connection,
-        limiter: {
-          max: 1,
-          duration: 1000,
-          groupKey: 'accountId',
-        },
-      });
-
-      const token = 'my-token';
-      const token2 = 'my-token2';
-      await rateLimitedQueue.add('rate test', {});
-
-      const job = await worker.getNextJob(token);
-      await job.moveToFailed(new Error('test error'), token);
-
-      const isFailed = await job.isFailed();
-      expect(isFailed).to.be.equal(true);
-      await job.retry();
-      await worker.getNextJob(token2);
-      const isDelayed = await job.isDelayed();
-
-      expect(isDelayed).to.be.equal(false);
-
-      await worker.close();
-      await rateLimitedQueue.close();
-    });
-  });
-
-  it('should rate limit by grouping', async function () {
-    this.timeout(20000);
-
-    const numGroups = 4;
-    const numJobs = 20;
-    const startTime = Date.now();
-
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
-
-    const rateLimitedQueue = new Queue(queueName, {
-      connection,
-      limiter: {
-        groupKey: 'accountId',
-      },
-    });
-
-    const worker = new Worker(queueName, async job => {}, {
-      connection,
-      limiter: {
-        max: 1,
-        duration: 1000,
-        groupKey: 'accountId',
-      },
-    });
-
-    const completed: { [index: string]: number[] } = {};
-
-    const running = new Promise<void>((resolve, reject) => {
-      const afterJobs = after(numJobs, () => {
-        try {
-          const timeDiff = Date.now() - startTime;
-          // In some test envs, these timestamps can drift.
-          expect(timeDiff).to.be.gte(numGroups * 990);
-          expect(timeDiff).to.be.below((numGroups + 1) * 1200);
-
-          for (const group in completed) {
-            let prevTime = completed[group][0];
-            for (let i = 1; i < completed[group].length; i++) {
-              const diff = completed[group][i] - prevTime;
-              expect(diff).to.be.below(2100);
-              expect(diff).to.be.gte(970);
-              prevTime = completed[group][i];
-            }
-          }
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-
-      queueEvents.on('completed', ({ jobId }) => {
-        const group: string = last(jobId.split(':'));
-        completed[group] = completed[group] || [];
-        completed[group].push(Date.now());
-
-        afterJobs();
-      });
-
-      queueEvents.on('failed', async err => {
-        await worker.close();
-        reject(err);
-      });
-    });
-
-    for (let i = 0; i < numJobs; i++) {
-      await rateLimitedQueue.add('rate test', { accountId: i % numGroups });
-    }
-
-    await running;
-    await rateLimitedQueue.close();
-    await worker.close();
-    await queueScheduler.close();
-  });
-
-  it('should not obey rate limit by grouping if groupKey is missing', async function () {
-    const numJobs = 20;
-    const startTime = Date.now();
-
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
-
-    const rateLimitedQueue = new Queue(queueName, {
-      connection,
-      limiter: {
-        groupKey: 'accountId',
-      },
-    });
-
-    const worker = new Worker(queueName, async job => {}, {
-      connection,
-      limiter: {
-        max: 1,
-        duration: 1000,
-        groupKey: 'accountId',
-      },
-    });
-
-    const completed: { [index: string]: number } = {};
-
-    const running = new Promise<void>((resolve, reject) => {
-      const afterJobs = after(numJobs, () => {
-        try {
-          const timeDiff = Date.now() - startTime;
-          // In some test envs, these timestamps can drift.
-          expect(timeDiff).to.be.gte(20);
-          expect(timeDiff).to.be.below(325);
-
-          let count = 0;
-          let prevTime;
-          for (const id in completed) {
-            if (count === 0) {
-              prevTime = completed[id];
-            } else {
-              const diff = completed[id] - prevTime;
-              expect(diff).to.be.below(25);
-              expect(diff).to.be.gte(0);
-              prevTime = completed[id];
-            }
-            count++;
-          }
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-
-      queueEvents.on('completed', ({ jobId }) => {
-        const id: string = last(jobId.split(':'));
-        completed[id] = Date.now();
-
-        afterJobs();
-      });
-
-      queueEvents.on('failed', async err => {
-        await worker.close();
-        reject(err);
-      });
-    });
-
-    for (let i = 0; i < numJobs; i++) {
-      await rateLimitedQueue.add('rate test', {});
-    }
-
-    await running;
-    await rateLimitedQueue.close();
-    await worker.close();
-    await queueScheduler.close();
   });
 
   it.skip('should obey priority', async function () {
@@ -367,8 +223,6 @@ describe('Rate Limiter', function () {
     }
 
     const priorityBucketsBefore = { ...priorityBuckets };
-    const queueScheduler = new QueueScheduler(queueName, { connection });
-    await queueScheduler.waitUntilReady();
 
     const worker = new Worker(
       queueName,
@@ -423,6 +277,5 @@ describe('Rate Limiter', function () {
 
     await result;
     await worker.close();
-    await queueScheduler.close();
   });
 });

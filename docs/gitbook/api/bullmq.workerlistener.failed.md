@@ -11,5 +11,5 @@ This event is triggered when a job has thrown an exception.
 <b>Signature:</b>
 
 ```typescript
-failed: (job: Job, error: Error, prev: string) => void;
+failed: (job: Job<DataType, ResultType, NameType>, error: Error, prev: string) => void;
 ```

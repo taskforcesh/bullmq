@@ -1,16 +1,17 @@
-import { Cluster } from 'ioredis';
+import { Cluster, Redis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { v4 } from 'uuid';
 import { get } from 'lodash';
+import * as semver from 'semver';
 import {
-  RedisClient,
-  JobsOptions,
-  QueueOptions,
   ChildMessage,
   ParentMessage,
+  QueueOptions,
+  RedisClient,
 } from './interfaces';
+import { JobsOptions } from './types';
 import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };
@@ -60,12 +61,16 @@ export function delay(ms: number): Promise<void> {
   });
 }
 
-export function isRedisInstance(obj: any): boolean {
+export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
   }
   const redisApi = ['connect', 'disconnect', 'duplicate'];
   return redisApi.every(name => typeof obj[name] === 'function');
+}
+
+export function isRedisCluster(obj: unknown): obj is Cluster {
+  return isRedisInstance(obj) && (<Cluster>obj).isCluster;
 }
 
 export async function removeAllQueueData(
@@ -135,34 +140,49 @@ export function isNotConnectionError(error: Error): boolean {
 }
 
 interface procSendLike {
-  send?(
-    message: any,
-    sendHandle?: any,
-    options?: {
-      swallowErrors?: boolean;
-    },
-    callback?: (error: Error) => void,
-  ): boolean;
+  send?(message: any, callback?: (error: Error | null) => void): boolean;
 }
 
-export const asyncSend = (proc: procSendLike, msg: any): Promise<void> => {
+export const asyncSend = <T extends procSendLike>(
+  proc: T,
+  msg: any,
+): Promise<void> => {
   return new Promise((resolve, reject) => {
-    proc.send(msg, (err: Error) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    });
+    if (typeof proc.send === 'function') {
+      proc.send(msg, (err: Error) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    } else {
+      resolve();
+    }
   });
 };
 
 export const childSend = (
   proc: NodeJS.Process,
   msg: ChildMessage,
-): Promise<void> => asyncSend(proc, msg);
+): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
+
+export const isRedisVersionLowerThan = (
+  currentVersion: string,
+  minimumVersion: string,
+): boolean => {
+  const version = semver.valid(semver.coerce(currentVersion));
+
+  return semver.lt(version, minimumVersion);
+};
 
 export const parentSend = (
   child: ChildProcess,
   msg: ParentMessage,
-): Promise<void> => asyncSend(child, msg);
+): Promise<void> => asyncSend<ChildProcess>(child, msg);
+
+export const WORKER_SUFFIX = '';
+
+export const QUEUE_SCHEDULER_SUFFIX = ':qs';
+
+export const QUEUE_EVENT_SUFFIX = ':qe';

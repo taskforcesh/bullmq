@@ -7,8 +7,15 @@
 <b>Signature:</b>
 
 ```typescript
-protected clientName(): string;
+protected clientName(suffix?: string): string;
 ```
+
+## Parameters
+
+|  Parameter | Type | Description |
+|  --- | --- | --- |
+|  suffix | string |  |
+
 <b>Returns:</b>
 
 string

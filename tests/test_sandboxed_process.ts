@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import * as IORedis from 'ioredis';
+import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
   ChildProcessExt,
@@ -7,7 +7,6 @@ import {
   Job,
   Queue,
   QueueEvents,
-  QueueScheduler,
   Worker,
 } from '../src/classes';
 import { beforeEach } from 'mocha';
@@ -177,9 +176,6 @@ describe('sandboxed process', () => {
     it('moves job to failed', async function () {
       this.timeout(6000);
 
-      const queueScheduler = new QueueScheduler(queueName, { connection });
-      await queueScheduler.waitUntilReady();
-
       const processFile =
         __dirname + '/fixtures/fixture_processor_unrecoverable.js';
 
@@ -191,7 +187,7 @@ describe('sandboxed process', () => {
       await worker.waitUntilReady();
 
       const start = Date.now();
-      await queue.add(
+      const job = await queue.add(
         'test',
         { foo: 'bar' },
         {
@@ -214,8 +210,11 @@ describe('sandboxed process', () => {
         );
       });
 
+      const state = await job.getState();
+
+      expect(state).to.be.equal('failed');
+
       await worker.close();
-      await queueScheduler.close();
     });
   });
 
@@ -332,7 +331,8 @@ describe('sandboxed process', () => {
   });
 
   it('should process and update progress', async () => {
-    const processFile = __dirname + '/fixtures/fixture_processor_progress.js';
+    const processFile =
+      __dirname + '/fixtures/fixture_processor_update_progress.js';
 
     const worker = new Worker(queueName, processFile, {
       connection,
@@ -350,11 +350,6 @@ describe('sandboxed process', () => {
           expect(progresses).to.be.eql([10, 27, 78, 100]);
           expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
           expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
-          const logs = await queue.getJobLogs(job.id);
-          expect(logs).to.be.eql({
-            logs: ['10', '27', '78', '100'],
-            count: 4,
-          });
           resolve();
         } catch (err) {
           reject(err);
@@ -367,6 +362,34 @@ describe('sandboxed process', () => {
     });
 
     await queue.add('test', { foo: 'bar' });
+
+    await completing;
+    await worker.close();
+  });
+
+  it('should process and update data', async () => {
+    const processFile = __dirname + '/fixtures/fixture_processor_update.js';
+
+    const worker = new Worker(queueName, processFile, {
+      connection,
+      drainDelay: 1,
+    });
+
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, value: any) => {
+        try {
+          expect(job.data).to.be.eql({ foo: 'baz' });
+          expect(value).to.be.eql('result');
+          expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(0);
+          expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await queue.add('test', { bar: 'foo' });
 
     await completing;
     await worker.close();
@@ -478,6 +501,7 @@ describe('sandboxed process', () => {
     await completing;
 
     await worker.close();
+    await flow.close();
   });
 
   it('should process and fail', async () => {

@@ -6,16 +6,22 @@ The jobs added to a queue will normally be processed as quick as some worker is 
 Delayed jobs will only be processed if there is at least one [`QueueScheduler`](../queuescheduler.md) instance configured in the Queue.
 {% endhint %}
 
+{% hint style="danger" %}
+From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore.
+{% endhint %}
+
 This is an example on how to add delayed jobs:
 
 ```typescript
-import { Queue, QueueScheduler } from 'bullmq'
+import { Queue, QueueScheduler } from 'bullmq';
 
 const myQueueScheduler = new QueueScheduler('Paint');
 const myQueue = new Queue('Paint');
 
 // Add a job that will be delayed at least 5 seconds.
 await myQueue.add('house', { color: 'white' }, { delay: 5000 });
-
 ```
 
+## Read more:
+
+* 💡 [Queue Scheduler API Reference](https://github.com/taskforcesh/bullmq/blob/v1.91.1/docs/gitbook/api/bullmq.queuescheduler.md)

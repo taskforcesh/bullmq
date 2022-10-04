@@ -1,11 +1,12 @@
 import { EventEmitter } from 'events';
 import { get } from 'lodash';
-import { Redis, Pipeline } from 'ioredis';
+import { Redis, ChainableCommander } from 'ioredis';
 import { v4 } from 'uuid';
 import {
   FlowJob,
   FlowQueuesOpts,
   FlowOpts,
+  IoredisListener,
   QueueBaseOptions,
   RedisClient,
 } from '../interfaces';
@@ -15,7 +16,7 @@ import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
 
 export interface AddNodeOpts {
-  multi: Pipeline;
+  multi: ChainableCommander;
   node: FlowJob;
   parent?: {
     parentOpts: {
@@ -31,7 +32,7 @@ export interface AddNodeOpts {
 }
 
 export interface AddChildrenOpts {
-  multi: Pipeline;
+  multi: ChainableCommander;
   nodes: FlowJob[];
   parent: {
     parentOpts: {
@@ -71,6 +72,15 @@ export interface JobNode {
   children?: JobNode[];
 }
 
+export interface FlowProducerListener extends IoredisListener {
+  /**
+   * Listen to 'error' event.
+   *
+   * This event is triggered when an error is throw.
+   */
+  error: (failedReason: Error) => void;
+}
+
 /**
  * This class allows to add jobs with dependencies between them in such
  * a way that it is possible to build complex flows.
@@ -87,7 +97,10 @@ export class FlowProducer extends EventEmitter {
 
   protected connection: RedisConnection;
 
-  constructor(public opts: QueueBaseOptions = {}) {
+  constructor(
+    public opts: QueueBaseOptions = {},
+    Connection: typeof RedisConnection = RedisConnection,
+  ) {
     super();
 
     this.opts = {
@@ -95,10 +108,42 @@ export class FlowProducer extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new RedisConnection(opts.connection);
-    this.connection.on('error', this.emit.bind(this, 'error'));
+    this.connection = new Connection(opts.connection);
+    this.connection.on('error', error => this.emit('error', error));
+    this.connection.on('close', this.emit.bind(this, 'ioredis:close'));
 
     this.queueKeys = new QueueKeys(opts.prefix);
+  }
+
+  emit<U extends keyof FlowProducerListener>(
+    event: U,
+    ...args: Parameters<FlowProducerListener[U]>
+  ): boolean {
+    return super.emit(event, ...args);
+  }
+
+  off<U extends keyof FlowProducerListener>(
+    eventName: U,
+    listener: FlowProducerListener[U],
+  ): this {
+    super.off(eventName, listener);
+    return this;
+  }
+
+  on<U extends keyof FlowProducerListener>(
+    event: U,
+    listener: FlowProducerListener[U],
+  ): this {
+    super.on(event, listener);
+    return this;
+  }
+
+  once<U extends keyof FlowProducerListener>(
+    event: U,
+    listener: FlowProducerListener[U],
+  ): this {
+    super.once(event, listener);
+    return this;
   }
 
   /**
@@ -169,6 +214,13 @@ export class FlowProducer extends EventEmitter {
   }
 
   /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
+  }
+
+  /**
    * Adds multiple flows.
    *
    * A flow is a tree-like structure of jobs that depend on each other.
@@ -202,12 +254,12 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis pipeline
+   * @param multi - ioredis ChainableCommander
    * @param node - the node representing a job to be added to some queue
    * @param parent - parent data sent to children to create the "links" to their parent
    * @returns
    */
-  private addNode({ multi, node, parent, queuesOpts }: AddNodeOpts): JobNode {
+  protected addNode({ multi, node, parent, queuesOpts }: AddNodeOpts): JobNode {
     const queue = this.queueFromNode(
       node,
       new QueueKeys(node.prefix || this.opts.prefix),
@@ -217,7 +269,7 @@ export class FlowProducer extends EventEmitter {
     const jobsOpts = get(queueOpts, 'defaultJobOptions');
     const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
 
-    const job = new Job(
+    const job = new this.Job(
       queue,
       node.name,
       node.data,
@@ -281,18 +333,18 @@ export class FlowProducer extends EventEmitter {
    * a parent and a child job at the same time depending on where it is located
    * in the tree hierarchy.
    *
-   * @param multi - ioredis pipeline
+   * @param multi - ioredis ChainableCommander
    * @param nodes - the nodes representing jobs to be added to some queue
    * @returns
    */
-  private addNodes(multi: Pipeline, nodes: FlowJob[]): JobNode[] {
+  protected addNodes(multi: ChainableCommander, nodes: FlowJob[]): JobNode[] {
     return nodes.map(node => this.addNode({ multi, node }));
   }
 
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
     const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
 
-    const job = await Job.fromId(queue, node.id);
+    const job = await this.Job.fromId(queue, node.id);
 
     if (job) {
       const { processed = {}, unprocessed = [] } = await job.getDependencies({
@@ -333,10 +385,10 @@ export class FlowProducer extends EventEmitter {
     maxChildren: number,
   ) {
     const getChild = (key: string) => {
-      const [prefix, queueName, id] = key.split(':');
+      const [prefix, queueName, id, groupId] = key.split(':');
 
       return this.getNode(client, {
-        id,
+        id: groupId ? `${id}:${groupId}` : id,
         queueName,
         prefix,
         depth,
