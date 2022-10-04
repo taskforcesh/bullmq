@@ -130,7 +130,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         local targetSet = KEYS[9]
         -- Add to complete/failed set
         rcall("ZADD", targetSet, timestamp, jobId)
-        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp) -- "returnvalue" / "failedReason" and "finishedOn"
+        rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp)
+        -- "returnvalue" / "failedReason" and "finishedOn"
 
         -- Remove old jobs?
         local prefix = ARGV[8]
