@@ -1,16 +1,21 @@
 import { ChainableCommander } from 'ioredis';
-import { fromPairs } from 'lodash';
+import { fromPairs, invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
   JobJson,
   JobJsonRaw,
-  JobsOptions,
   ParentKeys,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
-import { FinishedStatus, JobState, JobJsonSandbox } from '../types';
+import {
+  FinishedStatus,
+  JobsOptions,
+  JobState,
+  JobJsonSandbox,
+  RedisJobOptions,
+} from '../types';
 import {
   errorObject,
   isEmpty,
@@ -26,6 +31,12 @@ import { UnrecoverableError } from './unrecoverable-error';
 const logger = debuglog('bull');
 
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
+
+const optsDecodeMap = {
+  fpof: 'failParentOnFailure',
+};
+
+const optsEncodeMap = invert(optsDecodeMap);
 
 export interface MoveToWaitingChildrenOpts {
   child?: {
@@ -266,7 +277,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = JSON.parse(json.opts || '{}');
+    const opts = Job.optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
       queue,
@@ -314,6 +325,27 @@ export class Job<
     return job;
   }
 
+  private static optsFromJSON(rawOpts?: string): JobsOptions {
+    const opts = JSON.parse(rawOpts || '{}');
+
+    const optionEntries = Object.entries(opts) as Array<
+      [keyof RedisJobOptions, any]
+    >;
+
+    const options: Partial<Record<string, any>> = {};
+    for (const item of optionEntries) {
+      const [attributeName, value] = item;
+      if ((optsDecodeMap as Record<string, any>)[<string>attributeName]) {
+        options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
+          value;
+      } else {
+        options[<string>attributeName] = value;
+      }
+    }
+
+    return options as JobsOptions;
+  }
+
   /**
    * Fetches a Job from the queue given the passed job id.
    *
@@ -353,7 +385,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: this.opts,
+      opts: this.optsAsJSON(this.opts),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
       progress: this.progress,
@@ -366,6 +398,24 @@ export class Job<
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     };
+  }
+
+  private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+    const optionEntries = Object.entries(opts) as Array<
+      [keyof JobsOptions, any]
+    >;
+    const options: Partial<Record<string, any>> = {};
+    for (const item of optionEntries) {
+      const [attributeName, value] = item;
+      if ((optsEncodeMap as Record<string, any>)[<string>attributeName]) {
+        options[(optsEncodeMap as Record<string, any>)[<string>attributeName]] =
+          value;
+      } else {
+        options[<string>attributeName] = value;
+      }
+    }
+
+    return options as RedisJobOptions;
   }
 
   /**
@@ -981,7 +1031,13 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
-    return this.scripts.addJob(client, jobData, this.opts, this.id, parentOpts);
+    return this.scripts.addJob(
+      client,
+      jobData,
+      jobData.opts,
+      this.id,
+      parentOpts,
+    );
   }
 
   protected saveStacktrace(multi: ChainableCommander, err: Error): void {

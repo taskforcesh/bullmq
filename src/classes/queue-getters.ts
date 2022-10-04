@@ -375,7 +375,7 @@ export class QueueGetters<
     start = 0,
     end = -1,
     asc = true,
-  ): Promise<{ logs: [string]; count: number }> {
+  ): Promise<{ logs: string[]; count: number }> {
     const client = await this.client;
     const multi = client.multi();
 

@@ -1,5 +1,5 @@
+import { JobsOptions } from '../types';
 import { JobJson } from './job-json';
-import { JobsOptions } from './jobs-options';
 
 /**
  * @see {@link https://docs.bullmq.io/guide/workers/sandboxed-processors}
