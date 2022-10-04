@@ -179,8 +179,6 @@ export class FlowProducer extends EventEmitter {
       },
     });
 
-    const result = await multi.exec();
-
     await multi.exec();
 
     return jobsTree;
