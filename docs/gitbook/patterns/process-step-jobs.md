@@ -148,17 +148,6 @@ const worker = new Worker(
       switch (step) {
         case Step.Initial: {
           await doInitialStepStuff();
-          await childrenQueue.add(
-            'child-1',
-            { foo: 'bar' },
-            {
-              parent: {
-                id: job.id,
-                queue: `bull:${parentQueueName}`,
-              },
-            },
-          );
-
           await flow.add({
             name: 'child-job',
             queueName: 'childrenQueueName',
@@ -178,7 +167,7 @@ const worker = new Worker(
             opts: {
               parent: {
                 id: job.id,
-                queue: `bull:${parentQueueName}`,
+                queue: `${job.prefix}:${job.queueName}`,
               },
             },
           });

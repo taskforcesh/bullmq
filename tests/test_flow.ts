@@ -229,6 +229,125 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(), parentQueueName);
   });
 
+  describe('when chaining flows at runtime using step jobs', () => {
+    it('should wait children as one step of the parent job', async function () {
+      this.timeout(8000);
+      const childrenQueueName = `children-queue-${v4()}`;
+      const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
+
+      enum Step {
+        Initial,
+        Second,
+        Third,
+        Finish,
+      }
+
+      const flow = new FlowProducer({ connection });
+
+      const childrenWorker = new Worker(
+        childrenQueueName,
+        async () => {
+          await delay(10);
+        },
+        { connection },
+      );
+      const grandchildrenWorker = new Worker(
+        grandchildrenQueueName,
+        async () => {
+          await delay(10);
+        },
+        { connection },
+      );
+
+      const worker = new Worker(
+        queueName,
+        async (job, token) => {
+          let step = job.data.step;
+          while (step !== Step.Finish) {
+            switch (step) {
+              case Step.Initial: {
+                await flow.add({
+                  name: 'child-job',
+                  queueName: childrenQueueName,
+                  data: {},
+                  children: [
+                    {
+                      name: 'grandchild-job',
+                      data: { idx: 0, foo: 'bar' },
+                      queueName: grandchildrenQueueName,
+                    },
+                    {
+                      name: 'grandchild-job',
+                      data: { idx: 1, foo: 'baz' },
+                      queueName: grandchildrenQueueName,
+                    },
+                  ],
+                  opts: {
+                    parent: {
+                      id: job.id,
+                      queue: `${job.prefix}:${job.queueName}`,
+                    },
+                  },
+                });
+                await job.update({
+                  step: Step.Second,
+                });
+                step = Step.Second;
+                break;
+              }
+              case Step.Second: {
+                await job.update({
+                  step: Step.Third,
+                });
+                step = Step.Third;
+                break;
+              }
+              case Step.Third: {
+                const shouldWait = await job.moveToWaitingChildren(token);
+                if (!shouldWait) {
+                  await job.update({
+                    step: Step.Finish,
+                  });
+                  step = Step.Finish;
+                  return Step.Finish;
+                } else {
+                  return;
+                }
+              }
+              default: {
+                throw new Error('invalid step');
+              }
+            }
+          }
+        },
+        { connection },
+      );
+      await childrenWorker.waitUntilReady();
+      await grandchildrenWorker.waitUntilReady();
+      await worker.waitUntilReady();
+
+      await queue.add(
+        'test',
+        { step: Step.Initial },
+        {
+          attempts: 3,
+          backoff: 1000,
+        },
+      );
+
+      await new Promise<void>(resolve => {
+        worker.on('completed', job => {
+          expect(job.returnvalue).to.equal(Step.Finish);
+          resolve();
+        });
+      });
+
+      await flow.close();
+      await worker.close();
+      await childrenWorker.close();
+    });
+  });
+
   describe('when moving jobs from wait to active continuing', async () => {
     it('begins with attemptsMade as 1', async () => {
       let parentProcessor,
