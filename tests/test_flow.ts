@@ -535,10 +535,8 @@ describe('flows', () => {
       const childrenWorker = new Worker(queueName, childrenProcessor, {
         connection,
         settings: {
-          backoffStrategies: {
-            custom(attemptsMade: number) {
-              return attemptsMade * 500;
-            },
+          backoffStrategy: (attemptsMade: number) => {
+            return attemptsMade * 500;
           },
         },
       });
