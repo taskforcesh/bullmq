@@ -127,9 +127,9 @@ Bullmq-Pro: this pattern could be handled by using observables; in that case, we
 
 # Chaining Flows
 
-For example, we can add children using flows dynamically in the processor function of a worker.
+Another use case is to add flows at runtime and then wait for the children to complete.
 
-This could be handled in this way:
+For example, we can add children dynamically in the processor function of a worker. This could be handled in this way:
 
 ```typescript
 enum Step {
