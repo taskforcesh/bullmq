@@ -71,7 +71,7 @@ const worker = new Worker(
             {
               parent: {
                 id: job.id,
-                queue: `bull:${parentQueueName}`,
+                queue: job.queuePrefix,
               },
             },
           );
@@ -89,7 +89,7 @@ const worker = new Worker(
             {
               parent: {
                 id: job.id,
-                queue: `${job.prefix}:${job.queueName}`,
+                queue: job.queuePrefix,
               },
             },
           );
@@ -127,7 +127,7 @@ Bullmq-Pro: this pattern could be handled by using observables; in that case, we
 
 # Chaining Flows
 
-Another use case is to add flows at runtime and then wait for the children to complete.
+For example, we can add children using flows dynamically in the processor function of a worker.
 
 This could be handled in this way:
 
@@ -167,7 +167,7 @@ const worker = new Worker(
             opts: {
               parent: {
                 id: job.id,
-                queue: `${job.prefix}:${job.queueName}`,
+                queue: job.queuePrefix,
               },
             },
           });

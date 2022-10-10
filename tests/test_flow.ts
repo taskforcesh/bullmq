@@ -285,7 +285,7 @@ describe('flows', () => {
                   opts: {
                     parent: {
                       id: job.id,
-                      queue: `${job.prefix}:${job.queueName}`,
+                      queue: job.queuePrefix,
                     },
                   },
                 });

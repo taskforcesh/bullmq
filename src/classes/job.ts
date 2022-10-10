@@ -664,8 +664,18 @@ export class Job<
     return this.queue.name;
   }
 
+  /**
+   * @returns the prefix that is used.
+   */
   get prefix(): string {
     return this.queue.opts.prefix;
+  }
+
+  /**
+   * @returns the queue prefix that is used.
+   */
+  get queuePrefix(): string {
+    return `${this.prefix}:${this.queueName}`;
   }
 
   /**
