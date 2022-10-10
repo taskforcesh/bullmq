@@ -672,9 +672,10 @@ export class Job<
   }
 
   /**
-   * @returns the queue prefix that is used.
+   * @returns it includes the prefix, the namespace separator :, and queue name.
+   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
    */
-  get queuePrefix(): string {
+  get queueQualifiedName(): string {
     return `${this.prefix}:${this.queueName}`;
   }
 

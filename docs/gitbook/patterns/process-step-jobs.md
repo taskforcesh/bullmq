@@ -71,7 +71,7 @@ const worker = new Worker(
             {
               parent: {
                 id: job.id,
-                queue: job.queuePrefix,
+                queue: job.queueQualifiedName,
               },
             },
           );
@@ -89,7 +89,7 @@ const worker = new Worker(
             {
               parent: {
                 id: job.id,
-                queue: job.queuePrefix,
+                queue: job.queueQualifiedName,
               },
             },
           );
@@ -167,7 +167,7 @@ const worker = new Worker(
             opts: {
               parent: {
                 id: job.id,
-                queue: job.queuePrefix,
+                queue: job.queueQualifiedName,
               },
             },
           });
