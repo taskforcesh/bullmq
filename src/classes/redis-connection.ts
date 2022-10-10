@@ -71,7 +71,8 @@ export class RedisConnection extends EventEmitter {
       if (isRedisCluster(this._client)) {
         this.opts = this._client.options.redisOptions;
         const hosts = (<any>this._client).startupNodes.map(
-          (node: { host: string }) => node.host,
+          (node: { host: string } | string) =>
+            typeof node == 'string' ? node : node.host,
         );
         this.checkUpstashHost(hosts);
       } else {
