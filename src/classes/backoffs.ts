@@ -1,19 +1,10 @@
 import { Job } from './job';
 import { BackoffOptions } from '../interfaces/backoff-options';
+import { BackoffStrategy } from '../types';
 
 interface BuiltInStrategies {
-  [index: string]: (delay: number) => BackoffFunction;
+  [index: string]: (delay: number) => BackoffStrategy;
 }
-
-export interface Strategies {
-  [index: string]: BackoffFunction;
-}
-
-export type BackoffFunction = (
-  attemptsMade?: number,
-  err?: Error,
-  job?: Job,
-) => number;
 
 export class Backoffs {
   static builtinStrategies: BuiltInStrategies = {
@@ -44,26 +35,26 @@ export class Backoffs {
   static calculate(
     backoff: BackoffOptions,
     attemptsMade: number,
-    customStrategies: Strategies,
     err: Error,
     job: Job,
-  ): number {
+    customStrategy?: BackoffStrategy,
+  ): Promise<number> | number {
     if (backoff) {
-      const strategy = lookupStrategy(backoff, customStrategies);
+      const strategy = lookupStrategy(backoff, customStrategy);
 
-      return strategy(attemptsMade, err, job);
+      return strategy(attemptsMade, backoff.type, err, job);
     }
   }
 }
 
 function lookupStrategy(
   backoff: BackoffOptions,
-  customStrategies: Strategies,
-): BackoffFunction {
-  if (backoff.type in (customStrategies || {})) {
-    return customStrategies[backoff.type];
-  } else if (backoff.type in Backoffs.builtinStrategies) {
+  customStrategy: BackoffStrategy,
+): BackoffStrategy {
+  if (backoff.type in Backoffs.builtinStrategies) {
     return Backoffs.builtinStrategies[backoff.type](backoff.delay);
+  } else if (customStrategy) {
+    return customStrategy;
   } else {
     throw new Error(
       `Unknown backoff strategy ${backoff.type}.

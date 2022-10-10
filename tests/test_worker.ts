@@ -2191,10 +2191,8 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              custom(attemptsMade: number) {
-                return attemptsMade * 1000;
-              },
+            backoffStrategy: (attemptsMade: number) => {
+              return attemptsMade * 1000;
             },
           },
         },
@@ -2225,6 +2223,81 @@ describe('workers', function () {
       await worker.close();
     });
 
+    describe('when applying custom backoff by type', () => {
+      it('should retry a job after a delay for custom type', async function () {
+        this.timeout(10000);
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            if (job.attemptsMade < 3) {
+              throw new Error('Not yet!');
+            }
+          },
+          {
+            connection,
+            settings: {
+              backoffStrategy: (
+                attemptsMade: number,
+                type: string,
+                err: Error,
+                job: Job,
+              ) => {
+                if (type == 'custom1') {
+                  return attemptsMade * 1000;
+                }
+
+                return attemptsMade * 2000;
+              },
+            },
+          },
+        );
+
+        await worker.waitUntilReady();
+
+        const start = Date.now();
+        await queue.add(
+          'test',
+          { foo: 'baz' },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'custom1',
+            },
+          },
+        );
+
+        await new Promise<void>(resolve => {
+          worker.on('completed', () => {
+            const elapse = Date.now() - start;
+            expect(elapse).to.be.greaterThan(3000);
+            resolve();
+          });
+        });
+
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'custom2',
+            },
+          },
+        );
+
+        await new Promise<void>(resolve => {
+          worker.on('completed', () => {
+            const elapse = Date.now() - start;
+            expect(elapse).to.be.greaterThan(6000);
+            resolve();
+          });
+        });
+
+        await worker.close();
+      });
+    });
+
     it('should not retry a job if the custom backoff returns -1', async () => {
       let tries = 0;
 
@@ -2239,10 +2312,8 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              custom() {
-                return -1;
-              },
+            backoffStrategy: () => {
+              return -1;
             },
           },
         },
@@ -2288,13 +2359,15 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              custom(attemptsMade: number, err: Error) {
-                if (err instanceof CustomError) {
-                  return 1500;
-                }
-                return 500;
-              },
+            backoffStrategy: (
+              attemptsMade: number,
+              type: string,
+              err: Error,
+            ) => {
+              if (err instanceof CustomError) {
+                return 1500;
+              }
+              return 500;
             },
           },
         },
@@ -2343,16 +2416,19 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              async custom(attemptsMade: number, err: Error, job: Job) {
-                if (err instanceof CustomError) {
-                  const data = job.data;
-                  data.ids = err.failedIds;
-                  await job.update(data);
-                  return 2500;
-                }
-                return 500;
-              },
+            backoffStrategy: async (
+              attemptsMade: number,
+              type: string,
+              err: Error,
+              job: Job,
+            ) => {
+              if (err instanceof CustomError) {
+                const data = job.data;
+                data.ids = err.failedIds;
+                await job.update(data);
+                return 2500;
+              }
+              return 500;
             },
           },
         },
@@ -2394,10 +2470,10 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              async custom() {
-                return delay(500);
-              },
+            backoffStrategy: async () => {
+              await delay(500);
+
+              return 10;
             },
           },
         },
