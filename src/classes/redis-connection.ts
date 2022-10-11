@@ -3,7 +3,6 @@ import { default as IORedis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { scriptLoader, ScriptMetadata } from '../commands';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import {
   isNotConnectionError,
@@ -12,7 +11,6 @@ import {
   isRedisVersionLowerThan,
 } from '../utils';
 import * as scripts from '../scripts';
-import * as path from 'path';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',

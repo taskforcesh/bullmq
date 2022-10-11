@@ -1,11 +1,10 @@
 const path = require('path');
 const fs = require('fs');
-const { promisify } = require('util');
 const { argv } = require('process');
 
-const readFile = promisify(fs.readFile);
-const writeFile = promisify(fs.writeFile);
-const readdir = promisify(fs.readdir);
+const readFile = fs.promises.readFile;
+const writeFile = fs.promises.writeFile;
+const readdir = fs.promises.readdir;
 
 const loadScripts = async (readDir, writeDir) => {
   const normalizedDir = path.normalize(readDir);
