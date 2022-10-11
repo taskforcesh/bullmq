@@ -23,7 +23,7 @@ jobs:
           yarn install
       - name: build
         run: |
-          yarn generate:raw:scripts
+          yarn pretest
           yarn docs
         env:
           CI: true
