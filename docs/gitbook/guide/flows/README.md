@@ -77,8 +77,7 @@ import { Worker } from 'bullmq';
 const stepsQueue = new Worker('renovate', async job => {
   const childrenValues = await job.getChildrenValues();
 
-  const totalCosts = Object(childrenValues)
-    .values()
+  const totalCosts = Object.values(childrenValues)
     .reduce((prev, cur) => prev + cur, 0);
 
   await sendInvoice(totalCosts);

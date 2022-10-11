@@ -71,7 +71,7 @@ const worker = new Worker(
             {
               parent: {
                 id: job.id,
-                queue: `bull:${parentQueueName}`,
+                queue: job.queueQualifiedName,
               },
             },
           );
@@ -89,7 +89,7 @@ const worker = new Worker(
             {
               parent: {
                 id: job.id,
-                queue: `${job.prefix}:${job.queueName}`,
+                queue: job.queueQualifiedName,
               },
             },
           );
@@ -124,3 +124,86 @@ const worker = new Worker(
 {% hint style="info" %}
 Bullmq-Pro: this pattern could be handled by using observables; in that case, we do not need to save next step.
 {% endhint %}
+
+# Chaining Flows
+
+Another use case is to add flows at runtime and then wait for the children to complete.
+
+For example, we can add children dynamically in the processor function of a worker. This could be handled in this way:
+
+```typescript
+enum Step {
+  Initial,
+  Second,
+  Third,
+  Finish,
+}
+
+const flow = new FlowProducer({ connection });
+const worker = new Worker(
+  parentQueueName,
+  async (job, token) => {
+    let step = job.data.step;
+    while (step !== Step.Finish) {
+      switch (step) {
+        case Step.Initial: {
+          await doInitialStepStuff();
+          await flow.add({
+            name: 'child-job',
+            queueName: 'childrenQueueName',
+            data: {},
+            children: [
+              {
+                name,
+                data: { idx: 0, foo: 'bar' },
+                queueName: 'grandchildrenQueueName',
+              },
+              {
+                name,
+                data: { idx: 1, foo: 'baz' },
+                queueName: 'grandchildrenQueueName',
+              },
+            ],
+            opts: {
+              parent: {
+                id: job.id,
+                queue: job.queueQualifiedName,
+              },
+            },
+          });
+
+          await job.update({
+            step: Step.Second,
+          });
+          step = Step.Second;
+          break;
+        }
+        case Step.Second: {
+          await doSecondStepStuff();
+          await job.update({
+            step: Step.Third,
+          });
+          step = Step.Third;
+          break;
+        }
+        case Step.Third: {
+          const shouldWait = await job.moveToWaitingChildren(token);
+          if (!shouldWait) {
+            await job.update({
+              step: Step.Finish,
+            });
+            step = Step.Finish;
+            return Step.Finish;
+          } else {
+            return;
+          }
+        }
+        default: {
+          throw new Error('invalid step');
+        }
+      }
+    }
+  },
+  { connection },
+);
+```
