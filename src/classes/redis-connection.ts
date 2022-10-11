@@ -3,7 +3,6 @@ import { default as IORedis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { scriptLoader, ScriptMetadata } from '../commands';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import {
   isNotConnectionError,
@@ -11,8 +10,7 @@ import {
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';
-
-import * as path from 'path';
+import * as scripts from '../scripts';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
@@ -25,6 +23,12 @@ const deprecationMessage = [
 ].join(' ');
 
 const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
+
+export interface RawCommand {
+  content: string;
+  name: string;
+  keys: number;
+}
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -156,15 +160,16 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(cache?: Map<string, ScriptMetadata>): Promise<void> {
-    return (
-      (<any>this._client)['bullmq:loadingCommands'] ||
-      ((<any>this._client)['bullmq:loadingCommands'] = scriptLoader.load(
-        this._client,
-        path.join(__dirname, '../commands'),
-        cache ?? new Map<string, ScriptMetadata>(),
-      ))
-    );
+  protected loadCommands(): void {
+    for (const property in scripts as Record<string, RawCommand>) {
+      // Only define the command if not already defined
+      if (!(<any>this._client)[(<any>scripts)[property].name]) {
+        (<any>this._client).defineCommand((<any>scripts)[property].name, {
+          numberOfKeys: (<any>scripts)[property].keys,
+          lua: (<any>scripts)[property].content,
+        });
+      }
+    }
   }
 
   private async init() {

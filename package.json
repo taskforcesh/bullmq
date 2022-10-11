@@ -19,7 +19,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "npm-run-all tsc:all copy:lua copy:includes:lua clean:temp:files",
+    "build": "npm-run-all pretest tsc:all clean:temp:files",
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/cjs/commands && copyfiles -f ./src/commands/*.lua ./dist/esm/commands",
     "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/cjs/commands/includes && copyfiles -f ./src/commands/includes/*.lua ./dist/esm/commands/includes",
@@ -39,6 +39,8 @@
     "pretty:quick": "pretty-quick --ignore-path ./.eslintignore --staged",
     "semantic-release": "semantic-release",
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
+    "transform:commands": "node ./commandTransform.js ./rawScripts ./src/scripts",
+    "pretest": "npm-run-all generate:raw:scripts transform:commands",
     "test": "ts-mocha -p tsconfig-cjs.json --config ./.mocharc.js",
     "test:watch": "ts-mocha -p tsconfig-cjs.json --paths 'tests/test_*.ts' -w --watch-extensions ts",
     "tsc": "tsc",
