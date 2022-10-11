@@ -7,7 +7,6 @@ import { v4 } from 'uuid';
 import {
   Queue,
   QueueEvents,
-  QueueScheduler,
   Job,
   UnrecoverableError,
   Worker,
@@ -2064,7 +2063,7 @@ describe('workers', function () {
                       {
                         parent: {
                           id: job.id,
-                          queue: `${job.prefix}:${job.queueName}`,
+                          queue: job.queueQualifiedName,
                         },
                       },
                     );
