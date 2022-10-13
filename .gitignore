@@ -2,6 +2,7 @@
 node_modules
 /dist
 /rawScripts
+/src/scripts
 # Log files
 npm-debug.log*
 yarn-debug.log*

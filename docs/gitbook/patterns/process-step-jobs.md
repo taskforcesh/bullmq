@@ -43,6 +43,51 @@ const worker = new Worker(
 
 As you can see, we should save the step value; in this case, we are saving it into the job's data. So even in the case of an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
 
+# Delaying
+
+Another use case is to delay a job at runtime.
+
+This could be handled using the moveToDelayed method:
+
+```typescript
+enum Step {
+  Initial,
+  Second,
+  Finish,
+}
+const worker = new Worker(
+  queueName,
+  async job => {
+    let step = job.data.step;
+    while (step !== Step.Finish) {
+      switch (step) {
+        case Step.Initial: {
+          await doInitialStepStuff();
+          await job.moveToDelayed(Date.now() + 200, token);
+          await job.update({
+            step: Step.Second,
+          });
+          step = Step.Second;
+          break;
+        }
+        case Step.Second: {
+          await doSecondStepStuff();
+          await job.update({
+            step: Step.Finish,
+          });
+          step = Step.Finish;
+          return Step.Finish;
+        }
+        default: {
+          throw new Error('invalid step');
+        }
+      }
+    }
+  },
+  { connection },
+);
+```
+
 # Waiting Children
 
 A common use case is to add children at runtime and then wait for the children to complete.
