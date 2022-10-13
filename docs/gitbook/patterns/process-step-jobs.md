@@ -55,6 +55,7 @@ enum Step {
   Second,
   Finish,
 }
+
 const worker = new Worker(
   queueName,
   async job => {
@@ -64,6 +65,7 @@ const worker = new Worker(
         case Step.Initial: {
           await doInitialStepStuff();
           await job.moveToDelayed(Date.now() + 200, token);
+          job.autoComplete = true;
           await job.update({
             step: Step.Second,
           });
@@ -87,6 +89,10 @@ const worker = new Worker(
   { connection },
 );
 ```
+
+{% hint style="warning" %}
+By default jobs complete as soon as they finalize, but you can disable this behaviour by enabling autoComplete.
+{% endhint %}
 
 # Waiting Children
 
@@ -169,57 +175,6 @@ const worker = new Worker(
 
 {% hint style="info" %}
 Bullmq-Pro: this pattern could be handled by using observables; in that case, we do not need to save next step.
-{% endhint %}
-
-# Delaying
-
-Another use case is to delay a job at runtime.
-
-This could be handled using the moveToDelayed method:
-
-```typescript
-enum Step {
-  Initial,
-  Second,
-  Finish,
-}
-
-const worker = new Worker(
-  queueName,
-  async job => {
-    let step = job.data.step;
-    while (step !== Step.Finish) {
-      switch (step) {
-        case Step.Initial: {
-          await doInitialStepStuff();
-          await job.moveToDelayed(Date.now() + 200, token);
-          job.autoComplete = true;
-          await job.update({
-            step: Step.Second,
-          });
-          step = Step.Second;
-          break;
-        }
-        case Step.Second: {
-          await doSecondStepStuff();
-          await job.update({
-            step: Step.Finish,
-          });
-          step = Step.Finish;
-          return Step.Finish;
-        }
-        default: {
-          throw new Error('invalid step');
-        }
-      }
-    }
-  },
-  { connection },
-);
-```
-
-{% hint style="warning" %}
-By default jobs complete as soon as they finalize, but you can disable this behaviour by enabling autoComplete.
 {% endhint %}
 
 # Chaining Flows

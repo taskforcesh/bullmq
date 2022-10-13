@@ -203,7 +203,7 @@ export class RedisConnection extends EventEmitter {
         )
       ) {
         console.warn(
-          `It is highly recommeded to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
+          `It is highly recommended to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
            Current: ${this.version}`,
         );
       }
