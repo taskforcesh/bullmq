@@ -1150,6 +1150,8 @@ describe('flows', () => {
       const grandChildrenQueue = new Queue(grandChildrenQueueName, {
         connection,
       });
+      const queueEvents = new QueueEvents(parentQueueName, { connection });
+      await queueEvents.waitUntilReady();
 
       let grandChildrenProcessor,
         processedGrandChildren = 0;
@@ -1206,6 +1208,18 @@ describe('flows', () => {
         ],
       });
 
+      const failed = new Promise<void>(resolve => {
+        queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+          if (jobId === tree.job.id) {
+            expect(prev).to.be.equal('waiting-children');
+            expect(failedReason).to.be.equal(
+              `child bull:${queueName}:${tree.children[1].job.id} failed`,
+            );
+            resolve();
+          }
+        });
+      });
+
       expect(tree).to.have.property('job');
       expect(tree).to.have.property('children');
 
@@ -1215,6 +1229,7 @@ describe('flows', () => {
       expect(parentState).to.be.eql('waiting-children');
 
       await processingChildren;
+      await failed;
 
       const { children: grandChildren } = children[1];
       const updatedGrandchildJob = await grandChildrenQueue.getJob(
@@ -1244,6 +1259,7 @@ describe('flows', () => {
       await parentQueue.close();
       await grandChildrenWorker.close();
       await flow.close();
+      await queueEvents.close();
 
       await removeAllQueueData(new IORedis(), parentQueueName);
       await removeAllQueueData(new IORedis(), grandChildrenQueueName);
