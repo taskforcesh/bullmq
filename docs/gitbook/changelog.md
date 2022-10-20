@@ -85,6 +85,11 @@
 
 * **events:** remove data and opts from added event ([e13d4b8](https://github.com/taskforcesh/bullmq/commit/e13d4b8e0c4f99203f4249ccc86e369d124ff483))
 
+### BREAKING CHANGES
+
+* An error is thrown if the Redis eviction policy parameter is not set to "noeviction".
+
+
 # [2.0.0](https://github.com/taskforcesh/bullmq/compare/v1.91.1...v2.0.0) (2022-09-21)
 
 
@@ -114,7 +119,6 @@ Delayed jobs are now handled in a much simpler and
 robust way, without the need of a separate process.
 * Failed and stalled events are now produced by the Worker class instead of by the QueueScheduler.
 * The minimum Redis recommended version is 6.2.0.
-* The Redis eviction policy parameter should be set to `noeviction`.
 
 ## [1.91.1](https://github.com/taskforcesh/bullmq/compare/v1.91.0...v1.91.1) (2022-09-18)
 
