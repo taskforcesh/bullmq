@@ -114,6 +114,7 @@ Delayed jobs are now handled in a much simpler and
 robust way, without the need of a separate process.
 * Failed and stalled events are now produced by the Worker class instead of by the QueueScheduler.
 * The minimum Redis recommended version is 6.2.0.
+* The Redis eviction policy parameter should be set to `noeviction`.
 
 ## [1.91.1](https://github.com/taskforcesh/bullmq/compare/v1.91.0...v1.91.1) (2022-09-18)
 
