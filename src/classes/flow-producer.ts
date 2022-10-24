@@ -10,7 +10,7 @@ import {
   QueueBaseOptions,
   RedisClient,
 } from '../interfaces';
-import { getParentKey, jobIdForGroup } from '../utils';
+import { getParentKey } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
@@ -265,7 +265,7 @@ export class FlowProducer extends EventEmitter {
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = get(queueOpts, 'defaultJobOptions');
-    const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
+    const jobId = node.opts?.jobId || v4();
 
     const job = new this.Job(
       queue,

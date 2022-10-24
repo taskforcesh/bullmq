@@ -6,7 +6,7 @@ import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('Rate Limiter Groups', function () {
+describe.skip('Rate Limiter Groups', function () {
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;

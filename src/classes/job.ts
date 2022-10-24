@@ -504,7 +504,7 @@ export class Job<
     returnValue: ReturnType,
     token: string,
     fetchNext = true,
-  ): Promise<JobData | []> {
+  ) {
     await this.queue.waitUntilReady();
 
     this.returnvalue = returnValue || void 0;

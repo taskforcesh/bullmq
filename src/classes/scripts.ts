@@ -316,7 +316,7 @@ export class Scripts {
     target: FinishedStatus,
     token: string,
     fetchNext: boolean,
-  ): Promise<JobData | []> {
+  ) {
     const client = await this.queue.client;
 
     const timestamp = Date.now();
@@ -338,7 +338,7 @@ export class Scripts {
       job.finishedOn = timestamp;
 
       if (typeof result !== 'undefined') {
-        return raw2jobData(result);
+        return raw2NextJobData(result);
       }
     }
   }
@@ -395,7 +395,7 @@ export class Scripts {
     removeOnComplete: boolean | number | KeepJobs,
     token: string,
     fetchNext: boolean,
-  ): Promise<JobData | []> {
+  ) {
     return this.moveToFinished<T, R, N>(
       job,
       returnvalue,
@@ -729,17 +729,13 @@ export class Scripts {
 
     if (opts.limiter) {
       args.push(opts.limiter.max, opts.limiter.duration);
-      opts.limiter.groupKey && args.push(true);
     }
 
     const result = await (<any>client).moveToActive(
       (<(string | number | boolean | Buffer)[]>keys).concat(args),
     );
 
-    if (typeof result === 'number') {
-      return [result, void 0] as [number, undefined];
-    }
-    return raw2jobData(result);
+    return raw2NextJobData(result);
   }
 
   async promote(jobId: string): Promise<number> {
@@ -844,16 +840,13 @@ export class Scripts {
   */
 }
 
-export function raw2jobData(raw: any[]): [JobJsonRaw | number, string?] | [] {
-  if (typeof raw === 'number') {
-    return [raw, void 0] as [number, undefined];
-  }
+export function raw2NextJobData(raw: any[]) {
   if (raw) {
-    const jobData = raw[0];
-    if (jobData.length) {
-      const job: any = array2obj(jobData);
-      return [job, raw[1]];
+    const result = [null, raw[1], raw[2], raw[3]];
+    if (raw[0]) {
+      result[0] = array2obj(raw[0]);
     }
+    return result;
   }
   return [];
 }
