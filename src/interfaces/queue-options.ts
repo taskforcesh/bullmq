@@ -39,17 +39,6 @@ export interface QueueOptions extends QueueBaseOptions {
   defaultJobOptions?: DefaultJobOptions;
 
   /**
-   * Options for the rate limiter.
-   */
-  limiter?: {
-    /**
-     * Group key to be used by the limiter when
-     * limiting by group keys.
-     */
-    groupKey: string;
-  };
-
-  /**
    * Options for the streams used internally in BullMQ.
    */
   streams?: {

@@ -38,15 +38,24 @@ local rcall = redis.call
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/promoteDelayedJobs"
+--- @include "includes/getRateLimitTTL"
 
 -- Check if there are delayed jobs that we can move to wait.
 promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[9], KEYS[4], ARGV[1], ARGV[2])
 
+local opts
 if (ARGV[3] ~= "") then
     jobId = ARGV[3]
     -- clean stalled key
     rcall("SREM", KEYS[5], jobId)
 else
+    -- Check if we are rate limited first.
+    opts = cmsgpack.unpack(ARGV[4])
+    local pttl = getRateLimitTTL(opts, KEYS[6])
+    if pttl > 0 then
+        return { 0, 0, pttl }
+    end
+
     -- no job ID, try non-blocking move from wait to active
     jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 end
@@ -55,7 +64,7 @@ end
 if jobId == "0" then
     rcall("LREM", KEYS[2], 1, 0)
 elseif jobId then
-    local opts = cmsgpack.unpack(ARGV[4])
+    opts = opts or cmsgpack.unpack(ARGV[4])
     -- this script is not really moving, it is preparing the job for processing
     return moveJobFromWaitToActive(KEYS, ARGV[1], jobId, ARGV[2], opts)
 end
@@ -63,5 +72,5 @@ end
 -- Return the timestamp for the next delayed job if any.
 local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
 if (nextTimestamp ~= nil) then
-    return nextTimestamp - tonumber(ARGV[2])
+    return { 0, 0, 0, nextTimestamp - tonumber(ARGV[2])}
 end

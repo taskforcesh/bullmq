@@ -26,7 +26,7 @@ describe('Rate Limiter', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  it('should put a job into the delayed queue when limit is hit', async function () {
+  it('should not put a job into the delayed queue when limit is hit', async function () {
     this.timeout(6000);
     const numJobs = 5;
     const worker = new Worker(
@@ -56,7 +56,7 @@ describe('Rate Limiter', function () {
     await delay(100);
 
     const delayedCount = await queue.getDelayedCount();
-    expect(delayedCount).to.equal(numJobs - 1);
+    expect(delayedCount).to.equal(0);
     await worker.close();
   });
 

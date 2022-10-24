@@ -64,6 +64,7 @@ local rcall = redis.call
 --- @include "includes/removeJobsByMaxCount"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
+--- @include "includes/getRateLimitTTL"
 
 local jobIdKey = KEYS[10]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -169,6 +170,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         -- Check if there are delayed jobs that can be promoted
         promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[11], KEYS[4], ARGV[8], timestamp)
 
+        -- Check if we are rate limited first.
+        local pttl = getRateLimitTTL(opts, KEYS[6])
+        if pttl > 0 then
+            return { 0, 0, pttl }
+        end
+
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
         if jobId == "0" then
@@ -182,7 +189,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if (nextTimestamp ~= nil) then
             -- The result is guaranteed to be positive, since the
             -- ZRANGEBYSCORE command would have return a job otherwise.
-            return nextTimestamp - timestamp
+            return {0, 0, 0, nextTimestamp - timestamp}
         end
     end
 
