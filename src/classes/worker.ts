@@ -129,6 +129,8 @@ export interface WorkerListener<
   stalled: (jobId: string, prev: string) => void;
 }
 
+const RATE_LIMIT_ERROR = 'bullmq:rateLimitExceeded';
+
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
@@ -161,6 +163,11 @@ export class Worker<
   private blockingConnection: RedisConnection;
 
   private processing: Set<Promise<void | Job<DataType, ResultType, NameType>>>;
+
+  static RateLimitError() {
+    return new Error(RATE_LIMIT_ERROR);
+  }
+
   constructor(
     name: string,
     processor?: string | Processor<DataType, ResultType, NameType>,
@@ -435,6 +442,22 @@ export class Worker<
     }
   }
 
+  /**
+   * Overrides the rate limit to be active for the next jobs.
+   *
+   * @param expireTimeMs expire time in ms of this rate limit.
+   */
+  async rateLimit(expireTimeMs: number) {
+    await this.client.then(client =>
+      client.set(
+        this.keys.limiter,
+        Number.MAX_SAFE_INTEGER,
+        'PX',
+        expireTimeMs,
+      ),
+    );
+  }
+
   protected async moveToActive(
     token: string,
     jobId?: string,
@@ -584,6 +607,11 @@ export class Worker<
     const handleFailed = async (err: Error) => {
       if (!this.connection.closing) {
         try {
+          if (err.message == RATE_LIMIT_ERROR) {
+            this.limitUntil = await this.moveLimitedBackToWait(job);
+            return;
+          }
+
           await job.moveToFailed(err, token);
           this.emit('failed', job, err, 'active');
         } catch (err) {
@@ -598,6 +626,7 @@ export class Worker<
     this.emit('active', job, 'waiting');
 
     lockExtender();
+
     try {
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
@@ -785,5 +814,17 @@ export class Worker<
         'active',
       ),
     );
+  }
+
+  private async moveLimitedBackToWait(
+    job: Job<DataType, ResultType, NameType>,
+  ) {
+    const multi = (await this.client).multi();
+    multi.pttl(this.keys.limiter);
+    multi.lrem(this.keys.active, 1, job.id);
+    multi.rpush(this.keys.wait, job.id);
+    multi.del(`${this.toKey(job.id)}:lock`);
+    const [[err, limitUntil]] = await multi.exec();
+    return <number>limitUntil;
   }
 }
