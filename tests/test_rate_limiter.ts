@@ -154,6 +154,66 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
+  it('should obey the rate limit with dynamic limit', async function () {
+    this.timeout(5000);
+
+    const numJobs = 10;
+    const dynamicLimit = 250;
+    const duration = 100;
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        if (job.attemptsMade === 1) {
+          await worker.rateLimit(dynamicLimit);
+          throw Worker.RateLimitError();
+        }
+      },
+      {
+        connection,
+        limiter: {
+          max: 1,
+          duration,
+        },
+      },
+    );
+
+    const result = new Promise<void>((resolve, reject) => {
+      queueEvents.on(
+        'completed',
+        // after every job has been completed
+        after(numJobs, async () => {
+          await worker.close();
+
+          try {
+            const timeDiff = new Date().getTime() - startTime;
+            expect(timeDiff).to.be.gte(
+              numJobs * dynamicLimit + numJobs * duration,
+            );
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        }),
+      );
+
+      queueEvents.on('failed', async err => {
+        await worker.close();
+        reject(err);
+      });
+    });
+
+    const startTime = new Date().getTime();
+    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+      name: 'rate test',
+      data: {},
+    }));
+    await queue.addBulk(jobs);
+
+    await result;
+    await worker.close();
+  });
+
   it('should obey the rate limit with workerDelay enabled', async function () {
     this.timeout(20000);
 
@@ -200,7 +260,7 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
-  it.skip('should obey priority', async function () {
+  it('should obey priority', async function () {
     this.timeout(20000);
 
     const numJobs = 10;
