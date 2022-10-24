@@ -49,7 +49,7 @@ export class Repeat extends QueueBase {
     now = prevMillis < now ? now : prevMillis;
 
     const nextMillis = await this.repeatStrategy(now, repeatOpts, name);
-    const pattern = repeatOpts.pattern || repeatOpts.cron;
+    const pattern = repeatOpts.pattern;
 
     const hasImmediately =
       (repeatOpts.every || pattern) && repeatOpts.immediately;
@@ -169,7 +169,6 @@ export class Repeat extends QueueBase {
       id: data[1] || null,
       endDate: parseInt(data[2]) || null,
       tz: data[3] || null,
-      cron: pattern,
       pattern,
       next,
     };
@@ -211,7 +210,7 @@ function getRepeatJobId(
 function getRepeatKey(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
-  const pattern = repeat.pattern || repeat.cron;
+  const pattern = repeat.pattern;
   const suffix = (pattern ? pattern : String(repeat.every)) || '';
   const jobId = repeat.jobId ? repeat.jobId : '';
 
@@ -219,10 +218,10 @@ function getRepeatKey(name: string, repeat: RepeatOptions) {
 }
 
 export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
-  const pattern = opts.pattern || opts.cron;
+  const pattern = opts.pattern;
   if (pattern && opts.every) {
     throw new Error(
-      'Both .cron (or .pattern) and .every options are defined for this repeatable job',
+      'Both .pattern and .every options are defined for this repeatable job',
     );
   }
 
