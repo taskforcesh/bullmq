@@ -144,10 +144,11 @@ export class Worker<
   readonly opts: WorkerOptions;
   readonly id: string;
 
-  private drained: boolean;
+  private drained: boolean = false;
   private waiting = false;
   private running = false;
   private blockTimeout = 0;
+  private limitUntil = 0;
 
   protected processFn: Processor<DataType, ResultType, NameType>;
 
@@ -159,10 +160,7 @@ export class Worker<
 
   private blockingConnection: RedisConnection;
 
-  private processing: Map<
-    Promise<Job<DataType, ResultType, NameType> | string>,
-    string
-  >;
+  private processing: Set<Promise<void | Job<DataType, ResultType, NameType>>>;
   constructor(
     name: string,
     processor?: string | Processor<DataType, ResultType, NameType>,
@@ -341,18 +339,19 @@ export class Worker<
 
           this.runStalledJobsCheck();
 
-          const processing = (this.processing = new Map());
+          const processing = (this.processing = new Set());
+          const token = v4();
 
           while (!this.closing) {
-            if (processing.size < this.opts.concurrency) {
-              const token = v4();
-
-              processing.set(
+            if (
+              processing.size < this.opts.concurrency &&
+              (!this.limitUntil || processing.size == 0)
+            ) {
+              processing.add(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
                   () => this.getNextJob(token),
                   this.opts.runRetryDelay,
                 ),
-                token,
               );
             }
 
@@ -366,23 +365,15 @@ export class Worker<
 
             const completed = promises[completedIdx];
 
-            const token = processing.get(completed);
             processing.delete(completed);
 
             const job = await completed;
             if (job) {
-              // reuse same token if next job is available to process
-              processing.set(
+              processing.add(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () =>
-                    this.processJob(
-                      job,
-                      token,
-                      () => processing.size <= this.opts.concurrency,
-                    ),
+                  () => this.processJob(job, token),
                   this.opts.runRetryDelay,
                 ),
-                token,
               );
             }
           }
@@ -422,7 +413,7 @@ export class Worker<
       return;
     }
 
-    if (this.drained && block) {
+    if (this.drained && block && !this.limitUntil) {
       try {
         const jobId = await this.waitForJob();
         return this.moveToActive(token, jobId);
@@ -436,6 +427,10 @@ export class Worker<
         }
       }
     } else {
+      if (this.limitUntil) {
+        // TODO: We need to be able to break this delay when we are closing the worker.
+        await delay(this.limitUntil);
+      }
       return this.moveToActive(token);
     }
   }
@@ -444,8 +439,9 @@ export class Worker<
     token: string,
     jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    const [jobData, id] = await this.scripts.moveToActive(token, jobId);
-    return this.nextJobFromJobData(jobData, id);
+    const [jobData, id, limitUntil, delayUntil] =
+      await this.scripts.moveToActive(token, jobId);
+    return this.nextJobFromJobData(jobData, id, limitUntil, delayUntil);
   }
 
   private async waitForJob() {
@@ -499,26 +495,23 @@ export class Worker<
   }
 
   protected async nextJobFromJobData(
-    jobData?: JobJsonRaw | number,
+    jobData?: JobJsonRaw,
     jobId?: string,
+    limitUntil?: number,
+    delayUntil?: number,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    // NOTE: This is not really optimal in all cases since a new job would could arrive at the wait
-    // list and this worker will not start processing it directly.
-    // Best would be to emit drain and block for rateKeyExpirationTime
-    if (typeof jobData === 'number') {
+    if (!jobData) {
       if (!this.drained) {
         this.emit('drained');
         this.drained = true;
+        this.blockTimeout = 0;
       }
+    }
 
-      // workerDelay left for backwards compatibility although not recommended to use.
-      if (this.opts?.limiter?.workerDelay) {
-        const rateKeyExpirationTime = jobData;
-        await delay(rateKeyExpirationTime);
-      } else {
-        this.blockTimeout = jobData;
-      }
-    } else if (jobData) {
+    this.limitUntil = Math.max(limitUntil, 0) || 0;
+    this.blockTimeout = delayUntil;
+
+    if (jobData) {
       this.drained = false;
       const job = this.createJob(jobData, jobId);
       if (job.opts.repeat) {
@@ -526,18 +519,12 @@ export class Worker<
         await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
       }
       return job;
-    } else if (!this.drained) {
-      this.blockTimeout = 0;
-
-      this.emit('drained');
-      this.drained = true;
     }
   }
 
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
-    fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -586,11 +573,11 @@ export class Worker<
         const completed = await job.moveToCompleted(
           result,
           token,
-          fetchNextCallback() && !(this.closing || this.paused),
+          !(this.closing || this.paused),
         );
         this.emit('completed', job, result, 'active');
-        const [jobData, jobId] = completed || [];
-        return this.nextJobFromJobData(jobData, jobId);
+        const [jobData, jobId, limitUntil, delayUntil] = completed || [];
+        return this.nextJobFromJobData(jobData, jobId, limitUntil, delayUntil);
       }
     };
 

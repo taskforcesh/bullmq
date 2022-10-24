@@ -2,16 +2,8 @@ import { Cluster, Redis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { v4 } from 'uuid';
-import { get } from 'lodash';
 import * as semver from 'semver';
-import {
-  ChildMessage,
-  ParentMessage,
-  QueueOptions,
-  RedisClient,
-} from './interfaces';
-import { JobsOptions } from './types';
+import { ChildMessage, ParentMessage, RedisClient } from './interfaces';
 import { ChildProcess } from 'child_process';
 
 export const errorObject: { [index: string]: any } = { value: null };
@@ -108,20 +100,6 @@ export function getParentKey(opts: { id: string; queue: string }): string {
   if (opts) {
     return `${opts.queue}:${opts.id}`;
   }
-}
-
-export function jobIdForGroup(
-  jobOpts: JobsOptions,
-  data: any,
-  queueOpts: QueueOptions,
-): string {
-  const jobId = jobOpts?.jobId;
-  const groupKeyPath = get(queueOpts, 'limiter.groupKey');
-  const groupKey = get(data, groupKeyPath);
-  if (groupKeyPath && !(typeof groupKey === 'undefined')) {
-    return `${jobId || v4()}:${groupKey}`;
-  }
-  return jobId;
 }
 
 export const clientCommandMessageReg =

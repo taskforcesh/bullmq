@@ -7,7 +7,7 @@ import {
   RepeatOptions,
 } from '../interfaces';
 import { FinishedStatus, JobsOptions } from '../types';
-import { isRedisInstance, jobIdForGroup } from '../utils';
+import { isRedisInstance } from '../utils';
 import { BulkJobOptions, Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
@@ -95,9 +95,6 @@ export class Queue<
 > extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
   jobsOpts: BaseJobOptions;
-  limiter: {
-    groupKey: string;
-  } = null;
   private _repeat: Repeat;
 
   constructor(
@@ -116,7 +113,6 @@ export class Queue<
     );
 
     this.jobsOpts = get(opts, 'defaultJobOptions');
-    this.limiter = get(opts, 'limiter');
 
     this.waitUntilReady()
       .then(client => {
@@ -204,7 +200,7 @@ export class Queue<
         NameType
       >(name, data, { ...this.jobsOpts, ...opts }, true);
     } else {
-      const jobId = jobIdForGroup(opts, data, { limiter: this.limiter });
+      const jobId = opts?.jobId;
 
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this,
@@ -239,7 +235,7 @@ export class Queue<
         opts: {
           ...this.jobsOpts,
           ...job.opts,
-          jobId: jobIdForGroup(job.opts, job.data, { limiter: this.limiter }),
+          jobId: job.opts?.jobId,
         },
       })),
     );
@@ -353,7 +349,7 @@ export class Queue<
    *
    * @param jobId - The id of the job to remove
    * @returns 1 if it managed to remove the job or 0 if the job or
-   * any of its dependencies was locked.
+   * any of its dependencies were locked.
    */
   remove(jobId: string): Promise<number> {
     return this.scripts.remove(jobId);
