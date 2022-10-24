@@ -336,7 +336,22 @@ export class FlowProducer extends EventEmitter {
    * @returns
    */
   protected addNodes(multi: ChainableCommander, nodes: FlowJob[]): JobNode[] {
-    return nodes.map(node => this.addNode({ multi, node }));
+    return nodes.map(node => {
+      const parentOpts = node?.opts?.parent;
+      const parentKey = getParentKey(parentOpts);
+      const parentDependenciesKey = parentKey
+        ? `${parentKey}:dependencies`
+        : undefined;
+
+      return this.addNode({
+        multi,
+        node,
+        parent: {
+          parentOpts,
+          parentDependenciesKey,
+        },
+      });
+    });
   }
 
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
