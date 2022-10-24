@@ -3,7 +3,6 @@ import { default as IORedis } from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { scriptLoader, ScriptMetadata } from '../commands';
 import { ConnectionOptions, RedisOptions, RedisClient } from '../interfaces';
 import {
   isNotConnectionError,
@@ -11,8 +10,7 @@ import {
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';
-
-import * as path from 'path';
+import * as scripts from '../scripts';
 
 const overrideMessage = [
   'BullMQ: WARNING! Your redis options maxRetriesPerRequest must be null',
@@ -25,6 +23,12 @@ const deprecationMessage = [
 ].join(' ');
 
 const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
+
+export interface RawCommand {
+  content: string;
+  name: string;
+  keys: number;
+}
 
 export class RedisConnection extends EventEmitter {
   static minimumVersion = '5.0.0';
@@ -71,7 +75,8 @@ export class RedisConnection extends EventEmitter {
       if (isRedisCluster(this._client)) {
         this.opts = this._client.options.redisOptions;
         const hosts = (<any>this._client).startupNodes.map(
-          (node: { host: string }) => node.host,
+          (node: { host: string } | string) =>
+            typeof node == 'string' ? node : node.host,
         );
         this.checkUpstashHost(hosts);
       } else {
@@ -155,15 +160,18 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(cache?: Map<string, ScriptMetadata>): Promise<void> {
-    return (
-      (<any>this._client)['bullmq:loadingCommands'] ||
-      ((<any>this._client)['bullmq:loadingCommands'] = scriptLoader.load(
-        this._client,
-        path.join(__dirname, '../commands'),
-        cache ?? new Map<string, ScriptMetadata>(),
-      ))
-    );
+  protected loadCommands(providedScripts?: Record<string, RawCommand>): void {
+    const finalScripts =
+      providedScripts || (scripts as Record<string, RawCommand>);
+    for (const property in finalScripts as Record<string, RawCommand>) {
+      // Only define the command if not already defined
+      if (!(<any>this._client)[finalScripts[property].name]) {
+        (<any>this._client).defineCommand(finalScripts[property].name, {
+          numberOfKeys: finalScripts[property].keys,
+          lua: finalScripts[property].content,
+        });
+      }
+    }
   }
 
   private async init() {
@@ -195,7 +203,7 @@ export class RedisConnection extends EventEmitter {
         )
       ) {
         console.warn(
-          `It is highly recommeded to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
+          `It is highly recommended to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
            Current: ${this.version}`,
         );
       }
@@ -261,8 +269,8 @@ export class RedisConnection extends EventEmitter {
       if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
         const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
         if (maxMemoryPolicy !== 'noeviction') {
-          throw new Error(
-            `Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
+          console.error(
+            `IMPORTANT! Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
           );
         }
       }

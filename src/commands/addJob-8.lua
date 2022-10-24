@@ -89,7 +89,8 @@ else
     if parentKey ~= nil then
       if rcall("ZSCORE", KEYS[7], jobId) ~= false then
         local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
-        updateParentDepsIfNeeded(parentKey, parent['queueKey'], parentDependenciesKey, parent['id'], jobIdKey, returnvalue)
+        updateParentDepsIfNeeded(parentKey, parent['queueKey'], parentDependenciesKey,
+          parent['id'], jobIdKey, returnvalue)
       else
         if parentDependenciesKey ~= nil then
           rcall("SADD", parentDependenciesKey, jobIdKey)

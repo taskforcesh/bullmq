@@ -19,6 +19,7 @@ local rcall = redis.call;
 local jobId = ARGV[2]
 
 -- Includes
+--- @include "includes/addJobWithPriority"
 --- @include "includes/getTargetQueueList"
 
 if rcall("ZREM", KEYS[1], jobId) == 1 then
@@ -36,16 +37,7 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
     rcall("LPUSH", target, jobId)
   else
     -- Priority add
-    rcall("ZADD", KEYS[5], priority, jobId)
-    local count = rcall("ZCOUNT", KEYS[5], 0, priority)
-
-    local len = rcall("LLEN", target)
-    local id = rcall("LINDEX", target, len - (count - 1))
-    if id then
-      rcall("LINSERT", target, "BEFORE", id, jobId)
-    else
-      rcall("RPUSH", target, jobId)
-    end
+    addJobWithPriority(KEYS[5], priority, target, jobId)
   end
 
   -- Emit waiting event (wait..ing@token)

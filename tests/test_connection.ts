@@ -51,7 +51,7 @@ describe('connection', () => {
   });
 
   describe('when maxmemory-policy is different than noeviction in Redis', () => {
-    it('throws an error', async () => {
+    it.skip('throws an error', async () => {
       const opts = {
         connection: {
           host: 'localhost',
@@ -96,6 +96,20 @@ describe('connection', () => {
           'BullMQ: Upstash is not compatible with BullMQ.',
         );
         await connection.disconnect();
+      });
+
+      describe('when using nodes provides an array of strings as hosts', async () => {
+        it('throws an error', async () => {
+          const connection = new IORedis.Cluster(
+            ['localhost', 'https://upstash.io'],
+            {},
+          );
+
+          expect(() => new QueueBase(queueName, { connection })).to.throw(
+            'BullMQ: Upstash is not compatible with BullMQ.',
+          );
+          await connection.disconnect();
+        });
       });
     });
   });

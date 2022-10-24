@@ -30,7 +30,8 @@
 
 -- Check if we need to check for stalled jobs now.
 
-local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey, stalledCheckKey, metaKey, pausedKey, eventStreamKey, maxStalledJobCount, queueKeyPrefix, timestamp, maxCheckTime)
+local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey, stalledCheckKey,
+    metaKey, pausedKey, eventStreamKey, maxStalledJobCount, queueKeyPrefix, timestamp, maxCheckTime)
     if rcall("EXISTS", stalledCheckKey) == 1 then 
         return {{}, {}}
     end

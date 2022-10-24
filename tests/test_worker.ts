@@ -2054,7 +2054,7 @@ describe('workers', function () {
                       {
                         parent: {
                           id: job.id,
-                          queue: `${job.prefix}:${job.queueName}`,
+                          queue: job.queueQualifiedName,
                         },
                       },
                     );

@@ -450,7 +450,7 @@ describe('Cleaner', () => {
                       {
                         parent: {
                           id: job.id,
-                          queue: `${job.prefix}:${job.queueName}`,
+                          queue: job.queueQualifiedName,
                         },
                       },
                     );
