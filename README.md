@@ -159,7 +159,7 @@ This is just scratching the surface, check all the features and more in the offi
 
 Since there are a few job queue solutions, here is a table comparing them:
 
-| Feature                   |   Bullmq-Pro    |     Bullmq      |      Bull       |  Kue  | Bee      | Agenda |
+| Feature                   |   BullMQ-Pro    |     BullMQ      |      Bull       |  Kue  | Bee      | Agenda |
 | :------------------------ | :-------------: | :-------------: | :-------------: | :---: | -------- | ------ |
 | Backend                   |      redis      |      redis      |      redis      | redis | redis    | mongo  |
 | Observables               |        ✓        |                 |                 |       |          |        |
