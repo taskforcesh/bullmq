@@ -1,6 +1,6 @@
-# Adding bulks
+# Adding jobs in bulk
 
-Sometimes it is necessary to add a complete bulk of jobs atomically. For example, there could be a requirement that all the jobs must be placed in the queue or none of them. Also, adding a bulk of jobs can be faster since it reduces the roundtrips to Redis:
+Sometimes it is necessary to add a complete bulk of jobs atomically. For example, there could be a requirement that all the jobs must be placed in the queue or none of them. Also, adding a bulk of jobs can be faster since it reduces the number of roundtrips to Redis:
 
 ```typescript
 import { Queue } from 'bullmq';
