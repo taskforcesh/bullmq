@@ -198,6 +198,60 @@ describe('Delayed jobs', function () {
     await worker2.close();
   });
 
+  describe('when delayed jobs are ready when pending jobs are moved to delayed', function () {
+    it('processes jobs without getting stuck', async () => {
+      const countJobs = 28;
+
+      for (let j = 0; j < countJobs; j++) {
+        await queue.add(
+          'test',
+          { foo: `bar${j}` },
+          { attempts: 2, backoff: 10 },
+        );
+      }
+
+      const concurrency = 50;
+
+      let worker: Worker;
+      const processedJobs: { data: any }[] = [];
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(
+          queueName,
+          async (job: Job) => {
+            if (job.attemptsMade == 1) {
+              await delay(250);
+
+              throw new Error('error');
+            }
+
+            await delay(25);
+
+            processedJobs.push({ data: job.data });
+
+            if (processedJobs.length == countJobs) {
+              resolve();
+            }
+
+            return;
+          },
+          {
+            connection,
+            concurrency,
+          },
+        );
+        worker.on('error', err => {
+          console.error(err);
+        });
+      });
+
+      await processing;
+
+      expect(processedJobs.length).to.be.equal(countJobs);
+
+      await worker.close();
+    }).timeout(4000);
+  });
+
   it('should process delayed jobs with exact same timestamps in correct order (FIFO)', async function () {
     let order = 1;
     const numJobs = 43;
