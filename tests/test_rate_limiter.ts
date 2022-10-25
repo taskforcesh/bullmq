@@ -160,6 +160,7 @@ describe('Rate Limiter', function () {
     const numJobs = 10;
     const dynamicLimit = 250;
     const duration = 100;
+    const margin = 0.95; // 5% margin for CI
 
     const worker = new Worker(
       queueName,
@@ -188,7 +189,7 @@ describe('Rate Limiter', function () {
           try {
             const timeDiff = new Date().getTime() - startTime;
             expect(timeDiff).to.be.gte(
-              numJobs * dynamicLimit + numJobs * duration,
+              (numJobs * dynamicLimit + numJobs * duration) * margin,
             );
             resolve();
           } catch (err) {
