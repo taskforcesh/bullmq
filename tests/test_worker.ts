@@ -2243,11 +2243,17 @@ describe('workers', function () {
                 err: Error,
                 job: Job,
               ) => {
-                if (type == 'custom1') {
-                  return attemptsMade * 1000;
+                switch (type) {
+                  case 'custom1': {
+                    return attemptsMade * 1000;
+                  }
+                  case 'custom2': {
+                    return attemptsMade * 2000;
+                  }
+                  default: {
+                    throw new Error('invalid type');
+                  }
                 }
-
-                return attemptsMade * 2000;
               },
             },
           },
