@@ -7,11 +7,6 @@ import { ParserOptions } from 'cron-parser';
  */
 export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   /**
-   * @deprecated Use pattern option instead.
-   * A cron pattern
-   */
-  cron?: string;
-  /**
    * A repeat pattern
    */
   pattern?: string;
@@ -21,7 +16,7 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   limit?: number;
   /**
    * Repeat after this amount of milliseconds
-   * (`cron` setting cannot be used together with this setting.)
+   * (`pattern` setting cannot be used together with this setting.)
    */
   every?: number;
   /**

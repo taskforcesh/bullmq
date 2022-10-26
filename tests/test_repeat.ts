@@ -107,8 +107,8 @@ describe('repeat', function () {
     const cron = '*/10 * * * * *';
 
     await Promise.all([
-      queue.add('test1', {}, { repeat: { cron: cron } }),
-      queue.add('test2', {}, { repeat: { cron: cron } }),
+      queue.add('test1', {}, { repeat: { pattern: cron } }),
+      queue.add('test2', {}, { repeat: { pattern: cron } }),
       queue.add('test3', {}),
     ]);
 
@@ -125,17 +125,21 @@ describe('repeat', function () {
     ];
 
     await Promise.all([
-      queue.add('first', {}, { repeat: { cron: crons[0], endDate: 12345 } }),
-      queue.add('second', {}, { repeat: { cron: crons[1], endDate: 610000 } }),
+      queue.add('first', {}, { repeat: { pattern: crons[0], endDate: 12345 } }),
+      queue.add(
+        'second',
+        {},
+        { repeat: { pattern: crons[1], endDate: 610000 } },
+      ),
       queue.add(
         'third',
         {},
-        { repeat: { cron: crons[2], tz: 'Africa/Abidjan' } },
+        { repeat: { pattern: crons[2], tz: 'Africa/Abidjan' } },
       ),
       queue.add(
         'fourth',
         {},
-        { repeat: { cron: crons[3], tz: 'Africa/Accra' } },
+        { repeat: { pattern: crons[3], tz: 'Africa/Accra' } },
       ),
       queue.add(
         'fifth',
@@ -159,7 +163,6 @@ describe('repeat', function () {
         id: null,
         endDate: 12345,
         tz: null,
-        cron: '10 * * * * *',
         pattern: '10 * * * * *',
         next: 10000,
       })
@@ -169,7 +172,6 @@ describe('repeat', function () {
         id: null,
         endDate: 610000,
         tz: null,
-        cron: '2 10 * * * *',
         pattern: '2 10 * * * *',
         next: 602000,
       })
@@ -179,7 +181,6 @@ describe('repeat', function () {
         id: null,
         endDate: null,
         tz: 'Africa/Accra',
-        cron: '2 * * 4 * *',
         pattern: '2 * * 4 * *',
         next: 259202000,
       })
@@ -189,7 +190,6 @@ describe('repeat', function () {
         id: null,
         endDate: null,
         tz: 'Africa/Abidjan',
-        cron: '1 * * 5 * *',
         pattern: '1 * * 5 * *',
         next: 345601000,
       });
@@ -215,7 +215,7 @@ describe('repeat', function () {
     await queue.add(
       'test',
       { foo: 'bar' },
-      { repeat: { cron: '*/2 * * * * *' } },
+      { repeat: { pattern: '*/2 * * * * *' } },
     );
 
     this.clock.tick(nextTick);
@@ -264,7 +264,7 @@ describe('repeat', function () {
       { foo: 'bar' },
       {
         repeat: {
-          cron: '*/2 * * * * *',
+          pattern: '*/2 * * * * *',
           startDate: new Date('2017-02-07 9:24:05'),
         },
       },
@@ -376,7 +376,7 @@ describe('repeat', function () {
       { foo: 'bar' },
       {
         repeat: {
-          cron: '*/2 * * * * *',
+          pattern: '*/2 * * * * *',
           startDate: new Date('2017-02-07 9:24:05'),
         },
       },
@@ -490,7 +490,7 @@ describe('repeat', function () {
                 opts.startDate && new Date(opts.startDate) > new Date(millis)
                   ? new Date(opts.startDate)
                   : new Date(millis);
-              const rrule = rrulestr(opts.cron);
+              const rrule = rrulestr(opts.pattern);
               if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
                 throw new Error(
                   'DTSTART must be defined to use COUNT with rrule',
@@ -521,7 +521,7 @@ describe('repeat', function () {
         this.clock.setSystemTime(date);
 
         const repeat = {
-          cron: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
+          pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
         };
         await currentQueue.add(
           'rrule',
@@ -577,7 +577,7 @@ describe('repeat', function () {
           { foo: 'bar' },
           {
             repeat: {
-              cron: '*/2 * * * * *',
+              pattern: '*/2 * * * * *',
               startDate: new Date('2017-02-07 9:24:05'),
             },
           },
@@ -691,7 +691,7 @@ describe('repeat', function () {
       { foo: 'bar' },
       {
         repeat: {
-          cron: '0 1 * * *',
+          pattern: '0 1 * * *',
           immediately: true,
           endDate: new Date('2017-05-10 13:13:00'),
         },
@@ -729,7 +729,7 @@ describe('repeat', function () {
       { foo: 'bar' },
       {
         repeat: {
-          cron: '0 1 * * *',
+          pattern: '0 1 * * *',
           endDate: new Date('2017-05-10 13:13:00'),
         },
       },
@@ -806,7 +806,7 @@ describe('repeat', function () {
         { foo: 'bar' },
         {
           repeat: {
-            cron: '0 1 * * *',
+            pattern: '0 1 * * *',
             endDate: new Date('2017-05-10 13:13:00'),
             tz: 'Europe/Athens',
             utc: true,
@@ -845,7 +845,7 @@ describe('repeat', function () {
     await queue.add(
       'repeat',
       { foo: 'bar' },
-      { repeat: { cron: '* 25 9 7 * *' } },
+      { repeat: { pattern: '* 25 9 7 * *' } },
     );
     nextTick();
 
@@ -880,7 +880,7 @@ describe('repeat', function () {
     it('creates only one job', async function () {
       const options = {
         repeat: {
-          cron: '0 1 * * *',
+          pattern: '0 1 * * *',
         },
       };
 
@@ -908,7 +908,7 @@ describe('repeat', function () {
     this.clock.setSystemTime(date);
 
     const nextTick = ONE_SECOND + 1;
-    const repeat = { cron: '*/1 * * * * *' };
+    const repeat = { pattern: '*/1 * * * * *' };
     let processor;
 
     const processing = new Promise<void>((resolve, reject) => {
@@ -948,7 +948,7 @@ describe('repeat', function () {
   });
 
   it('should be able to remove repeatable jobs by key', async () => {
-    const repeat = { cron: '*/2 * * * * *' };
+    const repeat = { pattern: '*/2 * * * * *' };
 
     const createdJob = await queue.add('remove', { foo: 'bar' }, { repeat });
     const job = await queue.getJob(createdJob.id);
@@ -963,7 +963,7 @@ describe('repeat', function () {
 
   describe('when repeatable job does not exist', function () {
     it('returns false', async () => {
-      const repeat = { cron: '*/2 * * * * *' };
+      const repeat = { pattern: '*/2 * * * * *' };
 
       await queue.add('remove', { foo: 'bar' }, { repeat });
       const repeatableJobs = await queue.getRepeatableJobs();
@@ -986,7 +986,7 @@ describe('repeat', function () {
     this.clock.setSystemTime(date);
 
     const nextTick = 2 * ONE_SECOND + 10;
-    const repeat = { cron: '*/2 * * * * *' };
+    const repeat = { pattern: '*/2 * * * * *' };
 
     await queue.add('test', { foo: 'bar' }, { repeat, jobId });
 
@@ -1039,12 +1039,12 @@ describe('repeat', function () {
     const addNextRepeatableJob = repeat.addNextRepeatableJob;
     this.clock.setSystemTime(date);
 
-    const repeatOpts = { cron: '*/2 * * * * *' };
+    const repeatOpts = { pattern: '*/2 * * * * *' };
 
     const afterRemoved = new Promise<void>(async resolve => {
       worker = new Worker(
         queueName,
-        async job => {
+        async () => {
           const repeatWorker = await worker.repeat;
           (<unknown>repeatWorker.addNextRepeatableJob) = async (
             ...args: [string, unknown, JobsOptions, boolean?]
@@ -1082,7 +1082,7 @@ describe('repeat', function () {
 
   it('should allow adding a repeatable job after removing it', async function () {
     const repeat = {
-      cron: '*/5 * * * *',
+      pattern: '*/5 * * * *',
     };
 
     const worker = new Worker(queueName, NoopProc, { connection });
@@ -1134,7 +1134,7 @@ describe('repeat', function () {
     await queue.add(
       'repeat',
       { foo: 'bar' },
-      { repeat: { limit: 5, cron: '*/1 * * * * *' } },
+      { repeat: { limit: 5, pattern: '*/1 * * * * *' } },
     );
     this.clock.tick(nextTick);
 
@@ -1232,15 +1232,15 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
-  it('should throw an error when using .cron and .every simultaneously', async function () {
+  it('should throw an error when using .pattern and .every simultaneously', async function () {
     await expect(
       queue.add(
         'repeat',
         { type: 'm' },
-        { repeat: { every: 5000, cron: '* /1 * * * * *' } },
+        { repeat: { every: 5000, pattern: '* /1 * * * * *' } },
       ),
     ).to.be.rejectedWith(
-      'Both .cron (or .pattern) and .every options are defined for this repeatable job',
+      'Both .pattern and .every options are defined for this repeatable job',
     );
   });
 
@@ -1270,7 +1270,7 @@ describe('repeat', function () {
     await queue.add(
       'test',
       { foo: 'bar' },
-      { repeat: { cron: '*/1 * * * * *' } },
+      { repeat: { pattern: '*/1 * * * * *' } },
     );
     this.clock.tick(nextTick);
 

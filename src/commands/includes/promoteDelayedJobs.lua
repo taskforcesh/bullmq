@@ -40,10 +40,4 @@ local function promoteDelayedJobs(delayedKey, waitKey, priorityKey, pausedKey,
             rcall("HSET", prefix .. jobId, "delay", 0)
         end
     end
-
-    local nextTimestamp = rcall("ZRANGE", delayedKey, 0, 0, "WITHSCORES")[2]
-    if (nextTimestamp ~= nil) then
-        nextTimestamp = nextTimestamp / 0x1000
-    end
-    return nextTimestamp
 end

@@ -20,49 +20,30 @@
 local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts)
   -- Check if we need to perform rate limiting.
   local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
+  local expireTime
 
   if(maxJobs) then
     local rateLimiterKey = keys[6];
+    local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
 
-    local groupKey
-    local groupKeyOpt = opts['limiter'] and opts['limiter']['groupKey'] or ""
-    if groupKeyOpt ~= "" then
-      groupKey = string.match(jobId, "[^:]+$")
-      if groupKey ~= jobId then
-        rateLimiterKey = rateLimiterKey .. ":" .. groupKey
-      end
+    if jobCounter == 1 then
+      local limiterDuration = opts['limiter'] and opts['limiter']['duration']
+      rcall("PEXPIRE", rateLimiterKey, limiterDuration)
     end
 
-    local jobCounter
-    
-    if groupKey ~= nil then
-      if rateLimiterKey ~= keys[6] then
-        jobCounter = tonumber(rcall("INCR", rateLimiterKey))
-      end
-    else
-      jobCounter = tonumber(rcall("INCR", rateLimiterKey))
-    end
-
-    local limiterDuration = opts['limiter'] and opts['limiter']['duration']
-    -- check if rate limit hit
-    if jobCounter ~= nil and jobCounter > maxJobs then
-      local exceedingJobs = jobCounter - maxJobs
-      local expireTime = tonumber(rcall("PTTL", rateLimiterKey))
-      local delay = expireTime + ((exceedingJobs - 1) * limiterDuration) / maxJobs;
-      local timestamp = delay + tonumber(processedOn)
-
-      -- put job into delayed queue
-      rcall("ZADD", keys[7], timestamp * 0x1000 + bit.band(jobCounter, 0xfff), jobId);
-      rcall("XADD", keys[4], "*", "event", "delayed", "jobId", jobId, "delay", timestamp);
-
-      -- remove from active queue
+    -- check if we passed rate limit, we need to remove the job and return expireTime
+    if jobCounter > maxJobs then
+      expireTime = rcall("PTTL", rateLimiterKey)
+      
+      -- remove from active queue and add back to the wait list
       rcall("LREM", keys[2], 1, jobId)
+      rcall("RPUSH", keys[1], jobId)
 
       -- Return when we can process more jobs
-      return expireTime
+      return {0, 0, expireTime}
     else
-      if jobCounter == 1 then
-        rcall("PEXPIRE", rateLimiterKey, limiterDuration)
+      if jobCounter == maxJobs then
+        expireTime = rcall("PTTL", rateLimiterKey)
       end
     end
   end
@@ -80,5 +61,5 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
   rcall("HSET", jobKey, "processedOn", processedOn)
   rcall("HINCRBY", jobKey, "attemptsMade", 1)
 
-  return {rcall("HGETALL", jobKey), jobId} -- get job data
+  return {rcall("HGETALL", jobKey), jobId, expireTime} -- get job data
 end
