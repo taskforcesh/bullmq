@@ -6,13 +6,16 @@ BullMQ supports retries of failed jobs using backoff functions. It is possible t
 
 For BullMQ to reschedule failed jobs, make sure you create a `QueueScheduler` for your queue.
 
+{% hint style="danger" %}
+From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore.
+{% endhint %}
+
 The code below shows how to specify a "exponential" backoff function with a 1 second delay as seed value, so it will retry at most 3 times spaced after 1 second, 2 seconds and 4 seconds:
 
 ```typescript
-import { Queue, QueueScheduler } from 'bullmq';
+import { Queue } from 'bullmq';
 
 const myQueue = new Queue('foo');
-const myQueueScheduler = new QueueScheduler('foo');
 
 await queue.add(
   'test-retry',
@@ -30,7 +33,7 @@ await queue.add(
 You can also define it in the queue's `defaultJobOptions`, and it will apply to all jobs added to the queue, unless overridden. For example:
 
 ```typescript
-import { Queue, QueueScheduler } from 'bullmq';
+import { Queue } from 'bullmq';
 
 const myQueue = new Queue('foo', {
   defaultJobOptions: {
@@ -41,8 +44,6 @@ const myQueue = new Queue('foo', {
     },
   },
 });
-
-const myQueueScheduler = new QueueScheduler('foo');
 
 await queue.add('test-retry', { foo: 'bar' });
 ```
@@ -58,10 +59,8 @@ import { Worker } from 'bullmq';
 
 const worker = new Worker('foo', async job => doSomeProcessing(), {
   settings: {
-    backoffStrategies: {
-      custom(attemptsMade: number) {
-        return attemptsMade * 1000;
-      },
+    backoffStrategy: (attemptsMade: number) => {
+      return attemptsMade * 1000;
     },
   },
 });
@@ -84,6 +83,35 @@ await queue.add(
     },
   },
 );
+```
+
+Or if you want to define multiple custom backoff types you need to define like:
+
+```typescript
+import { Worker } from 'bullmq';
+
+const worker = new Worker('foo', async job => doSomeProcessing(), {
+  settings: {
+    backoffStrategy: (
+      attemptsMade: number,
+      type: string,
+      err: Error,
+      job: Job,
+    ) => {
+      switch (type) {
+        case 'custom1': {
+          return attemptsMade * 1000;
+        }
+        case 'custom2': {
+          return attemptsMade * 2000;
+        }
+        default: {
+          throw new Error('invalid type');
+        }
+      }
+    },
+  },
+});
 ```
 
 # Stop retrying jobs
