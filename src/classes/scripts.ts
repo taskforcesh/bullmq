@@ -496,7 +496,11 @@ export class Scripts {
   }
 
   // Note: We have an issue here with jobs using custom job ids
-  moveToDelayedArgs(jobId: string, timestamp: number, token: string): string[] {
+  moveToDelayedArgs(
+    jobId: string,
+    timestamp: number,
+    token: string,
+  ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
     // to guarantee correct execution order of delayed jobs
@@ -510,12 +514,28 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['active', 'delayed', jobId].map(name => {
+    const keys: (string | number)[] = [
+      'wait',
+      'active',
+      'priority',
+      'delayed',
+      jobId,
+    ].map(name => {
       return this.queue.toKey(name);
     });
-    keys.push.apply(keys, [this.queue.keys.events, this.queue.keys.delay]);
+    keys.push.apply(keys, [
+      this.queue.keys.events,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+    ]);
 
-    return keys.concat([JSON.stringify(timestamp), jobId, token]);
+    return keys.concat([
+      this.queue.keys[''],
+      Date.now(),
+      JSON.stringify(timestamp),
+      jobId,
+      token,
+    ]);
   }
 
   moveToWaitingChildrenArgs(
