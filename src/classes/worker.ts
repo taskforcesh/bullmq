@@ -88,7 +88,7 @@ export interface WorkerListener<
    * This event is triggered when a job has thrown an exception.
    */
   failed: (
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType> | undefined,
     error: Error,
     prev: string,
   ) => void;
