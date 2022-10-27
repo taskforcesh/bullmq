@@ -1,3 +1,16 @@
+# [4.0.0](https://github.com/taskforcesh/bullmq-pro/compare/v3.0.0...v4.0.0) (2022-10-27)
+
+
+### Bug Fixes
+
+* upgrade bullmq to 2.3.2 ([#105](https://github.com/taskforcesh/bullmq-pro/issues/105)) ([c9bc5d8](https://github.com/taskforcesh/bullmq-pro/commit/c9bc5d87f89414fef2440655be353ec8a76fad27))
+
+
+### BREAKING CHANGES
+
+* Remove QueueSchedulerPro class.
+WorkerPro class should handle QueueSchedulerPro functionalities.
+
 # [3.0.0](https://github.com/taskforcesh/bullmq-pro/compare/v2.7.1...v3.0.0) (2022-10-18)
 
 
