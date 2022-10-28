@@ -20,7 +20,7 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
     local delay = tonumber(jobAttributes[2]) or 0
     if delay > 0 then
       local score = (tonumber(timestamp) + delay) / 0x1000
-      rcall("ZADD", parentQueueKey .. "delayed", score, parentId)
+      rcall("ZADD", parentQueueKey .. ":delayed", score, parentId)
     -- Standard or priority add
     elseif priority == 0 then
       rcall("RPUSH", parentTarget, parentId)
