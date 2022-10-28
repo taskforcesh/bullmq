@@ -4,6 +4,7 @@
 
 -- Includes
 --- @include "addJobWithPriority"
+--- @include "getNextDelayedTimestamp"
 --- @include "getTargetQueueList"
 
 local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
@@ -19,8 +20,13 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
     local priority = tonumber(jobAttributes[1]) or 0
     local delay = tonumber(jobAttributes[2]) or 0
     if delay > 0 then
-      local score = (tonumber(timestamp) + delay) / 0x1000
-      rcall("ZADD", parentQueueKey .. ":delayed", score, parentId)
+      local score = (tonumber(timestamp) + delay) * 0x1000
+      local parentDelayedKey = parentQueueKey .. ":delayed" 
+      rcall("ZADD", parentDelayedKey, score, parentId)
+    
+      if rcall("LLEN", parentTarget) == 0 then
+        rcall("LPUSH", parentTarget, 0)
+      end
     -- Standard or priority add
     elseif priority == 0 then
       rcall("RPUSH", parentTarget, parentId)

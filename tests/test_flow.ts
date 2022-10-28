@@ -1853,8 +1853,7 @@ describe('flows', () => {
   });
 
   describe('when parent has delay', () => {
-    it('moves process to delayed after children are processed', async function () {
-      this.timeout(8000);
+    it('moves process to delayed after children are processed', async () => {
       const name = 'child-job';
       const values = [{ idx: 0, bar: 'something' }];
 
@@ -1915,7 +1914,7 @@ describe('flows', () => {
           },
         ],
         opts: {
-          delay: 2000,
+          delay: 3000,
         },
       });
 
