@@ -79,6 +79,7 @@ local jobCounter = rcall("INCR", KEYS[4])
 trimEvents(KEYS[3], KEYS[8])
 
 local parentDependenciesKey = args[7]
+local timestamp = args[4]
 if args[2] == "" then
   jobId = jobCounter
   jobIdKey = args[1] .. jobId
@@ -90,7 +91,7 @@ else
       if rcall("ZSCORE", KEYS[7], jobId) ~= false then
         local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
         updateParentDepsIfNeeded(parentKey, parent['queueKey'], parentDependenciesKey,
-          parent['id'], jobIdKey, returnvalue)
+          parent['id'], jobIdKey, returnvalue, timestamp)
       else
         if parentDependenciesKey ~= nil then
           rcall("SADD", parentDependenciesKey, jobIdKey)
@@ -106,7 +107,6 @@ end
 local jsonOpts = cjson.encode(opts)
 local delay = opts['delay'] or 0
 local priority = opts['priority'] or 0
-local timestamp = args[4]
 
 local optionalValues = {}
 if parentKey ~= nil then
@@ -135,8 +135,8 @@ if waitChildrenKey ~= nil then
     rcall("ZADD", waitChildrenKey, timestamp, jobId)
     rcall("XADD", KEYS[8], "*", "event", "waiting-children", "jobId", jobId)
 elseif (delayedTimestamp ~= 0) then
-    local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
-    rcall("ZADD", KEYS[5], timestamp, jobId)
+    local timestampScore = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
+    rcall("ZADD", KEYS[5], timestampScore, jobId)
     rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay",
           delayedTimestamp)
     -- If wait list is empty, and this delayed job is the next one to be processed,

@@ -7,7 +7,7 @@
 --- @include "getTargetQueueList"
 
 local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
-  parentId, jobIdKey, returnvalue )
+  parentId, jobIdKey, returnvalue, timestamp )
   local processedSet = parentKey .. ":processed"
   rcall("HSET", processedSet, jobIdKey, returnvalue)
   local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
@@ -15,9 +15,14 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
     local parentTarget = getTargetQueueList(parentQueueKey .. ":meta", parentQueueKey .. ":wait",
       parentQueueKey .. ":paused")
-    local priority = tonumber(rcall("HGET", parentKey, "priority"))
+    local jobAttributes = rcall("HMGET", parentKey, "priority", "delay")
+    local priority = tonumber(jobAttributes[1]) or 0
+    local delay = tonumber(jobAttributes[2]) or 0
+    if delay > 0 then
+      local score = (tonumber(timestamp) + delay) / 0x1000
+      rcall("ZADD", parentQueueKey .. "delayed", score, parentId)
     -- Standard or priority add
-    if priority == 0 then
+    elseif priority == 0 then
       rcall("RPUSH", parentTarget, parentId)
     else
       addJobWithPriority(parentQueueKey .. ":priority", priority, parentTarget, parentId)
