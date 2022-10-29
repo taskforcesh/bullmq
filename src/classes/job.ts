@@ -90,6 +90,14 @@ export class Job<
   stacktrace: string[] = null;
 
   /**
+   * Ranges from 1 (highest priority) to MAX_INT (lowest priority). Note that
+   * using priorities has a slight impact on performance,
+   * so do not use it if not required.
+   * @defaultValue 0
+   */
+  priority: number;
+
+  /**
    * An amount of milliseconds to wait until this job can be processed.
    * @defaultValue 0
    */
@@ -286,6 +294,8 @@ export class Job<
       opts,
       json.id || jobId,
     );
+
+    job.priority = parseInt(json.priority);
 
     job.progress = JSON.parse(json.progress || '0');
 
@@ -977,7 +987,7 @@ export class Job<
   async promote(): Promise<void> {
     const jobId = this.id;
 
-    const code = await this.scripts.promote(jobId);
+    const code = await this.scripts.promote(jobId, this.priority);
     if (code < 0) {
       throw this.scripts.finishedErrors(code, this.id, 'promote', 'delayed');
     }

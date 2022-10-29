@@ -11,6 +11,7 @@
 
       ARGV[1]  queue.toKey('')
       ARGV[2]  jobId
+      ARGV[3]  priority
 
      Events:
       'waiting'
@@ -23,7 +24,7 @@ local jobId = ARGV[2]
 --- @include "includes/getTargetQueueList"
 
 if rcall("ZREM", KEYS[1], jobId) == 1 then
-  local priority = tonumber(rcall("HGET", ARGV[1] .. jobId, "priority")) or 0
+  local priority = tonumber(ARGV[3]) or 0
   local target = getTargetQueueList(KEYS[4], KEYS[2], KEYS[3])
 
   -- Remove delayed "marker" from the wait list if there is any.

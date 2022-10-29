@@ -758,10 +758,10 @@ export class Scripts {
     return raw2NextJobData(result);
   }
 
-  async promote(jobId: string): Promise<number> {
+  async promote(jobId: string, priority: number): Promise<number> {
     const client = await this.queue.client;
 
-    const keys = [
+    const keys: (string | number)[] = [
       this.queue.keys.delayed,
       this.queue.keys.wait,
       this.queue.keys.paused,
@@ -770,7 +770,7 @@ export class Scripts {
       this.queue.keys.events,
     ];
 
-    const args = [this.queue.toKey(''), jobId];
+    const args = [this.queue.toKey(''), jobId, priority];
 
     return (<any>client).promote(keys.concat(args));
   }
