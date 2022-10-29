@@ -180,6 +180,8 @@ export class Job<
 
     this.delay = this.opts.delay;
 
+    this.priority = this.opts.priority || 0;
+
     this.repeatJobKey = repeatJobKey;
 
     this.timestamp = opts.timestamp ? opts.timestamp : Date.now();
