@@ -1240,8 +1240,7 @@ describe('workers', function () {
       {
         connection,
         lockDuration: 1000,
-        lockRenewTime: 3000, // The lock will not be updated
-        stalledInterval: 100,
+        lockRenewTime: 3000, // The lock will not be updated in time
       },
     );
     await worker.waitUntilReady();
@@ -1249,10 +1248,53 @@ describe('workers', function () {
     const job = await queue.add('test', { bar: 'baz' });
 
     const errorMessage = `Missing lock for job ${job.id}. failed`;
-    const workerError = new Promise<void>(resolve => {
+    const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
-        expect(error.message).to.be.equal(errorMessage);
-        resolve();
+        try {
+          expect(error.message).to.be.equal(errorMessage);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await workerError;
+
+    await worker.close();
+  });
+
+  it('emits error if lock is "stolen"', async function () {
+    this.timeout(10000);
+
+    const connection = new IORedis({
+      host: 'localhost',
+      maxRetriesPerRequest: null,
+    });
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        connection.set(`bull:${queueName}:${job.id}:lock`, 'foo');
+        return delay(2000);
+      },
+      {
+        connection,
+      },
+    );
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { bar: 'baz' });
+
+    const errorMessage = `Lock mismatch for job ${job.id}. Cmd failed from active`;
+    const workerError = new Promise<void>((resolve, reject) => {
+      worker.once('error', error => {
+        try {
+          expect(error.message).to.be.equal(errorMessage);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
     });
 
