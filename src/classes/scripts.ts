@@ -633,16 +633,36 @@ export class Scripts {
     ]);
   }
 
-  retryJobArgs(jobId: string, lifo: boolean, token: string): string[] {
-    const keys = ['active', 'wait', 'paused', jobId, 'meta'].map(name => {
+  retryJobArgs(
+    jobId: string,
+    lifo: boolean,
+    token: string,
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      'active',
+      'wait',
+      'paused',
+      jobId,
+      'meta',
+    ].map(name => {
       return this.queue.toKey(name);
     });
 
-    keys.push(this.queue.keys.events);
+    keys.push(
+      this.queue.keys.events,
+      this.queue.keys.delayed,
+      this.queue.keys.priority,
+    );
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
 
-    return keys.concat([pushCmd, jobId, token]);
+    return keys.concat([
+      this.queue.toKey(''),
+      Date.now(),
+      pushCmd,
+      jobId,
+      token,
+    ]);
   }
 
   protected retryJobsArgs(

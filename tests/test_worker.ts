@@ -1770,6 +1770,53 @@ describe('workers', function () {
       await worker.close();
     });
 
+    describe('when there are delayed jobs between retries', () => {
+      it('promotes delayed jobs', async () => {
+        let id = 0;
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            id++;
+            await delay(200);
+            if (job.attemptsMade === 1) {
+              expect(job.id).to.be.eql(`${id}`);
+            }
+            if (job.id == '1' && job.attemptsMade < 2) {
+              throw new Error('Not yet!');
+            }
+          },
+          { connection },
+        );
+
+        await worker.waitUntilReady();
+
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 2,
+          },
+        );
+
+        const jobs = Array.from(Array(3).keys()).map(index => ({
+          name: 'test',
+          data: {},
+          opts: {
+            delay: 200,
+          },
+        }));
+
+        await queue.addBulk(jobs);
+
+        await new Promise(resolve => {
+          worker.on('completed', after(4, resolve));
+        });
+
+        await worker.close();
+      });
+    });
+
     it('should not retry a failed job more than the number of given attempts times', async () => {
       let tries = 0;
 
