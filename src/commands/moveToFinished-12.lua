@@ -48,6 +48,7 @@
       -2 Missing lock.
       -3 Job not in active set
       -4 Job has pending dependencies
+      -6 Lock is not owned by this client
 
     Events:
       'completed/failed'
@@ -82,11 +83,19 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     if token ~= "0" then
         local lockKey = jobIdKey .. ':lock'
-        if rcall("GET", lockKey) == token then
+        local lockToken = rcall("GET", lockKey)
+        if lockToken == token then
             rcall("DEL", lockKey)
             rcall("SREM", KEYS[5], ARGV[1])
         else
-            return -2
+            if lockToken then
+                rcall("SET", "DEBUG", lockToken)
+                -- Lock exists but token does not match
+                return -6
+            else 
+                -- Lock is missing completely
+                return -2
+            end
         end
     end
 
@@ -118,11 +127,13 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if ARGV[5] == "completed" then
             local dependenciesSet = parentKey .. ":dependencies"
             if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
-                updateParentDepsIfNeeded(parentKey, parentQueueKey, dependenciesSet,
-                                        parentId, jobIdKey, ARGV[4])
+                updateParentDepsIfNeeded(parentKey, parentQueueKey,
+                                         dependenciesSet, parentId, jobIdKey,
+                                         ARGV[4])
             end
         elseif opts['fpof'] then
-            moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
+            moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
+                                                  parentId, jobIdKey, timestamp)
         end
     end
 
@@ -160,7 +171,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     -- Collect metrics
     if maxMetricsSize ~= "" then
-        collectMetrics(KEYS[12], KEYS[12]..':data', maxMetricsSize, timestamp)
+        collectMetrics(KEYS[12], KEYS[12] .. ':data', maxMetricsSize, timestamp)
     end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
@@ -168,20 +179,20 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     if (ARGV[7] == "1") then
 
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[11], KEYS[4], ARGV[8], timestamp)
+        promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[11],
+                           KEYS[4], ARGV[8], timestamp)
 
         -- Check if we are rate limited first.
         local pttl = getRateLimitTTL(opts, KEYS[6])
-        if pttl > 0 then
-            return { 0, 0, pttl }
-        end
+        if pttl > 0 then return {0, 0, pttl} end
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
         if jobId == "0" then
             rcall("LREM", KEYS[2], 1, 0)
         elseif jobId then
-            return moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
+            return
+                moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
         end
 
         -- Return the timestamp for the next delayed job if any.
@@ -200,7 +211,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if activeLen == 0 then
             rcall("XADD", KEYS[4], "*", "event", "drained")
         end
-    end  
+    end
 
     return 0
 else

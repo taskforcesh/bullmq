@@ -362,6 +362,10 @@ export class Scripts {
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
         return new Error(`Missing key for parent job ${jobId}. ${command}`);
+      case ErrorCode.JobLockMismatch:
+        return new Error(
+          `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
+        );
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
