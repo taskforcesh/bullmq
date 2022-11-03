@@ -378,7 +378,12 @@ export class Worker<
             if (job) {
               processing.add(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () => this.processJob(job, token),
+                  () =>
+                    this.processJob(
+                      job,
+                      token,
+                      () => processing.size <= this.opts.concurrency,
+                    ),
                   this.opts.runRetryDelay,
                 ),
               );
@@ -445,9 +450,9 @@ export class Worker<
   /**
    * Overrides the rate limit to be active for the next jobs.
    *
-   * @param expireTimeMs expire time in ms of this rate limit.
+   * @param expireTimeMs - expire time in ms of this rate limit.
    */
-  async rateLimit(expireTimeMs: number) {
+  async rateLimit(expireTimeMs: number): Promise<void> {
     await this.client.then(client =>
       client.set(
         this.keys.limiter,
@@ -548,6 +553,7 @@ export class Worker<
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
+    fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -596,7 +602,7 @@ export class Worker<
         const completed = await job.moveToCompleted(
           result,
           token,
-          !(this.closing || this.paused),
+          fetchNextCallback() && !(this.closing || this.paused),
         );
         this.emit('completed', job, result, 'active');
         const [jobData, jobId, limitUntil, delayUntil] = completed || [];
