@@ -174,14 +174,13 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         collectMetrics(KEYS[12], KEYS[12] .. ':data', maxMetricsSize, timestamp)
     end
 
+    -- Check if there are delayed jobs that can be promoted
+    promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[11],
+                       KEYS[4], ARGV[8], timestamp)
+
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[7] == "1") then
-
-        -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[11],
-                           KEYS[4], ARGV[8], timestamp)
-
         -- Check if we are rate limited first.
         local pttl = getRateLimitTTL(opts, KEYS[6])
         if pttl > 0 then return {0, 0, pttl} end
