@@ -494,7 +494,7 @@ export class Scripts {
     const keys: (string | number)[] = ['delayed', jobId].map(name => {
       return this.queue.toKey(name);
     });
-    keys.push.apply(keys, [this.queue.keys.events, this.queue.keys.delay]);
+    keys.push.apply(keys, [this.queue.keys.events]);
 
     return keys.concat([delay, JSON.stringify(timestamp), jobId]);
   }
