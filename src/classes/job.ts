@@ -74,7 +74,7 @@ export class Job<
   /**
    * By default jobs complete as soon as they finalize, but you can disable this behaviour by enabling autoComplete.
    */
-  autoComplete: boolean = false;
+  private autoComplete: boolean = false;
 
   /**
    * The progress a job has performed so far.
@@ -979,7 +979,9 @@ export class Job<
       token,
       opts,
     );
-    this.autoComplete = true;
+    if (isWaitingChildren) {
+      this.autoComplete = true;
+    }
     return isWaitingChildren;
   }
 
