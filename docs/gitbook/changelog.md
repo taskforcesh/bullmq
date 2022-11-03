@@ -1,3 +1,11 @@
+## [3.1.1](https://github.com/taskforcesh/bullmq/compare/v3.1.0...v3.1.1) (2022-11-03)
+
+
+### Bug Fixes
+
+* **change-delay:** remove delayed stream ([#1509](https://github.com/taskforcesh/bullmq/issues/1509)) ([6e4809e](https://github.com/taskforcesh/bullmq/commit/6e4809e5d8f7ef35bc0871d21bfcdcb0f1f316c6))
+* **worker:** restore dynamic concurrency change ([#1515](https://github.com/taskforcesh/bullmq/issues/1515)) ([fdac5c2](https://github.com/taskforcesh/bullmq/commit/fdac5c27607dfaaaad1c1256c47f2ae448efcd21))
+
 # [3.1.0](https://github.com/taskforcesh/bullmq/compare/v3.0.1...v3.1.0) (2022-11-02)
 
 
