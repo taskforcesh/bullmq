@@ -1,3 +1,60 @@
+# [3.1.0](https://github.com/taskforcesh/bullmq/compare/v3.0.1...v3.1.0) (2022-11-02)
+
+
+### Features
+
+* **workers:** better error message for missing lock ([bf1d086](https://github.com/taskforcesh/bullmq/commit/bf1d0860c70bcc2b604d02ca47e5db64f962d71d))
+
+## [3.0.1](https://github.com/taskforcesh/bullmq/compare/v3.0.0...v3.0.1) (2022-11-02)
+
+
+### Bug Fixes
+
+* **move-to-delayed:** consider promoting delayed jobs ([#1493](https://github.com/taskforcesh/bullmq/issues/1493)) ([909da2b](https://github.com/taskforcesh/bullmq/commit/909da2bc2718a588379b3fdd9791bc8e51ad1dad))
+* **retry-job:** consider promoting delayed jobs ([#1508](https://github.com/taskforcesh/bullmq/issues/1508)) ([d0b3412](https://github.com/taskforcesh/bullmq/commit/d0b3412d222449c24ab36068a791d08ea19ed922))
+
+# [3.0.0](https://github.com/taskforcesh/bullmq/compare/v2.4.0...v3.0.0) (2022-10-25)
+
+
+### Bug Fixes
+
+* **backoff:** handle backoff strategy as function ([#1463](https://github.com/taskforcesh/bullmq/issues/1463)) ([3640269](https://github.com/taskforcesh/bullmq/commit/36402691a3c7fa500f07e2e11a28318099bdb909))
+* **repeat:** remove cron in favor of pattern option ([#1456](https://github.com/taskforcesh/bullmq/issues/1456)) ([3cc150e](https://github.com/taskforcesh/bullmq/commit/3cc150e32cb5971ad4ba6ff91246aaf75296c165))
+
+
+### Features
+
+* add support for dynamic rate limiting ([2d51d2b](https://github.com/taskforcesh/bullmq/commit/2d51d2b33ef49059503e1bca7a582c71f6861ef4))
+* **rate-limit:** remove group key support and improve global rate limit ([81f780a](https://github.com/taskforcesh/bullmq/commit/81f780aeed81e670107d01d01265d407a30e2a62))
+
+
+### BREAKING CHANGES
+
+* **rate-limit:** limit by group keys has been removed in favor
+of a much simpler and efficent rate-limit implementation.
+* **backoff:** object mapping is replaced by single function
+
+# [2.4.0](https://github.com/taskforcesh/bullmq/compare/v2.3.2...v2.4.0) (2022-10-24)
+
+
+### Features
+
+* **flows:** allow parent on root jobs in addBulk method ([#1488](https://github.com/taskforcesh/bullmq/issues/1488)) ref [#1480](https://github.com/taskforcesh/bullmq/issues/1480) ([92308e5](https://github.com/taskforcesh/bullmq/commit/92308e53acf14e0ce108d94ecd616633ac93e35d))
+
+## [2.3.2](https://github.com/taskforcesh/bullmq/compare/v2.3.1...v2.3.2) (2022-10-18)
+
+
+### Bug Fixes
+
+* **job:** send failed event when failParentOnFailure ([#1481](https://github.com/taskforcesh/bullmq/issues/1481)) fixes [#1469](https://github.com/taskforcesh/bullmq/issues/1469) ([b20eb6f](https://github.com/taskforcesh/bullmq/commit/b20eb6f65c7e2c4593d5f9f4d4b940f780bf26d2))
+
+## [2.3.1](https://github.com/taskforcesh/bullmq/compare/v2.3.0...v2.3.1) (2022-10-13)
+
+
+### Bug Fixes
+
+* **redis:** replace throw exception by console.error ([fafa2f8](https://github.com/taskforcesh/bullmq/commit/fafa2f89e796796f950e6c4abbdda4d3d71ad1b0))
+
 # [2.3.0](https://github.com/taskforcesh/bullmq/compare/v2.2.1...v2.3.0) (2022-10-13)
 
 

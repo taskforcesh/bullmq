@@ -29,13 +29,6 @@ export interface DefaultJobOptions {
   attempts?: number;
 
   /**
-   * Rate limiter key to use if rate limiter enabled.
-   *
-   * @see {@link https://docs.bullmq.io/guide/rate-limiting}
-   */
-  rateLimiterKey?: string;
-
-  /**
    * Backoff setting for automatic retries if the job fails
    */
   backoff?: number | BackoffOptions;

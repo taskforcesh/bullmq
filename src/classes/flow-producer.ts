@@ -10,7 +10,7 @@ import {
   QueueBaseOptions,
   RedisClient,
 } from '../interfaces';
-import { getParentKey, jobIdForGroup } from '../utils';
+import { getParentKey } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
@@ -265,7 +265,7 @@ export class FlowProducer extends EventEmitter {
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = get(queueOpts, 'defaultJobOptions');
-    const jobId = jobIdForGroup(node.opts, node.data, queueOpts) || v4();
+    const jobId = node.opts?.jobId || v4();
 
     const job = new this.Job(
       queue,
@@ -336,7 +336,22 @@ export class FlowProducer extends EventEmitter {
    * @returns
    */
   protected addNodes(multi: ChainableCommander, nodes: FlowJob[]): JobNode[] {
-    return nodes.map(node => this.addNode({ multi, node }));
+    return nodes.map(node => {
+      const parentOpts = node?.opts?.parent;
+      const parentKey = getParentKey(parentOpts);
+      const parentDependenciesKey = parentKey
+        ? `${parentKey}:dependencies`
+        : undefined;
+
+      return this.addNode({
+        multi,
+        node,
+        parent: {
+          parentOpts,
+          parentDependenciesKey,
+        },
+      });
+    });
   }
 
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {

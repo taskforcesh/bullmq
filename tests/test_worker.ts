@@ -1240,8 +1240,7 @@ describe('workers', function () {
       {
         connection,
         lockDuration: 1000,
-        lockRenewTime: 3000, // The lock will not be updated
-        stalledInterval: 100,
+        lockRenewTime: 3000, // The lock will not be updated in time
       },
     );
     await worker.waitUntilReady();
@@ -1249,10 +1248,53 @@ describe('workers', function () {
     const job = await queue.add('test', { bar: 'baz' });
 
     const errorMessage = `Missing lock for job ${job.id}. failed`;
-    const workerError = new Promise<void>(resolve => {
+    const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
-        expect(error.message).to.be.equal(errorMessage);
-        resolve();
+        try {
+          expect(error.message).to.be.equal(errorMessage);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await workerError;
+
+    await worker.close();
+  });
+
+  it('emits error if lock is "stolen"', async function () {
+    this.timeout(10000);
+
+    const connection = new IORedis({
+      host: 'localhost',
+      maxRetriesPerRequest: null,
+    });
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        connection.set(`bull:${queueName}:${job.id}:lock`, 'foo');
+        return delay(2000);
+      },
+      {
+        connection,
+      },
+    );
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { bar: 'baz' });
+
+    const errorMessage = `Lock mismatch for job ${job.id}. Cmd failed from active`;
+    const workerError = new Promise<void>((resolve, reject) => {
+      worker.once('error', error => {
+        try {
+          expect(error.message).to.be.equal(errorMessage);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
     });
 
@@ -1770,6 +1812,53 @@ describe('workers', function () {
       await worker.close();
     });
 
+    describe('when there are delayed jobs between retries', () => {
+      it('promotes delayed jobs', async () => {
+        let id = 0;
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            id++;
+            await delay(200);
+            if (job.attemptsMade === 1) {
+              expect(job.id).to.be.eql(`${id}`);
+            }
+            if (job.id == '1' && job.attemptsMade < 2) {
+              throw new Error('Not yet!');
+            }
+          },
+          { connection },
+        );
+
+        await worker.waitUntilReady();
+
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 2,
+          },
+        );
+
+        const jobs = Array.from(Array(3).keys()).map(index => ({
+          name: 'test',
+          data: {},
+          opts: {
+            delay: 200,
+          },
+        }));
+
+        await queue.addBulk(jobs);
+
+        await new Promise(resolve => {
+          worker.on('completed', after(4, resolve));
+        });
+
+        await worker.close();
+      });
+    });
+
     it('should not retry a failed job more than the number of given attempts times', async () => {
       let tries = 0;
 
@@ -2209,10 +2298,8 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              custom(attemptsMade: number) {
-                return attemptsMade * 1000;
-              },
+            backoffStrategy: (attemptsMade: number) => {
+              return attemptsMade * 1000;
             },
           },
         },
@@ -2243,6 +2330,87 @@ describe('workers', function () {
       await worker.close();
     });
 
+    describe('when applying custom backoff by type', () => {
+      it('should retry a job after a delay for custom type', async function () {
+        this.timeout(10000);
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            if (job.attemptsMade < 3) {
+              throw new Error('Not yet!');
+            }
+          },
+          {
+            connection,
+            settings: {
+              backoffStrategy: (
+                attemptsMade: number,
+                type: string,
+                err: Error,
+                job: Job,
+              ) => {
+                switch (type) {
+                  case 'custom1': {
+                    return attemptsMade * 1000;
+                  }
+                  case 'custom2': {
+                    return attemptsMade * 2000;
+                  }
+                  default: {
+                    throw new Error('invalid type');
+                  }
+                }
+              },
+            },
+          },
+        );
+
+        await worker.waitUntilReady();
+
+        const start = Date.now();
+        await queue.add(
+          'test',
+          { foo: 'baz' },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'custom1',
+            },
+          },
+        );
+
+        await new Promise<void>(resolve => {
+          worker.on('completed', () => {
+            const elapse = Date.now() - start;
+            expect(elapse).to.be.greaterThan(3000);
+            resolve();
+          });
+        });
+
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'custom2',
+            },
+          },
+        );
+
+        await new Promise<void>(resolve => {
+          worker.on('completed', () => {
+            const elapse = Date.now() - start;
+            expect(elapse).to.be.greaterThan(6000);
+            resolve();
+          });
+        });
+
+        await worker.close();
+      });
+    });
+
     it('should not retry a job if the custom backoff returns -1', async () => {
       let tries = 0;
 
@@ -2257,10 +2425,8 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              custom() {
-                return -1;
-              },
+            backoffStrategy: () => {
+              return -1;
             },
           },
         },
@@ -2306,13 +2472,15 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              custom(attemptsMade: number, err: Error) {
-                if (err instanceof CustomError) {
-                  return 1500;
-                }
-                return 500;
-              },
+            backoffStrategy: (
+              attemptsMade: number,
+              type: string,
+              err: Error,
+            ) => {
+              if (err instanceof CustomError) {
+                return 1500;
+              }
+              return 500;
             },
           },
         },
@@ -2361,16 +2529,19 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              async custom(attemptsMade: number, err: Error, job: Job) {
-                if (err instanceof CustomError) {
-                  const data = job.data;
-                  data.ids = err.failedIds;
-                  await job.update(data);
-                  return 2500;
-                }
-                return 500;
-              },
+            backoffStrategy: async (
+              attemptsMade: number,
+              type: string,
+              err: Error,
+              job: Job,
+            ) => {
+              if (err instanceof CustomError) {
+                const data = job.data;
+                data.ids = err.failedIds;
+                await job.update(data);
+                return 2500;
+              }
+              return 500;
             },
           },
         },
@@ -2412,10 +2583,10 @@ describe('workers', function () {
         {
           connection,
           settings: {
-            backoffStrategies: {
-              async custom() {
-                return delay(500);
-              },
+            backoffStrategy: async () => {
+              await delay(500);
+
+              return 10;
             },
           },
         },

@@ -316,7 +316,7 @@ export class Scripts {
     target: FinishedStatus,
     token: string,
     fetchNext: boolean,
-  ): Promise<JobData | []> {
+  ) {
     const client = await this.queue.client;
 
     const timestamp = Date.now();
@@ -340,7 +340,7 @@ export class Scripts {
       job.finishedOn = timestamp;
 
       if (typeof result !== 'undefined') {
-        return raw2jobData(result);
+        return raw2NextJobData(result);
       }
     }
   }
@@ -364,6 +364,10 @@ export class Scripts {
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
         return new Error(`Missing key for parent job ${jobId}. ${command}`);
+      case ErrorCode.JobLockMismatch:
+        return new Error(
+          `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
+        );
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
@@ -397,7 +401,7 @@ export class Scripts {
     removeOnComplete: boolean | number | KeepJobs,
     token: string,
     fetchNext: boolean,
-  ): Promise<JobData | []> {
+  ) {
     return this.moveToFinished<T, R, N>(
       job,
       returnvalue,
@@ -498,7 +502,11 @@ export class Scripts {
   }
 
   // Note: We have an issue here with jobs using custom job ids
-  moveToDelayedArgs(jobId: string, timestamp: number, token: string): string[] {
+  moveToDelayedArgs(
+    jobId: string,
+    timestamp: number,
+    token: string,
+  ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
     // to guarantee correct execution order of delayed jobs
@@ -512,12 +520,28 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys = ['active', 'delayed', jobId].map(name => {
+    const keys: (string | number)[] = [
+      'wait',
+      'active',
+      'priority',
+      'delayed',
+      jobId,
+    ].map(name => {
       return this.queue.toKey(name);
     });
-    keys.push.apply(keys, [this.queue.keys.events, this.queue.keys.delay]);
+    keys.push.apply(keys, [
+      this.queue.keys.events,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+    ]);
 
-    return keys.concat([JSON.stringify(timestamp), jobId, token]);
+    return keys.concat([
+      this.queue.keys[''],
+      Date.now(),
+      JSON.stringify(timestamp),
+      jobId,
+      token,
+    ]);
   }
 
   moveToWaitingChildrenArgs(
@@ -615,16 +639,36 @@ export class Scripts {
     ]);
   }
 
-  retryJobArgs(jobId: string, lifo: boolean, token: string): string[] {
-    const keys = ['active', 'wait', 'paused', jobId, 'meta'].map(name => {
+  retryJobArgs(
+    jobId: string,
+    lifo: boolean,
+    token: string,
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      'active',
+      'wait',
+      'paused',
+      jobId,
+      'meta',
+    ].map(name => {
       return this.queue.toKey(name);
     });
 
-    keys.push(this.queue.keys.events);
+    keys.push(
+      this.queue.keys.events,
+      this.queue.keys.delayed,
+      this.queue.keys.priority,
+    );
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
 
-    return keys.concat([pushCmd, jobId, token]);
+    return keys.concat([
+      this.queue.toKey(''),
+      Date.now(),
+      pushCmd,
+      jobId,
+      token,
+    ]);
   }
 
   protected retryJobsArgs(
@@ -731,17 +775,13 @@ export class Scripts {
 
     if (opts.limiter) {
       args.push(opts.limiter.max, opts.limiter.duration);
-      opts.limiter.groupKey && args.push(true);
     }
 
     const result = await (<any>client).moveToActive(
       (<(string | number | boolean | Buffer)[]>keys).concat(args),
     );
 
-    if (typeof result === 'number') {
-      return [result, void 0] as [number, undefined];
-    }
-    return raw2jobData(result);
+    return raw2NextJobData(result);
   }
 
   async promote(jobId: string): Promise<number> {
@@ -846,16 +886,13 @@ export class Scripts {
   */
 }
 
-export function raw2jobData(raw: any[]): [JobJsonRaw | number, string?] | [] {
-  if (typeof raw === 'number') {
-    return [raw, void 0] as [number, undefined];
-  }
+export function raw2NextJobData(raw: any[]) {
   if (raw) {
-    const jobData = raw[0];
-    if (jobData.length) {
-      const job: any = array2obj(jobData);
-      return [job, raw[1]];
+    const result = [null, raw[1], raw[2], raw[3]];
+    if (raw[0]) {
+      result[0] = array2obj(raw[0]);
     }
+    return result;
   }
   return [];
 }

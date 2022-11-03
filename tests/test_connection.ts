@@ -51,7 +51,7 @@ describe('connection', () => {
   });
 
   describe('when maxmemory-policy is different than noeviction in Redis', () => {
-    it('throws an error', async () => {
+    it.skip('throws an error', async () => {
       const opts = {
         connection: {
           host: 'localhost',

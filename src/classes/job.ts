@@ -509,7 +509,7 @@ export class Job<
     returnValue: ReturnType,
     token: string,
     fetchNext = true,
-  ): Promise<JobData | []> {
+  ) {
     await this.queue.waitUntilReady();
 
     this.returnvalue = returnValue || void 0;
@@ -569,9 +569,9 @@ export class Job<
       const delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
         this.attemptsMade,
-        opts.settings && opts.settings.backoffStrategies,
         err,
         this,
+        opts.settings && opts.settings.backoffStrategy,
       );
 
       if (delay === -1) {
