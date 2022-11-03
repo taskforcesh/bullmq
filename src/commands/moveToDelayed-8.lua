@@ -29,35 +29,43 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/promoteDelayedJobs"
+--- @include "includes/getTargetQueueList"
+--- @include "includes/getNextDelayedTimestamp"
 
-promoteDelayedJobs(KEYS[4], KEYS[1], KEYS[3], KEYS[7], KEYS[8], KEYS[6], ARGV[1], ARGV[2])
+local jobKey = KEYS[5]
+if rcall("EXISTS", jobKey) == 1 then
 
-if rcall("EXISTS", KEYS[5]) == 1 then
-
-  if ARGV[5] ~= "0" then
-    local lockKey = KEYS[5] .. ':lock'
-    if rcall("GET", lockKey) == ARGV[5] then
-      rcall("DEL", lockKey)
-    else
-      return -2
+    local delayedKey = KEYS[4]
+    if ARGV[5] ~= "0" then
+        local lockKey = jobKey .. ':lock'
+        if rcall("GET", lockKey) == ARGV[5] then
+            rcall("DEL", lockKey)
+        else
+            return -2
+        end
     end
-  end
 
-  local jobId = ARGV[4]
-  local score = tonumber(ARGV[3])
-  local delayedTimestamp = (score / 0x1000)
-  
-  local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
+    local jobId = ARGV[4]
+    local score = tonumber(ARGV[3])
+    local delayedTimestamp = (score / 0x1000)
 
-  if(numRemovedElements < 1) then
-    return -3
-  end
+    local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
+    if (numRemovedElements < 1) then return -3 end
 
-  rcall("ZADD", KEYS[4], score, jobId)
+    -- Check if we need to push a marker job to wake up sleeping workers.
+    local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])
+    if rcall("LLEN", target) == 0 then
+        local nextTimestamp = getNextDelayedTimestamp(delayedKey)
+        rcall("SET", "DEBUG", type(nextTimestamp))
+        if not nextTimestamp or (delayedTimestamp < nextTimestamp) then
+            rcall("LPUSH", target, 0)
+        end
+    end
 
-  rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp);
-
-  return 0
+    rcall("ZADD", delayedKey, score, jobId)
+    rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay",
+          delayedTimestamp)
+    return 0
 else
-  return -1
+    return -1
 end

@@ -83,6 +83,74 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
+  it('should process a delayed job added after an initial long delayed job', async function () {
+    const oneYearDelay = 1000 * 60 * 60 * 24 * 365; // One year.
+    const delayTime = 1000;
+    const margin = 1.2;
+
+    const queueEvents = new QueueEvents(queueName, { connection });
+    await queueEvents.waitUntilReady();
+
+    const worker = new Worker(queueName, async () => {}, { connection });
+    await worker.waitUntilReady();
+
+    const timestamp = Date.now();
+    let publishHappened = false;
+
+    const delayed = new Promise<void>(resolve => {
+      queueEvents.on('delayed', () => {
+        publishHappened = true;
+        resolve();
+      });
+    });
+
+    const completed = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async function (job) {
+        try {
+          expect(Date.now() > timestamp + delayTime);
+          expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+            delayTime,
+          );
+          expect(
+            job.processedOn! - job.timestamp,
+            'processedOn is not within margin',
+          ).to.be.lessThan(delayTime * margin);
+
+          const jobs = await queue.getWaiting();
+          expect(jobs.length).to.be.equal(0);
+
+          const delayedJobs = await queue.getDelayed();
+          expect(delayedJobs.length).to.be.equal(1);
+          expect(publishHappened).to.be.eql(true);
+          await worker.close();
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await queue.add('test', { delayed: 'foobar' }, { delay: oneYearDelay });
+
+    await delay(1000);
+
+    const job = await queue.add(
+      'test',
+      { delayed: 'foobar' },
+      { delay: delayTime },
+    );
+
+    expect(job.id).to.be.ok;
+    expect(job.data.delayed).to.be.eql('foobar');
+    expect(job.opts.delay).to.be.eql(delayTime);
+    expect(job.delay).to.be.eql(delayTime);
+
+    await delayed;
+    await completed;
+    await queueEvents.close();
+    await worker.close();
+  });
+
   it('should process delayed jobs in correct order respecting delay', async function () {
     this.timeout(3500);
     let order = 0;
@@ -198,7 +266,7 @@ describe('Delayed jobs', function () {
     await worker2.close();
   });
 
-  describe('when delayed jobs are ready when pending jobs are moved to delayed', function () {
+  describe('when failed jobs are retried and moved to delayed', function () {
     it('processes jobs without getting stuck', async () => {
       const countJobs = 28;
 
