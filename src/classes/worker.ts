@@ -351,6 +351,7 @@ export class Worker<
 
           while (!this.closing) {
             if (
+              !this.waiting &&
               processing.size < this.opts.concurrency &&
               (!this.limitUntil || processing.size == 0)
             ) {
@@ -473,16 +474,16 @@ export class Worker<
   }
 
   private async waitForJob() {
-    const client = await this.blockingConnection.client;
-
+    // I am not sure returning here this quick is a good idea, the main
+    // loop could stay looping at a very high speed and consume all CPU time.
     if (this.paused) {
       return;
     }
 
-    let jobId;
-    const opts: WorkerOptions = <WorkerOptions>this.opts;
-
     try {
+      const client = await this.blockingConnection.client;
+      const opts: WorkerOptions = <WorkerOptions>this.opts;
+
       this.waiting = true;
 
       let blockTimeout = Math.max(
@@ -496,11 +497,12 @@ export class Worker<
           ? Math.ceil(blockTimeout)
           : blockTimeout;
 
-      jobId = await client.brpoplpush(
+      const jobId = await client.brpoplpush(
         this.keys.wait,
         this.keys.active,
         blockTimeout,
       );
+      return jobId;
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
@@ -511,7 +513,6 @@ export class Worker<
     } finally {
       this.waiting = false;
     }
-    return jobId;
   }
 
   /**
