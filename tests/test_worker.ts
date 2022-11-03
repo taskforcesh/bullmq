@@ -1550,32 +1550,28 @@ describe('workers', function () {
           const worker = new Worker(
             queueName,
             async () => {
-              try {
-                nbProcessing++;
-                if (pendingMessageToProcess > 7) {
-                  expect(nbProcessing).to.be.lessThan(5);
-                } else {
-                  expect(nbProcessing).to.be.lessThan(3);
-                }
-                wait += 50;
-
-                await delay(wait);
-                if (pendingMessageToProcess > 11) {
-                  expect(nbProcessing).to.be.eql(
-                    Math.min(pendingMessageToProcess, 4),
-                  );
-                } else if (pendingMessageToProcess == 11) {
-                  expect(nbProcessing).to.be.eql(3);
-                } else {
-                  expect(nbProcessing).to.be.eql(
-                    Math.min(pendingMessageToProcess, 2),
-                  );
-                }
-                pendingMessageToProcess--;
-                nbProcessing--;
-              } catch (err) {
-                console.error(err);
+              nbProcessing++;
+              if (pendingMessageToProcess > 7) {
+                expect(nbProcessing).to.be.lessThan(5);
+              } else {
+                expect(nbProcessing).to.be.lessThan(3);
               }
+              wait += 50;
+
+              await delay(wait);
+              if (pendingMessageToProcess > 11) {
+                expect(nbProcessing).to.be.eql(
+                  Math.min(pendingMessageToProcess, 4),
+                );
+              } else if (pendingMessageToProcess == 11) {
+                expect(nbProcessing).to.be.eql(3);
+              } else {
+                expect(nbProcessing).to.be.eql(
+                  Math.min(pendingMessageToProcess, 2),
+                );
+              }
+              pendingMessageToProcess--;
+              nbProcessing--;
             },
             {
               connection,
@@ -1590,6 +1586,9 @@ describe('workers', function () {
               processed++;
               if (processed === 8) {
                 worker.concurrency = 2;
+              }
+
+              if (processed === 20) {
                 resolve();
               }
             });
@@ -1604,13 +1603,6 @@ describe('workers', function () {
           await queue.addBulk(jobs);
 
           await waiting1;
-
-          const waiting2 = new Promise((resolve, reject) => {
-            worker.on('completed', after(12, resolve));
-            worker.on('failed', reject);
-          });
-
-          await waiting2;
 
           await worker.close();
         });
