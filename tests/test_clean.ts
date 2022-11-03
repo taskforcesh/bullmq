@@ -478,9 +478,8 @@ describe('Cleaner', () => {
                       step = Step.Finish;
                       return Step.Finish;
                     } else {
-                      job.autoComplete = true;
+                      break;
                     }
-                    break;
                   }
                   default: {
                     throw new Error('invalid step');

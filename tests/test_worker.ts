@@ -2074,7 +2074,6 @@ describe('workers', function () {
                 switch (step) {
                   case Step.Initial: {
                     await job.moveToDelayed(Date.now() + 200, token);
-                    job.autoComplete = true;
                     await job.update({
                       step: Step.Second,
                     });
@@ -2189,7 +2188,6 @@ describe('workers', function () {
                       step = Step.Finish;
                       return Step.Finish;
                     } else {
-                      job.autoComplete = true;
                       return;
                     }
                   }

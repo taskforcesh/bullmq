@@ -1,4 +1,3 @@
-import { after, last } from 'lodash';
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
@@ -311,7 +310,6 @@ describe('flows', () => {
                   step = Step.Finish;
                   return Step.Finish;
                 } else {
-                  job.autoComplete = true;
                   return;
                 }
               }
