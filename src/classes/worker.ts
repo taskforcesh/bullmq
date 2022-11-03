@@ -452,7 +452,7 @@ export class Worker<
    *
    * @param expireTimeMs - expire time in ms of this rate limit.
    */
-  async rateLimit(expireTimeMs: number): void {
+  async rateLimit(expireTimeMs: number): Promise<void> {
     await this.client.then(client =>
       client.set(
         this.keys.limiter,
