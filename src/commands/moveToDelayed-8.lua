@@ -32,6 +32,8 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/getNextDelayedTimestamp"
 
+promoteDelayedJobs(KEYS[4], KEYS[1], KEYS[3], KEYS[7], KEYS[8], KEYS[6], ARGV[1], ARGV[2])
+
 local jobKey = KEYS[5]
 if rcall("EXISTS", jobKey) == 1 then
 
