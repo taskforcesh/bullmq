@@ -1,3 +1,10 @@
+## [3.1.2](https://github.com/taskforcesh/bullmq/compare/v3.1.1...v3.1.2) (2022-11-04)
+
+
+### Bug Fixes
+
+* **repeat:** allow easy migration from bullmq <3 to >=3 ([e17b886](https://github.com/taskforcesh/bullmq/commit/e17b886d3e2978e25f23f1a99b88562537a08576))
+
 ## [3.1.1](https://github.com/taskforcesh/bullmq/compare/v3.1.0...v3.1.1) (2022-11-03)
 
 
