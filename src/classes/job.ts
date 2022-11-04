@@ -607,7 +607,9 @@ export class Job<
     const results = await multi.exec();
     const anyError = results.find(result => result[0]);
     if (anyError) {
-      throw new Error(`Error moving to failed: ${anyError}`);
+      throw new Error(
+        `Error "moveToFailed" with command ${command}: ${anyError}`,
+      );
     }
 
     const code = results[results.length - 1][1] as number;
