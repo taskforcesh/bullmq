@@ -28,7 +28,8 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
 
   -- Remove delayed "marker" from the wait list if there is any.
   -- Since we are adding a job we do not need the marker anymore.
-  if rcall("LINDEX", target, 0) == "0" then
+  local marker = rcall("LINDEX", target, 0)
+  if marker and string.sub(marker, 1, 2) == "0:" then
     rcall("LPOP", target)
   end
 

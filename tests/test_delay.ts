@@ -288,8 +288,7 @@ describe('Delayed jobs', function () {
           async (job: Job) => {
             if (job.attemptsMade == 1) {
               await delay(250);
-
-              throw new Error('error');
+              throw new Error('forced error in test');
             }
 
             await delay(25);

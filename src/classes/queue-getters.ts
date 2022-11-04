@@ -120,7 +120,9 @@ export class QueueGetters<
       promises.push(client.lindex(this.toKey('paused'), 0));
     }
 
-    return (await Promise.all(promises)).some(value => value === '0');
+    return (await Promise.all(promises)).some(
+      value => value === '0' || value?.startsWith('0:'),
+    );
   }
 
   /**

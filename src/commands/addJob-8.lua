@@ -135,17 +135,18 @@ if waitChildrenKey ~= nil then
     rcall("ZADD", waitChildrenKey, timestamp, jobId)
     rcall("XADD", KEYS[8], "*", "event", "waiting-children", "jobId", jobId)
 elseif (delayedTimestamp ~= 0) then
-    local timestamp = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
-    rcall("ZADD", KEYS[5], timestamp, jobId)
+    local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
+    rcall("ZADD", KEYS[5], score, jobId)
     rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay",
           delayedTimestamp)
     -- If wait list is empty, and this delayed job is the next one to be processed,
-    -- then we need to signal the workers by adding a dummy job (jobId 0) to the wait list.
+    -- then we need to signal the workers by adding a dummy job (jobId 0:delay) to the wait list.
     local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
     if rcall("LLEN", target) == 0 then
       local nextTimestamp = getNextDelayedTimestamp(KEYS[5])
-      if delayedTimestamp < nextTimestamp then
-        rcall("LPUSH", target, 0)
+      if not nextTimestamp or (delayedTimestamp < nextTimestamp) then
+        local delay = delayedTimestamp - tonumber(timestamp)
+        rcall("LPUSH", target, "0:" .. delay)
       end
     end
 else

@@ -50,21 +50,21 @@ if rcall("EXISTS", jobKey) == 1 then
     local delayedTimestamp = (score / 0x1000)
 
     local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
-    if (numRemovedElements < 1) then return -3 end
+    if (numRemovedElements < 1) then 
+      return -3
+    end
 
     -- Check if we need to push a marker job to wake up sleeping workers.
     local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])
     if rcall("LLEN", target) == 0 then
         local nextTimestamp = getNextDelayedTimestamp(delayedKey)
-        rcall("SET", "DEBUG", type(nextTimestamp))
         if not nextTimestamp or (delayedTimestamp < nextTimestamp) then
-            rcall("LPUSH", target, 0)
+            rcall("LPUSH", target, "0:" .. delayedTimestamp - tonumber(ARGV[2]))
         end
     end
 
     rcall("ZADD", delayedKey, score, jobId)
-    rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay",
-          delayedTimestamp)
+    rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
     return 0
 else
     return -1

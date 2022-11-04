@@ -468,6 +468,12 @@ export class Worker<
     token: string,
     jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
+    // If we get the special delayed job ID, we pick the delay as the next
+    // block timeout.
+    if (jobId && jobId.startsWith('0:')) {
+      this.blockTimeout = parseInt(jobId.split(':')[1]);
+      return;
+    }
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(token, jobId);
     return this.nextJobFromJobData(jobData, id, limitUntil, delayUntil);
