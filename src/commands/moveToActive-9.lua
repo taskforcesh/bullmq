@@ -60,13 +60,19 @@ else
     jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 end
 
--- If jobId is special ID 0, then there is no job to process
-if jobId == "0" then
-    rcall("LREM", KEYS[2], 1, 0)
-elseif jobId then
-    opts = opts or cmsgpack.unpack(ARGV[4])
-    -- this script is not really moving, it is preparing the job for processing
-    return moveJobFromWaitToActive(KEYS, ARGV[1], jobId, ARGV[2], opts)
+-- If jobId is special ID 0:delay, then there is no job to process
+if jobId then 
+    if string.sub(jobId, 1, 2) == "0:" then
+        rcall("LREM", KEYS[2], 1, jobId)
+        -- Move again since we just got the marker job.
+        jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
+    end
+
+    if jobId then
+        opts = opts or cmsgpack.unpack(ARGV[4])
+        -- this script is not really moving, it is preparing the job for processing
+        return moveJobFromWaitToActive(KEYS, ARGV[1], jobId, ARGV[2], opts)
+    end
 end
 
 -- Return the timestamp for the next delayed job if any.

@@ -696,27 +696,27 @@ describe('Job', function () {
         const delayedJobsNewState = await delayedJob.getState();
         expect(delayedJobsNewState).to.be.equal('waiting');
       });
+    });
 
-      describe('when queue is empty', () => {
-        it('should promote delayed job to the right queue', async () => {
-          const delayedJob = await queue.add(
-            'delayed',
-            { foo: 'bar' },
-            { delay: 100 },
-          );
+    describe('when queue is empty', () => {
+      it('should promote delayed job to the right queue', async () => {
+        const delayedJob = await queue.add(
+          'delayed',
+          { foo: 'bar' },
+          { delay: 100 },
+        );
 
-          await queue.pause();
-          await delayedJob.promote();
+        await queue.pause();
+        await delayedJob.promote();
 
-          const pausedJobsCount = await queue.getJobCountByTypes('paused');
-          expect(pausedJobsCount).to.be.equal(1);
-          await queue.resume();
+        const pausedJobsCount = await queue.getJobCountByTypes('paused');
+        expect(pausedJobsCount).to.be.equal(1);
+        await queue.resume();
 
-          const waitingJobsCount = await queue.getWaitingCount();
-          expect(waitingJobsCount).to.be.equal(1);
-          const delayedJobsNewState = await delayedJob.getState();
-          expect(delayedJobsNewState).to.be.equal('waiting');
-        });
+        const waitingJobsCount = await queue.getWaitingCount();
+        expect(waitingJobsCount).to.be.equal(1);
+        const delayedJobsNewState = await delayedJob.getState();
+        expect(delayedJobsNewState).to.be.equal('waiting');
       });
     });
   });
@@ -725,7 +725,7 @@ describe('Job', function () {
     it('should get job actual state', async () => {
       const worker = new Worker(queueName, null, { connection });
       const token = 'my-token';
-      const job = await queue.add('job1', { foo: 'bar' }, { delay: 1 });
+      const job = await queue.add('job1', { foo: 'bar' }, { delay: 1000 });
       const delayedState = await job.getState();
 
       expect(delayedState).to.be.equal('delayed');

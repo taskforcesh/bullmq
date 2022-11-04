@@ -188,11 +188,15 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
-        if jobId == "0" then
-            rcall("LREM", KEYS[2], 1, 0)
-        elseif jobId then
-            return
-                moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
+        -- If jobId is special ID 0:delay, then there is no job to process
+        if jobId then 
+            if string.sub(jobId, 1, 2) == "0:" then
+                rcall("LREM", KEYS[2], 1, jobId)
+            else
+                opts = opts or cmsgpack.unpack(ARGV[4])
+                -- this script is not really moving, it is preparing the job for processing
+                return moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
+            end
         end
 
         -- Return the timestamp for the next delayed job if any.
