@@ -89,7 +89,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             rcall("SREM", KEYS[5], ARGV[1])
         else
             if lockToken then
-                rcall("SET", "DEBUG", lockToken)
                 -- Lock exists but token does not match
                 return -6
             else 
