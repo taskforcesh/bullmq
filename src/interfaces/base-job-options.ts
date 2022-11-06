@@ -42,7 +42,7 @@ export interface DefaultJobOptions {
 
   /**
    * If true, removes the job when it successfully completes
-   * When given an number, it specifies the maximum amount of
+   * When given a number, it specifies the maximum amount of
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the completed set.
@@ -51,7 +51,7 @@ export interface DefaultJobOptions {
 
   /**
    * If true, removes the job when it fails after all attempts.
-   * When given an number, it specifies the maximum amount of
+   * When given a number, it specifies the maximum amount of
    * jobs to keep, or you can provide an object specifying max
    * age and/or count to keep.
    */
