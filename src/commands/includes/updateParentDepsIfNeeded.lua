@@ -24,11 +24,11 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
       local score = delayedTimestamp * 0x1000
       local parentDelayedKey = parentQueueKey .. ":delayed" 
       rcall("ZADD", parentDelayedKey, score, parentId)
-    
+
       if rcall("LLEN", parentTarget) == 0 then
         local nextTimestamp = getNextDelayedTimestamp(parentDelayedKey)
-        if delayedTimestamp <= nextTimestamp then
-          rcall("LPUSH", parentTarget, 0)
+        if not nextTimestamp or (delayedTimestamp <= nextTimestamp) then
+          rcall("LPUSH", parentTarget, "0:" .. delayedTimestamp - tonumber(timestamp))
         end
       end
     -- Standard or priority add
