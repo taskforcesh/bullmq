@@ -26,7 +26,12 @@ export class Repeat extends QueueBase {
     opts: JobsOptions,
     skipCheckExists?: boolean,
   ): Promise<Job<T, R, N>> {
-    const repeatOpts = { ...opts.repeat };
+    // HACK: This is a temporary fix to enable easy migration from bullmq <3.0.0
+    // to >= 3.0.0. It should be removed when moving to 4.x.
+    const repeatOpts: RepeatOptions & { cron?: string } = { ...opts.repeat };
+    repeatOpts.pattern ??= repeatOpts.cron;
+    delete repeatOpts.cron;
+
     const prevMillis = opts.prevMillis || 0;
     const currentCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
 

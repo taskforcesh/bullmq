@@ -783,7 +783,6 @@ describe('repeat', function () {
       let counter = 0;
       const completing = new Promise<void>((resolve, reject) => {
         worker.on('completed', async job => {
-          console.log('Completed!', job.id);
           try {
             if (prev) {
               expect(prev.timestamp).to.be.lt(job.timestamp);

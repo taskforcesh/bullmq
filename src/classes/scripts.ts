@@ -362,6 +362,10 @@ export class Scripts {
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
         return new Error(`Missing key for parent job ${jobId}. ${command}`);
+      case ErrorCode.JobLockMismatch:
+        return new Error(
+          `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
+        );
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
@@ -490,7 +494,7 @@ export class Scripts {
     const keys: (string | number)[] = ['delayed', jobId].map(name => {
       return this.queue.toKey(name);
     });
-    keys.push.apply(keys, [this.queue.keys.events, this.queue.keys.delay]);
+    keys.push.apply(keys, [this.queue.keys.events]);
 
     return keys.concat([delay, JSON.stringify(timestamp), jobId]);
   }
@@ -633,16 +637,36 @@ export class Scripts {
     ]);
   }
 
-  retryJobArgs(jobId: string, lifo: boolean, token: string): string[] {
-    const keys = ['active', 'wait', 'paused', jobId, 'meta'].map(name => {
+  retryJobArgs(
+    jobId: string,
+    lifo: boolean,
+    token: string,
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      'active',
+      'wait',
+      'paused',
+      jobId,
+      'meta',
+    ].map(name => {
       return this.queue.toKey(name);
     });
 
-    keys.push(this.queue.keys.events);
+    keys.push(
+      this.queue.keys.events,
+      this.queue.keys.delayed,
+      this.queue.keys.priority,
+    );
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
 
-    return keys.concat([pushCmd, jobId, token]);
+    return keys.concat([
+      this.queue.toKey(''),
+      Date.now(),
+      pushCmd,
+      jobId,
+      token,
+    ]);
   }
 
   protected retryJobsArgs(

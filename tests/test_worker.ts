@@ -1240,8 +1240,7 @@ describe('workers', function () {
       {
         connection,
         lockDuration: 1000,
-        lockRenewTime: 3000, // The lock will not be updated
-        stalledInterval: 100,
+        lockRenewTime: 3000, // The lock will not be updated in time
       },
     );
     await worker.waitUntilReady();
@@ -1249,10 +1248,53 @@ describe('workers', function () {
     const job = await queue.add('test', { bar: 'baz' });
 
     const errorMessage = `Missing lock for job ${job.id}. failed`;
-    const workerError = new Promise<void>(resolve => {
+    const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
-        expect(error.message).to.be.equal(errorMessage);
-        resolve();
+        try {
+          expect(error.message).to.be.equal(errorMessage);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await workerError;
+
+    await worker.close();
+  });
+
+  it('emits error if lock is "stolen"', async function () {
+    this.timeout(10000);
+
+    const connection = new IORedis({
+      host: 'localhost',
+      maxRetriesPerRequest: null,
+    });
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        connection.set(`bull:${queueName}:${job.id}:lock`, 'foo');
+        return delay(2000);
+      },
+      {
+        connection,
+      },
+    );
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { bar: 'baz' });
+
+    const errorMessage = `Lock mismatch for job ${job.id}. Cmd failed from active`;
+    const workerError = new Promise<void>((resolve, reject) => {
+      worker.once('error', error => {
+        try {
+          expect(error.message).to.be.equal(errorMessage);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
     });
 
@@ -1508,32 +1550,28 @@ describe('workers', function () {
           const worker = new Worker(
             queueName,
             async () => {
-              try {
-                nbProcessing++;
-                if (pendingMessageToProcess > 7) {
-                  expect(nbProcessing).to.be.lessThan(5);
-                } else {
-                  expect(nbProcessing).to.be.lessThan(3);
-                }
-                wait += 50;
-
-                await delay(wait);
-                if (pendingMessageToProcess > 11) {
-                  expect(nbProcessing).to.be.eql(
-                    Math.min(pendingMessageToProcess, 4),
-                  );
-                } else if (pendingMessageToProcess == 11) {
-                  expect(nbProcessing).to.be.eql(3);
-                } else {
-                  expect(nbProcessing).to.be.eql(
-                    Math.min(pendingMessageToProcess, 2),
-                  );
-                }
-                pendingMessageToProcess--;
-                nbProcessing--;
-              } catch (err) {
-                console.error(err);
+              nbProcessing++;
+              if (pendingMessageToProcess > 7) {
+                expect(nbProcessing).to.be.lessThan(5);
+              } else {
+                expect(nbProcessing).to.be.lessThan(3);
               }
+              wait += 50;
+
+              await delay(wait);
+              if (pendingMessageToProcess > 11) {
+                expect(nbProcessing).to.be.eql(
+                  Math.min(pendingMessageToProcess, 4),
+                );
+              } else if (pendingMessageToProcess == 11) {
+                expect(nbProcessing).to.be.eql(3);
+              } else {
+                expect(nbProcessing).to.be.eql(
+                  Math.min(pendingMessageToProcess, 2),
+                );
+              }
+              pendingMessageToProcess--;
+              nbProcessing--;
             },
             {
               connection,
@@ -1548,6 +1586,9 @@ describe('workers', function () {
               processed++;
               if (processed === 8) {
                 worker.concurrency = 2;
+              }
+
+              if (processed === 20) {
                 resolve();
               }
             });
@@ -1562,13 +1603,6 @@ describe('workers', function () {
           await queue.addBulk(jobs);
 
           await waiting1;
-
-          const waiting2 = new Promise((resolve, reject) => {
-            worker.on('completed', after(12, resolve));
-            worker.on('failed', reject);
-          });
-
-          await waiting2;
 
           await worker.close();
         });
@@ -1768,6 +1802,53 @@ describe('workers', function () {
       });
 
       await worker.close();
+    });
+
+    describe('when there are delayed jobs between retries', () => {
+      it('promotes delayed jobs', async () => {
+        let id = 0;
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            id++;
+            await delay(200);
+            if (job.attemptsMade === 1) {
+              expect(job.id).to.be.eql(`${id}`);
+            }
+            if (job.id == '1' && job.attemptsMade < 2) {
+              throw new Error('Not yet!');
+            }
+          },
+          { connection },
+        );
+
+        await worker.waitUntilReady();
+
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            attempts: 2,
+          },
+        );
+
+        const jobs = Array.from(Array(3).keys()).map(index => ({
+          name: 'test',
+          data: {},
+          opts: {
+            delay: 200,
+          },
+        }));
+
+        await queue.addBulk(jobs);
+
+        await new Promise(resolve => {
+          worker.on('completed', after(4, resolve));
+        });
+
+        await worker.close();
+      });
     });
 
     it('should not retry a failed job more than the number of given attempts times', async () => {
