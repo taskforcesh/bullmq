@@ -56,11 +56,9 @@ const sandbox = <T, R, N extends string>(
       child.removeListener('message', msgHandler);
       child.removeListener('exit', exitHandler);
 
-      if (child.exitCode !== null || /SIG.*/.test(`${child.signalCode}`)) {
-        childPool.remove(child);
-      } else {
-        childPool.release(child);
-      }
+      await childPool.kill(child).catch(err => {
+        console.error(err);
+      });
     }
   };
 };
