@@ -14,4 +14,5 @@ export interface SandboxedJob<T = any, R = any>
   updateProgress: (value: object | number) => Promise<void>;
   log: (row: any) => void;
   returnValue: R;
+  discard: () => Promise<void>;
 }

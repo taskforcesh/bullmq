@@ -36,6 +36,9 @@ const sandbox = <T, R, N extends string>(
           case ParentCommand.Log:
             await job.log(msg.value);
             break;
+          case ParentCommand.Discard:
+            job.discard();
+            break;
         }
       };
 

@@ -6,4 +6,5 @@ export enum ParentCommand {
   Error,
   Progress,
   Log,
+  Discard,
 }

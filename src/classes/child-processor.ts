@@ -178,5 +178,10 @@ function wrapJob(job: JobJson): SandboxedJob {
         value: row,
       });
     },
+    discard: async () => {
+      childSend(process, {
+        cmd: ParentCommand.Discard,
+      });
+    },
   };
 }
