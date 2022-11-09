@@ -128,7 +128,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
                 updateParentDepsIfNeeded(parentKey, parentQueueKey,
                                          dependenciesSet, parentId, jobIdKey,
-                                         ARGV[4])
+                                         ARGV[4], timestamp)
             end
         elseif opts['fpof'] then
             moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
