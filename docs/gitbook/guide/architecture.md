@@ -18,4 +18,4 @@ Another way to add a job is by the [`add`](https://api.docs.bullmq.io/classes/Fl
 
 ![Lifecycle of a job - Flow Producer](<../.gitbook/assets/flow-architecture (1).png>)
 
-When a job is added by a flow producer, it can be in one of two states, it can either be in the “wait” status, when there aren't children, or it can be in a “waiting-children” status: a waiting-children status implies that the job is waiting for all its children to be completed, however, a waiting-children job will not be processed directly, instead it will be placed at the waiting list and processed as soon as the last child is marked as completed.
+When a job is added by a flow producer, it can be in one of two states, it can either be in the “wait” status, when there aren't children, or it can be in a “waiting-children” status: a waiting-children status implies that the job is waiting for all its children to be completed, however, a waiting-children job will not be processed directly, instead it will be placed at the waiting list or at delayed set (if delay is provided) as soon as the last child is marked as completed.
