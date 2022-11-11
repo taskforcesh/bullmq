@@ -102,10 +102,18 @@ Some notable organizations using BullMQ:
         />
       </a>
     </td>
+    </td>
+      <td valign="center">
+       <a href="https://www.nocodb.com">
+        <img
+          src="https://www.nocodb.com/brand/logo-text.png"
+          width="150"
+          alt="NoCodeDB"
+        />
+      </a>
+    </td>
     </tr>
 </table>
-
-
 
 # The gist
 
