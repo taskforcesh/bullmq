@@ -839,6 +839,6 @@ export class Worker<
     if (err1 || err2) {
       throw err1 || err2;
     }
-    return limitUntil || 0;
+    return parseInt(limitUntil as string) || 0;
   }
 }
