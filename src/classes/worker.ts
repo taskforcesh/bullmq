@@ -834,10 +834,11 @@ export class Worker<
   ) {
     const multi = (await this.client).multi();
     multi.pttl(this.keys.limiter);
-    multi.lrem(this.keys.active, 1, job.id);
-    multi.rpush(this.keys.wait, job.id);
-    multi.del(`${this.toKey(job.id)}:lock`);
-    const [[err, limitUntil]] = await multi.exec();
-    return <number>limitUntil;
+    this.scripts.moveJobFromActiveToWait(multi, job.id);
+    const [[err1, limitUntil], [err2]] = await multi.exec();
+    if (err1 || err2) {
+      throw err1 || err2;
+    }
+    return limitUntil || 0;
   }
 }
