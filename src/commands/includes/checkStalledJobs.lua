@@ -55,7 +55,7 @@ local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey,
 
             if string.sub(jobId, 1, 2) == "0:" then
                 -- If the jobId is a delay marker ID we just remove it.
-                local removed = rcall("LREM", activeKey, 1, jobId)
+                rcall("LREM", activeKey, 1, jobId)
             else
                 local jobKey = queueKeyPrefix .. jobId
 

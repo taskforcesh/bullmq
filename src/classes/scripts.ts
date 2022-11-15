@@ -30,6 +30,7 @@ import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { QueueBase } from './queue-base';
 import { Job, MoveToWaitingChildrenOpts } from './job';
+import { ChainableCommander } from 'ioredis';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -829,6 +830,30 @@ export class Scripts {
       opts.stalledInterval,
     ];
     return (<any>client).moveStalledJobsToWait(keys.concat(args));
+  }
+
+  /**
+   * Moves a job back from Active to Wait.
+   * This script is used when a job has been manually rate limited and needs
+   * to be moved back to wait from active status.
+   *
+   * @param client - Redis client
+   * @param jobId - Job id
+   * @returns
+   */
+  moveJobFromActiveToWait(client: ChainableCommander, jobId: string) {
+    const lockKey = `${this.queue.toKey(jobId)}:lock`;
+
+    const keys = [
+      this.queue.keys.active,
+      this.queue.keys.wait,
+      this.queue.keys.stalled,
+      lockKey,
+    ];
+
+    const args = [jobId];
+
+    return (<any>client).moveJobFromActiveToWait(keys.concat(args));
   }
 
   async obliterate(opts: { force: boolean; count: number }): Promise<number> {
