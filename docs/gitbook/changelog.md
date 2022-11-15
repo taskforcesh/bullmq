@@ -1,3 +1,10 @@
+## [3.2.2](https://github.com/taskforcesh/bullmq/compare/v3.2.1...v3.2.2) (2022-11-15)
+
+
+### Bug Fixes
+
+* **rate-limit:** check job is active before moving to wait ([9502167](https://github.com/taskforcesh/bullmq/commit/9502167bb0d9008fc8811ff7980dc8126fbc5ac2))
+
 ## [3.2.1](https://github.com/taskforcesh/bullmq/compare/v3.2.0...v3.2.1) (2022-11-15)
 
 
