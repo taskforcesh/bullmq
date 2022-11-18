@@ -510,8 +510,13 @@ describe('repeat', function () {
 
         const worker = new Worker(
           queueName,
-          async () => {
+          async job => {
             this.clock.tick(nextTick);
+
+            if (job.opts.repeat.count == 5) {
+              const removed = await queue.removeRepeatable('rrule', repeat);
+              expect(removed).to.be.true;
+            }
           },
           { connection, settings },
         );
@@ -536,38 +541,43 @@ describe('repeat', function () {
         let prev: any;
         let counter = 0;
 
-        const completing = new Promise<void>(resolve => {
+        const completing = new Promise<void>((resolve, reject) => {
           worker.on('completed', async job => {
-            if (prev) {
-              expect(prev.timestamp).to.be.lt(job.timestamp);
-              expect(job.timestamp - prev.timestamp).to.be.gte(2000);
-            }
-            prev = job;
-            counter++;
-            if (counter == 5) {
-              const removed = await queue.removeRepeatable('rrule', repeat);
-              expect(removed).to.be.true;
-
-              resolve();
+            try {
+              if (prev) {
+                expect(prev.timestamp).to.be.lt(job.timestamp);
+                expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+              }
+              prev = job;
+              counter++;
+              if (counter == 5) {
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
             }
           });
         });
 
         await completing;
 
-        let prev2: Job;
+        let prev2: any;
         let counter2 = 0;
 
-        const completing2 = new Promise<void>(resolve => {
+        const completing2 = new Promise<void>((resolve, reject) => {
           worker.on('completed', async job => {
-            if (prev2) {
-              expect(prev2.timestamp).to.be.lt(job.timestamp);
-              expect(job.timestamp - prev2.timestamp).to.be.gte(2000);
-            }
-            prev2 = job;
-            counter2++;
-            if (counter2 == 5) {
-              resolve();
+            try {
+              if (prev2) {
+                expect(prev2.timestamp).to.be.lt(job.timestamp);
+                expect(job.timestamp - prev2.timestamp).to.be.gte(2000);
+              }
+              prev2 = job;
+              counter2++;
+              if (counter2 == 5) {
+                resolve();
+              }
+            } catch (error) {
+              reject(error);
             }
           });
         });
