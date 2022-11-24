@@ -313,9 +313,9 @@ export class Queue<
    *
    * @see removeRepeatableByKey
    *
-   * @param name
-   * @param repeatOpts
-   * @param jobId
+   * @param name -
+   * @param repeatOpts -
+   * @param jobId -
    * @returns
    */
   async removeRepeatable(
@@ -334,10 +334,9 @@ export class Queue<
    * to store the repeatable job metadata and not one of the job iterations
    * themselves. You can use "getRepeatableJobs" in order to get the keys.
    *
-   *
    * @see getRepeatableJobs
    *
-   * @param key to the repeatable job.
+   * @param key - to the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
