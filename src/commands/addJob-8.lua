@@ -61,6 +61,7 @@ local parentData
 --- @include "includes/getTargetQueueList"
 --- @include "includes/trimEvents"
 --- @include "includes/getNextDelayedTimestamp"
+--- @include "includes/updateParentDepsIfNeeded"
 
 if parentKey ~= nil then
   if rcall("EXISTS", parentKey) ~= 1 then
@@ -71,9 +72,6 @@ if parentKey ~= nil then
 end
 
 local jobCounter = rcall("INCR", KEYS[4])
-
--- Includes
---- @include "includes/updateParentDepsIfNeeded"
 
 -- Trim events before emiting them to avoid trimming events emitted in this script
 trimEvents(KEYS[3], KEYS[8])
@@ -99,6 +97,8 @@ else
       end
       rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
     end
+    rcall("XADD", KEYS[8], "*", "event", "duplicated", "jobId", jobId)
+
     return jobId .. "" -- convert to string
   end
 end
