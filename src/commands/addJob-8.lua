@@ -86,21 +86,22 @@ if args[2] == "" then
 else
   jobId = args[2]
   jobIdKey = args[1] .. jobId
-  if rcall("EXISTS", jobIdKey) == 1 then
-    if parentKey ~= nil then
-      if rcall("ZSCORE", KEYS[7], jobId) ~= false then
-        local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
-        updateParentDepsIfNeeded(parentKey, parent['queueKey'], parentDependenciesKey,
-          parent['id'], jobIdKey, returnvalue, timestamp)
-      else
-        if parentDependenciesKey ~= nil then
-          rcall("SADD", parentDependenciesKey, jobIdKey)
-        end
+end
+
+if rcall("EXISTS", jobIdKey) == 1 then
+  if parentKey ~= nil then
+    if rcall("ZSCORE", KEYS[7], jobId) ~= false then
+      local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
+      updateParentDepsIfNeeded(parentKey, parent['queueKey'], parentDependenciesKey,
+        parent['id'], jobIdKey, returnvalue, timestamp)
+    else
+      if parentDependenciesKey ~= nil then
+        rcall("SADD", parentDependenciesKey, jobIdKey)
       end
-      rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
     end
-    return jobId .. "" -- convert to string
+    rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
   end
+  return jobId .. "" -- convert to string
 end
 
 -- Store the job.
@@ -132,44 +133,44 @@ local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
 -- Check if job is a parent, if so add to the parents set
 local waitChildrenKey = args[6]
 if waitChildrenKey ~= nil then
-    rcall("ZADD", waitChildrenKey, timestamp, jobId)
-    rcall("XADD", KEYS[8], "*", "event", "waiting-children", "jobId", jobId)
+  rcall("ZADD", waitChildrenKey, timestamp, jobId)
+  rcall("XADD", KEYS[8], "*", "event", "waiting-children", "jobId", jobId)
 elseif (delayedTimestamp ~= 0) then
-    local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
-    rcall("ZADD", KEYS[5], score, jobId)
-    rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay",
-          delayedTimestamp)
-    -- If wait list is empty, and this delayed job is the next one to be processed,
-    -- then we need to signal the workers by adding a dummy job (jobId 0:delay) to the wait list.
-    local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
-    if rcall("LLEN", target) == 0 then
-      local nextTimestamp = getNextDelayedTimestamp(KEYS[5])
-      if not nextTimestamp or (delayedTimestamp < nextTimestamp) then
-        local delay = delayedTimestamp - tonumber(timestamp)
-        rcall("LPUSH", target, "0:" .. delay)
-      end
+  local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
+  rcall("ZADD", KEYS[5], score, jobId)
+  rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay",
+        delayedTimestamp)
+  -- If wait list is empty, and this delayed job is the next one to be processed,
+  -- then we need to signal the workers by adding a dummy job (jobId 0:delay) to the wait list.
+  local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
+  if rcall("LLEN", target) == 0 then
+    local nextTimestamp = getNextDelayedTimestamp(KEYS[5])
+    if not nextTimestamp or (delayedTimestamp < nextTimestamp) then
+      local delay = delayedTimestamp - tonumber(timestamp)
+      rcall("LPUSH", target, "0:" .. delay)
     end
+  end
 else
-    local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
+  local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
 
-    -- Standard or priority add
-    if priority == 0 then
-        -- LIFO or FIFO
-        local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH';
-        rcall(pushCmd, target, jobId)
-    else
-        -- Priority add
-        addJobWithPriority(KEYS[6], priority, target, jobId)
-    end
-    -- Emit waiting event
-    rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
+  -- Standard or priority add
+  if priority == 0 then
+    -- LIFO or FIFO
+    local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH';
+    rcall(pushCmd, target, jobId)
+  else
+    -- Priority add
+    addJobWithPriority(KEYS[6], priority, target, jobId)
+  end
+  -- Emit waiting event
+  rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
 end
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 -- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
 -- fail in this case.
 if parentDependenciesKey ~= nil then
-    rcall("SADD", parentDependenciesKey, jobIdKey)
+  rcall("SADD", parentDependenciesKey, jobIdKey)
 end
 
 return jobId .. "" -- convert to string

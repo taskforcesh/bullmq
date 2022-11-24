@@ -493,11 +493,23 @@ describe('Jobs getters', function () {
   });
 
   it('should return deduplicated jobs for duplicates types', async function () {
-    queue.add('test', { foo: 1 });
+    await queue.add('test', { foo: 1 });
     const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);
 
     expect(jobs).to.be.an('array');
     expect(jobs).to.have.length(1);
+  });
+
+  describe('when job is added without jobId provided and it matches an existed job', () => {
+    it('does not update the same job', async function () {
+      await queue.add('test', { foo: 1 }, { jobId: '2' });
+      await queue.add('test', { foo: 2 });
+
+      const jobs = await queue.getJobs(['wait']);
+
+      expect(jobs).to.have.length(1);
+      expect(jobs[0].data.foo).to.be.equal(1);
+    });
   });
 
   it('should return jobs for all types', function (done) {
