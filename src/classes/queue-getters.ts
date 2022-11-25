@@ -354,8 +354,10 @@ export class QueueGetters<
 
     const jobIds = await this.getRanges(types, start, end, asc);
 
+    const filteredJobIds = jobIds.filter(jobId => !jobId.startsWith('0:'));
+
     return Promise.all(
-      jobIds.map(
+      filteredJobIds.map(
         jobId =>
           this.Job.fromId(this, jobId) as Promise<
             Job<DataType, ResultType, NameType>
