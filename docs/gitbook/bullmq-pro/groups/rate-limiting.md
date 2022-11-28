@@ -15,13 +15,16 @@ The rate limit is configured on the worker instances:
 ```typescript
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
-const worker = new WorkerPro('myQueue', processFn, {
-    group: {
-      limit: {
-        max: 100,  // Limit to 100 jobs per second per group
-        duration 1000,
-      }
-    },
+const worker = new WorkerPro('myQueue', async () => {
+    const groupId = job.opts.group.id;
+    const [isRateLimited, duration] = await doExternalCall(groupId);
+    if(isRateLimited) {
+      await worker.rateLimitGroup(job, duration);
+      // Do not forget to throw this special exception,
+      // since the job is no longer active after being rate limited.
+      throw Worker.RateLimitError();
+    }
+}, {
     connection
 });
 ```
