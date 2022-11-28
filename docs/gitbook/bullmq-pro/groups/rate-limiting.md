@@ -37,7 +37,7 @@ import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
 const worker = new WorkerPro('myQueue', async () => {
     const groupId = job.opts.group.id;
-    const [isRateLimited, = await doExternalCall(groupId);
+    const [isRateLimited, duration] = awaidoExternalCall(groupId);
     if(isRateLimited) {
       await worker.rateLimitGroup(job, duration);
       // Do not forget to throw this special exception,
