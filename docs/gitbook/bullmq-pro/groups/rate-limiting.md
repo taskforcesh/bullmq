@@ -28,7 +28,7 @@ const worker = new WorkerPro('myQueue', processFn, {
 
 ### Manual rate-limit
 
-Sometimes is useful to rate-limit a group manually instead of based on some static options. For example, if you have an API that returns 409 (Too many requests), and you want to rate-limit the group based on that response.
+Sometimes is useful to rate-limit a group manually instead of based on some static options. For example, if you have an API that returns 429 (Too many requests), and you want to rate-limit the group based on that response.
 
 For this purpose, you can use the worker method **rateLimitGroup** like this:
 
