@@ -24,6 +24,10 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
 
   if(maxJobs) then
     local rateLimiterKey = keys[6];
+
+    expireTime = tonumber(rcall("PTTL", rateLimiterKey))
+    if expireTime == 0 then rcall("DEL", rateLimiterKey) end
+
     local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
 
     if jobCounter == 1 then
