@@ -14,6 +14,6 @@ local function getTimestamp(jobKey, attributes)
       break
     end
   end
-  
+
   return jobTs
 end
