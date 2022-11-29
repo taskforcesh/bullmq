@@ -9,6 +9,9 @@ env:
 
 jobs:
   release:
+    permissions:
+      contents: write # for release publishing
+
     name: Release
     runs-on: ubuntu-latest
     steps:
