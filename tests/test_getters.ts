@@ -500,18 +500,6 @@ describe('Jobs getters', function () {
     expect(jobs).to.have.length(1);
   });
 
-  describe('when job is added without jobId provided and it matches an existed job', () => {
-    it('does not update the same job', async function () {
-      await queue.add('test', { foo: 1 }, { jobId: '2' });
-      await queue.add('test', { foo: 2 });
-
-      const jobs = await queue.getJobs(['wait']);
-
-      expect(jobs).to.have.length(1);
-      expect(jobs[0].data.foo).to.be.equal(1);
-    });
-  });
-
   it('should return jobs for all types', function (done) {
     let counter = 0;
     const worker = new Worker(

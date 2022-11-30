@@ -86,22 +86,21 @@ if args[2] == "" then
 else
   jobId = args[2]
   jobIdKey = args[1] .. jobId
-end
-
-if rcall("EXISTS", jobIdKey) == 1 then
-  if parentKey ~= nil then
-    if rcall("ZSCORE", KEYS[7], jobId) ~= false then
-      local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
-      updateParentDepsIfNeeded(parentKey, parent['queueKey'], parentDependenciesKey,
-        parent['id'], jobIdKey, returnvalue, timestamp)
-    else
-      if parentDependenciesKey ~= nil then
-        rcall("SADD", parentDependenciesKey, jobIdKey)
+  if rcall("EXISTS", jobIdKey) == 1 then
+    if parentKey ~= nil then
+      if rcall("ZSCORE", KEYS[7], jobId) ~= false then
+        local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
+        updateParentDepsIfNeeded(parentKey, parent['queueKey'], parentDependenciesKey,
+          parent['id'], jobIdKey, returnvalue, timestamp)
+      else
+        if parentDependenciesKey ~= nil then
+          rcall("SADD", parentDependenciesKey, jobIdKey)
+        end
       end
+      rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
     end
-    rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
-  end
-  return jobId .. "" -- convert to string
+    return jobId .. "" -- convert to string
+  end  
 end
 
 -- Store the job.

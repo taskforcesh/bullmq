@@ -184,6 +184,10 @@ export class Job<
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
 
+    if (id && /^\d+$/.test(id)) {
+      throw new Error('Custom Ids cannot be integers');
+    }
+
     this.toKey = queue.toKey.bind(queue);
     this.scripts = new Scripts(queue);
   }
