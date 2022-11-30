@@ -390,13 +390,18 @@ describe('workers', function () {
     });
 
     it('should remove a job after fail if the default job options specify removeOnFail', async () => {
-      const worker = new Worker(queueName, async job => {
-        expect(job.data.foo).to.be.equal('bar');
-        throw Error('error');
-      });
+      const worker = new Worker(
+        queueName,
+        async job => {
+          expect(job.data.foo).to.be.equal('bar');
+          throw Error('error');
+        },
+        { connection },
+      );
       await worker.waitUntilReady();
 
       const newQueue = new Queue(queueName, {
+        connection,
         defaultJobOptions: {
           removeOnFail: true,
         },
@@ -428,13 +433,18 @@ describe('workers', function () {
     it('should keep specified number of jobs after completed with global removeOnFail', async () => {
       const keepJobs = 3;
 
-      const worker = new Worker(queueName, async job => {
-        expect(job.data.foo).to.be.equal('bar');
-        throw Error('error');
-      });
+      const worker = new Worker(
+        queueName,
+        async job => {
+          expect(job.data.foo).to.be.equal('bar');
+          throw Error('error');
+        },
+        { connection },
+      );
       await worker.waitUntilReady();
 
       const newQueue = new Queue(queueName, {
+        connection,
         defaultJobOptions: {
           removeOnFail: keepJobs,
         },
@@ -999,10 +1009,14 @@ describe('workers', function () {
   it('process a job that throws an exception', async () => {
     const jobError = new Error('Job Failed');
 
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-      throw jobError;
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        throw jobError;
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const job = await queue.add('test', { foo: 'bar' });

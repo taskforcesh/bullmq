@@ -654,13 +654,13 @@ describe('Job', function () {
       const add = (jobId: string, ms = 0) =>
         queue.add('test', {}, { jobId, delay: ms, priority: 1 });
 
-      await add('1');
-      await add('2', 1);
+      await add('a');
+      await add('b', 1);
       await processStarted;
-      const job = await add('3', 2000);
+      const job = await add('c', 2000);
 
       await job.promote();
-      await add('4', 1);
+      await add('d', 1);
 
       await done;
     });

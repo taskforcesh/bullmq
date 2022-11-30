@@ -184,10 +184,6 @@ export class Job<
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
 
-    if (id && /^[1-9](\d+)?$/.test(id)) {
-      throw new Error('Custom Ids cannot be integers');
-    }
-
     this.toKey = queue.toKey.bind(queue);
     this.scripts = new Scripts(queue);
   }
@@ -1051,6 +1047,10 @@ export class Job<
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
       throw new Error(`Delay and repeat options could not be used together`);
+    }
+
+    if (this.id && /^[1-9](\d+)?$/.test(this.id)) {
+      throw new Error('Custom Ids cannot be integers');
     }
 
     return this.scripts.addJob(
