@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static pause(queue: MinimalQueue, pause: boolean): Promise<any>;
+static pause(queue: MinimalQueue, pause: boolean): Promise<void>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ static pause(queue: MinimalQueue, pause: boolean): Promise<any>;
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;void&gt;
 

@@ -2,18 +2,42 @@
   Validate and move or add dependencies to parent.
 ]]
 
-local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey, parentId, jobIdKey, returnvalue )
+-- Includes
+--- @include "addJobWithPriority"
+--- @include "getNextDelayedTimestamp"
+--- @include "getTargetQueueList"
+
+local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,
+  parentId, jobIdKey, returnvalue, timestamp )
   local processedSet = parentKey .. ":processed"
   rcall("HSET", processedSet, jobIdKey, returnvalue)
   local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
   if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
-    if rcall("HEXISTS", parentQueueKey .. ":meta", "paused") ~= 1 then
-      rcall("RPUSH", parentQueueKey .. ":wait", parentId)
+    local parentTarget = getTargetQueueList(parentQueueKey .. ":meta", parentQueueKey .. ":wait",
+      parentQueueKey .. ":paused")
+    local jobAttributes = rcall("HMGET", parentKey, "priority", "delay")
+    local priority = tonumber(jobAttributes[1]) or 0
+    local delay = tonumber(jobAttributes[2]) or 0
+    if delay > 0 then
+      local delayedTimestamp = tonumber(timestamp) + delay 
+      local score = delayedTimestamp * 0x1000
+      local parentDelayedKey = parentQueueKey .. ":delayed" 
+      rcall("ZADD", parentDelayedKey, score, parentId)
+
+      if rcall("LLEN", parentTarget) == 0 then
+        local nextTimestamp = getNextDelayedTimestamp(parentDelayedKey)
+        if not nextTimestamp or (delayedTimestamp <= nextTimestamp) then
+          rcall("LPUSH", parentTarget, "0:" .. delayedTimestamp - tonumber(timestamp))
+        end
+      end
+    -- Standard or priority add
+    elseif priority == 0 then
+      rcall("RPUSH", parentTarget, parentId)
     else
-      rcall("RPUSH", parentQueueKey .. ":paused", parentId)
+      addJobWithPriority(parentQueueKey .. ":priority", priority, parentTarget, parentId)
     end
-    local parentEventStream = parentQueueKey .. ":events"
-    rcall("XADD", parentEventStream, "*", "event", "active", "jobId", parentId, "prev", "waiting-children")
+
+    rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
   end
 end

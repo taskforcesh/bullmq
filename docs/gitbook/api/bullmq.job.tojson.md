@@ -7,9 +7,9 @@
 <b>Signature:</b>
 
 ```typescript
-toJSON(): Pick<this, Exclude<keyof this, "queue">>;
+toJSON(): Omit<this, 'queue'>;
 ```
 <b>Returns:</b>
 
-Pick&lt;this, Exclude&lt;keyof this, "queue"&gt;&gt;
+Omit&lt;this, 'queue'&gt;
 

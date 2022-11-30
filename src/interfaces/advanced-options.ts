@@ -1,6 +1,15 @@
-export interface AdvancedOptions {
+import { BackoffStrategy, RepeatStrategy } from '../types';
+
+export interface AdvancedRepeatOptions {
   /**
-   * A set of custom backoff strategies keyed by name.
+   * A custom cron strategy.
    */
-  backoffStrategies?: {};
+  repeatStrategy?: RepeatStrategy;
+}
+
+export interface AdvancedOptions extends AdvancedRepeatOptions {
+  /**
+   * A custom backoff strategy.
+   */
+  backoffStrategy?: BackoffStrategy;
 }

@@ -1,4 +1,5 @@
-import { JobsOptions } from '../interfaces';
+import { AdvancedRepeatOptions } from './advanced-options';
+import { DefaultJobOptions } from './base-job-options';
 import { ConnectionOptions } from './redis-options';
 
 export enum ClientType {
@@ -21,6 +22,11 @@ export interface QueueBaseOptions {
   sharedConnection?: boolean;
 
   /**
+   * Denotes commands should retry indefinitely.
+   */
+  blockingConnection?: boolean;
+
+  /**
    * Prefix for all queue keys.
    */
   prefix?: string;
@@ -30,18 +36,7 @@ export interface QueueBaseOptions {
  * Options for the Queue class.
  */
 export interface QueueOptions extends QueueBaseOptions {
-  defaultJobOptions?: JobsOptions;
-
-  /**
-   * Options for the rate limiter.
-   */
-  limiter?: {
-    /**
-     * Group key to be used by the limiter when
-     * limiting by group keys.
-     */
-    groupKey: string;
-  };
+  defaultJobOptions?: DefaultJobOptions;
 
   /**
    * Options for the streams used internally in BullMQ.
@@ -57,6 +52,15 @@ export interface QueueOptions extends QueueBaseOptions {
       maxLen: number;
     };
   };
+
+  settings?: AdvancedRepeatOptions;
+}
+
+/**
+ * Options for the Repeat class.
+ */
+export interface RepeatBaseOptions extends QueueBaseOptions {
+  settings?: AdvancedRepeatOptions;
 }
 
 /**

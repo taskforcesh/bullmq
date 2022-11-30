@@ -4,10 +4,12 @@
 
 ## Scripts.updateDelaySet() method
 
+It checks if the job in the top of the delay set should be moved back to the top of the wait queue (so that it will be processed as soon as possible)
+
 <b>Signature:</b>
 
 ```typescript
-static updateDelaySet(queue: MinimalQueue, delayedTimestamp: number): Promise<any>;
+static updateDelaySet(queue: MinimalQueue, delayedTimestamp: number): Promise<[number, string]>;
 ```
 
 ## Parameters
@@ -19,5 +21,5 @@ static updateDelaySet(queue: MinimalQueue, delayedTimestamp: number): Promise<an
 
 <b>Returns:</b>
 
-Promise&lt;any&gt;
+Promise&lt;\[number, string\]&gt;
 

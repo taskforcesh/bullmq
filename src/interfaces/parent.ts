@@ -1,5 +1,4 @@
-import { JobsOptions } from './jobs-options';
-
+import { JobsOptions } from '../types';
 /**
  * Describes the parent for a Job.
  */
@@ -9,4 +8,9 @@ export interface Parent<T> {
   queue?: string;
   data?: T;
   opts?: JobsOptions;
+}
+
+export interface ParentKeys {
+  id: string;
+  queueKey: string;
 }

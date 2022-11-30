@@ -4,7 +4,7 @@
 
 ## Job.waitUntilFinished() method
 
-Returns a promise the resolves when the job has finished. (completed or failed).
+Returns a promise the resolves when the job has completed (containing the return value of the job), or rejects when the job has failed (containing the failedReason).
 
 <b>Signature:</b>
 
@@ -16,8 +16,8 @@ waitUntilFinished(queueEvents: QueueEvents, ttl?: number): Promise<ReturnType>;
 
 |  Parameter | Type | Description |
 |  --- | --- | --- |
-|  queueEvents | [QueueEvents](./bullmq.queueevents.md) |  |
-|  ttl | number |  |
+|  queueEvents | [QueueEvents](./bullmq.queueevents.md) | Instance of QueueEvents. |
+|  ttl | number | Time in milliseconds to wait for job to finish before timing out. |
 
 <b>Returns:</b>
 

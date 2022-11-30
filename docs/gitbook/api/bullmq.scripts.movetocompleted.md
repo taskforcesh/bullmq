@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static moveToCompleted(queue: MinimalQueue, job: Job, returnvalue: any, removeOnComplete: boolean | number, token: string, fetchNext: boolean): Promise<[] | [JobJsonRaw, string]>;
+static moveToCompleted<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>, returnvalue: R, removeOnComplete: boolean | number | KeepJobs, token: string, fetchNext: boolean): Promise<JobData | []>;
 ```
 
 ## Parameters
@@ -15,13 +15,13 @@ static moveToCompleted(queue: MinimalQueue, job: Job, returnvalue: any, removeOn
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  job | [Job](./bullmq.job.md) |  |
-|  returnvalue | any |  |
-|  removeOnComplete | boolean \| number |  |
+|  job | [Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; |  |
+|  returnvalue | R |  |
+|  removeOnComplete | boolean \| number \| [KeepJobs](./bullmq.keepjobs.md) |  |
 |  token | string |  |
 |  fetchNext | boolean |  |
 
 <b>Returns:</b>
 
-Promise&lt;\[\] \| \[[JobJsonRaw](./bullmq.jobjsonraw.md)<!-- -->, string\]&gt;
+Promise&lt;[JobData](./bullmq.jobdata.md) \| \[\]&gt;
 

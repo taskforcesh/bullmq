@@ -16,11 +16,11 @@ export class TimerManager {
   /**
    * Creates a new timer and returns its ID.
    *
-   * @param name Readable name for the timer
-   * @param delay Delay in milliseconds
-   * @param fn callback function that is executed after the timer expires
+   * @param name - Readable name for the timer
+   * @param delay - Delay in milliseconds
+   * @param fn - Callback function that is executed after the timer expires
    */
-  public setTimer(name: string, delay: number, fn: Function) {
+  public setTimer(name: string, delay: number, fn: Function): string {
     const id = v4();
     const timer = setTimeout(
       timeoutId => {
@@ -43,7 +43,7 @@ export class TimerManager {
     return id;
   }
 
-  public clearTimer(id: string) {
+  public clearTimer(id: string): void {
     const timer = this.timers.get(id);
     if (timer) {
       clearTimeout(timer.timer);
@@ -51,7 +51,7 @@ export class TimerManager {
     }
   }
 
-  public clearAllTimers() {
+  public clearAllTimers(): void {
     for (const id of this.timers.keys()) {
       this.clearTimer(id);
     }

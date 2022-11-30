@@ -1,9 +1,15 @@
 # QueueScheduler
 
+
+
+{% hint style="danger" %}
+From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore, so the information below is only valid for older versions.
+{% endhint %}
+
 The QueueScheduler is a helper class used to manage stalled and delayed jobs for a given Queue.
 
 ```typescript
-import { QueueScheduler } from 'bullmq'
+import { QueueScheduler } from 'bullmq';
 
 const queueScheduler = new QueueScheduler('test');
 
@@ -17,9 +23,12 @@ This class automatically moves delayed jobs back to the waiting queue when it is
 You need at least one QueueScheduler running somewhere for a given queue if you require functionality such as delayed jobs, retries with backoff and rate limiting.
 {% endhint %}
 
-The reason for having this functionality in a separate class instead of in the workers \(as in Bull 3.x\) is because whereas you may want to have a large number of workers for parallel processing, for the scheduler you probably only want a couple of instances for each queue that requires delayed or stalled checks. One will be enough but you can have more just for redundancy.
+The reason for having this functionality in a separate class instead of in the workers (as in Bull 3.x) is because whereas you may want to have a large number of workers for parallel processing, for the scheduler you probably only want a couple of instances for each queue that requires delayed or stalled checks. One will be enough but you can have more just for redundancy.
 
 {% hint style="warning" %}
 It is ok to have as many QueueScheduler instances as you want, just keep in mind that every instance will perform some bookkeeping so it may create some noticeable CPU and IO usage in your Redis instances.
 {% endhint %}
 
+## Read more:
+
+* 💡 [Queue Scheduler API Reference](https://github.com/taskforcesh/bullmq/blob/v1.91.1/docs/gitbook/api/bullmq.queuescheduler.md)

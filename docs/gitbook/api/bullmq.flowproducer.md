@@ -26,9 +26,9 @@ export declare class FlowProducer extends EventEmitter
 |  [client](./bullmq.flowproducer.client.md) |  | Promise&lt;[RedisClient](./bullmq.redisclient.md)<!-- -->&gt; |  |
 |  [closing](./bullmq.flowproducer.closing.md) |  | Promise&lt;void&gt; |  |
 |  [connection](./bullmq.flowproducer.connection.md) |  | [RedisConnection](./bullmq.redisconnection.md) |  |
-|  [keys](./bullmq.flowproducer.keys.md) |  | KeysMap |  |
+|  [keys](./bullmq.flowproducer.keys.md) |  | [KeysMap](./bullmq.keysmap.md) |  |
 |  [opts](./bullmq.flowproducer.opts.md) |  | [QueueBaseOptions](./bullmq.queuebaseoptions.md) |  |
-|  [queueKeys](./bullmq.flowproducer.queuekeys.md) |  | QueueKeys |  |
+|  [queueKeys](./bullmq.flowproducer.queuekeys.md) |  | [QueueKeys](./bullmq.queuekeys.md) |  |
 |  [toKey](./bullmq.flowproducer.tokey.md) |  | (name: string, type: string) =&gt; string |  |
 
 ## Methods

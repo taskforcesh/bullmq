@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-getDelayed(start?: number, end?: number): Promise<Job<any, any, string>[]>;
+getDelayed(start?: number, end?: number): Promise<Job<DataType, ResultType, NameType>[]>;
 ```
 
 ## Parameters
@@ -19,5 +19,5 @@ getDelayed(start?: number, end?: number): Promise<Job<any, any, string>[]>;
 
 <b>Returns:</b>
 
-Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;any, any, string&gt;\[\]&gt;
+Promise&lt;[Job](./bullmq.job.md)<!-- -->&lt;DataType, ResultType, NameType&gt;\[\]&gt;
 

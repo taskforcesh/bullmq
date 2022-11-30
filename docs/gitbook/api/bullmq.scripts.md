@@ -17,7 +17,7 @@ export declare class Scripts
 |  [addJob(client, queue, job, opts, jobId, parentOpts)](./bullmq.scripts.addjob.md) | <code>static</code> |  |
 |  [changeDelay(queue, jobId, delay)](./bullmq.scripts.changedelay.md) | <code>static</code> |  |
 |  [changeDelayArgs(queue, jobId, timestamp)](./bullmq.scripts.changedelayargs.md) | <code>static</code> |  |
-|  [cleanJobsInSet(queue, set, timestamp, limit)](./bullmq.scripts.cleanjobsinset.md) | <code>static</code> |  |
+|  [cleanJobsInSet(queue, set, timestamp, limit)](./bullmq.scripts.cleanjobsinset.md) | <code>static</code> | Remove jobs in a specific state. |
 |  [drain(queue, delayed)](./bullmq.scripts.drain.md) | <code>static</code> |  |
 |  [drainArgs(queue, delayed)](./bullmq.scripts.drainargs.md) | <code>static</code> |  |
 |  [extendLock(queue, jobId, token, duration)](./bullmq.scripts.extendlock.md) | <code>static</code> |  |
@@ -25,13 +25,12 @@ export declare class Scripts
 |  [getState(queue, jobId)](./bullmq.scripts.getstate.md) | <code>static</code> |  |
 |  [isFinished(queue, jobId, returnValue)](./bullmq.scripts.isfinished.md) | <code>static</code> |  |
 |  [isJobInList(queue, listKey, jobId)](./bullmq.scripts.isjobinlist.md) | <code>static</code> |  |
-|  [moveStalledJobsToWait(queue)](./bullmq.scripts.movestalledjobstowait.md) | <code>static</code> |  |
+|  [moveStalledJobsToWait(queue)](./bullmq.scripts.movestalledjobstowait.md) | <code>static</code> | Looks for unlocked jobs in the active queue.<!-- -->The job was being worked on, but the worker process died and it failed to renew the lock. We call these jobs 'stalled'. This is the most common case. We resolve these by moving them back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait, (e.g. if the job handler keeps crashing), we limit the number stalled job recoveries to settings.maxStalledCount. |
 |  [moveToActive(worker, token, jobId)](./bullmq.scripts.movetoactive.md) | <code>static</code> |  |
 |  [moveToCompleted(queue, job, returnvalue, removeOnComplete, token, fetchNext)](./bullmq.scripts.movetocompleted.md) | <code>static</code> |  |
 |  [moveToDelayed(queue, jobId, timestamp)](./bullmq.scripts.movetodelayed.md) | <code>static</code> |  |
 |  [moveToDelayedArgs(queue, jobId, timestamp)](./bullmq.scripts.movetodelayedargs.md) | <code>static</code> |  |
 |  [moveToFailedArgs(queue, job, failedReason, removeOnFailed, token, fetchNext)](./bullmq.scripts.movetofailedargs.md) | <code>static</code> |  |
-|  [moveToFinished(queue, job, val, propVal, shouldRemove, target, token, fetchNext)](./bullmq.scripts.movetofinished.md) | <code>static</code> |  |
 |  [moveToFinishedArgs(queue, job, val, propVal, shouldRemove, target, token, fetchNext)](./bullmq.scripts.movetofinishedargs.md) | <code>static</code> |  |
 |  [moveToWaitingChildren(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildren.md) | <code>static</code> | Move parent job to waiting-children state. |
 |  [moveToWaitingChildrenArgs(queue, jobId, token, opts)](./bullmq.scripts.movetowaitingchildrenargs.md) | <code>static</code> |  |
@@ -39,8 +38,12 @@ export declare class Scripts
 |  [pause(queue, pause)](./bullmq.scripts.pause.md) | <code>static</code> |  |
 |  [promote(queue, jobId)](./bullmq.scripts.promote.md) | <code>static</code> |  |
 |  [remove(queue, jobId)](./bullmq.scripts.remove.md) | <code>static</code> |  |
+|  [removeRepeatable(queue, repeatJobId, repeatJobKey)](./bullmq.scripts.removerepeatable.md) | <code>static</code> |  |
+|  [removeRepeatableArgs(queue, repeatJobId, repeatJobKey)](./bullmq.scripts.removerepeatableargs.md) | <code>static</code> |  |
 |  [reprocessJob(queue, job, state)](./bullmq.scripts.reprocessjob.md) | <code>static</code> | Attempts to reprocess a job |
 |  [retryJobArgs(queue, job)](./bullmq.scripts.retryjobargs.md) | <code>static</code> |  |
-|  [updateDelaySet(queue, delayedTimestamp)](./bullmq.scripts.updatedelayset.md) | <code>static</code> |  |
+|  [retryJobs(queue, state, count, timestamp)](./bullmq.scripts.retryjobs.md) | <code>static</code> |  |
+|  [updateData(queue, job, data)](./bullmq.scripts.updatedata.md) | <code>static</code> |  |
+|  [updateDelaySet(queue, delayedTimestamp)](./bullmq.scripts.updatedelayset.md) | <code>static</code> | It checks if the job in the top of the delay set should be moved back to the top of the wait queue (so that it will be processed as soon as possible) |
 |  [updateProgress(queue, job, progress)](./bullmq.scripts.updateprogress.md) | <code>static</code> |  |
 

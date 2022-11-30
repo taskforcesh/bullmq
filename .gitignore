@@ -1,7 +1,8 @@
 .DS_Store
 node_modules
 /dist
-
+/rawScripts
+/src/scripts
 # Log files
 npm-debug.log*
 yarn-debug.log*
@@ -9,6 +10,8 @@ yarn-error.log*
 
 # Coverage files
 .nyc_output
+coverage
+coverage/*
 
 # Editor directories and files
 .idea

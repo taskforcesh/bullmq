@@ -13,24 +13,13 @@
 local rcall = redis.call
 local queueBaseKey = ARGV[1]
 
-local function removeJobs (list)
-  for _, id in ipairs(list) do
-    rcall("DEL", queueBaseKey .. id)
-  end
-end
+--- @include "includes/removeJobs"
 
-local wait_ids = rcall("LRANGE", KEYS[1] , 0, -1)
-local paused_ids = rcall("LRANGE", KEYS[2] , 0, -1)
-
-removeJobs(wait_ids)
-removeJobs(paused_ids)
+removeListJobs(KEYS[1], true, queueBaseKey, 0) --wait
+removeListJobs(KEYS[2], true, queueBaseKey, 0) --paused
 
 if KEYS[3] ~= "" then
-  local delayed_ids = rcall("ZRANGE", KEYS[3] , 0, -1)
-  removeJobs(delayed_ids)
-  rcall("DEL", KEYS[3])
+  removeZSetJobs(KEYS[3], true, queueBaseKey, 0) --delayed
 end
 
-rcall("DEL", KEYS[1])
-rcall("DEL", KEYS[2])
 rcall("DEL", KEYS[4])

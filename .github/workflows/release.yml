@@ -3,19 +3,27 @@ on:
   push:
     branches:
       - master
+
+env:
+  HUSKY: 0
+
 jobs:
   release:
+    permissions:
+      contents: write # for release publishing
+
     name: Release
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+      - name: Checkout repository
+        uses: actions/checkout@93ea575cb5d8a053eaa0ac8fa3b40d7e05a33cc8 # tag=v3
         with:
           fetch-depth: 0
       - name: Setup Node.js
-        uses: actions/setup-node@v1
+        uses: actions/setup-node@8c91899e586c5b171469028077307d293428b516 # tag=v3
         with:
-          node-version: 14
+          node-version: lts/*
+          cache: 'yarn'
       - name: Install dependencies
         run: yarn install --frozen-lockfile --non-interactive
       - name: Release

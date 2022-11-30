@@ -7,7 +7,7 @@
 <b>Signature:</b>
 
 ```typescript
-static retryJobArgs(queue: MinimalQueue, job: Job): string[];
+static retryJobArgs<T = any, R = any, N extends string = string>(queue: MinimalQueue, job: Job<T, R, N>): string[];
 ```
 
 ## Parameters
@@ -15,7 +15,7 @@ static retryJobArgs(queue: MinimalQueue, job: Job): string[];
 |  Parameter | Type | Description |
 |  --- | --- | --- |
 |  queue | [MinimalQueue](./bullmq.minimalqueue.md) |  |
-|  job | [Job](./bullmq.job.md) |  |
+|  job | [Job](./bullmq.job.md)<!-- -->&lt;T, R, N&gt; |  |
 
 <b>Returns:</b>
 
