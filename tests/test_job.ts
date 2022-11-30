@@ -641,7 +641,7 @@ describe('Job', function () {
         worker.on('completed', job => {
           completed.push(job.id);
           if (completed.length > 3) {
-            expect(completed).to.be.eql(['1', '2', '3', '4']);
+            expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
             resolve();
           }
         });
