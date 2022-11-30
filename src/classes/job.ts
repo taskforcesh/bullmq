@@ -1,5 +1,5 @@
 import { ChainableCommander } from 'ioredis';
-import { fromPairs, invert } from 'lodash';
+import { invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -717,12 +717,19 @@ export class Job<
 
     const result = (await client.hgetall(
       this.toKey(`${this.id}:processed`),
-    )) as Object;
+    )) as { [jobKey: string]: string };
 
     if (result) {
-      return fromPairs(
-        Object.entries(result).map(([k, v]) => [k, JSON.parse(v)]),
+      const pairs: Array<[string, CT]> = Object.entries(result).map(
+        ([k, v]) => [k, JSON.parse(v)],
       );
+
+      return pairs.reduce((acc, val) => {
+        return {
+          [val[0]]: val[1],
+          ...acc,
+        };
+      }, {});
     }
   }
 
