@@ -184,7 +184,7 @@ export class Job<
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
 
-    if (id && /^\d+$/.test(id)) {
+    if (id && /^[1-9](\d+)?$/.test(id)) {
       throw new Error('Custom Ids cannot be integers');
     }
 
