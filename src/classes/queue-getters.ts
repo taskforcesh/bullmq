@@ -296,9 +296,6 @@ export class QueueGetters<
     end = 1,
     asc = false,
   ): Promise<string[]> {
-    const client = await this.client;
-    const multi = client.multi();
-
     const multiCommands: string[] = [];
 
     this.commandByType(types, false, (key, command) => {
