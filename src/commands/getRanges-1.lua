@@ -16,52 +16,47 @@ local rangeEnd = tonumber(ARGV[2])
 local asc = ARGV[3]
 local results = {}
 
+local function getRangeInList(listKey, asc, rangeStart, rangeEnd, results)
+  if asc == "1" then
+    local modifiedRangeStart
+    local modifiedRangeEnd
+    if rangeStart == -1 then
+      modifiedRangeStart = 0
+    else
+      modifiedRangeStart = -(rangeStart + 1)
+    end
+
+    if rangeEnd == -1 then
+      modifiedRangeEnd = 0
+    else
+      modifiedRangeEnd = -(rangeEnd + 1)
+    end
+
+    results[#results+1] = rcall("LRANGE", listKey,
+      modifiedRangeEnd,
+      modifiedRangeStart)
+  else
+    results[#results+1] = rcall("LRANGE", stateKey, rangeStart, rangeEnd)
+  end
+end
+
 for i = 4, #ARGV do
   local stateKey = prefix .. ARGV[i]
   if ARGV[i] == "wait" or ARGV[i] == "paused" then
     local marker = rcall("LINDEX", stateKey, -1)
     if marker and string.sub(marker, 1, 2) == "0:" then
       local count = rcall("LLEN", stateKey)
-      if count > 0 then
+      if count > 1 then
         rcall("RPOP", stateKey)
-      end
-    end
-    if asc == "1" then
-      if rangeEnd == -1 then
-        rangeEnd = 0
+        getRangeInList(stateKey, asc, rangeStart, rangeEnd, results)
       else
-        rangeEnd = -(rangeEnd + 1)
+        results[#results+1] = {}
       end
-
-      if rangeEnd == -1 then
-        rangeEnd = 0
-      else
-        rangeEnd = -(rangeEnd + 1)
-      end
-
-      results[#results+1] = rcall("LRANGE", stateKey,
-        rangeEnd,
-        rangeStart)
     else
-      results[#results+1] = rcall("LRANGE", stateKey, rangeStart, rangeEnd)
+      getRangeInList(stateKey, asc, rangeStart, rangeEnd, results)
     end
   elseif ARGV[i] == "active" then
-    if asc == "1" then
-      if rangeEnd == -1 then
-        rangeEnd = 0
-      else
-        rangeEnd = -(rangeEnd + 1)
-      end
-
-      if rangeEnd == -1 then
-        rangeEnd = 0
-      else
-        rangeEnd = -(rangeEnd + 1)
-      end
-      results[#results+1] = rcall("LRANGE", stateKey, rangeEnd, rangeStart)
-    else
-      results[#results+1] = rcall("LRANGE", stateKey, rangeStart, rangeEnd)
-    end
+    getRangeInList(stateKey, asc, rangeStart, rangeEnd, results)
   else
     if asc == "1" then
       results[#results+1] = rcall("ZRANGE", stateKey, rangeStart, rangeEnd)
