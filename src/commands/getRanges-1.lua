@@ -36,7 +36,7 @@ local function getRangeInList(listKey, asc, rangeStart, rangeEnd, results)
       modifiedRangeEnd,
       modifiedRangeStart)
   else
-    results[#results+1] = rcall("LRANGE", stateKey, rangeStart, rangeEnd)
+    results[#results+1] = rcall("LRANGE", listKey, rangeStart, rangeEnd)
   end
 end
 

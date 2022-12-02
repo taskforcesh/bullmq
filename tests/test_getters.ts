@@ -493,15 +493,28 @@ describe('Jobs getters', function () {
   });
 
   describe('when marker is present', () => {
-    it('filters jobIds different than marker', async () => {
-      await queue.add('test1', { foo: 3 }, { delay: 2000 });
-      await queue.add('test2', { foo: 2 });
+    describe('when there are delayed jobs and waiting jobs', () => {
+      it('filters jobIds different than marker', async () => {
+        await queue.add('test1', { foo: 3 }, { delay: 2000 });
+        await queue.add('test2', { foo: 2 });
 
-      const jobs = await queue.getJobs(['waiting']);
+        const jobs = await queue.getJobs(['waiting']);
 
-      expect(jobs).to.be.an('array');
-      expect(jobs).to.have.length(1);
-      expect(jobs[0].name).to.be.equal('test2');
+        expect(jobs).to.be.an('array');
+        expect(jobs).to.have.length(1);
+        expect(jobs[0].name).to.be.equal('test2');
+      });
+    });
+
+    describe('when there is only one delayed job and get waiting jobs', () => {
+      it('filters marker and returns an empty array', async () => {
+        await queue.add('test1', { foo: 3 }, { delay: 2000 });
+
+        const jobs = await queue.getJobs(['waiting']);
+
+        expect(jobs).to.be.an('array');
+        expect(jobs).to.have.length(0);
+      });
     });
   });
 
