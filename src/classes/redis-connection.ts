@@ -44,6 +44,7 @@ export class RedisConnection extends EventEmitter {
   private version: string;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
+  private handleClientReady: () => void;
 
   constructor(
     opts?: ConnectionOptions,
@@ -94,6 +95,10 @@ export class RedisConnection extends EventEmitter {
 
     this.handleClientClose = (): void => {
       this.emit('close');
+    };
+
+    this.handleClientReady = (): void => {
+      this.emit('ready');
     };
 
     this.initializing = this.init();
@@ -183,6 +188,8 @@ export class RedisConnection extends EventEmitter {
     // ioredis treats connection errors as a different event ('close')
     this._client.on('close', this.handleClientClose);
 
+    this._client.on('ready', this.handleClientReady);
+
     await RedisConnection.waitUntilReady(this._client);
     await this.loadCommands();
 
@@ -254,6 +261,7 @@ export class RedisConnection extends EventEmitter {
       } finally {
         this._client.off('error', this.handleClientError);
         this._client.off('close', this.handleClientClose);
+        this._client.off('ready', this.handleClientReady);
       }
     }
   }

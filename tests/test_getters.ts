@@ -111,6 +111,32 @@ describe('Jobs getters', function () {
         await ioredisConnection.quit();
       });
     });
+
+    describe('when disconnection happens', () => {
+      it('gets all workers even after reconnection', async function () {
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+        });
+        const client = await worker.waitUntilReady();
+        await delay(10);
+
+        const workers = await queue.getWorkers();
+        expect(workers).to.have.length(1);
+
+        await client.disconnect();
+        await delay(10);
+
+        const nextWorkers = await queue.getWorkers();
+        expect(nextWorkers).to.have.length(0);
+
+        await client.connect();
+        await delay(20);
+        const nextWorkers2 = await queue.getWorkers();
+        expect(nextWorkers2).to.have.length(1);
+
+        await worker.close();
+      });
+    });
   });
 
   it('should get waiting jobs', async function () {
