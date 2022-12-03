@@ -25,7 +25,6 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { TimerManager } from './timer-manager';
-import { Console } from 'console';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
