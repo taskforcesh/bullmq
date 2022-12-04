@@ -1056,6 +1056,10 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
+    if (`${parseInt(this.id, 10)}` === this.id) {
+      throw new Error('Custom Ids cannot be integers');
+    }
+
     return this.scripts.addJob(
       client,
       jobData,
