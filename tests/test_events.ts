@@ -303,33 +303,54 @@ describe('events', function () {
     await worker.close();
   });
 
-  it('emits added event when one job is added', async function () {
-    const worker = new Worker(
-      queueName,
-      async () => {
-        await delay(100);
-      },
-      {
-        drainDelay: 1,
-        connection,
-      },
-    );
-    await worker.waitUntilReady();
-    const testName = 'test';
+  describe('when one job is added', function () {
+    it('emits added event', async function () {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(100);
+        },
+        {
+          drainDelay: 1,
+          connection,
+        },
+      );
+      await worker.waitUntilReady();
+      const testName = 'test';
 
-    const added = new Promise<void>(resolve => {
-      queueEvents.once('added', ({ jobId, name }) => {
-        expect(jobId).to.be.equal('1');
-        expect(name).to.be.equal(testName);
-        resolve();
+      const added = new Promise<void>(resolve => {
+        queueEvents.once('added', ({ jobId, name }) => {
+          expect(jobId).to.be.equal('1');
+          expect(name).to.be.equal(testName);
+          resolve();
+        });
+
+        queue.add(testName, { foo: 'bar' });
       });
 
-      queue.add(testName, { foo: 'bar' });
+      await added;
+
+      await worker.close();
     });
+  });
 
-    await added;
+  describe('when job has been added again', function () {
+    it('emits duplicated event', async function () {
+      const testName = 'test';
 
-    await worker.close();
+      await queue.add(testName, { foo: 'bar' }, { jobId: '1' });
+
+      const duplicated = new Promise<void>(resolve => {
+        queueEvents.once('duplicated', ({ jobId }) => {
+          expect(jobId).to.be.equal('1');
+          resolve();
+        });
+
+        queue.add(testName, { foo: 'bar' }, { jobId: '1' });
+      });
+
+      await duplicated;
+    });
   });
 
   it('should emit an event when a job becomes active', async () => {
