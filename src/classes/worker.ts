@@ -211,6 +211,11 @@ export class Worker<
     );
     this.blockingConnection.on('error', error => this.emit('error', error));
 
+    this.blockingConnection.on('ready', async () => {
+      const client = await this.blockingConnection.client;
+      await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
+    });
+
     if (processor) {
       if (typeof processor === 'function') {
         this.processFn = processor;
@@ -330,18 +335,9 @@ export class Worker<
       if (!this.running) {
         try {
           this.running = true;
-          const client = await this.blockingConnection.client;
 
           if (this.closing) {
             return;
-          }
-
-          try {
-            await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
-          } catch (err) {
-            if (!clientCommandMessageReg.test((<Error>err).message)) {
-              throw err;
-            }
           }
 
           this.runStalledJobsCheck();

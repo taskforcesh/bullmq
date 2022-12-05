@@ -86,7 +86,7 @@ describe('Jobs getters', function () {
     });
 
     describe('when sharing connection', () => {
-      it('gets all workers for this queue only', async function () {
+      it('gets same reference for all workers for same queue', async function () {
         const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
         const worker = new Worker(queueName, async () => {}, {
           connection: ioredisConnection,
@@ -104,11 +104,37 @@ describe('Jobs getters', function () {
         await delay(10);
 
         const nextWorkers = await queue.getWorkers();
-        expect(nextWorkers).to.have.length(2);
+        expect(nextWorkers).to.have.length(1);
 
         await worker.close();
         await worker2.close();
         await ioredisConnection.quit();
+      });
+    });
+
+    describe('when disconnection happens', () => {
+      it('gets all workers even after reconnection', async function () {
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+        });
+        const client = await worker.waitUntilReady();
+        await delay(10);
+
+        const workers = await queue.getWorkers();
+        expect(workers).to.have.length(1);
+
+        await client.disconnect();
+        await delay(10);
+
+        const nextWorkers = await queue.getWorkers();
+        expect(nextWorkers).to.have.length(0);
+
+        await client.connect();
+        await delay(20);
+        const nextWorkers2 = await queue.getWorkers();
+        expect(nextWorkers2).to.have.length(1);
+
+        await worker.close();
       });
     });
   });
