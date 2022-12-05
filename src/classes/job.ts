@@ -1057,7 +1057,10 @@ export class Job<
     }
 
     if (`${parseInt(this.id, 10)}` === this.id) {
-      throw new Error('Custom Ids cannot be integers');
+      //TODO: throw an error in next breaking change
+      console.warn(
+        'Custom Ids should not be integers: https://github.com/taskforcesh/bullmq/pull/1569',
+      );
     }
 
     return this.scripts.addJob(

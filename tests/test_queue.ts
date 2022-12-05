@@ -96,7 +96,8 @@ describe('queues', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
-  describe('.add', () => {
+  //TODO: restore this tests in next breaking change
+  describe.skip('.add', () => {
     describe('when jobId is provided as integer', () => {
       it('throws error', async function () {
         await expect(
