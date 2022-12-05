@@ -1058,7 +1058,8 @@ export class Job<
 
     if (`${parseInt(this.id, 10)}` === this.id) {
       //TODO: throw an error in next breaking change
-      console.warn('Custom Ids cannot be integers');
+      console.warn(`Custom Ids should not be integers to avoid potential edge cases.
+ref https://github.com/taskforcesh/bullmq/pull/1569`);
     }
 
     return this.scripts.addJob(
