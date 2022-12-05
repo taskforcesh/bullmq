@@ -3,7 +3,7 @@ local function getRateLimitTTL(opts, limiterKey)
   if maxJobs then
     local jobCounter = tonumber(rcall("GET", limiterKey))
     if jobCounter ~= nil and jobCounter >= maxJobs then
-      local pttl = rcall("PTTL", KEYS[6])
+      local pttl = rcall("PTTL", limiterKey)
       if pttl > 0 then 
         return pttl 
       end

@@ -1,5 +1,5 @@
 --[[
-  Function to move job from wait state to active.
+  Function to move job from active state to wait.
   Input:
     keys[1] active key
     keys[2] wait key
