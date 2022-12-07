@@ -343,7 +343,7 @@ export class Worker<
           this.runStalledJobsCheck();
 
           const processing = (this.processing = new Set());
-          const token = v4();
+          let tokenPostfix = 0;
 
           while (!this.closing) {
             if (
@@ -353,7 +353,7 @@ export class Worker<
             ) {
               processing.add(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
-                  () => this.getNextJob(token),
+                  () => this.getNextJob(`${this.id}:${++tokenPostfix}`),
                   this.opts.runRetryDelay,
                 ),
               );
@@ -378,7 +378,7 @@ export class Worker<
                   () =>
                     this.processJob(
                       job,
-                      token,
+                      `${this.id}:${++tokenPostfix}`,
                       () => processing.size <= this.opts.concurrency,
                     ),
                   this.opts.runRetryDelay,
