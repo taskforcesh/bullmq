@@ -161,6 +161,4 @@ export const parentSend = (
 
 export const WORKER_SUFFIX = '';
 
-export const QUEUE_SCHEDULER_SUFFIX = ':qs';
-
 export const QUEUE_EVENT_SUFFIX = ':qe';
