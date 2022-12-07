@@ -5,7 +5,6 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import {
   clientCommandMessageReg,
-  QUEUE_SCHEDULER_SUFFIX,
   QUEUE_EVENT_SUFFIX,
   WORKER_SUFFIX,
 } from '../utils';
@@ -417,6 +416,7 @@ export class QueueGetters<
   /**
    * Get the worker list related to the queue. i.e. all the known
    * workers that are available to process jobs for this queue.
+   * Note: GCP does not support SETNAME, so this call will not work
    *
    * @returns - Returns an array with workers info.
    */
@@ -429,20 +429,8 @@ export class QueueGetters<
   }
 
   /**
-   * Get queue schedulers list related to the queue.
-   *
-   * @returns - Returns an array with queue schedulers info.
-   */
-  async getQueueSchedulers(): Promise<
-    {
-      [index: string]: string;
-    }[]
-  > {
-    return this.baseGetClients(QUEUE_SCHEDULER_SUFFIX);
-  }
-
-  /**
    * Get queue events list related to the queue.
+   * Note: GCP does not support SETNAME, so this call will not work
    *
    * @returns - Returns an array with queue events info.
    */

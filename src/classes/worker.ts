@@ -212,8 +212,14 @@ export class Worker<
     this.blockingConnection.on('error', error => this.emit('error', error));
 
     this.blockingConnection.on('ready', async () => {
-      const client = await this.blockingConnection.client;
-      await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
+      try {
+        const client = await this.blockingConnection.client;
+        await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
+      } catch (error) {
+        if (!clientCommandMessageReg.test((<Error>error).message)) {
+          this.emit('error', <Error>error);
+        }
+      }
     });
 
     if (processor) {
