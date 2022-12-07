@@ -841,7 +841,11 @@ export class Scripts {
    * @param jobId - Job id
    * @returns
    */
-  moveJobFromActiveToWait(client: ChainableCommander, jobId: string) {
+  moveJobFromActiveToWait(
+    client: ChainableCommander,
+    jobId: string,
+    token: string,
+  ) {
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
     const keys = [
@@ -851,7 +855,7 @@ export class Scripts {
       lockKey,
     ];
 
-    const args = [jobId];
+    const args = [jobId, token];
 
     return (<any>client).moveJobFromActiveToWait(keys.concat(args));
   }
