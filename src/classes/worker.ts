@@ -162,7 +162,10 @@ export class Worker<
 
   private blockingConnection: RedisConnection;
 
-  private processing: Set<Promise<void | Job<DataType, ResultType, NameType>>>;
+  private processing: Map<
+    Promise<void | Job<DataType, ResultType, NameType>>,
+    string
+  >;
 
   static RateLimitError() {
     return new Error(RATE_LIMIT_ERROR);
@@ -342,7 +345,7 @@ export class Worker<
 
           this.runStalledJobsCheck();
 
-          const processing = (this.processing = new Set());
+          const processing = (this.processing = new Map());
           let tokenPostfix = 0;
 
           while (!this.closing) {
@@ -351,11 +354,13 @@ export class Worker<
               processing.size < this.opts.concurrency &&
               (!this.limitUntil || processing.size == 0)
             ) {
-              processing.add(
+              const token = `${this.id}:${tokenPostfix++}`;
+              processing.set(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
-                  () => this.getNextJob(`${this.id}:${++tokenPostfix}`),
+                  () => this.getNextJob(token),
                   this.opts.runRetryDelay,
                 ),
+                token,
               );
             }
 
@@ -366,25 +371,24 @@ export class Worker<
             const completedIdx = await Promise.race(
               promises.map((p, idx) => p.then(() => idx)),
             );
-
             const completed = promises[completedIdx];
-
-            processing.delete(completed);
-
             const job = await completed;
             if (job) {
-              processing.add(
+              const token = processing.get(completed);
+              processing.set(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
                   () =>
                     this.processJob(
                       job,
-                      `${this.id}:${++tokenPostfix}`,
+                      token,
                       () => processing.size <= this.opts.concurrency,
                     ),
                   this.opts.runRetryDelay,
                 ),
+                token,
               );
             }
+            processing.delete(completed);
           }
           this.running = false;
           return Promise.all([...processing.keys()]);
