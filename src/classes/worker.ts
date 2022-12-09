@@ -214,25 +214,6 @@ export class Worker<
 
     this.id = v4();
 
-    this.blockingConnection = new RedisConnection(
-      isRedisInstance(opts.connection)
-        ? (<Redis>opts.connection).duplicate()
-        : opts.connection,
-    );
-    this.blockingConnection.on('error', error => this.emit('error', error));
-
-    this.blockingConnection.on('ready', async () => {
-      try {
-        const client = await this.blockingConnection.client;
-        await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
-      } catch (error) {
-        if (!clientCommandMessageReg.test((<Error>error).message)) {
-          this.emit('error', <Error>error);
-        }
-      }
-      this.emit('ready');
-    });
-
     if (processor) {
       if (typeof processor === 'function') {
         this.processFn = processor;
@@ -267,6 +248,25 @@ export class Worker<
         this.run().catch(error => this.emit('error', error));
       }
     }
+
+    this.blockingConnection = new RedisConnection(
+      isRedisInstance(opts.connection)
+        ? (<Redis>opts.connection).duplicate()
+        : opts.connection,
+    );
+    this.blockingConnection.on('error', error => this.emit('error', error));
+
+    this.blockingConnection.on('ready', async () => {
+      try {
+        const client = await this.blockingConnection.client;
+        await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
+      } catch (error) {
+        if (!clientCommandMessageReg.test((<Error>error).message)) {
+          this.emit('error', <Error>error);
+        }
+      }
+      this.emit('ready');
+    });
   }
 
   emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
