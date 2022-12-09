@@ -47,7 +47,10 @@ describe('Jobs getters', function () {
 
   describe('.getWorkers', () => {
     it('gets all workers for this queue only', async function () {
-      const worker = new Worker(queueName, async () => {}, { connection });
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+      });
       await new Promise<void>(resolve => {
         worker.on('ready', () => {
           resolve();
@@ -57,7 +60,10 @@ describe('Jobs getters', function () {
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
 
-      const worker2 = new Worker(queueName, async () => {}, { connection });
+      const worker2 = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+      });
       await new Promise<void>(resolve => {
         worker2.on('ready', () => {
           resolve();
@@ -74,13 +80,19 @@ describe('Jobs getters', function () {
     it('gets only workers related only to one queue', async function () {
       const queueName2 = `${queueName}2`;
       const queue2 = new Queue(queueName2, { connection });
-      const worker = new Worker(queueName, async () => {}, { connection });
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+      });
       await new Promise<void>(resolve => {
         worker.on('ready', () => {
           resolve();
         });
       });
-      const worker2 = new Worker(queueName2, async () => {}, { connection });
+      const worker2 = new Worker(queueName2, async () => {}, {
+        autorun: false,
+        connection,
+      });
       await new Promise<void>(resolve => {
         worker2.on('ready', () => {
           resolve();
@@ -103,10 +115,14 @@ describe('Jobs getters', function () {
       it('gets same reference for all workers for same queue', async function () {
         const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
         const worker = new Worker(queueName, async () => {}, {
+          autorun: false,
           connection: ioredisConnection,
         });
-        await worker.waitUntilReady();
-        await delay(10);
+        await new Promise<void>(resolve => {
+          worker.on('ready', () => {
+            resolve();
+          });
+        });
 
         const workers = await queue.getWorkers();
         expect(workers).to.have.length(1);
@@ -115,7 +131,6 @@ describe('Jobs getters', function () {
           connection: ioredisConnection,
         });
         await worker2.waitUntilReady();
-        await delay(10);
 
         const nextWorkers = await queue.getWorkers();
         expect(nextWorkers).to.have.length(1);
@@ -129,10 +144,15 @@ describe('Jobs getters', function () {
     describe('when disconnection happens', () => {
       it('gets all workers even after reconnection', async function () {
         const worker = new Worker(queueName, async () => {}, {
+          autorun: false,
           connection,
         });
+        await new Promise<void>(resolve => {
+          worker.on('ready', () => {
+            resolve();
+          });
+        });
         const client = await worker.waitUntilReady();
-        await delay(10);
 
         const workers = await queue.getWorkers();
         expect(workers).to.have.length(1);

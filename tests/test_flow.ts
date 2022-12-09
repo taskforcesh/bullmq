@@ -809,6 +809,7 @@ describe('flows', () => {
   describe('when continually adding jobs', async () => {
     it('adds jobs that do not exists', async () => {
       const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
         connection,
       });
 
@@ -854,6 +855,8 @@ describe('flows', () => {
           },
         ],
       });
+
+      worker.run();
 
       await completing1;
 

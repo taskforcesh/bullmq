@@ -62,7 +62,7 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(every);
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
     await worker.waitUntilReady();
@@ -91,6 +91,8 @@ describe('repeat', function () {
     expect(job.repeatJobKey).to.not.be.undefined;
 
     this.clock.tick(every + 1);
+
+    worker.run();
 
     await completing;
 
@@ -196,7 +198,7 @@ describe('repeat', function () {
   });
 
   it('should repeat every 2 seconds', async function () {
-    this.timeout(20000);
+    this.timeout(10000);
 
     const nextTick = 2 * ONE_SECOND + 100;
 
@@ -205,7 +207,7 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
@@ -237,13 +239,15 @@ describe('repeat', function () {
       });
     });
 
+    worker.run();
+
     await completing;
     await worker.close();
     delayStub.restore();
   });
 
   it('should repeat every 2 seconds with startDate in future', async function () {
-    this.timeout(200000);
+    this.timeout(10000);
 
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
@@ -255,7 +259,7 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
@@ -289,6 +293,8 @@ describe('repeat', function () {
       });
     });
 
+    worker.run();
+
     await completing;
 
     await worker.close();
@@ -296,7 +302,7 @@ describe('repeat', function () {
   });
 
   it('should repeat every 2 seconds with startDate in past', async function () {
-    this.timeout(100000);
+    this.timeout(10000);
 
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
@@ -308,7 +314,7 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
@@ -342,13 +348,15 @@ describe('repeat', function () {
       });
     });
 
+    worker.run();
+
     await completing;
     await worker.close();
     delayStub.restore();
   });
 
   it('should remove repeated job when using removeOnComplete', async function () {
-    this.timeout(20000);
+    this.timeout(10000);
     const queueName2 = `test-${v4()}`;
     const queue2 = new Queue(queueName2, {
       connection,
@@ -367,7 +375,7 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
@@ -402,6 +410,8 @@ describe('repeat', function () {
         }
       });
     });
+
+    worker.run();
 
     await completing;
 
@@ -657,9 +667,9 @@ describe('repeat', function () {
   });
 
   it('should repeat once a day for 5 days and start immediately', async function () {
-    this.timeout(10000);
+    this.timeout(8000);
 
-    const date = new Date('2017-05-05 13:12:00');
+    const date = new Date('2017-05-05 01:01:00');
     this.clock.setSystemTime(date);
 
     const nextTick = ONE_DAY + 10 * ONE_SECOND;
@@ -670,7 +680,7 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
       console.log('delay');
@@ -709,13 +719,15 @@ describe('repeat', function () {
     );
     this.clock.tick(delay);
 
+    worker.run();
+
     await completing;
     await worker.close();
     delayStub.restore();
   });
 
   it('should repeat once a day for 5 days', async function () {
-    this.timeout(10000);
+    this.timeout(8000);
 
     const date = new Date('2017-05-05 13:12:00');
     this.clock.setSystemTime(date);
@@ -728,10 +740,31 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
       console.log('delay');
+    });
+
+    let prev: Job;
+    let counter = 0;
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        try {
+          if (prev) {
+            expect(prev.timestamp).to.be.lt(job.timestamp);
+            expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+          }
+          prev = job;
+
+          counter++;
+          if (counter == 5) {
+            resolve();
+          }
+        } catch (error) {
+          console.log(error);
+        }
+      });
     });
 
     await queue.add(
@@ -740,28 +773,14 @@ describe('repeat', function () {
       {
         repeat: {
           pattern: '0 1 * * *',
-          endDate: new Date('2017-05-10 13:13:00'),
+          endDate: new Date('2017-05-10 01:00:00'),
         },
       },
     );
+
     this.clock.tick(nextTick + delay);
 
-    let prev: Job;
-    let counter = 0;
-    const completing = new Promise<void>((resolve, reject) => {
-      worker.on('completed', async job => {
-        if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
-        }
-        prev = job;
-
-        counter++;
-        if (counter == 5) {
-          resolve();
-        }
-      });
-    });
+    worker.run();
 
     await completing;
     await worker.close();
@@ -770,7 +789,7 @@ describe('repeat', function () {
 
   describe('when utc option is provided', function () {
     it('repeats once a day for 5 days', async function () {
-      this.timeout(10000);
+      this.timeout(8000);
 
       const date = new Date('2017-05-05 13:12:00');
       this.clock.setSystemTime(date);
@@ -783,7 +802,7 @@ describe('repeat', function () {
         async () => {
           this.clock.tick(nextTick);
         },
-        { connection },
+        { autorun: false, connection },
       );
       const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
         console.log('delay');
@@ -824,6 +843,8 @@ describe('repeat', function () {
       );
       this.clock.tick(nextTick + delay);
 
+      worker.run();
+
       await completing;
       await worker.close();
       delayStub.restore();
@@ -831,7 +852,7 @@ describe('repeat', function () {
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {
-    this.timeout(200000);
+    this.timeout(180000);
 
     const date = new Date('2017-02-02 7:21:42');
     this.clock.setSystemTime(date);
@@ -847,7 +868,7 @@ describe('repeat', function () {
       async () => {
         nextTick();
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
@@ -879,6 +900,8 @@ describe('repeat', function () {
         }
       });
     });
+
+    worker.run();
 
     await completing;
     await worker.close();

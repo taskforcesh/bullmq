@@ -214,25 +214,6 @@ export class Worker<
 
     this.id = v4();
 
-    this.blockingConnection = new RedisConnection(
-      isRedisInstance(opts.connection)
-        ? (<Redis>opts.connection).duplicate()
-        : opts.connection,
-    );
-    this.blockingConnection.on('error', error => this.emit('error', error));
-
-    this.blockingConnection.on('ready', async () => {
-      try {
-        const client = await this.blockingConnection.client;
-        await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
-      } catch (error) {
-        if (!clientCommandMessageReg.test((<Error>error).message)) {
-          this.emit('error', <Error>error);
-        }
-      }
-      this.emit('ready');
-    });
-
     if (processor) {
       if (typeof processor === 'function') {
         this.processFn = processor;
@@ -267,6 +248,25 @@ export class Worker<
         this.run().catch(error => this.emit('error', error));
       }
     }
+
+    this.blockingConnection = new RedisConnection(
+      isRedisInstance(opts.connection)
+        ? (<Redis>opts.connection).duplicate()
+        : opts.connection,
+    );
+    this.blockingConnection.on('error', error => this.emit('error', error));
+
+    this.blockingConnection.on('ready', async () => {
+      try {
+        const client = await this.blockingConnection.client;
+        await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
+      } catch (error) {
+        if (!clientCommandMessageReg.test((<Error>error).message)) {
+          this.emit('error', <Error>error);
+        }
+      }
+      this.emit('ready');
+    });
   }
 
   emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
@@ -456,7 +456,7 @@ export class Worker<
     } else {
       if (this.limitUntil) {
         // TODO: We need to be able to break this delay when we are closing the worker.
-        await delay(this.limitUntil);
+        await this.delay(this.limitUntil);
       }
       return this.moveToActive(token);
     }
@@ -539,8 +539,8 @@ export class Worker<
    *
    * This function is exposed only for testing purposes.
    */
-  async delay(): Promise<void> {
-    await delay(DELAY_TIME_1);
+  async delay(milliseconds?: number): Promise<void> {
+    await delay(milliseconds || DELAY_TIME_1);
   }
 
   protected async nextJobFromJobData(
@@ -789,7 +789,7 @@ export class Worker<
       } catch (err) {
         this.emit('error', <Error>err);
         if (delayInMs) {
-          await delay(delayInMs);
+          await this.delay(delayInMs);
         } else {
           return;
         }
