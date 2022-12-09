@@ -597,6 +597,11 @@ export class Job<
     }
 
     if (moveToFailed) {
+      const jobData = await Job.fromId(this.queue, this.id);
+      // overwrite parent with redis response
+      this.parent = jobData.parent;
+      this.parentKey = jobData.parentKey;
+
       const args = this.scripts.moveToFailedArgs(
         this,
         message,
