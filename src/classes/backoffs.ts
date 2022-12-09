@@ -16,7 +16,7 @@ export class Backoffs {
 
     exponential: function (delay: number) {
       return function (attemptsMade: number): number {
-        return Math.round((Math.pow(2, attemptsMade) - 1) * delay);
+        return Math.round(Math.pow(2, attemptsMade - 1) * delay);
       };
     },
   };
