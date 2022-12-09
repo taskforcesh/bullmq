@@ -48,15 +48,21 @@ describe('Jobs getters', function () {
   describe('.getWorkers', () => {
     it('gets all workers for this queue only', async function () {
       const worker = new Worker(queueName, async () => {}, { connection });
-      await worker.waitUntilReady();
-      await delay(10);
+      await new Promise<void>(resolve => {
+        worker.on('ready', () => {
+          resolve();
+        });
+      });
 
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
 
       const worker2 = new Worker(queueName, async () => {}, { connection });
-      await worker2.waitUntilReady();
-      await delay(10);
+      await new Promise<void>(resolve => {
+        worker2.on('ready', () => {
+          resolve();
+        });
+      });
 
       const nextWorkers = await queue.getWorkers();
       expect(nextWorkers).to.have.length(2);
@@ -69,9 +75,17 @@ describe('Jobs getters', function () {
       const queueName2 = `${queueName}2`;
       const queue2 = new Queue(queueName2, { connection });
       const worker = new Worker(queueName, async () => {}, { connection });
+      await new Promise<void>(resolve => {
+        worker.on('ready', () => {
+          resolve();
+        });
+      });
       const worker2 = new Worker(queueName2, async () => {}, { connection });
-      await worker.waitUntilReady();
-      await worker2.waitUntilReady();
+      await new Promise<void>(resolve => {
+        worker2.on('ready', () => {
+          resolve();
+        });
+      });
 
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
