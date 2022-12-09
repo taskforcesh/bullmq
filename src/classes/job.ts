@@ -516,6 +516,11 @@ export class Job<
       throw errorObject.value;
     }
 
+    const jobData = await Job.fromId(this.queue, this.id);
+    // overwrite parent with redis response
+    this.parent = jobData.parent;
+    this.parentKey = jobData.parentKey;
+
     return this.scripts.moveToCompleted(
       this,
       stringifiedReturnValue,
