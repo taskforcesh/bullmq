@@ -924,6 +924,10 @@ describe('flows', () => {
         children: [],
       });
 
+      await new Promise(s => {
+        setTimeout(s, 500);
+      });
+
       const tree = await flow.add({
         queueName,
         name: 'tue',
