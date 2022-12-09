@@ -657,9 +657,9 @@ describe('repeat', function () {
   });
 
   it('should repeat once a day for 5 days and start immediately', async function () {
-    this.timeout(10000);
+    this.timeout(8000);
 
-    const date = new Date('2017-05-05 13:12:00');
+    const date = new Date('2017-05-05 01:01:00');
     this.clock.setSystemTime(date);
 
     const nextTick = ONE_DAY + 10 * ONE_SECOND;
@@ -670,7 +670,7 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
       console.log('delay');
@@ -708,6 +708,8 @@ describe('repeat', function () {
       },
     );
     this.clock.tick(delay);
+
+    worker.run();
 
     await completing;
     await worker.close();

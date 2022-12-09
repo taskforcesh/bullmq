@@ -532,7 +532,6 @@ export class Worker<
    * This function is exposed only for testing purposes.
    */
   async delay(milliseconds?: number): Promise<void> {
-    console.log(milliseconds, 'naki');
     await delay(milliseconds || DELAY_TIME_1);
   }
 
