@@ -114,6 +114,13 @@ export interface WorkerListener<
   ) => void;
 
   /**
+   * Listen to 'ready' event.
+   *
+   * This event is triggered when blockingConnection is ready.
+   */
+  ready: () => void;
+
+  /**
    * Listen to 'resumed' event.
    *
    * This event is triggered when the queue is resumed.
@@ -167,7 +174,7 @@ export class Worker<
     string
   >;
 
-  static RateLimitError() {
+  static RateLimitError(): Error {
     return new Error(RATE_LIMIT_ERROR);
   }
 
@@ -223,6 +230,7 @@ export class Worker<
           this.emit('error', <Error>error);
         }
       }
+      this.emit('ready');
     });
 
     if (processor) {
