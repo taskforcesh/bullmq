@@ -779,7 +779,7 @@ describe('repeat', function () {
 
   describe('when utc option is provided', function () {
     it('repeats once a day for 5 days', async function () {
-      this.timeout(10000);
+      this.timeout(8000);
 
       const date = new Date('2017-05-05 13:12:00');
       this.clock.setSystemTime(date);
@@ -792,7 +792,7 @@ describe('repeat', function () {
         async () => {
           this.clock.tick(nextTick);
         },
-        { connection },
+        { autorun: false, connection },
       );
       const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
         console.log('delay');
@@ -833,6 +833,8 @@ describe('repeat', function () {
       );
       this.clock.tick(nextTick + delay);
 
+      worker.run();
+
       await completing;
       await worker.close();
       delayStub.restore();
@@ -840,7 +842,7 @@ describe('repeat', function () {
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {
-    this.timeout(200000);
+    this.timeout(180000);
 
     const date = new Date('2017-02-02 7:21:42');
     this.clock.setSystemTime(date);
@@ -856,7 +858,7 @@ describe('repeat', function () {
       async () => {
         nextTick();
       },
-      { connection },
+      { autorun: false, connection },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
@@ -888,6 +890,8 @@ describe('repeat', function () {
         }
       });
     });
+
+    worker.run();
 
     await completing;
     await worker.close();
