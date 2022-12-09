@@ -448,7 +448,7 @@ export class Worker<
     } else {
       if (this.limitUntil) {
         // TODO: We need to be able to break this delay when we are closing the worker.
-        await delay(this.limitUntil);
+        await this.delay(this.limitUntil);
       }
       return this.moveToActive(token);
     }
@@ -531,8 +531,9 @@ export class Worker<
    *
    * This function is exposed only for testing purposes.
    */
-  async delay(): Promise<void> {
-    await delay(DELAY_TIME_1);
+  async delay(milliseconds?: number): Promise<void> {
+    console.log(milliseconds, 'naki');
+    await delay(milliseconds || DELAY_TIME_1);
   }
 
   protected async nextJobFromJobData(
@@ -781,7 +782,7 @@ export class Worker<
       } catch (err) {
         this.emit('error', <Error>err);
         if (delayInMs) {
-          await delay(delayInMs);
+          await this.delay(delayInMs);
         } else {
           return;
         }
