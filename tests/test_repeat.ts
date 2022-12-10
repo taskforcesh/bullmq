@@ -53,6 +53,55 @@ describe('repeat', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
+  describe('when exponential backoff is applied', () => {
+    it('should retry a job respecting exponential backoff strategy', async function () {
+      let delay = 10000;
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+      const worker = new Worker(
+        queueName,
+        async () => {
+          throw Error('error');
+        },
+        { autorun: false, connection },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
+        console.log('delay');
+      });
+      await worker.waitUntilReady();
+
+      const failing = new Promise<void>(resolve => {
+        worker.on('failed', async job => {
+          this.clock.tick(delay + 10);
+          delay = delay * 2;
+
+          if (job.attemptsMade === 10) {
+            resolve();
+          }
+        });
+      });
+
+      await queue.add(
+        'test',
+        { foo: 'bar' },
+        {
+          attempts: 10,
+          backoff: {
+            type: 'exponential',
+            delay,
+          },
+        },
+      );
+
+      worker.run();
+
+      await failing;
+
+      await worker.close();
+      delayStub.restore();
+    });
+  });
+
   it('it should stop repeating after endDate', async function () {
     const every = 100;
     const date = new Date('2017-02-07 9:24:00');
