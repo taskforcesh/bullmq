@@ -295,36 +295,25 @@ export class QueueGetters<
     end = 1,
     asc = false,
   ): Promise<string[]> {
-    const client = await this.client;
-    const multi = client.multi();
     const multiCommands: string[] = [];
 
     this.commandByType(types, false, (key, command) => {
       switch (command) {
         case 'lrange':
           multiCommands.push('lrange');
-          if (asc) {
-            multi.lrange(key, -(end + 1), -(start + 1));
-          } else {
-            multi.lrange(key, start, end);
-          }
           break;
         case 'zrange':
           multiCommands.push('zrange');
-          if (asc) {
-            multi.zrange(key, start, end);
-          } else {
-            multi.zrevrange(key, start, end);
-          }
           break;
       }
     });
 
-    const responses = await multi.exec();
+    const responses = await this.scripts.getRanges(types, start, end, asc);
+
     let results: string[] = [];
 
-    responses.forEach((response: any[], index: number) => {
-      const result = response[1] || [];
+    responses.forEach((response: string[], index: number) => {
+      const result = response || [];
 
       if (asc && multiCommands[index] === 'lrange') {
         results = results.concat(result.reverse());

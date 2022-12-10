@@ -552,6 +552,32 @@ describe('Jobs getters', function () {
     queue.add('test', { foo: 2 });
   });
 
+  describe('when marker is present', () => {
+    describe('when there are delayed jobs and waiting jobs', () => {
+      it('filters jobIds different than marker', async () => {
+        await queue.add('test1', { foo: 3 }, { delay: 2000 });
+        await queue.add('test2', { foo: 2 });
+
+        const jobs = await queue.getJobs(['waiting']);
+
+        expect(jobs).to.be.an('array');
+        expect(jobs).to.have.length(1);
+        expect(jobs[0].name).to.be.equal('test2');
+      });
+    });
+
+    describe('when there is only one delayed job and get waiting jobs', () => {
+      it('filters marker and returns an empty array', async () => {
+        await queue.add('test1', { foo: 3 }, { delay: 2000 });
+
+        const jobs = await queue.getJobs(['waiting']);
+
+        expect(jobs).to.be.an('array');
+        expect(jobs).to.have.length(0);
+      });
+    });
+  });
+
   it('should return deduplicated jobs for duplicates types', async function () {
     await queue.add('test', { foo: 1 });
     const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);

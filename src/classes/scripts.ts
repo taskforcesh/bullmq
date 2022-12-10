@@ -22,6 +22,7 @@ import {
 } from '../interfaces';
 import {
   JobState,
+  JobType,
   FinishedStatus,
   FinishedPropValAttribute,
   RedisJobOptions,
@@ -392,6 +393,36 @@ export class Scripts {
     const args = this.drainArgs(delayed);
 
     return (<any>client).drain(args);
+  }
+
+  private getRangesArgs(
+    types: JobType[],
+    start: number,
+    end: number,
+    asc: boolean,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+    const transformedTypes = types.map(type => {
+      return type === 'waiting' ? 'wait' : type;
+    });
+
+    const keys: (string | number)[] = [queueKeys['']];
+
+    const args = [start, end, asc ? '1' : '0', ...transformedTypes];
+
+    return keys.concat(args);
+  }
+
+  async getRanges(
+    types: JobType[],
+    start = 0,
+    end = 1,
+    asc = false,
+  ): Promise<[string][]> {
+    const client = await this.queue.client;
+    const args = this.getRangesArgs(types, start, end, asc);
+
+    return (<any>client).getRanges(args);
   }
 
   moveToCompleted<T = any, R = any, N extends string = string>(
