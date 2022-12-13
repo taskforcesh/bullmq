@@ -425,6 +425,26 @@ export class Scripts {
     return (<any>client).getRanges(args);
   }
 
+  private getCountsArgs(types: JobType[]): (string | number)[] {
+    const queueKeys = this.queue.keys;
+    const transformedTypes = types.map(type => {
+      return type === 'waiting' ? 'wait' : type;
+    });
+
+    const keys: (string | number)[] = [queueKeys['']];
+
+    const args = [...transformedTypes];
+
+    return keys.concat(args);
+  }
+
+  async getCounts(types: JobType[]): Promise<number[]> {
+    const client = await this.queue.client;
+    const args = this.getCountsArgs(types);
+
+    return (<any>client).getCounts(args);
+  }
+
   moveToCompleted<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
     returnvalue: R,
