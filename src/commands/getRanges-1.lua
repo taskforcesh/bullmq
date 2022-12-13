@@ -1,5 +1,5 @@
 --[[
-  Promotes a job that is currently "delayed" to the "waiting" state
+  Get job ids per provided states
 
     Input:
       KEYS[1]    'prefix'
