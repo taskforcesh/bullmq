@@ -124,7 +124,7 @@ export class QueueGetters<
   }> {
     const currentTypes = this.sanitizeJobTypes(types);
 
-    const responses = await this.scripts.getCounts(types);
+    const responses = await this.scripts.getCounts(currentTypes);
 
     const counts: { [index: string]: number } = {};
     responses.forEach((res, index) => {
