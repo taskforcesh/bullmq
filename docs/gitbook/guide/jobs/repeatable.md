@@ -52,9 +52,9 @@ await myQueue.add(
 
 There are some important considerations regarding repeatable jobs:
 
-* Bull is smart enough not to add the same repeatable job if the repeat options are the same.
-* If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
-* repeatable jobs can be removed using the [removeRepeatable](https://api.docs.bullmq.io/classes/Queue.html#removeRepeatable) method or [removeRepeatableByKey](https://api.docs.bullmq.io/classes/Queue.html#removeRepeatableByKey).
+- Bull is smart enough not to add the same repeatable job if the repeat options are the same.
+- If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
+- repeatable jobs can be removed using the [removeRepeatable](https://api.docs.bullmq.io/classes/Queue.html#removeRepeatable) method or [removeRepeatableByKey](https://api.docs.bullmq.io/classes/Queue.html#removeRepeatableByKey).
 
 All repeatable jobs have a repeatable job key that holds some metadata of the repeatable job itself. It is possible to retrieve all the current repeatable jobs in the queue calling [getRepeatableJobs](https://api.docs.bullmq.io/classes/Queue.html#getRepeatableJobs):
 
@@ -178,3 +178,7 @@ As you may notice, repeat strategy setting should be provided in Queue and Worke
 {% hint style="info" %}
 Repeat strategy function receives an optional jobName parameter as the 3rd one.
 {% endhint %}
+
+## Read more:
+
+- 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/RepeatStrategy.html)

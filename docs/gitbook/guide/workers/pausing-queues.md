@@ -19,3 +19,8 @@ The call above will wait for all the jobs currently being processed by this work
 ```typescript
 await myWorker.pause(true);
 ```
+
+## Read more:
+
+- 💡 [Pause Queue API Reference](https://api.docs.bullmq.io/classes/Queue.html#pause)
+- 💡 [Pause Worker API Reference](https://api.docs.bullmq.io/classes/Worker.html#pause)

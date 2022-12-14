@@ -13,8 +13,15 @@ Jobs that are removed from the queue, either manually or when using settings suc
 In order to specify a custom job id just use the jobId option when adding jobs to the queue:
 
 ```typescript
-await myQueue.add('wall', { color: 'pink' }, {
-  jobId: customJobId,
-});
-
+await myQueue.add(
+  'wall',
+  { color: 'pink' },
+  {
+    jobId: customJobId,
+  },
+);
 ```
+
+## Read more:
+
+- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/QueueEventsListener.html#duplicated)
