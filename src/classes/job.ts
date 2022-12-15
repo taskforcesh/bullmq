@@ -21,6 +21,7 @@ import {
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
+  parseObjectValues,
   tryCatch,
 } from '../utils';
 import { QueueEvents } from './queue-events';
@@ -720,16 +721,7 @@ export class Job<
     )) as { [jobKey: string]: string };
 
     if (result) {
-      const pairs: Array<[string, CT]> = Object.entries(result).map(
-        ([k, v]) => [k, JSON.parse(v)],
-      );
-
-      return pairs.reduce((acc, val) => {
-        return {
-          [val[0]]: val[1],
-          ...acc,
-        };
-      }, {});
+      return parseObjectValues(result);
     }
   }
 
@@ -755,13 +747,7 @@ export class Job<
         [null | Error, string[]],
       ];
 
-      const transformedProcessed = Object.entries(processed).reduce(
-        (accumulator: Record<string, any>, [key, value]) => {
-          accumulator[key] = JSON.parse(value);
-          return accumulator;
-        },
-        {},
-      );
+      const transformedProcessed = parseObjectValues(processed);
 
       return { processed: transformedProcessed, unprocessed };
     } else {
