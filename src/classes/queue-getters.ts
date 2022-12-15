@@ -98,30 +98,7 @@ export class QueueGetters<
       'waiting-children',
     );
 
-    if (await this.hasDelayedMarker('wait', 'paused')) {
-      return count - 1;
-    }
-
     return count;
-  }
-
-  private async hasDelayedMarker(
-    ...types: ('wait' | 'paused')[]
-  ): Promise<boolean> {
-    const client = await this.client;
-
-    const promises = [];
-    if (types.includes('wait')) {
-      promises.push(client.lindex(this.toKey('wait'), 0));
-    }
-
-    if (types.includes('paused')) {
-      promises.push(client.lindex(this.toKey('paused'), 0));
-    }
-
-    return (await Promise.all(promises)).some(
-      value => value === '0' || value?.startsWith('0:'),
-    );
   }
 
   /**
@@ -147,30 +124,12 @@ export class QueueGetters<
   }> {
     const currentTypes = this.sanitizeJobTypes(types);
 
-    const client = await this.client;
-    const multi = client.multi();
+    const responses = await this.scripts.getCounts(currentTypes);
 
-    this.commandByType(currentTypes, true, function (key, command) {
-      (<any>multi)[command](key);
-    });
-
-    const res = (await multi.exec()) as [Error, number][];
     const counts: { [index: string]: number } = {};
-    res.forEach((res, index) => {
-      counts[currentTypes[index]] = res[1] || 0;
+    responses.forEach((res, index) => {
+      counts[currentTypes[index]] = res || 0;
     });
-
-    if (counts['wait'] > 0) {
-      if (await this.hasDelayedMarker('wait')) {
-        counts['wait']--;
-      }
-    }
-
-    if (counts['paused'] > 0) {
-      if (await this.hasDelayedMarker('paused')) {
-        counts['paused']--;
-      }
-    }
 
     return counts;
   }
