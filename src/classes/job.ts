@@ -720,13 +720,9 @@ export class Job<
     )) as { [jobKey: string]: string };
 
     if (result) {
-      const pairs: Array<[string, CT]> = Object.entries(result).map(
-        ([k, v]) => [k, JSON.parse(v)],
-      );
-
       const accumulator: Record<string, any> = {};
-      for (const val of pairs) {
-        accumulator[val[0]] = val[1];
+      for (const value of Object.entries(result)) {
+        accumulator[value[0]] = JSON.parse(value[1]);
       }
 
       return accumulator;
@@ -755,13 +751,10 @@ export class Job<
         [null | Error, string[]],
       ];
 
-      const transformedProcessed = Object.entries(processed).reduce(
-        (accumulator: Record<string, any>, [key, value]) => {
-          accumulator[key] = JSON.parse(value);
-          return accumulator;
-        },
-        {},
-      );
+      const transformedProcessed: Record<string, any> = {};
+      for (const value of Object.entries(processed)) {
+        transformedProcessed[value[0]] = JSON.parse(value[1]);
+      }
 
       return { processed: transformedProcessed, unprocessed };
     } else {
