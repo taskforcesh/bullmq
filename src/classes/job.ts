@@ -724,11 +724,9 @@ export class Job<
         ([k, v]) => [k, JSON.parse(v)],
       );
 
-      return pairs.reduce((acc, val) => {
-        return {
-          [val[0]]: val[1],
-          ...acc,
-        };
+      return pairs.reduce((accumulator: Record<string, any>, val) => {
+        accumulator[val[0]] = val[1];
+        return accumulator;
       }, {});
     }
   }
