@@ -30,3 +30,7 @@ We may try to remove all its pending descendents first.
 {% hint style="warning" %}
 In case one of the children is locked, it will stop the deletion process.
 {% endhint %}
+
+## Read more:
+
+- 💡 [Remove API Reference](https://api.docs.bullmq.io/classes/Job.html#remove)
