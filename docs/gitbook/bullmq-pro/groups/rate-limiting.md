@@ -35,17 +35,20 @@ For this purpose, you can use the worker method **rateLimitGroup** like this:
 ```typescript
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
-const worker = new WorkerPro('myQueue', async () => {
+const worker = new WorkerPro(
+  'myQueue',
+  async job => {
     const groupId = job.opts.group.id;
-    const [isRateLimited, duration] = awaidoExternalCall(groupId);
-    if(isRateLimited) {
+    const [isRateLimited, duration] = await doExternalCall(groupId);
+    if (isRateLimited) {
       await worker.rateLimitGroup(job, duration);
       // Do not forget to throw this special exception,
       // since the job is no longer active after being rate limited.
       throw Worker.RateLimitError();
     }
-}, {
-    connection
-});
+  },
+  {
+    connection,
+  },
+);
 ```
-
