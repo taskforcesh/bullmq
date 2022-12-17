@@ -624,7 +624,7 @@ describe('sandboxed process', () => {
         drainDelay: 1,
       });
 
-      const job = await queue.add('test', { exitCode: 1 });
+      const job = await queue.add('test', {});
 
       await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
         'No function is exported in processor file',
