@@ -57,3 +57,33 @@ const scheduler = new QueueScheduler('painter');
 // jobs will be rate limited by the value of customerId key:
 await queue.add('rate limited paint', { customerId: 'my-customer-id' });
 ```
+
+### Manual rate-limit
+
+Sometimes is useful to rate-limit a queue manually instead of based on some static options. For example, if you have an API that returns 429 (Too many requests), and you want to rate-limit the queue based on that response.
+
+For this purpose, you can use the worker method **rateLimit** like this:
+
+```typescript
+import { Worker } from 'bullmq';
+
+const worker = new Worker(
+  'myQueue',
+  async () => {
+    const [isRateLimited, duration] = await doExternalCall();
+    if (isRateLimited) {
+      await worker.rateLimit(duration);
+      // Do not forget to throw this special exception,
+      // since the job is no longer active after being rate limited.
+      throw Worker.RateLimitError();
+    }
+  },
+  {
+    connection,
+  },
+);
+```
+
+## Read more:
+
+- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/Worker.html#rateLimit)
