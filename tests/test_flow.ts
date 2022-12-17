@@ -2507,10 +2507,6 @@ describe('flows', () => {
       // are moved to the wait status correctly
       const parentQueue = new Queue(parentQueueName, { connection });
 
-      await removeChildJob(tree.children[0].children[0]);
-      await removeChildJob(tree.children[0]);
-      await removeChildJob(tree);
-
       async function removeChildJob(node: JobNode) {
         expect(await node.job.getState()).to.be.equal('waiting-children');
 
@@ -2518,6 +2514,10 @@ describe('flows', () => {
 
         expect(await node.job.getState()).to.be.equal('waiting');
       }
+
+      await removeChildJob(tree.children[0].children[0]);
+      await removeChildJob(tree.children[0]);
+      await removeChildJob(tree);
 
       await flow.close();
       await parentQueue.close();

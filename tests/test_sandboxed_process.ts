@@ -614,6 +614,24 @@ describe('sandboxed process', () => {
     );
   });
 
+  describe('when function is not exported', () => {
+    it('throws an error', async () => {
+      const processFile =
+        __dirname + '/fixtures/fixture_processor_missing_function.js';
+
+      new Worker(queueName, processFile, {
+        connection,
+        drainDelay: 1,
+      });
+
+      const job = await queue.add('test', { exitCode: 1 });
+
+      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+        'No function is exported in processor file',
+      );
+    });
+  });
+
   it('should remove exited process', async () => {
     const processFile = __dirname + '/fixtures/fixture_processor_exit.js';
 
