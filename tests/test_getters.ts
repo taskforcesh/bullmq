@@ -173,6 +173,16 @@ describe('Jobs getters', function () {
     });
   });
 
+  describe('.getJobState', () => {
+    it('gets current job state', async function () {
+      const job = await queue.add('test', { foo: 'bar' });
+
+      const jobState = await queue.getJobState(job.id);
+
+      expect(jobState).to.be.equal('waiting');
+    });
+  });
+
   it('should get waiting jobs', async function () {
     await queue.add('test', { foo: 'bar' });
     await queue.add('test', { baz: 'qux' });
