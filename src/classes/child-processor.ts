@@ -25,6 +25,15 @@ export class ChildProcessor {
     let processor;
     try {
       processor = require(processorFile);
+
+      if (processor.default) {
+        // support es2015 module.
+        processor = processor.default;
+      }
+
+      if (typeof processor !== 'function') {
+        throw new Error('No function is exported in processor file');
+      }
     } catch (err) {
       this.status = ChildStatus.Errored;
       return childSend(process, {
@@ -33,10 +42,6 @@ export class ChildProcessor {
       });
     }
 
-    if (processor.default) {
-      // support es2015 module.
-      processor = processor.default;
-    }
     if (processor.length > 1) {
       processor = promisify(processor);
     } else {
