@@ -8,7 +8,7 @@ import {
   QUEUE_EVENT_SUFFIX,
   WORKER_SUFFIX,
 } from '../utils';
-import { JobType } from '../types';
+import { JobState, JobType } from '../types';
 import { Metrics } from '../interfaces';
 
 /**
@@ -132,6 +132,16 @@ export class QueueGetters<
     });
 
     return counts;
+  }
+
+  /**
+   * Get current job state.
+   *
+   * @returns Returns one of these values:
+   * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
+   */
+  getJobState(jobId: string): Promise<JobState | 'unknown'> {
+    return this.scripts.getState(jobId);
   }
 
   /**
