@@ -35,8 +35,6 @@
       opts - token - lock token
       opts - keepJobs
       opts - lockDuration - lock duration in milliseconds
-      opts - parent - parent data
-      opts - parentKey
       opts - attempts max attempts
       opts - attemptsMade
       opts - maxMetricsSize
@@ -72,9 +70,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local opts = cmsgpack.unpack(ARGV[9])
 
     local token = opts['token']
-    local parentId = opts['parent'] and opts['parent']['id'] or ""
-    local parentQueueKey = opts['parent'] and opts['parent']['queue'] or ""
-    local parentKey = opts['parentKey'] or ""
     local attempts = opts['attempts']
     local attemptsMade = opts['attemptsMade']
     local maxMetricsSize = opts['maxMetricsSize']
@@ -91,7 +86,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if lockToken then
                 -- Lock exists but token does not match
                 return -6
-            else 
+            else
                 -- Lock is missing completely
                 return -2
             end
@@ -100,6 +95,16 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
         return -4
+    end
+
+    local parentReferences = rcall("HMGET", jobIdKey, "parentKey", "parent")
+    local parentKey = parentReferences[1] or ""
+    local parentId = ""
+    local parentQueueKey = ""
+    if parentReferences[2] ~= false then
+        local jsonDecodedParent = cjson.decode(parentReferences[2])
+        parentId = jsonDecodedParent['id']
+        parentQueueKey = jsonDecodedParent['queueKey']
     end
 
     local jobId = ARGV[1]
@@ -188,7 +193,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
         -- If jobId is special ID 0:delay, then there is no job to process
-        if jobId then 
+        if jobId then
             if string.sub(jobId, 1, 2) == "0:" then
                 rcall("LREM", KEYS[2], 1, jobId)
             else

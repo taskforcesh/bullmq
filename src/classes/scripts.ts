@@ -292,8 +292,6 @@ export class Scripts {
         keepJobs,
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
-        parent: job.opts?.parent,
-        parentKey: job.parentKey,
         attempts: job.opts.attempts,
         attemptsMade: job.attemptsMade,
         maxMetricsSize: opts.metrics?.maxDataPoints

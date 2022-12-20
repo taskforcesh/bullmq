@@ -893,6 +893,69 @@ describe('flows', () => {
 
       await flow.close();
     });
+
+    it('processes parent jobs added while a child job is active', async function () {
+      this.timeout(10_000);
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await new Promise(s => {
+            setTimeout(s, 1_000);
+          });
+        },
+        {
+          connection,
+        },
+      );
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', (job: Job) => {
+          if (job.id === 'tue') {
+            resolve();
+          }
+        });
+      });
+
+      const flow = new FlowProducer({ connection });
+      await flow.add({
+        queueName,
+        name: 'mon',
+        opts: {
+          jobId: 'mon',
+        },
+        children: [],
+      });
+
+      await new Promise(s => {
+        setTimeout(s, 500);
+      });
+
+      const tree = await flow.add({
+        queueName,
+        name: 'tue',
+        opts: {
+          jobId: 'tue',
+        },
+        children: [
+          {
+            name: 'mon',
+            queueName,
+            opts: {
+              jobId: 'mon',
+            },
+          },
+        ],
+      });
+
+      await completing;
+
+      const state = await tree.job.getState();
+
+      expect(state).to.be.equal('completed');
+
+      await flow.close();
+    });
   });
 
   describe('when custom prefix is set in flow producer', async () => {
