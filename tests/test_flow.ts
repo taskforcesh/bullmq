@@ -1,5 +1,6 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
+import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import {
@@ -2057,6 +2058,70 @@ describe('flows', () => {
     await flow.close();
     await parentQueue.close();
     await removeAllQueueData(new IORedis(), parentQueueName);
+  });
+
+  describe('when there are more added jobs than max limiter', () => {
+    it('processes jobs as max limiter from the beginning', async function () {
+      this.timeout(5000);
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      let parallelJobs = 0;
+
+      const childrenProcessor = async () => {
+        parallelJobs++;
+        await delay(700);
+
+        parallelJobs--;
+
+        expect(parallelJobs).to.be.lessThanOrEqual(100);
+
+        return 'success';
+      };
+
+      const childrenWorker = new Worker(queueName, childrenProcessor, {
+        concurrency: 600,
+        autorun: false,
+        limiter: {
+          max: 100,
+          duration: 1000,
+        },
+        connection,
+      });
+
+      const allCompleted = new Promise(resolve => {
+        childrenWorker.on('completed', after(400, resolve));
+      });
+
+      const flow = new FlowProducer({ connection });
+
+      const childJobs = Array(400)
+        .fill('')
+        .map((_, index) => {
+          return {
+            name: 'child-job-a',
+            data: { id: `id-${index}` },
+            queueName,
+          };
+        });
+
+      const tree = await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        children: childJobs,
+      });
+
+      expect(tree).to.have.property('job');
+      expect(tree).to.have.property('children');
+
+      childrenWorker.run();
+      await allCompleted;
+      const parentState = await tree.job.getState();
+
+      expect(parentState).to.be.equal('waiting');
+      await childrenWorker.close();
+      await flow.close();
+      await removeAllQueueData(new IORedis(), parentQueueName);
+    });
   });
 
   it('should not process parent until queue is unpaused', async () => {

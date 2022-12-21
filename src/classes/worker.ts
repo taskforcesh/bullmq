@@ -368,14 +368,17 @@ export class Worker<
               processing.size < this.opts.concurrency &&
               (!this.limitUntil || processing.size == 0)
             ) {
-              const token = `${this.id}:${tokenPostfix++}`;
-              processing.set(
-                this.retryIfFailed<Job<DataType, ResultType, NameType>>(
-                  () => this.getNextJob(token),
-                  this.opts.runRetryDelay,
-                ),
-                token,
-              );
+              const restProcesses = this.opts.concurrency - processing.size;
+              for (let i = 0; i < restProcesses; i++) {
+                const token = `${this.id}:${tokenPostfix++}`;
+                processing.set(
+                  this.retryIfFailed<Job<DataType, ResultType, NameType>>(
+                    () => this.getNextJob(token),
+                    this.opts.runRetryDelay,
+                  ),
+                  token,
+                );
+              }
             }
 
             /*
