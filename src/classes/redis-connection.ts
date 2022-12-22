@@ -73,6 +73,14 @@ export class RedisConnection extends EventEmitter {
     } else {
       this._client = opts;
 
+      // Test if the redis instance is using keyPrefix
+      // and if so, throw an error.
+      if (this._client.options.keyPrefix) {
+        throw new Error(
+          'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
+        );
+      }
+
       if (isRedisCluster(this._client)) {
         this.opts = this._client.options.redisOptions;
         const hosts = (<any>this._client).startupNodes.map(

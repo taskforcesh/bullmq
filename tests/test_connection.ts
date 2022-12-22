@@ -19,6 +19,53 @@ describe('connection', () => {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
+  describe('prefix', () => {
+    it('should throw exception if using prefix with ioredis', async () => {
+      const connection = new IORedis({
+        keyPrefix: 'bullmq',
+      });
+
+      try {
+        const queue = new Queue(queueName, {
+          connection,
+        });
+      } catch (err) {
+        expect(err.message).to.be.equal(
+          'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
+        );
+        connection.disconnect();
+        return;
+      }
+
+      connection.disconnect();
+      throw new Error('Should not allow using prefixes with ioredis');
+    });
+
+    it('should throw exception if using prefix with ioredis in cluster mode', async () => {
+      const connection = new IORedis.Cluster(
+        [{ host: '10.0.6.161', port: 7379 }],
+        {
+          keyPrefix: 'bullmq',
+        },
+      );
+
+      try {
+        const queue = new Queue(queueName, {
+          connection,
+        });
+        connection.disconnect();
+      } catch (err) {
+        expect(err.message).to.be.equal(
+          'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
+        );
+        return;
+      }
+
+      connection.disconnect();
+      throw new Error('Should not allow using prefixes with ioredis');
+    });
+  });
+
   describe('blocking', () => {
     it('should override maxRetriesPerRequest: null as redis options', async () => {
       const queue = new QueueBase(queueName, {
