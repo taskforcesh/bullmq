@@ -71,6 +71,14 @@ describe('connection', () => {
     });
   });
 
+  describe('when instantiating with a clustered ioredis connection', () => {
+    it('should not fail when using dsn strings', async () => {
+      const connection = new IORedis.Cluster(['redis://10.0.6.161:7379']);
+      const myQueue = new Queue('myqueue', { connection });
+      connection.disconnect();
+    });
+  });
+
   describe('when host belongs to Upstash', async () => {
     it('throws an error', async () => {
       const opts = {
