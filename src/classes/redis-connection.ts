@@ -113,8 +113,8 @@ export class RedisConnection extends EventEmitter {
 
   private checkUpstashHost(host: string[] | string | undefined) {
     const includesUpstash = Array.isArray(host)
-      ? host.some(node => node.endsWith('upstash.io'))
-      : host?.endsWith('upstash.io');
+      ? host.some(node => node.includes('upstash.io'))
+      : host?.includes('upstash.io');
     if (includesUpstash) {
       throw new Error(upstashMessage);
     }
