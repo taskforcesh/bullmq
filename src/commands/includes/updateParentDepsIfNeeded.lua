@@ -27,8 +27,8 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
 
       if rcall("LLEN", parentTarget) == 0 then
         local nextTimestamp = getNextDelayedTimestamp(parentDelayedKey)
-        if not nextTimestamp or (delayedTimestamp <= nextTimestamp) then
-          rcall("LPUSH", parentTarget, "0:" .. delayedTimestamp - tonumber(timestamp))
+        if nextTimestamp ~= nil then
+          rcall("LPUSH", parentTarget, "0:" .. nextTimestamp)
         end
       end
     -- Standard or priority add

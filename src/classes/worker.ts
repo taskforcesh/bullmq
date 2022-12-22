@@ -488,7 +488,8 @@ export class Worker<
     // If we get the special delayed job ID, we pick the delay as the next
     // block timeout.
     if (jobId && jobId.startsWith('0:')) {
-      this.blockTimeout = parseInt(jobId.split(':')[1]);
+      const expectedBlockTimeout = parseInt(jobId.split(':')[1]) - Date.now();
+      this.blockTimeout = expectedBlockTimeout > 0 ? expectedBlockTimeout : 1;
       return;
     }
     const [jobData, id, limitUntil, delayUntil] =

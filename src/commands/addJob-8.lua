@@ -144,9 +144,9 @@ elseif (delayedTimestamp ~= 0) then
   local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
   if rcall("LLEN", target) == 0 then
     local nextTimestamp = getNextDelayedTimestamp(KEYS[5])
-    if not nextTimestamp or (delayedTimestamp < nextTimestamp) then
-      local delay = delayedTimestamp - tonumber(timestamp)
-      rcall("LPUSH", target, "0:" .. delay)
+    if nextTimestamp ~= nil then
+      --local delay = delayedTimestamp - tonumber(timestamp)
+      rcall("LPUSH", target, "0:" .. nextTimestamp)
     end
   end
 else

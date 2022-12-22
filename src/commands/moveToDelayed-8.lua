@@ -54,17 +54,18 @@ if rcall("EXISTS", jobKey) == 1 then
       return -3
     end
 
+    rcall("ZADD", delayedKey, score, jobId)
+    rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
+
     -- Check if we need to push a marker job to wake up sleeping workers.
     local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])
     if rcall("LLEN", target) == 0 then
         local nextTimestamp = getNextDelayedTimestamp(delayedKey)
-        if not nextTimestamp or (delayedTimestamp < nextTimestamp) then
-            rcall("LPUSH", target, "0:" .. delayedTimestamp - tonumber(ARGV[2]))
+        if nextTimestamp ~= nil then
+            rcall("LPUSH", target, "0:" .. nextTimestamp)
         end
     end
 
-    rcall("ZADD", delayedKey, score, jobId)
-    rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
     return 0
 else
     return -1

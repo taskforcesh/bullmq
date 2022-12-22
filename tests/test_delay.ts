@@ -202,7 +202,7 @@ describe('Delayed jobs', function () {
     this.timeout(35000);
     let count = 0;
     const numJobs = 50;
-    const margin = 1.25;
+    const margin = 1.22;
 
     let processor1, processor2;
 
@@ -302,6 +302,7 @@ describe('Delayed jobs', function () {
             return;
           },
           {
+            autorun: false,
             connection,
             concurrency,
           },
@@ -310,6 +311,8 @@ describe('Delayed jobs', function () {
           console.error(err);
         });
       });
+
+      worker.run();
 
       await processing;
 
