@@ -25,20 +25,10 @@ describe('connection', () => {
         keyPrefix: 'bullmq',
       });
 
-      try {
-        const queue = new Queue(queueName, {
-          connection,
-        });
-      } catch (err) {
-        expect(err.message).to.be.equal(
-          'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
-        );
-        connection.disconnect();
-        return;
-      }
-
-      connection.disconnect();
-      throw new Error('Should not allow using prefixes with ioredis');
+      expect(() => new QueueBase(queueName, { connection })).to.throw(
+        'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
+      );
+      await connection.disconnect();
     });
 
     it('should throw exception if using prefix with ioredis in cluster mode', async () => {
@@ -49,20 +39,10 @@ describe('connection', () => {
         },
       );
 
-      try {
-        const queue = new Queue(queueName, {
-          connection,
-        });
-        connection.disconnect();
-      } catch (err) {
-        expect(err.message).to.be.equal(
-          'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
-        );
-        return;
-      }
-
-      connection.disconnect();
-      throw new Error('Should not allow using prefixes with ioredis');
+      expect(() => new QueueBase(queueName, { connection })).to.throw(
+        'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
+      );
+      await connection.disconnect();
     });
   });
 
