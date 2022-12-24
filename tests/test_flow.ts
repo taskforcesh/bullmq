@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import {

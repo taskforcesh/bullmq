@@ -152,7 +152,7 @@ describe('Delayed jobs', function () {
   });
 
   it('should process delayed jobs in correct order respecting delay', async function () {
-    this.timeout(3500);
+    this.timeout(7500);
     let order = 0;
     const numJobs = 12;
     const margin = 1.2;
@@ -181,7 +181,10 @@ describe('Delayed jobs', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, {
+      autorun: false,
+      connection,
+    });
 
     worker.on('failed', function (job, err) {});
 
@@ -194,6 +197,7 @@ describe('Delayed jobs', function () {
     }));
 
     await queue.addBulk(jobs);
+    worker.run();
     await processing;
     await worker.close();
   });

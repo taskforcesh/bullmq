@@ -562,7 +562,10 @@ export class Worker<
     }
 
     this.limitUntil = Math.max(limitUntil, 0) || 0;
-    this.blockTimeout = delayUntil;
+    if (delayUntil) {
+      const expectedBlockTimeout = Math.max(delayUntil, 0) - Date.now();
+      this.blockTimeout = expectedBlockTimeout > 0 ? expectedBlockTimeout : 1;
+    }
 
     if (jobData) {
       this.drained = false;

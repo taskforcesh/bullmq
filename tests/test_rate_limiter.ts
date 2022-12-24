@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
-import { worker } from 'msgpack';
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
