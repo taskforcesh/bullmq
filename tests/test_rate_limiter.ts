@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
+import { worker } from 'msgpack';
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
@@ -226,7 +227,6 @@ describe('Rate Limiter', function () {
       limiter: {
         max: 1,
         duration: 1000,
-        workerDelay: true,
       },
     });
 
@@ -259,6 +259,54 @@ describe('Rate Limiter', function () {
 
     await result;
     await worker.close();
+  });
+
+  describe('when there are more added jobs than max limiter', () => {
+    it('processes jobs as max limiter from the beginning', async function () {
+      this.timeout(5000);
+      let parallelJobs = 0;
+
+      const processor = async () => {
+        parallelJobs++;
+        await delay(700);
+
+        parallelJobs--;
+
+        expect(parallelJobs).to.be.lessThanOrEqual(100);
+
+        return 'success';
+      };
+
+      const worker = new Worker(queueName, processor, {
+        concurrency: 600,
+        autorun: false,
+        limiter: {
+          max: 100,
+          duration: 1000,
+        },
+        connection,
+      });
+
+      const allCompleted = new Promise(resolve => {
+        worker.on('completed', after(400, resolve));
+      });
+
+      const jobs = Array(400)
+        .fill('')
+        .map((_, index) => {
+          return {
+            name: 'child-job-a',
+            data: { id: `id-${index}` },
+          };
+        });
+
+      await queue.addBulk(jobs);
+
+      worker.run();
+      await allCompleted;
+
+      await worker.close();
+    });
   });
 
   it('should obey priority', async function () {

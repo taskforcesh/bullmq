@@ -145,7 +145,6 @@ elseif (delayedTimestamp ~= 0) then
   if rcall("LLEN", target) == 0 then
     local nextTimestamp = getNextDelayedTimestamp(KEYS[5])
     if nextTimestamp ~= nil then
-      --local delay = delayedTimestamp - tonumber(timestamp)
       rcall("LPUSH", target, "0:" .. nextTimestamp)
     end
   end
