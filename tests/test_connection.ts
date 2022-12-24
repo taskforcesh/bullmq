@@ -46,6 +46,7 @@ describe('connection', () => {
         [{ host: '10.0.6.161', port: 7379 }],
         {
           keyPrefix: 'bullmq',
+          natMap: {},
         },
       );
 
@@ -120,7 +121,9 @@ describe('connection', () => {
 
   describe('when instantiating with a clustered ioredis connection', () => {
     it('should not fail when using dsn strings', async () => {
-      const connection = new IORedis.Cluster(['redis://10.0.6.161:7379']);
+      const connection = new IORedis.Cluster(['redis://10.0.6.161:7379'], {
+        natMap: {},
+      });
       const myQueue = new Queue('myqueue', { connection });
       connection.disconnect();
     });
@@ -141,11 +144,14 @@ describe('connection', () => {
 
     describe('when using Cluster instance', async () => {
       it('throws an error', async () => {
-        const connection = new IORedis.Cluster([
-          {
-            host: 'https://upstash.io',
-          },
-        ]);
+        const connection = new IORedis.Cluster(
+          [
+            {
+              host: 'https://upstash.io',
+            },
+          ],
+          { natMap: {} },
+        );
 
         expect(() => new QueueBase(queueName, { connection })).to.throw(
           'BullMQ: Upstash is not compatible with BullMQ.',
@@ -157,8 +163,11 @@ describe('connection', () => {
         it('throws an error', async () => {
           const connection = new IORedis.Cluster(
             ['localhost', 'https://upstash.io'],
-            {},
+            {
+              natMap: {},
+            },
           );
+          console.log('PROCESS', process.env.REDIS_HOSTS);
 
           expect(() => new QueueBase(queueName, { connection })).to.throw(
             'BullMQ: Upstash is not compatible with BullMQ.',
