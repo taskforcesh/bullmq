@@ -333,7 +333,7 @@ export class Scripts {
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
-      if (!(job.autoComplete && result == ErrorCode.JobLockNotExist)) {
+      if (!(result == ErrorCode.JobLockNotExist)) {
         throw this.finishedErrors(result, job.id, 'finished', 'active');
       }
     } else {

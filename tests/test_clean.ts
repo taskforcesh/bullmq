@@ -3,7 +3,13 @@ import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  Queue,
+  QueueEvents,
+  WaitingChildrenError,
+  Worker,
+} from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Cleaner', () => {
@@ -478,7 +484,7 @@ describe('Cleaner', () => {
                       step = Step.Finish;
                       return Step.Finish;
                     } else {
-                      break;
+                      throw new WaitingChildrenError();
                     }
                   }
                   default: {

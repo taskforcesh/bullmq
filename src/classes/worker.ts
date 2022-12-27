@@ -625,9 +625,7 @@ export class Worker<
           token,
           fetchNextCallback() && !(this.closing || this.paused),
         );
-        if (!job.autoComplete) {
-          this.emit('completed', job, result, 'active');
-        }
+        this.emit('completed', job, result, 'active');
         const [jobData, jobId, limitUntil, delayUntil] = completed || [];
         return this.nextJobFromJobData(jobData, jobId, limitUntil, delayUntil);
       }

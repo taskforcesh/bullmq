@@ -10,6 +10,8 @@ import {
   Job,
   UnrecoverableError,
   Worker,
+  WaitingChildrenError,
+  DelayedError,
 } from '../src/classes';
 import { KeepJobs } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
@@ -2083,8 +2085,7 @@ describe('workers', function () {
                     await job.update({
                       step: Step.Second,
                     });
-                    step = Step.Second;
-                    return;
+                    throw new DelayedError();
                   }
                   case Step.Second: {
                     await job.update({
@@ -2114,10 +2115,6 @@ describe('workers', function () {
               expect(job.returnvalue).to.be.eql(Step.Finish);
               expect(job.attemptsMade).to.be.eql(2);
               resolve();
-            });
-
-            worker.on('failed', () => {
-              reject();
             });
 
             worker.on('error', () => {
@@ -2194,7 +2191,7 @@ describe('workers', function () {
                       step = Step.Finish;
                       return Step.Finish;
                     } else {
-                      return;
+                      throw new WaitingChildrenError();
                     }
                   }
                   default: {
@@ -2230,10 +2227,6 @@ describe('workers', function () {
             worker.on('completed', job => {
               expect(job.returnvalue).to.equal(Step.Finish);
               resolve();
-            });
-
-            worker.on('failed', () => {
-              reject();
             });
 
             worker.on('error', () => {

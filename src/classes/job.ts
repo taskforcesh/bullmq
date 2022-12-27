@@ -28,6 +28,8 @@ import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
 import { MinimalQueue, ParentOpts, Scripts, JobData } from './scripts';
 import { UnrecoverableError } from './unrecoverable-error';
+import { DelayedError } from './delayed-error';
+import { WaitingChildrenError } from './waiting-children-error';
 
 const logger = debuglog('bull');
 
@@ -72,11 +74,6 @@ export class Job<
   ReturnType = any,
   NameType extends string = string,
 > {
-  /**
-   * By default jobs complete as soon as they finalize, but you can disable this behaviour by enabling autoComplete.
-   */
-  autoComplete: boolean = false;
-
   /**
    * The progress a job has performed so far.
    * @defaultValue 0
@@ -560,71 +557,79 @@ export class Job<
     let moveToFailed = false;
     let finishedOn;
     if (
-      this.attemptsMade < this.opts.attempts &&
-      !this.discarded &&
-      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
+      !(err instanceof DelayedError || err.name == 'DelayedError') &&
+      !(
+        err instanceof WaitingChildrenError ||
+        err.name == 'WaitingChildrenError'
+      )
     ) {
-      const opts = queue.opts as WorkerOptions;
+      if (
+        this.attemptsMade < this.opts.attempts &&
+        !this.discarded &&
+        !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
+      ) {
+        const opts = queue.opts as WorkerOptions;
 
-      // Check if backoff is needed
-      const delay = await Backoffs.calculate(
-        <BackoffOptions>this.opts.backoff,
-        this.attemptsMade,
-        err,
-        this,
-        opts.settings && opts.settings.backoffStrategy,
-      );
-
-      if (delay === -1) {
-        moveToFailed = true;
-      } else if (delay) {
-        const args = this.scripts.moveToDelayedArgs(
-          this.id,
-          Date.now() + delay,
-          token,
+        // Check if backoff is needed
+        const delay = await Backoffs.calculate(
+          <BackoffOptions>this.opts.backoff,
+          this.attemptsMade,
+          err,
+          this,
+          opts.settings && opts.settings.backoffStrategy,
         );
-        (<any>multi).moveToDelayed(args);
-        command = 'delayed';
+
+        if (delay === -1) {
+          moveToFailed = true;
+        } else if (delay) {
+          const args = this.scripts.moveToDelayedArgs(
+            this.id,
+            Date.now() + delay,
+            token,
+          );
+          (<any>multi).moveToDelayed(args);
+          command = 'delayed';
+        } else {
+          // Retry immediately
+          (<any>multi).retryJob(
+            this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
+          );
+          command = 'retry';
+        }
       } else {
-        // Retry immediately
-        (<any>multi).retryJob(
-          this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
-        );
-        command = 'retry';
+        // If not, move to failed
+        moveToFailed = true;
       }
-    } else {
-      // If not, move to failed
-      moveToFailed = true;
-    }
 
-    if (moveToFailed) {
-      const args = this.scripts.moveToFailedArgs(
-        this,
-        message,
-        this.opts.removeOnFail,
-        token,
-        fetchNext,
-      );
-      (<any>multi).moveToFinished(args);
-      finishedOn = args[13];
-      command = 'failed';
-    }
+      if (moveToFailed) {
+        const args = this.scripts.moveToFailedArgs(
+          this,
+          message,
+          this.opts.removeOnFail,
+          token,
+          fetchNext,
+        );
+        (<any>multi).moveToFinished(args);
+        finishedOn = args[13];
+        command = 'failed';
+      }
 
-    const results = await multi.exec();
-    const anyError = results.find(result => result[0]);
-    if (anyError) {
-      throw new Error(
-        `Error "moveToFailed" with command ${command}: ${anyError}`,
-      );
-    }
+      const results = await multi.exec();
+      const anyError = results.find(result => result[0]);
+      if (anyError) {
+        throw new Error(
+          `Error "moveToFailed" with command ${command}: ${anyError}`,
+        );
+      }
 
-    const code = results[results.length - 1][1] as number;
-    if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, command, 'active');
-    }
+      const code = results[results.length - 1][1] as number;
+      if (code < 0) {
+        throw this.scripts.finishedErrors(code, this.id, command, 'active');
+      }
 
-    if (finishedOn && typeof finishedOn === 'number') {
-      this.finishedOn = finishedOn;
+      if (finishedOn && typeof finishedOn === 'number') {
+        this.finishedOn = finishedOn;
+      }
     }
   }
 
@@ -960,7 +965,6 @@ export class Job<
    */
   async moveToDelayed(timestamp: number, token?: string): Promise<void> {
     await this.scripts.moveToDelayed(this.id, timestamp, token);
-    this.autoComplete = true;
   }
 
   /**
@@ -979,9 +983,6 @@ export class Job<
       token,
       opts,
     );
-    if (isWaitingChildren) {
-      this.autoComplete = true;
-    }
     return isWaitingChildren;
   }
 
