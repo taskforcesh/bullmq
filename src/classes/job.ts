@@ -541,21 +541,6 @@ export class Job<
     token: string,
     fetchNext = false,
   ): Promise<void> {
-    const client = await this.queue.client;
-    const message = err?.message;
-
-    const queue = this.queue;
-    this.failedReason = message;
-
-    let command: string;
-    const multi = client.multi();
-    this.saveStacktrace(multi, err);
-
-    //
-    // Check if an automatic retry should be performed
-    //
-    let moveToFailed = false;
-    let finishedOn;
     if (
       !(err instanceof DelayedError || err.name == 'DelayedError') &&
       !(
@@ -563,6 +548,22 @@ export class Job<
         err.name == 'WaitingChildrenError'
       )
     ) {
+      const client = await this.queue.client;
+      const message = err?.message;
+
+      const queue = this.queue;
+      this.failedReason = message;
+
+      let command: string;
+      const multi = client.multi();
+      this.saveStacktrace(multi, err);
+
+      //
+      // Check if an automatic retry should be performed
+      //
+      let moveToFailed = false;
+      let finishedOn;
+
       if (
         this.attemptsMade < this.opts.attempts &&
         !this.discarded &&
