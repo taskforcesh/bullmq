@@ -44,6 +44,7 @@ export class RedisConnection extends EventEmitter {
   private version: string;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
+  private handleClientReady: () => void;
 
   constructor(
     opts?: ConnectionOptions,
@@ -72,6 +73,14 @@ export class RedisConnection extends EventEmitter {
     } else {
       this._client = opts;
 
+      // Test if the redis instance is using keyPrefix
+      // and if so, throw an error.
+      if (this._client.options.keyPrefix) {
+        throw new Error(
+          'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
+        );
+      }
+
       if (isRedisCluster(this._client)) {
         this.opts = this._client.options.redisOptions;
         const hosts = (<any>this._client).startupNodes.map(
@@ -96,6 +105,10 @@ export class RedisConnection extends EventEmitter {
       this.emit('close');
     };
 
+    this.handleClientReady = (): void => {
+      this.emit('ready');
+    };
+
     this.initializing = this.init();
     this.initializing.catch(err => this.emit('error', err));
   }
@@ -108,8 +121,8 @@ export class RedisConnection extends EventEmitter {
 
   private checkUpstashHost(host: string[] | string | undefined) {
     const includesUpstash = Array.isArray(host)
-      ? host.some(node => node.endsWith('upstash.io'))
-      : host?.endsWith('upstash.io');
+      ? host.some(node => node.includes('upstash.io'))
+      : host?.includes('upstash.io');
     if (includesUpstash) {
       throw new Error(upstashMessage);
     }
@@ -183,6 +196,8 @@ export class RedisConnection extends EventEmitter {
     // ioredis treats connection errors as a different event ('close')
     this._client.on('close', this.handleClientClose);
 
+    this._client.on('ready', this.handleClientReady);
+
     await RedisConnection.waitUntilReady(this._client);
     await this.loadCommands();
 
@@ -254,6 +269,7 @@ export class RedisConnection extends EventEmitter {
       } finally {
         this._client.off('error', this.handleClientError);
         this._client.off('close', this.handleClientClose);
+        this._client.off('ready', this.handleClientReady);
       }
     }
   }

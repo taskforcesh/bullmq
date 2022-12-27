@@ -4,7 +4,6 @@
     KEYS[1] delayed key
     KEYS[2] job key
     KEYS[3] events stream
-    KEYS[4] delayed stream
 
     ARGV[1] delay
     ARGV[2] delayedTimestamp
@@ -35,7 +34,6 @@ if rcall("EXISTS", KEYS[2]) == 1 then
   rcall("ZADD", KEYS[1], score, jobId)
 
   rcall("XADD", KEYS[3], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp);
-  rcall("XADD", KEYS[4], "*", "nextTimestamp", delayedTimestamp);
 
   return 0
 else

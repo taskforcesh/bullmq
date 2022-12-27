@@ -1,6 +1,5 @@
 import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
-import { flatten } from 'lodash';
 import { AddressInfo, createServer } from 'net';
 import { killAsync } from './process-utils';
 import { ParentCommand, ChildCommand } from '../interfaces';
@@ -163,6 +162,9 @@ export class ChildPool {
   }
 
   getAllFree(): ChildProcessExt[] {
-    return flatten(Object.values(this.free));
+    return Object.values(this.free).reduce(
+      (first, second) => first.concat(second),
+      [],
+    );
   }
 }

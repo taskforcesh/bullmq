@@ -46,4 +46,4 @@ As soon as a _child_ with this option fails, the parent job will be moved to fai
 
 ## Read more:
 
-- 💡 [Get Flow API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html#getFlow)
+- 💡 [Add Flow API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html#add)

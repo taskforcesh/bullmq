@@ -28,7 +28,7 @@
     </a>
   </p>
   <p>
-    <em>Follow <a href="https://twitter.com/manast">@manast</a> for *important* Bull/BullMQ news and updates!</em>
+    <em>Follow <a href="https://twitter.com/manast">@manast</a> for *important* Bull/BullMQ/BullMQ-Pro news and updates!</em>
   </p>
 </div>
 
@@ -102,10 +102,18 @@ Some notable organizations using BullMQ:
         />
       </a>
     </td>
+    </td>
+      <td valign="center">
+       <a href="https://www.nocodb.com">
+        <img
+          src="https://www.nocodb.com/brand/logo-text.png"
+          width="150"
+          alt="NoCodeDB"
+        />
+      </a>
+    </td>
     </tr>
 </table>
-
-
 
 # The gist
 
@@ -148,9 +156,12 @@ queueEvents.on('completed', ({ jobId }) => {
   console.log('done painting');
 });
 
-queueEvents.on('failed', ({ jobId, failedReason }: { jobId: string, failedReason: string }) => {
-  console.error('error painting', failedReason);
-});
+queueEvents.on(
+  'failed',
+  ({ jobId, failedReason }: { jobId: string; failedReason: string }) => {
+    console.error('error painting', failedReason);
+  },
+);
 ```
 
 This is just scratching the surface, check all the features and more in the official <a href="https://docs.bullmq.io">documentation</a>

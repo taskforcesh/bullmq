@@ -159,8 +159,17 @@ export const parentSend = (
   msg: ParentMessage,
 ): Promise<void> => asyncSend<ChildProcess>(child, msg);
 
-export const WORKER_SUFFIX = '';
+export const parseObjectValues = (obj: {
+  [key: string]: string;
+}): Record<string, any> => {
+  const accumulator: Record<string, any> = {};
+  for (const value of Object.entries(obj)) {
+    accumulator[value[0]] = JSON.parse(value[1]);
+  }
 
-export const QUEUE_SCHEDULER_SUFFIX = ':qs';
+  return accumulator;
+};
+
+export const WORKER_SUFFIX = '';
 
 export const QUEUE_EVENT_SUFFIX = ':qe';

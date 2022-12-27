@@ -11,8 +11,7 @@ local rcall = redis.call
 --- @include "addJobWithPriority"
 --- @include "getTargetQueueList"
 
--- Try to get as much as 1000 jobs at once, and returns the nextTimestamp if
--- there are more delayed jobs to process.
+-- Try to get as much as 1000 jobs at once
 local function promoteDelayedJobs(delayedKey, waitKey, priorityKey, pausedKey,
                                   metaKey, eventStreamKey, prefix, timestamp)
     local jobs = rcall("ZRANGEBYSCORE", delayedKey, 0, (timestamp + 1) * 0x1000, "LIMIT", 0, 1000)

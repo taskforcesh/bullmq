@@ -62,6 +62,13 @@ export interface QueueEventsListener extends IoredisListener {
   drained: (id: string) => void;
 
   /**
+   * Listen to 'duplicated' event.
+   *
+   * This event is triggered when a job is not created because it already exist.
+   */
+  duplicated: (args: { jobId: string }, id: string) => void;
+
+  /**
    * Listen to 'error' event.
    *
    * This event is triggered when an exception is thrown.

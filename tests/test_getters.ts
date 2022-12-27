@@ -47,16 +47,28 @@ describe('Jobs getters', function () {
 
   describe('.getWorkers', () => {
     it('gets all workers for this queue only', async function () {
-      const worker = new Worker(queueName, async () => {}, { connection });
-      await worker.waitUntilReady();
-      await delay(10);
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+      });
+      await new Promise<void>(resolve => {
+        worker.on('ready', () => {
+          resolve();
+        });
+      });
 
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
 
-      const worker2 = new Worker(queueName, async () => {}, { connection });
-      await worker2.waitUntilReady();
-      await delay(10);
+      const worker2 = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+      });
+      await new Promise<void>(resolve => {
+        worker2.on('ready', () => {
+          resolve();
+        });
+      });
 
       const nextWorkers = await queue.getWorkers();
       expect(nextWorkers).to.have.length(2);
@@ -68,10 +80,24 @@ describe('Jobs getters', function () {
     it('gets only workers related only to one queue', async function () {
       const queueName2 = `${queueName}2`;
       const queue2 = new Queue(queueName2, { connection });
-      const worker = new Worker(queueName, async () => {}, { connection });
-      const worker2 = new Worker(queueName2, async () => {}, { connection });
-      await worker.waitUntilReady();
-      await worker2.waitUntilReady();
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+      });
+      await new Promise<void>(resolve => {
+        worker.on('ready', () => {
+          resolve();
+        });
+      });
+      const worker2 = new Worker(queueName2, async () => {}, {
+        autorun: false,
+        connection,
+      });
+      await new Promise<void>(resolve => {
+        worker2.on('ready', () => {
+          resolve();
+        });
+      });
 
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
@@ -86,13 +112,17 @@ describe('Jobs getters', function () {
     });
 
     describe('when sharing connection', () => {
-      it('gets all workers for this queue only', async function () {
+      it('gets same reference for all workers for same queue', async function () {
         const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
         const worker = new Worker(queueName, async () => {}, {
+          autorun: false,
           connection: ioredisConnection,
         });
-        await worker.waitUntilReady();
-        await delay(10);
+        await new Promise<void>(resolve => {
+          worker.on('ready', () => {
+            resolve();
+          });
+        });
 
         const workers = await queue.getWorkers();
         expect(workers).to.have.length(1);
@@ -101,15 +131,55 @@ describe('Jobs getters', function () {
           connection: ioredisConnection,
         });
         await worker2.waitUntilReady();
-        await delay(10);
 
         const nextWorkers = await queue.getWorkers();
-        expect(nextWorkers).to.have.length(2);
+        expect(nextWorkers).to.have.length(1);
 
         await worker.close();
         await worker2.close();
         await ioredisConnection.quit();
       });
+    });
+
+    describe('when disconnection happens', () => {
+      it('gets all workers even after reconnection', async function () {
+        const worker = new Worker(queueName, async () => {}, {
+          autorun: false,
+          connection,
+        });
+        await new Promise<void>(resolve => {
+          worker.on('ready', () => {
+            resolve();
+          });
+        });
+        const client = await worker.waitUntilReady();
+
+        const workers = await queue.getWorkers();
+        expect(workers).to.have.length(1);
+
+        await client.disconnect();
+        await delay(10);
+
+        const nextWorkers = await queue.getWorkers();
+        expect(nextWorkers).to.have.length(0);
+
+        await client.connect();
+        await delay(20);
+        const nextWorkers2 = await queue.getWorkers();
+        expect(nextWorkers2).to.have.length(1);
+
+        await worker.close();
+      });
+    });
+  });
+
+  describe('.getJobState', () => {
+    it('gets current job state', async function () {
+      const job = await queue.add('test', { foo: 'bar' });
+
+      const jobState = await queue.getJobState(job.id);
+
+      expect(jobState).to.be.equal('waiting');
     });
   });
 
@@ -492,8 +562,34 @@ describe('Jobs getters', function () {
     queue.add('test', { foo: 2 });
   });
 
+  describe('when marker is present', () => {
+    describe('when there are delayed jobs and waiting jobs', () => {
+      it('filters jobIds different than marker', async () => {
+        await queue.add('test1', { foo: 3 }, { delay: 2000 });
+        await queue.add('test2', { foo: 2 });
+
+        const jobs = await queue.getJobs(['waiting']);
+
+        expect(jobs).to.be.an('array');
+        expect(jobs).to.have.length(1);
+        expect(jobs[0].name).to.be.equal('test2');
+      });
+    });
+
+    describe('when there is only one delayed job and get waiting jobs', () => {
+      it('filters marker and returns an empty array', async () => {
+        await queue.add('test1', { foo: 3 }, { delay: 2000 });
+
+        const jobs = await queue.getJobs(['waiting']);
+
+        expect(jobs).to.be.an('array');
+        expect(jobs).to.have.length(0);
+      });
+    });
+  });
+
   it('should return deduplicated jobs for duplicates types', async function () {
-    queue.add('test', { foo: 1 });
+    await queue.add('test', { foo: 1 });
     const jobs = await queue.getJobs(['wait', 'waiting', 'waiting']);
 
     expect(jobs).to.be.an('array');

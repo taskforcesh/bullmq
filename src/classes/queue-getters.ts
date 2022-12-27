@@ -5,11 +5,10 @@ import { QueueBase } from './queue-base';
 import { Job } from './job';
 import {
   clientCommandMessageReg,
-  QUEUE_SCHEDULER_SUFFIX,
   QUEUE_EVENT_SUFFIX,
   WORKER_SUFFIX,
 } from '../utils';
-import { JobType } from '../types';
+import { JobState, JobType } from '../types';
 import { Metrics } from '../interfaces';
 
 /**
@@ -99,28 +98,7 @@ export class QueueGetters<
       'waiting-children',
     );
 
-    if (await this.hasDelayedMarker('wait', 'paused')) {
-      return count - 1;
-    }
-
     return count;
-  }
-
-  private async hasDelayedMarker(
-    ...types: ('wait' | 'paused')[]
-  ): Promise<boolean> {
-    const client = await this.client;
-
-    const promises = [];
-    if (types.includes('wait')) {
-      promises.push(client.lindex(this.toKey('wait'), 0));
-    }
-
-    if (types.includes('paused')) {
-      promises.push(client.lindex(this.toKey('paused'), 0));
-    }
-
-    return (await Promise.all(promises)).some(value => value === '0');
   }
 
   /**
@@ -146,32 +124,24 @@ export class QueueGetters<
   }> {
     const currentTypes = this.sanitizeJobTypes(types);
 
-    const client = await this.client;
-    const multi = client.multi();
+    const responses = await this.scripts.getCounts(currentTypes);
 
-    this.commandByType(currentTypes, true, function (key, command) {
-      (<any>multi)[command](key);
-    });
-
-    const res = (await multi.exec()) as [Error, number][];
     const counts: { [index: string]: number } = {};
-    res.forEach((res, index) => {
-      counts[currentTypes[index]] = res[1] || 0;
+    responses.forEach((res, index) => {
+      counts[currentTypes[index]] = res || 0;
     });
-
-    if (counts['wait'] > 0) {
-      if (await this.hasDelayedMarker('wait')) {
-        counts['wait']--;
-      }
-    }
-
-    if (counts['paused'] > 0) {
-      if (await this.hasDelayedMarker('paused')) {
-        counts['paused']--;
-      }
-    }
 
     return counts;
+  }
+
+  /**
+   * Get current job state.
+   *
+   * @returns Returns one of these values:
+   * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
+   */
+  getJobState(jobId: string): Promise<JobState | 'unknown'> {
+    return this.scripts.getState(jobId);
   }
 
   /**
@@ -218,10 +188,9 @@ export class QueueGetters<
 
   /**
    * Returns the jobs that are in the "waiting" status.
-   * @param start zero based index from where to start returning jobs.
-   * @param end zeroo based index where to stop returning jobs.
-
-  */
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
+   */
   getWaiting(
     start = 0,
     end = -1,
@@ -231,8 +200,8 @@ export class QueueGetters<
 
   /**
    * Returns the jobs that are in the "waiting" status.
-   * @param start zero based index from where to start returning jobs.
-   * @param end zeroo based index where to stop returning jobs.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
    */
   getWaitingChildren(
     start = 0,
@@ -243,8 +212,8 @@ export class QueueGetters<
 
   /**
    * Returns the jobs that are in the "active" status.
-   * @param start zero based index from where to start returning jobs.
-   * @param end zeroo based index where to stop returning jobs.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
    */
   getActive(
     start = 0,
@@ -255,8 +224,8 @@ export class QueueGetters<
 
   /**
    * Returns the jobs that are in the "delayed" status.
-   * @param start zero based index from where to start returning jobs.
-   * @param end zeroo based index where to stop returning jobs.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
    */
   getDelayed(
     start = 0,
@@ -267,8 +236,8 @@ export class QueueGetters<
 
   /**
    * Returns the jobs that are in the "completed" status.
-   * @param start zero based index from where to start returning jobs.
-   * @param end zeroo based index where to stop returning jobs.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
    */
   getCompleted(
     start = 0,
@@ -279,8 +248,8 @@ export class QueueGetters<
 
   /**
    * Returns the jobs that are in the "failed" status.
-   * @param start zero based index from where to start returning jobs.
-   * @param end zeroo based index where to stop returning jobs.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
    */
   getFailed(
     start = 0,
@@ -295,36 +264,25 @@ export class QueueGetters<
     end = 1,
     asc = false,
   ): Promise<string[]> {
-    const client = await this.client;
-    const multi = client.multi();
     const multiCommands: string[] = [];
 
     this.commandByType(types, false, (key, command) => {
       switch (command) {
         case 'lrange':
           multiCommands.push('lrange');
-          if (asc) {
-            multi.lrange(key, -(end + 1), -(start + 1));
-          } else {
-            multi.lrange(key, start, end);
-          }
           break;
         case 'zrange':
           multiCommands.push('zrange');
-          if (asc) {
-            multi.zrange(key, start, end);
-          } else {
-            multi.zrevrange(key, start, end);
-          }
           break;
       }
     });
 
-    const responses = await multi.exec();
+    const responses = await this.scripts.getRanges(types, start, end, asc);
+
     let results: string[] = [];
 
-    responses.forEach((response: any[], index: number) => {
-      const result = response[1] || [];
+    responses.forEach((response: string[], index: number) => {
+      const result = response || [];
 
       if (asc && multiCommands[index] === 'lrange') {
         results = results.concat(result.reverse());
@@ -338,10 +296,10 @@ export class QueueGetters<
 
   /**
    * Returns the jobs that are on the given statuses (note that JobType is synonym for job status)
-   * @param types the statuses of the jobs to return.
-   * @param start zero based index from where to start returning jobs.
-   * @param end zeroo based index where to stop returning jobs.
-   * @param asc if true, the jobs will be returned in ascending order.
+   * @param types - the statuses of the jobs to return.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
+   * @param asc - if true, the jobs will be returned in ascending order.
    */
   async getJobs(
     types?: JobType[] | JobType,
@@ -365,10 +323,10 @@ export class QueueGetters<
 
   /**
    * Returns the logs for a given Job.
-   * @param jobId the id of the job to get the logs for.
-   * @param start zero based index from where to start returning jobs.
-   * @param end zeroo based index where to stop returning jobs.
-   * @param asc if true, the jobs will be returned in ascending order.
+   * @param jobId - the id of the job to get the logs for.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
+   * @param asc - if true, the jobs will be returned in ascending order.
    */
   async getJobLogs(
     jobId: string,
@@ -416,6 +374,7 @@ export class QueueGetters<
   /**
    * Get the worker list related to the queue. i.e. all the known
    * workers that are available to process jobs for this queue.
+   * Note: GCP does not support SETNAME, so this call will not work
    *
    * @returns - Returns an array with workers info.
    */
@@ -428,20 +387,8 @@ export class QueueGetters<
   }
 
   /**
-   * Get queue schedulers list related to the queue.
-   *
-   * @returns - Returns an array with queue schedulers info.
-   */
-  async getQueueSchedulers(): Promise<
-    {
-      [index: string]: string;
-    }[]
-  > {
-    return this.baseGetClients(QUEUE_SCHEDULER_SUFFIX);
-  }
-
-  /**
    * Get queue events list related to the queue.
+   * Note: GCP does not support SETNAME, so this call will not work
    *
    * @returns - Returns an array with queue events info.
    */

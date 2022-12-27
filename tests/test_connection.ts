@@ -19,6 +19,33 @@ describe('connection', () => {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
+  describe('prefix', () => {
+    it('should throw exception if using prefix with ioredis', async () => {
+      const connection = new IORedis({
+        keyPrefix: 'bullmq',
+      });
+
+      expect(() => new QueueBase(queueName, { connection })).to.throw(
+        'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
+      );
+      await connection.disconnect();
+    });
+
+    it('should throw exception if using prefix with ioredis in cluster mode', async () => {
+      const connection = new IORedis.Cluster(
+        [{ host: '10.0.6.161', port: 7379 }],
+        {
+          keyPrefix: 'bullmq',
+        },
+      );
+
+      expect(() => new QueueBase(queueName, { connection })).to.throw(
+        'BullMQ: ioredis does not support ioredis prefixes, use the prefix option instead.',
+      );
+      await connection.disconnect();
+    });
+  });
+
   describe('blocking', () => {
     it('should override maxRetriesPerRequest: null as redis options', async () => {
       const queue = new QueueBase(queueName, {
@@ -68,6 +95,14 @@ describe('connection', () => {
         'Eviction policy is volatile-lru. It should be "noeviction"',
       );
       await client.config('SET', 'maxmemory-policy', 'noeviction');
+    });
+  });
+
+  describe('when instantiating with a clustered ioredis connection', () => {
+    it('should not fail when using dsn strings', async () => {
+      const connection = new IORedis.Cluster(['redis://10.0.6.161:7379']);
+      const myQueue = new Queue('myqueue', { connection });
+      connection.disconnect();
     });
   });
 

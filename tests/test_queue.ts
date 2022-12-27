@@ -96,6 +96,17 @@ describe('queues', function () {
     await removeAllQueueData(new IORedis(), queueName);
   });
 
+  //TODO: restore this tests in next breaking change
+  describe.skip('.add', () => {
+    describe('when jobId is provided as integer', () => {
+      it('throws error', async function () {
+        await expect(
+          queue.add('test', { foo: 1 }, { jobId: '2' }),
+        ).to.be.rejectedWith('Custom Ids cannot be integers');
+      });
+    });
+  });
+
   describe('.drain', () => {
     it('count added, unprocessed jobs', async () => {
       const maxJobs = 100;

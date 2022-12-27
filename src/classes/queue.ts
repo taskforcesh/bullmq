@@ -202,6 +202,10 @@ export class Queue<
     } else {
       const jobId = opts?.jobId;
 
+      if (jobId == '0' || jobId?.startsWith('0:')) {
+        throw new Error("JobId cannot be '0' or start with 0:");
+      }
+
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this,
         name,
@@ -309,9 +313,9 @@ export class Queue<
    *
    * @see removeRepeatableByKey
    *
-   * @param name
-   * @param repeatOpts
-   * @param jobId
+   * @param name -
+   * @param repeatOpts -
+   * @param jobId -
    * @returns
    */
   async removeRepeatable(
@@ -330,10 +334,9 @@ export class Queue<
    * to store the repeatable job metadata and not one of the job iterations
    * themselves. You can use "getRepeatableJobs" in order to get the keys.
    *
-   *
    * @see getRepeatableJobs
    *
-   * @param key to the repeatable job.
+   * @param key - to the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {

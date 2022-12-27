@@ -26,3 +26,29 @@ const worker = new WorkerPro('myQueue', processFn, {
 });
 ```
 
+### Manual rate-limit
+
+Sometimes is useful to rate-limit a group manually instead of based on some static options. For example, if you have an API that returns 429 (Too many requests), and you want to rate-limit the group based on that response.
+
+For this purpose, you can use the worker method **rateLimitGroup** like this:
+
+```typescript
+import { WorkerPro } from '@taskforcesh/bullmq-pro';
+
+const worker = new WorkerPro(
+  'myQueue',
+  async job => {
+    const groupId = job.opts.group.id;
+    const [isRateLimited, duration] = await doExternalCall(groupId);
+    if (isRateLimited) {
+      await worker.rateLimitGroup(job, duration);
+      // Do not forget to throw this special exception,
+      // since the job is no longer active after being rate limited.
+      throw Worker.RateLimitError();
+    }
+  },
+  {
+    connection,
+  },
+);
+```

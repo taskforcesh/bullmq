@@ -1,5 +1,5 @@
 import { ChainableCommander } from 'ioredis';
-import { fromPairs, invert } from 'lodash';
+import { invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -21,6 +21,7 @@ import {
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
+  parseObjectValues,
   tryCatch,
 } from '../utils';
 import { QueueEvents } from './queue-events';
@@ -610,6 +611,13 @@ export class Job<
     }
 
     const results = await multi.exec();
+    const anyError = results.find(result => result[0]);
+    if (anyError) {
+      throw new Error(
+        `Error "moveToFailed" with command ${command}: ${anyError}`,
+      );
+    }
+
     const code = results[results.length - 1][1] as number;
     if (code < 0) {
       throw this.scripts.finishedErrors(code, this.id, command, 'active');
@@ -715,12 +723,10 @@ export class Job<
 
     const result = (await client.hgetall(
       this.toKey(`${this.id}:processed`),
-    )) as Object;
+    )) as { [jobKey: string]: string };
 
     if (result) {
-      return fromPairs(
-        Object.entries(result).map(([k, v]) => [k, JSON.parse(v)]),
-      );
+      return parseObjectValues(result);
     }
   }
 
@@ -746,13 +752,7 @@ export class Job<
         [null | Error, string[]],
       ];
 
-      const transformedProcessed = Object.entries(processed).reduce(
-        (accumulator: Record<string, any>, [key, value]) => {
-          accumulator[key] = JSON.parse(value);
-          return accumulator;
-        },
-        {},
-      );
+      const transformedProcessed = parseObjectValues(processed);
 
       return { processed: transformedProcessed, unprocessed };
     } else {
@@ -1054,6 +1054,13 @@ export class Job<
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
       throw new Error(`Delay and repeat options could not be used together`);
+    }
+
+    if (`${parseInt(this.id, 10)}` === this.id) {
+      //TODO: throw an error in next breaking change
+      console.warn(
+        'Custom Ids should not be integers: https://github.com/taskforcesh/bullmq/pull/1569',
+      );
     }
 
     return this.scripts.addJob(

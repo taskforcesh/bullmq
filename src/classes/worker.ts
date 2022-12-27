@@ -88,7 +88,7 @@ export interface WorkerListener<
    * This event is triggered when a job has thrown an exception.
    */
   failed: (
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<DataType, ResultType, NameType> | undefined,
     error: Error,
     prev: string,
   ) => void;
@@ -112,6 +112,13 @@ export interface WorkerListener<
     job: Job<DataType, ResultType, NameType>,
     progress: number | object,
   ) => void;
+
+  /**
+   * Listen to 'ready' event.
+   *
+   * This event is triggered when blockingConnection is ready.
+   */
+  ready: () => void;
 
   /**
    * Listen to 'resumed' event.
@@ -162,9 +169,12 @@ export class Worker<
 
   private blockingConnection: RedisConnection;
 
-  private processing: Set<Promise<void | Job<DataType, ResultType, NameType>>>;
+  private processing: Map<
+    Promise<void | Job<DataType, ResultType, NameType>>,
+    string
+  >;
 
-  static RateLimitError() {
+  static RateLimitError(): Error {
     return new Error(RATE_LIMIT_ERROR);
   }
 
@@ -204,13 +214,6 @@ export class Worker<
 
     this.id = v4();
 
-    this.blockingConnection = new RedisConnection(
-      isRedisInstance(opts.connection)
-        ? (<Redis>opts.connection).duplicate()
-        : opts.connection,
-    );
-    this.blockingConnection.on('error', error => this.emit('error', error));
-
     if (processor) {
       if (typeof processor === 'function') {
         this.processFn = processor;
@@ -245,6 +248,25 @@ export class Worker<
         this.run().catch(error => this.emit('error', error));
       }
     }
+
+    this.blockingConnection = new RedisConnection(
+      isRedisInstance(opts.connection)
+        ? (<Redis>opts.connection).duplicate()
+        : opts.connection,
+    );
+    this.blockingConnection.on('error', error => this.emit('error', error));
+
+    this.blockingConnection.on('ready', async () => {
+      try {
+        const client = await this.blockingConnection.client;
+        await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
+      } catch (error) {
+        if (!clientCommandMessageReg.test((<Error>error).message)) {
+          this.emit('error', <Error>error);
+        }
+      }
+      this.emit('ready');
+    });
   }
 
   emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
@@ -330,35 +352,29 @@ export class Worker<
       if (!this.running) {
         try {
           this.running = true;
-          const client = await this.blockingConnection.client;
 
           if (this.closing) {
             return;
           }
 
-          try {
-            await client.client('SETNAME', this.clientName(WORKER_SUFFIX));
-          } catch (err) {
-            if (!clientCommandMessageReg.test((<Error>err).message)) {
-              throw err;
-            }
-          }
-
           this.runStalledJobsCheck();
 
-          const processing = (this.processing = new Set());
-          const token = v4();
+          const processing = (this.processing = new Map());
+          let tokenPostfix = 0;
 
           while (!this.closing) {
             if (
+              !this.waiting &&
               processing.size < this.opts.concurrency &&
               (!this.limitUntil || processing.size == 0)
             ) {
-              processing.add(
+              const token = `${this.id}:${tokenPostfix++}`;
+              processing.set(
                 this.retryIfFailed<Job<DataType, ResultType, NameType>>(
                   () => this.getNextJob(token),
                   this.opts.runRetryDelay,
                 ),
+                token,
               );
             }
 
@@ -369,20 +385,24 @@ export class Worker<
             const completedIdx = await Promise.race(
               promises.map((p, idx) => p.then(() => idx)),
             );
-
             const completed = promises[completedIdx];
-
-            processing.delete(completed);
-
             const job = await completed;
             if (job) {
-              processing.add(
+              const token = processing.get(completed);
+              processing.set(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () => this.processJob(job, token),
+                  () =>
+                    this.processJob(
+                      job,
+                      token,
+                      () => processing.size <= this.opts.concurrency,
+                    ),
                   this.opts.runRetryDelay,
                 ),
+                token,
               );
             }
+            processing.delete(completed);
           }
           this.running = false;
           return Promise.all([...processing.keys()]);
@@ -436,7 +456,7 @@ export class Worker<
     } else {
       if (this.limitUntil) {
         // TODO: We need to be able to break this delay when we are closing the worker.
-        await delay(this.limitUntil);
+        await this.delay(this.limitUntil);
       }
       return this.moveToActive(token);
     }
@@ -445,9 +465,9 @@ export class Worker<
   /**
    * Overrides the rate limit to be active for the next jobs.
    *
-   * @param expireTimeMs expire time in ms of this rate limit.
+   * @param expireTimeMs - expire time in ms of this rate limit.
    */
-  async rateLimit(expireTimeMs: number) {
+  async rateLimit(expireTimeMs: number): Promise<void> {
     await this.client.then(client =>
       client.set(
         this.keys.limiter,
@@ -462,22 +482,28 @@ export class Worker<
     token: string,
     jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
+    // If we get the special delayed job ID, we pick the delay as the next
+    // block timeout.
+    if (jobId && jobId.startsWith('0:')) {
+      this.blockTimeout = parseInt(jobId.split(':')[1]);
+      return;
+    }
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(token, jobId);
     return this.nextJobFromJobData(jobData, id, limitUntil, delayUntil);
   }
 
   private async waitForJob() {
-    const client = await this.blockingConnection.client;
-
+    // I am not sure returning here this quick is a good idea, the main
+    // loop could stay looping at a very high speed and consume all CPU time.
     if (this.paused) {
       return;
     }
 
-    let jobId;
-    const opts: WorkerOptions = <WorkerOptions>this.opts;
-
     try {
+      const client = await this.blockingConnection.client;
+      const opts: WorkerOptions = <WorkerOptions>this.opts;
+
       this.waiting = true;
 
       let blockTimeout = Math.max(
@@ -491,11 +517,12 @@ export class Worker<
           ? Math.ceil(blockTimeout)
           : blockTimeout;
 
-      jobId = await client.brpoplpush(
+      const jobId = await client.brpoplpush(
         this.keys.wait,
         this.keys.active,
         blockTimeout,
       );
+      return jobId;
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
@@ -506,15 +533,14 @@ export class Worker<
     } finally {
       this.waiting = false;
     }
-    return jobId;
   }
 
   /**
    *
    * This function is exposed only for testing purposes.
    */
-  async delay(): Promise<void> {
-    await delay(DELAY_TIME_1);
+  async delay(milliseconds?: number): Promise<void> {
+    await delay(milliseconds || DELAY_TIME_1);
   }
 
   protected async nextJobFromJobData(
@@ -548,6 +574,7 @@ export class Worker<
   async processJob(
     job: Job<DataType, ResultType, NameType>,
     token: string,
+    fetchNextCallback = () => true,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -596,7 +623,7 @@ export class Worker<
         const completed = await job.moveToCompleted(
           result,
           token,
-          !(this.closing || this.paused),
+          fetchNextCallback() && !(this.closing || this.paused),
         );
         if (!job.autoComplete) {
           this.emit('completed', job, result, 'active');
@@ -610,7 +637,7 @@ export class Worker<
       if (!this.connection.closing) {
         try {
           if (err.message == RATE_LIMIT_ERROR) {
-            this.limitUntil = await this.moveLimitedBackToWait(job);
+            this.limitUntil = await this.moveLimitedBackToWait(job, token);
             return;
           }
 
@@ -764,7 +791,7 @@ export class Worker<
       } catch (err) {
         this.emit('error', <Error>err);
         if (delayInMs) {
-          await delay(delayInMs);
+          await this.delay(delayInMs);
         } else {
           return;
         }
@@ -820,13 +847,15 @@ export class Worker<
 
   private async moveLimitedBackToWait(
     job: Job<DataType, ResultType, NameType>,
+    token: string,
   ) {
     const multi = (await this.client).multi();
     multi.pttl(this.keys.limiter);
-    multi.lrem(this.keys.active, 1, job.id);
-    multi.rpush(this.keys.wait, job.id);
-    multi.del(`${this.toKey(job.id)}:lock`);
-    const [[err, limitUntil]] = await multi.exec();
-    return <number>limitUntil;
+    this.scripts.moveJobFromActiveToWait(multi, job.id, token);
+    const [[err1, limitUntil], [err2]] = await multi.exec();
+    if (err1 || err2) {
+      throw err1 || err2;
+    }
+    return parseInt(limitUntil as string) || 0;
   }
 }

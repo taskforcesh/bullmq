@@ -22,6 +22,7 @@ import {
 } from '../interfaces';
 import {
   JobState,
+  JobType,
   FinishedStatus,
   FinishedPropValAttribute,
   RedisJobOptions,
@@ -30,6 +31,7 @@ import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { QueueBase } from './queue-base';
 import { Job, MoveToWaitingChildrenOpts } from './job';
+import { ChainableCommander } from 'ioredis';
 
 export type MinimalQueue = Pick<
   QueueBase,
@@ -290,8 +292,6 @@ export class Scripts {
         keepJobs,
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
-        parent: job.opts?.parent,
-        parentKey: job.parentKey,
         attempts: job.opts.attempts,
         attemptsMade: job.attemptsMade,
         maxMetricsSize: opts.metrics?.maxDataPoints
@@ -395,6 +395,56 @@ export class Scripts {
     return (<any>client).drain(args);
   }
 
+  private getRangesArgs(
+    types: JobType[],
+    start: number,
+    end: number,
+    asc: boolean,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+    const transformedTypes = types.map(type => {
+      return type === 'waiting' ? 'wait' : type;
+    });
+
+    const keys: (string | number)[] = [queueKeys['']];
+
+    const args = [start, end, asc ? '1' : '0', ...transformedTypes];
+
+    return keys.concat(args);
+  }
+
+  async getRanges(
+    types: JobType[],
+    start = 0,
+    end = 1,
+    asc = false,
+  ): Promise<[string][]> {
+    const client = await this.queue.client;
+    const args = this.getRangesArgs(types, start, end, asc);
+
+    return (<any>client).getRanges(args);
+  }
+
+  private getCountsArgs(types: JobType[]): (string | number)[] {
+    const queueKeys = this.queue.keys;
+    const transformedTypes = types.map(type => {
+      return type === 'waiting' ? 'wait' : type;
+    });
+
+    const keys: (string | number)[] = [queueKeys['']];
+
+    const args = [...transformedTypes];
+
+    return keys.concat(args);
+  }
+
+  async getCounts(types: JobType[]): Promise<number[]> {
+    const client = await this.queue.client;
+    const args = this.getCountsArgs(types);
+
+    return (<any>client).getCounts(args);
+  }
+
   moveToCompleted<T = any, R = any, N extends string = string>(
     job: Job<T, R, N>,
     returnvalue: R,
@@ -496,7 +546,7 @@ export class Scripts {
     const keys: (string | number)[] = ['delayed', jobId].map(name => {
       return this.queue.toKey(name);
     });
-    keys.push.apply(keys, [this.queue.keys.events, this.queue.keys.delay]);
+    keys.push.apply(keys, [this.queue.keys.events]);
 
     return keys.concat([delay, JSON.stringify(timestamp), jobId]);
   }
@@ -831,6 +881,34 @@ export class Scripts {
       opts.stalledInterval,
     ];
     return (<any>client).moveStalledJobsToWait(keys.concat(args));
+  }
+
+  /**
+   * Moves a job back from Active to Wait.
+   * This script is used when a job has been manually rate limited and needs
+   * to be moved back to wait from active status.
+   *
+   * @param client - Redis client
+   * @param jobId - Job id
+   * @returns
+   */
+  moveJobFromActiveToWait(
+    client: ChainableCommander,
+    jobId: string,
+    token: string,
+  ) {
+    const lockKey = `${this.queue.toKey(jobId)}:lock`;
+
+    const keys = [
+      this.queue.keys.active,
+      this.queue.keys.wait,
+      this.queue.keys.stalled,
+      lockKey,
+    ];
+
+    const args = [jobId, token];
+
+    return (<any>client).moveJobFromActiveToWait(keys.concat(args));
   }
 
   async obliterate(opts: { force: boolean; count: number }): Promise<number> {

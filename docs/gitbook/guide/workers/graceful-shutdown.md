@@ -6,6 +6,10 @@ BullMQ supports graceful shutdowns of the workers. This is important so that we 
 In order for stalled jobs to be picked up by other workers you need to have a [QueueScheduler](https://docs.bullmq.io/guide/queuescheduler) class running in the system.
 {% endhint %}
 
+{% hint style="danger" %}
+From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore, so the information below is only valid for older versions.
+{% endhint %}
+
 In order to perform a shutdown just call the _**close**_ method:
 
 ```typescript

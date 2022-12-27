@@ -809,6 +809,7 @@ describe('flows', () => {
   describe('when continually adding jobs', async () => {
     it('adds jobs that do not exists', async () => {
       const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
         connection,
       });
 
@@ -855,6 +856,8 @@ describe('flows', () => {
         ],
       });
 
+      worker.run();
+
       await completing1;
 
       const completing2 = new Promise<void>(resolve => {
@@ -883,6 +886,69 @@ describe('flows', () => {
       });
 
       await completing2;
+
+      const state = await tree.job.getState();
+
+      expect(state).to.be.equal('completed');
+
+      await flow.close();
+    });
+
+    it('processes parent jobs added while a child job is active', async function () {
+      this.timeout(10_000);
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await new Promise(s => {
+            setTimeout(s, 1_000);
+          });
+        },
+        {
+          connection,
+        },
+      );
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', (job: Job) => {
+          if (job.id === 'tue') {
+            resolve();
+          }
+        });
+      });
+
+      const flow = new FlowProducer({ connection });
+      await flow.add({
+        queueName,
+        name: 'mon',
+        opts: {
+          jobId: 'mon',
+        },
+        children: [],
+      });
+
+      await new Promise(s => {
+        setTimeout(s, 500);
+      });
+
+      const tree = await flow.add({
+        queueName,
+        name: 'tue',
+        opts: {
+          jobId: 'tue',
+        },
+        children: [
+          {
+            name: 'mon',
+            queueName,
+            opts: {
+              jobId: 'mon',
+            },
+          },
+        ],
+      });
+
+      await completing;
 
       const state = await tree.job.getState();
 
@@ -1731,7 +1797,7 @@ describe('flows', () => {
       { idx: 2, qux: 'something' },
     ];
 
-    const topQueueName = 'top-queue';
+    const topQueueName = `top-queue-${v4()}`;
 
     let childrenProcessor,
       parentProcessor,
@@ -1850,6 +1916,99 @@ describe('flows', () => {
     await flow.close();
 
     await removeAllQueueData(new IORedis(), topQueueName);
+  });
+
+  describe('when parent has delay', () => {
+    it('moves process to delayed after children are processed', async () => {
+      const name = 'child-job';
+      const values = [{ idx: 0, bar: 'something' }];
+
+      const topQueueName = `top-queue-${v4()}`;
+
+      let parentProcessor;
+      const childrenWorker = new Worker(
+        queueName,
+        async (job: Job) => {
+          await delay(500);
+          return values[job.data.idx];
+        },
+        {
+          connection,
+        },
+      );
+
+      const completed = new Promise<void>((resolve, reject) => {
+        childrenWorker.on('completed', async function () {
+          resolve();
+        });
+      });
+
+      const processingTop = new Promise<void>((resolve, reject) => [
+        (parentProcessor = async (job: Job) => {
+          try {
+            const { processed } = await job.getDependencies();
+            expect(Object.keys(processed)).to.have.length(1);
+
+            const childrenValues = await job.getChildrenValues();
+
+            const jobKey = queue.toKey(tree.children[0].job.id);
+            expect(childrenValues[jobKey]).to.be.deep.equal(values[0]);
+            expect(processed[jobKey]).to.be.deep.equal(values[0]);
+
+            resolve();
+          } catch (err) {
+            console.error(err);
+            reject(err);
+          }
+        }),
+      ]);
+
+      const parentWorker = new Worker(topQueueName, parentProcessor, {
+        connection,
+      });
+
+      const flow = new FlowProducer({ connection });
+      const tree = await flow.add({
+        name: 'root-job',
+        queueName: topQueueName,
+        data: {},
+        children: [
+          {
+            name,
+            data: { idx: 0, foo: 'bar' },
+            queueName,
+          },
+        ],
+        opts: {
+          delay: 3000,
+        },
+      });
+
+      expect(tree).to.have.property('job');
+      expect(tree).to.have.property('children');
+
+      const { children, job } = tree;
+      const isWaitingChildren = await job.isWaitingChildren();
+
+      expect(isWaitingChildren).to.be.true;
+      expect(children).to.have.length(1);
+
+      expect(children[0].job.id).to.be.ok;
+      expect(children[0].job.data.foo).to.be.eql('bar');
+
+      await completed;
+      await childrenWorker.close();
+
+      const isDelayed = await job.isDelayed();
+
+      expect(isDelayed).to.be.true;
+      await processingTop;
+      await parentWorker.close();
+
+      await flow.close();
+
+      await removeAllQueueData(new IORedis(), topQueueName);
+    });
   });
 
   it('should not process parent if child fails', async () => {
@@ -2411,10 +2570,6 @@ describe('flows', () => {
       // are moved to the wait status correctly
       const parentQueue = new Queue(parentQueueName, { connection });
 
-      await removeChildJob(tree.children[0].children[0]);
-      await removeChildJob(tree.children[0]);
-      await removeChildJob(tree);
-
       async function removeChildJob(node: JobNode) {
         expect(await node.job.getState()).to.be.equal('waiting-children');
 
@@ -2422,6 +2577,10 @@ describe('flows', () => {
 
         expect(await node.job.getState()).to.be.equal('waiting');
       }
+
+      await removeChildJob(tree.children[0].children[0]);
+      await removeChildJob(tree.children[0]);
+      await removeChildJob(tree);
 
       await flow.close();
       await parentQueue.close();

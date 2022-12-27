@@ -10,11 +10,10 @@ The simplest option is to set removeOnComplete/Fail to "true", in this case, all
 
 ```typescript
 await myQueue.add(
-  "test",
-  { foo: "bar" },
-  { removeOnComplete: true, removeOnFail: true }
+  'test',
+  { foo: 'bar' },
+  { removeOnComplete: true, removeOnFail: true },
 );
-
 ```
 
 ### Keep a certain number of jobs
@@ -23,9 +22,9 @@ It is also possible to specify a maximum number of jobs to keep. A good practice
 
 ```typescript
 await myQueue.add(
-  "test",
-  { foo: "bar" },
-  { removeOnComplete: 1000, removeOnFail: 5000 }
+  'test',
+  { foo: 'bar' },
+  { removeOnComplete: 1000, removeOnFail: 5000 },
 );
 ```
 
@@ -35,8 +34,8 @@ Another possibility is to keep jobs up to a certain age. The "removeOn" option a
 
 ```typescript
 await myQueue.add(
-  "test",
-  { foo: "bar" },
+  'test',
+  { foo: 'bar' },
   {
     removeOnComplete: {
       age: 3600, // keep up to 1 hour
@@ -45,9 +44,8 @@ await myQueue.add(
     removeOnFail: {
       age: 24 * 3600, // keep up to 24 hours
     },
-  }
+  },
 );
-
 ```
 
 {% hint style="info" %}
@@ -56,5 +54,8 @@ The auto removal of jobs works lazily. This means that jobs are not removed unle
 
 ### What about idempotence?
 
-One of the strategies to implement idempotence with BullMQ is to use unique job ids. When you add a job with an id that exists already in the queue, the new job is ignored. It is important to keep this in mind when activating auto removal of jobs, since a job that has been removed will not be considered part of the queue anymore, and will not affect any future jobs that could have the same Id.
+One of the strategies to implement idempotence with BullMQ is to use unique job ids. When you add a job with an id that exists already in the queue, the new job is ignored and a **duplicated** event is triggered. It is important to keep this in mind when activating auto removal of jobs, since a job that has been removed will not be considered part of the queue anymore, and will not affect any future jobs that could have the same Id.
 
+## Read more:
+
+- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/QueueEventsListener.html#duplicated)
