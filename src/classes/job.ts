@@ -964,8 +964,8 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  async moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    await this.scripts.moveToDelayed(this.id, timestamp, token);
+  moveToDelayed(timestamp: number, token?: string): Promise<void> {
+    return this.scripts.moveToDelayed(this.id, timestamp, token);
   }
 
   /**
@@ -975,16 +975,11 @@ export class Job<
    * @param opts - The options bag for moving a job to waiting-children.
    * @returns true if the job was moved
    */
-  async moveToWaitingChildren(
+  moveToWaitingChildren(
     token: string,
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
-    const isWaitingChildren = await this.scripts.moveToWaitingChildren(
-      this.id,
-      token,
-      opts,
-    );
-    return isWaitingChildren;
+    return this.scripts.moveToWaitingChildren(this.id, token, opts);
   }
 
   /**
