@@ -450,6 +450,15 @@ export class Job<
   }
 
   /**
+   * Clears job's log
+   */
+  async clearLog(): Promise<void> {
+    const client = await this.queue.client;
+    const logsKey = this.toKey(this.id) + ':logs';
+    await client.del(logsKey);
+  }
+
+  /**
    * Completely remove the job from the queue.
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.

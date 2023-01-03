@@ -355,6 +355,23 @@ describe('Job', function () {
       const logsRemoved = await queue.getJobLogs(job.id);
       expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
     });
+
+    it('can clear the log', async () => {
+      const firstLog = 'some log text 1';
+      const secondLog = 'some log text 2';
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await job.log(firstLog);
+      await job.log(secondLog);
+      const logs = await queue.getJobLogs(job.id);
+      expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
+
+      await job.clearLog();
+
+      const logsRemoved = await queue.getJobLogs(job.id);
+      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
+    });
   });
 
   describe('.moveToCompleted', function () {
