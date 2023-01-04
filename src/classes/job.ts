@@ -793,22 +793,15 @@ export class Job<
           : result1[1]
         : [];
 
-      const transformedProcessed = processed.reduce(
-        (
-          accumulator: Record<string, any>,
-          currentValue: string,
-          index: number,
-        ) => {
-          if (index % 2) {
-            return {
-              ...accumulator,
-              [processed[index - 1]]: JSON.parse(currentValue),
-            };
-          }
-          return accumulator;
-        },
-        {},
-      );
+      const transformedProcessed: Record<string, any> = {};
+
+      for (let index = 0; index < processed.length; ++index) {
+        if (index % 2) {
+          transformedProcessed[processed[index - 1]] = JSON.parse(
+            processed[index],
+          );
+        }
+      }
 
       return {
         ...(processedCursor
