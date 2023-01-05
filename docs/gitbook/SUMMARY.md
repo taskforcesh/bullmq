@@ -39,6 +39,7 @@
 * [Events](guide/events.md)
 * [QueueScheduler](guide/queuescheduler.md)
 * [Architecture](guide/architecture.md)
+* [NestJs](guide/nestjs.md)
 
 ## Patterns
 
