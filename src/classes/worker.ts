@@ -486,7 +486,6 @@ export class Worker<
     // block timeout.
     if (jobId && jobId.startsWith('0:')) {
       this.blockTimeout = parseInt(jobId.split(':')[1]);
-      return;
     }
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(token, jobId);

@@ -122,7 +122,6 @@ describe('Delayed jobs', function () {
           const delayedJobs = await queue.getDelayed();
           expect(delayedJobs.length).to.be.equal(1);
           expect(publishHappened).to.be.eql(true);
-          await worker.close();
           resolve();
         } catch (err) {
           reject(err);
@@ -147,6 +146,10 @@ describe('Delayed jobs', function () {
 
     await delayed;
     await completed;
+
+    const count = await queue.getJobCountByTypes('active');
+    expect(count).to.be.equal(0);
+
     await queueEvents.close();
     await worker.close();
   });
