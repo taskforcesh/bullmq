@@ -6,20 +6,26 @@
 ]]
 
 local function removeJobFromAnyState( prefix, jobId)
-  if rcall("LREM", prefix .. "wait", 0, jobId) == 1 then
-    return "wait"
-  elseif rcall("LREM", prefix .. "paused", 0, jobId) == 1 then
-    return "paused"
-  elseif rcall("LREM", prefix .. "active", 0, jobId) == 1 then
-    return "active"
-  elseif rcall("ZREM", prefix .. "waiting-children", jobId) == 1 then
-    return "waiting-children"
-  elseif rcall("ZREM", prefix .. "delayed", jobId) == 1 then
-    return "delayed"
-  elseif rcall("ZREM", prefix .. "completed", jobId) == 1 then
+  -- We start with the ZSCORE checks, since they have O(1) complexity
+  if rcall("ZSCORE", prefix .. "completed", jobId) then
+    rcall("ZREM", prefix .. "completed", jobId)
     return "completed"
-  elseif rcall("ZREM", prefix .. "failed", jobId) == 1 then
+  elseif rcall("ZSCORE", prefix .. "waiting-children", jobId) then
+    rcall("ZREM", prefix .. "waiting-children", jobId)
+    return "waiting-children"
+  elseif rcall("ZSCORE", prefix .. "delayed", jobId) then
+    rcall("ZREM", prefix .. "delayed", jobId)
+    return "delayed"
+  elseif rcall("ZSCORE", prefix .. "failed", jobId) then
+    rcall("ZREM", prefix .. "failed", jobId)
     return "failed"
+  -- We remove only 1 element from the list, since we assume they are not added multiple times
+  elseif rcall("LREM", prefix .. "wait", 1, jobId) == 1 then
+    return "wait"
+  elseif rcall("LREM", prefix .. "paused", 1, jobId) == 1 then
+    return "paused"
+  elseif rcall("LREM", prefix .. "active", 1, jobId) == 1 then
+    return "active"
   end
 
   return "unknown"
