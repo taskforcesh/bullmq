@@ -6,11 +6,11 @@ import {
   GetNextJobOptions,
   IoredisListener,
   JobJsonRaw,
-  MinimalQueue,
   Processor,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
+import { MinimalQueue } from '../types';
 import {
   clientCommandMessageReg,
   delay,

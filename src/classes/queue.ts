@@ -4,11 +4,10 @@ import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
-  MinimalQueue,
   QueueOptions,
   RepeatOptions,
 } from '../interfaces';
-import { FinishedStatus, JobsOptions } from '../types';
+import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
 import { isRedisInstance } from '../utils';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';

@@ -17,7 +17,6 @@ import {
   JobJson,
   JobJsonRaw,
   JobImplementation,
-  MinimalQueue,
   MoveToWaitingChildrenOpts,
   ParentOpts,
   RedisClient,
@@ -29,6 +28,7 @@ import {
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
+  MinimalQueue,
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';

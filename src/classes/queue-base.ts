@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, MinimalQueue, RedisClient } from '../interfaces';
+import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { MinimalQueue } from '../types';
 import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';

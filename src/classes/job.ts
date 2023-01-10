@@ -8,7 +8,6 @@ import {
   JobJson,
   JobJsonRaw,
   JobImplementation,
-  MinimalQueue,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
@@ -20,6 +19,7 @@ import {
   JobsOptions,
   JobState,
   JobJsonSandbox,
+  MinimalQueue,
   RedisJobOptions,
 } from '../types';
 import {
