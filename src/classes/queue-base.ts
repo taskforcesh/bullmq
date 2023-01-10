@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { MinimalQueue } from '../types';
 import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
@@ -14,7 +15,7 @@ import { Scripts } from './scripts';
  * This class is normally not used directly, but extended by the other classes.
  *
  */
-export class QueueBase extends EventEmitter {
+export class QueueBase extends EventEmitter implements MinimalQueue {
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void>;

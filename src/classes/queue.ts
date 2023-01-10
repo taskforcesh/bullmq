@@ -2,13 +2,14 @@ import { get } from 'lodash';
 import { v4 } from 'uuid';
 import {
   BaseJobOptions,
+  BulkJobOptions,
   IoredisListener,
   QueueOptions,
   RepeatOptions,
 } from '../interfaces';
-import { FinishedStatus, JobsOptions } from '../types';
+import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
 import { isRedisInstance } from '../utils';
-import { BulkJobOptions, Job } from './job';
+import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
@@ -207,7 +208,7 @@ export class Queue<
       }
 
       const job = await this.Job.create<DataType, ResultType, NameType>(
-        this,
+        this as MinimalQueue,
         name,
         data,
         {
@@ -232,7 +233,7 @@ export class Queue<
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
   ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.Job.createBulk<DataType, ResultType, NameType>(
-      this,
+      this as MinimalQueue,
       jobs.map(job => ({
         name: job.name,
         data: job.data,

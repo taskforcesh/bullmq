@@ -10,6 +10,7 @@ export * from './job-json';
 export * from './keep-jobs';
 export * from './metrics-options';
 export * from './metrics';
+export * from './minimal-job';
 export * from './parent-command';
 export * from './parent-message';
 export * from './parent';

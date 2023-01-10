@@ -44,6 +44,7 @@
     "test": "ts-mocha -p tsconfig-cjs.json --config ./.mocharc.js",
     "test:watch": "ts-mocha -p tsconfig-cjs.json --paths 'tests/test_*.ts' -w --watch-extensions ts",
     "tsc": "tsc",
+    "circular:references": "madge --circular --extensions ts ./src",
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
@@ -93,6 +94,7 @@
     "husky": "^8.0.1",
     "istanbul": "^0.4.5",
     "lint-staged": "13.0.3",
+    "madge": "^5.0.1",
     "mocha": "^10.0.0",
     "mocha-lcov-reporter": "^1.3.0",
     "moment": "^2.29.4",
