@@ -7,7 +7,7 @@ import {
   DependenciesOpts,
   JobJson,
   JobJsonRaw,
-  JobImplementation,
+  MinimalJob,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
@@ -56,7 +56,7 @@ export class Job<
   DataType = any,
   ReturnType = any,
   NameType extends string = string,
-> implements JobImplementation<DataType, ReturnType, NameType>
+> implements MinimalJob<DataType, ReturnType, NameType>
 {
   /**
    * The progress a job has performed so far.

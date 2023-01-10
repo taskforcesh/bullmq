@@ -16,7 +16,7 @@ const pack = packer.pack;
 import {
   JobJson,
   JobJsonRaw,
-  JobImplementation,
+  MinimalJob,
   MoveToWaitingChildrenOpts,
   ParentOpts,
   RedisClient,
@@ -187,7 +187,7 @@ export class Scripts {
   }
 
   async updateData<T = any, R = any, N extends string = string>(
-    job: JobImplementation<T, R, N>,
+    job: MinimalJob<T, R, N>,
     data: T,
   ): Promise<void> {
     const client = await this.queue.client;
@@ -203,7 +203,7 @@ export class Scripts {
   }
 
   async updateProgress<T = any, R = any, N extends string = string>(
-    job: JobImplementation<T, R, N>,
+    job: MinimalJob<T, R, N>,
     progress: number | object,
   ): Promise<void> {
     const client = await this.queue.client;
@@ -223,7 +223,7 @@ export class Scripts {
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
-    job: JobImplementation<T, R, N>,
+    job: MinimalJob<T, R, N>,
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
@@ -290,7 +290,7 @@ export class Scripts {
     ReturnType = any,
     NameType extends string = string,
   >(
-    job: JobImplementation<DataType, ReturnType, NameType>,
+    job: MinimalJob<DataType, ReturnType, NameType>,
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
@@ -425,7 +425,7 @@ export class Scripts {
   }
 
   moveToCompleted<T = any, R = any, N extends string = string>(
-    job: JobImplementation<T, R, N>,
+    job: MinimalJob<T, R, N>,
     returnvalue: R,
     removeOnComplete: boolean | number | KeepJobs,
     token: string,
@@ -443,7 +443,7 @@ export class Scripts {
   }
 
   moveToFailedArgs<T = any, R = any, N extends string = string>(
-    job: JobImplementation<T, R, N>,
+    job: MinimalJob<T, R, N>,
     failedReason: string,
     removeOnFailed: boolean | number | KeepJobs,
     token: string,
@@ -745,7 +745,7 @@ export class Scripts {
    * -2 means the job was not found in the expected set
    */
   async reprocessJob<T = any, R = any, N extends string = string>(
-    job: JobImplementation<T, R, N>,
+    job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
   ): Promise<void> {
     const client = await this.queue.client;

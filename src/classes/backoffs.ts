@@ -1,4 +1,4 @@
-import { BackoffOptions, JobImplementation } from '../interfaces';
+import { BackoffOptions, MinimalJob } from '../interfaces';
 import { BackoffStrategy } from '../types';
 
 interface BuiltInStrategies {
@@ -35,7 +35,7 @@ export class Backoffs {
     backoff: BackoffOptions,
     attemptsMade: number,
     err: Error,
-    job: JobImplementation,
+    job: MinimalJob,
     customStrategy?: BackoffStrategy,
   ): Promise<number> | number {
     if (backoff) {

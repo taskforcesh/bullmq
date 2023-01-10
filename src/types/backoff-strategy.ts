@@ -1,8 +1,8 @@
-import { JobImplementation } from '../interfaces/job-implementation';
+import { MinimalJob } from '../interfaces/minimal-job';
 
 export type BackoffStrategy = (
   attemptsMade?: number,
   type?: string,
   err?: Error,
-  job?: JobImplementation,
+  job?: MinimalJob,
 ) => Promise<number> | number;
