@@ -6,6 +6,7 @@ import {
   JobJson,
   JobJsonRaw,
   ParentKeys,
+  ParentOpts,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
@@ -24,38 +25,24 @@ import {
   parseObjectValues,
   tryCatch,
 } from '../utils';
-import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
-import { MinimalQueue, ParentOpts, Scripts, JobData } from './scripts';
+import { Scripts } from './scripts';
 import { UnrecoverableError } from './unrecoverable-error';
+import {
+  JobImplementation,
+  BulkJobOptions,
+  MoveToWaitingChildrenOpts,
+  DependenciesOpts,
+} from '../interfaces/job-implementation';
+import { MinimalQueue } from '../types/minimal-queue';
 
 const logger = debuglog('bull');
-
-export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
 };
 
 const optsEncodeMap = invert(optsDecodeMap);
-
-export interface MoveToWaitingChildrenOpts {
-  child?: {
-    id: string;
-    queue: string;
-  };
-}
-
-export interface DependenciesOpts {
-  processed?: {
-    cursor?: number;
-    count?: number;
-  };
-  unprocessed?: {
-    cursor?: number;
-    count?: number;
-  };
-}
 
 /**
  * Job
@@ -71,7 +58,8 @@ export class Job<
   DataType = any,
   ReturnType = any,
   NameType extends string = string,
-> {
+> implements JobImplementation<DataType, ReturnType, NameType>
+{
   /**
    * The progress a job has performed so far.
    * @defaultValue 0
@@ -875,7 +863,7 @@ export class Job<
    * @param ttl - Time in milliseconds to wait for job to finish before timing out.
    */
   async waitUntilFinished(
-    queueEvents: QueueEvents,
+    queueEvents: MinimalQueue,
     ttl?: number,
   ): Promise<ReturnType> {
     await this.queue.waitUntilReady();

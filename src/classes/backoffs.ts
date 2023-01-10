@@ -1,4 +1,4 @@
-import { Job } from './job';
+import { JobImplementation } from '../interfaces/job-implementation';
 import { BackoffOptions } from '../interfaces/backoff-options';
 import { BackoffStrategy } from '../types';
 
@@ -36,7 +36,7 @@ export class Backoffs {
     backoff: BackoffOptions,
     attemptsMade: number,
     err: Error,
-    job: Job,
+    job: JobImplementation,
     customStrategy?: BackoffStrategy,
   ): Promise<number> | number {
     if (backoff) {

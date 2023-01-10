@@ -1,8 +1,8 @@
-import { Job } from '../classes/job';
+import { JobImplementation } from '../interfaces/job-implementation';
 
 export type BackoffStrategy = (
   attemptsMade?: number,
   type?: string,
   err?: Error,
-  job?: Job,
+  job?: JobImplementation,
 ) => Promise<number> | number;

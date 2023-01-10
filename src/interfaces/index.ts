@@ -7,6 +7,7 @@ export * from './connection';
 export * from './flow-job';
 export * from './ioredis-events';
 export * from './job-json';
+export * from './job-implementation';
 export * from './keep-jobs';
 export * from './metrics-options';
 export * from './metrics';

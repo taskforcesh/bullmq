@@ -5,6 +5,7 @@ import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
+import { MinimalQueue } from '../types/minimal-queue';
 
 /**
  * @class QueueBase
@@ -14,7 +15,7 @@ import { Scripts } from './scripts';
  * This class is normally not used directly, but extended by the other classes.
  *
  */
-export class QueueBase extends EventEmitter {
+export class QueueBase extends EventEmitter implements MinimalQueue {
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void>;
