@@ -4,6 +4,7 @@ import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  MinimalQueue,
   QueueOptions,
   RepeatOptions,
 } from '../interfaces';
@@ -13,7 +14,6 @@ import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
-import { MinimalQueue } from '@src/types/minimal-queue';
 
 export interface ObliterateOpts {
   /**

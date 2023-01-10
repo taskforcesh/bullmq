@@ -11,6 +11,7 @@ export * from './job-implementation';
 export * from './keep-jobs';
 export * from './metrics-options';
 export * from './metrics';
+export * from './minimal-queue';
 export * from './parent-command';
 export * from './parent-message';
 export * from './parent';

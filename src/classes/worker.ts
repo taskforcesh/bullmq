@@ -6,6 +6,7 @@ import {
   GetNextJobOptions,
   IoredisListener,
   JobJsonRaw,
+  MinimalQueue,
   Processor,
   RedisClient,
   WorkerOptions,
@@ -25,7 +26,6 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { TimerManager } from './timer-manager';
-import { MinimalQueue } from '../types/minimal-queue';
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.

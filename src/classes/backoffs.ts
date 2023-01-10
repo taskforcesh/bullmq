@@ -1,5 +1,4 @@
-import { JobImplementation } from '../interfaces/job-implementation';
-import { BackoffOptions } from '../interfaces/backoff-options';
+import { BackoffOptions, JobImplementation } from '../interfaces';
 import { BackoffStrategy } from '../types';
 
 interface BuiltInStrategies {

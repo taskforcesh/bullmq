@@ -3,8 +3,13 @@ import { invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
+  BulkJobOptions,
+  DependenciesOpts,
   JobJson,
   JobJsonRaw,
+  JobImplementation,
+  MinimalQueue,
+  MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
   RedisClient,
@@ -28,13 +33,6 @@ import {
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './unrecoverable-error';
-import {
-  JobImplementation,
-  BulkJobOptions,
-  MoveToWaitingChildrenOpts,
-  DependenciesOpts,
-} from '../interfaces/job-implementation';
-import { MinimalQueue } from '../types/minimal-queue';
 
 const logger = debuglog('bull');
 

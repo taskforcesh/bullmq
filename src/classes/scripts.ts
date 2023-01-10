@@ -16,15 +16,14 @@ const pack = packer.pack;
 import {
   JobJson,
   JobJsonRaw,
+  JobImplementation,
+  MinimalQueue,
+  MoveToWaitingChildrenOpts,
   ParentOpts,
   RedisClient,
   WorkerOptions,
   KeepJobs,
 } from '../interfaces';
-import {
-  JobImplementation,
-  MoveToWaitingChildrenOpts,
-} from '../interfaces/job-implementation';
 import {
   JobState,
   JobType,
@@ -35,7 +34,6 @@ import {
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { ChainableCommander } from 'ioredis';
-import { MinimalQueue } from '../types/minimal-queue';
 
 export type JobData = [JobJsonRaw | number, string?];
 

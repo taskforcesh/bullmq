@@ -1,23 +1,6 @@
-//import { QueueBase } from "../classes/queue-base";
-
-import { QueueBaseOptions } from '../interfaces/queue-options';
-import { RedisClient } from '../interfaces/connection';
 import { KeysMap } from '../classes/queue-keys';
-
-/*export type MinimalQueue = Pick<
-  QueueBase,
-  | 'name'
-  | 'client'
-  | 'toKey'
-  | 'keys'
-  | 'opts'
-  | 'closing'
-  | 'waitUntilReady'
-  | 'removeListener'
-  | 'emit'
-  | 'on'
-  | 'redisVersion'
->;*/
+import { RedisClient } from './connection';
+import { QueueBaseOptions } from './queue-options';
 
 export interface MinimalQueue {
   name: string;

@@ -1,11 +1,10 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { QueueBaseOptions, MinimalQueue, RedisClient } from '../interfaces';
 import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
-import { MinimalQueue } from '../types/minimal-queue';
 
 /**
  * @class QueueBase
