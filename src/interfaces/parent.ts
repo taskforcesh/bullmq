@@ -14,3 +14,9 @@ export interface ParentKeys {
   id: string;
   queueKey: string;
 }
+
+export type ParentOpts = {
+  waitChildrenKey?: string;
+  parentDependenciesKey?: string;
+  parentKey?: string;
+};

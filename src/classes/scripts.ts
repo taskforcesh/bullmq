@@ -16,6 +16,9 @@ const pack = packer.pack;
 import {
   JobJson,
   JobJsonRaw,
+  MinimalJob,
+  MoveToWaitingChildrenOpts,
+  ParentOpts,
   RedisClient,
   WorkerOptions,
   KeepJobs,
@@ -25,34 +28,12 @@ import {
   JobType,
   FinishedStatus,
   FinishedPropValAttribute,
+  MinimalQueue,
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
-import { QueueBase } from './queue-base';
-import { Job, MoveToWaitingChildrenOpts } from './job';
 import { ChainableCommander } from 'ioredis';
-
-export type MinimalQueue = Pick<
-  QueueBase,
-  | 'name'
-  | 'client'
-  | 'toKey'
-  | 'keys'
-  | 'opts'
-  | 'closing'
-  | 'waitUntilReady'
-  | 'removeListener'
-  | 'emit'
-  | 'on'
-  | 'redisVersion'
->;
-
-export type ParentOpts = {
-  waitChildrenKey?: string;
-  parentDependenciesKey?: string;
-  parentKey?: string;
-};
 
 export type JobData = [JobJsonRaw | number, string?];
 
@@ -206,7 +187,7 @@ export class Scripts {
   }
 
   async updateData<T = any, R = any, N extends string = string>(
-    job: Job<T, R, N>,
+    job: MinimalJob<T, R, N>,
     data: T,
   ): Promise<void> {
     const client = await this.queue.client;
@@ -222,7 +203,7 @@ export class Scripts {
   }
 
   async updateProgress<T = any, R = any, N extends string = string>(
-    job: Job<T, R, N>,
+    job: MinimalJob<T, R, N>,
     progress: number | object,
   ): Promise<void> {
     const client = await this.queue.client;
@@ -242,7 +223,7 @@ export class Scripts {
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
-    job: Job<T, R, N>,
+    job: MinimalJob<T, R, N>,
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
@@ -309,7 +290,7 @@ export class Scripts {
     ReturnType = any,
     NameType extends string = string,
   >(
-    job: Job<DataType, ReturnType, NameType>,
+    job: MinimalJob<DataType, ReturnType, NameType>,
     val: any,
     propVal: FinishedPropValAttribute,
     shouldRemove: boolean | number | KeepJobs,
@@ -444,7 +425,7 @@ export class Scripts {
   }
 
   moveToCompleted<T = any, R = any, N extends string = string>(
-    job: Job<T, R, N>,
+    job: MinimalJob<T, R, N>,
     returnvalue: R,
     removeOnComplete: boolean | number | KeepJobs,
     token: string,
@@ -462,7 +443,7 @@ export class Scripts {
   }
 
   moveToFailedArgs<T = any, R = any, N extends string = string>(
-    job: Job<T, R, N>,
+    job: MinimalJob<T, R, N>,
     failedReason: string,
     removeOnFailed: boolean | number | KeepJobs,
     token: string,
@@ -764,7 +745,7 @@ export class Scripts {
    * -2 means the job was not found in the expected set
    */
   async reprocessJob<T = any, R = any, N extends string = string>(
-    job: Job<T, R, N>,
+    job: MinimalJob<T, R, N>,
     state: 'failed' | 'completed',
   ): Promise<void> {
     const client = await this.queue.client;

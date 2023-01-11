@@ -10,6 +10,7 @@ import {
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
+import { MinimalQueue } from '../types';
 import {
   clientCommandMessageReg,
   delay,
@@ -311,7 +312,7 @@ export class Worker<
     data: JobJsonRaw,
     jobId: string,
   ): Job<DataType, ResultType, NameType> {
-    return this.Job.fromJSON(this, data, jobId) as Job<
+    return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
       DataType,
       ResultType,
       NameType
@@ -490,7 +491,6 @@ export class Worker<
     if (jobId && jobId.startsWith('0:')) {
       const expectedBlockTimeout = parseInt(jobId.split(':')[1]) - Date.now();
       this.blockTimeout = expectedBlockTimeout > 0 ? expectedBlockTimeout : 1;
-      return;
     }
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(token, jobId);
@@ -828,7 +828,10 @@ export class Worker<
     const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
     for (let i = 0; i < failed.length; i++) {
       jobPromises.push(
-        Job.fromId<DataType, ResultType, NameType>(this, failed[i]),
+        Job.fromId<DataType, ResultType, NameType>(
+          this as MinimalQueue,
+          failed[i],
+        ),
       );
 
       if (i % chunkSize === 0) {

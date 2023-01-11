@@ -73,7 +73,7 @@ Some notable organizations using BullMQ:
         />
        </a>
     </td>
-        <td valign="center">
+    <td valign="center">
        <a href="https://github.com/datawrapper/datawrapper">
         <img
           src="https://files.gitbook.com/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FCJ5XmotpBBsuSgD8CilC%2Fdatawrapper-logo.png?alt=media"
@@ -81,6 +81,15 @@ Some notable organizations using BullMQ:
           alt="Datawrapper"
         />
        </a>
+    </td>
+    <td valign="center">
+      <a href="https://github.com/nestjs/bull/tree/master/packages/bullmq">
+        <img
+          src="https://876297641-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F-LUuDmt_xXMfG66Rn1GA%2Fuploads%2FfAcGye182utFUtPKdLqJ%2FScreenshot%202022-02-15%20at%2011.32.39.png?alt=media&token=29feb550-f0bc-467d-a290-f700701d7d15"
+          width="150"
+          alt="Nest"
+        />
+        </a>
     </td>
     </tr>
     <tr>
