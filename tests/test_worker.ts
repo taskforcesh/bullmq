@@ -13,7 +13,7 @@ import {
   WaitingChildrenError,
   DelayedError,
 } from '../src/classes';
-import { KeepJobs } from '../src/interfaces';
+import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
 import { delay, removeAllQueueData } from '../src/utils';
 
@@ -2345,7 +2345,7 @@ describe('workers', function () {
                 attemptsMade: number,
                 type: string,
                 err: Error,
-                job: Job,
+                job: MinimalJob,
               ) => {
                 switch (type) {
                   case 'custom1': {
@@ -2530,7 +2530,7 @@ describe('workers', function () {
               attemptsMade: number,
               type: string,
               err: Error,
-              job: Job,
+              job: MinimalJob,
             ) => {
               if (err instanceof CustomError) {
                 const data = job.data;

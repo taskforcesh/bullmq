@@ -3,9 +3,14 @@ import { invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
+  BulkJobOptions,
+  DependenciesOpts,
   JobJson,
   JobJsonRaw,
+  MinimalJob,
+  MoveToWaitingChildrenOpts,
   ParentKeys,
+  ParentOpts,
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
@@ -14,6 +19,7 @@ import {
   JobsOptions,
   JobState,
   JobJsonSandbox,
+  MinimalQueue,
   RedisJobOptions,
 } from '../types';
 import {
@@ -24,40 +30,19 @@ import {
   parseObjectValues,
   tryCatch,
 } from '../utils';
-import { QueueEvents } from './queue-events';
 import { Backoffs } from './backoffs';
-import { MinimalQueue, ParentOpts, Scripts, JobData } from './scripts';
+import { Scripts } from './scripts';
 import { UnrecoverableError } from './unrecoverable-error';
 import { DelayedError } from './delayed-error';
 import { WaitingChildrenError } from './waiting-children-error';
 
 const logger = debuglog('bull');
 
-export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
-
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
 };
 
 const optsEncodeMap = invert(optsDecodeMap);
-
-export interface MoveToWaitingChildrenOpts {
-  child?: {
-    id: string;
-    queue: string;
-  };
-}
-
-export interface DependenciesOpts {
-  processed?: {
-    cursor?: number;
-    count?: number;
-  };
-  unprocessed?: {
-    cursor?: number;
-    count?: number;
-  };
-}
 
 /**
  * Job
@@ -73,7 +58,8 @@ export class Job<
   DataType = any,
   ReturnType = any,
   NameType extends string = string,
-> {
+> implements MinimalJob<DataType, ReturnType, NameType>
+{
   /**
    * The progress a job has performed so far.
    * @defaultValue 0
@@ -804,22 +790,15 @@ export class Job<
           : result1[1]
         : [];
 
-      const transformedProcessed = processed.reduce(
-        (
-          accumulator: Record<string, any>,
-          currentValue: string,
-          index: number,
-        ) => {
-          if (index % 2) {
-            return {
-              ...accumulator,
-              [processed[index - 1]]: JSON.parse(currentValue),
-            };
-          }
-          return accumulator;
-        },
-        {},
-      );
+      const transformedProcessed: Record<string, any> = {};
+
+      for (let index = 0; index < processed.length; ++index) {
+        if (index % 2) {
+          transformedProcessed[processed[index - 1]] = JSON.parse(
+            processed[index],
+          );
+        }
+      }
 
       return {
         ...(processedCursor
@@ -893,7 +872,7 @@ export class Job<
    * @param ttl - Time in milliseconds to wait for job to finish before timing out.
    */
   async waitUntilFinished(
-    queueEvents: QueueEvents,
+    queueEvents: MinimalQueue,
     ttl?: number,
   ): Promise<ReturnType> {
     await this.queue.waitUntilReady();
