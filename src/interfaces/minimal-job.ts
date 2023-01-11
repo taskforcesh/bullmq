@@ -106,6 +106,24 @@ export interface MinimalJob<
    * @returns
    */
   asJSONSandbox(): JobJsonSandbox;
+  /**
+   * Updates a job's data
+   *
+   * @param data - the data that will replace the current jobs data.
+   */
+  update(data: DataType): Promise<void>;
+  /**
+   * Updates a job's progress
+   *
+   * @param progress - number or object to be saved as progress.
+   */
+  updateProgress(progress: number | object): Promise<void>;
+  /**
+   * Logs one row of log data.
+   *
+   * @param logRow - string with log data to be logged.
+   */
+  log(logRow: string): Promise<number>;
   get queueName(): string;
   /**
    * @returns the prefix that is used.

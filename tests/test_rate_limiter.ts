@@ -3,7 +3,7 @@ import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { Queue, QueueEvents, Worker } from '../src/classes';
+import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
@@ -105,6 +105,113 @@ describe('Rate Limiter', function () {
 
     await result;
     await worker.close();
+  });
+
+  describe('when using flows', () => {
+    it('should obey the rate limit per queue', async function () {
+      this.timeout(20000);
+      const name = 'child-job';
+      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueEvents = new QueueEvents(parentQueueName, {
+        connection,
+      });
+      const numJobs = 10;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(100);
+        },
+        {
+          connection,
+          concurrency: 2,
+          limiter: {
+            max: 1,
+            duration: 1000,
+          },
+        },
+      );
+
+      const parentWorker = new Worker(
+        parentQueueName,
+        async () => {
+          await delay(100);
+        },
+        {
+          connection,
+          concurrency: 2,
+          limiter: {
+            max: 1,
+            duration: 2000,
+          },
+        },
+      );
+
+      const flow = new FlowProducer({ connection });
+      const result = new Promise<void>((resolve, reject) => {
+        queueEvents.on(
+          'completed',
+          // after every job has been completed
+          after(numJobs, async () => {
+            await worker.close();
+
+            try {
+              const timeDiff = new Date().getTime() - startTime;
+              expect(timeDiff).to.be.gte((numJobs - 1) * 1000);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }),
+        );
+
+        queueEvents.on('failed', async err => {
+          await worker.close();
+          reject(err);
+        });
+      });
+
+      const parentResult = new Promise<void>((resolve, reject) => {
+        parentQueueEvents.on(
+          'completed',
+          // after every job has been completed
+          after(numJobs / 2, async () => {
+            await worker.close();
+
+            try {
+              const timeDiff = new Date().getTime() - startTime;
+              expect(timeDiff).to.be.gte((numJobs / 2 - 1) * 2000);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          }),
+        );
+
+        parentQueueEvents.on('failed', async err => {
+          await worker.close();
+          reject(err);
+        });
+      });
+
+      const startTime = new Date().getTime();
+      const values = Array.from(Array(5).keys()).map(() => ({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        children: [
+          { name, data: { idx: 0, foo: 'bar' }, queueName },
+          { name, data: { idx: 1, foo: 'baz' }, queueName },
+        ],
+      }));
+      await flow.addBulk(values);
+
+      await result;
+      await parentResult;
+      await worker.close();
+      await parentWorker.close();
+      await parentQueueEvents.close();
+    });
   });
 
   it('should obey the rate limit with max value greater than 1', async function () {
@@ -226,7 +333,6 @@ describe('Rate Limiter', function () {
       limiter: {
         max: 1,
         duration: 1000,
-        workerDelay: true,
       },
     });
 
