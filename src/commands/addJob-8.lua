@@ -57,6 +57,7 @@ local parent = args[8]
 local parentData
 
 -- Includes
+--- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/trimEvents"
@@ -142,12 +143,7 @@ elseif (delayedTimestamp ~= 0) then
   -- If wait list is empty, and this delayed job is the next one to be processed,
   -- then we need to signal the workers by adding a dummy job (jobId 0:delay) to the wait list.
   local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
-  if rcall("LLEN", target) == 0 then
-    local nextTimestamp = getNextDelayedTimestamp(KEYS[5])
-    if nextTimestamp ~= nil then
-      rcall("LPUSH", target, "0:" .. nextTimestamp)
-    end
-  end
+  addDelayMarkerIfNeeded(target, KEYS[5])
 else
   local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
 

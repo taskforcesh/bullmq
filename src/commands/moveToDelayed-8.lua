@@ -28,9 +28,10 @@
 local rcall = redis.call
 
 -- Includes
---- @include "includes/promoteDelayedJobs"
+--- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/getNextDelayedTimestamp"
+--- @include "includes/promoteDelayedJobs"
 
 local jobKey = KEYS[5]
 if rcall("EXISTS", jobKey) == 1 then
@@ -59,12 +60,7 @@ if rcall("EXISTS", jobKey) == 1 then
 
     -- Check if we need to push a marker job to wake up sleeping workers.
     local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])
-    if rcall("LLEN", target) == 0 then
-        local nextTimestamp = getNextDelayedTimestamp(delayedKey)
-        if nextTimestamp ~= nil then
-            rcall("LPUSH", target, "0:" .. nextTimestamp)
-        end
-    end
+    addDelayMarkerIfNeeded(target, delayedKey)
 
     return 0
 else
