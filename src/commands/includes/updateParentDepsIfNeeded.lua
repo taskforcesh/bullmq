@@ -3,6 +3,7 @@
 ]]
 
 -- Includes
+--- @include "addDelayMarkerIfNeeded"
 --- @include "addJobWithPriority"
 --- @include "getNextDelayedTimestamp"
 --- @include "getTargetQueueList"
@@ -25,12 +26,7 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
       local parentDelayedKey = parentQueueKey .. ":delayed" 
       rcall("ZADD", parentDelayedKey, score, parentId)
 
-      if rcall("LLEN", parentTarget) == 0 then
-        local nextTimestamp = getNextDelayedTimestamp(parentDelayedKey)
-        if not nextTimestamp or (delayedTimestamp <= nextTimestamp) then
-          rcall("LPUSH", parentTarget, "0:" .. delayedTimestamp - tonumber(timestamp))
-        end
-      end
+      addDelayMarkerIfNeeded(parentTarget, parentDelayedKey)
     -- Standard or priority add
     elseif priority == 0 then
       rcall("RPUSH", parentTarget, parentId)

@@ -78,5 +78,5 @@ end
 -- Return the timestamp for the next delayed job if any.
 local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
 if (nextTimestamp ~= nil) then
-    return { 0, 0, 0, nextTimestamp - tonumber(ARGV[2])}
+  return { 0, 0, 0, nextTimestamp}
 end
