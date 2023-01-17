@@ -369,14 +369,17 @@ export class Worker<
               processing.size < this.opts.concurrency &&
               (!this.limitUntil || processing.size == 0)
             ) {
-              const token = `${this.id}:${tokenPostfix++}`;
-              processing.set(
-                this.retryIfFailed<Job<DataType, ResultType, NameType>>(
-                  () => this.getNextJob(token),
-                  this.opts.runRetryDelay,
-                ),
-                token,
-              );
+              const restProcesses = this.opts.concurrency - processing.size;
+              for (let i = 0; i < restProcesses; i++) {
+                const token = `${this.id}:${tokenPostfix++}`;
+                processing.set(
+                  this.retryIfFailed<Job<DataType, ResultType, NameType>>(
+                    () => this.getNextJob(token),
+                    this.opts.runRetryDelay,
+                  ),
+                  token,
+                );
+              }
             }
 
             /*
@@ -486,7 +489,8 @@ export class Worker<
     // If we get the special delayed job ID, we pick the delay as the next
     // block timeout.
     if (jobId && jobId.startsWith('0:')) {
-      this.blockTimeout = parseInt(jobId.split(':')[1]);
+      const expectedBlockTimeout = parseInt(jobId.split(':')[1]) - Date.now();
+      this.blockTimeout = expectedBlockTimeout > 0 ? expectedBlockTimeout : 1;
     }
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(token, jobId);
@@ -558,7 +562,10 @@ export class Worker<
     }
 
     this.limitUntil = Math.max(limitUntil, 0) || 0;
-    this.blockTimeout = delayUntil;
+    if (delayUntil) {
+      const expectedBlockTimeout = Math.max(delayUntil, 0) - Date.now();
+      this.blockTimeout = expectedBlockTimeout > 0 ? expectedBlockTimeout : 1;
+    }
 
     if (jobData) {
       this.drained = false;
