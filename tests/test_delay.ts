@@ -1,8 +1,9 @@
-import { Queue, Job, Worker, QueueEvents } from '../src/classes';
+import { after } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
+import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
 describe('Delayed jobs', function () {
@@ -275,7 +276,44 @@ describe('Delayed jobs', function () {
 
   describe('when failed jobs are retried and moved to delayed', function () {
     it('processes jobs without getting stuck', async () => {
-      const countJobs = 28;
+      const countJobs = 32;
+      const concurrency = 50;
+
+      const processedJobs: { data: any }[] = [];
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          if (job.attemptsMade == 1) {
+            await delay(250);
+            throw new Error('forced error in test');
+          }
+
+          await delay(25);
+
+          processedJobs.push({ data: job.data });
+
+          return;
+        },
+        {
+          autorun: false,
+          connection,
+          concurrency,
+        },
+      );
+      worker.on('error', err => {
+        console.error(err);
+      });
+
+      const completed = new Promise<void>(resolve => {
+        worker.on(
+          'completed',
+          after(countJobs, async () => {
+            resolve();
+          }),
+        );
+      });
+
+      worker.run();
 
       for (let j = 0; j < countJobs; j++) {
         await queue.add(
@@ -285,45 +323,12 @@ describe('Delayed jobs', function () {
         );
       }
 
-      const concurrency = 50;
-
-      let worker: Worker;
-      const processedJobs: { data: any }[] = [];
-      const processing = new Promise<void>(resolve => {
-        worker = new Worker(
-          queueName,
-          async (job: Job) => {
-            if (job.attemptsMade == 1) {
-              await delay(250);
-              throw new Error('forced error in test');
-            }
-
-            await delay(25);
-
-            processedJobs.push({ data: job.data });
-
-            if (processedJobs.length == countJobs) {
-              resolve();
-            }
-
-            return;
-          },
-          {
-            autorun: false,
-            connection,
-            concurrency,
-          },
-        );
-        worker.on('error', err => {
-          console.error(err);
-        });
-      });
-
-      worker.run();
-
-      await processing;
+      await completed;
 
       expect(processedJobs.length).to.be.equal(countJobs);
+
+      const count = await queue.getJobCountByTypes('failed', 'wait', 'delayed');
+      expect(count).to.be.equal(0);
 
       await worker.close();
     }).timeout(4000);

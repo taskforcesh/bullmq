@@ -338,15 +338,15 @@ describe('events', function () {
     it('emits duplicated event', async function () {
       const testName = 'test';
 
-      await queue.add(testName, { foo: 'bar' }, { jobId: '1' });
+      await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
 
       const duplicated = new Promise<void>(resolve => {
         queueEvents.once('duplicated', ({ jobId }) => {
-          expect(jobId).to.be.equal('1');
+          expect(jobId).to.be.equal('a1');
           resolve();
         });
 
-        queue.add(testName, { foo: 'bar' }, { jobId: '1' });
+        queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
       });
 
       await duplicated;
