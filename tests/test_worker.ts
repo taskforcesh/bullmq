@@ -507,7 +507,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     await queue.pause();
@@ -572,7 +572,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     // wait for all jobs to enter the queue and then start processing
@@ -603,7 +603,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     for (let i = 1; i <= maxJobs; i++) {
@@ -702,7 +702,10 @@ describe('workers', function () {
         };
       });
 
-      const worker = new Worker(queueName, processor, { autorun: false });
+      const worker = new Worker(queueName, processor, {
+        autorun: false,
+        connection,
+      });
       await worker.waitUntilReady();
 
       for (let i = 1; i <= maxJobs; i++) {
@@ -717,7 +720,10 @@ describe('workers', function () {
 
     describe('when process function is not defined', function () {
       it('throws error', async () => {
-        const worker = new Worker(queueName, undefined, { autorun: false });
+        const worker = new Worker(queueName, undefined, {
+          autorun: false,
+          connection,
+        });
         await worker.waitUntilReady();
 
         await expect(worker.run()).to.be.rejectedWith(
@@ -733,6 +739,7 @@ describe('workers', function () {
         const maxJobs = 10;
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
+          connection,
         });
         await worker.waitUntilReady();
         worker.run();
@@ -774,7 +781,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     await processing;
@@ -806,7 +813,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     await processing;
@@ -824,7 +831,7 @@ describe('workers', function () {
 
     await Promise.all(jobs);
 
-    const worker = new Worker(queueName, async () => {});
+    const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
 
     await new Promise(resolve => {
@@ -836,10 +843,14 @@ describe('workers', function () {
   });
 
   it('process a job that returns data in the process handler', async () => {
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-      return 37;
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        return 37;
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const job = await queue.add('test', { foo: 'bar' });
@@ -867,9 +878,13 @@ describe('workers', function () {
   it('process a job that returns a string in the process handler', async () => {
     const testString = 'a very dignified string';
 
-    const worker = new Worker(queueName, async () => {
-      return testString;
-    });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        return testString;
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const waiting = new Promise<void>((resolve, reject) => {
@@ -895,10 +910,14 @@ describe('workers', function () {
   });
 
   it('process a job that returning data returnvalue gets stored in the database', async () => {
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-      return 37;
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        return 37;
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const job = await queue.add('test', { foo: 'bar' });
@@ -928,11 +947,15 @@ describe('workers', function () {
   });
 
   it('process a job that does some asynchronous operation', async () => {
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-      await delay(250);
-      return 'my data';
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(250);
+        return 'my data';
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const job = await queue.add('test', { foo: 'bar' });
@@ -951,9 +974,13 @@ describe('workers', function () {
   });
 
   it('process a synchronous job', async () => {
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+      },
+      { connection },
+    );
 
     await worker.waitUntilReady();
 
@@ -975,24 +1002,32 @@ describe('workers', function () {
     this.timeout(12000);
     let err;
 
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
 
-      if (addedJob.id !== job.id) {
-        err = new Error('Processed job id does not match that of added job');
-      }
-      await delay(500);
-    });
+        if (addedJob.id !== job.id) {
+          err = new Error('Processed job id does not match that of added job');
+        }
+        await delay(500);
+      },
+      { connection },
+    );
 
     await worker.waitUntilReady();
 
     const addedJob = await queue.add('test', { foo: 'bar' });
 
-    const anotherWorker = new Worker(queueName, async () => {
-      err = new Error(
-        'The second queue should not have received a job to process',
-      );
-    });
+    const anotherWorker = new Worker(
+      queueName,
+      async () => {
+        err = new Error(
+          'The second queue should not have received a job to process',
+        );
+      },
+      { connection },
+    );
 
     worker.on('completed', async () => {
       await anotherWorker.close();
