@@ -1,13 +1,13 @@
 # NestJs
 
-There is a compatible module to be used in [NestJs](https://github.com/nestjs/nest) base on [@nestjs/bullmq](https://www.npmjs.com/package/@nestjs/bullmq).
+There is a compatible module to be used in [NestJs](https://github.com/nestjs/nest) based on [@nestjs/bullmq](https://www.npmjs.com/package/@nestjs/bullmq).
 
 ```bash
 yarn add @taskforcesh/nestjs-bullmq-pro
 ```
 
 {% hint style="info" %}
-BullMQ-Pro may need a token, please review [install](https://docs.bullmq.io/bullmq-pro/install) section.
+BullMQ-Pro needs a token, please review [install](https://docs.bullmq.io/bullmq-pro/install) section.
 {% endhint %}
 
 Once the installation process is complete, we can import the **BullModule** into the root **AppModule**.
