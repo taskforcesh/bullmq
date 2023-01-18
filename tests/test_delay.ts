@@ -207,7 +207,7 @@ describe('Delayed jobs', function () {
   });
 
   it('should process delayed jobs concurrently respecting delay', async function () {
-    this.timeout(35000);
+    this.timeout(30000);
     let count = 0;
     const numJobs = 50;
     const margin = 1.22;

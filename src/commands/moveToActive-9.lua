@@ -68,7 +68,8 @@ if jobId then
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
         if jobId and string.sub(jobId, 1, 2) == "0:" then
-            return { 0, 0, 0, tonumber(string.sub(jobId, 3, #jobId))}
+            rcall("LREM", KEYS[2], 1, jobId)
+            jobId = nil
         end
     end
 
