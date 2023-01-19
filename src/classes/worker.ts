@@ -155,9 +155,9 @@ export class Worker<
   readonly id: string;
 
   private drained: boolean = false;
-  private waiting = false;
+  private waiting: Promise<string> | null = null;
   private running = false;
-  private blockTimeout = 0;
+  private blockUntil = 0;
   private limitUntil = 0;
 
   protected processFn: Processor<DataType, ResultType, NameType>;
@@ -444,10 +444,15 @@ export class Worker<
       return;
     }
 
-    if (this.drained && block && !this.limitUntil) {
+    if (this.drained && block && !this.limitUntil && !this.waiting) {
       try {
-        const jobId = await this.waitForJob();
-        return this.moveToActive(token, jobId);
+        this.waiting = this.waitForJob();
+        try {
+          const jobId = await this.waiting;
+          return this.moveToActive(token, jobId);
+        } finally {
+          this.waiting = null;
+        }
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
         if (
@@ -489,8 +494,7 @@ export class Worker<
     // If we get the special delayed job ID, we pick the delay as the next
     // block timeout.
     if (jobId && jobId.startsWith('0:')) {
-      const expectedBlockTimeout = parseInt(jobId.split(':')[1]) - Date.now();
-      this.blockTimeout = expectedBlockTimeout > 0 ? expectedBlockTimeout : 1;
+      this.blockUntil = parseInt(jobId.split(':')[1]) || 0;
     }
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(token, jobId);
@@ -505,28 +509,32 @@ export class Worker<
     }
 
     try {
-      const client = await this.blockingConnection.client;
       const opts: WorkerOptions = <WorkerOptions>this.opts;
 
-      this.waiting = true;
+      if (!this.closing) {
+        const client = await this.blockingConnection.client;
 
-      let blockTimeout = Math.max(
-        this.blockTimeout ? this.blockTimeout / 1000 : opts.drainDelay,
-        0.01,
-      );
+        let blockTimeout = Math.max(
+          this.blockUntil
+            ? (this.blockUntil - Date.now()) / 1000
+            : opts.drainDelay,
+          0.01,
+        );
 
-      // Only Redis v6.0.0 and above supports doubles as block time
-      blockTimeout =
-        this.blockingConnection.redisVersion < '6.0.0'
-          ? Math.ceil(blockTimeout)
-          : blockTimeout;
+        // Only Redis v6.0.0 and above supports doubles as block time
+        blockTimeout =
+          this.blockingConnection.redisVersion < '6.0.0'
+            ? Math.ceil(blockTimeout)
+            : blockTimeout;
 
-      const jobId = await client.brpoplpush(
-        this.keys.wait,
-        this.keys.active,
-        blockTimeout,
-      );
-      return jobId;
+        const now = Date.now();
+        const jobId = await client.brpoplpush(
+          this.keys.wait,
+          this.keys.active,
+          blockTimeout,
+        );
+        return jobId;
+      }
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
         this.emit('error', <Error>error);
@@ -535,7 +543,7 @@ export class Worker<
         await this.delay();
       }
     } finally {
-      this.waiting = false;
+      this.waiting = null;
     }
   }
 
@@ -557,14 +565,13 @@ export class Worker<
       if (!this.drained) {
         this.emit('drained');
         this.drained = true;
-        this.blockTimeout = 0;
+        this.blockUntil = 0;
       }
     }
 
     this.limitUntil = Math.max(limitUntil, 0) || 0;
     if (delayUntil) {
-      const expectedBlockTimeout = Math.max(delayUntil, 0) - Date.now();
-      this.blockTimeout = expectedBlockTimeout > 0 ? expectedBlockTimeout : 1;
+      this.blockUntil = Math.max(delayUntil, 0) || 0;
     }
 
     if (jobData) {
