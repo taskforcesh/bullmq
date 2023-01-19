@@ -283,7 +283,7 @@ describe('Delayed jobs', function () {
     let worker;
     const processing = new Promise<void>((resolve, reject) => {
       worker = new Worker(
-        'my-queue',
+        queueName,
         async job => {
           const delayed = Date.now() - job.timestamp;
           try {
@@ -306,17 +306,13 @@ describe('Delayed jobs', function () {
       );
     });
 
-    const queue = new Queue('my-queue', { connection });
-
     while (numJobs--) {
       await queue.add('my-queue', { foo: 'bar' }, { delay });
       await new Promise(r => setTimeout(r, 300));
     }
 
     await processing;
-
     await worker.close();
-    await queue.close;
   });
 
   describe('when failed jobs are retried and moved to delayed', function () {
