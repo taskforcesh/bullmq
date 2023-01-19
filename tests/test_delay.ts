@@ -206,7 +206,7 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
-  it('should process delayed jobs concurrently respecting delay', async function () {
+  it('should process delayed jobs with several workers respecting delay', async function () {
     this.timeout(30000);
     let count = 0;
     const numJobs = 50;
@@ -272,6 +272,51 @@ describe('Delayed jobs', function () {
     await processing;
     await worker.close();
     await worker2.close();
+  });
+
+  it('should process delayed jobs concurrently respecting delay and concurrency', async function () {
+    const delay = 250;
+    const concurrency = 100;
+    const margin = 1.5;
+    let numJobs = 10;
+
+    let worker;
+    const processing = new Promise<void>((resolve, reject) => {
+      worker = new Worker(
+        'my-queue',
+        async job => {
+          const delayed = Date.now() - job.timestamp;
+          try {
+            expect(
+              delayed,
+              'waited at least delay time',
+            ).to.be.greaterThanOrEqual(delay);
+            expect(
+              delayed,
+              'waited less than delay time and margin',
+            ).to.be.lessThan(delay * margin);
+          } catch (err) {
+            reject(err);
+          }
+          if (!numJobs) {
+            resolve();
+          }
+        },
+        { connection, concurrency },
+      );
+    });
+
+    const queue = new Queue('my-queue', { connection });
+
+    while (numJobs--) {
+      await queue.add('my-queue', { foo: 'bar' }, { delay });
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    await processing;
+
+    await worker.close();
+    await queue.close;
   });
 
   describe('when failed jobs are retried and moved to delayed', function () {
