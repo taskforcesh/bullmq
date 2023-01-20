@@ -1,5 +1,3 @@
-# NestJs
-
 There is a compatible module to be used in [NestJs](https://github.com/nestjs/nest).
 
 ```bash

@@ -1,5 +1,3 @@
-# NestJs
-
 There is a compatible module to be used in [NestJs](https://github.com/nestjs/nest) based on [@nestjs/bullmq](https://www.npmjs.com/package/@nestjs/bullmq).
 
 ```bash
@@ -79,6 +77,10 @@ And then register it as a provider:
 })
 export class AppModule {}
 ```
+
+# Example
+
+A working example is available [here](https://github.com/taskforcesh/nestjs-bullmq-pro-example).
 
 ## Read more:
 
