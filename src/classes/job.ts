@@ -450,12 +450,17 @@ export class Job<
   }
 
   /**
-   * Clears job's log
+   * Clears job's logs
    */
-  async clearLog(): Promise<void> {
+  async clearLogs(opts: { keepLogs?: number } = {}): Promise<void> {
     const client = await this.queue.client;
     const logsKey = this.toKey(this.id) + ':logs';
-    await client.del(logsKey);
+
+    if (opts.keepLogs) {
+      await client.ltrim(logsKey, -opts.keepLogs, -1);
+    } else {
+      await client.del(logsKey);
+    }
   }
 
   /**

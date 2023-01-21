@@ -355,7 +355,9 @@ describe('Job', function () {
       const logsRemoved = await queue.getJobLogs(job.id);
       expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
     });
+  });
 
+  describe('.clearLogs', () => {
     it('can clear the log', async () => {
       const firstLog = 'some log text 1';
       const secondLog = 'some log text 2';
@@ -367,7 +369,51 @@ describe('Job', function () {
       const logs = await queue.getJobLogs(job.id);
       expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
 
-      await job.clearLog();
+      await job.clearLogs();
+
+      const logsRemoved = await queue.getJobLogs(job.id);
+      expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
+    });
+
+    it('can preserve up to keepLogs latest entries', async () => {
+      const firstLog = 'some log text 1';
+      const secondLog = 'some log text 2';
+      const thirdLog = 'some log text 3';
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await job.log(firstLog);
+      await job.log(secondLog);
+      await job.log(thirdLog);
+
+      const logs1 = await queue.getJobLogs(job.id);
+      expect(logs1).to.be.eql({
+        logs: [firstLog, secondLog, thirdLog],
+        count: 3,
+      });
+
+      await job.clearLogs({ keepLogs: 4 });
+
+      const logs2 = await queue.getJobLogs(job.id);
+      expect(logs2).to.be.eql({
+        logs: [firstLog, secondLog, thirdLog],
+        count: 3,
+      });
+
+      await job.clearLogs({ keepLogs: 3 });
+
+      const logs3 = await queue.getJobLogs(job.id);
+      expect(logs3).to.be.eql({
+        logs: [firstLog, secondLog, thirdLog],
+        count: 3,
+      });
+
+      await job.clearLogs({ keepLogs: 2 });
+
+      const logs4 = await queue.getJobLogs(job.id);
+      expect(logs4).to.be.eql({ logs: [secondLog, thirdLog], count: 2 });
+
+      await job.clearLogs({ keepLogs: 0 });
 
       const logsRemoved = await queue.getJobLogs(job.id);
       expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
