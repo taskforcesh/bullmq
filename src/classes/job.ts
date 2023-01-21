@@ -446,7 +446,23 @@ export class Job<
   async log(logRow: string): Promise<number> {
     const client = await this.queue.client;
     const logsKey = this.toKey(this.id) + ':logs';
-    return client.rpush(logsKey, logRow);
+
+    const multi = client.multi();
+
+    multi.rpush(logsKey, logRow);
+
+    if (this.opts.keepLogs) {
+      multi.ltrim(logsKey, -this.opts.keepLogs, -1);
+    }
+
+    const result = (await multi.exec()) as [
+      [Error, number],
+      [Error, string] | undefined,
+    ];
+
+    return this.opts.keepLogs
+      ? Math.min(this.opts.keepLogs, result[0][1])
+      : result[0][1];
   }
 
   /**

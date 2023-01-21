@@ -58,6 +58,11 @@ export interface DefaultJobOptions {
   removeOnFail?: boolean | number | KeepJobs;
 
   /**
+   * Maximum amount of log entries that will be preserved
+   */
+  keepLogs?: number;
+
+  /**
    * Limits the amount of stack trace lines that will be recorded in the stacktrace.
    */
   stackTraceLimit?: number;
