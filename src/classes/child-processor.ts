@@ -101,24 +101,6 @@ export class ChildProcessor {
   }
 }
 
-// https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
-if (!('toJSON' in Error.prototype)) {
-  Object.defineProperty(Error.prototype, 'toJSON', {
-    value: function toJSONByBull() {
-      const alt: any = {};
-      const _this = this;
-
-      Object.getOwnPropertyNames(_this).forEach(function (key) {
-        alt[key] = _this[key];
-      }, this);
-
-      return alt;
-    },
-    configurable: true,
-    writable: true,
-  });
-}
-
 /**
  * Enhance the given job argument with some functions
  * that can be called from the sandboxed job processor.

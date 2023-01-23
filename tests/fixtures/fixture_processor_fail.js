@@ -6,8 +6,12 @@
 
 const delay = require('./delay');
 
+class TestError extends Error {
+  metadata = 'metadata';
+}
+
 module.exports = function (/*job*/) {
   return delay(500).then(() => {
-    throw new Error('Manually failed processor');
+    throw new TestError('Manually failed processor');
   });
 };
