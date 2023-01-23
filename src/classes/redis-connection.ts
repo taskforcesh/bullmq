@@ -285,7 +285,7 @@ export class RedisConnection extends EventEmitter {
       if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
         const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
         if (maxMemoryPolicy !== 'noeviction') {
-          console.error(
+          console.warn(
             `IMPORTANT! Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
           );
         }
