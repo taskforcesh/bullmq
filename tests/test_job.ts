@@ -423,7 +423,7 @@ describe('Job', function () {
         count: 3,
       });
 
-      await job.clearLogs({ keepLogs: 4 });
+      await job.clearLogs(4);
 
       const logs2 = await queue.getJobLogs(job.id);
       expect(logs2).to.be.eql({
@@ -431,7 +431,7 @@ describe('Job', function () {
         count: 3,
       });
 
-      await job.clearLogs({ keepLogs: 3 });
+      await job.clearLogs(3);
 
       const logs3 = await queue.getJobLogs(job.id);
       expect(logs3).to.be.eql({
@@ -439,12 +439,12 @@ describe('Job', function () {
         count: 3,
       });
 
-      await job.clearLogs({ keepLogs: 2 });
+      await job.clearLogs(2);
 
       const logs4 = await queue.getJobLogs(job.id);
       expect(logs4).to.be.eql({ logs: [secondLog, thirdLog], count: 2 });
 
-      await job.clearLogs({ keepLogs: 0 });
+      await job.clearLogs(0);
 
       const logsRemoved = await queue.getJobLogs(job.id);
       expect(logsRemoved).to.be.eql({ logs: [], count: 0 });
