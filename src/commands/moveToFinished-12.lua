@@ -208,7 +208,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if (nextTimestamp ~= nil) then
             -- The result is guaranteed to be positive, since the
             -- ZRANGEBYSCORE command would have return a job otherwise.
-            return {0, 0, 0, nextTimestamp - timestamp}
+            return {0, 0, 0, nextTimestamp}
         end
     end
 
