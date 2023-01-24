@@ -170,6 +170,16 @@ export const parseObjectValues = (obj: {
   return accumulator;
 };
 
+export const errorToJSON = (value: any): Record<string, any> => {
+  const error: Record<string, any> = {};
+
+  Object.getOwnPropertyNames(value).forEach(function (propName: string) {
+    error[propName] = value[propName];
+  });
+
+  return error;
+};
+
 export const WORKER_SUFFIX = '';
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
