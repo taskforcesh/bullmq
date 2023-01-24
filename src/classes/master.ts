@@ -1,7 +1,7 @@
 import { toString } from 'lodash';
 import { ChildProcessor } from './child-processor';
 import { ParentCommand, ChildCommand } from '../interfaces';
-import { childSend } from '../utils';
+import { childSend, errorToJSON } from '../utils';
 
 const childProcessor = new ChildProcessor();
 
@@ -31,7 +31,7 @@ process.on('uncaughtException', async (err: Error) => {
   }
   await childSend(process, {
     cmd: ParentCommand.Failed,
-    value: err,
+    value: errorToJSON(err),
   });
 
   // An uncaughException leaves this process in a potentially undetermined state so
