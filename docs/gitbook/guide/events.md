@@ -43,7 +43,7 @@ queueEvents.on('completed', ({jobId: string}) => {
   // Called every time a job is completed in any worker.
 });
 
-queueEvents.on('progress', ({ jobId, data }: { jobId: string; data: number | object })) => {
+queueEvents.on('progress', ({ jobId, data }: { jobId: string; data: number | object }) => {
   // jobId received a progress event
 });
 ```
@@ -56,4 +56,4 @@ The event stream is auto-trimmed so that its size does not grow too much, by def
 
 ## Read more:
 
-- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/QueueEvents.html)
+* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/QueueEvents.html)
