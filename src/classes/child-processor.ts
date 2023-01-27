@@ -1,6 +1,6 @@
 import { promisify } from 'util';
 import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
-import { childSend } from '../utils';
+import { childSend, errorToJSON } from '../utils';
 
 enum ChildStatus {
   Idle,
@@ -38,7 +38,7 @@ export class ChildProcessor {
       this.status = ChildStatus.Errored;
       return childSend(process, {
         cmd: ParentCommand.InitFailed,
-        err: <Error>err,
+        err: errorToJSON(err),
       });
     }
 
@@ -65,7 +65,7 @@ export class ChildProcessor {
     if (this.status !== ChildStatus.Idle) {
       return childSend(process, {
         cmd: ParentCommand.Error,
-        err: new Error('cannot start a not idling child process'),
+        err: errorToJSON(new Error('cannot start a not idling child process')),
       });
     }
     this.status = ChildStatus.Started;
@@ -80,7 +80,7 @@ export class ChildProcessor {
       } catch (err) {
         await childSend(process, {
           cmd: ParentCommand.Failed,
-          value: !(<Error>err).message ? new Error(<any>err) : err,
+          value: errorToJSON(!(<Error>err).message ? new Error(<any>err) : err),
         });
       } finally {
         this.status = ChildStatus.Idle;
@@ -99,24 +99,6 @@ export class ChildProcessor {
       process.exit(process.exitCode || 0);
     }
   }
-}
-
-// https://stackoverflow.com/questions/18391212/is-it-not-possible-to-stringify-an-error-using-json-stringify
-if (!('toJSON' in Error.prototype)) {
-  Object.defineProperty(Error.prototype, 'toJSON', {
-    value: function toJSONByBull() {
-      const alt: any = {};
-      const _this = this;
-
-      Object.getOwnPropertyNames(_this).forEach(function (key) {
-        alt[key] = _this[key];
-      }, this);
-
-      return alt;
-    },
-    configurable: true,
-    writable: true,
-  });
 }
 
 /**
