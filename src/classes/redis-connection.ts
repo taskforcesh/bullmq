@@ -60,7 +60,7 @@ export class RedisConnection extends EventEmitter {
         port: 6379,
         host: '127.0.0.1',
         retryStrategy: function (times: number) {
-          return Math.min(Math.exp(times), 20000);
+          return Math.max(Math.min(Math.exp(times), 20000), 1000);
         },
         ...opts,
       };
