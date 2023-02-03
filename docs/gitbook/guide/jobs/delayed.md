@@ -1,25 +1,28 @@
-The jobs added to a queue will normally be processed as quick as some worker is available for dispatching them. However, it is also possible to add a delay parameter so that jobs will wait at least that amount of time before being processed. Note that this does not guarantee that the job will be processed at that exact delayed time, it depends on how busy the queue is when the time has passed and how many other delayed jobs are scheduled at that exact time.
+# Delayed
 
-{% hint style="info" %}
-Delayed jobs will only be processed if there is at least one [`QueueScheduler`](../queuescheduler.md) instance configured in the Queue.
-{% endhint %}
+Delayed jobs are a special type of job that instead of being processed as fast as possible is placed on a special "delayed set" where it will wait until the delay time has passed and then it is processed as a regular job.
 
-{% hint style="danger" %}
-From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore.
-{% endhint %}
+In order to add delayed jobs to the queue, simply use the "delay" option with the amount of time in milliseconds that you want to delay the job with.
 
-This is an example on how to add delayed jobs:
+Note that it is not guaranteed that the job will be processed at the exact delayed time specified, as it depends on how busy the workers are when the time has passed and how many other delayed jobs are scheduled at that exact time. In practice, however, the delay time is quite accurate in most cases.
+
+This is an example of how to add delayed jobs to a queue:
 
 ```typescript
-import { Queue, QueueScheduler } from 'bullmq';
+import { Queue } from 'bullmq';
 
-const myQueueScheduler = new QueueScheduler('Paint');
 const myQueue = new Queue('Paint');
 
-// Add a job that will be delayed at least 5 seconds.
+// Add a job that will be delayed by at least 5 seconds.
 await myQueue.add('house', { color: 'white' }, { delay: 5000 });
 ```
 
-## Read more:
+If you want to process the job after a specific point in time, just add the time remaining to that point in time. For example, let's say you want to process the job on the third of July 2035 at 10:30:
 
-- 💡 [Queue Scheduler API Reference](https://github.com/taskforcesh/bullmq/blob/v1.91.1/docs/gitbook/api/bullmq.queuescheduler.md)
+```typescript
+const targetTime = new Date("03-07-2035 10:30");
+const delay = (targetTime - new Date()).getTime();
+
+await myQueue.add('house', { color: 'white' }, { delay });
+```
+
