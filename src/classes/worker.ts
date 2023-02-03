@@ -139,6 +139,8 @@ export interface WorkerListener<
 
 const RATE_LIMIT_ERROR = 'bullmq:rateLimitExceeded';
 
+const DISCARD_TTL_ERROR = 'bullmq:discardTtlExceeded';
+
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
@@ -527,7 +529,6 @@ export class Worker<
             ? Math.ceil(blockTimeout)
             : blockTimeout;
 
-        const now = Date.now();
         const jobId = await client.brpoplpush(
           this.keys.wait,
           this.keys.active,
@@ -669,6 +670,12 @@ export class Worker<
     lockExtender();
 
     try {
+      if (this.opts.discardTtl) {
+        if (this.opts.discardTtl < Date.now() - job.timestamp) {
+          return handleFailed(new Error(DISCARD_TTL_ERROR));
+        }
+      }
+
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {

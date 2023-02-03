@@ -53,7 +53,16 @@ export interface WorkerOptions extends QueueBaseOptions {
   lockDuration?: number;
   lockRenewTime?: number;
   runRetryDelay?: number;
-  settings?: AdvancedOptions; // FIXME only backoffStrategies is used
+
+  /**
+   * Settings for advanced options.
+   */
+  settings?: AdvancedOptions;
+
+  /**
+   * Time for discard jobs without processing them.
+   */
+  discardTtl?: number;
 }
 
 export interface GetNextJobOptions {

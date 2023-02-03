@@ -757,6 +757,53 @@ describe('workers', function () {
     });
   });
 
+  describe('when discardTtl is provided', function () {
+    it('moves jobs to failed when time is greater than discardTtl', async () => {
+      const maxJobs = 5;
+
+      let processor;
+      const processing = new Promise<void>(resolve => {
+        processor = async () => {
+          await delay(200);
+          resolve();
+        };
+      });
+
+      const worker = new Worker(queueName, processor, {
+        connection,
+        discardTtl: 100,
+      });
+      await worker.waitUntilReady();
+
+      const jobs = Array.from(Array(maxJobs).keys()).map(index => ({
+        name: 'test',
+        data: { index },
+      }));
+
+      await queue.addBulk(jobs);
+
+      const failing = new Promise<void>(resolve => {
+        worker.on(
+          'failed',
+          after(4, (job: Job, error) => {
+            expect(error.name).to.be.eql('Error');
+            expect(error.message).to.be.eql('bullmq:discardTtlExceeded');
+            expect(job.failedReason).to.be.eql('bullmq:discardTtlExceeded');
+            resolve();
+          }),
+        );
+      });
+
+      worker.run();
+
+      await processing;
+
+      await failing;
+
+      await worker.close();
+    });
+  });
+
   it('process a job that updates progress as number', async () => {
     let processor;
 
