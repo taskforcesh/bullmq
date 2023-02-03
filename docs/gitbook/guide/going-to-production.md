@@ -12,6 +12,10 @@ Even though persistence is very fast, it will have some effect on performance, s
 
 Redis is used quite often as a cache, meaning that it will remove keys according to some defined policy when it reaches several levels of memory consumption. BullMQ on the other hand cannot work properly if Redis evicts keys arbitrarily. Therefore is very important to configure the `maxmemory` setting to `noeviction`. This is the **only** setting that guarantees the correct behavior of the queues.
 
+### Automatic reconnections
+
+
+
 ### Gracefully shut-down workers
 
 Since your workers will run on servers, it is unavoidable that these servers will need to be restarted from time to time. As your workers may be processing jobs when the server is about to restart, it is important to properly close the workers to minimize the risk of stalled jobs. If a worker is killed without waiting for their jobs to complete, these jobs will be marked as stalled and processed automatically when new workers come online (with a waiting time of about 30 seconds by default). However it is better to avoid having stalled jobs, and as mentioned this can be done by closing the workers when the server is going to be restarted. In NodeJS you can accomplish this by listening to the SIGINT signal like this:
