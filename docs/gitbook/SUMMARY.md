@@ -45,12 +45,8 @@
 ## Patterns
 
 * [Manually processing jobs](patterns/manually-fetching-jobs.md)
-* [Producer - Consumer](patterns/producer-consumer.md)
 * [Named Processor](patterns/named-processor.md)
 * [Flows](patterns/flows.md)
-* [Real time updates](patterns/real-time-updates.md)
-* [Sender - Receiver](patterns/sender-receiver.md)
-* [Working with batches](patterns/working-with-batches.md)
 * [Idempotent jobs](patterns/idempotent-jobs.md)
 * [Throttle jobs](patterns/throttle-jobs.md)
 * [Process Step Jobs](patterns/process-step-jobs.md)
