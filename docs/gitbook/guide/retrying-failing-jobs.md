@@ -6,7 +6,9 @@ As your queues processes jobs, it is inevitable that over time some of these job
 * The job has become [stalled](https://docs.bullmq.io/guide/jobs/stalled) and it has consumed the "max stalled count" setting.
 
 {% hint style="danger" %}
-In general, you should never throw anything that is not an Error object. There is an eslint rule for that if you want to enforce it: https://eslint.org/docs/latest/rules/no-throw-literal
+The exceptions thrown in a processor must be an [Error](https://nodejs.org/api/errors.html#class-error) object for BullMQ to work correctly.
+
+In general, as a best practice, it is better to always throw Error objects. There is even an eslint rule if you want to enforce it: https://eslint.org/docs/latest/rules/no-throw-literal
 {% endhint %}
 
 ## Retrying failing jobs
