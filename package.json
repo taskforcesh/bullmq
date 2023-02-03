@@ -4,7 +4,7 @@
   "description": "Queue for messages and jobs based on Redis",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
-  "types": "./dist/esm/index.d.ts",
+  "types": "./dist/types/index.d.ts",
   "source": "./src/index.ts",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",

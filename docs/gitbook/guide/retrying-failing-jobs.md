@@ -4,6 +4,10 @@ When a processor throws an exception, the worker will catch it and move the job 
 
 BullMQ supports retries of failed jobs using backoff functions. It is possible to use the built in backoff functions or provide custom ones.
 
+{% hint style="danger" %}
+In general, you should never throw anything that is not an Error object. There is an eslint rule for that if you want to enforce it: https://eslint.org/docs/latest/rules/no-throw-literal
+{% endhint %}
+
 For BullMQ to reschedule failed jobs, make sure you create a `QueueScheduler` for your queue.
 
 {% hint style="danger" %}
