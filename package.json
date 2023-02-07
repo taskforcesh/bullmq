@@ -4,7 +4,7 @@
   "description": "Queue for messages and jobs based on Redis",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
-  "types": "./dist/types/index.d.ts",
+  "types": "./dist/esm/index.d.ts",
   "source": "./src/index.ts",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
@@ -19,12 +19,13 @@
     "dist"
   ],
   "scripts": {
-    "build": "npm-run-all pretest tsc:all clean:temp:files copy:lua copy:includes:lua",
+    "build": "npm-run-all pretest tsc:all copy:master:type clean:temp:files copy:lua copy:includes:lua",
     "circular:references": "madge --circular --extensions ts ./src",
     "clean:scripts": "rimraf rawScripts src/scripts",
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/cjs/commands/includes && copyfiles -f ./src/commands/includes/*.lua ./dist/esm/commands/includes",
     "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/cjs/commands && copyfiles -f ./src/commands/*.lua ./dist/esm/commands",
+    "copy:master:type": "copyfiles -f ./dist/esm/classes/master.d.ts ./dist/cjs/classes",
     "coverage": "nyc --reporter=text --reporter=lcovonly yarn test",
     "cm": "git cz",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
