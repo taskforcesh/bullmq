@@ -761,15 +761,8 @@ describe('workers', function () {
     it('moves jobs to failed when time is greater than discardTtl', async () => {
       const maxJobs = 5;
 
-      let processor;
-      const processing = new Promise<void>(resolve => {
-        processor = async () => {
-          await delay(200);
-          resolve();
-        };
-      });
-
-      const worker = new Worker(queueName, processor, {
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
         connection,
         discardTtl: 100,
       });
@@ -785,7 +778,7 @@ describe('workers', function () {
       const failing = new Promise<void>(resolve => {
         worker.on(
           'failed',
-          after(4, (job: Job, error) => {
+          after(maxJobs, (job: Job, error) => {
             expect(error.name).to.be.eql('Error');
             expect(error.message).to.be.eql('bullmq:discardTtlExceeded');
             expect(job.failedReason).to.be.eql('bullmq:discardTtlExceeded');
@@ -794,18 +787,18 @@ describe('workers', function () {
         );
       });
 
-      worker.run();
+      await delay(150);
 
-      await processing;
+      worker.run();
 
       await failing;
 
       await worker.close();
     });
 
-    describe('when removeOnFail is provided', function () {
-      describe('when it is provided as true', function () {
-        it('removes only the ones with the option provided', async () => {
+    describe('when removeOnFail is provided in discarded jobs', function () {
+      describe('when option is provided as true', function () {
+        it('removes only the discarded ones', async () => {
           const maxJobs = 5;
 
           const worker = new Worker(
@@ -817,6 +810,7 @@ describe('workers', function () {
               throw new Error('error');
             },
             {
+              autorun: true,
               connection,
               concurrency: 2,
               discardTtl: 500,
@@ -858,7 +852,7 @@ describe('workers', function () {
         });
       });
 
-      describe('when it is provided as number', function () {
+      describe('when it is provided as number and there are discarded jobs', function () {
         it('keeps specific number of records', async () => {
           const maxJobs = 5;
 

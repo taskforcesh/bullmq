@@ -1,2 +1,3 @@
-export * from './error-code.enum';
+export * from './error-code';
+export * from './error-messages';
 export * from './metrics-time';

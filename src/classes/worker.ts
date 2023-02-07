@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
+import { ErrorMessages } from '../enums';
 import {
   GetNextJobOptions,
   IoredisListener,
@@ -137,10 +138,6 @@ export interface WorkerListener<
   stalled: (jobId: string, prev: string) => void;
 }
 
-const RATE_LIMIT_ERROR = 'bullmq:rateLimitExceeded';
-
-const DISCARD_TTL_ERROR = 'bullmq:discardTtlExceeded';
-
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
@@ -178,7 +175,7 @@ export class Worker<
   >;
 
   static RateLimitError(): Error {
-    return new Error(RATE_LIMIT_ERROR);
+    return new Error(ErrorMessages.RATE_LIMIT);
   }
 
   constructor(
@@ -649,7 +646,7 @@ export class Worker<
     const handleFailed = async (err: Error) => {
       if (!this.connection.closing) {
         try {
-          if (err.message == RATE_LIMIT_ERROR) {
+          if (err.message == ErrorMessages.RATE_LIMIT) {
             this.limitUntil = await this.moveLimitedBackToWait(job, token);
             return;
           }
@@ -672,7 +669,7 @@ export class Worker<
     try {
       if (this.opts.discardTtl) {
         if (this.opts.discardTtl < Date.now() - job.timestamp) {
-          return handleFailed(new Error(DISCARD_TTL_ERROR));
+          return handleFailed(new Error(ErrorMessages.DISCARD_TTL));
         }
       }
 
