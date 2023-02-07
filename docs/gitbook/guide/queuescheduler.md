@@ -1,7 +1,7 @@
 # QueueScheduler
 
 {% hint style="danger" %}
-From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore, so the information below is only valid for older versions.
+The QueueScheduler is deprecated from BullMQ 2.0 and onwards. The information below is only relevant for older versions.
 {% endhint %}
 
 The QueueScheduler is a helper class used to manage stalled and delayed jobs for a given Queue.
@@ -29,4 +29,4 @@ It is ok to have as many QueueScheduler instances as you want, just keep in mind
 
 ## Read more:
 
-- 💡 [Queue Scheduler API Reference](https://github.com/taskforcesh/bullmq/blob/v1.91.1/docs/gitbook/api/bullmq.queuescheduler.md)
+* 💡 [Queue Scheduler API Reference](https://github.com/taskforcesh/bullmq/blob/v1.91.1/docs/gitbook/api/bullmq.queuescheduler.md)

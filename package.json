@@ -1,10 +1,10 @@
 {
   "name": "bullmq",
-  "version": "3.6.1",
+  "version": "3.6.2",
   "description": "Queue for messages and jobs based on Redis",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
-  "types": "./dist/esm/index.d.ts",
+  "types": "./dist/types/index.d.ts",
   "source": "./src/index.ts",
   "author": "Taskforce.sh Inc.",
   "license": "MIT",
@@ -51,7 +51,7 @@
   "dependencies": {
     "cron-parser": "^4.6.0",
     "glob": "^8.0.3",
-    "ioredis": "^5.2.2",
+    "ioredis": "^5.3.0",
     "lodash": "^4.17.21",
     "msgpackr": "^1.6.2",
     "semver": "^7.3.7",
