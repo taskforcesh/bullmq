@@ -34,7 +34,9 @@ import { InjectFlowProducer } from '@taskforcesh/nestjs-bullmq-pro';
 
 @Injectable()
 export class FlowService {
-  constructor(@InjectFlowProducer('flow') private fooFlowProducer: FlowProducerPro) {}
+  constructor(
+    @InjectFlowProducer('flow') private fooFlowProducer: FlowProducerPro,
+  ) {}
 }
 ```
 
@@ -46,17 +48,17 @@ Now, add a flow by calling the flow producer's add() method.
 
 ```typescript
 const job = await this.fooFlowProducer.add({
-        name: 'root-job',
-        queueName: 'topQueueName',
-        data: {},
-        children: [
-          {
-            name,
-            data: { idx: 0, foo: 'bar' },
-            queueName: 'childrenQueueName',
-          },
-        ]
-      });
+  name: 'root-job',
+  queueName: 'topQueueName',
+  data: {},
+  children: [
+    {
+      name,
+      data: { idx: 0, foo: 'bar' },
+      queueName: 'childrenQueueName',
+    },
+  ],
+});
 ```
 
 ## Read more:
