@@ -195,7 +195,7 @@ describe('stalled jobs', function () {
 
       await worker.waitUntilReady();
 
-      await Promise.all([
+      const jobs = await Promise.all([
         queue.add('test', { bar: 'baz' }, { removeOnFail: true }),
         queue.add('test', { bar1: 'baz1' }, { removeOnFail: true }),
         queue.add('test', { bar2: 'baz2' }, { removeOnFail: true }),
@@ -235,6 +235,17 @@ describe('stalled jobs', function () {
 
       await allFailed;
       await globalAllFailed;
+
+      const redisClient = await queue.client;
+      const keys = await redisClient.keys(`bull:${queueName}:*`);
+
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        const key = keys.find(key => key.endsWith(job.id!));
+        if (key) {
+          throw new Error('Job should have been removed from redis');
+        }
+      }
 
       await queueEvents.close();
       await worker2.close();
