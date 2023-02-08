@@ -63,6 +63,7 @@
   * [Concurrency](bullmq-pro/groups/concurrency.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
+  * [Producers](bullmq-pro/nestjs/producers.md)
   * [API Reference](https://nestjs.bullmq.pro/)
   * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)
