@@ -328,7 +328,7 @@ describe('stalled jobs', function () {
         await worker.close(true);
       }
 
-      // await queueEvents.close();
+      await queueEvents.close();
     });
 
     describe('when removeOnFail is provided as a number', function () {
