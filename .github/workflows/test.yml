@@ -86,3 +86,51 @@ jobs:
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
       - run: yarn test
+
+  python:
+    runs-on: ubuntu-latest
+
+    env:
+      node-version: lts/*
+      redis-version: 7-alpine
+      python-version: 3.10
+
+    name: testing python@${{ env.python-version }}, redis@${{ env.redis-version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
+
+      - name: Use Node.js ${{ env.node-version }}
+        uses: actions/setup-node@8c91899e586c5b171469028077307d293428b516 # tag=v3
+        with:
+          node-version: ${{ env.node-version }}
+          cache: 'yarn'
+      - name: Start Redis
+        uses: supercharge/redis-github-action@4b67a313c69bc7a90f162e8d810392fffe10d3b5 # tag=1.4.0
+        with:
+          redis-version: ${{ env.redis-version }}
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn copy:lua:python
+
+      - name: Set up Python ${{ env.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+          pip install -r python/requirements.txt
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - name: Test with pytest
+        run: |
+          cd python
+          ./run_tests.sh
