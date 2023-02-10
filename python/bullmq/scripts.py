@@ -21,7 +21,8 @@ class Scripts:
         }
 
         # loop all the names and add them to the keys object
-        names = ["", "active", "wait", "paused", "completed", "failed", "delayed", "priority", "id", "stalled-check", "meta", "events"]
+        names = ["", "active", "wait", "paused", "completed", "failed", "delayed", "priority", "id",
+        "stalled-check", "meta", "events"]
         for name in names:
             self.keys[name] = self.toKey(prefix, queueName, name)
 

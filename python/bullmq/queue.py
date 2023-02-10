@@ -16,9 +16,11 @@ class Queue:
 
         self.conn = redis.Redis(host=host, port=port, db=db, password=password)
         self.scripts = Scripts(opts.get("prefix") or "bull", name, self.conn)
+        self.opts = opts
+        self.name = name
 
     """
-      Add an item to the queue.
+        Add an item to the queue.
 
         @param name: The name of the queue
         @param data: The data to add to the queue (must be JSON serializable)
@@ -27,11 +29,18 @@ class Queue:
         """ "Add an item to the queue" """
         return self.scripts.addJob(name, data, opts or {})
 
+    """
+        Pauses the processing of this queue globally
+    """
     def pause(self):
         return self.scripts.pause(True)
 
     def resume(self):
         return self.scripts.pause(False)
+
+    def isPaused(self):
+        pausedKeyExists = await self.conn.hexists(self.opts.get("prefix") or "bull" + ":" + self.name + ":meta", "paused")
+        return pausedKeyExists == 1
 
     """
         Remove everything from the queue.
