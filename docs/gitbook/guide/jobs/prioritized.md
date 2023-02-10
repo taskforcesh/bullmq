@@ -3,10 +3,10 @@
 Jobs can also include a priority option. Using priorities, job's processing order will be affected by the specified priority instead of following a FIFO or LIFO pattern.
 
 {% hint style="warning" %}
-Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity O\(n\) relative to the number of jobs waiting in the Queue.
+Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity O(n) relative to the number of jobs waiting in the Queue.
 {% endhint %}
 
-Priorities goes from 1 to MAX_INT, whereas lower number is always higher priority than higher numbers.
+Priorities goes from 1 to MAX\_INT, whereas lower number is always higher priority than higher numbers.
 
 Jobs without a priority assigned will get the least priority.
 
@@ -22,3 +22,5 @@ await myQueue.add('wall', { color: 'blue' }, { priority: 7 });
 // The wall will be painted first brown, then blue and
 // finally pink.
 ```
+
+If several jobs are added with the same priority value, then the jobs within that priority will be processed in LIFO (Last in first out) fashion.
