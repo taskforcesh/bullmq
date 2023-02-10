@@ -363,7 +363,7 @@ export class Worker<
 
           this.runStalledJobsCheck();
 
-          const processing = (this.processing = new Map());
+          const processing = (this.processing = new Map()) as Map<Promise<void | Job<DataType, ResultType, NameType>>, string>;
           let tokenPostfix = 0;
 
           while (!this.closing) {
@@ -388,14 +388,14 @@ export class Worker<
             /*
              * Get the first promise that completes
              */
-            const promises = [...processing.keys()];
-            const completedIdx = await Promise.race(
-              promises.map((p, idx) => p.then(() => idx)),
+            const valpairs  = [...processing.entries ()];
+            const [completedPromise, completedToken] = await Promise.race(
+              valpairs.map(valpair => valpair[0].then(() => valpair)),
             );
-            const completed = promises[completedIdx];
-            const job = await completed;
+
+            const job = await completedPromise;
             if (job) {
-              const token = processing.get(completed);
+              const token = completedToken;
               processing.set(
                 this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
                   () =>
@@ -406,10 +406,10 @@ export class Worker<
                     ),
                   this.opts.runRetryDelay,
                 ),
-                token,
+                token
               );
             }
-            processing.delete(completed);
+            processing.delete(completedPromise);
           }
           this.running = false;
           return Promise.all([...processing.keys()]);
