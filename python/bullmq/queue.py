@@ -38,7 +38,7 @@ class Queue:
     def resume(self):
         return self.scripts.pause(False)
 
-    def isPaused(self):
+    async def isPaused(self):
         pausedKeyExists = await self.conn.hexists(self.opts.get("prefix") or "bull" + ":" + self.name + ":meta", "paused")
         return pausedKeyExists == 1
 
