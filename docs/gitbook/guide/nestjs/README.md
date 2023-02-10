@@ -27,7 +27,15 @@ To register a queue, import the **BullModule.registerQueue()** dynamic module, a
 
 ```typescript
 BullModule.registerQueue({
-  name: 'test',
+  name: 'queueName',
+});
+```
+
+To register a flow producer, import the **BullModule.registerFlowProducer()** dynamic module, as follows:
+
+```typescript
+BullModule.registerFlowProducer({
+  name: 'flowProducerName',
 });
 ```
 
@@ -59,6 +67,13 @@ And then register it as a provider:
   imports: [
     BullModule.registerQueue({
       name: 'queueName',
+      connection: {
+        host: '0.0.0.0',
+        port: 6380,
+      },
+    }),
+    BullModule.registerFlowProducer({
+      name: 'flowProducer',
       connection: {
         host: '0.0.0.0',
         port: 6380,
