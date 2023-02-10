@@ -73,7 +73,7 @@ And then register it as a provider:
       },
     }),
     BullModule.registerFlowProducer({
-      name: 'flowProducer',
+      name: 'flowProducerName',
       connection: {
         host: '0.0.0.0',
         port: 6380,
