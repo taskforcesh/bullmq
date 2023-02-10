@@ -27,6 +27,9 @@ import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { TimerManager } from './timer-manager';
 
+// 10 seconds is the maximum time a BRPOPLPUSH can block.
+const maximumBlockTimeout = 10;
+
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
@@ -527,7 +530,11 @@ export class Worker<
             ? Math.ceil(blockTimeout)
             : blockTimeout;
 
-        const now = Date.now();
+        // We restrict the maximum block timeout to 10 second to avoid
+        // blocking the connection for too long in the case of reconnections
+        // reference: https://github.com/taskforcesh/bullmq/issues/1658
+        blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+
         const jobId = await client.brpoplpush(
           this.keys.wait,
           this.keys.active,
