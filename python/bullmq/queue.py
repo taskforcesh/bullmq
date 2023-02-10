@@ -5,9 +5,9 @@ class Queue:
     """
     Instantiate a Queue object
     """
-    def __init__(self, name: str, redisOpts = {}, opts = {}):
+    def __init__(self, name: str, redisOpts={}, opts={}):
         """ "Initialize a connection" """
-        
+
         host = redisOpts.get("host") or "localhost"
         port = redisOpts.get("port") or 6379
         db = redisOpts.get("db") or 0
@@ -26,13 +26,13 @@ class Queue:
     def add(self, name: str, data, opts):
         """ "Add an item to the queue" """
         return self.scripts.addJob(name, data, opts or {})
-    
+
     def pause(self):
         return self.scripts.pause(True)
-    
+
     def resume(self):
         return self.scripts.pause(False)
-    
+
     """
         Remove everything from the queue.
     """

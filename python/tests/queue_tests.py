@@ -16,7 +16,7 @@ queueName = "__bullmq_test_queue__"
 #     return True
 
 class TestQueue(unittest.IsolatedAsyncioTestCase):
-    
+
     async def asyncSetUp(self):
         print("Setting up test queue")
         # Delete test queue
@@ -24,11 +24,11 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.pause()
         await queue.obliterate()
         await queue.close()
-        
+
     async def test_add_job(self):
         queue = Queue(queueName)
         job = await queue.add("test-job", {"foo": "bar"}, {})
-            
+
         self.assertEqual(job["jobId"], b"1")
         await queue.close()
 
