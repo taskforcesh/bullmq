@@ -31,7 +31,7 @@ To register a queue, import the **BullModule.registerQueue()** dynamic module, a
 
 ```typescript
 BullModule.registerQueue({
-  name: 'testQueue',
+  name: 'queueName',
 });
 ```
 
@@ -39,7 +39,7 @@ To register a flow producer, import the **BullModule.registerFlowProducer()** dy
 
 ```typescript
 BullModule.registerFlowProducer({
-  name: 'testFlowProducer',
+  name: 'flowProducerName',
 });
 ```
 

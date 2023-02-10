@@ -40,6 +40,8 @@
 * [QueueScheduler](guide/queuescheduler.md)
 * [Architecture](guide/architecture.md)
 * [NestJs](guide/nestjs.md)
+* [NestJs](guide/nestjs/README.md)
+  * [Producers](guide/nestjs/producers.md)
 * [Going to production](guide/going-to-production.md)
 
 ## Patterns
