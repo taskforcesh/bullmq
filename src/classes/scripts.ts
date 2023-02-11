@@ -573,6 +573,16 @@ export class Scripts {
     ]);
   }
 
+  saveStacktraceArgs(
+    jobId: string,
+    stacktrace: string,
+    failedReason: string,
+  ): string[] {
+    const keys: string[] = [this.queue.toKey(jobId)];
+
+    return keys.concat([stacktrace, failedReason]);
+  }
+
   moveToWaitingChildrenArgs(
     jobId: string,
     token: string,

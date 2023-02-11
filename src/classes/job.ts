@@ -566,7 +566,18 @@ export class Job<
 
     let command: string;
     const multi = client.multi();
-    this.saveStacktrace(multi, err);
+
+    const { failedReason, stacktrace } = this.saveStacktrace(multi, err);
+
+    const args = this.scripts.saveStacktraceArgs(
+      this.id,
+      stacktrace,
+      failedReason,
+    );
+
+    (<any>multi).saveStacktrace(args);
+
+    //this.saveStacktrace(multi, err);
 
     //
     // Check if an automatic retry should be performed
@@ -1070,7 +1081,10 @@ export class Job<
     );
   }
 
-  protected saveStacktrace(multi: ChainableCommander, err: Error): void {
+  protected saveStacktrace(
+    multi: ChainableCommander,
+    err: Error,
+  ): { stacktrace: string; failedReason: string } {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {
@@ -1080,12 +1094,17 @@ export class Job<
       }
     }
 
-    const params = {
+    /*const params = {
       stacktrace: JSON.stringify(this.stacktrace),
       failedReason: err?.message,
     };
 
-    multi.hmset(this.queue.toKey(this.id), params);
+    multi.hmset(this.queue.toKey(this.id), params);*/
+
+    return {
+      stacktrace: JSON.stringify(this.stacktrace),
+      failedReason: err?.message,
+    };
   }
 }
 
