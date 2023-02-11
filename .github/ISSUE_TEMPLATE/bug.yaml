@@ -10,7 +10,7 @@ body:
       value: |
         Thanks for taking the time to fill out this bug report. In order to provide you the best possible support
         we require you to fill this simple form.
-  - type: textarea
+  - type: input
     id: version
     attributes:
       label: Version
