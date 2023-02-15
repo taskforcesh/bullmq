@@ -31,7 +31,7 @@ class Scripts:
             "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
         }
-        
+
         # loop all the names and add them to the keys object
         names = ["", "active", "wait", "paused", "completed", "failed", "delayed", "stalled", "limiter", "priority", "id", "stalled-check", "meta", "events"]
         for name in names:
@@ -46,7 +46,7 @@ class Scripts:
         data = file.read()
         file.close()
         return data
-    
+
     def getKeys(self, keys: list):
         def mapKey(key):
             return self.keys[key]
@@ -77,7 +77,7 @@ class Scripts:
     
     def pause(self, pause: bool = True):
         "Pause or resume a queue"
-              
+
         src = "wait" if pause else "paused"
         dst = "paused" if pause else "wait"
 
@@ -177,17 +177,6 @@ class Scripts:
             return raw2NextJobData(result)
         return None
 
-# --[[
-#   Extend lock and removes the job from the stalled set.
-#   Input:
-#     KEYS[1] 'lock',
-#     KEYS[2] 'stalled'
-#     ARGV[1]  token
-#     ARGV[2]  lock duration in milliseconds
-#     ARGV[3]  jobid
-#   Output:
-#     "1" if lock extented succesfully.
-# ]]
     def extendLock(self, jobId: str, token: str, duration: int, client: Redis = None):
         keys = [self.toKey(jobId) + ":lock", self.keys['stalled']]
         args = [token, duration, jobId]
@@ -197,108 +186,6 @@ class Scripts:
         keys = self.getKeys(['stalled', 'wait', 'active', 'failed', 'stalled-check', 'meta', 'paused', 'events'])
         args = [maxStalledCount, self.keys[''], round(time.time() * 1000), stalledInterval]
         return self.commands["moveStalledJobsToWait"](keys, args)
-
-#   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
-#     job: MinimalJob<T, R, N>,
-#     val: any,
-#     propVal: FinishedPropValAttribute,
-#     shouldRemove: boolean | number | KeepJobs,
-#     target: FinishedStatus,
-#     token: string,
-#     timestamp: number,
-#     fetchNext = true,
-#   ): (string | number | boolean | Buffer)[] {
-#     const queueKeys = this.queue.keys;
-#     const opts: WorkerOptions = <WorkerOptions>this.queue.opts;
-
-#     const metricsKey = this.queue.toKey(`metrics:${target}`);
-
-#     const keys = [
-#       queueKeys.wait,
-#       queueKeys.active,
-#       queueKeys.priority,
-#       queueKeys.events,
-#       queueKeys.stalled,
-#       queueKeys.limiter,
-#       queueKeys.delayed,
-#       queueKeys.paused,
-#       queueKeys[target],
-#       this.queue.toKey(job.id),
-#       queueKeys.meta,
-#       metricsKey,
-#     ];
-
-#     const keepJobs =
-#       typeof shouldRemove === 'object'
-#         ? shouldRemove
-#         : typeof shouldRemove === 'number'
-#         ? { count: shouldRemove }
-#         : { count: shouldRemove ? 0 : -1 };
-
-#     const args = [
-#       job.id,
-#       timestamp,
-#       propVal,
-#       typeof val === 'undefined' ? 'null' : val,
-#       target,
-#       JSON.stringify({ jobId: job.id, val: val }),
-#       !fetchNext || this.queue.closing ? 0 : 1,
-#       queueKeys[''],
-#       pack({
-#         token,
-#         keepJobs,
-#         limiter: opts.limiter,
-#         lockDuration: opts.lockDuration,
-#         attempts: job.opts.attempts,
-#         attemptsMade: job.attemptsMade,
-#         maxMetricsSize: opts.metrics?.maxDataPoints
-#           ? opts.metrics?.maxDataPoints
-#           : '',
-#         fpof: !!job.opts?.failParentOnFailure,
-#       }),
-#     ];
-
-#     return keys.concat(args);
-#   }
-
-#   protected async moveToFinished<
-#     DataType = any,
-#     ReturnType = any,
-#     NameType extends string = string,
-#   >(
-#     job: MinimalJob<DataType, ReturnType, NameType>,
-#     val: any,
-#     propVal: FinishedPropValAttribute,
-#     shouldRemove: boolean | number | KeepJobs,
-#     target: FinishedStatus,
-#     token: string,
-#     fetchNext: boolean,
-#   ) {
-#     const client = await this.queue.client;
-
-#     const timestamp = Date.now();
-#     const args = this.moveToFinishedArgs<DataType, ReturnType, NameType>(
-#       job,
-#       val,
-#       propVal,
-#       shouldRemove,
-#       target,
-#       token,
-#       timestamp,
-#       fetchNext,
-#     );
-
-#     const result = await (<any>client).moveToFinished(args);
-#     if (result < 0) {
-#       throw this.finishedErrors(result, job.id, 'finished', 'active');
-#     } else {
-#       job.finishedOn = timestamp;
-
-#       if (typeof result !== 'undefined') {
-#         return raw2NextJobData(result);
-#       }
-#     }
-#   }
 
 def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError:
     if code == ErrorCode.JobNotExist.value:

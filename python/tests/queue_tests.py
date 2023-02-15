@@ -12,7 +12,7 @@ from bullmq.queue import Queue;
 queueName = "__bullmq_test_queue__"
 
 class TestQueue(unittest.IsolatedAsyncioTestCase):
-    
+
     async def asyncSetUp(self):
         print("Setting up test queue")
         # Delete test queue
@@ -20,7 +20,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.pause()
         await queue.obliterate()
         await queue.close()
-        
+
     async def test_add_job(self):
         queue = Queue(queueName)
         job = await queue.add("test-job", {"foo": "bar"}, {})
@@ -39,6 +39,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.attempts, attempts)
         self.assertEqual(job.delay, delay)
         self.assertEqual(job.data, data)
+
         await queue.close()
 
 if __name__ == '__main__':

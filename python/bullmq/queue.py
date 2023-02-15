@@ -8,7 +8,7 @@ class Queue:
     """
         Instantiate a Queue object
     """
-    def __init__(self, name: str, redisOpts = {}, opts = {}):
+    def __init__(self, name: str, redisOpts={}, opts={}):
         """ "Initialize a connection" """
 
         self.name = name
@@ -21,7 +21,7 @@ class Queue:
         self.scripts = Scripts(self.prefix, name, self.redisConnection.conn)
 
     """
-      Add an item to the queue.
+        Add an item to the queue.
 
         @param name: The name of the queue
         @param data: The data to add to the queue (must be JSON serializable)
@@ -33,12 +33,19 @@ class Queue:
         job.id = jobId
         return job
     
+    """
+        Pauses the processing of this queue globally
+    """
     def pause(self):
         return self.scripts.pause(True)
-    
+
     def resume(self):
         return self.scripts.pause(False)
-    
+
+    async def isPaused(self):
+        pausedKeyExists = await self.conn.hexists(self.opts.get("prefix") or "bull" + ":" + self.name + ":meta", "paused")
+        return pausedKeyExists == 1
+
     """
         Remove everything from the queue.
     """
