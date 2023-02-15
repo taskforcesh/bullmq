@@ -2,7 +2,7 @@ from typing import Callable
 from uuid import uuid4
 import asyncio
 import traceback
-import json
+import time
 
 from redis import Redis
 
@@ -92,7 +92,7 @@ class Worker(EventEmitter):
 
         # If there are no jobs in the waiting list we keep waiting with BRPOPLPUSH
         if job == None:
-            timeout = min(dalayUntil - int(time.time() * 1000) if delayUntil else 5000, 5000) / 1000
+            timeout = min(delayUntil - int(time.time() * 1000) if delayUntil else 5000, 5000) / 1000
             jobId = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
             if jobId:
                 job, jobId = await self.scripts.moveToActive(token, self.opts, jobId)
@@ -151,7 +151,7 @@ class Worker(EventEmitter):
 
         except Exception as e:
             print("Error checking stalled jobs", e)
-            self.emit('error', err)
+            self.emit('error', e)
 
     async def close(self, force: bool = False):
         """ "Close the worker" """
