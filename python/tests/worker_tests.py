@@ -8,9 +8,7 @@ import asyncio
 import unittest
 from asyncio import Future
 
-from bullmq.queue import Queue;
-from bullmq.worker import Worker;
-from bullmq.job import Job;
+from bullmq import Queue, Worker, Job;
 
 queueName = "__test_queue__"
 
