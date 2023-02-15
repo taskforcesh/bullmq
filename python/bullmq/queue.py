@@ -1,21 +1,24 @@
 import redis.asyncio as redis
+
 from bullmq.scripts import Scripts
+from bullmq.job import Job
+from bullmq.redis_connection import RedisConnection
 
 class Queue:
     """
-    Instantiate a Queue object
+        Instantiate a Queue object
     """
     def __init__(self, name: str, redisOpts = {}, opts = {}):
         """ "Initialize a connection" """
-        
-        host = redisOpts.get("host") or "localhost"
-        port = redisOpts.get("port") or 6379
-        db = redisOpts.get("db") or 0
-        password = redisOpts.get("password") or None
-        print("Connecting to Redis at " + host + ":" + str(port) + " db " + str(db))
 
-        self.conn = redis.Redis(host=host, port=port, db=db, password=password)
-        self.scripts = Scripts(opts.get("prefix") or "bull", name, self.conn)
+        self.name = name
+        self.redisConnection = RedisConnection(redisOpts)
+        self.client = self.redisConnection.conn
+        self.opts = opts
+
+        self.prefix = opts.get("prefix") or "bull"
+        
+        self.scripts = Scripts(self.prefix, name, self.redisConnection.conn)
 
     """
       Add an item to the queue.
@@ -23,9 +26,12 @@ class Queue:
         @param name: The name of the queue
         @param data: The data to add to the queue (must be JSON serializable)
     """
-    def add(self, name: str, data, opts):
-        """ "Add an item to the queue" """
-        return self.scripts.addJob(name, data, opts or {})
+    async def add(self, name: str, data, opts = {}):
+        """ Add an item to the queue """
+        job = Job(self.client, name, data, opts)
+        jobId = await self.scripts.addJob(job)
+        job.id = jobId
+        return job
     
     def pause(self):
         return self.scripts.pause(True)
@@ -49,4 +55,11 @@ class Queue:
     """
     def close(self):
         """ "Close the connection" """
-        return self.conn.close()
+        return self.redisConnection.close()
+
+async def fromId(queue: Queue, jobId: str):
+    key = queue.prefix + ":" + queue.name + ":" + jobId
+    rawData = await queue.client.hgetall(key)
+    return Job.fromJSON(queue.client, rawData, jobId)
+
+Job.fromId = staticmethod(fromId)

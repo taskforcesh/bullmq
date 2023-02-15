@@ -1,5 +1,5 @@
 """
-Tests for the queue module.
+Tests for the queue class.
 
 https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
@@ -10,10 +10,6 @@ import unittest
 from bullmq.queue import Queue;
 
 queueName = "__bullmq_test_queue__"
-
-# async def my_func():
-#     await asyncio.sleep(0.1)
-#     return True
 
 class TestQueue(unittest.IsolatedAsyncioTestCase):
     
@@ -29,7 +25,20 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         queue = Queue(queueName)
         job = await queue.add("test-job", {"foo": "bar"}, {})
             
-        self.assertEqual(job["jobId"], b"1")
+        self.assertEqual(job.id, "1")
+        await queue.close()
+        
+    async def test_add_job_with_options(self):
+        queue = Queue(queueName)
+        data = {"foo": "bar"}
+        attempts = 3,
+        delay = 1000
+        job = await queue.add("test-job", data=data , opts={"attempts": attempts, "delay": delay})
+            
+        self.assertEqual(job.id, "1")
+        self.assertEqual(job.attempts, attempts)
+        self.assertEqual(job.delay, delay)
+        self.assertEqual(job.data, data)
         await queue.close()
 
 if __name__ == '__main__':
