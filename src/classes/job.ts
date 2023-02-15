@@ -566,6 +566,7 @@ export class Job<
 
     let command: string;
     const multi = client.multi();
+
     this.saveStacktrace(multi, err);
 
     //
@@ -1080,12 +1081,13 @@ export class Job<
       }
     }
 
-    const params = {
-      stacktrace: JSON.stringify(this.stacktrace),
-      failedReason: err?.message,
-    };
+    const args = this.scripts.saveStacktraceArgs(
+      this.id,
+      JSON.stringify(this.stacktrace),
+      err?.message,
+    );
 
-    multi.hmset(this.queue.toKey(this.id), params);
+    (<any>multi).saveStacktrace(args);
   }
 }
 
