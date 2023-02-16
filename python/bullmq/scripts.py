@@ -95,6 +95,12 @@ class Scripts:
                 raise Exception("Cannot obliterate queue with active jobs")
         return result
 
+    async def retryJobs(self, state: str = "failed", count: int = 1000, timestamp: int = round(time.time()*1000)):
+        "Remove a queue completely"
+        keys = self.getKeys(['', 'events', state, 'wait', 'paused', 'meta'])
+        result = await self.commands["retryJobs"](keys, args=[count, timestamp, state])
+        return result
+
     async def moveToActive(self, token: str, opts: dict, jobId: str = "") -> list[Any]:
         "Add an item to the queue"
 

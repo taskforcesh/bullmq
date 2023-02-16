@@ -58,6 +58,19 @@ class Queue:
                 break
 
     """
+        Retry all the failed jobs.
+    """
+    async def retryJobs(self, opts = {}):
+        while True:
+            cursor = await self.scripts.retryJobs(
+                opts.get("state"),
+                opts.get("count"),
+                opts.get("timestamp")
+            )
+            if cursor == 0 or cursor == None or cursor == "0":
+                break
+
+    """
         Closes the queue and the underlying connection to Redis.
     """
     def close(self):
