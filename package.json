@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "3.6.4",
+  "version": "3.6.6",
   "description": "Queue for messages and jobs based on Redis",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -25,6 +25,7 @@
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/cjs/commands/includes && copyfiles -f ./src/commands/includes/*.lua ./dist/esm/commands/includes",
     "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/cjs/commands && copyfiles -f ./src/commands/*.lua ./dist/esm/commands",
+    "copy:lua:python": "copyfiles -f ./rawScripts/*.lua ./python/bullmq/commands",
     "copy:master:type": "copyfiles -f ./dist/esm/classes/master.d.ts ./dist/cjs/classes",
     "coverage": "nyc --reporter=text --reporter=lcovonly yarn test",
     "cm": "git cz",

@@ -39,7 +39,8 @@
 * [Events](guide/events.md)
 * [QueueScheduler](guide/queuescheduler.md)
 * [Architecture](guide/architecture.md)
-* [NestJs](guide/nestjs.md)
+* [NestJs](guide/nestjs/README.md)
+  * [Producers](guide/nestjs/producers.md)
 * [Going to production](guide/going-to-production.md)
 
 ## Patterns
@@ -90,3 +91,7 @@
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
+
+## Python
+
+* [Introduction](python/introduction.md)

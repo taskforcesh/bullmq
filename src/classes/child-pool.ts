@@ -15,7 +15,7 @@ const getFreePort = async () => {
   return new Promise(resolve => {
     const server = createServer();
     server.listen(0, () => {
-      const { port } = (server.address() as AddressInfo);
+      const { port } = server.address() as AddressInfo;
       server.close(() => resolve(port));
     });
   });
@@ -121,8 +121,13 @@ export class ChildPool {
     child.stdout.pipe(process.stdout);
     child.stderr.pipe(process.stderr);
 
-    await initChild(child, child.processFile);
-    return child;
+    try {
+      await initChild(child, child.processFile);
+      return child;
+    } catch (err) {
+      _this.release(child);
+      throw err;
+    }
   }
 
   release(child: ChildProcessExt): void {

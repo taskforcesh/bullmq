@@ -195,7 +195,7 @@ describe('stalled jobs', function () {
 
       await worker.waitUntilReady();
 
-      await Promise.all([
+      const jobs = await Promise.all([
         queue.add('test', { bar: 'baz' }, { removeOnFail: true }),
         queue.add('test', { bar1: 'baz1' }, { removeOnFail: true }),
         queue.add('test', { bar2: 'baz2' }, { removeOnFail: true }),
@@ -236,8 +236,99 @@ describe('stalled jobs', function () {
       await allFailed;
       await globalAllFailed;
 
+      const redisClient = await queue.client;
+      const keys = await redisClient.keys(`bull:${queueName}:*`);
+
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        const key = keys.find(key => key.endsWith(job.id!));
+        if (key) {
+          throw new Error('Job should have been removed from redis');
+        }
+      }
+
       await queueEvents.close();
       await worker2.close();
+    });
+
+    it('moves jobs to failed with maxStalledCount > 1', async function () {
+      this.timeout(60000);
+
+      const queueEvents = new QueueEvents(queueName, { connection });
+      await queueEvents.waitUntilReady();
+
+      const concurrency = 4;
+      const maxStalledCount = 2;
+
+      const jobs = await Promise.all([
+        queue.add('test', { bar: 'baz' }, { removeOnFail: true }),
+        queue.add('test', { bar1: 'baz1' }, { removeOnFail: true }),
+        queue.add('test', { bar2: 'baz2' }, { removeOnFail: true }),
+        queue.add('test', { bar3: 'baz3' }, { removeOnFail: true }),
+      ]);
+
+      for (let i = 0; i <= maxStalledCount + 1; i++) {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            return delay(10000);
+          },
+          {
+            connection,
+            lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount,
+            concurrency,
+          },
+        );
+
+        if (i <= maxStalledCount) {
+          const allActive = new Promise(resolve => {
+            worker.on('active', after(concurrency, resolve));
+          });
+
+          await worker.waitUntilReady();
+          await allActive;
+        } else {
+          const errorMessage = 'job stalled more than allowable limit';
+          const allFailed = new Promise<void>(resolve => {
+            worker.on(
+              'failed',
+              after(concurrency, async (job, failedReason, prev) => {
+                expect(job).to.be.undefined;
+                expect(prev).to.be.equal('active');
+                expect(failedReason.message).to.be.equal(errorMessage);
+                resolve();
+              }),
+            );
+          });
+
+          const globalAllFailed = new Promise<void>(resolve => {
+            queueEvents.on('failed', ({ failedReason }) => {
+              expect(failedReason).to.be.equal(errorMessage);
+              resolve();
+            });
+          });
+
+          await allFailed;
+          await globalAllFailed;
+
+          const redisClient = await queue.client;
+          const keys = await redisClient.keys(`bull:${queueName}:*`);
+
+          for (let i = 0; i < jobs.length; i++) {
+            const job = jobs[i];
+            const key = keys.find(key => key.endsWith(job.id!));
+            if (key) {
+              throw new Error('Job should have been removed from redis');
+            }
+          }
+        }
+
+        await worker.close(true);
+      }
+
+      await queueEvents.close();
     });
 
     describe('when removeOnFail is provided as a number', function () {
