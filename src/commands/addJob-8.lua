@@ -106,8 +106,8 @@ end
 
 -- Store the job.
 local jsonOpts = cjson.encode(opts)
-local delay = opts['delay'] or 0
-local priority = opts['priority'] or 0
+local delay = opts['d'] or 0
+local priority = opts['p'] or 0
 
 local optionalValues = {}
 if parentKey ~= nil then
@@ -150,7 +150,7 @@ else
   -- Standard or priority add
   if priority == 0 then
     -- LIFO or FIFO
-    local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH';
+    local pushCmd = opts['l'] and 'RPUSH' or 'LPUSH';
     rcall(pushCmd, target, jobId)
   else
     -- Priority add
