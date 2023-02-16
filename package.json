@@ -167,7 +167,17 @@
   },
   "release": {
     "plugins": [
-      "@semantic-release/commit-analyzer",
+      [
+        "@semantic-release/commit-analyzer",
+        {
+          "releaseRules": [
+            {
+              "scope": "python*",
+              "release": false
+            }
+          ]
+        }
+      ],
       "@semantic-release/release-notes-generator",
       [
         "@semantic-release/changelog",
