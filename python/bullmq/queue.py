@@ -1,8 +1,14 @@
 import redis.asyncio as redis
+from typing import TypeDict
 
 from bullmq.scripts import Scripts
 from bullmq.job import Job
 from bullmq.redis_connection import RedisConnection
+
+class RetryJobsOpts(TypedDict):
+    state : str
+    count : int
+    timestamp: int
 
 class Queue:
     """
@@ -60,7 +66,7 @@ class Queue:
     """
         Retry all the failed jobs.
     """
-    async def retryJobs(self, opts = {}):
+    async def retryJobs(self, opts: RetryJobsOpts = {}):
         while True:
             cursor = await self.scripts.retryJobs(
                 opts.get("state"),
