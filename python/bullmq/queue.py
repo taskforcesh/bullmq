@@ -1,5 +1,5 @@
 import redis.asyncio as redis
-from typing import TypeDict
+from typing import TypedDict
 
 from bullmq.scripts import Scripts
 from bullmq.job import Job
