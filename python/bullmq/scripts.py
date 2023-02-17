@@ -30,6 +30,7 @@ class Scripts:
             "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
+            "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
         }
 
         # loop all the names and add them to the keys object

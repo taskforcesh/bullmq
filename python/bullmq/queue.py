@@ -49,7 +49,7 @@ class Queue:
         return self.scripts.pause(False)
 
     async def isPaused(self):
-        pausedKeyExists = await self.conn.hexists(self.opts.get("prefix") or "bull" + ":" + self.name + ":meta", "paused")
+        pausedKeyExists = await self.client.hexists(self.opts.get("prefix") or "bull" + ":" + self.name + ":meta", "paused")
         return pausedKeyExists == 1
 
     """
@@ -75,6 +75,12 @@ class Queue:
             )
             if cursor == 0 or cursor == None or cursor == "0":
                 break
+
+    """
+        Trim the event stream to an approximately maxLength.
+    """
+    def trimEvents(self, maxLength: int):
+        return self.client.xtrim(self.opts.get("prefix") or "bull" + ":" + self.name + ":events", "MAXLEN", "~", maxLength)
 
     """
         Closes the queue and the underlying connection to Redis.
