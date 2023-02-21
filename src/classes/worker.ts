@@ -33,13 +33,6 @@ const maximumBlockTimeout = 10;
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
-export type OptionalJob<
-  DataType = any,
-  ResultType = any,
-  NameType extends string = string,
-  Undefined = undefined,
-> = null | Job<DataType, ResultType, NameType> | Undefined | Undefined;
-
 export interface WorkerListener<
   DataType = any,
   ResultType = any,
