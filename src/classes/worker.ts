@@ -33,6 +33,13 @@ const maximumBlockTimeout = 10;
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
+export type OptionalJob<
+  DataType = any,
+  ResultType = any,
+  NameType extends string = string,
+  Undefined = undefined,
+> = null | Job<DataType, ResultType, NameType> | Undefined | Undefined;
+
 export interface WorkerListener<
   DataType = any,
   ResultType = any,
@@ -92,7 +99,10 @@ export interface WorkerListener<
    * This event is triggered when a job has thrown an exception.
    */
   failed: (
-    job: Job<DataType, ResultType, NameType> | undefined,
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    job?: Job<DataType, ResultType, NameType>,
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     error: Error,
     prev: string,
   ) => void;
