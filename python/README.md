@@ -42,7 +42,7 @@ job = await queue.add('my-job', {'foo': 'bar'})
 
 ## Documentation
 
-The documentation is available at [https://docs.bullmq.io](https://docs.bullmq.io)
+The documentation is available at [https://docs.bullmq.io](https://docs.bullmq.io/python)
 
 ## License
 

@@ -30,6 +30,7 @@ class Scripts:
             "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
+            "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
         }
 
         # loop all the names and add them to the keys object
@@ -93,6 +94,12 @@ class Scripts:
                 raise Exception("Cannot obliterate non-paused queue")
             if (result == -2):
                 raise Exception("Cannot obliterate queue with active jobs")
+        return result
+
+    async def retryJobs(self, state: str = "failed", count: int = 1000, timestamp: int = round(time.time()*1000)):
+        "Remove a queue completely"
+        keys = self.getKeys(['', 'events', state, 'wait', 'paused', 'meta'])
+        result = await self.commands["retryJobs"](keys, args=[count, timestamp, state])
         return result
 
     async def moveToActive(self, token: str, opts: dict, jobId: str = "") -> list[Any]:

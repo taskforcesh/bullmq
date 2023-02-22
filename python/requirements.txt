@@ -7,5 +7,5 @@ pipenv==2023.2.4
 platformdirs==2.6.2
 redis==4.5.1
 six==1.16.0
-virtualenv==20.18.0
+virtualenv==20.19.0
 virtualenv-clone==0.5.7

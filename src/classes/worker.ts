@@ -92,7 +92,10 @@ export interface WorkerListener<
    * This event is triggered when a job has thrown an exception.
    */
   failed: (
-    job: Job<DataType, ResultType, NameType> | undefined,
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    job?: Job<DataType, ResultType, NameType>,
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
     error: Error,
     prev: string,
   ) => void;
