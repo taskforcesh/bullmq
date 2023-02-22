@@ -359,6 +359,7 @@ export class Worker<
 
   async run() {
     if (!this.stalledCheckTimer && !this.opts.skipStalledCheck) {
+      await this.runStalledJobsCheck();
       this.stalledCheckTimer = setInterval(() => {
         this.runStalledJobsCheck();
       }, this.opts.stalledInterval);
