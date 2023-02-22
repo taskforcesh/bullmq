@@ -48,6 +48,13 @@ export interface WorkerOptions extends QueueBaseOptions {
    */
   stalledInterval?: number;
 
+  /**
+   *  Skip stalled check for this worker. Note that other workers could still
+   *  perform stalled checkd and move jobs back to wait for jobs being processed
+   *  by this worker.
+   */
+  skipStalledCheck?: boolean;
+
   skipDelayCheck?: boolean;
   drainDelay?: number;
   lockDuration?: number;

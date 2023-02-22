@@ -26,6 +26,7 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { TimerManager } from './timer-manager';
+import { clearInterval } from 'timers';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -175,6 +176,8 @@ export class Worker<
   protected timerManager: TimerManager;
 
   private blockingConnection: RedisConnection;
+
+  private stalledCheckTimer: NodeJS.Timeout;
 
   private processing: Map<
     Promise<void | Job<DataType, ResultType, NameType>>,
@@ -355,6 +358,12 @@ export class Worker<
   }
 
   async run() {
+    if (!this.stalledCheckTimer && !this.opts.skipStalledCheck) {
+      this.stalledCheckTimer = setInterval(() => {
+        this.runStalledJobsCheck();
+      }, this.opts.stalledInterval);
+    }
+
     if (this.processFn) {
       if (!this.running) {
         try {
@@ -363,8 +372,6 @@ export class Worker<
           if (this.closing) {
             return;
           }
-
-          this.runStalledJobsCheck();
 
           const processing = (this.processing = new Map());
           let tokenPostfix = 0;
@@ -776,6 +783,7 @@ export class Worker<
           return closePoolPromise;
         })
         .finally(() => client.disconnect())
+        .finally(() => clearInterval(this.stalledCheckTimer))
         .finally(() => this.timerManager && this.timerManager.clearAllTimers())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
@@ -825,11 +833,6 @@ export class Worker<
     try {
       if (!this.closing) {
         await this.checkConnectionError(() => this.moveStalledJobsToWait());
-        this.timerManager.setTimer(
-          'checkStalledJobs',
-          this.opts.stalledInterval,
-          () => this.runStalledJobsCheck(),
-        );
       }
     } catch (err) {
       this.emit('error', <Error>err);
