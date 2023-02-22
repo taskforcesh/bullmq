@@ -174,8 +174,9 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
+    client?: RedisClient | ChainableCommander,
   ): Promise<number> {
-    const client = await this.queue.client;
+    client = client || (await this.queue.client);
     const args = [
       this.queue.toKey(jobId) + ':lock',
       this.queue.keys.stalled,
