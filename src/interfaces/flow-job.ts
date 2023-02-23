@@ -1,7 +1,7 @@
 import { JobsOptions } from '../types';
 import { QueueOptions } from './queue-options';
 
-export interface FlowJobBase<T> {
+interface FlowJobBase<T> {
   name: string;
   queueName: string;
   data?: any;
