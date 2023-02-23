@@ -1,6 +1,6 @@
 import type * as IORedis from 'ioredis';
 
-interface BaseOptions {
+export interface BaseOptions {
   skipVersionCheck?: boolean;
 }
 
