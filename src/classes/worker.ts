@@ -358,12 +358,7 @@ export class Worker<
   }
 
   async run() {
-    if (!this.stalledCheckTimer && !this.opts.skipStalledCheck) {
-      await this.runStalledJobsCheck();
-      this.stalledCheckTimer = setInterval(() => {
-        this.runStalledJobsCheck();
-      }, this.opts.stalledInterval);
-    }
+    await this.startStalledCheckTimer();
 
     if (this.processFn) {
       if (!this.running) {
@@ -790,6 +785,27 @@ export class Worker<
         .finally(() => this.emit('closed'));
     })();
     return this.closing;
+  }
+
+  /**
+   *
+   * Manually starts the stalled checker.
+   * The check will run once as soon as this method is called, and
+   * then every opts.stalledInterval milliseconds until the worker is closed.
+   * Note: Normally you do not need to call this method, since the stalled checker
+   * is automatically started when the worker starts processing jobs after
+   * calling run. However if you want to process the jobs manually you need
+   * to call this method to start the stalled checker.
+   *
+   * @see {@link https://docs.bullmq.io/patterns/manually-fetching-jobs}
+   */
+  async startStalledCheckTimer(): Promise<void> {
+    if (!this.stalledCheckTimer && !this.opts.skipStalledCheck) {
+      await this.runStalledJobsCheck();
+      this.stalledCheckTimer = setInterval(() => {
+        this.runStalledJobsCheck();
+      }, this.opts.stalledInterval);
+    }
   }
 
   /**
