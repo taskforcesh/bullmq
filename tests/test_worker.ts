@@ -1278,6 +1278,62 @@ describe('workers', function () {
     await worker.close();
   });
 
+  it('keeps locks for all the jobs that are processed concurrently', async function () {
+    this.timeout(10000);
+
+    const concurrency = 57;
+
+    const lockKey = (jobId: string) => `bull:${queueName}:${jobId}:lock`;
+    const client = await queue.client;
+
+    let worker;
+
+    const processing = new Promise<void>((resolve, reject) => {
+      let count = 0;
+      worker = new Worker(
+        queueName,
+        async job => {
+          try {
+            // Check job is locked
+            const lock = await client.get(lockKey(job.id!));
+            expect(lock).to.be.ok;
+
+            await delay(2000);
+
+            // Check job is still locked
+            const renewedLock = await client.get(lockKey(job.id!));
+            expect(renewedLock).to.be.eql(lock);
+
+            count++;
+
+            if (count === concurrency) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        },
+        {
+          connection,
+          lockDuration: 250,
+          concurrency,
+        },
+      );
+    });
+
+    await worker.waitUntilReady();
+
+    const jobs = await Promise.all(
+      Array.from({ length: concurrency }).map(() =>
+        queue.add('test', { bar: 'baz' }),
+      ),
+    );
+
+    await processing;
+
+    await worker.close();
+  });
+
   it('emits error if lock is lost', async function () {
     this.timeout(10000);
 
