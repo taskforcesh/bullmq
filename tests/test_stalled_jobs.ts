@@ -93,6 +93,37 @@ describe('stalled jobs', function () {
     await worker2.close();
   });
 
+  it("don't process stalled jobs when starting a queue with skipStalledCheck", async function () {
+    const concurrency = 4;
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        return delay(1000);
+      },
+      {
+        connection,
+        stalledInterval: 50,
+        skipStalledCheck: true,
+        concurrency,
+      },
+    );
+
+    const allCompleted = new Promise(resolve => {
+      worker.on('completed', after(concurrency, resolve));
+    });
+
+    await Promise.all([
+      queue.add('test', { bar: 'baz' }),
+      queue.add('test', { bar1: 'baz1' }),
+      queue.add('test', { bar2: 'baz2' }),
+      queue.add('test', { bar3: 'baz3' }),
+    ]);
+
+    await allCompleted;
+    await worker.close();
+  });
+
   it('fail stalled jobs that stall more than allowable stalled limit', async function () {
     this.timeout(6000);
 
