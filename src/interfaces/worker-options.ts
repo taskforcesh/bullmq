@@ -20,6 +20,7 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default true
    */
   autorun?: boolean;
+
   /**
    * Amount of jobs that a single worker is allowed to work on
    * in parallel.
@@ -28,6 +29,7 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @see {@link https://docs.bullmq.io/guide/workers/concurrency}
    */
   concurrency?: number;
+
   /**
    * Enable rate limiter
    * @see {@link https://docs.bullmq.io/guide/rate-limiting}
@@ -57,7 +59,6 @@ export interface WorkerOptions extends QueueBaseOptions {
   stalledInterval?: number;
 
   /**
-
    * You can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the completed set.
@@ -72,7 +73,6 @@ export interface WorkerOptions extends QueueBaseOptions {
   removeOnFail?: KeepJobs;
 
   /**
-
    *  Skip stalled check for this worker. Note that other workers could still
    *  perform stalled checkd and move jobs back to wait for jobs being processed
    *  by this worker.
@@ -87,7 +87,6 @@ export interface WorkerOptions extends QueueBaseOptions {
    *
    * @default 5
    */
-
   drainDelay?: number;
 
   /**
@@ -116,14 +115,10 @@ export interface WorkerOptions extends QueueBaseOptions {
    */
   runRetryDelay?: number;
 
-
-
-
   /**
    * More advanced options.
    */
   settings?: AdvancedOptions;
-
 }
 
 export interface GetNextJobOptions {
