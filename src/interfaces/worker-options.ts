@@ -3,6 +3,7 @@ import { AdvancedOptions } from './advanced-options';
 import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
+import { KeepJobs } from './keep-jobs';
 
 /**
  * An async function that receives `Job`s and handles them.
@@ -19,6 +20,7 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default true
    */
   autorun?: boolean;
+
   /**
    * Amount of jobs that a single worker is allowed to work on
    * in parallel.
@@ -27,6 +29,7 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @see {@link https://docs.bullmq.io/guide/workers/concurrency}
    */
   concurrency?: number;
+
   /**
    * Enable rate limiter
    * @see {@link https://docs.bullmq.io/guide/rate-limiting}
@@ -54,6 +57,20 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default 30000
    */
   stalledInterval?: number;
+
+  /**
+   * You can provide an object specifying max
+   * age and/or count to keep.
+   * Default behavior is to keep the job in the completed set.
+   */
+  removeOnComplete?: KeepJobs;
+
+  /**
+   * You can provide an object specifying max
+   * age and/or count to keep.
+   * Default behavior is to keep the job in the failed set.
+   */
+  removeOnFail?: KeepJobs;
 
   /**
    *  Skip stalled check for this worker. Note that other workers could still
@@ -101,7 +118,7 @@ export interface WorkerOptions extends QueueBaseOptions {
   /**
    * More advanced options.
    */
-  settings?: AdvancedOptions; // FIXME only backoffStrategies is used
+  settings?: AdvancedOptions;
 }
 
 export interface GetNextJobOptions {
