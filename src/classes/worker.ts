@@ -26,6 +26,7 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { TimerManager } from './timer-manager';
+import { clearInterval } from 'timers';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -90,12 +91,11 @@ export interface WorkerListener<
    * Listen to 'failed' event.
    *
    * This event is triggered when a job has thrown an exception.
+   * Note: job parameter could be received as undefined when an stalled job
+   * reaches the stalled limit and it is deleted by the removeOnFail option.
    */
   failed: (
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    job?: Job<DataType, ResultType, NameType>,
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-ignore
+    job: Job<DataType, ResultType, NameType> | undefined,
     error: Error,
     prev: string,
   ) => void;
@@ -175,6 +175,8 @@ export class Worker<
   protected timerManager: TimerManager;
 
   private blockingConnection: RedisConnection;
+
+  private stalledCheckTimer: NodeJS.Timeout;
 
   private processing: Map<
     Promise<void | Job<DataType, ResultType, NameType>>,
@@ -355,6 +357,8 @@ export class Worker<
   }
 
   async run() {
+    await this.startStalledCheckTimer();
+
     if (this.processFn) {
       if (!this.running) {
         try {
@@ -363,8 +367,6 @@ export class Worker<
           if (this.closing) {
             return;
           }
-
-          this.runStalledJobsCheck();
 
           const processing = (this.processing = new Map());
           let tokenPostfix = 0;
@@ -776,11 +778,33 @@ export class Worker<
           return closePoolPromise;
         })
         .finally(() => client.disconnect())
+        .finally(() => clearInterval(this.stalledCheckTimer))
         .finally(() => this.timerManager && this.timerManager.clearAllTimers())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
     })();
     return this.closing;
+  }
+
+  /**
+   *
+   * Manually starts the stalled checker.
+   * The check will run once as soon as this method is called, and
+   * then every opts.stalledInterval milliseconds until the worker is closed.
+   * Note: Normally you do not need to call this method, since the stalled checker
+   * is automatically started when the worker starts processing jobs after
+   * calling run. However if you want to process the jobs manually you need
+   * to call this method to start the stalled checker.
+   *
+   * @see {@link https://docs.bullmq.io/patterns/manually-fetching-jobs}
+   */
+  async startStalledCheckTimer(): Promise<void> {
+    if (!this.stalledCheckTimer && !this.opts.skipStalledCheck) {
+      await this.runStalledJobsCheck();
+      this.stalledCheckTimer = setInterval(() => {
+        this.runStalledJobsCheck();
+      }, this.opts.stalledInterval);
+    }
   }
 
   /**
@@ -825,11 +849,6 @@ export class Worker<
     try {
       if (!this.closing) {
         await this.checkConnectionError(() => this.moveStalledJobsToWait());
-        this.timerManager.setTimer(
-          'checkStalledJobs',
-          this.opts.stalledInterval,
-          () => this.runStalledJobsCheck(),
-        );
       }
     } catch (err) {
       this.emit('error', <Error>err);
