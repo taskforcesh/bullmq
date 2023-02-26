@@ -435,8 +435,6 @@ export class Worker<
     } catch (error) {
       this.running = false;
       throw error;
-    } finally {
-      clearInterval(this.extendLocksTimer);
     }
   }
 
@@ -748,8 +746,9 @@ export class Worker<
           }
           return closePoolPromise;
         })
-        .finally(() => client.disconnect())
+        .finally(() => clearInterval(this.extendLocksTimer))
         .finally(() => clearInterval(this.stalledCheckTimer))
+        .finally(() => client.disconnect())
         .finally(() => this.timerManager && this.timerManager.clearAllTimers())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
