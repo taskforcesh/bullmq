@@ -227,7 +227,7 @@ export class Scripts {
     job: MinimalJob<T, R, N>,
     val: any,
     propVal: FinishedPropValAttribute,
-    shouldRemove: boolean | number | KeepJobs,
+    shouldRemove: undefined | boolean | number | KeepJobs,
     target: FinishedStatus,
     token: string,
     timestamp: number,
@@ -235,6 +235,8 @@ export class Scripts {
   ): (string | number | boolean | Buffer)[] {
     const queueKeys = this.queue.keys;
     const opts: WorkerOptions = <WorkerOptions>this.queue.opts;
+    const workerKeepJobs =
+      target === 'completed' ? opts.removeOnComplete : opts.removeOnFail;
 
     const metricsKey = this.queue.toKey(`metrics:${target}`);
 
@@ -253,12 +255,7 @@ export class Scripts {
       metricsKey,
     ];
 
-    const keepJobs =
-      typeof shouldRemove === 'object'
-        ? shouldRemove
-        : typeof shouldRemove === 'number'
-        ? { count: shouldRemove }
-        : { count: shouldRemove ? 0 : -1 };
+    const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
     const args = [
       job.id,
@@ -284,6 +281,21 @@ export class Scripts {
     ];
 
     return keys.concat(args);
+  }
+
+  protected getKeepJobs(
+    shouldRemove: undefined | boolean | number | KeepJobs,
+    workerKeepJobs: undefined | KeepJobs,
+  ) {
+    if (typeof shouldRemove === 'undefined') {
+      return workerKeepJobs || { count: shouldRemove ? 0 : -1 };
+    }
+
+    return typeof shouldRemove === 'object'
+      ? shouldRemove
+      : typeof shouldRemove === 'number'
+      ? { count: shouldRemove }
+      : { count: shouldRemove ? 0 : -1 };
   }
 
   protected async moveToFinished<
