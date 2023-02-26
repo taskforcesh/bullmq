@@ -374,7 +374,7 @@ export class Worker<
         return;
       }
 
-      this.runStalledJobsCheck();
+      await this.startStalledCheckTimer();
 
       const jobsInProgress = {};
       this.extendLocksTimer = setInterval(async () => {
