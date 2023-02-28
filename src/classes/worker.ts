@@ -25,7 +25,6 @@ import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
-import { TimerManager } from './timer-manager';
 import { clearInterval } from 'timers';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
@@ -172,7 +171,6 @@ export class Worker<
   protected paused: Promise<void>;
   private _repeat: Repeat;
   private childPool: ChildPool;
-  protected timerManager: TimerManager;
 
   private extendLocksTimer: NodeJS.Timeout | null = null;
 
@@ -180,10 +178,7 @@ export class Worker<
 
   private stalledCheckTimer: NodeJS.Timeout;
 
-  private processing: Map<
-    Promise<void | Job<DataType, ResultType, NameType>>,
-    string
-  >;
+  private processing: Set<Promise<void | Job<DataType, ResultType, NameType>>>;
 
   static RateLimitError(): Error {
     return new Error(RATE_LIMIT_ERROR);
@@ -253,7 +248,6 @@ export class Worker<
           this.childPool,
         ).bind(this);
       }
-      this.timerManager = new TimerManager();
 
       if (this.opts.autorun) {
         this.run().catch(error => this.emit('error', error));
@@ -376,45 +370,31 @@ export class Worker<
 
       await this.startStalledCheckTimer();
 
-      const jobsInProgress = {};
-      this.extendLocksTimer = setInterval(async () => {
-        this.extendLocks(jobsInProgress);
-      }, this.opts.lockRenewTime);
+      const jobsInProgress = new Set<{ job: Job; ts: number }>();
+      await this.startLockExtenderTimer(jobsInProgress);
 
-      const processing = (this.processing = new Map());
+      const processing = (this.processing = new Set()); //new Map());
       let tokenPostfix = 0;
 
       while (!this.closing) {
-        if (
+        while (
           !this.waiting &&
           processing.size < this.opts.concurrency &&
           (!this.limitUntil || processing.size == 0)
         ) {
-          const restProcesses = this.opts.concurrency - processing.size;
-          for (let i = 0; i < restProcesses; i++) {
-            const token = `${this.id}:${tokenPostfix++}`;
-            processing.set(
-              this.retryIfFailed<Job<DataType, ResultType, NameType>>(
-                () => this.getNextJob(token),
-                this.opts.runRetryDelay,
-              ),
-              token,
-            );
-          }
+          const token = `${this.id}:${tokenPostfix++}`;
+          processing.add(
+            this.retryIfFailed<Job<DataType, ResultType, NameType>>(
+              () => this.getNextJob(token),
+              this.opts.runRetryDelay,
+            ),
+          );
         }
 
-        /*
-         * Get the first promise that completes
-         */
-        const promises = [...processing.keys()];
-        const completedIdx = await Promise.race(
-          promises.map((p, idx) => p.then(() => idx)),
-        );
-        const completed = promises[completedIdx];
-        const job = await completed;
+        const job = await this.getFirstCompletedJob();
         if (job) {
-          const token = processing.get(completed);
-          processing.set(
+          const token = job.token;
+          processing.add(
             this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
               () =>
                 this.processJob(
@@ -425,17 +405,29 @@ export class Worker<
                 ),
               this.opts.runRetryDelay,
             ),
-            token,
           );
         }
-        processing.delete(completed);
       }
+
       this.running = false;
-      return Promise.all([...processing.keys()]);
+      return Promise.all(processing);
     } catch (error) {
       this.running = false;
       throw error;
     }
+  }
+
+  /*
+   * Get the first promise that completes
+   */
+  private async getFirstCompletedJob() {
+    const promises = Array.from(this.processing);
+    const completedIdx = await Promise.race(
+      promises.map((p, idx) => p.then(() => idx)),
+    );
+    const completed = promises[completedIdx];
+    this.processing.delete(completed);
+    return completed;
   }
 
   /**
@@ -513,7 +505,7 @@ export class Worker<
     }
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(token, jobId);
-    return this.nextJobFromJobData(jobData, id, limitUntil, delayUntil);
+    return this.nextJobFromJobData(jobData, id, limitUntil, delayUntil, token);
   }
 
   private async waitForJob() {
@@ -579,6 +571,7 @@ export class Worker<
     jobId?: string,
     limitUntil?: number,
     delayUntil?: number,
+    token?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
     if (!jobData) {
       if (!this.drained) {
@@ -596,6 +589,7 @@ export class Worker<
     if (jobData) {
       this.drained = false;
       const job = this.createJob(jobData, jobId);
+      job.token = token;
       if (job.opts.repeat) {
         const repeat = await this.repeat;
         await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
@@ -608,7 +602,7 @@ export class Worker<
     job: Job<DataType, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
-    jobsInProgress: { [key: string]: string } = {},
+    jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
@@ -623,7 +617,13 @@ export class Worker<
         );
         this.emit('completed', job, result, 'active');
         const [jobData, jobId, limitUntil, delayUntil] = completed || [];
-        return this.nextJobFromJobData(jobData, jobId, limitUntil, delayUntil);
+        return this.nextJobFromJobData(
+          jobData,
+          jobId,
+          limitUntil,
+          delayUntil,
+          token,
+        );
       }
     };
 
@@ -648,14 +648,16 @@ export class Worker<
 
     this.emit('active', job, 'waiting');
 
+    const inProgressItem = { job, ts: Date.now() };
+
     try {
-      jobsInProgress[job.id] = token;
+      jobsInProgress.add(inProgressItem);
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
       return handleFailed(<Error>err);
     } finally {
-      delete jobsInProgress[job.id];
+      jobsInProgress.delete(inProgressItem);
     }
   }
 
@@ -749,7 +751,6 @@ export class Worker<
         .finally(() => clearInterval(this.extendLocksTimer))
         .finally(() => clearInterval(this.stalledCheckTimer))
         .finally(() => client.disconnect())
-        .finally(() => this.timerManager && this.timerManager.clearAllTimers())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
     })();
@@ -774,6 +775,40 @@ export class Worker<
       this.stalledCheckTimer = setInterval(() => {
         this.runStalledJobsCheck();
       }, this.opts.stalledInterval);
+    }
+  }
+
+  private async startLockExtenderTimer(
+    jobsInProgress: Set<{ job: Job; ts: number }>,
+  ): Promise<void> {
+    if (!this.extendLocksTimer) {
+      this.extendLocksTimer = setInterval(async () => {
+        // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
+        const now = Date.now();
+        const jobsToExtend = [];
+
+        const jobsAndTimestamps = Object.values(jobsInProgress);
+        for (let i = 0; i < jobsAndTimestamps.length; i++) {
+          const { job, ts } = jobsAndTimestamps[i];
+          if (!ts) {
+            jobsAndTimestamps[i].ts = now;
+            continue;
+          }
+
+          if (ts + this.opts.lockRenewTime / 2 < now) {
+            jobsAndTimestamps[i].ts = now;
+            jobsToExtend.push(job);
+          }
+        }
+
+        try {
+          if (jobsToExtend.length) {
+            await this.extendLocks(jobsToExtend);
+          }
+        } catch (err) {
+          this.emit('error', <Error>err);
+        }
+      }, this.opts.lockRenewTime / 2);
     }
   }
 
@@ -815,14 +850,13 @@ export class Worker<
     } while (retry);
   }
 
-  private async extendLocks(jobsInProgress: { [key: string]: string }) {
+  private async extendLocks(jobs: Job[]) {
     try {
       const multi = (await this.client).multi();
-      const jobIds = Object.keys(jobsInProgress);
-      for (const jobId of jobIds) {
+      for (const job of jobs) {
         await this.scripts.extendLock(
-          jobId,
-          jobsInProgress[jobId],
+          job.id,
+          job.token,
           this.opts.lockDuration,
           multi,
         );
@@ -831,7 +865,7 @@ export class Worker<
 
       for (const [err, jobId] of result) {
         if (err) {
-          delete jobsInProgress[jobId];
+          // TODO: signal process function that the job has been lost.
           this.emit(
             'error',
             new Error(`could not renew lock for job ${jobId}`),

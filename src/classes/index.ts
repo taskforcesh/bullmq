@@ -14,6 +14,5 @@ export * from './redis-connection';
 export * from './repeat';
 export * from './sandbox';
 export * from './scripts';
-export * from './timer-manager';
 export * from './unrecoverable-error';
 export * from './worker';
