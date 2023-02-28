@@ -249,7 +249,7 @@ export class Scripts {
       queueKeys.delayed,
       queueKeys.paused,
       queueKeys[target],
-      this.queue.toKey(job.id),
+      this.queue.toKey(job.id ?? ''),
       queueKeys.meta,
       metricsKey,
     ];
