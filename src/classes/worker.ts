@@ -439,7 +439,7 @@ export class Worker<
   async getNextJob(
     token: string,
     { block = true }: GetNextJobOptions = {},
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
     if (this.paused) {
       if (block) {
         await this.paused;

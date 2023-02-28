@@ -50,7 +50,6 @@ export interface ScriptMetadata {
 }
 
 export class ScriptLoaderError extends Error {
-  public readonly path: string;
   /**
    * The include stack
    */
@@ -483,7 +482,7 @@ function splitFilename(filePath: string): {
 } {
   const longName = path.basename(filePath, '.lua');
   const [name, num] = longName.split('-');
-  const numberOfKeys = num && parseInt(num, 10);
+  const numberOfKeys = num ? parseInt(num, 10) : undefined;
   return { name, numberOfKeys };
 }
 
@@ -506,6 +505,7 @@ function getPkgJsonDir(): string {
       // eslint-disable-next-line no-empty
     } catch (e) {}
   }
+  return '';
 }
 
 // https://stackoverflow.com/a/66842927
