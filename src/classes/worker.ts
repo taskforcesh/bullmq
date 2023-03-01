@@ -787,16 +787,15 @@ export class Worker<
         const now = Date.now();
         const jobsToExtend = [];
 
-        const jobsAndTimestamps = Object.values(jobsInProgress);
-        for (let i = 0; i < jobsAndTimestamps.length; i++) {
-          const { job, ts } = jobsAndTimestamps[i];
+        for (const item of jobsInProgress) {
+          const { job, ts } = item;
           if (!ts) {
-            jobsAndTimestamps[i].ts = now;
+            item.ts = now;
             continue;
           }
 
           if (ts + this.opts.lockRenewTime / 2 < now) {
-            jobsAndTimestamps[i].ts = now;
+            item.ts = now;
             jobsToExtend.push(job);
           }
         }
