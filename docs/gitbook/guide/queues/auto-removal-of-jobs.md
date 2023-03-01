@@ -28,6 +28,16 @@ await myQueue.add(
 );
 ```
 
+Or if you want to set it for all your jobs for an specific worker:
+
+```typescript
+new Worker('test', async job => {}, {
+  connection,
+  removeOnComplete: { count: 1000 },
+  removeOnFail: { count: 5000 },
+});
+```
+
 ### Keep jobs based on their age
 
 Another possibility is to keep jobs up to a certain age. The "removeOn" option accepts a "[KeepJobs](https://api.docs.bullmq.io/interfaces/KeepJobs.html)" object, that includes an "age" and a "count" fields. The age is used to specify how old jobs to keep (in seconds), and the count can be used to limit the total amount to keep. The count option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
@@ -51,6 +61,21 @@ await myQueue.add(
 {% hint style="info" %}
 The auto removal of jobs works lazily. This means that jobs are not removed unless a new job completes or fails, since that is when the auto-removal takes place.
 {% endhint %}
+
+Or if you want to set it for all your jobs for an specific worker:
+
+```typescript
+new Worker('test', async job => {}, {
+  connection,
+  removeOnComplete: {
+    age: 3600, // keep up to 1 hour
+    count: 1000, // keep up to 1000 jobs
+  },
+  removeOnFail: {
+    age: 24 * 3600, // keep up to 24 hours
+  },
+});
+```
 
 ### What about idempotence?
 
