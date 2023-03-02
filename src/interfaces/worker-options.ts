@@ -82,6 +82,15 @@ export interface WorkerOptions extends QueueBaseOptions {
   skipStalledCheck?: boolean;
 
   /**
+   *  Skip lock renewal for this worker. If set to true, the lock will expire
+   *  after lockDuration and moved back to the wait queue (if the stalled check is
+   *  not disabled)
+   *
+   *  @default false
+   */
+  skipLockRenewal?: boolean;
+
+  /**
    *
    * Number of seconds to long poll for jobs when the queue is empty.
    *
