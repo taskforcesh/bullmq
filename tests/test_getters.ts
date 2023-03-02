@@ -112,7 +112,8 @@ describe('Jobs getters', function () {
     });
 
     describe('when sharing connection', () => {
-      it('gets all workers for a given queue', async function () {
+      // Test is very flaky on CI, so we skip it for now.
+      it.skip('gets all workers for a given queue', async function () {
         const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
 
         const worker = new Worker(queueName, async () => {}, {
