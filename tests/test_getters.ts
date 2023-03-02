@@ -119,10 +119,12 @@ describe('Jobs getters', function () {
           autorun: false,
           connection: ioredisConnection,
         });
-        await new Promise<void>(resolve => {
+        await new Promise<void>(async resolve => {
           worker.on('ready', () => {
             resolve();
           });
+          await delay(1000);
+          resolve();
         });
 
         const workers = await queue.getWorkers();
@@ -131,10 +133,12 @@ describe('Jobs getters', function () {
         const worker2 = new Worker(queueName, async () => {}, {
           connection: ioredisConnection,
         });
-        await new Promise<void>(resolve => {
+        await new Promise<void>(async resolve => {
           worker2.on('ready', () => {
             resolve();
           });
+          await delay(1000);
+          resolve();
         });
 
         const nextWorkers = await queue.getWorkers();
