@@ -112,8 +112,9 @@ describe('Jobs getters', function () {
     });
 
     describe('when sharing connection', () => {
-      it('gets same reference for all workers for same queue', async function () {
+      it('gets all workers for a given queue', async function () {
         const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
+
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection: ioredisConnection,
@@ -130,10 +131,14 @@ describe('Jobs getters', function () {
         const worker2 = new Worker(queueName, async () => {}, {
           connection: ioredisConnection,
         });
-        await worker2.waitUntilReady();
+        await new Promise<void>(resolve => {
+          worker2.on('ready', () => {
+            resolve();
+          });
+        });
 
         const nextWorkers = await queue.getWorkers();
-        expect(nextWorkers).to.have.length(1);
+        expect(nextWorkers).to.have.length(2);
 
         await worker.close();
         await worker2.close();
