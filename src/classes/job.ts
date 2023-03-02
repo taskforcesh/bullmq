@@ -124,6 +124,11 @@ export class Job<
    */
   repeatJobKey?: string;
 
+  /**
+   * The token used for locking this job.
+   */
+  token?: string;
+
   protected toKey: (type: string) => string;
 
   protected discarded: boolean;

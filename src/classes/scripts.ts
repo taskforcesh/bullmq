@@ -38,7 +38,26 @@ import { ChainableCommander } from 'ioredis';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
-  constructor(protected queue: MinimalQueue) {}
+  moveToFinishedKeys: string[];
+
+  constructor(protected queue: MinimalQueue) {
+    const queueKeys = this.queue.keys;
+
+    this.moveToFinishedKeys = [
+      queueKeys.wait,
+      queueKeys.active,
+      queueKeys.priority,
+      queueKeys.events,
+      queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.paused,
+      undefined,
+      undefined,
+      queueKeys.meta,
+      undefined,
+    ];
+  }
 
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
@@ -174,8 +193,9 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
+    client?: RedisClient | ChainableCommander,
   ): Promise<number> {
-    const client = await this.queue.client;
+    client = client || (await this.queue.client);
     const args = [
       this.queue.toKey(jobId) + ':lock',
       this.queue.keys.stalled,
@@ -239,20 +259,10 @@ export class Scripts {
 
     const metricsKey = this.queue.toKey(`metrics:${target}`);
 
-    const keys = [
-      queueKeys.wait,
-      queueKeys.active,
-      queueKeys.priority,
-      queueKeys.events,
-      queueKeys.stalled,
-      queueKeys.limiter,
-      queueKeys.delayed,
-      queueKeys.paused,
-      queueKeys[target],
-      this.queue.toKey(job.id ?? ''),
-      queueKeys.meta,
-      metricsKey,
-    ];
+    const keys = this.moveToFinishedKeys;
+    keys[8] = queueKeys[target];
+    keys[9] = this.queue.toKey(job.id ?? '');
+    keys[11] = metricsKey;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 

@@ -57,7 +57,6 @@ describe('stalled jobs', function () {
     ]);
 
     await allActive;
-
     await worker.close(true);
 
     const worker2 = new Worker(queueName, async job => {}, {
