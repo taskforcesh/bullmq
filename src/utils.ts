@@ -149,7 +149,7 @@ export const isRedisVersionLowerThan = (
   currentVersion: string,
   minimumVersion: string,
 ): boolean => {
-  const version = semver.valid(semver.coerce(currentVersion));
+  const version = semver.valid(semver.coerce(currentVersion)) as string;
 
   return semver.lt(version, minimumVersion);
 };

@@ -25,8 +25,7 @@ import { ChildPool } from './child-pool';
 import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
-import { TimerManager } from './timer-manager';
-import { clearInterval } from 'timers';
+import { AsyncFifoQueue } from './async-fifo-queue';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -172,16 +171,18 @@ export class Worker<
   protected paused: Promise<void>;
   private _repeat: Repeat;
   private childPool: ChildPool;
-  protected timerManager: TimerManager;
+
+  private extendLocksTimer: NodeJS.Timeout | null = null;
 
   private blockingConnection: RedisConnection;
 
   private stalledCheckTimer: NodeJS.Timeout;
 
-  private processing: Map<
-    Promise<void | Job<DataType, ResultType, NameType>>,
-    string
-  >;
+  private asyncFifoQueue: AsyncFifoQueue<void | Job<
+    DataType,
+    ResultType,
+    NameType
+  >>;
 
   static RateLimitError(): Error {
     return new Error(RATE_LIMIT_ERROR);
@@ -251,7 +252,6 @@ export class Worker<
           this.childPool,
         ).bind(this);
       }
-      this.timerManager = new TimerManager();
 
       if (this.opts.autorun) {
         this.run().catch(error => this.emit('error', error));
@@ -357,77 +357,71 @@ export class Worker<
   }
 
   async run() {
-    await this.startStalledCheckTimer();
-
-    if (this.processFn) {
-      if (!this.running) {
-        try {
-          this.running = true;
-
-          if (this.closing) {
-            return;
-          }
-
-          const processing = (this.processing = new Map());
-          let tokenPostfix = 0;
-
-          while (!this.closing) {
-            if (
-              !this.waiting &&
-              processing.size < this.opts.concurrency &&
-              (!this.limitUntil || processing.size == 0)
-            ) {
-              const restProcesses = this.opts.concurrency - processing.size;
-              for (let i = 0; i < restProcesses; i++) {
-                const token = `${this.id}:${tokenPostfix++}`;
-                processing.set(
-                  this.retryIfFailed<Job<DataType, ResultType, NameType>>(
-                    () => this.getNextJob(token),
-                    this.opts.runRetryDelay,
-                  ),
-                  token,
-                );
-              }
-            }
-
-            /*
-             * Get the first promise that completes
-             */
-            const promises = [...processing.keys()];
-            const completedIdx = await Promise.race(
-              promises.map((p, idx) => p.then(() => idx)),
-            );
-            const completed = promises[completedIdx];
-            const job = await completed;
-            if (job) {
-              const token = processing.get(completed);
-              processing.set(
-                this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () =>
-                    this.processJob(
-                      job,
-                      token,
-                      () => processing.size <= this.opts.concurrency,
-                    ),
-                  this.opts.runRetryDelay,
-                ),
-                token,
-              );
-            }
-            processing.delete(completed);
-          }
-          this.running = false;
-          return Promise.all([...processing.keys()]);
-        } catch (error) {
-          this.running = false;
-
-          throw error;
-        }
-      } else {
-        throw new Error('Worker is already running.');
-      }
-    } else {
+    if (!this.processFn) {
       throw new Error('No process function is defined.');
+    }
+
+    if (this.running) {
+      throw new Error('Worker is already running.');
+    }
+
+    try {
+      this.running = true;
+
+      if (this.closing) {
+        return;
+      }
+
+      await this.startStalledCheckTimer();
+
+      const jobsInProgress = new Set<{ job: Job; ts: number }>();
+      await this.startLockExtenderTimer(jobsInProgress);
+
+      const asyncFifoQueue = (this.asyncFifoQueue =
+        new AsyncFifoQueue<void | Job<DataType, ResultType, NameType>>());
+
+      let tokenPostfix = 0;
+
+      while (!this.closing) {
+        while (
+          !this.waiting &&
+          asyncFifoQueue.numTotal() < this.opts.concurrency &&
+          (!this.limitUntil || asyncFifoQueue.numTotal() == 0)
+        ) {
+          const token = `${this.id}:${tokenPostfix++}`;
+          asyncFifoQueue.add(
+            this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
+              () => this.getNextJob(token),
+              this.opts.runRetryDelay,
+            ),
+          );
+        }
+
+        const job = await asyncFifoQueue.fetch();
+
+        if (job) {
+          const token = job.token;
+          asyncFifoQueue.add(
+            this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
+              () =>
+                this.processJob(
+                  job,
+                  token,
+                  () => asyncFifoQueue.numTotal() <= this.opts.concurrency,
+                  jobsInProgress,
+                ),
+              this.opts.runRetryDelay,
+            ),
+          );
+        }
+      }
+
+      this.running = false;
+      // return Promise.all(processing);
+      return asyncFifoQueue.waitAll();
+    } catch (error) {
+      this.running = false;
+      throw error;
     }
   }
 
@@ -439,7 +433,7 @@ export class Worker<
   async getNextJob(
     token: string,
     { block = true }: GetNextJobOptions = {},
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
     if (this.paused) {
       if (block) {
         await this.paused;
@@ -506,7 +500,7 @@ export class Worker<
     }
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(token, jobId);
-    return this.nextJobFromJobData(jobData, id, limitUntil, delayUntil);
+    return this.nextJobFromJobData(jobData, id, limitUntil, delayUntil, token);
   }
 
   private async waitForJob() {
@@ -572,6 +566,7 @@ export class Worker<
     jobId?: string,
     limitUntil?: number,
     delayUntil?: number,
+    token?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
     if (!jobData) {
       if (!this.drained) {
@@ -589,6 +584,7 @@ export class Worker<
     if (jobData) {
       this.drained = false;
       const job = this.createJob(jobData, jobId);
+      job.token = token;
       if (job.opts.repeat) {
         const repeat = await this.repeat;
         await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
@@ -601,48 +597,11 @@ export class Worker<
     job: Job<DataType, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
+    jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
     }
-
-    //
-    // There are two cases to take into consideration regarding locks.
-    // 1) The lock renewer fails to renew a lock, this should make this job
-    // unable to complete, since some other worker is also working on it.
-    // 2) The lock renewer is called more seldom than the check for stalled
-    // jobs, so we can assume the job has been stalled and is already being processed
-    // by another worker. See https://github.com/OptimalBits/bull/issues/308
-    //
-    // TODO: Have only 1 timer that extends all the locks instead of one timer
-    // per concurrency setting.
-    let lockRenewId: string;
-    let timerStopped = false;
-    const lockExtender = () => {
-      lockRenewId = this.timerManager.setTimer(
-        'lockExtender',
-        this.opts.lockRenewTime,
-        async () => {
-          try {
-            const result = await job.extendLock(token, this.opts.lockDuration);
-            if (result && !timerStopped) {
-              lockExtender();
-            }
-            // FIXME if result = 0 (missing lock), reject processFn promise to take next job?
-          } catch (error) {
-            console.error('Error extending lock ', error);
-            // Somehow tell the worker this job should stop processing...
-          }
-        },
-      );
-    };
-
-    const stopTimer = () => {
-      timerStopped = true;
-      this.timerManager.clearTimer(lockRenewId);
-    };
-
-    // end copy-paste from Bull3
 
     const handleCompleted = async (result: ResultType) => {
       if (!this.connection.closing) {
@@ -653,7 +612,13 @@ export class Worker<
         );
         this.emit('completed', job, result, 'active');
         const [jobData, jobId, limitUntil, delayUntil] = completed || [];
-        return this.nextJobFromJobData(jobData, jobId, limitUntil, delayUntil);
+        return this.nextJobFromJobData(
+          jobData,
+          jobId,
+          limitUntil,
+          delayUntil,
+          token,
+        );
       }
     };
 
@@ -670,7 +635,7 @@ export class Worker<
         } catch (err) {
           this.emit('error', <Error>err);
           // It probably means that the job has lost the lock before completion
-          // The QueueScheduler will (or already has) moved the job back
+          // A worker will (or already has) moved the job back
           // to the waiting list (as stalled)
         }
       }
@@ -678,15 +643,16 @@ export class Worker<
 
     this.emit('active', job, 'waiting');
 
-    lockExtender();
+    const inProgressItem = { job, ts: Date.now() };
 
     try {
+      jobsInProgress.add(inProgressItem);
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
       return handleFailed(<Error>err);
     } finally {
-      stopTimer();
+      jobsInProgress.delete(inProgressItem);
     }
   }
 
@@ -777,9 +743,9 @@ export class Worker<
           }
           return closePoolPromise;
         })
+        .finally(() => clearTimeout(this.extendLocksTimer))
+        .finally(() => clearTimeout(this.stalledCheckTimer))
         .finally(() => client.disconnect())
-        .finally(() => clearInterval(this.stalledCheckTimer))
-        .finally(() => this.timerManager && this.timerManager.clearAllTimers())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
     })();
@@ -799,11 +765,50 @@ export class Worker<
    * @see {@link https://docs.bullmq.io/patterns/manually-fetching-jobs}
    */
   async startStalledCheckTimer(): Promise<void> {
-    if (!this.stalledCheckTimer && !this.opts.skipStalledCheck) {
+    if (!this.opts.skipStalledCheck) {
+      clearTimeout(this.stalledCheckTimer);
+
       await this.runStalledJobsCheck();
-      this.stalledCheckTimer = setInterval(() => {
-        this.runStalledJobsCheck();
+      this.stalledCheckTimer = setTimeout(async () => {
+        this.startStalledCheckTimer();
       }, this.opts.stalledInterval);
+    }
+  }
+
+  private async startLockExtenderTimer(
+    jobsInProgress: Set<{ job: Job; ts: number }>,
+  ): Promise<void> {
+    if (!this.opts.skipLockRenewal) {
+      clearTimeout(this.extendLocksTimer);
+
+      this.extendLocksTimer = setTimeout(async () => {
+        // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
+        const now = Date.now();
+        const jobsToExtend = [];
+
+        for (const item of jobsInProgress) {
+          const { job, ts } = item;
+          if (!ts) {
+            item.ts = now;
+            continue;
+          }
+
+          if (ts + this.opts.lockRenewTime / 2 < now) {
+            item.ts = now;
+            jobsToExtend.push(job);
+          }
+        }
+
+        try {
+          if (jobsToExtend.length) {
+            await this.extendLocks(jobsToExtend);
+          }
+        } catch (err) {
+          this.emit('error', <Error>err);
+        }
+
+        this.startLockExtenderTimer(jobsInProgress);
+      }, this.opts.lockRenewTime / 2);
     }
   }
 
@@ -822,8 +827,8 @@ export class Worker<
       reconnect = false;
     }
 
-    if (this.processing) {
-      await Promise.all(this.processing.keys());
+    if (this.asyncFifoQueue) {
+      await this.asyncFifoQueue.waitAll();
     }
 
     reconnect && (await this.blockingConnection.reconnect());
@@ -843,6 +848,33 @@ export class Worker<
         }
       }
     } while (retry);
+  }
+
+  private async extendLocks(jobs: Job[]) {
+    try {
+      const multi = (await this.client).multi();
+      for (const job of jobs) {
+        await this.scripts.extendLock(
+          job.id,
+          job.token,
+          this.opts.lockDuration,
+          multi,
+        );
+      }
+      const result = (await multi.exec()) as [Error, string][];
+
+      for (const [err, jobId] of result) {
+        if (err) {
+          // TODO: signal process function that the job has been lost.
+          this.emit(
+            'error',
+            new Error(`could not renew lock for job ${jobId}`),
+          );
+        }
+      }
+    } catch (err) {
+      this.emit('error', <Error>err);
+    }
   }
 
   private async runStalledJobsCheck() {

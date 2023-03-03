@@ -729,7 +729,12 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { autorun: false, connection },
+      {
+        autorun: false,
+        connection,
+        skipStalledCheck: true,
+        skipLockRenewal: true,
+      },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
       console.log('delay');
@@ -789,7 +794,12 @@ describe('repeat', function () {
       async () => {
         this.clock.tick(nextTick);
       },
-      { autorun: false, connection },
+      {
+        autorun: false,
+        connection,
+        skipStalledCheck: true,
+        skipLockRenewal: true,
+      },
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
       console.log('delay');
