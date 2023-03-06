@@ -219,6 +219,8 @@ export class Worker<
       ...this.opts,
     };
 
+    this.concurrency = this.opts.concurrency;
+
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
@@ -339,6 +341,9 @@ export class Worker<
   }
 
   set concurrency(concurrency: number) {
+    if (typeof concurrency !== 'number' || concurrency < 1) {
+      throw new Error('concurrency must be a number greater than 0');
+    }
     this.opts.concurrency = concurrency;
   }
 
