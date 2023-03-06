@@ -1587,6 +1587,20 @@ describe('workers', function () {
   });
 
   describe('Concurrency process', () => {
+    it('should thrown an exception if I specify a concurrency of 0', () => {
+      try {
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          concurrency: 0,
+        });
+        throw new Error('Should have thrown an exception');
+      } catch (err) {
+        expect(err.message).to.be.equal(
+          'concurrency must be a number greater than 0',
+        );
+      }
+    });
+
     it('should run job in sequence if I specify a concurrency of 1', async () => {
       let processing = false;
 
