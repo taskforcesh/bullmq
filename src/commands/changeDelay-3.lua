@@ -30,7 +30,7 @@ if rcall("EXISTS", KEYS[2]) == 1 then
     return -3
   end
 
-  rcall("HSET", KEYS[2], "delay", tonumber(ARGV[1]))
+  rcall("HMSET", KEYS[2], "delay", tonumber(ARGV[1]), "runAt", delayedTimestamp)
   rcall("ZADD", KEYS[1], score, jobId)
 
   rcall("XADD", KEYS[3], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp);

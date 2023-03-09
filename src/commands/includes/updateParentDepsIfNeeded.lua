@@ -13,17 +13,19 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
   local processedSet = parentKey .. ":processed"
   rcall("HSET", processedSet, jobIdKey, returnvalue)
   local activeParent = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
-  if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then 
+  if rcall("SCARD", parentDependenciesKey) == 0 and activeParent then
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
     local parentTarget = getTargetQueueList(parentQueueKey .. ":meta", parentQueueKey .. ":wait",
       parentQueueKey .. ":paused")
     local jobAttributes = rcall("HMGET", parentKey, "priority", "delay")
     local priority = tonumber(jobAttributes[1]) or 0
     local delay = tonumber(jobAttributes[2]) or 0
+    local runAt = tonumber(timestamp) + delay
+
+    rcall("HSET", parentKey, "runAt", runAt)
     if delay > 0 then
-      local delayedTimestamp = tonumber(timestamp) + delay 
-      local score = delayedTimestamp * 0x1000
-      local parentDelayedKey = parentQueueKey .. ":delayed" 
+      local score = runAt * 0x1000
+      local parentDelayedKey = parentQueueKey .. ":delayed"
       rcall("ZADD", parentDelayedKey, score, parentId)
 
       addDelayMarkerIfNeeded(parentTarget, parentDelayedKey)
