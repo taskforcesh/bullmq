@@ -520,17 +520,24 @@ export class Scripts {
     return (<any>client).getStateV2(keys.concat([jobId]));
   }
 
-  async changeDelay(jobId: string, delay: number): Promise<void> {
+  async changeDelay(jobId: string, delay: number): Promise<number> {
     const client = await this.queue.client;
 
-    const args = this.changeDelayArgs(jobId, delay);
+    const delayedTimestamp = Date.now() + delay;
+    const args = this.changeDelayArgs(jobId, delay, delayedTimestamp);
     const result = await (<any>client).changeDelay(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
     }
+
+    return delayedTimestamp;
   }
 
-  private changeDelayArgs(jobId: string, delay: number): (string | number)[] {
+  private changeDelayArgs(
+    jobId: string,
+    delay: number,
+    delayedTimestamp: number,
+  ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
     // to guarantee correct execution order of delayed jobs
@@ -538,10 +545,8 @@ export class Scripts {
     //
     // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
     //
-    let timestamp = Date.now() + delay;
-
-    if (timestamp > 0) {
-      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
+    if (delayedTimestamp > 0) {
+      delayedTimestamp = delayedTimestamp * 0x1000 + (+jobId & 0xfff);
     }
 
     const keys: (string | number)[] = ['delayed', jobId].map(name => {
@@ -549,7 +554,7 @@ export class Scripts {
     });
     keys.push.apply(keys, [this.queue.keys.events]);
 
-    return keys.concat([delay, JSON.stringify(timestamp), jobId]);
+    return keys.concat([delay, JSON.stringify(delayedTimestamp), jobId]);
   }
 
   // Note: We have an issue here with jobs using custom job ids
