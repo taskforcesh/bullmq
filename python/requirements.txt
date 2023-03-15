@@ -1,7 +1,7 @@
 async-timeout==4.0.2
 certifi==2022.12.7
 distlib==0.3.6
-filelock==3.9.0
+filelock==3.9.1
 msgpack==1.0.4
 pipenv==2023.2.4
 platformdirs==2.6.2
