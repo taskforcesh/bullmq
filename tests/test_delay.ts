@@ -1,8 +1,9 @@
-import { Queue, Job, Worker, QueueEvents } from '../src/classes';
+import { after } from 'lodash';
 import { describe, beforeEach, it } from 'mocha';
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
+import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
 describe('Delayed jobs', function () {
@@ -205,8 +206,8 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
-  it('should process delayed jobs concurrently respecting delay', async function () {
-    this.timeout(35000);
+  it('should process delayed jobs with several workers respecting delay', async function () {
+    this.timeout(30000);
     let count = 0;
     const numJobs = 50;
     const margin = 1.22;
@@ -273,9 +274,87 @@ describe('Delayed jobs', function () {
     await worker2.close();
   });
 
+  it('should process delayed jobs concurrently respecting delay and concurrency', async function () {
+    const delay = 250;
+    const concurrency = 100;
+    const margin = 1.5;
+    let numJobs = 10;
+
+    let worker;
+    const processing = new Promise<void>((resolve, reject) => {
+      worker = new Worker(
+        queueName,
+        async job => {
+          const delayed = Date.now() - job.timestamp;
+          try {
+            expect(
+              delayed,
+              'waited at least delay time',
+            ).to.be.greaterThanOrEqual(delay);
+            expect(
+              delayed,
+              'waited less than delay time and margin',
+            ).to.be.lessThan(delay * margin);
+          } catch (err) {
+            reject(err);
+          }
+          if (!numJobs) {
+            resolve();
+          }
+        },
+        { connection, concurrency },
+      );
+    });
+
+    while (numJobs--) {
+      await queue.add('my-queue', { foo: 'bar' }, { delay });
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    await processing;
+    await worker.close();
+  });
+
   describe('when failed jobs are retried and moved to delayed', function () {
     it('processes jobs without getting stuck', async () => {
-      const countJobs = 28;
+      const countJobs = 32;
+      const concurrency = 50;
+
+      const processedJobs: { data: any }[] = [];
+      const worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          if (job.attemptsMade == 1) {
+            await delay(250);
+            throw new Error('forced error in test');
+          }
+
+          await delay(25);
+
+          processedJobs.push({ data: job.data });
+
+          return;
+        },
+        {
+          autorun: false,
+          connection,
+          concurrency,
+        },
+      );
+      worker.on('error', err => {
+        console.error(err);
+      });
+
+      const completed = new Promise<void>(resolve => {
+        worker.on(
+          'completed',
+          after(countJobs, async () => {
+            resolve();
+          }),
+        );
+      });
+
+      worker.run();
 
       for (let j = 0; j < countJobs; j++) {
         await queue.add(
@@ -285,45 +364,12 @@ describe('Delayed jobs', function () {
         );
       }
 
-      const concurrency = 50;
-
-      let worker: Worker;
-      const processedJobs: { data: any }[] = [];
-      const processing = new Promise<void>(resolve => {
-        worker = new Worker(
-          queueName,
-          async (job: Job) => {
-            if (job.attemptsMade == 1) {
-              await delay(250);
-              throw new Error('forced error in test');
-            }
-
-            await delay(25);
-
-            processedJobs.push({ data: job.data });
-
-            if (processedJobs.length == countJobs) {
-              resolve();
-            }
-
-            return;
-          },
-          {
-            autorun: false,
-            connection,
-            concurrency,
-          },
-        );
-        worker.on('error', err => {
-          console.error(err);
-        });
-      });
-
-      worker.run();
-
-      await processing;
+      await completed;
 
       expect(processedJobs.length).to.be.equal(countJobs);
+
+      const count = await queue.getJobCountByTypes('failed', 'wait', 'delayed');
+      expect(count).to.be.equal(0);
 
       await worker.close();
     }).timeout(4000);

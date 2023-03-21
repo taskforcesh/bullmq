@@ -1,3 +1,10 @@
+## [5.1.12](https://github.com/taskforcesh/bullmq-pro/compare/v5.1.11...v5.1.12) (2023-01-26)
+
+
+### Bug Fixes
+
+* **deps:** upgrade bullmq to 3.5.10 ([#133](https://github.com/taskforcesh/bullmq-pro/issues/133)) ([165b9ee](https://github.com/taskforcesh/bullmq-pro/commit/165b9ee9cbb431ee44434bafde2ed4dd4c865498))
+
 ## [5.1.11](https://github.com/taskforcesh/bullmq-pro/compare/v5.1.10...v5.1.11) (2023-01-10)
 
 

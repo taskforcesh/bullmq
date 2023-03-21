@@ -66,6 +66,11 @@ if jobId then
         rcall("LREM", KEYS[2], 1, jobId)
         -- Move again since we just got the marker job.
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
+
+        if jobId and string.sub(jobId, 1, 2) == "0:" then
+            rcall("LREM", KEYS[2], 1, jobId)
+            jobId = nil
+        end
     end
 
     if jobId then

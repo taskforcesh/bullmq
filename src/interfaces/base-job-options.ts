@@ -44,7 +44,7 @@ export interface DefaultJobOptions {
    * If true, removes the job when it successfully completes
    * When given a number, it specifies the maximum amount of
    * jobs to keep, or you can provide an object specifying max
-   * age and/or count to keep.
+   * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the completed set.
    */
   removeOnComplete?: boolean | number | KeepJobs;
@@ -53,9 +53,15 @@ export interface DefaultJobOptions {
    * If true, removes the job when it fails after all attempts.
    * When given a number, it specifies the maximum amount of
    * jobs to keep, or you can provide an object specifying max
-   * age and/or count to keep.
+   * age and/or count to keep. It overrides whatever setting is used in the worker.
+   * Default behavior is to keep the job in the failed set.
    */
   removeOnFail?: boolean | number | KeepJobs;
+
+  /**
+   * Maximum amount of log entries that will be preserved
+   */
+  keepLogs?: number;
 
   /**
    * Limits the amount of stack trace lines that will be recorded in the stacktrace.

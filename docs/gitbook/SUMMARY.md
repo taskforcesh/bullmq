@@ -26,7 +26,7 @@
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/prioritized.md)
-  * [Removing job](guide/jobs/removing-job.md)
+  * [Removing jobs](guide/jobs/removing-job.md)
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
 * [Flows](guide/flows/README.md)
@@ -39,17 +39,15 @@
 * [Events](guide/events.md)
 * [QueueScheduler](guide/queuescheduler.md)
 * [Architecture](guide/architecture.md)
-* [NestJs](guide/nestjs.md)
+* [NestJs](guide/nestjs/README.md)
+  * [Producers](guide/nestjs/producers.md)
+* [Going to production](guide/going-to-production.md)
 
 ## Patterns
 
 * [Manually processing jobs](patterns/manually-fetching-jobs.md)
-* [Producer - Consumer](patterns/producer-consumer.md)
 * [Named Processor](patterns/named-processor.md)
 * [Flows](patterns/flows.md)
-* [Real time updates](patterns/real-time-updates.md)
-* [Sender - Receiver](patterns/sender-receiver.md)
-* [Working with batches](patterns/working-with-batches.md)
 * [Idempotent jobs](patterns/idempotent-jobs.md)
 * [Throttle jobs](patterns/throttle-jobs.md)
 * [Process Step Jobs](patterns/process-step-jobs.md)
@@ -65,6 +63,10 @@
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
+* [NestJs](bullmq-pro/nestjs/README.md)
+  * [Producers](bullmq-pro/nestjs/producers.md)
+  * [API Reference](https://nestjs.bullmq.pro/)
+  * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)
 * [Changelog](bullmq-pro/changelog.md)
 
@@ -89,3 +91,7 @@
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
+
+## Python
+
+* [Introduction](python/introduction.md)

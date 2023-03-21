@@ -1,2 +1,0 @@
-# Real time updates
-

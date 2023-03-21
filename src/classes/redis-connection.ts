@@ -60,7 +60,7 @@ export class RedisConnection extends EventEmitter {
         port: 6379,
         host: '127.0.0.1',
         retryStrategy: function (times: number) {
-          return Math.min(Math.exp(times), 20000);
+          return Math.max(Math.min(Math.exp(times), 20000), 1000);
         },
         ...opts,
       };
@@ -285,7 +285,7 @@ export class RedisConnection extends EventEmitter {
       if (lines[i].indexOf(maxMemoryPolicyPrefix) === 0) {
         const maxMemoryPolicy = lines[i].substr(maxMemoryPolicyPrefix.length);
         if (maxMemoryPolicy !== 'noeviction') {
-          console.error(
+          console.warn(
             `IMPORTANT! Eviction policy is ${maxMemoryPolicy}. It should be "noeviction"`,
           );
         }

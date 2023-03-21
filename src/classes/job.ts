@@ -33,13 +33,12 @@ import {
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './unrecoverable-error';
-import { DelayedError } from './delayed-error';
-import { WaitingChildrenError } from './waiting-children-error';
 
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
+  kl: 'keepLogs',
 };
 
 const optsEncodeMap = invert(optsDecodeMap);
@@ -124,6 +123,11 @@ export class Job<
    * Base repeat job key.
    */
   repeatJobKey?: string;
+
+  /**
+   * The token used for locking this job.
+   */
+  token?: string;
 
   protected toKey: (type: string) => string;
 
@@ -448,7 +452,39 @@ export class Job<
   async log(logRow: string): Promise<number> {
     const client = await this.queue.client;
     const logsKey = this.toKey(this.id) + ':logs';
-    return client.rpush(logsKey, logRow);
+
+    const multi = client.multi();
+
+    multi.rpush(logsKey, logRow);
+
+    if (this.opts.keepLogs) {
+      multi.ltrim(logsKey, -this.opts.keepLogs, -1);
+    }
+
+    const result = (await multi.exec()) as [
+      [Error, number],
+      [Error, string] | undefined,
+    ];
+
+    return this.opts.keepLogs
+      ? Math.min(this.opts.keepLogs, result[0][1])
+      : result[0][1];
+  }
+
+  /**
+   * Clears job's logs
+   *
+   * @param keepLogs - the amount of log entries to preserve
+   */
+  async clearLogs(keepLogs?: number): Promise<void> {
+    const client = await this.queue.client;
+    const logsKey = this.toKey(this.id) + ':logs';
+
+    if (keepLogs) {
+      await client.ltrim(logsKey, -keepLogs, -1);
+    } else {
+      await client.del(logsKey);
+    }
   }
 
   /**
@@ -527,96 +563,88 @@ export class Job<
     token: string,
     fetchNext = false,
   ): Promise<void> {
+    const client = await this.queue.client;
+    const message = err?.message;
+
+    const queue = this.queue;
+    this.failedReason = message;
+
+    let command: string;
+    const multi = client.multi();
+
+    this.saveStacktrace(multi, err);
+    //
+    // Check if an automatic retry should be performed
+    //
+    let moveToFailed = false;
+    let finishedOn;
+
     if (
-      !(err instanceof DelayedError || err.name == 'DelayedError') &&
-      !(
-        err instanceof WaitingChildrenError ||
-        err.name == 'WaitingChildrenError'
-      )
+      this.attemptsMade < this.opts.attempts &&
+      !this.discarded &&
+      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
-      const client = await this.queue.client;
-      const message = err?.message;
+      const opts = queue.opts as WorkerOptions;
 
-      const queue = this.queue;
-      this.failedReason = message;
+      // Check if backoff is needed
+      const delay = await Backoffs.calculate(
+        <BackoffOptions>this.opts.backoff,
+        this.attemptsMade,
+        err,
+        this,
+        opts.settings && opts.settings.backoffStrategy,
+      );
 
-      let command: string;
-      const multi = client.multi();
-      this.saveStacktrace(multi, err);
-
-      //
-      // Check if an automatic retry should be performed
-      //
-      let moveToFailed = false;
-      let finishedOn;
-
-      if (
-        this.attemptsMade < this.opts.attempts &&
-        !this.discarded &&
-        !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
-      ) {
-        const opts = queue.opts as WorkerOptions;
-
-        // Check if backoff is needed
-        const delay = await Backoffs.calculate(
-          <BackoffOptions>this.opts.backoff,
-          this.attemptsMade,
-          err,
-          this,
-          opts.settings && opts.settings.backoffStrategy,
-        );
-
-        if (delay === -1) {
-          moveToFailed = true;
-        } else if (delay) {
-          const args = this.scripts.moveToDelayedArgs(
-            this.id,
-            Date.now() + delay,
-            token,
-          );
-          (<any>multi).moveToDelayed(args);
-          command = 'delayed';
-        } else {
-          // Retry immediately
-          (<any>multi).retryJob(
-            this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
-          );
-          command = 'retry';
-        }
-      } else {
-        // If not, move to failed
+      if (delay === -1) {
         moveToFailed = true;
-      }
-
-      if (moveToFailed) {
-        const args = this.scripts.moveToFailedArgs(
-          this,
-          message,
-          this.opts.removeOnFail,
+      } else if (delay) {
+        const args = this.scripts.moveToDelayedArgs(
+          this.id,
+          Date.now() + delay,
           token,
-          fetchNext,
         );
-        (<any>multi).moveToFinished(args);
-        finishedOn = args[13];
-        command = 'failed';
-      }
-
-      const results = await multi.exec();
-      const anyError = results.find(result => result[0]);
-      if (anyError) {
-        throw new Error(
-          `Error "moveToFailed" with command ${command}: ${anyError}`,
+        (<any>multi).moveToDelayed(args);
+        command = 'delayed';
+      } else {
+        // Retry immediately
+        (<any>multi).retryJob(
+          this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
         );
+        command = 'retry';
       }
+    } else {
+      // If not, move to failed
+      moveToFailed = true;
+    }
 
-      const code = results[results.length - 1][1] as number;
-      if (code < 0) {
-        throw this.scripts.finishedErrors(code, this.id, command, 'active');
-      }
+    if (moveToFailed) {
+      const args = this.scripts.moveToFailedArgs(
+        this,
+        message,
+        this.opts.removeOnFail,
+        token,
+        fetchNext,
+      );
+      (<any>multi).moveToFinished(args);
+      finishedOn = args[13];
+      command = 'failed';
+    }
 
-      if (finishedOn && typeof finishedOn === 'number') {
-        this.finishedOn = finishedOn;
-      }
+    const results = await multi.exec();
+    const anyError = results.find(result => result[0]);
+    if (anyError) {
+      throw new Error(
+        `Error "moveToFailed" with command ${command}: ${anyError}`,
+      );
+    }
+
+    const code = results[results.length - 1][1] as number;
+    if (code < 0) {
+      throw this.scripts.finishedErrors(code, this.id, command, 'active');
+    }
+
+    if (finishedOn && typeof finishedOn === 'number') {
+      this.finishedOn = finishedOn;
     }
   }
 
@@ -1058,12 +1086,13 @@ export class Job<
       }
     }
 
-    const params = {
-      stacktrace: JSON.stringify(this.stacktrace),
-      failedReason: err?.message,
-    };
+    const args = this.scripts.saveStacktraceArgs(
+      this.id,
+      JSON.stringify(this.stacktrace),
+      err?.message,
+    );
 
-    multi.hmset(this.queue.toKey(this.id), params);
+    (<any>multi).saveStacktrace(args);
   }
 }
 

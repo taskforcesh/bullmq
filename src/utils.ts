@@ -149,7 +149,7 @@ export const isRedisVersionLowerThan = (
   currentVersion: string,
   minimumVersion: string,
 ): boolean => {
-  const version = semver.valid(semver.coerce(currentVersion));
+  const version = semver.valid(semver.coerce(currentVersion)) as string;
 
   return semver.lt(version, minimumVersion);
 };
@@ -168,6 +168,16 @@ export const parseObjectValues = (obj: {
   }
 
   return accumulator;
+};
+
+export const errorToJSON = (value: any): Record<string, any> => {
+  const error: Record<string, any> = {};
+
+  Object.getOwnPropertyNames(value).forEach(function (propName: string) {
+    error[propName] = value[propName];
+  });
+
+  return error;
 };
 
 export const WORKER_SUFFIX = '';

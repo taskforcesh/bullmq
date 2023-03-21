@@ -233,6 +233,75 @@ describe('workers', function () {
       await worker.close();
     }
 
+    async function testWorkerRemoveOnFinish(
+      opts: KeepJobs,
+      expectedCount: number,
+      fail?: boolean,
+    ) {
+      const clock = sinon.useFakeTimers();
+      clock.reset();
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          await job.log('test log');
+          if (fail) {
+            throw new Error('job failed');
+          }
+        },
+        {
+          connection,
+          ...(fail ? { removeOnFail: opts } : { removeOnComplete: opts }),
+        },
+      );
+      await worker.waitUntilReady();
+
+      const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
+      let jobIds;
+
+      const processing = new Promise<void>(resolve => {
+        worker.on(fail ? 'failed' : 'completed', async job => {
+          clock.tick(1000);
+
+          if (job.data == 14) {
+            const counts = await queue.getJobCounts(
+              fail ? 'failed' : 'completed',
+            );
+
+            if (fail) {
+              expect(counts.failed).to.be.equal(expectedCount);
+            } else {
+              expect(counts.completed).to.be.equal(expectedCount);
+            }
+
+            await Promise.all(
+              jobIds.map(async (jobId, index) => {
+                const job = await queue.getJob(jobId);
+                const logs = await queue.getJobLogs(jobId);
+                if (index >= datas.length - expectedCount) {
+                  expect(job).to.not.be.equal(undefined);
+                  expect(logs.logs).to.not.be.empty;
+                } else {
+                  expect(job).to.be.equal(undefined);
+                  expect(logs.logs).to.be.empty;
+                }
+              }),
+            );
+            resolve();
+          }
+        });
+      });
+
+      jobIds = (
+        await Promise.all(datas.map(async data => queue.add('test', data)))
+      ).map(job => job.id);
+
+      await processing;
+      clock.restore();
+      await worker.close();
+    }
+
     it('should remove job after completed if removeOnComplete', async () => {
       const worker = new Worker(
         queueName,
@@ -485,6 +554,25 @@ describe('workers', function () {
         });
       });
     });
+
+    describe('when worker has removeOnFinish options', () => {
+      it('should keep of jobs newer than specified after completed with removeOnComplete', async () => {
+        const age = 7;
+        await testWorkerRemoveOnFinish({ age }, age);
+      });
+
+      it('should keep of jobs newer than specified and up to a count completed with removeOnComplete', async () => {
+        const age = 7;
+        const count = 5;
+        await testWorkerRemoveOnFinish({ age, count }, count);
+      });
+
+      it('should keep of jobs newer than specified and up to a count fail with removeOnFail', async () => {
+        const age = 7;
+        const count = 5;
+        await testWorkerRemoveOnFinish({ age, count }, count, true);
+      });
+    });
   });
 
   it('process a lifo queue', async function () {
@@ -509,7 +597,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     await queue.pause();
@@ -574,7 +662,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     // wait for all jobs to enter the queue and then start processing
@@ -605,7 +693,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     for (let i = 1; i <= maxJobs; i++) {
@@ -704,7 +792,10 @@ describe('workers', function () {
         };
       });
 
-      const worker = new Worker(queueName, processor, { autorun: false });
+      const worker = new Worker(queueName, processor, {
+        autorun: false,
+        connection,
+      });
       await worker.waitUntilReady();
 
       for (let i = 1; i <= maxJobs; i++) {
@@ -719,7 +810,10 @@ describe('workers', function () {
 
     describe('when process function is not defined', function () {
       it('throws error', async () => {
-        const worker = new Worker(queueName, undefined, { autorun: false });
+        const worker = new Worker(queueName, undefined, {
+          autorun: false,
+          connection,
+        });
         await worker.waitUntilReady();
 
         await expect(worker.run()).to.be.rejectedWith(
@@ -735,6 +829,7 @@ describe('workers', function () {
         const maxJobs = 10;
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
+          connection,
         });
         await worker.waitUntilReady();
         worker.run();
@@ -776,7 +871,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     await processing;
@@ -808,7 +903,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor);
+    const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
     await processing;
@@ -826,7 +921,7 @@ describe('workers', function () {
 
     await Promise.all(jobs);
 
-    const worker = new Worker(queueName, async () => {});
+    const worker = new Worker(queueName, async () => {}, { connection });
     await worker.waitUntilReady();
 
     await new Promise(resolve => {
@@ -838,10 +933,14 @@ describe('workers', function () {
   });
 
   it('process a job that returns data in the process handler', async () => {
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-      return 37;
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        return 37;
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const job = await queue.add('test', { foo: 'bar' });
@@ -869,9 +968,13 @@ describe('workers', function () {
   it('process a job that returns a string in the process handler', async () => {
     const testString = 'a very dignified string';
 
-    const worker = new Worker(queueName, async () => {
-      return testString;
-    });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        return testString;
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const waiting = new Promise<void>((resolve, reject) => {
@@ -897,10 +1000,14 @@ describe('workers', function () {
   });
 
   it('process a job that returning data returnvalue gets stored in the database', async () => {
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-      return 37;
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        return 37;
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const job = await queue.add('test', { foo: 'bar' });
@@ -930,11 +1037,15 @@ describe('workers', function () {
   });
 
   it('process a job that does some asynchronous operation', async () => {
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-      await delay(250);
-      return 'my data';
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(250);
+        return 'my data';
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const job = await queue.add('test', { foo: 'bar' });
@@ -953,9 +1064,13 @@ describe('workers', function () {
   });
 
   it('process a synchronous job', async () => {
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
-    });
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+      },
+      { connection },
+    );
 
     await worker.waitUntilReady();
 
@@ -977,24 +1092,32 @@ describe('workers', function () {
     this.timeout(12000);
     let err;
 
-    const worker = new Worker(queueName, async job => {
-      expect(job.data.foo).to.be.equal('bar');
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
 
-      if (addedJob.id !== job.id) {
-        err = new Error('Processed job id does not match that of added job');
-      }
-      await delay(500);
-    });
+        if (addedJob.id !== job.id) {
+          err = new Error('Processed job id does not match that of added job');
+        }
+        await delay(500);
+      },
+      { connection },
+    );
 
     await worker.waitUntilReady();
 
     const addedJob = await queue.add('test', { foo: 'bar' });
 
-    const anotherWorker = new Worker(queueName, async () => {
-      err = new Error(
-        'The second queue should not have received a job to process',
-      );
-    });
+    const anotherWorker = new Worker(
+      queueName,
+      async () => {
+        err = new Error(
+          'The second queue should not have received a job to process',
+        );
+      },
+      { connection },
+    );
 
     worker.on('completed', async () => {
       await anotherWorker.close();
@@ -1245,6 +1368,62 @@ describe('workers', function () {
     await worker.close();
   });
 
+  it('keeps locks for all the jobs that are processed concurrently', async function () {
+    this.timeout(10000);
+
+    const concurrency = 57;
+
+    const lockKey = (jobId: string) => `bull:${queueName}:${jobId}:lock`;
+    const client = await queue.client;
+
+    let worker;
+
+    const processing = new Promise<void>((resolve, reject) => {
+      let count = 0;
+      worker = new Worker(
+        queueName,
+        async job => {
+          try {
+            // Check job is locked
+            const lock = await client.get(lockKey(job.id!));
+            expect(lock).to.be.ok;
+
+            await delay(2000);
+
+            // Check job is still locked
+            const renewedLock = await client.get(lockKey(job.id!));
+            expect(renewedLock).to.be.eql(lock);
+
+            count++;
+
+            if (count === concurrency) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        },
+        {
+          connection,
+          lockDuration: 250,
+          concurrency,
+        },
+      );
+    });
+
+    await worker.waitUntilReady();
+
+    const jobs = await Promise.all(
+      Array.from({ length: concurrency }).map(() =>
+        queue.add('test', { bar: 'baz' }),
+      ),
+    );
+
+    await processing;
+
+    await worker.close();
+  });
+
   it('emits error if lock is lost', async function () {
     this.timeout(10000);
 
@@ -1410,6 +1589,20 @@ describe('workers', function () {
   });
 
   describe('Concurrency process', () => {
+    it('should thrown an exception if I specify a concurrency of 0', () => {
+      try {
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          concurrency: 0,
+        });
+        throw new Error('Should have thrown an exception');
+      } catch (err) {
+        expect(err.message).to.be.equal(
+          'concurrency must be a number greater than 0',
+        );
+      }
+    });
+
     it('should run job in sequence if I specify a concurrency of 1', async () => {
       let processing = false;
 
