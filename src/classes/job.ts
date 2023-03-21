@@ -573,12 +573,12 @@ export class Job<
     const multi = client.multi();
 
     this.saveStacktrace(multi, err);
+
     //
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
     let finishedOn;
-
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
