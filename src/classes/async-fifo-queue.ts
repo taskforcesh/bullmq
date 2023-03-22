@@ -1,11 +1,10 @@
 /**
  * AsyncFifoQueue
  *
- * A minimal FIFO queue for asyncrhonous operations. Allows adding asynchronous operations
+ * A minimal FIFO queue for asynchronous operations. Allows adding asynchronous operations
  * and consume them in the order they are resolved.
  *
  */
-
 export class AsyncFifoQueue<T> {
   private queue: T[] = [];
 
@@ -18,7 +17,7 @@ export class AsyncFifoQueue<T> {
     this.newPromise();
   }
 
-  public add(promise: Promise<T>) {
+  public add(promise: Promise<T>): void {
     this.pending.add(promise);
 
     promise
@@ -40,19 +39,19 @@ export class AsyncFifoQueue<T> {
       });
   }
 
-  public async waitAll() {
+  public async waitAll(): Promise<void> {
     await Promise.all(this.pending);
   }
 
-  public numTotal() {
+  public numTotal(): number {
     return this.pending.size + this.queue.length;
   }
 
-  public numPending() {
+  public numPending(): number {
     return this.pending.size;
   }
 
-  public numQueued() {
+  public numQueued(): number {
     return this.queue.length;
   }
 
