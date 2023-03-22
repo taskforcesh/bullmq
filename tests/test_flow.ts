@@ -9,6 +9,7 @@ import {
   Worker,
   FlowProducer,
   JobNode,
+  WaitingChildrenError,
 } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
@@ -310,7 +311,7 @@ describe('flows', () => {
                   step = Step.Finish;
                   return Step.Finish;
                 } else {
-                  return;
+                  throw new WaitingChildrenError();
                 }
               }
               default: {

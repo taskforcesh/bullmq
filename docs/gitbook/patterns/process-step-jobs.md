@@ -55,6 +55,7 @@ enum Step {
   Second,
   Finish,
 }
+
 const worker = new Worker(
   queueName,
   async job => {
@@ -75,8 +76,7 @@ const worker = new Worker(
           await job.update({
             step: Step.Finish,
           });
-          step = Step.Finish;
-          return Step.Finish;
+          throw new DelayedError();
         }
         default: {
           throw new Error('invalid step');
@@ -153,7 +153,7 @@ const worker = new Worker(
             step = Step.Finish;
             return Step.Finish;
           } else {
-            return;
+            throw new WaitingChildrenError();
           }
         }
         default: {
@@ -240,7 +240,7 @@ const worker = new Worker(
             step = Step.Finish;
             return Step.Finish;
           } else {
-            return;
+            throw new WaitingChildrenError();
           }
         }
         default: {

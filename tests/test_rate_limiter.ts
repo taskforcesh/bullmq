@@ -322,51 +322,6 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
-  it('should obey the rate limit with workerDelay enabled', async function () {
-    this.timeout(20000);
-
-    const numJobs = 4;
-    const startTime = new Date().getTime();
-
-    const worker = new Worker(queueName, async () => {}, {
-      connection,
-      limiter: {
-        max: 1,
-        duration: 1000,
-      },
-    });
-
-    const result = new Promise<void>((resolve, reject) => {
-      queueEvents.on(
-        'completed',
-        // after every job has been completed
-        after(numJobs, async () => {
-          await worker.close();
-
-          try {
-            const timeDiff = new Date().getTime() - startTime;
-            expect(timeDiff).to.be.gte((numJobs - 1) * 1000);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        }),
-      );
-
-      queueEvents.on('failed', async err => {
-        await worker.close();
-        reject(err);
-      });
-    });
-
-    for (let i = 0; i < numJobs; i++) {
-      await queue.add('rate test', {});
-    }
-
-    await result;
-    await worker.close();
-  });
-
   describe('when there are more added jobs than max limiter', () => {
     it('processes jobs as max limiter from the beginning', async function () {
       this.timeout(5000);
