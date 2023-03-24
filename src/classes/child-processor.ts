@@ -17,7 +17,7 @@ enum ChildStatus {
  *
  */
 export class ChildProcessor {
-  public status: ChildStatus;
+  public status?: ChildStatus;
   public processor: any;
   public currentJobPromise: Promise<unknown> | undefined;
 
