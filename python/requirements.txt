@@ -4,7 +4,7 @@ distlib==0.3.6
 filelock==3.9.1
 msgpack==1.0.4
 pipenv==2023.2.4
-platformdirs==2.6.2
+platformdirs==3.1.1
 redis==4.5.1
 six==1.16.0
 virtualenv==20.21.0
