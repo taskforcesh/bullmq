@@ -6,9 +6,9 @@
  *
  */
 export class AsyncFifoQueue<T> {
-  private queue: T[] = [];
+  private queue: (T | undefined)[] = [];
 
-  private nextPromise: Promise<T> | undefined;
+  private nextPromise: Promise<T | undefined> | undefined;
   private resolve: ((value: T | undefined) => void) | undefined;
   private reject: ((reason?: any) => void) | undefined;
   private pending = new Set<Promise<T>>();
@@ -56,17 +56,17 @@ export class AsyncFifoQueue<T> {
   }
 
   private resolvePromise(job: T) {
-    this.resolve(job);
+    this.resolve!(job);
     this.newPromise();
   }
 
   private rejectPromise(err: any) {
-    this.reject(err);
+    this.reject!(err);
     this.newPromise();
   }
 
   private newPromise() {
-    this.nextPromise = new Promise<T>((resolve, reject) => {
+    this.nextPromise = new Promise<T | undefined>((resolve, reject) => {
       this.resolve = resolve;
       this.reject = reject;
     });

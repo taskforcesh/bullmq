@@ -50,6 +50,8 @@ Another use case is to delay a job at runtime.
 This could be handled using the moveToDelayed method:
 
 ```typescript
+import { DelayedError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
@@ -95,6 +97,8 @@ A common use case is to add children at runtime and then wait for the children t
 This could be handled using the moveToWaitingChildren method:
 
 ```typescript
+import { WaitingChildrenError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
@@ -177,6 +181,8 @@ Another use case is to add flows at runtime and then wait for the children to co
 For example, we can add children dynamically in the processor function of a worker. This could be handled in this way:
 
 ```typescript
+import { FlowProducer, WaitingChildrenError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
