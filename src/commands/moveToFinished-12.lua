@@ -61,6 +61,7 @@ local rcall = redis.call
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
+--- @include "includes/removeParentDependencyKey"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/getRateLimitTTL"
@@ -161,6 +162,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         end
     else
         rcall("DEL", jobIdKey, jobIdKey .. ':logs', jobIdKey .. ':processed')
+        if parentKey ~= "" and ARGV[5] == "failed" then
+            removeParentDependencyKey(jobIdKey, false, parentKey)
+        end    
     end
 
     rcall("XADD", KEYS[4], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],

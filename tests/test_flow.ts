@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { Resolver } from 'dns';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
@@ -26,6 +27,61 @@ describe('flows', () => {
   afterEach(async function () {
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
+  });
+
+  describe('when removeOnFail is true in last pending child', () => {
+    it('moves parent to wait without getting stuck', async () => {
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (job.name === 'child0') {
+            throw new Error('fail');
+          }
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      const flow = new FlowProducer({ connection });
+      await flow.add({
+        name: 'parent',
+        data: {},
+        queueName,
+        children: [
+          {
+            queueName,
+            name: 'child0',
+            data: {},
+            opts: {
+              removeOnFail: true,
+            },
+          },
+          {
+            queueName,
+            name: 'child1',
+            data: {},
+          },
+        ],
+      });
+
+      const completed = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          try {
+            if (job.name === 'parent') {
+              const { processed } = await job.getDependenciesCount();
+              expect(processed).to.equal(2);
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await completed;
+
+      await worker.close();
+    });
   });
 
   it('should process children before the parent', async () => {
