@@ -69,7 +69,7 @@ describe('flows', () => {
           try {
             if (job.name === 'parent') {
               const { processed } = await job.getDependenciesCount();
-              expect(processed).to.equal(2);
+              expect(processed).to.equal(1);
               resolve();
             }
           } catch (err) {

@@ -162,9 +162,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         end
     else
         rcall("DEL", jobIdKey, jobIdKey .. ':logs', jobIdKey .. ':processed')
-        if parentKey ~= "" and ARGV[5] == "failed" then
+        if parentKey ~= "" then
             removeParentDependencyKey(jobIdKey, false, parentKey)
-        end    
+        end
     end
 
     rcall("XADD", KEYS[4], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
