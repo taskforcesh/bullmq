@@ -1,5 +1,4 @@
 import { expect } from 'chai';
-import { Resolver } from 'dns';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
