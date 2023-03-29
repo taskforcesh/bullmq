@@ -152,7 +152,7 @@ class Scripts:
             metrics = opts.get("metrics")
             if metrics != None:
                 return metrics.get("maxDataPoints", "")
-            return None
+            return ""
 
         def getFailParentOnFailure(job):
             opts = job.opts
