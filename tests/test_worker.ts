@@ -10,6 +10,8 @@ import {
   Job,
   UnrecoverableError,
   Worker,
+  WaitingChildrenError,
+  DelayedError,
 } from '../src/classes';
 import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
@@ -1587,6 +1589,20 @@ describe('workers', function () {
   });
 
   describe('Concurrency process', () => {
+    it('should thrown an exception if I specify a concurrency of 0', () => {
+      try {
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          concurrency: 0,
+        });
+        throw new Error('Should have thrown an exception');
+      } catch (err) {
+        expect(err.message).to.be.equal(
+          'concurrency must be a number greater than 0',
+        );
+      }
+    });
+
     it('should run job in sequence if I specify a concurrency of 1', async () => {
       let processing = false;
 
@@ -2262,8 +2278,7 @@ describe('workers', function () {
                     await job.update({
                       step: Step.Second,
                     });
-                    step = Step.Second;
-                    return;
+                    throw new DelayedError();
                   }
                   case Step.Second: {
                     await job.update({
@@ -2286,13 +2301,17 @@ describe('workers', function () {
           const start = Date.now();
           await queue.add('test', { step: Step.Initial });
 
-          await new Promise<void>(resolve => {
+          await new Promise<void>((resolve, reject) => {
             worker.on('completed', job => {
               const elapse = Date.now() - start;
               expect(elapse).to.be.greaterThan(200);
               expect(job.returnvalue).to.be.eql(Step.Finish);
               expect(job.attemptsMade).to.be.eql(2);
               resolve();
+            });
+
+            worker.on('error', () => {
+              reject();
             });
           });
 
@@ -2365,7 +2384,7 @@ describe('workers', function () {
                       step = Step.Finish;
                       return Step.Finish;
                     } else {
-                      return;
+                      throw new WaitingChildrenError();
                     }
                   }
                   default: {
@@ -2379,7 +2398,7 @@ describe('workers', function () {
           const childrenWorker = new Worker(
             queueName,
             async () => {
-              await delay(100);
+              await delay(200);
             },
             {
               connection,
@@ -2397,10 +2416,14 @@ describe('workers', function () {
             },
           );
 
-          await new Promise<void>(resolve => {
+          await new Promise<void>((resolve, reject) => {
             worker.on('completed', job => {
               expect(job.returnvalue).to.equal(Step.Finish);
               resolve();
+            });
+
+            worker.on('error', () => {
+              reject();
             });
           });
 

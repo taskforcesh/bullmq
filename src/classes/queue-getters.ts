@@ -368,6 +368,8 @@ export class QueueGetters<
       if (!clientCommandMessageReg.test((<Error>err).message)) {
         throw err;
       }
+
+      return [];
     }
   }
 

@@ -96,7 +96,7 @@ export class Queue<
 > extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
   jobsOpts: BaseJobOptions;
-  private _repeat: Repeat;
+  private _repeat?: Repeat;
 
   constructor(
     name: string,
@@ -113,7 +113,7 @@ export class Queue<
       Connection,
     );
 
-    this.jobsOpts = get(opts, 'defaultJobOptions');
+    this.jobsOpts = get(opts, 'defaultJobOptions') ?? {};
 
     this.waitUntilReady()
       .then(client => {

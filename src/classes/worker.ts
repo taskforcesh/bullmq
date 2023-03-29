@@ -26,6 +26,8 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { AsyncFifoQueue } from './async-fifo-queue';
+import { DelayedError } from './delayed-error';
+import { WaitingChildrenError } from './waiting-children-error';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -219,6 +221,8 @@ export class Worker<
       ...this.opts,
     };
 
+    this.concurrency = this.opts.concurrency;
+
     this.opts.lockRenewTime =
       this.opts.lockRenewTime || this.opts.lockDuration / 2;
 
@@ -339,6 +343,9 @@ export class Worker<
   }
 
   set concurrency(concurrency: number) {
+    if (typeof concurrency !== 'number' || concurrency < 1) {
+      throw new Error('concurrency must be a number greater than 0');
+    }
     this.opts.concurrency = concurrency;
   }
 
@@ -627,6 +634,16 @@ export class Worker<
         try {
           if (err.message == RATE_LIMIT_ERROR) {
             this.limitUntil = await this.moveLimitedBackToWait(job, token);
+            return;
+          }
+
+          if (
+            (err instanceof DelayedError || err.name == 'DelayedError') ||
+            (
+              err instanceof WaitingChildrenError ||
+              err.name == 'WaitingChildrenError'
+            )
+          ) {
             return;
           }
 

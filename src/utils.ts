@@ -96,7 +96,10 @@ export async function removeAllQueueData(
   });
 }
 
-export function getParentKey(opts: { id: string; queue: string }): string {
+export function getParentKey(opts: {
+  id: string;
+  queue: string;
+}): string | undefined {
   if (opts) {
     return `${opts.queue}:${opts.id}`;
   }
@@ -127,7 +130,7 @@ export const asyncSend = <T extends procSendLike>(
 ): Promise<void> => {
   return new Promise((resolve, reject) => {
     if (typeof proc.send === 'function') {
-      proc.send(msg, (err: Error) => {
+      proc.send(msg, (err: Error | null) => {
         if (err) {
           reject(err);
         } else {

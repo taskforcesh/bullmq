@@ -1,7 +1,7 @@
 /**
  * AsyncFifoQueue
  *
- * A minimal FIFO queue for asyncrhonous operations. Allows adding asynchronous operations
+ * A minimal FIFO queue for asynchronous operations. Allows adding asynchronous operations
  * and consume them in the order they are resolved.
  *
  *  TODO: Optimize using a linked list for the queue instead of an array.
@@ -10,11 +10,10 @@
  *  maximum number of elements in the list will never exceen the concurrency factor
  *  of the worker, so the nodes of the list could be pre-allocated.
  */
-
 export class AsyncFifoQueue<T> {
-  private queue: T[] = [];
+  private queue: (T | undefined)[] = [];
 
-  private nextPromise: Promise<T> | undefined;
+  private nextPromise: Promise<T | undefined> | undefined;
   private resolve: ((value: T | undefined) => void) | undefined;
   private reject: ((reason?: any) => void) | undefined;
   private pending = new Set<Promise<T>>();
@@ -23,7 +22,7 @@ export class AsyncFifoQueue<T> {
     this.newPromise();
   }
 
-  public add(promise: Promise<T>) {
+  public add(promise: Promise<T>): void {
     this.pending.add(promise);
 
     promise
@@ -45,34 +44,34 @@ export class AsyncFifoQueue<T> {
       });
   }
 
-  public async waitAll() {
+  public async waitAll(): Promise<void> {
     await Promise.all(this.pending);
   }
 
-  public numTotal() {
+  public numTotal(): number {
     return this.pending.size + this.queue.length;
   }
 
-  public numPending() {
+  public numPending(): number {
     return this.pending.size;
   }
 
-  public numQueued() {
+  public numQueued(): number {
     return this.queue.length;
   }
 
   private resolvePromise(job: T) {
-    this.resolve(job);
+    this.resolve!(job);
     this.newPromise();
   }
 
   private rejectPromise(err: any) {
-    this.reject(err);
+    this.reject!(err);
     this.newPromise();
   }
 
   private newPromise() {
-    this.nextPromise = new Promise<T>((resolve, reject) => {
+    this.nextPromise = new Promise<T | undefined>((resolve, reject) => {
       this.resolve = resolve;
       this.reject = reject;
     });

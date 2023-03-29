@@ -50,11 +50,14 @@ Another use case is to delay a job at runtime.
 This could be handled using the moveToDelayed method:
 
 ```typescript
+import { DelayedError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
   Finish,
 }
+
 const worker = new Worker(
   queueName,
   async job => {
@@ -75,8 +78,7 @@ const worker = new Worker(
           await job.update({
             step: Step.Finish,
           });
-          step = Step.Finish;
-          return Step.Finish;
+          throw new DelayedError();
         }
         default: {
           throw new Error('invalid step');
@@ -95,6 +97,8 @@ A common use case is to add children at runtime and then wait for the children t
 This could be handled using the moveToWaitingChildren method:
 
 ```typescript
+import { WaitingChildrenError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
@@ -153,7 +157,7 @@ const worker = new Worker(
             step = Step.Finish;
             return Step.Finish;
           } else {
-            return;
+            throw new WaitingChildrenError();
           }
         }
         default: {
@@ -177,6 +181,8 @@ Another use case is to add flows at runtime and then wait for the children to co
 For example, we can add children dynamically in the processor function of a worker. This could be handled in this way:
 
 ```typescript
+import { FlowProducer, WaitingChildrenError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
@@ -240,7 +246,7 @@ const worker = new Worker(
             step = Step.Finish;
             return Step.Finish;
           } else {
-            return;
+            throw new WaitingChildrenError();
           }
         }
         default: {
