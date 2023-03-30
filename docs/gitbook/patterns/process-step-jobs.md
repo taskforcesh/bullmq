@@ -1,4 +1,6 @@
-# Process Step jobs
+# Process Step Jobs
+
+## Process Step jobs
 
 Sometimes, it is useful to break processor function into small pieces that will be processed depending on the previous executed step, we could handle this kind of logic by using switch blocks:
 
@@ -43,11 +45,11 @@ const worker = new Worker(
 
 As you can see, we should save the step value; in this case, we are saving it into the job's data. So even in the case of an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
 
-# Delaying
+## Delaying
 
-Another use case is to delay a job at runtime.
+There are situations when it is valuable to delay a job when it is being processed.
 
-This could be handled using the moveToDelayed method:
+This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value.  For the `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error `DelayedError` that will signal the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
 
 ```typescript
 import { DelayedError, Worker } from 'bullmq';
@@ -60,7 +62,7 @@ enum Step {
 
 const worker = new Worker(
   queueName,
-  async job => {
+  async (job: Job, token: string) => {
     let step = job.data.step;
     while (step !== Step.Finish) {
       switch (step) {
@@ -90,7 +92,7 @@ const worker = new Worker(
 );
 ```
 
-# Waiting Children
+## Waiting Children
 
 A common use case is to add children at runtime and then wait for the children to complete.
 
@@ -174,7 +176,7 @@ const worker = new Worker(
 Bullmq-Pro: this pattern could be handled by using observables; in that case, we do not need to save next step.
 {% endhint %}
 
-# Chaining Flows
+## Chaining Flows
 
 Another use case is to add flows at runtime and then wait for the children to complete.
 
