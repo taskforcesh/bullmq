@@ -1953,15 +1953,17 @@ describe('flows', () => {
     expect(isWaitingChildren).to.be.true;
     expect(children).to.have.length(1);
 
-    expect(children[0].job.id).to.be.ok;
-    expect(children[0].job.data.foo).to.be.eql('bar');
-    expect(children[0].children).to.have.length(1);
+    expect(children![0].job.id).to.be.ok;
+    expect(children![0].job.data.foo).to.be.eql('bar');
+    expect(children![0].children).to.have.length(1);
 
-    expect(children[0].children[0].job.id).to.be.ok;
-    expect(children[0].children[0].job.data.foo).to.be.eql('baz');
+    expect(children![0].children![0].job.id).to.be.ok;
+    expect(children![0].children![0].job.data.foo).to.be.eql('baz');
 
-    expect(children[0].children[0].children[0].job.id).to.be.ok;
-    expect(children[0].children[0].children[0].job.data.foo).to.be.eql('qux');
+    expect(children![0].children![0].children![0].job.id).to.be.ok;
+    expect(children![0].children![0].children![0].job.data.foo).to.be.eql(
+      'qux',
+    );
 
     await processingChildren;
     await childrenWorker.close();
@@ -2100,8 +2102,8 @@ describe('flows', () => {
 
     expect(children).to.have.length(1);
 
-    expect(children[0].job.id).to.be.ok;
-    expect(children[0].job.data.foo).to.be.eql('bar');
+    expect(children![0].job.id).to.be.ok;
+    expect(children![0].job.data.foo).to.be.eql('bar');
 
     await processingChildren;
     await childrenWorker.close();
@@ -2160,8 +2162,8 @@ describe('flows', () => {
 
     expect(children).to.have.length(1);
 
-    expect(children[0].job.id).to.be.ok;
-    expect(children[0].job.data.foo).to.be.eql('bar');
+    expect(children![0].job.id).to.be.ok;
+    expect(children![0].job.data.foo).to.be.eql('bar');
 
     await processingChildren;
     await childrenWorker.close();
@@ -2256,7 +2258,7 @@ describe('flows', () => {
           ],
           opts: {
             parent: {
-              id: grandparentJob.id,
+              id: grandparentJob.id!,
               queue: `bull:${grandparentQueueName}`,
             },
           },
