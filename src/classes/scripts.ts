@@ -38,7 +38,7 @@ import { ChainableCommander } from 'ioredis';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
-  moveToFinishedKeys: string[];
+  moveToFinishedKeys: (string | undefined)[];
 
   constructor(protected queue: MinimalQueue) {
     const queueKeys = this.queue.keys;
@@ -75,11 +75,7 @@ export class Scripts {
     job: JobJson,
     opts: RedisJobOptions,
     jobId: string,
-    parentOpts: ParentOpts = {
-      parentKey: null,
-      waitChildrenKey: null,
-      parentDependenciesKey: null,
-    },
+    parentOpts: ParentOpts = {},
   ): Promise<string> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [

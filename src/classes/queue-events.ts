@@ -261,7 +261,7 @@ export class QueueEvents extends QueueBase {
     while (!this.closing) {
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
       const data: StreamReadRaw = await this.checkConnectionError(() =>
-        client.xread('BLOCK', opts.blockingTimeout, 'STREAMS', key, id),
+        client.xread('BLOCK', opts.blockingTimeout!, 'STREAMS', key, id),
       );
       if (data) {
         const stream = data[0];
