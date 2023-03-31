@@ -30,6 +30,7 @@
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
 * [Flows](guide/flows/README.md)
+  * [Adding flows in bulk](guide/flows/adding-bulks.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
   * [Fail Parent](guide/flows/fail-parent.md)
 * [Metrics](guide/metrics/metrics.md)
