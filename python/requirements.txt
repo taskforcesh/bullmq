@@ -5,7 +5,7 @@ filelock==3.9.1
 msgpack==1.0.5
 pipenv==2023.3.20
 platformdirs==3.1.1
-redis==4.5.3
+redis==4.5.4
 six==1.16.0
 virtualenv==20.21.0
 virtualenv-clone==0.5.7
