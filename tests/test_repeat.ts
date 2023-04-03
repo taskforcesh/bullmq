@@ -1042,10 +1042,14 @@ describe('repeat', function () {
     const repeat = { pattern: '*/2 * * * * *' };
 
     const createdJob = await queue.add('remove', { foo: 'bar' }, { repeat });
-    const job = await queue.getJob(createdJob.id);
+    const delayedCount1 = await queue.getJobCountByTypes('delayed');
+    expect(delayedCount1).to.be.equal(1);
+    const job = await queue.getJob(createdJob.id!);
     const repeatableJobs = await queue.getRepeatableJobs();
     expect(repeatableJobs).to.have.length(1);
     const removed = await queue.removeRepeatableByKey(createdJob.repeatJobKey);
+    const delayedCount = await queue.getJobCountByTypes('delayed');
+    expect(delayedCount).to.be.equal(0);
     expect(job.repeatJobKey).to.not.be.undefined;
     expect(removed).to.be.true;
     const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
