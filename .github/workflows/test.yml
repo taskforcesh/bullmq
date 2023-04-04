@@ -35,7 +35,7 @@ jobs:
           node-version: ${{ env.node-version }}
           cache: 'yarn'
       - name: Start Redis
-        uses: supercharge/redis-github-action@4b67a313c69bc7a90f162e8d810392fffe10d3b5 # tag=1.4.0
+        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
         with:
           redis-version: ${{ env.redis-version }}
       - run: yarn install --frozen-lockfile --non-interactive
@@ -80,7 +80,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
       - name: Start Redis
-        uses: supercharge/redis-github-action@4b67a313c69bc7a90f162e8d810392fffe10d3b5 # tag=1.4.0
+        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
         with:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
@@ -108,7 +108,7 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'yarn'
       - name: Start Redis
-        uses: supercharge/redis-github-action@4b67a313c69bc7a90f162e8d810392fffe10d3b5 # tag=1.4.0
+        uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
         with:
           redis-version: ${{ matrix.redis-version }}
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
