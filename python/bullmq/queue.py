@@ -49,7 +49,7 @@ class Queue:
         return self.scripts.pause(False)
 
     async def isPaused(self):
-        pausedKeyExists = await self.client.hexists(self.opts.get("prefix") or "bull" + ":" + self.name + ":meta", "paused")
+        pausedKeyExists = await self.client.hexists(self.opts.get("prefix") or f"bull:{self.name}:meta", "paused")
         return pausedKeyExists == 1
 
     """
@@ -80,7 +80,7 @@ class Queue:
         Trim the event stream to an approximately maxLength.
     """
     def trimEvents(self, maxLength: int):
-        return self.client.xtrim(self.opts.get("prefix") or "bull" + ":" + self.name + ":events", "MAXLEN", "~", maxLength)
+        return self.client.xtrim(self.opts.get("prefix") or f"bull:{self.name}:events", "MAXLEN", "~", maxLength)
 
     """
         Closes the queue and the underlying connection to Redis.
@@ -90,7 +90,7 @@ class Queue:
         return self.redisConnection.close()
 
 async def fromId(queue: Queue, jobId: str):
-    key = queue.prefix + ":" + queue.name + ":" + jobId
+    key = f"{queue.prefix}:{queue.name}:{jobId}"
     rawData = await queue.client.hgetall(key)
     return Job.fromJSON(queue.client, rawData, jobId)
 
