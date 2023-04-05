@@ -39,11 +39,11 @@ class Scripts:
             self.keys[name] = self.toKey(name)
     
     def toKey(self, name: str):
-        return self.prefix + ":" + self.queueName + ":" + name
+        return f"{self.prefix}:{self.queueName}:{name}"
 
     def getScript(self, name: str):
         "Get a script by name"
-        file = open(basePath + "/commands/" + name, "r")
+        file = open(f"{basePath}/commands/{name}", "r")
         data = file.read()
         file.close()
         return data
@@ -196,19 +196,19 @@ class Scripts:
 
 def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError:
     if code == ErrorCode.JobNotExist.value:
-        return TypeError("Missing key for job " + jobId + "." + command)
+        return TypeError(f"Missing key for job {jobId}.{command}")
     elif code == ErrorCode.JobLockNotExist.value:
-        return TypeError("Missing lock for job " + jobId + "." + command)
+        return TypeError(f"Missing lock for job {jobId}.{command}")
     elif code == ErrorCode.JobNotInState.value:
-        return TypeError("Job " + jobId + " is not in the state" + state + "." + command)
+        return TypeError(f"Job {jobId} is not in the state {state}.{command}")
     elif code == ErrorCode.JobPendingDependencies.value:
-        return TypeError("Job " + jobId + " has pending dependencies. " + command)
+        return TypeError(f"Job {jobId} has pending dependencies.{command}")
     elif code == ErrorCode.ParentJobNotExist.value:
-        return TypeError("Missing key for parent job " + jobId + "." + command)
+        return TypeError(f"Missing key for parent job {jobId}.{command}")
     elif code == ErrorCode.JobLockMismatch.value:
-        return TypeError("Lock mismatch for job " + jobId + ". Cmd "+ command + " from " + state)
+        return TypeError(f"Lock mismatch for job {jobId}. Cmd {command} from {state}")
     else:
-        return TypeError("Unknown code " + str(code) + " error for " + jobId + "." + command)
+        return TypeError(f"Unknown code {str(code)} error for {jobId}.{command}")
 
 def raw2NextJobData(raw: list[Any]) -> list[Any] | None:
     if raw:
