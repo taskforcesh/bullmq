@@ -6,16 +6,21 @@ from redis import Redis
 from typing import Dict, List, Union, Any
 
 optsDecodeMap = {
-  'fpof': 'failParentOnFailure',
-  'kl': 'keepLogs',
+    'fpof': 'failParentOnFailure',
+    'kl': 'keepLogs',
 }
 
 optsEncodeMap = {v: k for k, v in optsDecodeMap.items()}
 
+
 class Job:
     """
-    Instantiate a Queue object
+    This class represents a Job in the queue. Normally job are implicitly created when
+    you add a job to the queue with methods such as Queue.addJob( ... )
+
+    A Job instance is also passed to the Worker's process function.
     """
+
     def __init__(self, client: Redis, name: str, data: Any, opts: dict = {}):
         self.name = name
         self.id = opts.get("jobId", None)
@@ -35,7 +40,15 @@ class Job:
         self.repeatJobKey = None
         self.stacktrace: List[str] = []
 
+
 def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
+    """
+    Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
+   
+    @param queue: the queue where the job belongs to.
+    @param json: the plain object containing the job.
+    @param jobId: an optional job id (overrides the id coming from the JSON object)
+    """
     data = json.loads(rawData.get("data", '{}'))
     opts = optsFromJSON(json.loads(rawData.get("opts", '{}')))
 
@@ -47,13 +60,13 @@ def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
     job.timestamp = int(rawData.get("timestamp", "0"))
 
     if rawData.get("finishedOn"):
-      job.finishedOn = int(rawData.get("finishedOn"))
+        job.finishedOn = int(rawData.get("finishedOn"))
 
     if rawData.get("processedOn"):
-      job.processedOn = int(rawData.get("processedOn"))
+        job.processedOn = int(rawData.get("processedOn"))
 
     if rawData.get("rjk"):
-      job.repeatJobKey = rawData.get("rjk")
+        job.repeatJobKey = rawData.get("rjk")
 
     job.failedReason = rawData.get("failedReason")
     job.attemptsMade = int(rawData.get("attemptsMade", "0"))
@@ -74,7 +87,9 @@ def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
 
     return job
 
+
 Job.fromJSON = staticmethod(fromJSON)
+
 
 def optsFromJSON(rawOpts):
     # opts = json.loads(rawOpts)
@@ -92,6 +107,7 @@ def optsFromJSON(rawOpts):
             options[attributeName] = value
 
     return options
+
 
 def getReturnValue(value: Any):
     try:
