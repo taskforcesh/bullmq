@@ -44,7 +44,7 @@ class Job:
 def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
     """
     Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
-   
+
     @param queue: the queue where the job belongs to.
     @param json: the plain object containing the job.
     @param jobId: an optional job id (overrides the id coming from the JSON object)
