@@ -83,6 +83,72 @@ describe('flows', () => {
     });
   });
 
+  describe('when removeOnComplete is true in children', () => {
+    it('keeps children results in parent', async () => {
+      const worker = new Worker(
+        queueName,
+        async job => {
+          return job.name;
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      const flow = new FlowProducer({ connection });
+      const { children } = await flow.add({
+        name: 'parent',
+        data: {},
+        queueName,
+        children: [
+          {
+            queueName,
+            name: 'child0',
+            data: {},
+            opts: {
+              removeOnComplete: true,
+            },
+          },
+          {
+            queueName,
+            name: 'child1',
+            data: {},
+            opts: {
+              removeOnComplete: true,
+            },
+          },
+        ],
+      });
+
+      const completed = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          try {
+            if (job.name === 'parent') {
+              const { processed } = await job.getDependencies();
+              expect(Object.keys(processed!).length).to.equal(2);
+              const { queueQualifiedName, id, name } = children![0].job;
+              expect(processed![`${queueQualifiedName}:${id}`]).to.equal(name);
+              const {
+                queueQualifiedName: queueQualifiedName2,
+                id: id2,
+                name: name2,
+              } = children![1].job;
+              expect(processed![`${queueQualifiedName2}:${id2}`]).to.equal(
+                name2,
+              );
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await completed;
+
+      await worker.close();
+    });
+  });
+
   it('should process children before the parent', async () => {
     const name = 'child-job';
     const values = [
