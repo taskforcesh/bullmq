@@ -16,7 +16,7 @@ class Job:
     """
     Instantiate a Queue object
     """
-    def __init__(self, client: Redis, name: str, data: Any, opts: Dict = {}):
+    def __init__(self, client: Redis, name: str, data: Any, opts: dict = {}):
         self.name = name
         self.id = opts.get("jobId", None)
         self.progress = 0
