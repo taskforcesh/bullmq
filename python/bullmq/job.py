@@ -16,7 +16,7 @@ class Job:
     """
     Instantiate a Queue object
     """
-    def __init__(self, client: Redis, name: str, data: Any, opts = {}):
+    def __init__(self, client: Redis, name: str, data: Any, opts: Dict = {}):
         self.name = name
         self.id = opts.get("jobId", None)
         self.progress = 0
@@ -35,7 +35,7 @@ class Job:
         self.repeatJobKey = None
         self.stacktrace: List[str] = []
 
-def fromJSON(client: Redis, rawData, jobId = None):
+def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
     data = json.loads(rawData.get("data", '{}'))
     opts = optsFromJSON(json.loads(rawData.get("opts", '{}')))
 

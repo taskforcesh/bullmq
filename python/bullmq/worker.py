@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Any
 from uuid import uuid4
 import asyncio
 import traceback
@@ -13,7 +13,7 @@ from bullmq.job import Job
 from bullmq.timer import Timer
 
 class Worker(EventEmitter):
-    def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts = {}):
+    def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: dict[str, Any] = {}):
         super().__init__()  
         self.name = name
         self.processor = processor
@@ -163,7 +163,7 @@ class Worker(EventEmitter):
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
 
-async def getFirstCompleted( taskSet: set):
+async def getFirstCompleted(taskSet: set):
     jobSet, pending = await asyncio.wait(taskSet, return_when=asyncio.FIRST_COMPLETED)
     for jobTask in jobSet:
         try: 

@@ -3,21 +3,21 @@
     It is a wrapper around the Redis client.
 """
 from typing import Any, Dict, List, Union
+from redis import Redis
+from bullmq.job import Job
+from bullmq.error_code import ErrorCode
+
 import time
 import json
 import msgpack
 import os
 
-from redis import Redis
-
-from bullmq.job import Job
-from bullmq.error_code import ErrorCode
 
 basePath = os.path.dirname(os.path.realpath(__file__))
 
 class Scripts:
 
-    def __init__(self, prefix: str, queueName: str, redisClient):
+    def __init__(self, prefix: str, queueName: str, redisClient: Redis):
         self.prefix = prefix
         self.queueName = queueName
         self.keys = {}
@@ -38,17 +38,17 @@ class Scripts:
         for name in names:
             self.keys[name] = self.toKey(name)
     
-    def toKey(self, name):
+    def toKey(self, name: str):
         return self.prefix + ":" + self.queueName + ":" + name
 
-    def getScript(self, name):
+    def getScript(self, name: str):
         "Get a script by name"
         file = open(basePath + "/commands/" + name, "r")
         data = file.read()
         file.close()
         return data
 
-    def getKeys(self, keys: list):
+    def getKeys(self, keys: list[str]):
         def mapKey(key):
             return self.keys[key]
         return list(map(mapKey, keys))
@@ -135,7 +135,7 @@ class Scripts:
         keys.append(self.keys['meta'])
         keys.append(metricsKey)
 
-        def getKeepJobs(shouldRemove):
+        def getKeepJobs(shouldRemove: bool | dict | int | None):
             if shouldRemove == True:
                 return { "count": 0 }
             
@@ -148,13 +148,13 @@ class Scripts:
             if shouldRemove == False or shouldRemove == None:
                 return { "count": -1 }
 
-        def getMetricsSize(opts):
+        def getMetricsSize(opts: dict):
             metrics = opts.get("metrics")
             if metrics != None:
                 return metrics.get("maxDataPoints", "")
             return ""
 
-        def getFailParentOnFailure(job):
+        def getFailParentOnFailure(job: Job):
             opts = job.opts
             if opts != None:
                 return opts.get("failParentOnFailure", False)

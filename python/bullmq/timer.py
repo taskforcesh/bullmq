@@ -2,7 +2,7 @@ import asyncio
 
 # Credits: https://stackoverflow.com/questions/45419723/python-timer-with-asyncio-coroutine
 class Timer:
-    def __init__(self, interval, callback, *args, **kwargs):
+    def __init__(self, interval: int, callback, *args, **kwargs):
         self.interval = interval
         self.args       = args
         self.kwargs     = kwargs

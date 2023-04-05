@@ -6,15 +6,15 @@ from bullmq.job import Job
 from bullmq.redis_connection import RedisConnection
 
 class RetryJobsOpts(TypedDict):
-    state : str
-    count : int
+    state: str
+    count: int
     timestamp: int
 
 class Queue:
     """
         Instantiate a Queue object
     """
-    def __init__(self, name: str, redisOpts={}, opts={}):
+    def __init__(self, name: str, redisOpts: dict = {}, opts: dict = {}):
         """ "Initialize a connection" """
 
         self.name = name
@@ -32,7 +32,7 @@ class Queue:
         @param name: The name of the queue
         @param data: The data to add to the queue (must be JSON serializable)
     """
-    async def add(self, name: str, data, opts = {}):
+    async def add(self, name: str, data, opts: dict = {}):
         """ Add an item to the queue """
         job = Job(self.client, name, data, opts)
         jobId = await self.scripts.addJob(job)
