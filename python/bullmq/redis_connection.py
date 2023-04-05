@@ -4,7 +4,7 @@ import redis.asyncio as redis
     RedisConnection class
 """
 class RedisConnection:
-    def __init__(self, redisOpts = {}):
+    def __init__(self, redisOpts: dict = {}):
         host = redisOpts.get("host") or "localhost"
         port = redisOpts.get("port") or 6379
         db = redisOpts.get("db") or 0
@@ -15,6 +15,7 @@ class RedisConnection:
     def disconnect(self):
         """ "Disconnect from Redis" """
         return self.conn.disconnect()
+        
     def close(self):
         """ "Close the connection" """
         return self.conn.close()
