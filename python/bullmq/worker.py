@@ -12,9 +12,10 @@ from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
 
+
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: dict[str, Any] = {}):
-        super().__init__()  
+        super().__init__()
         self.name = name
         self.processor = processor
         self.opts = {
@@ -28,12 +29,9 @@ class Worker(EventEmitter):
 
         self.redisConnection = RedisConnection(redisOpts)
         self.client = self.redisConnection.conn
-
         self.blockingRedisConnection = RedisConnection(redisOpts)
         self.bclient = self.blockingRedisConnection.conn
-    
         self.scripts = Scripts(opts.get("prefix") or "bull", name, self.client)
-
         self.closing = False
         self.forceClosing = False
         self.closed = False
@@ -48,8 +46,10 @@ class Worker(EventEmitter):
         if self.running:
             raise Exception("Worker is already running")
 
-        self.timer = Timer((self.opts.get("lockDuration") / 2) / 1000, self.extendLocks)
-        self.stalledCheckTimer = Timer(self.opts.get("stalledInterval") / 1000, self.runStalledJobsCheck)
+        self.timer = Timer(
+            (self.opts.get("lockDuration") / 2) / 1000, self.extendLocks)
+        self.stalledCheckTimer = Timer(self.opts.get(
+            "stalledInterval") / 1000, self.runStalledJobsCheck)
         self.running = True
         job = None
 
@@ -60,7 +60,8 @@ class Worker(EventEmitter):
                 self.processing.add(waitingJob)
 
             if job:
-                processingJob = asyncio.ensure_future(self.processJob(job, token))
+                processingJob = asyncio.ensure_future(
+                    self.processJob(job, token))
                 self.processing.add(processingJob)
 
             try:
@@ -82,6 +83,11 @@ class Worker(EventEmitter):
         self.stalledCheckTimer.stop()
 
     async def getNextJob(self, token: str):
+        """
+        Returns a promise that resolves to the next job in queue.
+        @param token: worker token to be assigned to retrieved job
+        @returns a Job or undefined if no job was available in the queue.
+        """
         # First try to move a job from the waiting list to the active list
         result = await self.scripts.moveToActive(token, self.opts)
         job = None
@@ -92,7 +98,8 @@ class Worker(EventEmitter):
 
         # If there are no jobs in the waiting list we keep waiting with BRPOPLPUSH
         if job == None:
-            timeout = min(delayUntil - int(time.time() * 1000) if delayUntil else 5000, 5000) / 1000
+            timeout = min(delayUntil - int(time.time() * 1000)
+                          if delayUntil else 5000, 5000) / 1000
             jobId = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
             if jobId:
                 job, jobId = await self.scripts.moveToActive(token, self.opts, jobId)
@@ -116,7 +123,7 @@ class Worker(EventEmitter):
                     await self.scripts.moveToFailed(job, str(err), job.opts.get("removeOnFail", False), token, self.opts, fetchNext=not self.closing)
 
                 # TODO: Store the stacktrace in the job
-                
+
                 self.emit("failed", job, err)
             except Exception as err:
                 print("Error moving job to failed", err)
@@ -136,7 +143,7 @@ class Worker(EventEmitter):
             # We should emit an error for each of those jobs.
             #    for jobId, err in result.items():
             #    self.emit("error", "could not renew lock for job " + jobId)
-            
+
         except Exception as e:
             print("Error renewing locks", e)
             traceback.print_exc()
@@ -145,7 +152,8 @@ class Worker(EventEmitter):
         try:
             failed, stalled = await self.scripts.moveStalledJobsToWait(self.opts.get("maxStalledCount"), self.opts.get("stalledInterval"))
             for jobId in failed:
-                self.emit("failed", jobId, "job stalled more than allowable limit")
+                self.emit("failed", jobId,
+                          "job stalled more than allowable limit")
             for jobId in stalled:
                 self.emit("stalled", jobId)
 
@@ -163,10 +171,11 @@ class Worker(EventEmitter):
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
 
+
 async def getFirstCompleted(taskSet: set):
     jobSet, pending = await asyncio.wait(taskSet, return_when=asyncio.FIRST_COMPLETED)
     for jobTask in jobSet:
-        try: 
+        try:
             job = jobTask.result()
             return (job, pending)
         except Exception as e:
