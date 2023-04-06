@@ -1,20 +1,27 @@
-from typing import Callable, Any
+from typing import Callable, TypedDict, Any
 from uuid import uuid4
-import asyncio
-import traceback
-import time
-
-from redis import Redis
-
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
 
+import asyncio
+import traceback
+import time
+
+
+class WorkerOptions(TypedDict):
+    concurrency: int
+    lockDuration: int
+    maxStalledCount: int
+    stalledInterval: int
+    autorun: bool
+
 
 class Worker(EventEmitter):
-    def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: dict[str, Any] = {}):
+    def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future],
+                 opts: WorkerOptions = {}, connection: dict[str, Any] = {}):
         super().__init__()
         self.name = name
         self.processor = processor
@@ -24,12 +31,9 @@ class Worker(EventEmitter):
             "maxStalledCount": opts.get("maxStalledCount", 1),
             "stalledInterval": opts.get("stalledInterval", 30000),
         }
-
-        redisOpts = opts.get("connection") or {}
-
-        self.redisConnection = RedisConnection(redisOpts)
+        self.redisConnection = RedisConnection(connection)
         self.client = self.redisConnection.conn
-        self.blockingRedisConnection = RedisConnection(redisOpts)
+        self.blockingRedisConnection = RedisConnection(connection)
         self.bclient = self.blockingRedisConnection.conn
         self.scripts = Scripts(opts.get("prefix") or "bull", name, self.client)
         self.closing = False
@@ -52,8 +56,8 @@ class Worker(EventEmitter):
             "stalledInterval") / 1000, self.runStalledJobsCheck)
         self.running = True
         job = None
-
         token = uuid4().hex
+
         while not self.closed:
             if not job and len(self.processing) < self.opts.get("concurrency") and not self.closing:
                 waitingJob = asyncio.ensure_future(self.getNextJob(token))
@@ -162,7 +166,9 @@ class Worker(EventEmitter):
             self.emit('error', e)
 
     async def close(self, force: bool = False):
-        """ "Close the worker" """
+        """
+        Close the worker
+        """
         if force:
             self.forceClosing = True
 
