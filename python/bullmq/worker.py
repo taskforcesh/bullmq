@@ -11,7 +11,7 @@ import traceback
 import time
 
 
-class WorkerOptions(TypedDict):
+class WorkerOptions(TypedDict, total=False):
     autorun: bool
     """
     Condition to start processor at instance creation
