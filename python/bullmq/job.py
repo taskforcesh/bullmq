@@ -13,7 +13,7 @@ optsDecodeMap = {
 optsEncodeMap = {v: k for k, v in optsDecodeMap.items()}
 
 
-class KeepJosb(TypedDict, total=False):
+class KeepJobs(TypedDict, total=False):
     """
     Specify which jobs to keep after finishing. If both age and count are
     specified, then the jobs kept will be the ones that satisfies both
@@ -65,7 +65,7 @@ class JobOptions(TypedDict, total=False):
     @defaultValue 0
     """
 
-    removeOnComplete: bool | int | KeepJosb
+    removeOnComplete: bool | int | KeepJobs
     """
     If true, removes the job when it successfully completes
     When given a number, it specifies the maximum amount of
@@ -74,7 +74,7 @@ class JobOptions(TypedDict, total=False):
     Default behavior is to keep the job in the completed set.
     """
 
-    removeOnFail: bool | int | KeepJosb
+    removeOnFail: bool | int | KeepJobs
     """
     If true, removes the job when it fails after all attempts.
     When given a number, it specifies the maximum amount of
