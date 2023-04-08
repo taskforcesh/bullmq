@@ -1,9 +1,9 @@
-import redis.asyncio as redis
-from typing import TypedDict
-
 from bullmq.scripts import Scripts
 from bullmq.job import Job
 from bullmq.redis_connection import RedisConnection
+from typing import TypedDict
+
+import redis.asyncio as redis
 
 
 class RetryJobsOpts(TypedDict):
@@ -12,12 +12,23 @@ class RetryJobsOpts(TypedDict):
     timestamp: int
 
 
+class QueueOptions(TypedDict, total=False):
+    """
+    Options for the Queue class.
+    """
+
+    prefix: str
+    """
+    Prefix for all queue keys.
+    """
+
+
 class Queue:
     """
     Instantiate a Queue object
     """
 
-    def __init__(self, name: str, redisOpts: dict = {}, opts: dict = {}):
+    def __init__(self, name: str, redisOpts: dict = {}, opts: QueueOptions = {}):
         """ 
         Initialize a connection 
         """
@@ -25,7 +36,7 @@ class Queue:
         self.redisConnection = RedisConnection(redisOpts)
         self.client = self.redisConnection.conn
         self.opts = opts
-        self.prefix = opts.get("prefix") or "bull"
+        self.prefix = opts.get("prefix", "bull")
         self.scripts = Scripts(self.prefix, name, self.redisConnection.conn)
 
     async def add(self, name: str, data, opts: dict = {}):
@@ -68,7 +79,7 @@ class Queue:
         """ 
         Returns true if the queue is currently paused. 
         """
-        pausedKeyExists = await self.client.hexists(self.opts.get("prefix") or f"bull:{self.name}:meta", "paused")
+        pausedKeyExists = await self.client.hexists(self.opts.get("prefix", f"bull:{self.name}:meta"), "paused")
         return pausedKeyExists == 1
 
     async def obliterate(self, force: bool = False):
@@ -108,7 +119,7 @@ class Queue:
 
         @param maxLength:
         """
-        return self.client.xtrim(self.opts.get("prefix") or f"bull:{self.name}:events", "MAXLEN", "~", maxLength)
+        return self.client.xtrim(self.opts.get("prefix", f"bull:{self.name}:events"), "MAXLEN", "~", maxLength)
 
     def close(self):
         """
