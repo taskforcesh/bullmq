@@ -1,5 +1,5 @@
 from bullmq.scripts import Scripts
-from bullmq.job import Job
+from bullmq.job import Job, JobOptions
 from bullmq.redis_connection import RedisConnection
 from typing import TypedDict
 
@@ -39,7 +39,7 @@ class Queue:
         self.prefix = opts.get("prefix", "bull")
         self.scripts = Scripts(self.prefix, name, self.redisConnection.conn)
 
-    async def add(self, name: str, data, opts: dict = {}):
+    async def add(self, name: str, data, opts: JobOptions = {}):
         """
         Adds a new job to the queue.
 
