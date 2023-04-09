@@ -118,7 +118,7 @@ class Worker(EventEmitter):
                 job, pending = await getFirstCompleted(self.processing)
                 self.processing = pending
 
-                if job == None or len(self.processing) == 0 and self.closing:
+                if (job == None or len(self.processing) == 0) and self.closing:
                     # We are done processing so we can close the queue
                     break
 
