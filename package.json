@@ -52,7 +52,7 @@
   },
   "dependencies": {
     "cron-parser": "^4.6.0",
-    "glob": "^8.0.3",
+    "glob": "^9.0.0",
     "ioredis": "^5.3.0",
     "lodash": "^4.17.21",
     "msgpackr": "^1.6.2",
