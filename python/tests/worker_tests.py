@@ -8,7 +8,7 @@ import asyncio
 import unittest
 from asyncio import Future
 
-from bullmq import Queue, Worker, Job;
+from bullmq import Queue, Worker, Job
 
 queueName = "__test_queue__"
 
@@ -46,7 +46,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close();
+        await worker.close()
         await queue.close()
         
 
@@ -106,7 +106,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker.close();
+        await worker.close()
         await queue.close()
 
     async def test_process_stalled_jobs(self):
@@ -149,7 +149,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(completedJob.returnvalue, "done2")
         self.assertNotEqual(completedJob.finishedOn, None)
 
-        await worker2.close();
+        await worker2.close()
         await queue.close()
 
 
