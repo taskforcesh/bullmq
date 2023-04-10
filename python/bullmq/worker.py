@@ -76,9 +76,9 @@ class Worker(EventEmitter):
             "maxStalledCount": opts.get("maxStalledCount", 1),
             "stalledInterval": opts.get("stalledInterval", 30000),
         }
-        redisOpts = opts.get("connection", {})
-        self.redisConnection = RedisConnection(redisOpts)
-        self.blockingRedisConnection = RedisConnection(redisOpts)
+        redis_opts = opts.get("connection", {})
+        self.redisConnection = RedisConnection(redis_opts)
+        self.blockingRedisConnection = RedisConnection(redis_opts)
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
         self.scripts = Scripts(opts.get("prefix", "bull"), name, self.client)
@@ -106,19 +106,19 @@ class Worker(EventEmitter):
 
         while not self.closed:
             if not job and len(self.processing) < self.opts.get("concurrency") and not self.closing:
-                waitingJob = asyncio.ensure_future(self.getNextJob(token))
-                self.processing.add(waitingJob)
+                waiting_job = asyncio.ensure_future(self.getNextJob(token))
+                self.processing.add(waiting_job)
 
             if job:
-                processingJob = asyncio.ensure_future(
+                processing_job = asyncio.ensure_future(
                     self.processJob(job, token))
-                self.processing.add(processingJob)
+                self.processing.add(processing_job)
 
             try:
                 job, pending = await getFirstCompleted(self.processing)
                 self.processing = pending
 
-                if (job == None or len(self.processing) == 0) and self.closing:
+                if (job is None or len(self.processing) == 0) and self.closing:
                     # We are done processing so we can close the queue
                     break
 
@@ -141,21 +141,21 @@ class Worker(EventEmitter):
         # First try to move a job from the waiting list to the active list
         result = await self.scripts.moveToActive(token, self.opts)
         job = None
-        jobId = None
-        delayUntil = None
+        job_id = None
+        delay_until = None
         if result:
-            job, jobId = result
+            job, job_id = result
 
         # If there are no jobs in the waiting list we keep waiting with BRPOPLPUSH
-        if job == None:
-            timeout = min(delayUntil - int(time.time() * 1000)
-                          if delayUntil else 5000, 5000) / 1000
-            jobId = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
-            if jobId:
-                job, jobId = await self.scripts.moveToActive(token, self.opts, jobId)
+        if job is None:
+            timeout = min(delay_until - int(time.time() * 1000)
+                          if delay_until else 5000, 5000) / 1000
+            job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
+            if job_id:
+                job, job_id = await self.scripts.moveToActive(token, self.opts, job_id)
 
-        if job and jobId:
-            return Job.fromJSON(self.client, job, jobId)
+        if job and job_id:
+            return Job.fromJSON(self.client, job, job_id)
 
     async def processJob(self, job: Job, token: str):
         try:
