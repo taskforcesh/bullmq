@@ -3,8 +3,6 @@ from bullmq.job import Job, JobOptions
 from bullmq.redis_connection import RedisConnection
 from typing import TypedDict
 
-import redis.asyncio as redis
-
 
 class RetryJobsOpts(TypedDict):
     state: str
@@ -48,8 +46,8 @@ class Queue:
         @param opts: Job options that affects how the job is going to be processed.
         """
         job = Job(self.client, name, data, opts)
-        jobId = await self.scripts.addJob(job)
-        job.id = jobId
+        job_id = await self.scripts.addJob(job)
+        job.id = job_id
         return job
 
     def pause(self):
@@ -79,8 +77,8 @@ class Queue:
         """ 
         Returns true if the queue is currently paused. 
         """
-        pausedKeyExists = await self.client.hexists(self.opts.get("prefix", f"bull:{self.name}:meta"), "paused")
-        return pausedKeyExists == 1
+        paused_key_exists = await self.client.hexists(self.opts.get("prefix", f"bull:{self.name}:meta"), "paused")
+        return paused_key_exists == 1
 
     async def obliterate(self, force: bool = False):
         """
@@ -97,7 +95,7 @@ class Queue:
         await self.pause()
         while True:
             cursor = await self.scripts.obliterate(1000, force)
-            if cursor == 0 or cursor == None or cursor == "0":
+            if cursor is None or cursor == 0 or cursor == "0":
                 break
 
     async def retryJobs(self, opts: RetryJobsOpts = {}):
@@ -110,7 +108,7 @@ class Queue:
                 opts.get("count"),
                 opts.get("timestamp")
             )
-            if cursor == 0 or cursor == None or cursor == "0":
+            if cursor is None or cursor == 0 or cursor == "0":
                 break
 
     def trimEvents(self, maxLength: int):
@@ -130,7 +128,7 @@ class Queue:
 
 async def fromId(queue: Queue, jobId: str):
     key = f"{queue.prefix}:{queue.name}:{jobId}"
-    rawData = await queue.client.hgetall(key)
-    return Job.fromJSON(queue.client, rawData, jobId)
+    raw_data = await queue.client.hgetall(key)
+    return Job.fromJSON(queue.client, raw_data, jobId)
 
 Job.fromId = staticmethod(fromId)

@@ -166,16 +166,16 @@ def optsFromJSON(rawOpts):
     # opts = json.loads(rawOpts)
     opts = rawOpts
 
-    optionEntries = opts.items()
+    option_entries = opts.items()
 
     options = {}
-    for item in optionEntries:
-        attributeName = item[0]
+    for item in option_entries:
+        attribute_name = item[0]
         value = item[1]
-        if attributeName in optsDecodeMap:
-            options[optsDecodeMap[attributeName]] = value
+        if attribute_name in optsDecodeMap:
+            options[optsDecodeMap[attribute_name]] = value
         else:
-            options[attributeName] = value
+            options[attribute_name] = value
 
     return options
 
