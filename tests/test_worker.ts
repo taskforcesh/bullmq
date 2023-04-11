@@ -110,6 +110,18 @@ describe('workers', function () {
       expect(count.active).to.be.eq(0);
       expect(count.completed).to.be.eq(1);
     });
+
+    it('do not open any timers after worker is closed', async () => {
+      const w = new Worker('test', async () => 'ok');
+      await w.close();
+      await delay(1000);
+
+      const stallCheckTimer = (w as any).stalledCheckTimer;
+      const retryTimer = (w as any).extendLocksTimer;
+
+      expect(stallCheckTimer).to.be.null;
+      expect(retryTimer).to.be.null;
+    });
   });
 
   describe('when sharing connection', () => {

@@ -178,7 +178,7 @@ export class Worker<
 
   private blockingConnection: RedisConnection;
 
-  private stalledCheckTimer: NodeJS.Timeout;
+  private stalledCheckTimer: NodeJS.Timeout | null = null;
 
   private asyncFifoQueue: AsyncFifoQueue<void | Job<
     DataType,
@@ -786,6 +786,11 @@ export class Worker<
       clearTimeout(this.stalledCheckTimer);
 
       await this.runStalledJobsCheck();
+
+      if (this.closing) {
+        return;
+      }
+
       this.stalledCheckTimer = setTimeout(async () => {
         this.startStalledCheckTimer();
       }, this.opts.stalledInterval);
@@ -797,6 +802,10 @@ export class Worker<
   ): Promise<void> {
     if (!this.opts.skipLockRenewal) {
       clearTimeout(this.extendLocksTimer);
+
+      if (this.closing) {
+        return;
+      }
 
       this.extendLocksTimer = setTimeout(async () => {
         // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
