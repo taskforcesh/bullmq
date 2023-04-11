@@ -77,8 +77,10 @@ import { Worker } from 'bullmq';
 const stepsQueue = new Worker('renovate', async job => {
   const childrenValues = await job.getChildrenValues();
 
-  const totalCosts = Object.values(childrenValues)
-    .reduce((prev, cur) => prev + cur, 0);
+  const totalCosts = Object.values(childrenValues).reduce(
+    (prev, cur) => prev + cur,
+    0,
+  );
 
   await sendInvoice(totalCosts);
 });
@@ -171,6 +173,10 @@ const chain = await flowProducer.add(
 );
 ```
 
+{% hint style="warning" %}
+Queue options are defined in the context of their instances. You should provide your configurations in the second parameter in order to avoid unexpected behaviors.
+{% endhint %}
+
 ## Jobs removal
 
 BullMQ also provides seamless removal functionality for jobs that are part of a flow.
@@ -192,6 +198,6 @@ await queue.remove(job.id);
 
 ## Read more:
 
-* 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
-* 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html)
-* 💡 [Job API Reference](https://api.docs.bullmq.io/classes/Job.html)
+- 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
+- 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html)
+- 💡 [Job API Reference](https://api.docs.bullmq.io/classes/Job.html)

@@ -337,19 +337,37 @@ describe('events', function () {
   describe('when job has been added again', function () {
     it('emits duplicated event', async function () {
       const testName = 'test';
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(100);
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      let duplicatedEvent = false;
+
+      const completed = new Promise<void>(resolve => {
+        worker.on('completed', async function () {
+          resolve();
+        });
+      });
 
       await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
 
-      const duplicated = new Promise<void>(resolve => {
-        queueEvents.once('duplicated', ({ jobId }) => {
-          expect(jobId).to.be.equal('a1');
-          resolve();
-        });
-
-        queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
+      queueEvents.once('duplicated', ({ jobId }) => {
+        expect(jobId).to.be.equal('a1');
+        duplicatedEvent = true;
       });
 
-      await duplicated;
+      await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
+
+      await completed;
+
+      expect(duplicatedEvent).to.be.true;
+
+      await worker.close();
     });
   });
 
