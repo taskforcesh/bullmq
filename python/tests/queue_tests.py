@@ -6,8 +6,9 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 
 import asyncio
 import unittest
+from asyncio import Future
 
-from bullmq import Queue;
+from bullmq import Queue, Worker, Job;
 
 queueName = "__bullmq_test_queue__"
 
@@ -41,6 +42,39 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.data, data)
 
         await queue.close()
+
+    async def test_retry_failing_jobs(self):
+        queue = Queue(queueName)
+        job_count = 8
+
+        fail = True
+
+        async def process(job: Job, token: str):
+            await asyncio.sleep(1)
+            if fail:
+                raise Exception("failed")
+            return
+        order = 0
+
+        worker = Worker(queueName, process)
+
+        failedEvents = Future()
+        def failing(job: Job, result):
+            nonlocal order
+            if order == (job_count - 1):
+                failedEvents.set_result(None)
+            order+=1
+
+        worker.on("failed", failing)
+
+        for index in range(job_count):
+            data = {"idx": index}
+            await queue.add("test", data=data )
+        
+        await failedEvents
+
+        await queue.close()
+        await worker.close()
 
 if __name__ == '__main__':
     unittest.main()
