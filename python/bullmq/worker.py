@@ -162,7 +162,7 @@ class Worker(EventEmitter):
             self.jobs.add((job, token))
             result = await self.processor(job, token)
             if not self.forceClosing:
-                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", True), token, self.opts, fetchNext=not self.closing)
+                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
             self.emit("completed", job, result)
         except Exception as err:
             try:

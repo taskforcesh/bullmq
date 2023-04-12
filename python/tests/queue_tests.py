@@ -35,7 +35,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         attempts = 3,
         delay = 1000
         job = await queue.add("test-job", data=data , opts={"attempts": attempts, "delay": delay})
-            
+
         self.assertEqual(job.id, "1")
         self.assertEqual(job.attempts, attempts)
         self.assertEqual(job.delay, delay)
@@ -58,11 +58,11 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         worker = Worker(queueName, process)
 
-        failedEvents = Future()
+        failed_events = Future()
         def failing(job: Job, result):
             nonlocal order
             if order == (job_count - 1):
-                failedEvents.set_result(None)
+                failed_events.set_result(None)
             order+=1
 
         worker.on("failed", failing)
@@ -71,7 +71,31 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             data = {"idx": index}
             await queue.add("test", data=data )
         
-        await failedEvents
+        await failed_events
+
+        failed_count = await queue.getJobCounts('failed')
+
+        self.assertEqual(failed_count['failed'], 8)
+
+        order = 0
+
+        completed_events = Future()
+        def completing(job: Job, result):
+            nonlocal order
+            if order == (job_count - 1):
+                completed_events.set_result(None)
+            order+=1
+
+        worker.on("completed", completing)
+
+        fail=False
+
+        await queue.retryJobs({ 'count': 2 })
+
+        await completed_events
+
+        completed_count = await queue.getJobCounts('completed')
+        self.assertEqual(completed_count['completed'], 8)
 
         await queue.close()
         await worker.close()

@@ -25,6 +25,7 @@ class Scripts:
         self.redisClient = redisClient
         self.commands = {
             "addJob": redisClient.register_script(self.getScript("addJob-8.lua")),
+            "getCounts": redisClient.register_script(self.getScript("getCounts-1.lua")),
             "obliterate": redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": redisClient.register_script(self.getScript("pause-4.lua")),
             "moveToActive": redisClient.register_script(self.getScript("moveToActive-9.lua")),
@@ -83,6 +84,12 @@ class Scripts:
 
         return self.commands["addJob"](keys=keys, args=[packedArgs, jsonData, packedOpts])
 
+    def getCounts(self, types):
+        keys = self.getKeys([''])
+        transformed_types = list(map(lambda type: 'wait' if type == 'waiting' else type, types))
+
+        return self.commands["getCounts"](keys=keys, args=transformed_types)
+
     def pause(self, pause: bool = True):
         """
         Pause or resume a queue
@@ -105,12 +112,13 @@ class Scripts:
                 raise Exception("Cannot obliterate queue with active jobs")
         return result
 
-    async def retryJobs(self, state: str = "failed", count: int = 1000, timestamp: int = round(time.time()*1000)):
+    async def retryJobs(self, state: str, count: int, timestamp: int):
         """
         Remove a queue completely
         """
-        keys = self.getKeys(['', 'events', state, 'wait', 'paused', 'meta'])
-        result = await self.commands["retryJobs"](keys, args=[count, timestamp, state])
+        current_state = state or 'failed'
+        keys = self.getKeys(['', 'events', current_state, 'wait', 'paused', 'meta'])
+        result = await self.commands["retryJobs"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
         return result
 
     async def moveToActive(self, token: str, opts: dict, jobId: str = "") -> list[Any]:
