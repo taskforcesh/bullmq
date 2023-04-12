@@ -228,7 +228,7 @@ class Worker(EventEmitter):
 
 async def getCompleted(task_set: set) -> [List[Job], List]:
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
-    jobs = [extract_result(job_task) for job_task in jobSet]
+    jobs = [extract_result(job_task) for job_task in job_set]
     # we filter `None` out to remove:
     # a) an empty 'completed jobs' list; and
     # b) a failed extract_result
