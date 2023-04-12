@@ -228,6 +228,20 @@ class Worker(EventEmitter):
 
 async def getCompleted(task_set: set) -> [List[Job], List]:
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
-    jobs = [jobTask.result() for jobTask in job_set]
+    jobs = [extract_result(job_task) for job_task in jobSet]
+    # we filter `None` out to remove:
+    # a) an empty 'completed jobs' list; and
+    # b) a failed extract_result
     jobs = list(filter(lambda i: i is not None, jobs))
     return jobs, pending
+
+
+def extract_result(job_task):
+    try:
+        return job_task.result()
+    except Exception as e:
+        # lets use a simple-but-effective error handling:
+        # print error message and ignore the job
+        print("ERROR:", e)
+        traceback.print_exc()
+        return None
