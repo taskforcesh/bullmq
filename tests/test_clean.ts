@@ -314,7 +314,7 @@ describe('Cleaner', () => {
             const client = await queue.client;
             const keys = await client.keys(`bull:${queue.name}:*`);
             // Expected keys: meta, id, stalled-check, events, failed and job
-            expect(keys.length).to.be.eql(6);
+            expect(keys.length).to.be.eql(7);
 
             const parentState = await tree.job.getState();
             expect(parentState).to.be.equal('failed');
@@ -455,7 +455,7 @@ describe('Cleaner', () => {
                       { foo: 'bar' },
                       {
                         parent: {
-                          id: job.id,
+                          id: job.id!,
                           queue: job.queueQualifiedName,
                         },
                       },
@@ -476,7 +476,7 @@ describe('Cleaner', () => {
                     break;
                   }
                   case Step.Third: {
-                    const shouldWait = await job.moveToWaitingChildren(token);
+                    const shouldWait = await job.moveToWaitingChildren(token!);
                     if (!shouldWait) {
                       await job.update({
                         step: Step.Finish,
@@ -513,7 +513,7 @@ describe('Cleaner', () => {
             });
           });
 
-          const job = await queue.getJob(parent.id);
+          const job = await queue.getJob(parent.id!);
           expect(job).to.not.be.undefined;
 
           const jobs = await queue.getJobCountByTypes('completed');

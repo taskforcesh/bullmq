@@ -1,5 +1,3 @@
-# Process Step Jobs
-
 # Process Step jobs
 
 Sometimes, it is useful to break processor function into small pieces that will be processed depending on the previous executed step, we could handle this kind of logic by using switch blocks:

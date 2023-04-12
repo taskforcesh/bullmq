@@ -21,6 +21,10 @@ There are 2 possible cases:
 1. There are not pending dependencies; in this case the parent is moved to wait status, we may try to process this job.
 2. There are pending dependencies; in this case the parent is kept in waiting-children status.
 
+{% hint style="info" %}
+Take in consideration that processed values will be kept in processed hset from the parent if this child is in **completed** state at the time when it's removed.
+{% endhint %}
+
 # Having pending dependencies
 
 We may try to remove all its pending descendents first.

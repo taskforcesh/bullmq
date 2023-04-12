@@ -99,7 +99,12 @@ export interface BaseJobOptions extends DefaultJobOptions {
    */
   parent?: {
     id: string;
-    queue: string; // Queue name including prefix
+
+    /**
+     * It includes the prefix, the namespace separator :, and queue name.
+     * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+     */
+    queue: string;
   };
 
   /**
