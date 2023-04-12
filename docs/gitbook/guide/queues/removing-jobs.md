@@ -23,7 +23,7 @@ have pending children in other queues, or just moved to wait.
 
 # Clean
 
-Removes jobs in specific state but keeps some withing a certain grace period.
+Removes jobs in a specific state, but keeps jobs within a certain grace period.
 
 ```typescript
 import { Queue } from 'bullmq';
