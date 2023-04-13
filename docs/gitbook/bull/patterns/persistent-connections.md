@@ -1,6 +1,6 @@
 # Persistent connections
 
-A crucial feature for a subsystem in a microservice architecture is that it should automatiacally handle disconnections from other services and keep this connections alive for as long as the service is running.
+A crucial feature for a subsystem in a microservice architecture is that it should automatically handle disconnections from other services and keep this connections alive for as long as the service is running.
 
 For example, if your service has a connection to a database, and the connection to said database breaks, you would like that service to handle this disconnection as gracefully as possible and as soon as the database is back online continue to work without human intervention.
 

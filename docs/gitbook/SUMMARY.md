@@ -30,6 +30,7 @@
   * [Stalled](guide/jobs/stalled.md)
   * [Getters](guide/jobs/getters.md)
 * [Flows](guide/flows/README.md)
+  * [Adding flows in bulk](guide/flows/adding-bulks.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
   * [Fail Parent](guide/flows/fail-parent.md)
 * [Metrics](guide/metrics/metrics.md)
@@ -39,11 +40,13 @@
 * [Events](guide/events.md)
 * [QueueScheduler](guide/queuescheduler.md)
 * [Architecture](guide/architecture.md)
-* [NestJs](guide/nestjs.md)
+* [NestJs](guide/nestjs/README.md)
+  * [Producers](guide/nestjs/producers.md)
 * [Going to production](guide/going-to-production.md)
 
 ## Patterns
 
+* [Adding jobs in bulk across different queues](patterns/adding-bulks.md)
 * [Manually processing jobs](patterns/manually-fetching-jobs.md)
 * [Named Processor](patterns/named-processor.md)
 * [Flows](patterns/flows.md)
@@ -63,6 +66,7 @@
   * [Concurrency](bullmq-pro/groups/concurrency.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
+  * [Producers](bullmq-pro/nestjs/producers.md)
   * [API Reference](https://nestjs.bullmq.pro/)
   * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)
@@ -89,3 +93,7 @@
 
 * [Compatibility class](bull-3.x-migration/compatibility-class.md)
 * [Migration](bull-3.x-migration/migration.md)
+
+## Python
+
+* [Introduction](python/introduction.md)

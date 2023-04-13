@@ -15,3 +15,7 @@ const jobs = await queue.addBulk([
 ```
 
 This call can only succeed or fail, and all or none of the jobs will be added.
+
+## Read more:
+
+- 💡 [Add Bulk API Reference](https://api.docs.bullmq.io/classes/Queue.html#addBulk)

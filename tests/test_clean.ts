@@ -3,7 +3,13 @@ import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  Queue,
+  QueueEvents,
+  WaitingChildrenError,
+  Worker,
+} from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Cleaner', () => {
@@ -308,7 +314,7 @@ describe('Cleaner', () => {
             const client = await queue.client;
             const keys = await client.keys(`bull:${queue.name}:*`);
             // Expected keys: meta, id, stalled-check, events, failed and job
-            expect(keys.length).to.be.eql(6);
+            expect(keys.length).to.be.eql(7);
 
             const parentState = await tree.job.getState();
             expect(parentState).to.be.equal('failed');
@@ -449,7 +455,7 @@ describe('Cleaner', () => {
                       { foo: 'bar' },
                       {
                         parent: {
-                          id: job.id,
+                          id: job.id!,
                           queue: job.queueQualifiedName,
                         },
                       },
@@ -470,15 +476,16 @@ describe('Cleaner', () => {
                     break;
                   }
                   case Step.Third: {
-                    const shouldWait = await job.moveToWaitingChildren(token);
+                    const shouldWait = await job.moveToWaitingChildren(token!);
                     if (!shouldWait) {
                       await job.update({
                         step: Step.Finish,
                       });
                       step = Step.Finish;
                       return Step.Finish;
+                    } else {
+                      throw new WaitingChildrenError();
                     }
-                    break;
                   }
                   default: {
                     throw new Error('invalid step');
@@ -506,7 +513,7 @@ describe('Cleaner', () => {
             });
           });
 
-          const job = await queue.getJob(parent.id);
+          const job = await queue.getJob(parent.id!);
           expect(job).to.not.be.undefined;
 
           const jobs = await queue.getJobCountByTypes('completed');

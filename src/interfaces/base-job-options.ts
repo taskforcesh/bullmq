@@ -44,7 +44,7 @@ export interface DefaultJobOptions {
    * If true, removes the job when it successfully completes
    * When given a number, it specifies the maximum amount of
    * jobs to keep, or you can provide an object specifying max
-   * age and/or count to keep.
+   * age and/or count to keep. It overrides whatever setting is used in the worker.
    * Default behavior is to keep the job in the completed set.
    */
   removeOnComplete?: boolean | number | KeepJobs;
@@ -53,7 +53,8 @@ export interface DefaultJobOptions {
    * If true, removes the job when it fails after all attempts.
    * When given a number, it specifies the maximum amount of
    * jobs to keep, or you can provide an object specifying max
-   * age and/or count to keep.
+   * age and/or count to keep. It overrides whatever setting is used in the worker.
+   * Default behavior is to keep the job in the failed set.
    */
   removeOnFail?: boolean | number | KeepJobs;
 
@@ -98,7 +99,12 @@ export interface BaseJobOptions extends DefaultJobOptions {
    */
   parent?: {
     id: string;
-    queue: string; // Queue name including prefix
+
+    /**
+     * It includes the prefix, the namespace separator :, and queue name.
+     * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+     */
+    queue: string;
   };
 
   /**

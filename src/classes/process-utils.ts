@@ -19,7 +19,7 @@ function hasProcessExited(child: ChildProcess): boolean {
 export async function killAsync(
   child: ChildProcess,
   signal: 'SIGTERM' | 'SIGKILL' = 'SIGKILL',
-  timeoutMs: number = undefined,
+  timeoutMs?: number,
 ): Promise<void> {
   if (hasProcessExited(child)) {
     return;
@@ -28,7 +28,7 @@ export async function killAsync(
   const onExit = onExitOnce(child);
   child.kill(signal);
 
-  if (timeoutMs === 0 || isFinite(timeoutMs)) {
+  if (timeoutMs !== undefined && (timeoutMs === 0 || isFinite(timeoutMs))) {
     const timeoutHandle = setTimeout(() => {
       if (!hasProcessExited(child)) {
         child.kill('SIGKILL');

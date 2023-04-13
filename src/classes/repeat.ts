@@ -11,7 +11,7 @@ export class Repeat extends QueueBase {
 
   constructor(
     name: string,
-    opts?: RepeatBaseOptions,
+    opts: RepeatBaseOptions,
     Connection?: typeof RedisConnection,
   ) {
     super(name, opts, Connection);
@@ -25,7 +25,7 @@ export class Repeat extends QueueBase {
     data: T,
     opts: JobsOptions,
     skipCheckExists?: boolean,
-  ): Promise<Job<T, R, N>> {
+  ): Promise<Job<T, R, N> | undefined> {
     // HACK: This is a temporary fix to enable easy migration from bullmq <3.0.0
     // to >= 3.0.0. It should be removed when moving to 4.x.
     const repeatOpts: RepeatOptions & { cron?: string } = { ...opts.repeat };
@@ -46,7 +46,7 @@ export class Repeat extends QueueBase {
 
     if (
       !(typeof repeatOpts.endDate === undefined) &&
-      now > new Date(repeatOpts.endDate).getTime()
+      now > new Date(repeatOpts.endDate!).getTime()
     ) {
       return;
     }
@@ -56,8 +56,9 @@ export class Repeat extends QueueBase {
     const nextMillis = await this.repeatStrategy(now, repeatOpts, name);
     const pattern = repeatOpts.pattern;
 
-    const hasImmediately =
-      (repeatOpts.every || pattern) && repeatOpts.immediately;
+    const hasImmediately = Boolean(
+      (repeatOpts.every || pattern) && repeatOpts.immediately,
+    );
     const offset = hasImmediately ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options

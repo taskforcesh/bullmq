@@ -10,6 +10,8 @@ import {
   Job,
   UnrecoverableError,
   Worker,
+  WaitingChildrenError,
+  DelayedError,
 } from '../src/classes';
 import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
@@ -224,6 +226,75 @@ describe('workers', function () {
         await Promise.all(
           datas.map(async data => queue.add('test', data, jobOpts)),
         )
+      ).map(job => job.id);
+
+      await processing;
+      clock.restore();
+      await worker.close();
+    }
+
+    async function testWorkerRemoveOnFinish(
+      opts: KeepJobs,
+      expectedCount: number,
+      fail?: boolean,
+    ) {
+      const clock = sinon.useFakeTimers();
+      clock.reset();
+
+      const worker = new Worker(
+        queueName,
+        async job => {
+          await job.log('test log');
+          if (fail) {
+            throw new Error('job failed');
+          }
+        },
+        {
+          connection,
+          ...(fail ? { removeOnFail: opts } : { removeOnComplete: opts }),
+        },
+      );
+      await worker.waitUntilReady();
+
+      const datas = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+
+      let jobIds;
+
+      const processing = new Promise<void>(resolve => {
+        worker.on(fail ? 'failed' : 'completed', async job => {
+          clock.tick(1000);
+
+          if (job.data == 14) {
+            const counts = await queue.getJobCounts(
+              fail ? 'failed' : 'completed',
+            );
+
+            if (fail) {
+              expect(counts.failed).to.be.equal(expectedCount);
+            } else {
+              expect(counts.completed).to.be.equal(expectedCount);
+            }
+
+            await Promise.all(
+              jobIds.map(async (jobId, index) => {
+                const job = await queue.getJob(jobId);
+                const logs = await queue.getJobLogs(jobId);
+                if (index >= datas.length - expectedCount) {
+                  expect(job).to.not.be.equal(undefined);
+                  expect(logs.logs).to.not.be.empty;
+                } else {
+                  expect(job).to.be.equal(undefined);
+                  expect(logs.logs).to.be.empty;
+                }
+              }),
+            );
+            resolve();
+          }
+        });
+      });
+
+      jobIds = (
+        await Promise.all(datas.map(async data => queue.add('test', data)))
       ).map(job => job.id);
 
       await processing;
@@ -481,6 +552,25 @@ describe('workers', function () {
             resolve();
           }
         });
+      });
+    });
+
+    describe('when worker has removeOnFinish options', () => {
+      it('should keep of jobs newer than specified after completed with removeOnComplete', async () => {
+        const age = 7;
+        await testWorkerRemoveOnFinish({ age }, age);
+      });
+
+      it('should keep of jobs newer than specified and up to a count completed with removeOnComplete', async () => {
+        const age = 7;
+        const count = 5;
+        await testWorkerRemoveOnFinish({ age, count }, count);
+      });
+
+      it('should keep of jobs newer than specified and up to a count fail with removeOnFail', async () => {
+        const age = 7;
+        const count = 5;
+        await testWorkerRemoveOnFinish({ age, count }, count, true);
       });
     });
   });
@@ -1429,6 +1519,62 @@ describe('workers', function () {
     await worker.close();
   });
 
+  it('keeps locks for all the jobs that are processed concurrently', async function () {
+    this.timeout(10000);
+
+    const concurrency = 57;
+
+    const lockKey = (jobId: string) => `bull:${queueName}:${jobId}:lock`;
+    const client = await queue.client;
+
+    let worker;
+
+    const processing = new Promise<void>((resolve, reject) => {
+      let count = 0;
+      worker = new Worker(
+        queueName,
+        async job => {
+          try {
+            // Check job is locked
+            const lock = await client.get(lockKey(job.id!));
+            expect(lock).to.be.ok;
+
+            await delay(2000);
+
+            // Check job is still locked
+            const renewedLock = await client.get(lockKey(job.id!));
+            expect(renewedLock).to.be.eql(lock);
+
+            count++;
+
+            if (count === concurrency) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        },
+        {
+          connection,
+          lockDuration: 250,
+          concurrency,
+        },
+      );
+    });
+
+    await worker.waitUntilReady();
+
+    const jobs = await Promise.all(
+      Array.from({ length: concurrency }).map(() =>
+        queue.add('test', { bar: 'baz' }),
+      ),
+    );
+
+    await processing;
+
+    await worker.close();
+  });
+
   it('emits error if lock is lost', async function () {
     this.timeout(10000);
 
@@ -1594,6 +1740,20 @@ describe('workers', function () {
   });
 
   describe('Concurrency process', () => {
+    it('should thrown an exception if I specify a concurrency of 0', () => {
+      try {
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          concurrency: 0,
+        });
+        throw new Error('Should have thrown an exception');
+      } catch (err) {
+        expect(err.message).to.be.equal(
+          'concurrency must be a number greater than 0',
+        );
+      }
+    });
+
     it('should run job in sequence if I specify a concurrency of 1', async () => {
       let processing = false;
 
@@ -2269,8 +2429,7 @@ describe('workers', function () {
                     await job.update({
                       step: Step.Second,
                     });
-                    step = Step.Second;
-                    return;
+                    throw new DelayedError();
                   }
                   case Step.Second: {
                     await job.update({
@@ -2293,13 +2452,17 @@ describe('workers', function () {
           const start = Date.now();
           await queue.add('test', { step: Step.Initial });
 
-          await new Promise<void>(resolve => {
+          await new Promise<void>((resolve, reject) => {
             worker.on('completed', job => {
               const elapse = Date.now() - start;
               expect(elapse).to.be.greaterThan(200);
               expect(job.returnvalue).to.be.eql(Step.Finish);
               expect(job.attemptsMade).to.be.eql(2);
               resolve();
+            });
+
+            worker.on('error', () => {
+              reject();
             });
           });
 
@@ -2372,7 +2535,7 @@ describe('workers', function () {
                       step = Step.Finish;
                       return Step.Finish;
                     } else {
-                      return;
+                      throw new WaitingChildrenError();
                     }
                   }
                   default: {
@@ -2386,7 +2549,7 @@ describe('workers', function () {
           const childrenWorker = new Worker(
             queueName,
             async () => {
-              await delay(100);
+              await delay(200);
             },
             {
               connection,
@@ -2404,10 +2567,14 @@ describe('workers', function () {
             },
           );
 
-          await new Promise<void>(resolve => {
+          await new Promise<void>((resolve, reject) => {
             worker.on('completed', job => {
               expect(job.returnvalue).to.equal(Step.Finish);
               resolve();
+            });
+
+            worker.on('error', () => {
+              reject();
             });
           });
 

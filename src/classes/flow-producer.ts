@@ -258,10 +258,8 @@ export class FlowProducer extends EventEmitter {
    * @returns
    */
   protected addNode({ multi, node, parent, queuesOpts }: AddNodeOpts): JobNode {
-    const queue = this.queueFromNode(
-      node,
-      new QueueKeys(node.prefix || this.opts.prefix),
-    );
+    const prefix = node.prefix || this.opts.prefix;
+    const queue = this.queueFromNode(node, new QueueKeys(prefix), prefix);
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
     const jobsOpts = get(queueOpts, 'defaultJobOptions');
@@ -355,7 +353,11 @@ export class FlowProducer extends EventEmitter {
   }
 
   private async getNode(client: RedisClient, node: NodeOpts): Promise<JobNode> {
-    const queue = this.queueFromNode(node, new QueueKeys(node.prefix));
+    const queue = this.queueFromNode(
+      node,
+      new QueueKeys(node.prefix),
+      node.prefix,
+    );
 
     const job = await this.Job.fromId(queue, node.id);
 
@@ -423,13 +425,14 @@ export class FlowProducer extends EventEmitter {
   private queueFromNode(
     node: Omit<NodeOpts, 'id' | 'depth' | 'maxChildren'>,
     queueKeys: QueueKeys,
+    prefix: string,
   ) {
     return {
       client: this.connection.client,
       name: node.queueName,
       keys: queueKeys.getKeys(node.queueName),
       toKey: (type: string) => queueKeys.toKey(node.queueName, type),
-      opts: {},
+      opts: { prefix },
       closing: this.closing,
       waitUntilReady: async () => this.connection.client,
       removeListener: this.removeListener.bind(this) as any,

@@ -124,6 +124,11 @@ export class Job<
    */
   repeatJobKey?: string;
 
+  /**
+   * The token used for locking this job.
+   */
+  token?: string;
+
   protected toKey: (type: string) => string;
 
   protected discarded: boolean;
@@ -566,6 +571,7 @@ export class Job<
 
     let command: string;
     const multi = client.multi();
+
     this.saveStacktrace(multi, err);
 
     //
@@ -1003,7 +1009,7 @@ export class Job<
    * otherwise the operation was not a success and throw the corresponding error. If the promise
    * rejects, it indicates that the script failed to execute
    */
-  async retry(state: FinishedStatus = 'failed'): Promise<void> {
+  retry(state: FinishedStatus = 'failed'): Promise<void> {
     this.failedReason = null;
     this.finishedOn = null;
     this.processedOn = null;
@@ -1080,12 +1086,13 @@ export class Job<
       }
     }
 
-    const params = {
-      stacktrace: JSON.stringify(this.stacktrace),
-      failedReason: err?.message,
-    };
+    const args = this.scripts.saveStacktraceArgs(
+      this.id,
+      JSON.stringify(this.stacktrace),
+      err?.message,
+    );
 
-    multi.hmset(this.queue.toKey(this.id), params);
+    (<any>multi).saveStacktrace(args);
   }
 }
 

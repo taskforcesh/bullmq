@@ -38,7 +38,26 @@ import { ChainableCommander } from 'ioredis';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
-  constructor(protected queue: MinimalQueue) {}
+  moveToFinishedKeys: (string | undefined)[];
+
+  constructor(protected queue: MinimalQueue) {
+    const queueKeys = this.queue.keys;
+
+    this.moveToFinishedKeys = [
+      queueKeys.wait,
+      queueKeys.active,
+      queueKeys.priority,
+      queueKeys.events,
+      queueKeys.stalled,
+      queueKeys.limiter,
+      queueKeys.delayed,
+      queueKeys.paused,
+      undefined,
+      undefined,
+      queueKeys.meta,
+      undefined,
+    ];
+  }
 
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
@@ -56,11 +75,7 @@ export class Scripts {
     job: JobJson,
     opts: RedisJobOptions,
     jobId: string,
-    parentOpts: ParentOpts = {
-      parentKey: null,
-      waitChildrenKey: null,
-      parentDependenciesKey: null,
-    },
+    parentOpts: ParentOpts = {},
   ): Promise<string> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
@@ -174,8 +189,9 @@ export class Scripts {
     jobId: string,
     token: string,
     duration: number,
+    client?: RedisClient | ChainableCommander,
   ): Promise<number> {
-    const client = await this.queue.client;
+    client = client || (await this.queue.client);
     const args = [
       this.queue.toKey(jobId) + ':lock',
       this.queue.keys.stalled,
@@ -226,7 +242,7 @@ export class Scripts {
     job: MinimalJob<T, R, N>,
     val: any,
     propVal: FinishedPropValAttribute,
-    shouldRemove: boolean | number | KeepJobs,
+    shouldRemove: undefined | boolean | number | KeepJobs,
     target: FinishedStatus,
     token: string,
     timestamp: number,
@@ -234,30 +250,17 @@ export class Scripts {
   ): (string | number | boolean | Buffer)[] {
     const queueKeys = this.queue.keys;
     const opts: WorkerOptions = <WorkerOptions>this.queue.opts;
+    const workerKeepJobs =
+      target === 'completed' ? opts.removeOnComplete : opts.removeOnFail;
 
     const metricsKey = this.queue.toKey(`metrics:${target}`);
 
-    const keys = [
-      queueKeys.wait,
-      queueKeys.active,
-      queueKeys.priority,
-      queueKeys.events,
-      queueKeys.stalled,
-      queueKeys.limiter,
-      queueKeys.delayed,
-      queueKeys.paused,
-      queueKeys[target],
-      this.queue.toKey(job.id),
-      queueKeys.meta,
-      metricsKey,
-    ];
+    const keys = this.moveToFinishedKeys;
+    keys[8] = queueKeys[target];
+    keys[9] = this.queue.toKey(job.id ?? '');
+    keys[11] = metricsKey;
 
-    const keepJobs =
-      typeof shouldRemove === 'object'
-        ? shouldRemove
-        : typeof shouldRemove === 'number'
-        ? { count: shouldRemove }
-        : { count: shouldRemove ? 0 : -1 };
+    const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
     const args = [
       job.id,
@@ -283,6 +286,21 @@ export class Scripts {
     ];
 
     return keys.concat(args);
+  }
+
+  protected getKeepJobs(
+    shouldRemove: undefined | boolean | number | KeepJobs,
+    workerKeepJobs: undefined | KeepJobs,
+  ) {
+    if (typeof shouldRemove === 'undefined') {
+      return workerKeepJobs || { count: shouldRemove ? 0 : -1 };
+    }
+
+    return typeof shouldRemove === 'object'
+      ? shouldRemove
+      : typeof shouldRemove === 'number'
+      ? { count: shouldRemove }
+      : { count: shouldRemove ? 0 : -1 };
   }
 
   protected async moveToFinished<
@@ -573,6 +591,16 @@ export class Scripts {
     ]);
   }
 
+  saveStacktraceArgs(
+    jobId: string,
+    stacktrace: string,
+    failedReason: string,
+  ): string[] {
+    const keys: string[] = [this.queue.toKey(jobId)];
+
+    return keys.concat([stacktrace, failedReason]);
+  }
+
   moveToWaitingChildrenArgs(
     jobId: string,
     token: string,
@@ -801,10 +829,6 @@ export class Scripts {
         limiter: opts.limiter,
       }),
     ];
-
-    if (opts.limiter) {
-      args.push(opts.limiter.max, opts.limiter.duration);
-    }
 
     const result = await (<any>client).moveToActive(
       (<(string | number | boolean | Buffer)[]>keys).concat(args),

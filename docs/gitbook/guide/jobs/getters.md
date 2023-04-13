@@ -32,5 +32,5 @@ const completed = await myQueue.getJobs(['completed'], 0, 100, true);
 
 ## Read more:
 
-- 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/Queue.html#getJobCounts)
-- 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/Queue.html#getJobs)
+* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/Queue.html#getJobCounts)
+* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/Queue.html#getJobs)

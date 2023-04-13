@@ -1,7 +1,7 @@
 import { MinimalJob } from '../interfaces/minimal-job';
 
 export type BackoffStrategy = (
-  attemptsMade?: number,
+  attemptsMade: number,
   type?: string,
   err?: Error,
   job?: MinimalJob,

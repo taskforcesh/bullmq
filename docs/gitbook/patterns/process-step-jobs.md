@@ -10,7 +10,7 @@ enum Step {
 }
 
 const worker = new Worker(
-  queueName,
+  'queueName',
   async job => {
     let step = job.data.step;
     while (step !== Step.Finish) {
@@ -43,21 +43,24 @@ const worker = new Worker(
 
 As you can see, we should save the step value; in this case, we are saving it into the job's data. So even in the case of an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
 
-# Delaying
+## Delaying
 
-Another use case is to delay a job at runtime.
+There are situations when it is valuable to delay a job when it is being processed.
 
-This could be handled using the moveToDelayed method:
+This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error `DelayedError` that will signal the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
 
 ```typescript
+import { DelayedError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
   Finish,
 }
+
 const worker = new Worker(
-  queueName,
-  async job => {
+  'queueName',
+  async (job: Job, token: string) => {
     let step = job.data.step;
     while (step !== Step.Finish) {
       switch (step) {
@@ -75,8 +78,7 @@ const worker = new Worker(
           await job.update({
             step: Step.Finish,
           });
-          step = Step.Finish;
-          return Step.Finish;
+          throw new DelayedError();
         }
         default: {
           throw new Error('invalid step');
@@ -88,13 +90,15 @@ const worker = new Worker(
 );
 ```
 
-# Waiting Children
+## Waiting Children
 
 A common use case is to add children at runtime and then wait for the children to complete.
 
-This could be handled using the moveToWaitingChildren method:
+This can be handled using the `moveToWaitingChildren` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the `moveToWaitingChildren` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error `WaitingChildrenError` that will signal the worker that the job has been moved to waiting-children so that it does not try to complete (or fail the job) instead.
 
 ```typescript
+import { WaitingChildrenError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
@@ -103,8 +107,8 @@ enum Step {
 }
 
 const worker = new Worker(
-  parentQueueName,
-  async (job, token) => {
+  'parentQueueName',
+  async (job: Job, token: string) => {
     let step = job.data.step;
     while (step !== Step.Finish) {
       switch (step) {
@@ -153,7 +157,7 @@ const worker = new Worker(
             step = Step.Finish;
             return Step.Finish;
           } else {
-            return;
+            throw new WaitingChildrenError();
           }
         }
         default: {
@@ -170,13 +174,15 @@ const worker = new Worker(
 Bullmq-Pro: this pattern could be handled by using observables; in that case, we do not need to save next step.
 {% endhint %}
 
-# Chaining Flows
+## Chaining Flows
 
 Another use case is to add flows at runtime and then wait for the children to complete.
 
-For example, we can add children dynamically in the processor function of a worker. This could be handled in this way:
+For example, we can add children dynamically in the processor function of a worker. This can be handled in this way:
 
 ```typescript
+import { FlowProducer, WaitingChildrenError, Worker } from 'bullmq';
+
 enum Step {
   Initial,
   Second,
@@ -186,7 +192,7 @@ enum Step {
 
 const flow = new FlowProducer({ connection });
 const worker = new Worker(
-  parentQueueName,
+  'parentQueueName',
   async (job, token) => {
     let step = job.data.step;
     while (step !== Step.Finish) {
@@ -240,7 +246,7 @@ const worker = new Worker(
             step = Step.Finish;
             return Step.Finish;
           } else {
-            return;
+            throw new WaitingChildrenError();
           }
         }
         default: {

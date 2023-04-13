@@ -50,7 +50,6 @@ export interface ScriptMetadata {
 }
 
 export class ScriptLoaderError extends Error {
-  public readonly path: string;
   /**
    * The include stack
    */
@@ -249,7 +248,7 @@ export class ScriptLoader {
 
         if (!includeMetadata) {
           const { name, numberOfKeys } = splitFilename(includePath);
-          let childContent: string;
+          let childContent = '';
           try {
             const buf = await readFile(includePath, { flag: 'r' });
             childContent = buf.toString();
@@ -335,7 +334,7 @@ export class ScriptLoader {
     processed = processed || new Set<string>();
     let content = file.content;
     file.includes.forEach((child: ScriptMetadata) => {
-      const emitted = processed.has(child.path);
+      const emitted = processed!.has(child.path);
       const fragment = this.interpolate(child, processed);
       const replacement = emitted ? '' : fragment;
 
@@ -348,7 +347,7 @@ export class ScriptLoader {
         content = replaceAll(content, child.token, '');
       }
 
-      processed.add(child.path);
+      processed!.add(child.path);
     });
 
     return content;
@@ -372,7 +371,7 @@ export class ScriptLoader {
 
     return {
       name,
-      options: { numberOfKeys, lua },
+      options: { numberOfKeys: numberOfKeys!, lua },
     };
   }
 
@@ -438,7 +437,7 @@ export class ScriptLoader {
     pathname: string,
     cache?: Map<string, ScriptMetadata>,
   ): Promise<void> {
-    let paths: Set<string> = this.clientScripts.get(client);
+    let paths = this.clientScripts.get(client);
     if (!paths) {
       paths = new Set<string>();
       this.clientScripts.set(client, paths);
@@ -483,7 +482,7 @@ function splitFilename(filePath: string): {
 } {
   const longName = path.basename(filePath, '.lua');
   const [name, num] = longName.split('-');
-  const numberOfKeys = num && parseInt(num, 10);
+  const numberOfKeys = num ? parseInt(num, 10) : undefined;
   return { name, numberOfKeys };
 }
 
@@ -506,6 +505,7 @@ function getPkgJsonDir(): string {
       // eslint-disable-next-line no-empty
     } catch (e) {}
   }
+  return '';
 }
 
 // https://stackoverflow.com/a/66842927
@@ -513,18 +513,18 @@ function getPkgJsonDir(): string {
 // this version is preferred to the simpler version because of
 // https://github.com/facebook/jest/issues/5303 -
 // tldr: dont assume you're the only one with the doing something like this
-function getCallerFile() {
+function getCallerFile(): string {
   const originalFunc = Error.prepareStackTrace;
 
-  let callerFile;
+  let callerFile = '';
   try {
     Error.prepareStackTrace = (_, stack) => stack;
 
     const sites = <NodeJS.CallSite[]>(<unknown>new Error().stack);
-    const currentFile = sites.shift().getFileName();
+    const currentFile = sites.shift()?.getFileName();
 
     while (sites.length) {
-      callerFile = sites.shift().getFileName();
+      callerFile = sites.shift()?.getFileName() ?? '';
 
       if (currentFile !== callerFile) {
         break;

@@ -19,8 +19,6 @@ end
 
 local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
   if parentKey then
-    local parentProcessedKey = parentKey .. ":processed"
-    rcall("HDEL", parentProcessedKey, jobKey)
     local parentDependenciesKey = parentKey .. ":dependencies"
     local result = rcall("SREM", parentDependenciesKey, jobKey)
     if result > 0 then
@@ -49,8 +47,6 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
   else
     local missedParentKey = rcall("HGET", jobKey, "parentKey")
     if( (type(missedParentKey) == "string") and missedParentKey ~= "" and (rcall("EXISTS", missedParentKey) == 1)) then
-      local parentProcessedKey = missedParentKey .. ":processed"
-      rcall("HDEL", parentProcessedKey, jobKey)
       local parentDependenciesKey = missedParentKey .. ":dependencies"
       local result = rcall("SREM", parentDependenciesKey, jobKey)
       if result > 0 then

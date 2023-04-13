@@ -1,7 +1,7 @@
 import { BackoffOptions, MinimalJob } from '../interfaces';
 import { BackoffStrategy } from '../types';
 
-interface BuiltInStrategies {
+export interface BuiltInStrategies {
   [index: string]: (delay: number) => BackoffStrategy;
 }
 
@@ -20,7 +20,9 @@ export class Backoffs {
     },
   };
 
-  static normalize(backoff: number | BackoffOptions): BackoffOptions {
+  static normalize(
+    backoff: number | BackoffOptions,
+  ): BackoffOptions | undefined {
     if (Number.isFinite(<number>backoff)) {
       return {
         type: 'fixed',
@@ -37,7 +39,7 @@ export class Backoffs {
     err: Error,
     job: MinimalJob,
     customStrategy?: BackoffStrategy,
-  ): Promise<number> | number {
+  ): Promise<number> | number | undefined {
     if (backoff) {
       const strategy = lookupStrategy(backoff, customStrategy);
 
@@ -48,10 +50,10 @@ export class Backoffs {
 
 function lookupStrategy(
   backoff: BackoffOptions,
-  customStrategy: BackoffStrategy,
+  customStrategy?: BackoffStrategy,
 ): BackoffStrategy {
   if (backoff.type in Backoffs.builtinStrategies) {
-    return Backoffs.builtinStrategies[backoff.type](backoff.delay);
+    return Backoffs.builtinStrategies[backoff.type](backoff.delay!);
   } else if (customStrategy) {
     return customStrategy;
   } else {

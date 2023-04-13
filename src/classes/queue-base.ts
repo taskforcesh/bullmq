@@ -18,7 +18,7 @@ import { Scripts } from './scripts';
 export class QueueBase extends EventEmitter implements MinimalQueue {
   toKey: (type: string) => string;
   keys: KeysMap;
-  closing: Promise<void>;
+  closing: Promise<void> | undefined;
 
   protected scripts: Scripts;
   protected connection: RedisConnection;
@@ -108,6 +108,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       } catch (err) {
         // We give up if the error event also throws an exception.
         console.error(err);
+        return false;
       }
     }
   }
@@ -147,7 +148,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   protected async checkConnectionError<T>(
     fn: () => Promise<T>,
     delayInMs = DELAY_TIME_5,
-  ): Promise<T> {
+  ): Promise<T | undefined> {
     try {
       return await fn();
     } catch (error) {

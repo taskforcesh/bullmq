@@ -1,8 +1,8 @@
-Currently we have 2 available methods in queue class:
+Currently we have 3 available methods in queue class:
 
 # Drain
 
-Removes all jobs that are waiting or delayed, but not active, completed or failed.
+Removes all jobs that are waiting or delayed, but not active, waiting-children, completed or failed.
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -20,6 +20,22 @@ Parent jobs that belong to the queue being drained will be kept in **waiting-chi
 Parent jobs in queues different from the one being drained will either stay in **waiting-children** if they
 have pending children in other queues, or just moved to wait.
 {% endhint %}
+
+# Clean
+
+Removes jobs in a specific state, but keeps jobs within a certain grace period.
+
+```typescript
+import { Queue } from 'bullmq';
+
+const queue = new Queue('paint');
+
+const deletedJobIds = await queue.clean(
+  60000, // 1 minute
+  1000, // max number of jobs to clean
+  'paused',
+);
+```
 
 # Obliterate
 
@@ -41,4 +57,5 @@ have pending children in other queues, or just moved to wait.
 ## Read more:
 
 - 💡 [Drain API Reference](https://api.docs.bullmq.io/classes/Queue.html#drain)
+- 💡 [Clean API Reference](https://api.docs.bullmq.io/classes/Queue.html#clean)
 - 💡 [Obliterate API Reference](https://api.docs.bullmq.io/classes/Queue.html#obliterate)

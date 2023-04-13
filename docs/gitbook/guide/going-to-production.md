@@ -14,7 +14,51 @@ Redis is used quite often as a cache, meaning that it will remove keys according
 
 ### Automatic reconnections
 
+In a production setting, one of the things that are crucial for system robustness is to be able to recover automatically after connection issues. It is impossible to guarantee that a connection between BullMQ and Redis will always stay online. However, the important thing is that it recovers as fast as possible when the connection can be re-established without any human intervention.
 
+In order to understand how to properly handle disconnections it is important to understand some options provided by [IORedis](https://www.npmjs.com/package/ioredis#Auto-reconnect). The ones interesting for us are:
+
+* retryStrategy
+* maxRetriesPerRequest
+* enableOfflineQueue
+
+It is also important to understand the difference in behavior that is often desired for Queue and Worker classes. Normally the operations performed using the Queue class should [fail quickly](../patterns/failing-fast-when-redis-is-down.md) if there is a temporal disconnection, whereas for Workers we want to wait indefinitely without raising any exception.
+
+#### retryStrategy
+
+This option is used to determine the function used to perform retries. The retries will keep forever until the reconnection has been accomplished. For IORedis connections created inside BullMQ we use the following strategy:
+
+```ts
+ retryStrategy: function (times: number) {
+    return Math.max(Math.min(Math.exp(times), 20000), 1000);
+ }
+```
+
+In other words, it will retry using exponential backoff, with a minimum 1-second retry time and max of 20 seconds. This retryStrategy can easily be overridden by passing a custom one defining custom IORedis options.
+
+#### maxRetriesPerRequest
+
+This option sets a limit on the number of times a retry on a failed request will be performed. For Workers, it is important to set this option to **null**. Otherwise, the exceptions raised by Redis when calling certain commands could break the worker functionality. When instantiating a Worker this option will always be set to null by default, but it could be overridden, either if passing an existing IORedis instance or by passing a different value for this option when instantiating the Worker. In both cases BullMQ will output a warning, please make sure to address this warning as it can have several unintended consequences.
+
+#### enableOfflineQueue
+
+IORedis provides a small offline queue that is used to queue commands while the connection is offline. You will probably want to disable this queue for the Queue instance, but leave it as is for Worker instances. That will make the Queue calls [fail quickly](../patterns/failing-fast-when-redis-is-down.md) while leaving the Workers to wait as needed until the connection has been re-established.
+
+### Log errors
+
+It is really useful to attach a handler for the error event which will be triggered when there are connection issues, this will be helpful when debugging your queues and prevent "unhandled errors".&#x20;
+
+```typescript
+worker.on("error", (err) => {
+  // Log your error.
+})
+```
+
+```typescript
+queue.on("error", (err) => {
+  // Log your error.
+})
+```
 
 ### Gracefully shut-down workers
 
@@ -40,7 +84,22 @@ Another important point to think about when deploying for production is the fact
 
 Please do not take security lightly as it should be a major concern today, and the risks of losing data and economic damage to your business are real and very serious.
 
+### Unhandled exceptions and rejections
 
+Another common issue, especially in production environments, is the fact that NodeJS by default will break if there are unhandled exceptions. This is not unique for BullMQ-based applications, but a general rule for all NodeJS applications. We recommend that somewhere in your service you make sure that you handle the unhandled exceptions gracefully, and so you can fix them when they arise without any risk of the application breaking when they happen:
+
+```typescript
+process.on("uncaughtException", function (err) {
+  // Handle the error safely
+  logger.error(err, "Uncaught exception");
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  // Handle the error safely
+  logger.error({ promise, reason }, "Unhandled Rejection at: Promise");
+});
+
+```
 
 
 
