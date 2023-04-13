@@ -2,7 +2,7 @@
     This class is used to load and execute Lua scripts.
     It is a wrapper around the Redis client.
 """
-from typing import Any, Dict, List, Union
+from typing import Any
 from redis import Redis
 from bullmq.job import Job
 from bullmq.error_code import ErrorCode
@@ -45,7 +45,7 @@ class Scripts:
         return f"{self.prefix}:{self.queueName}:{name}"
 
     def getScript(self, name: str):
-        """ 
+        """
         Get a script by name
         """
         file = open(f"{basePath}/commands/{name}", "r")
@@ -100,7 +100,7 @@ class Scripts:
         return self.commands["pause"](keys, args=["paused" if pause else "resumed"])
 
     async def obliterate(self, count: int, force: bool = False):
-        """ 
+        """
         Remove a queue completely
         """
         keys = self.getKeys(['meta', ''])
@@ -157,7 +157,7 @@ class Scripts:
         keys.append(metricsKey)
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
-            if shouldRemove == True:
+            if shouldRemove is True:
                 return {"count": 0}
 
             if type(shouldRemove) == int:
@@ -166,18 +166,18 @@ class Scripts:
             if type(shouldRemove) == dict:
                 return shouldRemove
 
-            if shouldRemove == False or shouldRemove == None:
+            if shouldRemove is False or shouldRemove is None:
                 return {"count": -1}
 
         def getMetricsSize(opts: dict):
             metrics = opts.get("metrics")
-            if metrics != None:
+            if metrics is not None:
                 return metrics.get("maxDataPoints", "")
             return ""
 
         def getFailParentOnFailure(job: Job):
             opts = job.opts
-            if opts != None:
+            if opts is not None:
                 return opts.get("failParentOnFailure", False)
 
         keepJobs = getKeepJobs(shouldRemove)
@@ -197,7 +197,7 @@ class Scripts:
                 fetchNext and "fetch" or "", self.keys[''], packedOpts]
         result = await self.commands["moveToFinished"](keys=keys, args=args)
 
-        if result != None:
+        if result is not None:
             if result < 0:
                 raise finishedErrors(result, job.id, 'finished', 'active')
             else:

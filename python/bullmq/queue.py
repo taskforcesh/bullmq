@@ -27,8 +27,8 @@ class Queue:
     """
 
     def __init__(self, name: str, redisOpts: dict = {}, opts: QueueOptions = {}):
-        """ 
-        Initialize a connection 
+        """
+        Initialize a connection
         """
         self.name = name
         self.redisConnection = RedisConnection(redisOpts)
@@ -74,8 +74,8 @@ class Queue:
         return self.scripts.pause(False)
 
     async def isPaused(self):
-        """ 
-        Returns true if the queue is currently paused. 
+        """
+        Returns true if the queue is currently paused.
         """
         paused_key_exists = await self.client.hexists(self.opts.get("prefix", f"bull:{self.name}:meta"), "paused")
         return paused_key_exists == 1

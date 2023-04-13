@@ -16,14 +16,14 @@ class WorkerOptions(TypedDict, total=False):
     """
     Condition to start processor at instance creation
 
-    @default true 
+    @default true
     """
 
     concurrency: int
     """
     Amount of jobs that a single worker is allowed to work on
     in parallel.
-   
+
     @default 1
     @see https://docs.bullmq.io/guide/workers/concurrency
     """
@@ -33,14 +33,14 @@ class WorkerOptions(TypedDict, total=False):
     Amount of times a job can be recovered from a stalled state
     to the `wait` state. If this is exceeded, the job is moved
     to `failed`.
-   
+
     @default 1
     """
 
     stalledInterval: int
     """
     Number of milliseconds between stallness checks.
-   
+
     @default 30000
     """
 
@@ -50,8 +50,8 @@ class WorkerOptions(TypedDict, total=False):
     a worker is processing the job. If the lock is lost, the job will be eventually
     be picked up by the stalled checker and move back to wait so that another worker
     can process it again.
-   
-    @default 30000 
+
+    @default 30000
     """
 
     prefix: str
