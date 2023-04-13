@@ -138,7 +138,7 @@ class Scripts:
     def moveToFailed(self, job: Job, failedReason: str, removeOnFailed, token: str, opts: dict, fetchNext=True):
         return self.moveToFinished(job, failedReason, "failedReason", removeOnFailed, "failed", token, opts, fetchNext)
 
-    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> Union[list[Any],None]:
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 
@@ -148,7 +148,7 @@ class Scripts:
         keys.append(self.keys['meta'])
         keys.append(metricsKey)
 
-        def getKeepJobs(shouldRemove: bool | dict | int | None):
+        def getKeepJobs(shouldRemove: Union[bool,dict,int,None]):
             if shouldRemove == True:
                 return {"count": 0}
 
@@ -228,7 +228,7 @@ def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError
         return TypeError(f"Unknown code {str(code)} error for {jobId}.{command}")
 
 
-def raw2NextJobData(raw: list[Any]) -> list[Any] | None:
+def raw2NextJobData(raw: list[Any]) -> Union[list[Any],None]:
     if raw:
         # TODO: return all the raw datas (up to 4)
         if raw[0]:

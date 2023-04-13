@@ -1,5 +1,5 @@
 from redis import Redis
-from typing import List, Any, TypedDict, Literal
+from typing import List, Any, TypedDict, Optional
 
 import json
 import time
@@ -112,7 +112,7 @@ class Job:
         self.stacktrace: List[str] = []
 
 
-def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
+def fromJSON(client: Redis, rawData: dict, jobId: Optional[str] = None):
     """
     Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
 
