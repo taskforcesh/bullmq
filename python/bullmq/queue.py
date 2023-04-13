@@ -120,6 +120,11 @@ class Queue:
         return self.client.xtrim(self.opts.get("prefix", f"bull:{self.name}:events"), "MAXLEN", "~", maxLength)
 
     async def getJobCounts(self, *types):
+        """
+        Returns the job counts for each type specified or every list/set in the queue by default.
+
+        @returns: An object, key (type) and value (count)
+        """
         current_types = self.sanitizeJobTypes(types)
 
         responses = await self.scripts.getCounts(current_types)

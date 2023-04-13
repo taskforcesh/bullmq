@@ -43,7 +43,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
-    async def test_retry_failing_jobs(self):
+    async def test_retry_failed_jobs(self):
         queue = Queue(queueName)
         job_count = 8
 
@@ -96,6 +96,60 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         completed_count = await queue.getJobCounts('completed')
         self.assertEqual(completed_count['completed'], 8)
+
+        await queue.close()
+        await worker.close()
+
+    async def test_retry_completed_jobs(self):
+        queue = Queue(queueName)
+        job_count = 8
+
+        async def process(job: Job, token: str):
+            await asyncio.sleep(1)
+            return
+        order = 0
+
+        worker = Worker(queueName, process)
+
+        completed_events1 = Future()
+        def completing1(job: Job, result):
+            nonlocal order
+            if order == (job_count - 1):
+                completed_events1.set_result(None)
+            order+=1
+
+        worker.on("completed", completing1)
+
+        for index in range(job_count):
+            data = {"idx": index}
+            await queue.add("test", data=data )
+        
+        await completed_events1
+
+        worker.off('completed', completing1)
+
+        completed_count1 = await queue.getJobCounts('completed')
+        self.assertEqual(completed_count1['completed'], job_count)
+
+        order = 0
+
+        completed_events2 = Future()
+        def completing2(job: Job, result):
+            nonlocal order
+            if order == (job_count - 1):
+                completed_events2.set_result(None)
+            order+=1
+
+        worker.on("completed", completing2)
+
+        await queue.retryJobs({ 'count': 2, 'state': 'completed' })
+
+        await completed_events2
+
+        worker.off('completed', completing2)
+
+        completed_count2 = await queue.getJobCounts('completed')
+        self.assertEqual(completed_count2['completed'], job_count)
 
         await queue.close()
         await worker.close()
