@@ -21,7 +21,7 @@ If you want to process the job after a specific point in time, just add the time
 
 ```typescript
 const targetTime = new Date("03-07-2035 10:30");
-const delay = targetTime - new Date();
+const delay = (Number(targetTime) - Number(new Date()));
 
 await myQueue.add('house', { color: 'white' }, { delay });
 ```
