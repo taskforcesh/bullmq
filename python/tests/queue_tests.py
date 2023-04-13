@@ -6,6 +6,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 
 import asyncio
 import unittest
+import time
 from asyncio import Future
 
 from bullmq import Queue, Worker, Job;
@@ -73,6 +74,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         
         await failed_events
 
+        worker.off('failed', failing)
+
         failed_count = await queue.getJobCounts('failed')
 
         self.assertEqual(failed_count['failed'], 8)
@@ -93,6 +96,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.retryJobs({ 'count': 2 })
 
         await completed_events
+
+        worker.off('completed', completing)
 
         completed_count = await queue.getJobCounts('completed')
         self.assertEqual(completed_count['completed'], 8)
@@ -150,6 +155,120 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         completed_count2 = await queue.getJobCounts('completed')
         self.assertEqual(completed_count2['completed'], job_count)
+
+        await queue.close()
+        await worker.close()
+
+    async def test_retry_failed_jobs_before_timestamp(self):
+        queue = Queue(queueName)
+        job_count = 8
+
+        fail = True
+
+        async def process(job: Job, token: str):
+            await asyncio.sleep(1)
+            if fail:
+                raise Exception("failed")
+            return
+        order = 0
+
+        worker = Worker(queueName, process)
+
+        failed_events = Future()
+        timestamp = 0
+        def failing(job: Job, result):
+            nonlocal order
+            nonlocal timestamp
+            if order == (job_count - 1):
+                failed_events.set_result(None)
+            if job.data['idx'] == (job_count/2 - 1):
+                timestamp = round(time.time() * 1000)
+            order+=1
+
+        worker.on("failed", failing)
+
+        for index in range(job_count):
+            data = {"idx": index}
+            await queue.add("test", data=data )
+        
+        await failed_events
+
+        worker.off('failed', failing)
+
+        failed_count = await queue.getJobCounts('failed')
+
+        self.assertEqual(failed_count['failed'], 8)
+
+        order = 0
+
+        completed_events = Future()
+        def completing(job: Job, result):
+            nonlocal order
+            if order == (job_count/2 - 1):
+                completed_events.set_result(None)
+            order+=1
+
+        worker.on("completed", completing)
+
+        fail=False
+
+        await queue.retryJobs({ 'count': 2, 'timestamp': timestamp})
+
+        await completed_events
+
+        worker.off('completed', completing)
+
+        completed_count = await queue.getJobCounts('completed')
+        self.assertEqual(completed_count['completed'], 4)
+
+        await queue.close()
+        await worker.close()
+
+    async def test_retry_jobs_when_queue_is_paused(self):
+        queue = Queue(queueName)
+        job_count = 8
+
+        fail = True
+
+        async def process(job: Job, token: str):
+            await asyncio.sleep(1)
+            if fail:
+                raise Exception("failed")
+            return
+        order = 0
+
+        worker = Worker(queueName, process)
+
+        failed_events = Future()
+        def failing(job: Job, result):
+            nonlocal order
+            if order == (job_count - 1):
+                failed_events.set_result(None)
+            order+=1
+
+        worker.on("failed", failing)
+
+        for index in range(job_count):
+            data = {"idx": index}
+            await queue.add("test", data=data )
+        
+        await failed_events
+
+        worker.off('failed', failing)
+
+        failed_count = await queue.getJobCounts('failed')
+
+        self.assertEqual(failed_count['failed'], 8)
+
+        order = 0
+
+        fail=False
+
+        await queue.pause()
+        await queue.retryJobs({ 'count': 2 })
+
+        paused_count = await queue.getJobCounts('paused')
+        self.assertEqual(paused_count['paused'], job_count)
 
         await queue.close()
         await worker.close()
