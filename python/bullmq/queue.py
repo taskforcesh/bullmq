@@ -119,6 +119,46 @@ class Queue:
         """
         return self.client.xtrim(self.opts.get("prefix", f"bull:{self.name}:events"), "MAXLEN", "~", maxLength)
 
+    async def getJobCounts(self, *types):
+        """
+        Returns the job counts for each type specified or every list/set in the queue by default.
+
+        @returns: An object, key (type) and value (count)
+        """
+        current_types = self.sanitizeJobTypes(types)
+
+        responses = await self.scripts.getCounts(current_types)
+        counts = {}
+
+        for index, val in enumerate(responses):
+            counts[current_types[index]] = val or 0
+        return counts
+
+    def sanitizeJobTypes(self, types):
+        current_types = list(types)
+
+        if len(types) > 0 :
+            sanitized_types = current_types.copy()
+
+            try:
+                sanitized_types.index('waiting')
+                sanitized_types.append('paused')
+            except ValueError:
+                pass
+            set_res = set(sanitized_types)
+            list_res = (list(set_res))
+
+            return list_res
+        return [
+            'active',
+            'completed',
+            'delayed',
+            'failed',
+            'paused',
+            'waiting',
+            'waiting-children'
+        ]
+
     def close(self):
         """
         Close the queue instance.
