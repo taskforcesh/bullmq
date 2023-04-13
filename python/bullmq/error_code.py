@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class ErrorCode(Enum):
     JobNotExist = -1
     JobLockNotExist = -2

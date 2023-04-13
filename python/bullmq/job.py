@@ -1,5 +1,5 @@
 from redis import Redis
-from typing import List, Any, TypedDict, Literal
+from typing import List, Any, TypedDict
 
 import json
 import time
@@ -36,7 +36,7 @@ class JobOptions(TypedDict, total=False):
     """
     Override the job ID - by default, the job ID is a unique
     integer, but you can use this setting to override it.
-    
+
     If you use this option, it is up to you to ensure the
     jobId is unique. If you attempt to add a job with an id that
     already exists, it will not be added.
@@ -61,7 +61,7 @@ class JobOptions(TypedDict, total=False):
     attempts: int
     """
     The total number of attempts to try the job until it completes.
-    
+
     @defaultValue 0
     """
 
@@ -162,7 +162,7 @@ def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
 Job.fromJSON = staticmethod(fromJSON)
 
 
-def optsFromJSON(rawOpts):
+def optsFromJSON(rawOpts: dict) -> dict:
     # opts = json.loads(rawOpts)
     opts = rawOpts
 

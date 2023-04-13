@@ -7,7 +7,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 import asyncio
 import unittest
 
-from bullmq import Queue;
+from bullmq import Queue
 
 queueName = "__bullmq_test_queue__"
 

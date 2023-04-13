@@ -16,7 +16,7 @@ class RedisConnection:
             host=host, port=port, db=db, password=password, decode_responses=True)
 
     def disconnect(self):
-        """ 
+        """
         Disconnect from Redis
         """
         return self.conn.disconnect()
