@@ -1,4 +1,4 @@
-from typing import Callable, TypedDict, Any
+from typing import Callable, TypedDict, Any, List
 from uuid import uuid4
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
@@ -101,24 +101,26 @@ class Worker(EventEmitter):
         self.stalledCheckTimer = Timer(self.opts.get(
             "stalledInterval") / 1000, self.runStalledJobsCheck)
         self.running = True
-        job = None
+        jobs = []
+
         token = uuid4().hex
 
         while not self.closed:
-            if not job and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+            if len(jobs) == 0 and len(self.processing) < self.opts.get("concurrency") and not self.closing:
                 waiting_job = asyncio.ensure_future(self.getNextJob(token))
                 self.processing.add(waiting_job)
 
-            if job:
-                processing_job = asyncio.ensure_future(
-                    self.processJob(job, token))
-                self.processing.add(processing_job)
+            if len(jobs) > 0:
+                jobs_to_process = [self.processJob(job, token) for job in jobs]
+                processing_jobs = [asyncio.ensure_future(j) for j in jobs_to_process]
+                self.processing.update(processing_jobs)
 
             try:
-                job, pending = await getFirstCompleted(self.processing)
+                jobs, pending = await getCompleted(self.processing)
+
                 self.processing = pending
 
-                if (job is None or len(self.processing) == 0) and self.closing:
+                if (len(jobs) == 0 or len(self.processing) == 0) and self.closing:
                     # We are done processing so we can close the queue
                     break
 
@@ -224,13 +226,22 @@ class Worker(EventEmitter):
         await self.redisConnection.close()
 
 
-async def getFirstCompleted(taskSet: set):
-    jobSet, pending = await asyncio.wait(taskSet, return_when=asyncio.FIRST_COMPLETED)
-    for jobTask in jobSet:
-        try:
-            job = jobTask.result()
-            return (job, pending)
-        except Exception as e:
-            print("ERROR:", e)
-            traceback.print_exc()
-            return pending
+async def getCompleted(task_set: set) -> [List[Job], List]:
+    job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
+    jobs = [extract_result(job_task) for job_task in job_set]
+    # we filter `None` out to remove:
+    # a) an empty 'completed jobs' list; and
+    # b) a failed extract_result
+    jobs = list(filter(lambda i: i is not None, jobs))
+    return jobs, pending
+
+
+def extract_result(job_task):
+    try:
+        return job_task.result()
+    except Exception as e:
+        # lets use a simple-but-effective error handling:
+        # print error message and ignore the job
+        print("ERROR:", e)
+        traceback.print_exc()
+        return None
