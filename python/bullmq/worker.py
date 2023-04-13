@@ -112,7 +112,8 @@ class Worker(EventEmitter):
 
             if len(jobs) > 0:
                 jobs_to_process = [self.processJob(job, token) for job in jobs]
-                processing_jobs = [asyncio.ensure_future(j) for j in jobs_to_process]
+                processing_jobs = [asyncio.ensure_future(
+                    j) for j in jobs_to_process]
                 self.processing.update(processing_jobs)
 
             try:
@@ -226,13 +227,13 @@ class Worker(EventEmitter):
         await self.redisConnection.close()
 
 
-async def getCompleted(task_set: set) -> [List[Job], List]:
+async def getCompleted(task_set: set) -> tuple[list[Job], list]:
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
     jobs = [extract_result(job_task) for job_task in job_set]
     # we filter `None` out to remove:
     # a) an empty 'completed jobs' list; and
     # b) a failed extract_result
-    jobs = list(filter(lambda i: i is not None, jobs))
+    jobs = list(filter(lambda j: j is not None, jobs))
     return jobs, pending
 
 
@@ -244,4 +245,3 @@ def extract_result(job_task):
         # print error message and ignore the job
         print("ERROR:", e)
         traceback.print_exc()
-        return None
