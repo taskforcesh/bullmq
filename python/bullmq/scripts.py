@@ -149,16 +149,16 @@ class Scripts:
         keys.append(metricsKey)
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
-            if shouldRemove is True:
-                return {"count": 0}
-
             if type(shouldRemove) == int:
                 return {"count": shouldRemove}
 
             if type(shouldRemove) == dict:
                 return shouldRemove
 
-            if shouldRemove is False or shouldRemove is None:
+            if shouldRemove:
+                return {"count": 0}
+
+            if not shouldRemove or shouldRemove is None:
                 return {"count": -1}
 
         def getMetricsSize(opts: dict):
