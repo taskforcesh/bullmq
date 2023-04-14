@@ -1,7 +1,3 @@
-"""
-    This class is used to load and execute Lua scripts.
-    It is a wrapper around the Redis client.
-"""
 from typing import Any
 from redis import Redis
 from bullmq.job import Job
@@ -17,6 +13,10 @@ basePath = os.path.dirname(os.path.realpath(__file__))
 
 
 class Scripts:
+    """
+    This class is used to load and execute Lua scripts.
+    It is a wrapper around the Redis client.
+    """
 
     def __init__(self, prefix: str, queueName: str, redisClient: Redis):
         self.prefix = prefix
@@ -86,7 +86,8 @@ class Scripts:
 
     def getCounts(self, types):
         keys = self.getKeys([''])
-        transformed_types = list(map(lambda type: 'wait' if type == 'waiting' else type, types))
+        transformed_types = list(
+            map(lambda type: 'wait' if type == 'waiting' else type, types))
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
 
@@ -117,7 +118,8 @@ class Scripts:
         Remove a queue completely
         """
         current_state = state or 'failed'
-        keys = self.getKeys(['', 'events', current_state, 'wait', 'paused', 'meta'])
+        keys = self.getKeys(
+            ['', 'events', current_state, 'wait', 'paused', 'meta'])
         result = await self.commands["retryJobs"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
         return result
 
@@ -157,10 +159,10 @@ class Scripts:
         keys.append(metricsKey)
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
-            if type(shouldRemove) == int:
+            if isinstance(shouldRemove, int):
                 return {"count": shouldRemove}
 
-            if type(shouldRemove) == dict:
+            if isinstance(shouldRemove, dict):
                 return shouldRemove
 
             if shouldRemove:
