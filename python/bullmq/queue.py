@@ -137,7 +137,7 @@ class Queue:
     def sanitizeJobTypes(self, types):
         current_types = list(types)
 
-        if len(types) > 0 :
+        if len(types) > 0:
             sanitized_types = current_types.copy()
 
             try:
@@ -164,11 +164,3 @@ class Queue:
         Close the queue instance.
         """
         return self.redisConnection.close()
-
-
-async def fromId(queue: Queue, jobId: str):
-    key = f"{queue.prefix}:{queue.name}:{jobId}"
-    raw_data = await queue.client.hgetall(key)
-    return Job.fromJSON(queue.client, raw_data, jobId)
-
-Job.fromId = staticmethod(fromId)
