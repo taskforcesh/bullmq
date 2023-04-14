@@ -74,6 +74,14 @@ export interface WorkerListener<
   ) => void;
 
   /**
+   * Listen to 'discarded' event.
+   *
+   * This event is triggered when a job is picked after the discardTtl.
+   * Job is removed.
+   */
+  discarded: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
+
+  /**
    * Listen to 'drained' event.
    *
    * This event is triggered when the queue has drained the waiting list.
@@ -632,11 +640,10 @@ export class Worker<
           }
 
           if (
-            (err instanceof DelayedError || err.name == 'DelayedError') ||
-            (
-              err instanceof WaitingChildrenError ||
-              err.name == 'WaitingChildrenError'
-            )
+            err instanceof DelayedError ||
+            err.name == 'DelayedError' ||
+            err instanceof WaitingChildrenError ||
+            err.name == 'WaitingChildrenError'
           ) {
             return;
           }
@@ -657,14 +664,17 @@ export class Worker<
     const inProgressItem = { job, ts: Date.now() };
 
     try {
-      /*if (this.opts.discardTtl) {
-        if (this.opts.discardTtl < Date.now() - job.timestamp) {
-          return handleFailed(new Error(ErrorMessages.DISCARD_TTL));
-        }
-      }*/
       jobsInProgress.add(inProgressItem);
-      const result = await this.callProcessJob(job, token);
-      return await handleCompleted(result);
+      if (this.opts.discardTtl) {
+        if (this.opts.discardTtl < Date.now() - job.timestamp) {
+          await this.discardJob(job.id, token);
+
+          this.emit('discarded', job, 'active');
+        }
+      } else {
+        const result = await this.callProcessJob(job, token);
+        return await handleCompleted(result);
+      }
     } catch (err) {
       return handleFailed(<Error>err);
     } finally {
@@ -949,5 +959,9 @@ export class Worker<
       throw err1 || err2;
     }
     return parseInt(limitUntil as string) || 0;
+  }
+
+  private async discardJob(jobId: string, token: string) {
+    await this.scripts.discardJob(jobId, token);
   }
 }

@@ -696,6 +696,38 @@ export class Scripts {
     ]);
   }
 
+  private discardJobArgs(jobId: string, token: string): (string | number)[] {
+    const keys: (string | number)[] = [
+      'active',
+      'wait',
+      'paused',
+      jobId,
+      'meta',
+    ].map(name => {
+      return this.queue.toKey(name);
+    });
+
+    keys.push(
+      this.queue.keys.events,
+      this.queue.keys.delayed,
+      this.queue.keys.priority,
+    );
+
+    return keys.concat([this.queue.toKey(''), Date.now(), jobId, token]);
+  }
+
+  async discardJob(jobId: string, token: string): Promise<void> {
+    const client = await this.queue.client;
+
+    const args = this.discardJobArgs(jobId, token);
+
+    const result = await (<any>client).discardJob(args);
+
+    if (result < 0) {
+      throw this.finishedErrors(result, jobId, 'addJob', 'active');
+    }
+  }
+
   retryJobArgs(
     jobId: string,
     lifo: boolean,

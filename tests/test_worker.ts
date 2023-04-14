@@ -848,7 +848,7 @@ describe('workers', function () {
   });
 
   describe('when discardTtl is provided', function () {
-    it('moves jobs to failed when time is greater than discardTtl', async () => {
+    it('remove jobs when time is greater than discardTtl', async () => {
       const maxJobs = 5;
 
       const worker = new Worker(queueName, async () => {}, {
@@ -867,11 +867,10 @@ describe('workers', function () {
 
       const failing = new Promise<void>(resolve => {
         worker.on(
-          'failed',
-          after(maxJobs, (job: Job, error) => {
-            expect(error.name).to.be.eql('Error');
-            expect(error.message).to.be.eql('bullmq:discardTtlExceeded');
-            expect(job.failedReason).to.be.eql('bullmq:discardTtlExceeded');
+          'discarded',
+          after(maxJobs, (job: Job, prev: string) => {
+            expect(prev).to.be.eql('active');
+            expect(job.name).to.be.eql('test');
             resolve();
           }),
         );
@@ -884,117 +883,6 @@ describe('workers', function () {
       await failing;
 
       await worker.close();
-    });
-
-    describe('when removeOnFail is provided in discarded jobs', function () {
-      describe('when option is provided as true', function () {
-        it('removes only the discarded ones', async () => {
-          const maxJobs = 5;
-
-          const worker = new Worker(
-            queueName,
-            async job => {
-              if (job.name !== 'discard') {
-                await delay(250);
-              }
-              throw new Error('error');
-            },
-            {
-              autorun: true,
-              connection,
-              concurrency: 2,
-              discardTtl: 500,
-            },
-          );
-          await worker.waitUntilReady();
-
-          const jobs = Array.from(Array(maxJobs - 1).keys()).map(index => ({
-            name: 'test',
-            data: { index },
-          }));
-
-          await queue.addBulk(jobs);
-          await queue.add('discard', {}, { removeOnFail: true });
-
-          const failing = new Promise<void>(resolve => {
-            worker.on(
-              'failed',
-              after(maxJobs, (job: Job, error) => {
-                expect(error.name).to.be.eql('Error');
-                expect(error.message).to.be.eql('bullmq:discardTtlExceeded');
-                expect(job.failedReason).to.be.eql('bullmq:discardTtlExceeded');
-                resolve();
-              }),
-            );
-          });
-
-          worker.run();
-
-          await failing;
-
-          const failedJobs = await queue.getJobs();
-
-          for (const job of failedJobs) {
-            expect(job.name).to.be.equal('test');
-          }
-
-          await worker.close();
-        });
-      });
-
-      describe('when it is provided as number and there are discarded jobs', function () {
-        it('keeps specific number of records', async () => {
-          const maxJobs = 5;
-
-          const worker = new Worker(
-            queueName,
-            async job => {
-              if (job.name !== 'discard') {
-                await delay(250);
-              }
-              throw new Error('error');
-            },
-            {
-              connection,
-              concurrency: 2,
-              discardTtl: 500,
-            },
-          );
-          await worker.waitUntilReady();
-
-          const jobs = Array.from(Array(maxJobs - 1).keys()).map(index => ({
-            name: 'test',
-            data: { index },
-            opts: { removeOnFail: 2 },
-          }));
-
-          await queue.addBulk(jobs);
-          await queue.add('discard', {}, { removeOnFail: 2 });
-
-          const failing = new Promise<void>(resolve => {
-            worker.on(
-              'failed',
-              after(maxJobs, (job: Job, error) => {
-                expect(error.name).to.be.eql('Error');
-                expect(error.message).to.be.eql('bullmq:discardTtlExceeded');
-                expect(job.failedReason).to.be.eql('bullmq:discardTtlExceeded');
-                resolve();
-              }),
-            );
-          });
-
-          worker.run();
-
-          await failing;
-
-          const failedJobs = await queue.getJobs();
-
-          expect(failedJobs[0].name).to.be.equal('discard');
-          expect(failedJobs[1].name).to.be.equal('test');
-
-          await worker.close();
-        });
-      });
     });
   });
 
