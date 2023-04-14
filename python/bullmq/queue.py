@@ -1,7 +1,7 @@
-from bullmq.scripts import Scripts
-from bullmq.job import Job, JobOptions
 from bullmq.redis_connection import RedisConnection
 from typing import TypedDict
+
+import bullmq
 
 
 class RetryJobsOpts(TypedDict):
@@ -35,9 +35,10 @@ class Queue:
         self.client = self.redisConnection.conn
         self.opts = opts
         self.prefix = opts.get("prefix", "bull")
-        self.scripts = Scripts(self.prefix, name, self.redisConnection.conn)
+        self.scripts = bullmq.Scripts(
+            self.prefix, name, self.redisConnection.conn)
 
-    async def add(self, name: str, data, opts: JobOptions = {}):
+    async def add(self, name: str, data, opts: bullmq.JobOptions = {}):
         """
         Adds a new job to the queue.
 
@@ -45,7 +46,7 @@ class Queue:
         @param data: Arbitrary data to append to the job.
         @param opts: Job options that affects how the job is going to be processed.
         """
-        job = Job(self.client, name, data, opts)
+        job = bullmq.Job(self.client, name, data, opts)
         job_id = await self.scripts.addJob(job)
         job.id = job_id
         return job

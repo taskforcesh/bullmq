@@ -1,9 +1,9 @@
 from redis import Redis
 from typing import List, Any, TypedDict
-from bullmq.queue import Queue
 
 import json
 import time
+import bullmq
 
 
 optsDecodeMap = {
@@ -160,7 +160,7 @@ class Job:
         return job
 
     @staticmethod
-    async def fromId(queue: Queue, jobId: str):
+    async def fromId(queue: bullmq.Queue, jobId: str):
         key = f"{queue.prefix}:{queue.name}:{jobId}"
         raw_data = await queue.client.hgetall(key)
         return Job.fromJSON(queue.client, raw_data, jobId)
