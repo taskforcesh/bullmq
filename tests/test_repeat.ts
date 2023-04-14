@@ -1123,6 +1123,61 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
+  describe('when custom key is provided', function () {
+    it('should allow removing a repeatable job by custom key', async function () {
+      const numJobs = 4;
+      const date = new Date('2017-02-07 9:24:00');
+      let prev: Job;
+      let counter = 0;
+      let processor;
+      const key = 'xxxx';
+
+      this.clock.setSystemTime(date);
+
+      const nextTick = 2 * ONE_SECOND + 10;
+      const repeat = { pattern: '*/2 * * * * *', key };
+
+      await queue.add('test', { foo: 'bar' }, { repeat });
+
+      this.clock.tick(nextTick);
+
+      const processing = new Promise<void>((resolve, reject) => {
+        processor = async () => {
+          counter++;
+          if (counter == numJobs) {
+            try {
+              await queue.removeRepeatable('test', repeat);
+              this.clock.tick(nextTick);
+              const delayed = await queue.getDelayed();
+              expect(delayed).to.be.empty;
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          } else if (counter > numJobs) {
+            reject(Error(`should not repeat more than ${numJobs} times`));
+          }
+        };
+      });
+
+      const worker = new Worker(queueName, processor, { connection });
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+      await worker.waitUntilReady();
+
+      worker.on('completed', job => {
+        this.clock.tick(nextTick);
+        if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+        }
+        prev = job;
+      });
+
+      await processing;
+      delayStub.restore();
+    });
+  });
+
   // This test is flaky and too complex we need something simpler that tests the same thing
   it.skip('should not re-add a repeatable job after it has been removed', async function () {
     const repeat = await queue.repeat;

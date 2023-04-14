@@ -10,6 +10,12 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
    * A repeat pattern
    */
   pattern?: string;
+
+  /**
+   * Custom repeatable key
+   */
+  key?: string;
+
   /**
    * Number of times the job should repeat at max.
    */

@@ -110,12 +110,13 @@ export class Repeat extends QueueBase {
     //
     // Generate unique job id for this iteration.
     //
-    const jobId = getRepeatJobId(
+    const jobId = getRepeatJobId({
       name,
       nextMillis,
-      md5(repeatJobKey),
-      opts.repeat.jobId,
-    );
+      namespace: repeatJobKey,
+      jobId: opts.repeat.jobId,
+      key: opts.repeat.key,
+    });
     const now = Date.now();
     const delay =
       nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
@@ -142,12 +143,13 @@ export class Repeat extends QueueBase {
     jobId?: string,
   ): Promise<number> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
-    const repeatJobId = getRepeatJobId(
+    const repeatJobId = getRepeatJobId({
       name,
-      '',
-      md5(repeatJobKey),
-      jobId || repeat.jobId,
-    );
+      nextMillis: '',
+      namespace: repeatJobKey,
+      jobId: jobId || repeat.jobId,
+      key: repeat.key,
+    });
 
     return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
@@ -155,12 +157,12 @@ export class Repeat extends QueueBase {
   async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
-    const repeatJobId = getRepeatJobId(
-      data.name,
-      '',
-      md5(repeatJobKey),
-      data.id,
-    );
+    const repeatJobId = getRepeatJobId({
+      name: data.name,
+      nextMillis: '',
+      namespace: repeatJobKey,
+      jobId: data.id,
+    });
 
     return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
@@ -201,13 +203,20 @@ export class Repeat extends QueueBase {
   }
 }
 
-function getRepeatJobId(
-  name: string,
-  nextMillis: number | string,
-  namespace: string,
-  jobId?: string,
-) {
-  const checksum = md5(`${name}${jobId || ''}${namespace}`);
+function getRepeatJobId({
+  name,
+  nextMillis,
+  namespace,
+  jobId,
+  key,
+}: {
+  name?: string;
+  nextMillis: number | string;
+  namespace?: string;
+  jobId?: string;
+  key?: string;
+}) {
+  const checksum = key ? key : md5(`${name}${jobId || ''}${md5(namespace)}`);
   return `repeat:${checksum}:${nextMillis}`;
   // return `repeat:${jobId || ''}:${name}:${namespace}:${nextMillis}`;
   //return `repeat:${name}:${namespace}:${nextMillis}`;
