@@ -81,6 +81,7 @@ class Worker(EventEmitter):
         self.blockingRedisConnection = RedisConnection(redis_opts)
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
+        self.prefix = opts.get("prefix", "bull")
         self.scripts = Scripts(opts.get("prefix", "bull"), name, self.client)
         self.closing = False
         self.forceClosing = False
@@ -158,7 +159,7 @@ class Worker(EventEmitter):
                 job, job_id = await self.scripts.moveToActive(token, self.opts, job_id)
 
         if job and job_id:
-            return Job.fromJSON(self.client, job, job_id)
+            return Job.fromJSON(self, job, job_id)
 
     async def processJob(self, job: Job, token: str):
         try:
