@@ -220,11 +220,19 @@ class Worker(EventEmitter):
         """
         if force:
             self.forceClosing = True
+            self.cancelProcessing()
 
         self.closing = True
 
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
+
+    def cancelProcessing(self):
+        print('hola')
+        for job in self.processing:
+            print('1u')
+            hola = job.cancel()
+            print('2u')
 
 
 async def getCompleted(task_set: set) -> tuple[list[Job], list]:
@@ -241,7 +249,8 @@ def extract_result(job_task):
     try:
         return job_task.result()
     except Exception as e:
-        # lets use a simple-but-effective error handling:
-        # print error message and ignore the job
-        print("ERROR:", e)
-        traceback.print_exc()
+        if not str(e).startswith('Connection closed by server'):
+            # lets use a simple-but-effective error handling:
+            # print error message and ignore the job
+            print("ERROR:", e)
+            traceback.print_exc()    
