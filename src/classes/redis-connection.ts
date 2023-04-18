@@ -22,8 +22,6 @@ const deprecationMessage = [
   'On the next versions having this settings will throw an exception',
 ].join(' ');
 
-const upstashMessage = 'BullMQ: Upstash is not compatible with BullMQ.';
-
 export interface RawCommand {
   content: string;
   name: string;
@@ -68,8 +66,6 @@ export class RedisConnection extends EventEmitter {
       if (this.blocking) {
         this.opts.maxRetriesPerRequest = null;
       }
-
-      this.checkUpstashHost(this.opts.host);
     } else {
       this._client = opts;
 
@@ -83,15 +79,8 @@ export class RedisConnection extends EventEmitter {
 
       if (isRedisCluster(this._client)) {
         this.opts = this._client.options.redisOptions;
-        const hosts = (<any>this._client).startupNodes.map(
-          (node: { host: string } | string) =>
-            typeof node == 'string' ? node : node.host,
-        );
-        this.checkUpstashHost(hosts);
       } else {
         this.opts = this._client.options;
-
-        this.checkUpstashHost(this.opts.host);
       }
 
       this.checkBlockingOptions(deprecationMessage, this.opts);
@@ -116,15 +105,6 @@ export class RedisConnection extends EventEmitter {
   private checkBlockingOptions(msg: string, options?: RedisOptions) {
     if (this.blocking && options && options.maxRetriesPerRequest) {
       console.error(msg);
-    }
-  }
-
-  private checkUpstashHost(host: string[] | string | undefined) {
-    const includesUpstash = Array.isArray(host)
-      ? host.some(node => node.includes('upstash.io'))
-      : host?.includes('upstash.io');
-    if (includesUpstash) {
-      throw new Error(upstashMessage);
     }
   }
 

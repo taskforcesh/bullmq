@@ -1,11 +1,11 @@
 async-timeout==4.0.2
 certifi==2022.12.7
 distlib==0.3.6
-filelock==3.9.1
-msgpack==1.0.4
-pipenv==2023.2.4
-platformdirs==3.1.1
-redis==4.5.1
+filelock==3.11.0
+msgpack==1.0.5
+pipenv==2023.3.20
+platformdirs==3.2.0
+redis==4.5.4
 six==1.16.0
 virtualenv==20.21.0
 virtualenv-clone==0.5.7
