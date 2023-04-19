@@ -59,7 +59,7 @@ class WorkerOptions(TypedDict, total=False):
     Prefix for all queue keys.
     """
 
-    connection: dict[str, Any]
+    connection: dict[str, Any] | str
     """
     Options for connecting to a Redis instance.
     """
