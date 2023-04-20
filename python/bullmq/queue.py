@@ -1,24 +1,7 @@
 from bullmq.scripts import Scripts
 from bullmq.job import Job, JobOptions
 from bullmq.redis_connection import RedisConnection
-from typing import TypedDict
-
-
-class RetryJobsOpts(TypedDict):
-    state: str
-    count: int
-    timestamp: int
-
-
-class QueueOptions(TypedDict, total=False):
-    """
-    Options for the Queue class.
-    """
-
-    prefix: str
-    """
-    Prefix for all queue keys.
-    """
+from bullmq.types import QueueOptions, RetryJobsOptions
 
 
 class Queue:
@@ -98,7 +81,7 @@ class Queue:
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 
-    async def retryJobs(self, opts: RetryJobsOpts = {}):
+    async def retryJobs(self, opts: RetryJobsOptions = {}):
         """
         Retry all the failed jobs.
         """
@@ -137,7 +120,7 @@ class Queue:
     def sanitizeJobTypes(self, types):
         current_types = list(types)
 
-        if len(types) > 0 :
+        if len(types) > 0:
             sanitized_types = current_types.copy()
 
             try:
