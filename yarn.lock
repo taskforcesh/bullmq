@@ -3806,7 +3806,7 @@ into-stream@^6.0.0:
     from2 "^2.3.0"
     p-is-promise "^3.0.0"
 
-ioredis@^5.3.0:
+ioredis@^5.3.2:
   version "5.3.2"
   resolved "https://registry.yarnpkg.com/ioredis/-/ioredis-5.3.2.tgz#9139f596f62fc9c72d873353ac5395bcf05709f7"
   integrity sha512-1DKMMzlIHM02eBBVOFQ1+AolGjs6+xEcM4PDL7NqOS6szq7H9jSaEkIUH6/a5Hl241LzW6JLSiAbNvTQjUupUA==
