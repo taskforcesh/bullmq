@@ -16,12 +16,12 @@ have been ported so far:
   - [ ] Job priority.
   - [ ] Repeatable.
 
-- [ ] Workers
+- [x] Workers
 - [ ] Job events.
 - [ ] Job progress.
 - [ ] Job retries.
 - [ ] Job backoff.
-- [ ] Getters.
+- [x] Getters.
 
 ## Installation
 
