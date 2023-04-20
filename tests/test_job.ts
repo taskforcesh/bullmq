@@ -287,6 +287,116 @@ describe('Job', function () {
     });
   });
 
+  describe('timeout', function () {
+    describe('when job reaches timeout', function () {
+      it('fails job with timeout error', async function () {
+        const worker = new Worker(
+          queueName,
+          async job => {
+            expect(job.data.foo).to.be.equal('bar');
+            await delay(2000);
+            return;
+          },
+          { connection },
+        );
+        await worker.waitUntilReady();
+
+        const job = await queue.add('test', { foo: 'bar' }, { timeout: 500 });
+
+        expect(job.id).to.be.ok;
+        expect(job.data.foo).to.be.eql('bar');
+
+        await new Promise<void>(resolve => {
+          worker.once('failed', async (job, err) => {
+            expect(job).to.be.ok;
+            expect(job!.data.foo).to.be.eql('bar');
+            expect(err.message).to.be.eql('bullmq:timeoutReached');
+            resolve();
+          });
+        });
+
+        const count = await queue.getJobCounts('active', 'failed');
+        expect(count.active).to.be.eq(0);
+        expect(count.failed).to.be.eq(1);
+      });
+    });
+
+    describe('when job does not reach timeout', function () {
+      describe('when job does not throw an error', function () {
+        it('completes job', async function () {
+          const worker = new Worker(
+            queueName,
+            async job => {
+              expect(job.data.foo).to.be.equal('bar');
+              await delay(2000);
+              return;
+            },
+            { connection },
+          );
+          await worker.waitUntilReady();
+
+          const job = await queue.add(
+            'test',
+            { foo: 'bar' },
+            { timeout: 3000 },
+          );
+
+          expect(job.id).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+
+          await new Promise<void>(resolve => {
+            worker.once('completed', async job => {
+              expect(job).to.be.ok;
+              expect(job!.data.foo).to.be.eql('bar');
+              resolve();
+            });
+          });
+
+          const count = await queue.getJobCounts('active', 'completed');
+          expect(count.active).to.be.eq(0);
+          expect(count.completed).to.be.eq(1);
+        });
+      });
+
+      describe('when job throws an error', function () {
+        it('completes job', async function () {
+          const worker = new Worker(
+            queueName,
+            async job => {
+              expect(job.data.foo).to.be.equal('bar');
+              await delay(2000);
+              throw new Error('fail');
+            },
+            { connection },
+          );
+          await worker.waitUntilReady();
+
+          const job = await queue.add(
+            'test',
+            { foo: 'bar' },
+            { timeout: 3000 },
+          );
+
+          expect(job.id).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+
+          await new Promise<void>(resolve => {
+            worker.once('failed', async (job, err) => {
+              expect(job).to.be.ok;
+              expect(job!.data.foo).to.be.eql('bar');
+              expect(err.message).to.be.eql('fail');
+              resolve();
+            });
+          });
+
+          const count = await queue.getJobCounts('active', 'failed');
+          expect(count.active).to.be.eq(0);
+          expect(count.failed).to.be.eq(1);
+        });
+      });
+    });
+  });
+
   // TODO: Add more remove tests
 
   describe('.progressProgress', function () {

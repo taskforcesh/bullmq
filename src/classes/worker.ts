@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
+import { ErrorMessages } from '../enums';
 import {
   GetNextJobOptions,
   IoredisListener,
@@ -144,8 +145,6 @@ export interface WorkerListener<
   stalled: (jobId: string, prev: string) => void;
 }
 
-const RATE_LIMIT_ERROR = 'bullmq:rateLimitExceeded';
-
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
@@ -187,12 +186,12 @@ export class Worker<
   >>;
 
   static RateLimitError(): Error {
-    return new Error(RATE_LIMIT_ERROR);
+    return new Error(ErrorMessages.RATE_LIMIT);
   }
 
   constructor(
     name: string,
-    processor?: string | Processor<DataType, ResultType, NameType>,
+    processor?: string | Processor<DataType, ResultType, NameType> | null,
     opts: WorkerOptions = {},
     Connection?: typeof RedisConnection,
   ) {
@@ -317,6 +316,9 @@ export class Worker<
     job: Job<DataType, ResultType, NameType>,
     token: string,
   ): Promise<ResultType> {
+    if (job.opts.timeout) {
+      return this.applyTimeout(job, token, job.opts.timeout);
+    }
     return this.processFn(job, token);
   }
 
@@ -632,17 +634,16 @@ export class Worker<
     const handleFailed = async (err: Error) => {
       if (!this.connection.closing) {
         try {
-          if (err.message == RATE_LIMIT_ERROR) {
+          if (err.message == ErrorMessages.RATE_LIMIT) {
             this.limitUntil = await this.moveLimitedBackToWait(job, token);
             return;
           }
 
           if (
-            (err instanceof DelayedError || err.name == 'DelayedError') ||
-            (
-              err instanceof WaitingChildrenError ||
-              err.name == 'WaitingChildrenError'
-            )
+            err instanceof DelayedError ||
+            err.name == 'DelayedError' ||
+            err instanceof WaitingChildrenError ||
+            err.name == 'WaitingChildrenError'
           ) {
             return;
           }
@@ -950,5 +951,38 @@ export class Worker<
       throw err1 || err2;
     }
     return parseInt(limitUntil as string) || 0;
+  }
+
+  protected async applyTimeout(
+    job: Job<DataType, ResultType, NameType>,
+    token: string,
+    timeout: number,
+  ): Promise<ResultType> {
+    const promiseWithTimeout = new Promise<ResultType>(
+      async (resolve, reject) => {
+        let isResolved = false;
+        let timeoutTimer: NodeJS.Timeout;
+
+        timeoutTimer = setTimeout(() => {
+          if (!isResolved) {
+            clearInterval(timeoutTimer);
+            reject(new Error(ErrorMessages.TIMEOUT));
+          }
+        }, timeout);
+
+        this.processFn(job, token)
+          .then(promiseResult => {
+            isResolved = true;
+            clearInterval(timeoutTimer);
+            resolve(promiseResult);
+          })
+          .catch(err => {
+            clearInterval(timeoutTimer);
+            reject(err);
+          });
+      },
+    );
+
+    return promiseWithTimeout;
   }
 }

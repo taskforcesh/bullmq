@@ -39,6 +39,7 @@ const logger = debuglog('bull');
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
   kl: 'keepLogs',
+  tout: 'timeout',
 };
 
 const optsEncodeMap = invert(optsDecodeMap);
