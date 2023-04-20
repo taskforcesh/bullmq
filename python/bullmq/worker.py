@@ -11,7 +11,6 @@ import asyncio
 import traceback
 import time
 
-
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
         super().__init__()

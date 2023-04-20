@@ -9,7 +9,7 @@ class Queue:
     Instantiate a Queue object
     """
 
-    def __init__(self, name: str, redisOpts: dict = {}, opts: QueueOptions = {}):
+    def __init__(self, name: str, redisOpts: dict | str = {}, opts: QueueOptions = {}):
         """
         Initialize a connection
         """
