@@ -175,11 +175,9 @@ class Worker(EventEmitter):
         await self.redisConnection.close()
 
     def cancelProcessing(self):
-        print('hola')
         for job in self.processing:
-            print('1u')
-            hola = job.cancel()
-            print('2u')
+            if not job.done():
+                job.cancel()
 
 
 async def getCompleted(task_set: set) -> tuple[list[Job], list]:
