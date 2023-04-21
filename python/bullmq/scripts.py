@@ -90,7 +90,8 @@ class Scripts:
 
     def getCounts(self, types):
         keys = self.getKeys([''])
-        transformed_types = list(map(lambda type: 'wait' if type == 'waiting' else type, types))
+        transformed_types = list(
+            map(lambda type: 'wait' if type == 'waiting' else type, types))
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
 
@@ -121,7 +122,8 @@ class Scripts:
         Remove a queue completely
         """
         current_state = state or 'failed'
-        keys = self.getKeys(['', 'events', current_state, 'wait', 'paused', 'meta'])
+        keys = self.getKeys(
+            ['', 'events', current_state, 'wait', 'paused', 'meta'])
         result = await self.commands["retryJobs"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
         return result
 
