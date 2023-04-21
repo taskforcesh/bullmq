@@ -1,3 +1,17 @@
+## [5.2.2](https://github.com/taskforcesh/bullmq-pro/compare/v5.2.1...v5.2.2) (2023-04-18)
+
+
+### Bug Fixes
+
+* **deps:** upgrade bullmq to 3.11.0 ([#143](https://github.com/taskforcesh/bullmq-pro/issues/143)) ([b132957](https://github.com/taskforcesh/bullmq-pro/commit/b132957b43603931c68bfca1a85330905b810faf))
+
+## [5.2.1](https://github.com/taskforcesh/bullmq-pro/compare/v5.2.0...v5.2.1) (2023-04-15)
+
+
+### Bug Fixes
+
+* **flow-producer-pro:** fix opts assignment ([#140](https://github.com/taskforcesh/bullmq-pro/issues/140)) ([9f8896c](https://github.com/taskforcesh/bullmq-pro/commit/9f8896c5f082d807bb6945780b30c2768015b95f))
+
 # [5.2.0](https://github.com/taskforcesh/bullmq-pro/compare/v5.1.15...v5.2.0) (2023-03-23)
 
 
