@@ -1,5 +1,5 @@
 """
-Tests for the queue class.
+Tests for job class.
 
 https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
