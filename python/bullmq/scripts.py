@@ -1,8 +1,3 @@
-"""
-    This class is used to load and execute Lua scripts.
-    It is a wrapper around the Redis client.
-"""
-
 from __future__ import annotations
 from redis import Redis
 from bullmq.error_code import ErrorCode
@@ -20,6 +15,10 @@ basePath = os.path.dirname(os.path.realpath(__file__))
 
 
 class Scripts:
+    """
+    This class is used to load and execute Lua scripts.
+    It is a wrapper around the Redis client.
+    """
 
     def __init__(self, prefix: str, queueName: str, redisClient: Redis):
         self.prefix = prefix
@@ -174,10 +173,10 @@ class Scripts:
         keys.append(metricsKey)
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
-            if type(shouldRemove) == int:
+            if isinstance(shouldRemove, int):
                 return {"count": shouldRemove}
 
-            if type(shouldRemove) == dict:
+            if isinstance(shouldRemove, dict):
                 return shouldRemove
 
             if shouldRemove:

@@ -81,7 +81,7 @@ def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
     job.attemptsMade = int(rawData.get("attemptsMade", "0"))
 
     returnvalue = rawData.get("returnvalue")
-    if type(returnvalue) == str:
+    if isinstance(returnvalue, str):
         job.returnvalue = getReturnValue(returnvalue)
 
     job.stacktrace = json.loads(rawData.get("stacktrace", "[]"))
