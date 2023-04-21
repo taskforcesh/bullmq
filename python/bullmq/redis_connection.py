@@ -6,14 +6,17 @@ class RedisConnection:
     RedisConnection class
     """
 
-    def __init__(self, redisOpts: dict = {}):
-        host = redisOpts.get("host") or "localhost"
-        port = redisOpts.get("port") or 6379
-        db = redisOpts.get("db") or 0
-        password = redisOpts.get("password") or None
+    def __init__(self, redisOpts: dict | str = {}):
+        if isinstance(redisOpts, dict):
+            host = redisOpts.get("host") or "localhost"
+            port = redisOpts.get("port") or 6379
+            db = redisOpts.get("db") or 0
+            password = redisOpts.get("password") or None
 
-        self.conn = redis.Redis(
-            host=host, port=port, db=db, password=password, decode_responses=True)
+            self.conn = redis.Redis(
+                host=host, port=port, db=db, password=password, decode_responses=True)
+        else:
+            self.conn = redis.from_url(redisOpts, decode_responses=True)
 
     def disconnect(self):
         """

@@ -1,69 +1,15 @@
-from typing import Callable, TypedDict, Any, List
+from typing import Callable
 from uuid import uuid4
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
+from bullmq.types import WorkerOptions
 
 import asyncio
 import traceback
 import time
-
-
-class WorkerOptions(TypedDict, total=False):
-    autorun: bool
-    """
-    Condition to start processor at instance creation
-
-    @default true
-    """
-
-    concurrency: int
-    """
-    Amount of jobs that a single worker is allowed to work on
-    in parallel.
-
-    @default 1
-    @see https://docs.bullmq.io/guide/workers/concurrency
-    """
-
-    maxStalledCount: int
-    """
-    Amount of times a job can be recovered from a stalled state
-    to the `wait` state. If this is exceeded, the job is moved
-    to `failed`.
-
-    @default 1
-    """
-
-    stalledInterval: int
-    """
-    Number of milliseconds between stallness checks.
-
-    @default 30000
-    """
-
-    lockDuration: int
-    """
-    Duration of the lock for the job in milliseconds. The lock represents that
-    a worker is processing the job. If the lock is lost, the job will be eventually
-    be picked up by the stalled checker and move back to wait so that another worker
-    can process it again.
-
-    @default 30000
-    """
-
-    prefix: str
-    """
-    Prefix for all queue keys.
-    """
-
-    connection: dict[str, Any]
-    """
-    Options for connecting to a Redis instance.
-    """
-
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
@@ -81,6 +27,7 @@ class Worker(EventEmitter):
         self.blockingRedisConnection = RedisConnection(redis_opts)
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
+        self.prefix = opts.get("prefix", "bull")
         self.scripts = Scripts(opts.get("prefix", "bull"), name, self.client)
         self.closing = False
         self.forceClosing = False
@@ -158,7 +105,7 @@ class Worker(EventEmitter):
                 job, job_id = await self.scripts.moveToActive(token, self.opts, job_id)
 
         if job and job_id:
-            return Job.fromJSON(self.client, job, job_id)
+            return Job.fromJSON(self, job, job_id)
 
     async def processJob(self, job: Job, token: str):
         try:
