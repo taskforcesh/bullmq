@@ -28,7 +28,7 @@ class Queue:
         @param data: Arbitrary data to append to the job.
         @param opts: Job options that affects how the job is going to be processed.
         """
-        job = Job(self.client, name, data, opts)
+        job = Job(self, name, data, opts)
         job_id = await self.scripts.addJob(job)
         job.id = job_id
         return job
@@ -152,6 +152,6 @@ class Queue:
 async def fromId(queue: Queue, jobId: str):
     key = f"{queue.prefix}:{queue.name}:{jobId}"
     raw_data = await queue.client.hgetall(key)
-    return Job.fromJSON(queue.client, raw_data, jobId)
+    return Job.fromJSON(queue, raw_data, jobId)
 
 Job.fromId = staticmethod(fromId)

@@ -1,5 +1,8 @@
-from redis import Redis
-from typing import List, Any
+from __future__ import annotations
+from typing import List, Any, TYPE_CHECKING
+from bullmq.scripts import Scripts
+if TYPE_CHECKING:
+    from bullmq.queue import Queue
 from bullmq.types import JobOptions
 
 import json
@@ -22,7 +25,7 @@ class Job:
     A Job instance is also passed to the Worker's process function.
     """
 
-    def __init__(self, client: Redis, name: str, data: Any, opts: JobOptions = {}):
+    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}):
         self.name = name
         self.id = opts.get("jobId", None)
         self.progress = 0
@@ -40,9 +43,14 @@ class Job:
         self.failedReason = None
         self.repeatJobKey = None
         self.stacktrace: List[str] = []
+        self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection.conn)
+    
+    def updateProgress(self, progress):
+        self.progress = progress
+        return self.scripts.updateProgress(self.id, progress)
 
 
-def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
+def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
     """
     Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
 
@@ -53,7 +61,7 @@ def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
     data = json.loads(rawData.get("data", '{}'))
     opts = optsFromJSON(json.loads(rawData.get("opts", '{}')))
 
-    job = Job(client, rawData.get("name"), data, opts)
+    job = Job(queue, rawData.get("name"), data, opts)
     job.id = jobId or rawData.get("id", b'').decode("utf-8")
 
     job.progress = json.loads(rawData.get("progress",  '0'))
