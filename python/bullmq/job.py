@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List, Any, TYPE_CHECKING
 from bullmq.scripts import Scripts
+from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
 from bullmq.types import JobOptions
@@ -30,7 +31,9 @@ class Job:
         self.id = opts.get("jobId", None)
         self.progress = 0
         self.timestamp = opts.get("timestamp", round(time.time() * 1000))
-        self.opts = opts
+        final_opts = {"attempts": 0, "delay": 0}
+        final_opts.update(opts or {})
+        self.opts = final_opts
         self.delay = opts.get("delay", 0)
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
@@ -48,6 +51,14 @@ class Job:
     def updateProgress(self, progress):
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)
+    
+    async def moveToFailed(self, err, token:str, fetchNext:bool = False):
+        message = str(err)
+        self.failedReason = message
+
+        move_to_failed = False
+
+        delay = await Backoffs.calculate(self.opts.backoff)
 
 
 def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
