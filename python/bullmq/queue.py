@@ -1,7 +1,7 @@
-from bullmq.scripts import Scripts
-from bullmq.job import Job, JobOptions
 from bullmq.redis_connection import RedisConnection
-from bullmq.types import QueueOptions, RetryJobsOptions
+from bullmq.types import QueueOptions, RetryJobsOptions, JobOptions
+from bullmq.scripts import Scripts
+from bullmq.job import Job
 
 
 class Queue:
@@ -18,7 +18,8 @@ class Queue:
         self.client = self.redisConnection.conn
         self.opts = opts
         self.prefix = opts.get("prefix", "bull")
-        self.scripts = Scripts(self.prefix, name, self.redisConnection.conn)
+        self.scripts = Scripts(
+            self.prefix, name, self.redisConnection.conn)
 
     async def add(self, name: str, data, opts: JobOptions = {}):
         """
@@ -147,11 +148,3 @@ class Queue:
         Close the queue instance.
         """
         return self.redisConnection.close()
-
-
-async def fromId(queue: Queue, jobId: str):
-    key = f"{queue.prefix}:{queue.name}:{jobId}"
-    raw_data = await queue.client.hgetall(key)
-    return Job.fromJSON(queue, raw_data, jobId)
-
-Job.fromId = staticmethod(fromId)

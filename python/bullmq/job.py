@@ -49,55 +49,58 @@ class Job:
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)
 
+    @staticmethod
+    def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
+        """
+        Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
 
-def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
-    """
-    Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
+        @param queue: the queue where the job belongs to.
+        @param json: the plain object containing the job.
+        @param jobId: an optional job id (overrides the id coming from the JSON object)
+        """
+        data = json.loads(rawData.get("data", '{}'))
+        opts = optsFromJSON(json.loads(rawData.get("opts", '{}')))
 
-    @param queue: the queue where the job belongs to.
-    @param json: the plain object containing the job.
-    @param jobId: an optional job id (overrides the id coming from the JSON object)
-    """
-    data = json.loads(rawData.get("data", '{}'))
-    opts = optsFromJSON(json.loads(rawData.get("opts", '{}')))
+        job = Job(queue, rawData.get("name"), data, opts)
+        job.id = jobId or rawData.get("id", b'').decode("utf-8")
 
-    job = Job(queue, rawData.get("name"), data, opts)
-    job.id = jobId or rawData.get("id", b'').decode("utf-8")
+        job.progress = json.loads(rawData.get("progress",  '0'))
+        job.delay = int(rawData.get("delay", "0"))
+        job.timestamp = int(rawData.get("timestamp", "0"))
 
-    job.progress = json.loads(rawData.get("progress",  '0'))
-    job.delay = int(rawData.get("delay", "0"))
-    job.timestamp = int(rawData.get("timestamp", "0"))
+        if rawData.get("finishedOn"):
+            job.finishedOn = int(rawData.get("finishedOn"))
 
-    if rawData.get("finishedOn"):
-        job.finishedOn = int(rawData.get("finishedOn"))
+        if rawData.get("processedOn"):
+            job.processedOn = int(rawData.get("processedOn"))
 
-    if rawData.get("processedOn"):
-        job.processedOn = int(rawData.get("processedOn"))
+        if rawData.get("rjk"):
+            job.repeatJobKey = rawData.get("rjk")
 
-    if rawData.get("rjk"):
-        job.repeatJobKey = rawData.get("rjk")
+        job.failedReason = rawData.get("failedReason")
+        job.attemptsMade = int(rawData.get("attemptsMade", "0"))
 
-    job.failedReason = rawData.get("failedReason")
-    job.attemptsMade = int(rawData.get("attemptsMade", "0"))
+        returnvalue = rawData.get("returnvalue")
+        if type(returnvalue) == str:
+            job.returnvalue = getReturnValue(returnvalue)
 
-    returnvalue = rawData.get("returnvalue")
-    if type(returnvalue) == str:
-        job.returnvalue = getReturnValue(returnvalue)
+        job.stacktrace = json.loads(rawData.get("stacktrace", "[]"))
 
-    job.stacktrace = json.loads(rawData.get("stacktrace", "[]"))
+        # if (json.parentKey) {
+        #   job.parentKey = json.parentKey;
+        # }
 
-    # if (json.parentKey) {
-    #   job.parentKey = json.parentKey;
-    # }
+        # if (json.parent) {
+        #   job.parent = JSON.parse(json.parent);
+        # }
 
-    # if (json.parent) {
-    #   job.parent = JSON.parse(json.parent);
-    # }
+        return job
 
-    return job
-
-
-Job.fromJSON = staticmethod(fromJSON)
+    @staticmethod
+    async def fromId(queue: Queue, jobId: str):
+        key = f"{queue.prefix}:{queue.name}:{jobId}"
+        raw_data = await queue.client.hgetall(key)
+        return Job.fromJSON(queue, raw_data, jobId)
 
 
 def optsFromJSON(rawOpts: dict) -> dict:
