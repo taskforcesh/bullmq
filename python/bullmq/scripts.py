@@ -33,6 +33,7 @@ class Scripts:
             "obliterate": redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": redisClient.register_script(self.getScript("pause-4.lua")),
             "moveToActive": redisClient.register_script(self.getScript("moveToActive-9.lua")),
+            "moveToDelayed": redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
@@ -87,6 +88,31 @@ class Scripts:
                             'delayed', 'priority', 'completed', 'events'])
 
         return self.commands["addJob"](keys=keys, args=[packedArgs, jsonData, packedOpts])
+
+    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str):
+        max_timestamp = max(0, timestamp or 0)
+
+        if timestamp > 0:
+            max_timestamp = max_timestamp * 0x1000 + (convert_to_int(job_id) & 0xfff)
+        
+        keys = self.getKeys(['wait', 'active', 'priority', 'delayed',
+            job_id, 'events', 'paused', 'meta'])
+        
+
+        args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
+            job_id, token]
+        
+        return (keys, args)
+
+    async def moveToDelayed(self, job_id: str, timestamp: int, token: str = "0"):
+        keys, args = self.moveToDelayedArgs(job_id, timestamp, token)
+
+        result = await self.commands["moveToDelayed"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise finishedErrors(result, job_id, 'moveToDelayed', 'active')
+        return None
 
     def getCounts(self, types):
         keys = self.getKeys([''])
@@ -268,3 +294,11 @@ def array2obj(arr: list[str]) -> dict[str, str]:
     for i in range(0, len(arr), 2):
         obj[arr[i]] = arr[i + 1]
     return obj
+
+
+def convert_to_int(text: str):
+    try:
+        result = int(text)
+        return result
+    except ValueError:
+        return 0
