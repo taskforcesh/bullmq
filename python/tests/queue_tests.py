@@ -5,11 +5,11 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
+from bullmq import Queue, Worker, Job
 
 import asyncio
 import unittest
 import time
-import bullmq
 
 queueName = "__bullmq_test_queue__"
 
@@ -19,20 +19,20 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         print("Setting up test queue")
         # Delete test queue
-        queue = bullmq.Queue(queueName)
+        queue = Queue(queueName)
         await queue.pause()
         await queue.obliterate()
         await queue.close()
 
     async def test_add_job(self):
-        queue = bullmq.Queue(queueName)
+        queue = Queue(queueName)
         job = await queue.add("test-job", {"foo": "bar"}, {})
 
         self.assertEqual(job.id, "1")
         await queue.close()
 
     async def test_add_job_with_options(self):
-        queue = bullmq.Queue(queueName)
+        queue = Queue(queueName)
         data = {"foo": "bar"}
         attempts = 3,
         delay = 1000
@@ -46,23 +46,23 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_retry_failed_jobs(self):
-        queue = bullmq.Queue(queueName)
+        queue = Queue(queueName)
         job_count = 8
 
         fail = True
 
-        async def process(job: bullmq.Job, token: str):
+        async def process(job: Job, token: str):
             await asyncio.sleep(1)
             if fail:
                 raise Exception("failed")
             return
         order = 0
 
-        worker = bullmq.Worker(queueName, process)
+        worker = Worker(queueName, process)
 
         failed_events = Future()
 
-        def failing(job: bullmq.Job, result):
+        def failing(job: Job, result):
             nonlocal order
             if order == (job_count - 1):
                 failed_events.set_result(None)
@@ -86,7 +86,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         completed_events = Future()
 
-        def completing(job: bullmq.Job, result):
+        def completing(job: Job, result):
             nonlocal order
             if order == (job_count - 1):
                 completed_events.set_result(None)
@@ -109,19 +109,19 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_retry_completed_jobs(self):
-        queue = bullmq.Queue(queueName)
+        queue = Queue(queueName)
         job_count = 8
 
-        async def process(job: bullmq.Job, token: str):
+        async def process(job: Job, token: str):
             await asyncio.sleep(1)
             return
         order = 0
 
-        worker = bullmq.Worker(queueName, process)
+        worker = Worker(queueName, process)
 
         completed_events1 = Future()
 
-        def completing1(job: bullmq.Job, result):
+        def completing1(job: Job, result):
             nonlocal order
             if order == (job_count - 1):
                 completed_events1.set_result(None)
@@ -144,7 +144,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         completed_events2 = Future()
 
-        def completing2(job: bullmq.Job, result):
+        def completing2(job: Job, result):
             nonlocal order
             if order == (job_count - 1):
                 completed_events2.set_result(None)
@@ -165,24 +165,24 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_retry_failed_jobs_before_timestamp(self):
-        queue = bullmq.Queue(queueName)
+        queue = Queue(queueName)
         job_count = 8
 
         fail = True
 
-        async def process(job: bullmq.Job, token: str):
+        async def process(job: Job, token: str):
             await asyncio.sleep(1)
             if fail:
                 raise Exception("failed")
             return
         order = 0
 
-        worker = bullmq.Worker(queueName, process)
+        worker = Worker(queueName, process)
 
         failed_events = Future()
         timestamp = 0
 
-        def failing(job: bullmq.Job, result):
+        def failing(job: Job, result):
             nonlocal order
             nonlocal timestamp
             if order == (job_count - 1):
@@ -209,7 +209,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         completed_events = Future()
 
-        def completing(job: bullmq.Job, result):
+        def completing(job: Job, result):
             nonlocal order
             if order == (job_count/2 - 1):
                 completed_events.set_result(None)
@@ -232,23 +232,23 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_retry_jobs_when_queue_is_paused(self):
-        queue = bullmq.Queue(queueName)
+        queue = Queue(queueName)
         job_count = 8
 
         fail = True
 
-        async def process(job: bullmq.Job, token: str):
+        async def process(job: Job, token: str):
             await asyncio.sleep(1)
             if fail:
                 raise Exception("failed")
             return
         order = 0
 
-        worker = bullmq.Worker(queueName, process)
+        worker = Worker(queueName, process)
 
         failed_events = Future()
 
-        def failing(job: bullmq.Job, result):
+        def failing(job: Job, result):
             nonlocal order
             if order == (job_count - 1):
                 failed_events.set_result(None)

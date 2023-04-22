@@ -14,7 +14,6 @@ import time
 import json
 import msgpack
 import os
-import bullmq
 
 
 basePath = os.path.dirname(os.path.realpath(__file__))
@@ -63,7 +62,7 @@ class Scripts:
             return self.keys[key]
         return list(map(mapKey, keys))
 
-    def addJob(self, job: bullmq.Job):
+    def addJob(self, job: Job):
         """
         Add an item to the queue
         """
@@ -147,10 +146,10 @@ class Scripts:
         # Todo: up to 4 results in tuple (only 2 now)
         return raw2NextJobData(result)
 
-    def moveToCompleted(self, job: bullmq.Job, val: Any, removeOnComplete, token: str, opts: dict, fetchNext=True):
+    def moveToCompleted(self, job: Job, val: Any, removeOnComplete, token: str, opts: dict, fetchNext=True):
         return self.moveToFinished(job, val, "returnvalue", removeOnComplete, "completed", token, opts, fetchNext)
 
-    def moveToFailed(self, job: bullmq.Job, failedReason: str, removeOnFailed, token: str, opts: dict, fetchNext=True):
+    def moveToFailed(self, job: Job, failedReason: str, removeOnFailed, token: str, opts: dict, fetchNext=True):
         return self.moveToFinished(job, failedReason, "failedReason", removeOnFailed, "failed", token, opts, fetchNext)
 
     async def updateProgress(self, job_id: str, progress):
@@ -193,7 +192,7 @@ class Scripts:
                 return metrics.get("maxDataPoints", "")
             return ""
 
-        def getFailParentOnFailure(job: bullmq.Job):
+        def getFailParentOnFailure(job: Job):
             opts = job.opts
             if opts is not None:
                 return opts.get("failParentOnFailure", False)

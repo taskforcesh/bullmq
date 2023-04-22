@@ -7,7 +7,6 @@ from bullmq.types import JobOptions
 
 import json
 import time
-import bullmq
 
 
 optsDecodeMap = {
@@ -51,7 +50,7 @@ class Job:
         return self.scripts.updateProgress(self.id, progress)
 
     @staticmethod
-    def fromJSON(client: Redis, rawData: dict, jobId: str | None = None):
+    def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
         """
         Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
 
@@ -62,7 +61,7 @@ class Job:
         data = json.loads(rawData.get("data", '{}'))
         opts = optsFromJSON(json.loads(rawData.get("opts", '{}')))
 
-        job = Job(client, rawData.get("name"), data, opts)
+        job = Job(queue, rawData.get("name"), data, opts)
         job.id = jobId or rawData.get("id", b'').decode("utf-8")
 
         job.progress = json.loads(rawData.get("progress",  '0'))
@@ -98,10 +97,10 @@ class Job:
         return job
 
     @staticmethod
-    async def fromId(queue: bullmq.Queue, jobId: str):
+    async def fromId(queue: Queue, jobId: str):
         key = f"{queue.prefix}:{queue.name}:{jobId}"
         raw_data = await queue.client.hgetall(key)
-        return Job.fromJSON(queue.client, raw_data, jobId)
+        return Job.fromJSON(queue, raw_data, jobId)
 
 
 def optsFromJSON(rawOpts: dict) -> dict:
