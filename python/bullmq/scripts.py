@@ -2,9 +2,13 @@
     This class is used to load and execute Lua scripts.
     It is a wrapper around the Redis client.
 """
-from typing import Any
+
+from __future__ import annotations
 from redis import Redis
 from bullmq.error_code import ErrorCode
+from typing import Any, TYPE_CHECKING
+if TYPE_CHECKING:
+    from bullmq.job import Job
 
 import time
 import json
@@ -25,14 +29,15 @@ class Scripts:
         self.redisClient = redisClient
         self.commands = {
             "addJob": redisClient.register_script(self.getScript("addJob-8.lua")),
+            "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": redisClient.register_script(self.getScript("getCounts-1.lua")),
             "obliterate": redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": redisClient.register_script(self.getScript("pause-4.lua")),
             "moveToActive": redisClient.register_script(self.getScript("moveToActive-9.lua")),
             "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
-            "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
+            "updateProgress": redisClient.register_script(self.getScript("updateProgress-2.lua")),
         }
 
         # loop all the names and add them to the keys object
@@ -148,7 +153,18 @@ class Scripts:
     def moveToFailed(self, job: bullmq.Job, failedReason: str, removeOnFailed, token: str, opts: dict, fetchNext=True):
         return self.moveToFinished(job, failedReason, "failedReason", removeOnFailed, "failed", token, opts, fetchNext)
 
-    async def moveToFinished(self, job: bullmq.Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+    async def updateProgress(self, job_id: str, progress):
+        keys = [self.toKey(job_id), self.keys['events']]
+        progress_json = json.dumps(progress, separators=(',', ':'))
+        args = [job_id, progress_json]
+        result = await self.commands["updateProgress"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise finishedErrors(result, job_id, 'updateProgress')
+        return None
+
+    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 

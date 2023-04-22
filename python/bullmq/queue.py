@@ -1,4 +1,5 @@
 from bullmq.redis_connection import RedisConnection
+from bullmq.types import QueueOptions, RetryJobsOptions
 from typing import TypedDict
 
 import bullmq
@@ -26,7 +27,7 @@ class Queue:
     Instantiate a Queue object
     """
 
-    def __init__(self, name: str, redisOpts: dict = {}, opts: QueueOptions = {}):
+    def __init__(self, name: str, redisOpts: dict | str = {}, opts: QueueOptions = {}):
         """
         Initialize a connection
         """
@@ -46,6 +47,7 @@ class Queue:
         @param data: Arbitrary data to append to the job.
         @param opts: Job options that affects how the job is going to be processed.
         """
+
         job = bullmq.Job(self.client, name, data, opts)
         job_id = await self.scripts.addJob(job)
         job.id = job_id
@@ -99,7 +101,7 @@ class Queue:
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 
-    async def retryJobs(self, opts: RetryJobsOpts = {}):
+    async def retryJobs(self, opts: RetryJobsOptions = {}):
         """
         Retry all the failed jobs.
         """

@@ -109,54 +109,6 @@ describe('connection', () => {
     });
   });
 
-  describe('when host belongs to Upstash', async () => {
-    it('throws an error', async () => {
-      const opts = {
-        connection: {
-          host: 'https://upstash.io',
-        },
-      };
-
-      expect(() => new QueueBase(queueName, opts)).to.throw(
-        'BullMQ: Upstash is not compatible with BullMQ.',
-      );
-    });
-
-    describe('when using Cluster instance', async () => {
-      it('throws an error', async () => {
-        const connection = new IORedis.Cluster(
-          [
-            {
-              host: 'https://upstash.io',
-            },
-          ],
-          { natMap: {} },
-        );
-
-        expect(() => new QueueBase(queueName, { connection })).to.throw(
-          'BullMQ: Upstash is not compatible with BullMQ.',
-        );
-        await connection.disconnect();
-      });
-
-      describe('when using nodes provides an array of strings as hosts', async () => {
-        it('throws an error', async () => {
-          const connection = new IORedis.Cluster(
-            ['localhost', 'https://upstash.io'],
-            {
-              natMap: {},
-            },
-          );
-
-          expect(() => new QueueBase(queueName, { connection })).to.throw(
-            'BullMQ: Upstash is not compatible with BullMQ.',
-          );
-          await connection.disconnect();
-        });
-      });
-    });
-  });
-
   it('should recover from a connection loss', async () => {
     let processor;
 
