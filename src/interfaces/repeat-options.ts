@@ -1,13 +1,13 @@
 import { ParserOptions } from 'cron-parser';
 
 /**
- * Settings for repeatable jobs
+ * Settings for repeatable jobs.
  *
  * @see {@link https://docs.bullmq.io/guide/jobs/repeatable}
  */
 export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   /**
-   * A repeat pattern
+   * A repeat pattern.
    */
   pattern?: string;
   /**
@@ -15,13 +15,13 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
    */
   limit?: number;
   /**
-   * Repeat after this amount of milliseconds
+   * Repeat after this amount of milliseconds.
    * (`pattern` setting cannot be used together with this setting.)
    */
   every?: number;
   /**
-   * Repeated job should start right now
-   * ( work only with every settings)
+   * Repeated job should start right now.
+   * (works only with `every` settings)
    */
   immediately?: boolean;
   /**
