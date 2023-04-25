@@ -292,12 +292,11 @@ def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError
 
 def raw2NextJobData(raw: list[Any]) -> list[Any] | None:
     if raw:
-        # TODO: return all the raw datas (up to 4)
+        result = [None, raw[1], None, None] if len(raw) == 2 else [None, raw[1], raw[2], raw[3]]
         if raw[0]:
-            return (array2obj(raw[0]), raw[1])
-        else:
-            return (None, raw[1])
-    return None
+            result[0]= array2obj(raw[0])
+        return result
+    return [None, None, None, None]
 
 
 def array2obj(arr: list[str]) -> dict[str, str]:

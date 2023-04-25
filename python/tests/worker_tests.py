@@ -26,7 +26,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         queue = Queue(queueName)
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, { "removeOnComplete": False })
-            
+
         async def process(job: Job, token: str):
             print("Processing job", job)
             return "done"

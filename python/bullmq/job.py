@@ -62,7 +62,6 @@ class Job:
         finished_on = 0
         command = 'failed'
 
-        #pipe = self.queue.redisConnection.conn.pipeline()
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
             if self.attemptsMade < self.opts['attempts'] and not self.discarded:
                 delay = await Backoffs.calculate(
@@ -78,7 +77,7 @@ class Job:
                         token
                     )
 
-                    self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
+                    await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
                     command = 'delayed'
             else:
                 move_to_failed = True
@@ -91,8 +90,11 @@ class Job:
                 await self.scripts.commands["moveToFinished"](keys=keys, args=args, client=pipe)
                 finished_on = args[1]
 
-            values = await pipe.execute()
-            print(values)
+            results = await pipe.execute()
+            code = results[0]
+
+            if code < 0:
+                raise self.scripts.finishedErrors(code, self.id, command, 'active')
 
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
