@@ -6,8 +6,8 @@ import math
 class Backoffs:
 
     builtin_strategies = {
-        "fixed": lambda delay: lambda : delay,
-        "exponential": lambda delay: lambda attempts_made: int(round(pow(2, attempts_made - 1) * delay))
+        "fixed": lambda delay: lambda attempts_made, type, err, job: delay,
+        "exponential": lambda delay: lambda attempts_made, type, err, job: int(round(pow(2, attempts_made - 1) * delay))
     }    
 
 

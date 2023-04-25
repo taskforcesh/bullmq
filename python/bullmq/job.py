@@ -33,7 +33,9 @@ class Job:
         self.timestamp = opts.get("timestamp", round(time.time() * 1000))
         final_opts = {"attempts": 0, "delay": 0}
         final_opts.update(opts or {})
+        self.discarded = False
         self.opts = final_opts
+        self.queue = queue
         self.delay = opts.get("delay", 0)
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
@@ -57,8 +59,43 @@ class Job:
         self.failedReason = message
 
         move_to_failed = False
+        finished_on = 0
+        command = 'failed'
 
-        delay = await Backoffs.calculate(self.opts.backoff)
+        #pipe = self.queue.redisConnection.conn.pipeline()
+        async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
+            if self.attemptsMade < self.opts['attempts'] and not self.discarded:
+                delay = await Backoffs.calculate(
+                    self.opts['backoff'], self.attemptsMade,
+                    err, self, self.opts['settings'] and self.opts['settings']['backoffStrategy']
+                    )
+                if delay == -1:
+                    move_to_failed = True
+                elif delay:
+                    keys, args = self.scripts.moveToDelayedArgs(
+                        self.id,
+                        round(time.time() * 1000) + delay,
+                        token
+                    )
+
+                    self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
+                    command = 'delayed'
+            else:
+                move_to_failed = True
+
+            if move_to_failed:
+                keys, args = self.scripts.moveToFailedArgs(
+                    self, message, self.opts.get("removeOnFail", False),
+                    token, self.opts, fetchNext
+                )
+                await self.scripts.commands["moveToFinished"](keys=keys, args=args, client=pipe)
+                finished_on = args[1]
+
+            values = await pipe.execute()
+            print(values)
+
+        if finished_on and type(finished_on) == int:
+            self.finishedOn = finished_on
 
 
 def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):

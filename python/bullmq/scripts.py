@@ -189,7 +189,7 @@ class Scripts:
                 raise finishedErrors(result, job_id, 'updateProgress')
         return None
 
-    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+    def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 
@@ -238,14 +238,25 @@ class Scripts:
 
         args = [job.id, timestamp, propVal, val or "", target, "",
                 fetchNext and "fetch" or "", self.keys[''], packedOpts]
+        return (keys, args)
+
+    def moveToFailedArgs(self, job: Job, failed_reason: str, shouldRemove, token: str, opts: dict, fetchNext=True):
+        return self.moveToFinishedArgs(
+            job, failed_reason, 'failedReason', shouldRemove, 'failed',
+            token, opts, fetchNext
+        )
+
+    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+        keys, args = self.moveToFinishedArgs(job, val, propVal, shouldRemove, target, token, opts, fetchNext)
+
         result = await self.commands["moveToFinished"](keys=keys, args=args)
 
         if result is not None:
             if result < 0:
                 raise finishedErrors(result, job.id, 'finished', 'active')
-            else:
+            #else:
                 # I do not like this as it is using a sideeffect
-                job.finishedOn = timestamp
+                # job.finishedOn = timestamp
             return raw2NextJobData(result)
         return None
 

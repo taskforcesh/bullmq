@@ -120,7 +120,8 @@ class Worker(EventEmitter):
                 stacktrace = traceback.format_exc()
 
                 if not self.forceClosing:
-                    await self.scripts.moveToFailed(job, str(err), job.opts.get("removeOnFail", False), token, self.opts, fetchNext=not self.closing)
+                    await job.moveToFailed(err, token)
+                    #await self.scripts.moveToFailed(job, str(err), job.opts.get("removeOnFail", False), token, self.opts, fetchNext=not self.closing)
 
                 # TODO: Store the stacktrace in the job
 
