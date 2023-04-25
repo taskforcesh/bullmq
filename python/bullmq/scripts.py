@@ -113,7 +113,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise finishedErrors(result, job_id, 'moveToDelayed', 'active')
+                raise self.finishedErrors(result, job_id, 'moveToDelayed', 'active')
         return None
 
     def getCounts(self, types):
@@ -188,7 +188,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise finishedErrors(result, job_id, 'updateProgress')
+                raise self.finishedErrors(result, job_id, 'updateProgress')
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
@@ -255,10 +255,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise finishedErrors(result, job.id, 'finished', 'active')
-            #else:
-                # I do not like this as it is using a sideeffect
-                # job.finishedOn = timestamp
+                raise self.finishedErrors(result, job.id, 'finished', 'active')
             return raw2NextJobData(result)
         return None
 
@@ -275,21 +272,21 @@ class Scripts:
         return self.commands["moveStalledJobsToWait"](keys, args)
 
 
-def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError:
-    if code == ErrorCode.JobNotExist.value:
-        return TypeError(f"Missing key for job {jobId}.{command}")
-    elif code == ErrorCode.JobLockNotExist.value:
-        return TypeError(f"Missing lock for job {jobId}.{command}")
-    elif code == ErrorCode.JobNotInState.value:
-        return TypeError(f"Job {jobId} is not in the state {state}.{command}")
-    elif code == ErrorCode.JobPendingDependencies.value:
-        return TypeError(f"Job {jobId} has pending dependencies.{command}")
-    elif code == ErrorCode.ParentJobNotExist.value:
-        return TypeError(f"Missing key for parent job {jobId}.{command}")
-    elif code == ErrorCode.JobLockMismatch.value:
-        return TypeError(f"Lock mismatch for job {jobId}. Cmd {command} from {state}")
-    else:
-        return TypeError(f"Unknown code {str(code)} error for {jobId}.{command}")
+    def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError:
+        if code == ErrorCode.JobNotExist.value:
+            return TypeError(f"Missing key for job {jobId}.{command}")
+        elif code == ErrorCode.JobLockNotExist.value:
+            return TypeError(f"Missing lock for job {jobId}.{command}")
+        elif code == ErrorCode.JobNotInState.value:
+            return TypeError(f"Job {jobId} is not in the state {state}.{command}")
+        elif code == ErrorCode.JobPendingDependencies.value:
+            return TypeError(f"Job {jobId} has pending dependencies.{command}")
+        elif code == ErrorCode.ParentJobNotExist.value:
+            return TypeError(f"Missing key for parent job {jobId}.{command}")
+        elif code == ErrorCode.JobLockMismatch.value:
+            return TypeError(f"Lock mismatch for job {jobId}. Cmd {command} from {state}")
+        else:
+            return TypeError(f"Unknown code {str(code)} error for {jobId}.{command}")
 
 
 def raw2NextJobData(raw: list[Any]) -> list[Any] | None:
