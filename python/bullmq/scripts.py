@@ -94,14 +94,16 @@ class Scripts:
 
         if timestamp > 0:
             max_timestamp = max_timestamp * 0x1000 + (convert_to_int(job_id) & 0xfff)
-        
-        keys = self.getKeys(['wait', 'active', 'priority', 'delayed',
-            job_id, 'events', 'paused', 'meta'])
-        
+
+        keys = self.getKeys(['wait', 'active', 'priority', 'delayed'])
+        keys.append(self.toKey(job_id))
+        keys.append(self.keys['events'])
+        keys.append(self.keys['paused'])
+        keys.append(self.keys['meta'])
 
         args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
             job_id, token]
-        
+
         return (keys, args)
 
     async def moveToDelayed(self, job_id: str, timestamp: int, token: str = "0"):

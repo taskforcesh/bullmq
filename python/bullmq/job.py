@@ -65,8 +65,8 @@ class Job:
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
             if self.attemptsMade < self.opts['attempts'] and not self.discarded:
                 delay = await Backoffs.calculate(
-                    self.opts['backoff'], self.attemptsMade,
-                    err, self, self.opts['settings'] and self.opts['settings']['backoffStrategy']
+                    self.opts.get('backoff'), self.attemptsMade,
+                    err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
                     )
                 if delay == -1:
                     move_to_failed = True

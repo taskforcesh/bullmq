@@ -22,19 +22,20 @@ def normalize(backoff: int | BackoffOptions):
 
 
 def lookup_strategy(backoff: BackoffOptions, custom_strategy):
-    if backoff.type in Backoffs.builtin_strategies:
+    backoff_type = backoff.get("type")
+    if backoff_type in Backoffs.builtin_strategies:
         Backoffs.builtin_strategies[backoff.type](backoff.delay)
     elif custom_strategy:
         return custom_strategy
     else:
-        raise Exception(f"Unknown backoff strategy {backoff.type}.If a custom backoff strategy is used, specify it when the queue is created.")
+        raise Exception(f"Unknown backoff strategy {backoff_type}.If a custom backoff strategy is used, specify it when the queue is created.")
 
 
-def calculate(backoff: BackoffOptions, attempts_made: int, err, job, customStrategy):
+async def calculate(backoff: BackoffOptions, attempts_made: int, err, job, customStrategy):
     if backoff:
         strategy = lookup_strategy(backoff, customStrategy)
 
-        return strategy(attempts_made, backoff.type, err, job)
+        return strategy(attempts_made, backoff.get("type"), err, job)
 
 
 Backoffs.normalize = staticmethod(normalize)

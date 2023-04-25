@@ -16,12 +16,14 @@ class Worker(EventEmitter):
         super().__init__()
         self.name = name
         self.processor = processor
-        self.opts = {
-            "concurrency": opts.get("concurrency", 1),
-            "lockDuration": opts.get("lockDuration", 30000),
-            "maxStalledCount": opts.get("maxStalledCount", 1),
-            "stalledInterval": opts.get("stalledInterval", 30000),
+        final_opts = {
+            "concurrency": 1,
+            "lockDuration": 30000,
+            "maxStalledCount": 1,
+            "stalledInterval": 30000,
         }
+        final_opts.update(opts or {})
+        self.opts = final_opts
         redis_opts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redis_opts)
         self.blockingRedisConnection = RedisConnection(redis_opts)
