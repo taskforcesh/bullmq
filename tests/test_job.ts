@@ -532,7 +532,9 @@ describe('Job', function () {
 
       await expect(
         job.moveToCompleted('return value', token),
-      ).to.be.rejectedWith(`Job ${job.id} has pending dependencies. finished`);
+      ).to.be.rejectedWith(
+        `Job ${job.id} has pending dependencies. moveToFinished`,
+      );
 
       const lock = await client.get(`bull:${parentQueueName}:${job.id}:lock`);
 
