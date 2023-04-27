@@ -423,7 +423,7 @@ export class Scripts {
   moveToCompletedArgs<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     returnvalue: R,
-    removeOnCompleted: boolean | number | KeepJobs,
+    removeOnComplete: boolean | number | KeepJobs,
     token: string,
     fetchNext = false,
   ): (string | number | boolean | Buffer)[] {
@@ -432,7 +432,7 @@ export class Scripts {
       job,
       returnvalue,
       'returnvalue',
-      removeOnCompleted,
+      removeOnComplete,
       'completed',
       token,
       timestamp,
