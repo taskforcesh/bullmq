@@ -16,12 +16,14 @@ class Worker(EventEmitter):
         super().__init__()
         self.name = name
         self.processor = processor
-        self.opts = {
-            "concurrency": opts.get("concurrency", 1),
-            "lockDuration": opts.get("lockDuration", 30000),
-            "maxStalledCount": opts.get("maxStalledCount", 1),
-            "stalledInterval": opts.get("stalledInterval", 30000),
+        final_opts = {
+            "concurrency": 1,
+            "lockDuration": 30000,
+            "maxStalledCount": 1,
+            "stalledInterval": 30000,
         }
+        final_opts.update(opts or {})
+        self.opts = final_opts
         redis_opts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redis_opts)
         self.blockingRedisConnection = RedisConnection(redis_opts)
@@ -92,9 +94,11 @@ class Worker(EventEmitter):
         result = await self.scripts.moveToActive(token, self.opts)
         job = None
         job_id = None
+        limit_until = None
         delay_until = None
+
         if result:
-            job, job_id = result
+            job, job_id, limit_until, delay_until = result
 
         # If there are no jobs in the waiting list we keep waiting with BRPOPLPUSH
         if job is None:
@@ -102,7 +106,7 @@ class Worker(EventEmitter):
                           if delay_until else 5000, 5000) / 1000
             job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
             if job_id:
-                job, job_id = await self.scripts.moveToActive(token, self.opts, job_id)
+                job, job_id, limit_until, delay_until = await self.scripts.moveToActive(token, self.opts, job_id)
 
         if job and job_id:
             return Job.fromJSON(self, job, job_id)
@@ -120,7 +124,7 @@ class Worker(EventEmitter):
                 stacktrace = traceback.format_exc()
 
                 if not self.forceClosing:
-                    await self.scripts.moveToFailed(job, str(err), job.opts.get("removeOnFail", False), token, self.opts, fetchNext=not self.closing)
+                    await job.moveToFailed(err, token)
 
                 # TODO: Store the stacktrace in the job
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List, Any, TYPE_CHECKING
 from bullmq.scripts import Scripts
+from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
 from bullmq.types import JobOptions
@@ -30,7 +31,11 @@ class Job:
         self.id = opts.get("jobId", None)
         self.progress = 0
         self.timestamp = opts.get("timestamp", round(time.time() * 1000))
-        self.opts = opts
+        final_opts = {"attempts": 0, "delay": 0}
+        final_opts.update(opts or {})
+        self.discarded = False
+        self.opts = final_opts
+        self.queue = queue
         self.delay = opts.get("delay", 0)
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
@@ -48,6 +53,51 @@ class Job:
     def updateProgress(self, progress):
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)
+    
+    async def moveToFailed(self, err, token:str, fetchNext:bool = False):
+        message = str(err)
+        self.failedReason = message
+
+        move_to_failed = False
+        finished_on = 0
+        command = 'failed'
+
+        async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
+            if self.attemptsMade < self.opts['attempts'] and not self.discarded:
+                delay = await Backoffs.calculate(
+                    self.opts.get('backoff'), self.attemptsMade,
+                    err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
+                    )
+                if delay == -1:
+                    move_to_failed = True
+                elif delay:
+                    keys, args = self.scripts.moveToDelayedArgs(
+                        self.id,
+                        round(time.time() * 1000) + delay,
+                        token
+                    )
+
+                    await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
+                    command = 'delayed'
+            else:
+                move_to_failed = True
+
+            if move_to_failed:
+                keys, args = self.scripts.moveToFailedArgs(
+                    self, message, self.opts.get("removeOnFail", False),
+                    token, self.opts, fetchNext
+                )
+                await self.scripts.commands["moveToFinished"](keys=keys, args=args, client=pipe)
+                finished_on = args[1]
+
+            results = await pipe.execute()
+            code = results[0]
+
+            if code < 0:
+                raise self.scripts.finishedErrors(code, self.id, command, 'active')
+
+        if finished_on and type(finished_on) == int:
+            self.finishedOn = finished_on
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):

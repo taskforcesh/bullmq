@@ -1,8 +1,13 @@
 from typing import TypedDict
-from bullmq.types import KeepJobs
+from bullmq.types import BackoffOptions, KeepJobs
 
 
 class JobOptions(TypedDict, total=False):
+    backoff: int | BackoffOptions
+    """
+    Backoff setting for automatic retries if the job fails.
+    """
+    
     jobId: str
     """
     Override the job ID - by default, the job ID is a unique
