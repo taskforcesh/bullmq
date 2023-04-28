@@ -58,3 +58,8 @@ class JobOptions(TypedDict, total=False):
     age and/or count to keep. It overrides whatever setting is used in the worker.
     Default behavior is to keep the job in the failed set.
     """
+
+    stackTraceLimit: int
+    """
+    Limits the amount of stack trace lines that will be recorded in the stacktrace.
+    """

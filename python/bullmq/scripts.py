@@ -37,6 +37,7 @@ class Scripts:
             "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
+            "saveStacktrace": redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateProgress": redisClient.register_script(self.getScript("updateProgress-2.lua")),
         }
 
@@ -88,6 +89,12 @@ class Scripts:
                             'delayed', 'priority', 'completed', 'events'])
 
         return self.commands["addJob"](keys=keys, args=[packedArgs, jsonData, packedOpts])
+
+    def saveStacktraceArgs(self, job_id: str, stacktrace: str, failedReason: str):
+        keys = [self.toKey(job_id)]
+        args = [stacktrace, failedReason]
+
+        return (keys, args)
 
     def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str):
         max_timestamp = max(0, timestamp or 0)
