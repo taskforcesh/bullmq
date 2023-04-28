@@ -75,8 +75,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failedJob.attemptsMade, 1)
         self.assertEqual(failedJob.data, data)
         self.assertEqual(failedJob.failedReason, failedReason)
-        self.assertEqual(failedJob.stacktrace, [])
-        self.assertEqual(failedJob.returnvalue, None)
+        self.assertEqual(len(failedJob.stacktrace), 1)
         self.assertEqual(failedJob.returnvalue, None)
         self.assertNotEqual(failedJob.finishedOn, None)
 

@@ -8,6 +8,7 @@ from bullmq.types import JobOptions
 
 import json
 import time
+import traceback
 
 
 optsDecodeMap = {
@@ -53,16 +54,17 @@ class Job:
     def updateProgress(self, progress):
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)
-    
+
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
-        message = str(err)
-        self.failedReason = message
+        error_message = str(err)
+        self.failedReason = error_message
 
         move_to_failed = False
         finished_on = 0
-        command = 'failed'
+        command = 'moveToFailed'
 
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
+            await self.saveStacktrace(pipe, error_message)
             if self.attemptsMade < self.opts['attempts'] and not self.discarded:
                 delay = await Backoffs.calculate(
                     self.opts.get('backoff'), self.attemptsMade,
@@ -84,20 +86,35 @@ class Job:
 
             if move_to_failed:
                 keys, args = self.scripts.moveToFailedArgs(
-                    self, message, self.opts.get("removeOnFail", False),
+                    self, error_message, self.opts.get("removeOnFail", False),
                     token, self.opts, fetchNext
                 )
                 await self.scripts.commands["moveToFinished"](keys=keys, args=args, client=pipe)
                 finished_on = args[1]
 
             results = await pipe.execute()
-            code = results[0]
+            code = results[1]
 
             if code < 0:
                 raise self.scripts.finishedErrors(code, self.id, command, 'active')
 
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
+
+    async def saveStacktrace(self, pipe, err:str):
+        stacktrace = traceback.format_exc()
+        stackTraceLimit = self.opts.get("stackTraceLimit")
+
+        if stacktrace:
+            self.stacktrace.append(stacktrace)
+            if self.opts.get("stackTraceLimit"):
+                self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
+
+        keys, args = self.scripts.saveStacktraceArgs(
+            self.id, json.dumps(self.stacktrace, separators=(',', ':')), err)
+
+        await self.scripts.commands["saveStacktrace"](keys=keys, args=args, client=pipe)
+
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):

@@ -121,12 +121,8 @@ class Worker(EventEmitter):
         except Exception as err:
             try:
                 print("Error processing job", err)
-                stacktrace = traceback.format_exc()
-
                 if not self.forceClosing:
                     await job.moveToFailed(err, token)
-
-                # TODO: Store the stacktrace in the job
 
                 self.emit("failed", job, err)
             except Exception as err:
