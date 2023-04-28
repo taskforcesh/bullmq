@@ -785,11 +785,9 @@ export class Worker<
       clearTimeout(this.stalledCheckTimer);
 
       await this.runStalledJobsCheck();
-      //console.log('hey')
       if (!this.closing) {
         this.stalledCheckTimer = setTimeout(async () => {
           await this.startStalledCheckTimer();
-          //console.log('hola')
         }, this.opts.stalledInterval);
       }
     }
@@ -901,20 +899,6 @@ export class Worker<
     try {
       if (!this.closing) {
         await this.checkConnectionError(() => this.moveStalledJobsToWait());
-        /*try {
-          await this.moveStalledJobsToWait();
-        } catch (error) {
-          console.log('el error', error)
-          if (isNotConnectionError(error as Error)) {
-            this.emit('error', <Error>error);
-          }
-    
-          if (!this.closing && 5000) {
-            await delay(5000);
-          } else {
-            return;
-          }
-        }*/
       }
     } catch (err) {
       this.emit('error', <Error>err);
@@ -925,12 +909,10 @@ export class Worker<
     const chunkSize = 50;
     const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
 
-    //console.log('hola', failed, stalled)
     stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
 
     let jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
     for (let i = 0; i < failed.length; i++) {
-      //console.log('cumu')
       jobPromises.push(
         Job.fromId<DataType, ResultType, NameType>(
           this as MinimalQueue,
@@ -939,7 +921,6 @@ export class Worker<
       );
 
       if (i % chunkSize === 0) {
-        //console.log('ingreso')
         const jobs = await Promise.all(jobPromises);
         this.notifyFailedJobs(jobs);
         jobPromises = [];
@@ -947,7 +928,6 @@ export class Worker<
     }
 
     if (jobPromises.length > 0) {
-      //console.log('que')
       const jobs = await Promise.all(jobPromises);
       this.notifyFailedJobs(jobs);
     }
