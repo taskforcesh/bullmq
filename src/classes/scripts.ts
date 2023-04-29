@@ -303,39 +303,17 @@ export class Scripts {
       : { count: shouldRemove ? 0 : -1 };
   }
 
-  protected async moveToFinished<
+  async moveToFinished<
     DataType = any,
     ReturnType = any,
     NameType extends string = string,
-  >(
-    job: MinimalJob<DataType, ReturnType, NameType>,
-    val: any,
-    propVal: FinishedPropValAttribute,
-    shouldRemove: boolean | number | KeepJobs,
-    target: FinishedStatus,
-    token: string,
-    fetchNext: boolean,
-  ) {
+  >(jobId: string, args: (string | number | boolean | Buffer)[]) {
     const client = await this.queue.client;
-
-    const timestamp = Date.now();
-    const args = this.moveToFinishedArgs<DataType, ReturnType, NameType>(
-      job,
-      val,
-      propVal,
-      shouldRemove,
-      target,
-      token,
-      timestamp,
-      fetchNext,
-    );
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'finished', 'active');
+      throw this.finishedErrors(result, jobId, 'moveToFinished', 'active');
     } else {
-      job.finishedOn = timestamp;
-
       if (typeof result !== 'undefined') {
         return raw2NextJobData(result);
       }
@@ -442,20 +420,22 @@ export class Scripts {
     return (<any>client).getCounts(args);
   }
 
-  moveToCompleted<T = any, R = any, N extends string = string>(
+  moveToCompletedArgs<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     returnvalue: R,
     removeOnComplete: boolean | number | KeepJobs,
     token: string,
-    fetchNext: boolean,
-  ) {
-    return this.moveToFinished<T, R, N>(
+    fetchNext = false,
+  ): (string | number | boolean | Buffer)[] {
+    const timestamp = Date.now();
+    return this.moveToFinishedArgs(
       job,
       returnvalue,
       'returnvalue',
       removeOnComplete,
       'completed',
       token,
+      timestamp,
       fetchNext,
     );
   }
