@@ -799,34 +799,36 @@ export class Worker<
     if (!this.opts.skipLockRenewal) {
       clearTimeout(this.extendLocksTimer);
 
-      this.extendLocksTimer = setTimeout(async () => {
-        // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
-        const now = Date.now();
-        const jobsToExtend = [];
+      if (!this.closing) {
+        this.extendLocksTimer = setTimeout(async () => {
+          // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
+          const now = Date.now();
+          const jobsToExtend = [];
 
-        for (const item of jobsInProgress) {
-          const { job, ts } = item;
-          if (!ts) {
-            item.ts = now;
-            continue;
+          for (const item of jobsInProgress) {
+            const { job, ts } = item;
+            if (!ts) {
+              item.ts = now;
+              continue;
+            }
+
+            if (ts + this.opts.lockRenewTime / 2 < now) {
+              item.ts = now;
+              jobsToExtend.push(job);
+            }
           }
 
-          if (ts + this.opts.lockRenewTime / 2 < now) {
-            item.ts = now;
-            jobsToExtend.push(job);
+          try {
+            if (jobsToExtend.length) {
+              await this.extendLocks(jobsToExtend);
+            }
+          } catch (err) {
+            this.emit('error', <Error>err);
           }
-        }
 
-        try {
-          if (jobsToExtend.length) {
-            await this.extendLocks(jobsToExtend);
-          }
-        } catch (err) {
-          this.emit('error', <Error>err);
-        }
-
-        this.startLockExtenderTimer(jobsInProgress);
-      }, this.opts.lockRenewTime / 2);
+          this.startLockExtenderTimer(jobsInProgress);
+        }, this.opts.lockRenewTime / 2);
+      }
     }
   }
 
@@ -912,11 +914,11 @@ export class Worker<
     stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
 
     let jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
-    for (let i = 0; i < failed.length; i++) {
+    for (let i = 1; i <= failed.length; i++) {
       jobPromises.push(
         Job.fromId<DataType, ResultType, NameType>(
           this as MinimalQueue,
-          failed[i],
+          failed[i - 1],
         ),
       );
 

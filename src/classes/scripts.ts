@@ -883,7 +883,6 @@ export class Scripts {
       Date.now(),
       opts.stalledInterval,
     ];
-    console.log('ble');
     return (<any>client).moveStalledJobsToWait(keys.concat(args));
   }
 
