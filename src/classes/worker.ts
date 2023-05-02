@@ -784,10 +784,10 @@ export class Worker<
     if (!this.opts.skipStalledCheck) {
       clearTimeout(this.stalledCheckTimer);
 
+      await this.runStalledJobsCheck();
       this.stalledCheckTimer = setTimeout(async () => {
         await this.startStalledCheckTimer();
       }, this.opts.stalledInterval);
-      await this.runStalledJobsCheck();
     }
   }
 
