@@ -784,12 +784,10 @@ export class Worker<
     if (!this.opts.skipStalledCheck) {
       clearTimeout(this.stalledCheckTimer);
 
+      this.stalledCheckTimer = setTimeout(async () => {
+        await this.startStalledCheckTimer();
+      }, this.opts.stalledInterval);
       await this.runStalledJobsCheck();
-      if (!this.closing) {
-        this.stalledCheckTimer = setTimeout(async () => {
-          await this.startStalledCheckTimer();
-        }, this.opts.stalledInterval);
-      }
     }
   }
 
@@ -913,25 +911,23 @@ export class Worker<
 
     stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
 
-    let jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
-    for (let i = 1; i <= failed.length; i++) {
+    const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
+    for (let i = 0; i < failed.length; i++) {
       jobPromises.push(
         Job.fromId<DataType, ResultType, NameType>(
           this as MinimalQueue,
-          failed[i - 1],
+          failed[i],
         ),
       );
 
-      if (i % chunkSize === 0) {
-        const jobs = await Promise.all(jobPromises);
-        this.notifyFailedJobs(jobs);
-        jobPromises = [];
+      if ((i + 1) % chunkSize === 0) {
+        this.notifyFailedJobs(await Promise.all(jobPromises));
+        jobPromises.length = 0;
       }
     }
 
     if (jobPromises.length > 0) {
-      const jobs = await Promise.all(jobPromises);
-      this.notifyFailedJobs(jobs);
+      this.notifyFailedJobs(await Promise.all(jobPromises));
     }
   }
 
