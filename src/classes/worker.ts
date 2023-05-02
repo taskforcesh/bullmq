@@ -382,7 +382,7 @@ export class Worker<
       await this.startStalledCheckTimer();
 
       const jobsInProgress = new Set<{ job: Job; ts: number }>();
-      await this.startLockExtenderTimer(jobsInProgress);
+      this.startLockExtenderTimer(jobsInProgress);
 
       const asyncFifoQueue = (this.asyncFifoQueue =
         new AsyncFifoQueue<void | Job<DataType, ResultType, NameType>>());
@@ -791,9 +791,9 @@ export class Worker<
     }
   }
 
-  private async startLockExtenderTimer(
+  private startLockExtenderTimer(
     jobsInProgress: Set<{ job: Job; ts: number }>,
-  ): Promise<void> {
+  ): void {
     if (!this.opts.skipLockRenewal) {
       clearTimeout(this.extendLocksTimer);
 
