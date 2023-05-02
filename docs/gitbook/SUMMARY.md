@@ -97,3 +97,4 @@
 ## Python
 
 * [Introduction](python/introduction.md)
+* [Changelog](python/changelog.md)
