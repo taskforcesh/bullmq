@@ -125,10 +125,14 @@ describe('events', function () {
         }),
       );
 
-      const cleaned = new Promise<void>(resolve => {
+      const cleaned = new Promise<void>((resolve, reject) => {
         queueEvents.once('cleaned', async ({ count }) => {
-          expect(count).to.be.eql('50');
-          resolve();
+          try {
+            expect(count).to.be.eql('50');
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
         });
       });
 
