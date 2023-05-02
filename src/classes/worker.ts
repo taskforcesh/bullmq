@@ -784,10 +784,16 @@ export class Worker<
     if (!this.opts.skipStalledCheck) {
       clearTimeout(this.stalledCheckTimer);
 
-      await this.runStalledJobsCheck();
-      this.stalledCheckTimer = setTimeout(async () => {
-        await this.startStalledCheckTimer();
-      }, this.opts.stalledInterval);
+      if (!this.closing) {
+        try {
+          await this.checkConnectionError(() => this.moveStalledJobsToWait());
+          this.stalledCheckTimer = setTimeout(async () => {
+            await this.startStalledCheckTimer();
+          }, this.opts.stalledInterval);
+        } catch (err) {
+          this.emit('error', <Error>err);
+        }
+      }
     }
   }
 
@@ -889,16 +895,6 @@ export class Worker<
             new Error(`could not renew lock for job ${jobId}`),
           );
         }
-      }
-    } catch (err) {
-      this.emit('error', <Error>err);
-    }
-  }
-
-  private async runStalledJobsCheck() {
-    try {
-      if (!this.closing) {
-        await this.checkConnectionError(() => this.moveStalledJobsToWait());
       }
     } catch (err) {
       this.emit('error', <Error>err);
