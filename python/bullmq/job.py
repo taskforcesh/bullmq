@@ -81,6 +81,11 @@ class Job:
 
                     await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
                     command = 'delayed'
+                else:
+                    keys, args = self.scripts.retryJobArgs(self.id, self.opts.get("lifo", False), token)
+
+                    await self.scripts.commands["retryJob"](keys=keys, args=args, client=pipe)
+                    command = 'retryJob'
             else:
                 move_to_failed = True
 

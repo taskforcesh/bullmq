@@ -36,6 +36,7 @@ class Scripts:
             "moveToDelayed": redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
+            "retryJob": redisClient.register_script(self.getScript("retryJob-8.lua")),
             "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
             "saveStacktrace": redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateProgress": redisClient.register_script(self.getScript("updateProgress-2.lua")),
@@ -93,6 +94,21 @@ class Scripts:
     def saveStacktraceArgs(self, job_id: str, stacktrace: str, failedReason: str):
         keys = [self.toKey(job_id)]
         args = [stacktrace, failedReason]
+
+        return (keys, args)
+
+    def retryJobArgs(self, job_id: str, lifo: bool, token: str):
+        keys = self.getKeys(['active', 'wait', 'paused'])
+        keys.append(self.toKey(job_id))
+        keys.append(self.keys['meta'])
+        keys.append(self.keys['events'])
+        keys.append(self.keys['delayed'])
+        keys.append(self.keys['priority'])
+
+        push_cmd = "R" if lifo else "L"
+
+        args = [self.keys[''], round(time.time() * 1000), push_cmd,
+            job_id, token]
 
         return (keys, args)
 
@@ -178,7 +194,6 @@ class Scripts:
 
         result = await self.commands["moveToActive"](keys=keys, args=args)
 
-        # Todo: up to 4 results in tuple (only 2 now)
         return raw2NextJobData(result)
 
     def moveToCompleted(self, job: Job, val: Any, removeOnComplete, token: str, opts: dict, fetchNext=True):
