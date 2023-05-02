@@ -615,7 +615,7 @@ export class Job<
         (<any>multi).retryJob(
           this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
         );
-        command = 'retry';
+        command = 'retryJob';
       }
     } else {
       // If not, move to failed
