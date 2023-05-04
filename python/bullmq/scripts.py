@@ -39,6 +39,7 @@ class Scripts:
             "retryJob": redisClient.register_script(self.getScript("retryJob-8.lua")),
             "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
             "saveStacktrace": redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
+            "updateData": redisClient.register_script(self.getScript("updateData-1.lua")),
             "updateProgress": redisClient.register_script(self.getScript("updateProgress-2.lua")),
         }
 
@@ -145,6 +146,18 @@ class Scripts:
             map(lambda type: 'wait' if type == 'waiting' else type, types))
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
+
+    async def updateData(self, job_id: str, data):
+        keys = [self.toKey(job_id)]
+        data_json = json.dumps(data, separators=(',', ':'))
+        args = [data_json]
+
+        result = await self.commands["updateData"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job_id, 'updateData')
+        return None
 
     def pause(self, pause: bool = True):
         """
