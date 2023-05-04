@@ -147,7 +147,7 @@ export class Repeat extends QueueBase {
       name,
       nextMillis: '',
       namespace: repeatJobKey,
-      jobId: jobId || repeat.jobId,
+      jobId: jobId ?? repeat.jobId,
       key: repeat.key,
     });
 
@@ -216,10 +216,8 @@ function getRepeatJobId({
   jobId?: string;
   key?: string;
 }) {
-  const checksum = key ? key : md5(`${name}${jobId || ''}${md5(namespace)}`);
+  const checksum = key ?? md5(`${name}${jobId || ''}${md5(namespace)}`);
   return `repeat:${checksum}:${nextMillis}`;
-  // return `repeat:${jobId || ''}:${name}:${namespace}:${nextMillis}`;
-  //return `repeat:${name}:${namespace}:${nextMillis}`;
 }
 
 function getRepeatKey(name: string, repeat: RepeatOptions) {
