@@ -922,9 +922,7 @@ export class Worker<
       }
     }
 
-    if (jobPromises.length > 0) {
-      this.notifyFailedJobs(await Promise.all(jobPromises));
-    }
+    this.notifyFailedJobs(await Promise.all(jobPromises));
   }
 
   private notifyFailedJobs(failedJobs: Job<DataType, ResultType, NameType>[]) {
