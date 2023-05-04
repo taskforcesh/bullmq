@@ -424,7 +424,6 @@ export class Worker<
       }
 
       this.running = false;
-      // return Promise.all(processing);
       return asyncFifoQueue.waitAll();
     } catch (error) {
       this.running = false;
@@ -638,11 +637,10 @@ export class Worker<
           }
 
           if (
-            (err instanceof DelayedError || err.name == 'DelayedError') ||
-            (
-              err instanceof WaitingChildrenError ||
-              err.name == 'WaitingChildrenError'
-            )
+            err instanceof DelayedError ||
+            err.name == 'DelayedError' ||
+            err instanceof WaitingChildrenError ||
+            err.name == 'WaitingChildrenError'
           ) {
             return;
           }
