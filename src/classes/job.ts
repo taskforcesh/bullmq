@@ -541,13 +541,18 @@ export class Job<
       throw errorObject.value;
     }
 
-    return this.scripts.moveToCompleted(
+    const args = this.scripts.moveToCompletedArgs(
       this,
       stringifiedReturnValue,
       this.opts.removeOnComplete,
       token,
       fetchNext,
     );
+
+    const result = await this.scripts.moveToFinished(this.id, args);
+    this.finishedOn = args[13] as number;
+
+    return result;
   }
 
   /**
@@ -610,7 +615,7 @@ export class Job<
         (<any>multi).retryJob(
           this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
         );
-        command = 'retry';
+        command = 'retryJob';
       }
     } else {
       // If not, move to failed

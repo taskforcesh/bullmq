@@ -1,86 +1,35 @@
-from typing import Callable, TypedDict, Any, List
+from typing import Callable
 from uuid import uuid4
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
+from bullmq.types import WorkerOptions
 
 import asyncio
 import traceback
 import time
-
-
-class WorkerOptions(TypedDict, total=False):
-    autorun: bool
-    """
-    Condition to start processor at instance creation
-
-    @default true
-    """
-
-    concurrency: int
-    """
-    Amount of jobs that a single worker is allowed to work on
-    in parallel.
-
-    @default 1
-    @see https://docs.bullmq.io/guide/workers/concurrency
-    """
-
-    maxStalledCount: int
-    """
-    Amount of times a job can be recovered from a stalled state
-    to the `wait` state. If this is exceeded, the job is moved
-    to `failed`.
-
-    @default 1
-    """
-
-    stalledInterval: int
-    """
-    Number of milliseconds between stallness checks.
-
-    @default 30000
-    """
-
-    lockDuration: int
-    """
-    Duration of the lock for the job in milliseconds. The lock represents that
-    a worker is processing the job. If the lock is lost, the job will be eventually
-    be picked up by the stalled checker and move back to wait so that another worker
-    can process it again.
-
-    @default 30000
-    """
-
-    prefix: str
-    """
-    Prefix for all queue keys.
-    """
-
-    connection: dict[str, Any]
-    """
-    Options for connecting to a Redis instance.
-    """
-
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
         super().__init__()
         self.name = name
         self.processor = processor
-        self.opts = {
-            "concurrency": opts.get("concurrency", 1),
-            "lockDuration": opts.get("lockDuration", 30000),
-            "maxStalledCount": opts.get("maxStalledCount", 1),
-            "stalledInterval": opts.get("stalledInterval", 30000),
+        final_opts = {
+            "concurrency": 1,
+            "lockDuration": 30000,
+            "maxStalledCount": 1,
+            "stalledInterval": 30000,
         }
+        final_opts.update(opts or {})
+        self.opts = final_opts
         redis_opts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redis_opts)
         self.blockingRedisConnection = RedisConnection(redis_opts)
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
+        self.prefix = opts.get("prefix", "bull")
         self.scripts = Scripts(opts.get("prefix", "bull"), name, self.client)
         self.closing = False
         self.forceClosing = False
@@ -145,9 +94,11 @@ class Worker(EventEmitter):
         result = await self.scripts.moveToActive(token, self.opts)
         job = None
         job_id = None
+        limit_until = None
         delay_until = None
+
         if result:
-            job, job_id = result
+            job, job_id, limit_until, delay_until = result
 
         # If there are no jobs in the waiting list we keep waiting with BRPOPLPUSH
         if job is None:
@@ -155,10 +106,10 @@ class Worker(EventEmitter):
                           if delay_until else 5000, 5000) / 1000
             job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
             if job_id:
-                job, job_id = await self.scripts.moveToActive(token, self.opts, job_id)
+                job, job_id, limit_until, delay_until = await self.scripts.moveToActive(token, self.opts, job_id)
 
         if job and job_id:
-            return Job.fromJSON(self.client, job, job_id)
+            return Job.fromJSON(self, job, job_id)
 
     async def processJob(self, job: Job, token: str):
         try:
@@ -170,12 +121,8 @@ class Worker(EventEmitter):
         except Exception as err:
             try:
                 print("Error processing job", err)
-                stacktrace = traceback.format_exc()
-
                 if not self.forceClosing:
-                    await self.scripts.moveToFailed(job, str(err), job.opts.get("removeOnFail", False), token, self.opts, fetchNext=not self.closing)
-
-                # TODO: Store the stacktrace in the job
+                    await job.moveToFailed(err, token)
 
                 self.emit("failed", job, err)
             except Exception as err:
@@ -220,11 +167,17 @@ class Worker(EventEmitter):
         """
         if force:
             self.forceClosing = True
+            self.cancelProcessing()
 
         self.closing = True
 
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
+
+    def cancelProcessing(self):
+        for job in self.processing:
+            if not job.done():
+                job.cancel()
 
 
 async def getCompleted(task_set: set) -> tuple[list[Job], list]:
@@ -241,7 +194,8 @@ def extract_result(job_task):
     try:
         return job_task.result()
     except Exception as e:
-        # lets use a simple-but-effective error handling:
-        # print error message and ignore the job
-        print("ERROR:", e)
-        traceback.print_exc()
+        if not str(e).startswith('Connection closed by server'):
+            # lets use a simple-but-effective error handling:
+            # print error message and ignore the job
+            print("ERROR:", e)
+            traceback.print_exc()    

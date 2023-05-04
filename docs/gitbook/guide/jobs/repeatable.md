@@ -28,7 +28,7 @@ await myQueue.add(
   { color: 'yellow' },
   {
     repeat: {
-      pattern: '* 15 3 * * *',
+      pattern: '0 15 3 * * *',
     },
   },
 );

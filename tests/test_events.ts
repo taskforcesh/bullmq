@@ -104,46 +104,52 @@ describe('events', function () {
     await waiting;
   });
 
-  it('emits cleaned global event when jobs were cleaned', async function () {
-    const worker = new Worker(
-      queueName,
-      async () => {
-        await delay(5);
-      },
-      {
-        connection,
-        autorun: false,
-      },
-    );
-    const numJobs = 50;
+  describe('when jobs are cleaned', function () {
+    it('emits cleaned global event', async function () {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(10);
+        },
+        {
+          connection,
+          autorun: false,
+        },
+      );
+      const numJobs = 50;
 
-    worker.on(
-      'completed',
-      after(50, async function () {
-        await delay(1);
-        await queue.clean(0, 0, 'completed');
-      }),
-    );
+      worker.on(
+        'completed',
+        after(numJobs, async function () {
+          await delay(10);
+          await queue.clean(0, 0, 'completed');
+        }),
+      );
 
-    const cleaned = new Promise<void>(resolve => {
-      queueEvents.once('cleaned', async ({ count }) => {
-        expect(count).to.be.eql('50');
-        resolve();
+      const cleaned = new Promise<void>((resolve, reject) => {
+        queueEvents.once('cleaned', async ({ count }) => {
+          try {
+            expect(count).to.be.eql('50');
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        });
       });
+
+      const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+        name: 'test',
+        data: { foo: 'bar' },
+      }));
+      await queue.addBulk(jobs);
+
+      worker.run();
+
+      await cleaned;
+
+      const actualCount = await queue.count();
+      expect(actualCount).to.be.equal(0);
     });
-
-    const jobs = Array.from(Array(numJobs).keys()).map(() => ({
-      name: 'test',
-      data: { foo: 'bar' },
-    }));
-    await queue.addBulk(jobs);
-
-    worker.run();
-
-    await cleaned;
-
-    const actualCount = await queue.count();
-    expect(actualCount).to.be.equal(0);
   });
 
   it('emits drained global event when all jobs have been processed', async function () {

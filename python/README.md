@@ -18,7 +18,7 @@ have been ported so far:
 
 - [x] Workers
 - [ ] Job events.
-- [ ] Job progress.
+- [x] Job progress.
 - [ ] Job retries.
 - [ ] Job backoff.
 - [x] Getters.

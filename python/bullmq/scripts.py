@@ -2,10 +2,13 @@
     This class is used to load and execute Lua scripts.
     It is a wrapper around the Redis client.
 """
-from typing import Any
+
+from __future__ import annotations
 from redis import Redis
-from bullmq.job import Job
 from bullmq.error_code import ErrorCode
+from typing import Any, TYPE_CHECKING
+if TYPE_CHECKING:
+    from bullmq.job import Job
 
 import time
 import json
@@ -25,14 +28,19 @@ class Scripts:
         self.redisClient = redisClient
         self.commands = {
             "addJob": redisClient.register_script(self.getScript("addJob-8.lua")),
+            "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": redisClient.register_script(self.getScript("getCounts-1.lua")),
             "obliterate": redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": redisClient.register_script(self.getScript("pause-4.lua")),
             "moveToActive": redisClient.register_script(self.getScript("moveToActive-9.lua")),
+            "moveToDelayed": redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
-            "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
+            "retryJob": redisClient.register_script(self.getScript("retryJob-8.lua")),
             "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
+            "saveStacktrace": redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
+            "updateData": redisClient.register_script(self.getScript("updateData-1.lua")),
+            "updateProgress": redisClient.register_script(self.getScript("updateProgress-2.lua")),
         }
 
         # loop all the names and add them to the keys object
@@ -84,11 +92,72 @@ class Scripts:
 
         return self.commands["addJob"](keys=keys, args=[packedArgs, jsonData, packedOpts])
 
+    def saveStacktraceArgs(self, job_id: str, stacktrace: str, failedReason: str):
+        keys = [self.toKey(job_id)]
+        args = [stacktrace, failedReason]
+
+        return (keys, args)
+
+    def retryJobArgs(self, job_id: str, lifo: bool, token: str):
+        keys = self.getKeys(['active', 'wait', 'paused'])
+        keys.append(self.toKey(job_id))
+        keys.append(self.keys['meta'])
+        keys.append(self.keys['events'])
+        keys.append(self.keys['delayed'])
+        keys.append(self.keys['priority'])
+
+        push_cmd = "R" if lifo else "L"
+
+        args = [self.keys[''], round(time.time() * 1000), push_cmd,
+            job_id, token]
+
+        return (keys, args)
+
+    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str):
+        max_timestamp = max(0, timestamp or 0)
+
+        if timestamp > 0:
+            max_timestamp = max_timestamp * 0x1000 + (convert_to_int(job_id) & 0xfff)
+
+        keys = self.getKeys(['wait', 'active', 'priority', 'delayed'])
+        keys.append(self.toKey(job_id))
+        keys.append(self.keys['events'])
+        keys.append(self.keys['paused'])
+        keys.append(self.keys['meta'])
+
+        args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
+            job_id, token]
+
+        return (keys, args)
+
+    async def moveToDelayed(self, job_id: str, timestamp: int, token: str = "0"):
+        keys, args = self.moveToDelayedArgs(job_id, timestamp, token)
+
+        result = await self.commands["moveToDelayed"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job_id, 'moveToDelayed', 'active')
+        return None
+
     def getCounts(self, types):
         keys = self.getKeys([''])
-        transformed_types = list(map(lambda type: 'wait' if type == 'waiting' else type, types))
+        transformed_types = list(
+            map(lambda type: 'wait' if type == 'waiting' else type, types))
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
+
+    async def updateData(self, job_id: str, data):
+        keys = [self.toKey(job_id)]
+        data_json = json.dumps(data, separators=(',', ':'))
+        args = [data_json]
+
+        result = await self.commands["updateData"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job_id, 'updateData')
+        return None
 
     def pause(self, pause: bool = True):
         """
@@ -117,7 +186,8 @@ class Scripts:
         Remove a queue completely
         """
         current_state = state or 'failed'
-        keys = self.getKeys(['', 'events', current_state, 'wait', 'paused', 'meta'])
+        keys = self.getKeys(
+            ['', 'events', current_state, 'wait', 'paused', 'meta'])
         result = await self.commands["retryJobs"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
         return result
 
@@ -137,7 +207,6 @@ class Scripts:
 
         result = await self.commands["moveToActive"](keys=keys, args=args)
 
-        # Todo: up to 4 results in tuple (only 2 now)
         return raw2NextJobData(result)
 
     def moveToCompleted(self, job: Job, val: Any, removeOnComplete, token: str, opts: dict, fetchNext=True):
@@ -146,7 +215,18 @@ class Scripts:
     def moveToFailed(self, job: Job, failedReason: str, removeOnFailed, token: str, opts: dict, fetchNext=True):
         return self.moveToFinished(job, failedReason, "failedReason", removeOnFailed, "failed", token, opts, fetchNext)
 
-    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+    async def updateProgress(self, job_id: str, progress):
+        keys = [self.toKey(job_id), self.keys['events']]
+        progress_json = json.dumps(progress, separators=(',', ':'))
+        args = [job_id, progress_json]
+        result = await self.commands["updateProgress"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job_id, 'updateProgress')
+        return None
+
+    def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 
@@ -195,14 +275,22 @@ class Scripts:
 
         args = [job.id, timestamp, propVal, val or "", target, "",
                 fetchNext and "fetch" or "", self.keys[''], packedOpts]
+        return (keys, args)
+
+    def moveToFailedArgs(self, job: Job, failed_reason: str, shouldRemove, token: str, opts: dict, fetchNext=True):
+        return self.moveToFinishedArgs(
+            job, failed_reason, 'failedReason', shouldRemove, 'failed',
+            token, opts, fetchNext
+        )
+
+    async def moveToFinished(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+        keys, args = self.moveToFinishedArgs(job, val, propVal, shouldRemove, target, token, opts, fetchNext)
+
         result = await self.commands["moveToFinished"](keys=keys, args=args)
 
         if result is not None:
             if result < 0:
-                raise finishedErrors(result, job.id, 'finished', 'active')
-            else:
-                # I do not like this as it is using a sideeffect
-                job.finishedOn = timestamp
+                raise self.finishedErrors(result, job.id, 'finished', 'active')
             return raw2NextJobData(result)
         return None
 
@@ -219,31 +307,30 @@ class Scripts:
         return self.commands["moveStalledJobsToWait"](keys, args)
 
 
-def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError:
-    if code == ErrorCode.JobNotExist.value:
-        return TypeError(f"Missing key for job {jobId}.{command}")
-    elif code == ErrorCode.JobLockNotExist.value:
-        return TypeError(f"Missing lock for job {jobId}.{command}")
-    elif code == ErrorCode.JobNotInState.value:
-        return TypeError(f"Job {jobId} is not in the state {state}.{command}")
-    elif code == ErrorCode.JobPendingDependencies.value:
-        return TypeError(f"Job {jobId} has pending dependencies.{command}")
-    elif code == ErrorCode.ParentJobNotExist.value:
-        return TypeError(f"Missing key for parent job {jobId}.{command}")
-    elif code == ErrorCode.JobLockMismatch.value:
-        return TypeError(f"Lock mismatch for job {jobId}. Cmd {command} from {state}")
-    else:
-        return TypeError(f"Unknown code {str(code)} error for {jobId}.{command}")
+    def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError:
+        if code == ErrorCode.JobNotExist.value:
+            return TypeError(f"Missing key for job {jobId}.{command}")
+        elif code == ErrorCode.JobLockNotExist.value:
+            return TypeError(f"Missing lock for job {jobId}.{command}")
+        elif code == ErrorCode.JobNotInState.value:
+            return TypeError(f"Job {jobId} is not in the state {state}.{command}")
+        elif code == ErrorCode.JobPendingDependencies.value:
+            return TypeError(f"Job {jobId} has pending dependencies.{command}")
+        elif code == ErrorCode.ParentJobNotExist.value:
+            return TypeError(f"Missing key for parent job {jobId}.{command}")
+        elif code == ErrorCode.JobLockMismatch.value:
+            return TypeError(f"Lock mismatch for job {jobId}. Cmd {command} from {state}")
+        else:
+            return TypeError(f"Unknown code {str(code)} error for {jobId}.{command}")
 
 
 def raw2NextJobData(raw: list[Any]) -> list[Any] | None:
     if raw:
-        # TODO: return all the raw datas (up to 4)
+        result = [None, raw[1], None, None] if len(raw) == 2 else [None, raw[1], raw[2], raw[3]]
         if raw[0]:
-            return (array2obj(raw[0]), raw[1])
-        else:
-            return (None, raw[1])
-    return None
+            result[0]= array2obj(raw[0])
+        return result
+    return [None, None, None, None]
 
 
 def array2obj(arr: list[str]) -> dict[str, str]:
@@ -251,3 +338,11 @@ def array2obj(arr: list[str]) -> dict[str, str]:
     for i in range(0, len(arr), 2):
         obj[arr[i]] = arr[i + 1]
     return obj
+
+
+def convert_to_int(text: str):
+    try:
+        result = int(text)
+        return result
+    except ValueError:
+        return 0
