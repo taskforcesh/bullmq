@@ -3,8 +3,7 @@ import { Cluster, Redis } from 'ioredis';
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
-import { ChildMessage, ParentMessage, RedisClient } from './interfaces';
-import { ChildProcess } from 'child_process';
+import { ChildMessage, RedisClient } from './interfaces';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -122,6 +121,7 @@ export function isNotConnectionError(error: Error): boolean {
 
 interface procSendLike {
   send?(message: any, callback?: (error: Error | null) => void): boolean;
+  postMessage?(message: any): void;
 }
 
 export const asyncSend = <T extends procSendLike>(
@@ -137,6 +137,8 @@ export const asyncSend = <T extends procSendLike>(
           resolve();
         }
       });
+    } else if (typeof proc.postMessage === 'function') {
+      resolve(proc.postMessage(msg));
     } else {
       resolve();
     }
@@ -156,11 +158,6 @@ export const isRedisVersionLowerThan = (
 
   return semver.lt(version, minimumVersion);
 };
-
-export const parentSend = (
-  child: ChildProcess,
-  msg: ParentMessage,
-): Promise<void> => asyncSend<ChildProcess>(child, msg);
 
 export const parseObjectValues = (obj: {
   [key: string]: string;

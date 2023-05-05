@@ -1,6 +1,6 @@
 import { promisify } from 'util';
 import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
-import { childSend, errorToJSON } from '../utils';
+import { errorToJSON } from '../utils';
 
 enum ChildStatus {
   Idle,
@@ -13,13 +13,15 @@ enum ChildStatus {
  * ChildProcessor
  *
  * This class acts as the interface between a child process and it parent process
- * so that jobs can be processed in different processes than the parent.
+ * so that jobs can be processed in different processes.
  *
  */
 export class ChildProcessor {
   public status?: ChildStatus;
   public processor: any;
   public currentJobPromise: Promise<unknown> | undefined;
+
+  constructor(private send: (msg: any) => Promise<void>) {}
 
   public async init(processorFile: string): Promise<void> {
     let processor;
@@ -36,7 +38,7 @@ export class ChildProcessor {
       }
     } catch (err) {
       this.status = ChildStatus.Errored;
-      return childSend(process, {
+      return this.send({
         cmd: ParentCommand.InitFailed,
         err: errorToJSON(err),
       });
@@ -56,14 +58,14 @@ export class ChildProcessor {
     }
     this.processor = processor;
     this.status = ChildStatus.Idle;
-    await childSend(process, {
+    await this.send({
       cmd: ParentCommand.InitCompleted,
     });
   }
 
   public async start(jobJson: JobJson): Promise<void> {
     if (this.status !== ChildStatus.Idle) {
-      return childSend(process, {
+      return this.send({
         cmd: ParentCommand.Error,
         err: errorToJSON(new Error('cannot start a not idling child process')),
       });
@@ -71,14 +73,14 @@ export class ChildProcessor {
     this.status = ChildStatus.Started;
     this.currentJobPromise = (async () => {
       try {
-        const job = wrapJob(jobJson);
+        const job = wrapJob(jobJson, this.send);
         const result = (await this.processor(job)) || {};
-        await childSend(process, {
+        await this.send({
           cmd: ParentCommand.Completed,
           value: result,
         });
       } catch (err) {
-        await childSend(process, {
+        await this.send({
           cmd: ParentCommand.Failed,
           value: errorToJSON(!(<Error>err).message ? new Error(<any>err) : err),
         });
@@ -110,7 +112,10 @@ export class ChildProcessor {
  * the functions on the original job object are not in tact.
  * The wrapped job adds back some of those original functions.
  */
-function wrapJob(job: JobJson): SandboxedJob {
+function wrapJob(
+  job: JobJson,
+  send: (msg: any) => Promise<void>,
+): SandboxedJob {
   let progressValue = job.progress;
 
   const updateProgress = async (progress: number | object) => {
@@ -118,7 +123,7 @@ function wrapJob(job: JobJson): SandboxedJob {
     // so that we can return it from this process synchronously.
     progressValue = progress;
     // Send message to update job progress.
-    await childSend(process, {
+    await send({
       cmd: ParentCommand.Progress,
       value: progress,
     });
@@ -137,7 +142,7 @@ function wrapJob(job: JobJson): SandboxedJob {
      * Emulate the real job `log` function.
      */
     log: async (row: any) => {
-      childSend(process, {
+      send({
         cmd: ParentCommand.Log,
         value: row,
       });
@@ -146,7 +151,7 @@ function wrapJob(job: JobJson): SandboxedJob {
      * Emulate the real job `update` function.
      */
     update: async (data: any) => {
-      childSend(process, {
+      send({
         cmd: ParentCommand.Update,
         value: data,
       });

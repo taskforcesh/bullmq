@@ -242,15 +242,25 @@ export class Worker<
           throw new Error(`File ${processorFile} does not exist`);
         }
 
-        let masterFile = path.join(__dirname, './master.js');
+        const mainFile = this.opts.useWorkerThreads
+          ? 'main-worker.js'
+          : 'main.js';
+        let mainFilePath = path.join(__dirname, `${mainFile}`);
         try {
-          fs.statSync(masterFile); // would throw if file not exists
+          fs.statSync(mainFilePath); // would throw if file not exists
         } catch (_) {
-          masterFile = path.join(process.cwd(), 'dist/cjs/classes/master.js');
-          fs.statSync(masterFile);
+          mainFilePath = path.join(
+            process.cwd(),
+            `dist/cjs/classes/${mainFile}`,
+          );
+          fs.statSync(mainFilePath);
         }
 
-        this.childPool = new ChildPool(masterFile);
+        this.childPool = new ChildPool({
+          mainFile: mainFilePath,
+          useWorkerThreads: this.opts.useWorkerThreads,
+        });
+
         this.processFn = sandbox<DataType, ResultType, NameType>(
           processor,
           this.childPool,
