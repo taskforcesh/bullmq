@@ -3,18 +3,21 @@ import { Child } from './child';
 
 const CHILD_KILL_TIMEOUT = 30_000;
 
+interface ChildPoolOpts {
+  mainFile?: string;
+  useWorkerThreads?: boolean;
+}
+
 export class ChildPool {
   retained: { [key: number]: Child } = {};
   free: { [key: string]: Child[] } = {};
+  private opts: ChildPoolOpts;
 
-  constructor(
-    private opts: { mainFile?: string; useWorkerThreads?: boolean } = {},
-  ) {
-    this.opts = {
-      mainFile: path.join(process.cwd(), 'dist/cjs/classes/main.js'),
-      useWorkerThreads: false,
-      ...opts,
-    };
+  constructor({
+    mainFile = path.join(process.cwd(), 'dist/cjs/classes/main.js'),
+    useWorkerThreads,
+  }: ChildPoolOpts) {
+    this.opts = { mainFile, useWorkerThreads };
   }
 
   async retain(processFile: string): Promise<Child> {
