@@ -3,6 +3,6 @@
  *
  */
 import { childSend } from '../utils';
-import masterBase from './main-base';
+import mainBase from './main-base';
 
-masterBase((msg: any) => childSend(process, msg), process);
+mainBase((msg: any) => childSend(process, msg), process);
