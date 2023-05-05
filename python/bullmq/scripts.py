@@ -30,12 +30,13 @@ class Scripts:
             "addJob": redisClient.register_script(self.getScript("addJob-8.lua")),
             "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": redisClient.register_script(self.getScript("getCounts-1.lua")),
-            "obliterate": redisClient.register_script(self.getScript("obliterate-2.lua")),
-            "pause": redisClient.register_script(self.getScript("pause-4.lua")),
             "moveToActive": redisClient.register_script(self.getScript("moveToActive-9.lua")),
             "moveToDelayed": redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
+            "pause": redisClient.register_script(self.getScript("pause-4.lua")),
+            "obliterate": redisClient.register_script(self.getScript("obliterate-2.lua")),
+            "reprocessJob": redisClient.register_script(self.getScript("reprocessJob-4.lua")),
             "retryJob": redisClient.register_script(self.getScript("retryJob-8.lua")),
             "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
             "saveStacktrace": redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
@@ -157,6 +158,26 @@ class Scripts:
         if result is not None:
             if result < 0:
                 raise self.finishedErrors(result, job_id, 'updateData')
+        return None
+
+    async def reprocessJob(self, job: Job, state: str):
+        keys = [self.toKey(job.id)]
+        keys.append(self.keys['events'])
+        keys.append(self.keys[state])
+        keys.append(self.keys['wait'])
+        
+        args = [
+            job.id,
+            ("R" if job.opts.get("lifo") else "L") + "PUSH",
+            "failedReason" if state == "failed" else "returnvalue",
+            state
+            ]
+
+        result = await self.commands["reprocessJob"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job.id, 'reprocessJob', state)
         return None
 
     def pause(self, pause: bool = True):
