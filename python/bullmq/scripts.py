@@ -36,7 +36,7 @@ class Scripts:
             "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "pause": redisClient.register_script(self.getScript("pause-4.lua")),
             "obliterate": redisClient.register_script(self.getScript("obliterate-2.lua")),
-            "reprocessJob": redisClient.register_script(self.getScript("reprocessJob-4.lua")),
+            "reprocessJob": redisClient.register_script(self.getScript("reprocessJob-6.lua")),
             "retryJob": redisClient.register_script(self.getScript("retryJob-8.lua")),
             "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
             "saveStacktrace": redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
