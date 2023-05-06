@@ -103,5 +103,16 @@ function sandboxProcessTests(
       const child = await pool.retain(processor);
       expect(children).to.include(child);
     }).timeout(10000);
+
+    it('should consume execArgv array from process', async () => {
+      const processor = __dirname + '/fixtures/fixture_processor_bar.js';
+      process.execArgv.push('--no-warnings');
+
+      const child = await pool.retain(processor);
+      expect(child).to.be.ok;
+      if (!useWorkerThreads) {
+        expect(child.childProcess.spawnargs).to.include('--no-warnings');
+      }
+    });
   });
 }
