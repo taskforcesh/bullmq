@@ -71,7 +71,10 @@ local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey,
                         if (stalledCount > MAX_STALLED_JOB_COUNT) then
                             local rawOpts = rcall("HGET", jobKey, "opts")
                             local opts = cjson.decode(rawOpts)
-                            local removeOnFailType = type(opts["removeOnFail"])
+
+                            local removeOnFail = opts["rof"] or opts["removeOnFail"]
+
+                            local removeOnFailType = type(removeOnFail)
                             rcall("ZADD", failedKey, timestamp, jobId)
                             local failedReason =
                                 "job stalled more than allowable limit"
@@ -82,16 +85,16 @@ local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey,
                                   'failedReason', failedReason)
 
                             if removeOnFailType == "number" then
-                                removeJobsByMaxCount(opts["removeOnFail"],
+                                removeJobsByMaxCount(removeOnFail,
                                                      failedKey, queueKeyPrefix)
                             elseif removeOnFailType == "boolean" then
-                                if opts["removeOnFail"] then
+                                if removeOnFail then
                                     removeJob(jobId, false, queueKeyPrefix)
                                     rcall("ZREM", failedKey, jobId)
                                 end
                             elseif removeOnFailType ~= "nil" then
-                                local maxAge = opts["removeOnFail"]["age"]
-                                local maxCount = opts["removeOnFail"]["count"]
+                                local maxAge = removeOnFail["age"]
+                                local maxCount = removeOnFail["count"]
 
                                 if maxAge ~= nil then
                                     removeJobsByMaxAge(timestamp, maxAge,

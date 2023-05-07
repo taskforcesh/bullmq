@@ -39,6 +39,16 @@ const logger = debuglog('bull');
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
   kl: 'keepLogs',
+  roc: 'removeOnComplete',
+  rof: 'removeOnFail',
+  i: 'jobId',
+  p: 'priority',
+  d: 'delay',
+  a: 'attempts',
+  b: 'backoff',
+  l: 'lifo',
+  stl: 'stackTraceLimit',
+  sl: 'sizeLimit',
 };
 
 const optsEncodeMap = invert(optsDecodeMap);
