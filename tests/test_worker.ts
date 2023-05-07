@@ -1313,6 +1313,44 @@ describe('workers', function () {
     await worker.close();
   });
 
+  describe('when queue is paused and retry a job', () => {
+    it('moves job to paused', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(100);
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.once('completed', async job => {
+          try {
+            expect(job).to.be.ok;
+            expect(job.data.foo).to.be.eql('bar');
+          } catch (err) {
+            reject(err);
+          }
+          resolve();
+        });
+      });
+
+      const job = await queue.add('test', { foo: 'bar' });
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+
+      await completing;
+      await queue.pause();
+      await job.retry('completed');
+
+      const pausedJobsCount = await queue.getJobCountByTypes('paused');
+      expect(pausedJobsCount).to.be.equal(1);
+
+      await worker.close();
+    });
+  });
+
   it('retry a job that fails using job retry method', async () => {
     let called = 0;
     let failedOnce = false;
@@ -1496,53 +1534,6 @@ describe('workers', function () {
     await workerError;
 
     await worker.close();
-  });
-
-  describe('when retrying jobs', () => {
-    it('deletes token after moving jobs to delayed', async function () {
-      const worker = new Worker(
-        queueName,
-        async job => {
-          if (job.attemptsMade !== 3) {
-            throw new Error('error');
-          }
-          return delay(100);
-        },
-        {
-          connection,
-          lockDuration: 10000,
-          lockRenewTime: 3000, // The lock will not be updated
-        },
-      );
-      await worker.waitUntilReady();
-
-      const client = await queue.client;
-
-      const job = await queue.add(
-        'test',
-        { bar: 'baz' },
-        { attempts: 3, backoff: 100 },
-      );
-
-      worker.on('failed', async () => {
-        const token = await client.get(`bull:${queueName}:${job.id}:lock`);
-        expect(token).to.be.null;
-      });
-
-      const workerCompleted = new Promise<void>(resolve => {
-        worker.once('completed', () => {
-          resolve();
-        });
-      });
-
-      await workerCompleted;
-
-      const token = await client.get(`bull:${queueName}:${job.id}:lock`);
-
-      expect(token).to.be.null;
-
-      await worker.close();
-    });
   });
 
   it('continues processing after a worker has stalled', async function () {
@@ -1871,6 +1862,51 @@ describe('workers', function () {
   });
 
   describe('Retries and backoffs', () => {
+    it('deletes token after moving jobs to delayed', async function () {
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (job.attemptsMade !== 3) {
+            throw new Error('error');
+          }
+          return delay(100);
+        },
+        {
+          connection,
+          lockDuration: 10000,
+          lockRenewTime: 3000, // The lock will not be updated
+        },
+      );
+      await worker.waitUntilReady();
+
+      const client = await queue.client;
+
+      const job = await queue.add(
+        'test',
+        { bar: 'baz' },
+        { attempts: 3, backoff: 100 },
+      );
+
+      worker.on('failed', async () => {
+        const token = await client.get(`bull:${queueName}:${job.id}:lock`);
+        expect(token).to.be.null;
+      });
+
+      const workerCompleted = new Promise<void>(resolve => {
+        worker.once('completed', () => {
+          resolve();
+        });
+      });
+
+      await workerCompleted;
+
+      const token = await client.get(`bull:${queueName}:${job.id}:lock`);
+
+      expect(token).to.be.null;
+
+      await worker.close();
+    });
+
     describe('when attempts is 1 and job fails', () => {
       it('should execute job only once and emits retries-exhausted event', async () => {
         const worker = new Worker(

@@ -762,7 +762,9 @@ export class Scripts {
       this.queue.toKey(job.id),
       this.queue.keys.events,
       this.queue.toKey(state),
-      this.queue.toKey('wait'),
+      this.queue.keys.wait,
+      this.queue.keys.meta,
+      this.queue.keys.paused,
     ];
 
     const args = [
@@ -914,37 +916,6 @@ export class Scripts {
     }
     return result;
   }
-
-  /*
-//   *
-//    * Attempts to reprocess a job
-//    *
-//    * @param {Job} job
-//    * @param {Object} options
-//    * @param {String} options.state The expected job state. If the job is not found
-//    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
-//    *
-//    * @return {Promise<Number>} Returns a promise that evaluates to a return code:
-//    * 1 means the operation was a success
-//    * 0 means the job does not exist
-//    * -1 means the job is currently locked and can't be retried.
-//    * -2 means the job was not found in the expected set
-
-  static reprocessJob(job: Jov, state: string) {
-    var queue = job.queue;
-
-    var keys = [
-      queue.toKey(job.id),
-      queue.toKey(job.id) + ':lock',
-      queue.toKey(state),
-      queue.toKey('wait'),
-    ];
-
-    var args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH', queue.token];
-
-    return queue.client.reprocessJob(keys.concat(args));
-  }
-  */
 }
 
 export function raw2NextJobData(raw: any[]) {
