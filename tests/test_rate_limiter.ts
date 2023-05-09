@@ -332,14 +332,15 @@ describe('Rate Limiter', function () {
           queueName,
           async job => {
             if (job.attemptsMade === 1) {
-              await delay(100);
               await queue.pause();
+              await delay(150);
               await worker.rateLimit(dynamicLimit);
               throw Worker.RateLimitError();
             }
           },
           {
             connection,
+            autorun: false,
             limiter: {
               max: 1,
               duration,
@@ -351,18 +352,21 @@ describe('Rate Limiter', function () {
           queueEvents.on(
             'waiting',
             // after every job has been moved to waiting again
-            after(2, async () => {
+            after(2, () => {
               resolve();
             }),
           );
         });
 
+        await delay(200);
         await queue.add('rate test', {});
+
+        worker.run();
 
         await result;
 
-        const count = await queue.getJobCountByTypes('paused');
-        expect(count).to.equal(1);
+        const pausedCount = await queue.getJobCountByTypes('paused');
+        expect(pausedCount).to.equal(1);
 
         await worker.close();
       });
