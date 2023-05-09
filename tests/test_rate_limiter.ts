@@ -325,8 +325,6 @@ describe('Rate Limiter', function () {
 
     describe('when queue is paused', () => {
       it('moves job to paused', async function () {
-        this.timeout(5000);
-
         const dynamicLimit = 250;
         const duration = 100;
 
@@ -334,6 +332,7 @@ describe('Rate Limiter', function () {
           queueName,
           async job => {
             if (job.attemptsMade === 1) {
+              await delay(100);
               await queue.pause();
               await worker.rateLimit(dynamicLimit);
               throw Worker.RateLimitError();
