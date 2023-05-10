@@ -2,7 +2,7 @@ import { ChildProcess, fork } from 'child_process';
 import { Worker } from 'worker_threads';
 import { AddressInfo, createServer } from 'net';
 import { ChildCommand, ParentCommand } from '../';
-import * as EventEmitter from 'events';
+import { EventEmitter } from 'events';
 
 /**
  * @see https://nodejs.org/api/process.html#process_exit_codes
