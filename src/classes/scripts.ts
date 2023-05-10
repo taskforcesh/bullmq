@@ -303,11 +303,7 @@ export class Scripts {
       : { count: shouldRemove ? 0 : -1 };
   }
 
-  async moveToFinished<
-    DataType = any,
-    ReturnType = any,
-    NameType extends string = string,
-  >(jobId: string, args: (string | number | boolean | Buffer)[]) {
+  async moveToFinished(jobId: string, args: (string | number | boolean | Buffer)[]) {
     const client = await this.queue.client;
 
     const result = await (<any>client).moveToFinished(args);
