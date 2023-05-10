@@ -642,7 +642,7 @@ export class Worker<
       if (!this.connection.closing) {
         try {
           if (err.message == RATE_LIMIT_ERROR) {
-            this.limitUntil = await this.moveLimitedBackToWait(job, token);
+            await this.moveLimitedBackToWait(job, token);
             return;
           }
 
@@ -945,17 +945,10 @@ export class Worker<
     );
   }
 
-  private async moveLimitedBackToWait(
+  private moveLimitedBackToWait(
     job: Job<DataType, ResultType, NameType>,
     token: string,
   ) {
-    const multi = (await this.client).multi();
-    multi.pttl(this.keys.limiter);
-    this.scripts.moveJobFromActiveToWait(multi, job.id, token);
-    const [[err1, limitUntil], [err2]] = await multi.exec();
-    if (err1 || err2) {
-      throw err1 || err2;
-    }
-    return parseInt(limitUntil as string) || 0;
+    return this.scripts.moveJobFromActiveToWait(job.id, token);
   }
 }

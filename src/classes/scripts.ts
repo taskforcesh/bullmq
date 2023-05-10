@@ -303,7 +303,10 @@ export class Scripts {
       : { count: shouldRemove ? 0 : -1 };
   }
 
-  async moveToFinished(jobId: string, args: (string | number | boolean | Buffer)[]) {
+  async moveToFinished(
+    jobId: string,
+    args: (string | number | boolean | Buffer)[],
+  ) {
     const client = await this.queue.client;
 
     const result = await (<any>client).moveToFinished(args);
@@ -873,24 +876,22 @@ export class Scripts {
    * @param jobId - Job id
    * @returns
    */
-  moveJobFromActiveToWait(
-    client: ChainableCommander,
-    jobId: string,
-    token: string,
-  ) {
+  async moveJobFromActiveToWait(jobId: string, token: string) {
+    const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
-    const keys = [
+    const keys: (string | number)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,
       lockKey,
       this.queue.keys.paused,
       this.queue.keys.meta,
+      this.queue.keys.limiter,
       this.queue.keys.events,
     ];
 
-    const args = [jobId, token];
+    const args = [jobId, token, Date.now()];
 
     return (<any>client).moveJobFromActiveToWait(keys.concat(args));
   }

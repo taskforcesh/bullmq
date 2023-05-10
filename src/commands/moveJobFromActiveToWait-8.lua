@@ -8,11 +8,12 @@
     KEYS[4] job lock key
     KEYS[5] paused key
     KEYS[6] meta key
-    KEYS[7] event key
+    KEYS[7] limiter key
+    KEYS[8] event key
 
-    args[1] job id
-    args[2] lock token
-
+    ARGV[1] job id
+    ARGV[2] lock token
+    ARGV[3] timestamp
 ]]
 local rcall = redis.call
 
@@ -24,7 +25,8 @@ local token = ARGV[2]
 local lockKey = KEYS[4]
 
 local lockToken = rcall("GET", lockKey)
-if lockToken == token then
+local pttl = rcall("PTTL", KEYS[7])
+if lockToken == token and pttl > 0 then
   local removed = rcall("LREM", KEYS[1], 1, jobId)
   if (removed > 0) then
     local target = getTargetQueueList(KEYS[6], KEYS[2], KEYS[5])
@@ -33,7 +35,15 @@ if lockToken == token then
     rcall("RPUSH", target, jobId)
     rcall("DEL", lockKey)
 
+    local score = tonumber(ARGV[3])
+    
+    local nextTimestamp = (score + pttl) * 0x1000
+  
+    if rcall("LLEN", target) == 0 then
+      rcall("LPUSH", target, "0:" .. nextTimestamp)
+    end
+
     -- Emit waiting event
-    rcall("XADD", KEYS[7], "*", "event", "waiting", "jobId", jobId)
+    rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
   end
 end
