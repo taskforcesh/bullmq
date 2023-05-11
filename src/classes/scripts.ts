@@ -880,7 +880,7 @@ export class Scripts {
     const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
-    const keys: (string | number)[] = [
+    const keys = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,

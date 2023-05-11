@@ -33,7 +33,7 @@ if lockToken == token and pttl > 0 then
     rcall("SREM", KEYS[3], jobId)
     rcall("RPUSH", target, jobId)
     rcall("DEL", lockKey)
-  
+
     -- Emit waiting event
     rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
   end
