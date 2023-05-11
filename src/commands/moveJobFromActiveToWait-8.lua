@@ -13,7 +13,6 @@
 
     ARGV[1] job id
     ARGV[2] lock token
-    ARGV[3] timestamp
 ]]
 local rcall = redis.call
 
@@ -34,16 +33,10 @@ if lockToken == token and pttl > 0 then
     rcall("SREM", KEYS[3], jobId)
     rcall("RPUSH", target, jobId)
     rcall("DEL", lockKey)
-
-    local score = tonumber(ARGV[3])
-    
-    local nextTimestamp = (score + pttl) * 0x1000
   
-    if rcall("LLEN", target) == 0 then
-      rcall("LPUSH", target, "0:" .. nextTimestamp)
-    end
-
     -- Emit waiting event
     rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
   end
 end
+
+return pttl

@@ -642,7 +642,7 @@ export class Worker<
       if (!this.connection.closing) {
         try {
           if (err.message == RATE_LIMIT_ERROR) {
-            await this.moveLimitedBackToWait(job, token);
+            this.limitUntil = await this.moveLimitedBackToWait(job, token);
             return;
           }
 
