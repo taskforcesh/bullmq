@@ -89,6 +89,11 @@ export class Job<
   timestamp: number;
 
   /**
+   * Timestamp when the job is expected to run
+   */
+  runAt?: number;
+
+  /**
    * Number of attempts after the job has failed.
    * @defaultValue 0
    */
@@ -168,6 +173,7 @@ export class Job<
     this.repeatJobKey = repeatJobKey;
 
     this.timestamp = opts.timestamp ? opts.timestamp : Date.now();
+    this.runAt = this.timestamp + (this.delay || 0);
 
     this.opts.backoff = Backoffs.normalize(opts.backoff);
 
@@ -286,6 +292,10 @@ export class Job<
 
     job.timestamp = parseInt(json.timestamp);
 
+    if (json.runAt) {
+      job.runAt = parseInt(json.runAt);
+    }
+
     if (json.finishedOn) {
       job.finishedOn = parseInt(json.finishedOn);
     }
@@ -385,6 +395,7 @@ export class Job<
       attemptsMade: this.attemptsMade,
       finishedOn: this.finishedOn,
       processedOn: this.processedOn,
+      runAt: this.runAt,
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
@@ -734,7 +745,7 @@ export class Job<
    * @returns void
    */
   async changeDelay(delay: number): Promise<void> {
-    await this.scripts.changeDelay(this.id, delay);
+    this.runAt = await this.scripts.changeDelay(this.id, delay);
     this.delay = delay;
   }
 

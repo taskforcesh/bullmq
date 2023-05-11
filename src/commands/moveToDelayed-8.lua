@@ -56,6 +56,7 @@ if rcall("EXISTS", jobKey) == 1 then
     end
 
     rcall("ZADD", delayedKey, score, jobId)
+    rcall("HSET", jobKey, "runAt", delayedTimestamp)
     rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
 
     -- Check if we need to push a marker job to wake up sleeping workers.

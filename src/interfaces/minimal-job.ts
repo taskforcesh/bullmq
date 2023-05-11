@@ -68,6 +68,10 @@ export interface MinimalJob<
    */
   timestamp: number;
   /**
+   * Timestamp when the job is expected to run
+   */
+  runAt?: number;
+  /**
    * Number of attempts after the job has failed.
    * @defaultValue 0
    */

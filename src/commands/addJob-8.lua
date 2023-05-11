@@ -122,13 +122,15 @@ if repeatJobKey ~= nil then
   table.insert(optionalValues, repeatJobKey)
 end
 
-rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
-  "timestamp", timestamp, "delay", delay, "priority", priority, unpack(optionalValues))
-
-rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3])
-
 -- Check if job is delayed
 local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
+local runAt = (delayedTimestamp > 0 and delayedTimestamp) or timestamp
+
+rcall("HMSET", jobIdKey, "name", args[3], "data", ARGV[2], "opts", jsonOpts,
+  "timestamp", timestamp, "delay", delay, "runAt", runAt, "priority", priority,
+  unpack(optionalValues))
+
+rcall("XADD", KEYS[8], "*", "event", "added", "jobId", jobId, "name", args[3])
 
 -- Check if job is a parent, if so add to the parents set
 local waitChildrenKey = args[6]

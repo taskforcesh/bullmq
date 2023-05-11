@@ -43,10 +43,14 @@ describe('Job', function () {
       const storedJob = await Job.fromId(queue, job.id);
       expect(storedJob).to.have.property('id');
       expect(storedJob).to.have.property('data');
+      expect(storedJob).to.have.property('timestamp');
+      expect(storedJob).to.have.property('runAt');
 
       expect(storedJob.data.foo).to.be.equal('bar');
       expect(storedJob.opts).to.be.an('object');
       expect(storedJob.opts.timestamp).to.be.equal(timestamp);
+      expect(storedJob.timestamp).to.be.equal(timestamp);
+      expect(storedJob.runAt).to.be.equal(timestamp);
     });
 
     it('should use the custom jobId if one is provided', async function () {
@@ -711,11 +715,17 @@ describe('Job', function () {
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
 
+      const changeDelayTime = new Date().getTime();
       await job.changeDelay(4000);
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
       expect(job.delay).to.be.equal(4000);
+      expect(job.runAt).to.be.gte(changeDelayTime + 4000);
+
+      const storedJob = await Job.fromId(queue, job.id);
+      expect(storedJob.delay).to.be.equal(job.delay);
+      expect(storedJob.runAt).to.be.equal(job.runAt);
 
       await completing;
 

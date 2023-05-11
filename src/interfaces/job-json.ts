@@ -10,6 +10,7 @@ export interface JobJson {
   attemptsMade: number;
   finishedOn?: number;
   processedOn?: number;
+  runAt?: number;
   timestamp: number;
   failedReason: string;
   stacktrace: string;
@@ -29,6 +30,7 @@ export interface JobJsonRaw {
   attemptsMade: string;
   finishedOn?: string;
   processedOn?: string;
+  runAt?: string;
   timestamp: string;
   failedReason: string;
   stacktrace: string[];
