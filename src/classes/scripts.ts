@@ -303,7 +303,10 @@ export class Scripts {
       : { count: shouldRemove ? 0 : -1 };
   }
 
-  async moveToFinished(jobId: string, args: (string | number | boolean | Buffer)[]) {
+  async moveToFinished(
+    jobId: string,
+    args: (string | number | boolean | Buffer)[],
+  ) {
     const client = await this.queue.client;
 
     const result = await (<any>client).moveToFinished(args);
@@ -873,11 +876,8 @@ export class Scripts {
    * @param jobId - Job id
    * @returns
    */
-  moveJobFromActiveToWait(
-    client: ChainableCommander,
-    jobId: string,
-    token: string,
-  ) {
+  async moveJobFromActiveToWait(jobId: string, token: string) {
+    const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
     const keys = [
@@ -887,12 +887,15 @@ export class Scripts {
       lockKey,
       this.queue.keys.paused,
       this.queue.keys.meta,
+      this.queue.keys.limiter,
       this.queue.keys.events,
     ];
 
     const args = [jobId, token];
 
-    return (<any>client).moveJobFromActiveToWait(keys.concat(args));
+    const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
+
+    return pttl < 0 ? 0 : pttl;
   }
 
   async obliterate(opts: { force: boolean; count: number }): Promise<number> {
