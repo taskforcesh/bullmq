@@ -893,7 +893,9 @@ export class Scripts {
 
     const args = [jobId, token];
 
-    return (<any>client).moveJobFromActiveToWait(keys.concat(args));
+    const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
+
+    return pttl < 0 ? 0 : pttl;
   }
 
   async obliterate(opts: { force: boolean; count: number }): Promise<number> {
