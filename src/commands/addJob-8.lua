@@ -101,7 +101,7 @@ else
     rcall("XADD", KEYS[8], "*", "event", "duplicated", "jobId", jobId)
 
     return jobId .. "" -- convert to string
-  end  
+  end
 end
 
 -- Store the job.
