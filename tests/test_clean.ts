@@ -49,7 +49,13 @@ describe('Cleaner', () => {
   });
 
   it('should clean two jobs from the queue', async () => {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(10);
+      },
+      { connection },
+    );
     await worker.waitUntilReady();
 
     const completing = new Promise<void>(resolve => {
@@ -67,7 +73,7 @@ describe('Cleaner', () => {
     ]);
 
     await completing;
-    await delay(1);
+    await delay(10);
 
     const jobs = await queue.clean(0, 0);
     expect(jobs.length).to.be.eql(2);

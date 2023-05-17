@@ -1,7 +1,7 @@
 --[[
   Promotes a job that is currently "delayed" to the "waiting" state
 
-     Input:
+    Input:
       KEYS[1] 'delayed'
       KEYS[2] 'wait'
       KEYS[3] 'paused'
@@ -12,10 +12,14 @@
       ARGV[1]  queue.toKey('')
       ARGV[2]  jobId
 
-     Events:
+    Output:
+       0 - OK
+      -3 - Job not in delayed zset.
+
+    Events:
       'waiting'
 ]]
-local rcall = redis.call;
+local rcall = redis.call
 local jobId = ARGV[2]
 
 -- Includes

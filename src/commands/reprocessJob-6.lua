@@ -15,7 +15,7 @@
     ARGV[4] prev state - failed/completed
 
   Output:
-    1  means the operation was a success
+     1 means the operation was a success
     -1 means the job does not exist
     -3 means the job was not found in the expected set.
 ]]
