@@ -5,7 +5,6 @@
 -- Includes
 --- @include "addDelayMarkerIfNeeded"
 --- @include "addJobWithPriority"
---- @include "getNextDelayedTimestamp"
 --- @include "getTargetQueueList"
 
 local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDependenciesKey,

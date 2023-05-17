@@ -972,7 +972,7 @@ export class Job<
       ];
       const finished = status != 0;
       if (finished) {
-        if (status == -5 || status == 2) {
+        if (status == -1 || status == 2) {
           onFailed({ failedReason: result });
         } else {
           onCompleted({ returnvalue: getReturnValue(result) });

@@ -150,7 +150,7 @@ else
   -- Standard or priority add
   if priority == 0 then
     -- LIFO or FIFO
-    local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH';
+    local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
     rcall(pushCmd, target, jobId)
   else
     -- Priority add
