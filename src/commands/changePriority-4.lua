@@ -17,6 +17,7 @@
 ]]
 local jobKey = ARGV[2]
 local jobId = ARGV[3]
+local priority = tonumber(ARGV[1])
 local rcall = redis.call
 
 -- Includes
@@ -28,20 +29,20 @@ if rcall("EXISTS", jobKey) == 1 then
 
   local numRemovedElements = rcall("LREM", target, -1, jobId)
   if numRemovedElements > 0 then
-    rcall("ZREM", KEYS[5], jobId)
+    rcall("ZREM", KEYS[4], jobId)
 
     -- Standard or priority add
     if priority == 0 then
       -- LIFO or FIFO
-      local pushCmd = ARGV[4] == 1 and 'RPUSH' or 'LPUSH';
+      local pushCmd = ARGV[4] == '1' and 'RPUSH' or 'LPUSH';
       rcall(pushCmd, target, jobId)
     else
       -- Priority add
-      addJobWithPriority(KEYS[5], tonumber(ARGV[1]), target, jobId)
+      addJobWithPriority(KEYS[4], priority, target, jobId)
     end
   end
 
-  rcall("HSET", jobKey, "priority", tonumber(ARGV[1]))
+  rcall("HSET", jobKey, "priority", priority)
 
   return 0
 else
