@@ -12,15 +12,15 @@
     0 - Not finished.
     1 - Completed.
     2 - Failed.
-   -5 - Missing job. 
+   -1 - Missing job. 
 ]]
 local rcall = redis.call
 if rcall("EXISTS", KEYS[3]) ~= 1 then
   if ARGV[2] == "1" then
 
-    return {-5,"Missing key for job " .. KEYS[3] .. ". isFinished"}
+    return {-1,"Missing key for job " .. KEYS[3] .. ". isFinished"}
   end  
-  return -5
+  return -1
 end
 
 if rcall("ZSCORE", KEYS[1], ARGV[1]) ~= false then

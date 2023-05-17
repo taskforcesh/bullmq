@@ -35,34 +35,33 @@ local rcall = redis.call
 
 local jobKey = KEYS[5]
 if rcall("EXISTS", jobKey) == 1 then
-
-    local delayedKey = KEYS[4]
-    if ARGV[5] ~= "0" then
-        local lockKey = jobKey .. ':lock'
-        if rcall("GET", lockKey) == ARGV[5] then
-            rcall("DEL", lockKey)
-        else
-            return -2
-        end
+  local delayedKey = KEYS[4]
+  if ARGV[5] ~= "0" then
+    local lockKey = jobKey .. ':lock'
+    if rcall("GET", lockKey) == ARGV[5] then
+      rcall("DEL", lockKey)
+    else
+      return -2
     end
+  end
 
-    local jobId = ARGV[4]
-    local score = tonumber(ARGV[3])
-    local delayedTimestamp = (score / 0x1000)
+  local jobId = ARGV[4]
+  local score = tonumber(ARGV[3])
+  local delayedTimestamp = (score / 0x1000)
 
-    local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
-    if (numRemovedElements < 1) then 
-      return -3
-    end
+  local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
+  if numRemovedElements < 1 then
+    return -3
+  end
 
-    rcall("ZADD", delayedKey, score, jobId)
-    rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
+  rcall("ZADD", delayedKey, score, jobId)
+  rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
 
-    -- Check if we need to push a marker job to wake up sleeping workers.
-    local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])
-    addDelayMarkerIfNeeded(target, delayedKey)
+  -- Check if we need to push a marker job to wake up sleeping workers.
+  local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])
+  addDelayMarkerIfNeeded(target, delayedKey)
 
-    return 0
+  return 0
 else
-    return -1
+  return -1
 end
