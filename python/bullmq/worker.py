@@ -30,7 +30,7 @@ class Worker(EventEmitter):
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
         self.prefix = opts.get("prefix", "bull")
-        self.scripts = Scripts(opts.get("prefix", "bull"), name, self.client)
+        self.scripts = Scripts(opts.get("prefix", "bull"), name, self.redisConnection)
         self.closing = False
         self.forceClosing = False
         self.closed = False

@@ -19,7 +19,7 @@ class Queue:
         self.opts = opts
         self.prefix = opts.get("prefix", "bull")
         self.scripts = Scripts(
-            self.prefix, name, self.redisConnection.conn)
+            self.prefix, name, self.redisConnection)
 
     async def add(self, name: str, data, opts: JobOptions = {}):
         """

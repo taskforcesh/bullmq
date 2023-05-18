@@ -49,7 +49,7 @@ class Job:
         self.failedReason = None
         self.repeatJobKey = None
         self.stacktrace: List[str] = []
-        self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection.conn)
+        self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
 
     def updateData(self, data):
         self.data = data
@@ -61,6 +61,9 @@ class Job:
         self.processedOn = None
         self.returnvalue = None
         return self.scripts.reprocessJob(self, state)
+
+    def getState(self):
+        return self.scripts.getState(self.id)
 
     def updateProgress(self, progress):
         self.progress = progress
