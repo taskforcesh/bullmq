@@ -43,7 +43,7 @@ jobs:
       - run: yarn coverage
       - name: Upload LCOV to Coveralls
         if: ${{ ( github.event_name == 'pull_request' && github.event.pull_request.head.fork == false ) || github.event_name == 'push' }}
-        uses: coverallsapp/github-action@09b709cf6a16e30b0808ba050c7a6e8a5ef13f8d # branch=master
+        uses: coverallsapp/github-action@059e56d143348431aafb4917fc9843532d0b6ac5 # branch=master
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Check coverage change not below threshold
