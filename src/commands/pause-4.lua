@@ -1,16 +1,16 @@
 --[[
   Pauses or resumes a queue globably.
 
-   Input:
-      KEYS[1] 'wait' or 'paused''
-      KEYS[2] 'paused' or 'wait'
-      KEYS[3] 'meta'
-      KEYS[4] events stream key
+  Input:
+    KEYS[1] 'wait' or 'paused''
+    KEYS[2] 'paused' or 'wait'
+    KEYS[3] 'meta'
+    KEYS[4] events stream key
 
-      ARGV[1] 'paused' or 'resumed'
+    ARGV[1] 'paused' or 'resumed'
 
-    Event:
-      publish paused or resumed event.
+  Event:
+    publish paused or resumed event.
 ]]
 local rcall = redis.call
 

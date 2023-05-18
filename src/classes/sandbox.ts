@@ -1,5 +1,4 @@
 import { ChildCommand, ChildMessage, ParentCommand } from '../interfaces';
-import { parentSend } from '../utils';
 import { ChildPool } from './child-pool';
 import { Job } from './job';
 
@@ -12,7 +11,7 @@ const sandbox = <T, R, N extends string>(
     let msgHandler: any;
     let exitHandler: any;
 
-    await parentSend(child, {
+    await child.send({
       cmd: ChildCommand.Start,
       job: job.asJSONSandbox(),
     });
@@ -56,8 +55,8 @@ const sandbox = <T, R, N extends string>(
       await done;
       return done;
     } finally {
-      child.removeListener('message', msgHandler);
-      child.removeListener('exit', exitHandler);
+      child.off('message', msgHandler);
+      child.off('exit', exitHandler);
 
       if (child.exitCode !== null || /SIG.*/.test(`${child.signalCode}`)) {
         childPool.remove(child);

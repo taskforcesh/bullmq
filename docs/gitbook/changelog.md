@@ -1,3 +1,57 @@
+## [3.13.4](https://github.com/taskforcesh/bullmq/compare/v3.13.3...v3.13.4) (2023-05-11)
+
+
+### Performance Improvements
+
+* **rate-limit:** call pttl in script moveJobFromActiveToWait ([#1889](https://github.com/taskforcesh/bullmq/issues/1889)) ([e0d2992](https://github.com/taskforcesh/bullmq/commit/e0d2992eb757d437dede52054c049470d986ad44))
+
+## [3.13.3](https://github.com/taskforcesh/bullmq/compare/v3.13.2...v3.13.3) (2023-05-10)
+
+
+### Bug Fixes
+
+* **child:** use named import for EventEmitter ([#1887](https://github.com/taskforcesh/bullmq/issues/1887)) ([1db396d](https://github.com/taskforcesh/bullmq/commit/1db396d1f54154dc94c796ae8b570336fc341f02))
+
+## [3.13.2](https://github.com/taskforcesh/bullmq/compare/v3.13.1...v3.13.2) (2023-05-09)
+
+
+### Bug Fixes
+
+* **rate-limit:** consider paused queue when dynamic rate limit ([#1884](https://github.com/taskforcesh/bullmq/issues/1884)) ([a23f37e](https://github.com/taskforcesh/bullmq/commit/a23f37e4079d34c8589efc85e4d726a62244f0d2))
+
+## [3.13.1](https://github.com/taskforcesh/bullmq/compare/v3.13.0...v3.13.1) (2023-05-07)
+
+
+### Bug Fixes
+
+* **retry:** consider when queue is paused ([#1880](https://github.com/taskforcesh/bullmq/issues/1880)) ([01b621f](https://github.com/taskforcesh/bullmq/commit/01b621fea0cbdae602482ff61361c05646823223))
+
+# [3.13.0](https://github.com/taskforcesh/bullmq/compare/v3.12.1...v3.13.0) (2023-05-06)
+
+
+### Features
+
+* **worker:** add worker threads support ([0820985](https://github.com/taskforcesh/bullmq/commit/0820985e073582fdf841affad38ecc7ab64691ec))
+
+## [3.12.1](https://github.com/taskforcesh/bullmq/compare/v3.12.0...v3.12.1) (2023-05-05)
+
+
+### Bug Fixes
+
+* **python:** stop processes when force stop ([#1837](https://github.com/taskforcesh/bullmq/issues/1837)) ([514699c](https://github.com/taskforcesh/bullmq/commit/514699cd8be96db2320bf0f85d4b6593809a09f1))
+* **worker:** close open handles after closing ([#1861](https://github.com/taskforcesh/bullmq/issues/1861)) fixes [#1312](https://github.com/taskforcesh/bullmq/issues/1312) ([39286e8](https://github.com/taskforcesh/bullmq/commit/39286e87e8ffabf641f229cf2da3db4c280f4637))
+
+
+### Features
+
+* **python:** accept redis options as string ([01f549e](https://github.com/taskforcesh/bullmq/commit/01f549e62a33619a7816758910a2d2b5ac75b589))
+* **python:** add moveToDelayed job method ([#1849](https://github.com/taskforcesh/bullmq/issues/1849)) ([5bebf8d](https://github.com/taskforcesh/bullmq/commit/5bebf8d6560de78448b0413baaabd26f7227575c))
+* **python:** add retry method into job ([#1877](https://github.com/taskforcesh/bullmq/issues/1877)) ([870da45](https://github.com/taskforcesh/bullmq/commit/870da459f419076f03885a12a4ce5a2930c500f3))
+* **python:** add updateData method ([#1871](https://github.com/taskforcesh/bullmq/issues/1871)) ([800b8c4](https://github.com/taskforcesh/bullmq/commit/800b8c46e709a8cbc4674d84bd59d5c62251d271))
+* **python:** add updateProgress method in job class([#1830](https://github.com/taskforcesh/bullmq/issues/1830)) ([e1e1aa2](https://github.com/taskforcesh/bullmq/commit/e1e1aa2e7a41e5418a5a50af4cea347a38bbc7d1))
+* **python:** save stacktrace when job fails ([#1859](https://github.com/taskforcesh/bullmq/issues/1859)) ([0b538ce](https://github.com/taskforcesh/bullmq/commit/0b538cedf63c3f006838ee3d016e463ee3492f81))
+* **python:** support retryJob logic ([#1869](https://github.com/taskforcesh/bullmq/issues/1869)) ([b044a03](https://github.com/taskforcesh/bullmq/commit/b044a03159bc3a8d8823c71019f64825f318a6c2))
+
 # [3.12.0](https://github.com/taskforcesh/bullmq/compare/v3.11.0...v3.12.0) (2023-04-20)
 
 

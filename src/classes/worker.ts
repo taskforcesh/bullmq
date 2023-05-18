@@ -242,15 +242,25 @@ export class Worker<
           throw new Error(`File ${processorFile} does not exist`);
         }
 
-        let masterFile = path.join(__dirname, './master.js');
+        const mainFile = this.opts.useWorkerThreads
+          ? 'main-worker.js'
+          : 'main.js';
+        let mainFilePath = path.join(__dirname, `${mainFile}`);
         try {
-          fs.statSync(masterFile); // would throw if file not exists
+          fs.statSync(mainFilePath); // would throw if file not exists
         } catch (_) {
-          masterFile = path.join(process.cwd(), 'dist/cjs/classes/master.js');
-          fs.statSync(masterFile);
+          mainFilePath = path.join(
+            process.cwd(),
+            `dist/cjs/classes/${mainFile}`,
+          );
+          fs.statSync(mainFilePath);
         }
 
-        this.childPool = new ChildPool(masterFile);
+        this.childPool = new ChildPool({
+          mainFile: mainFilePath,
+          useWorkerThreads: this.opts.useWorkerThreads,
+        });
+
         this.processFn = sandbox<DataType, ResultType, NameType>(
           processor,
           this.childPool,
@@ -382,7 +392,7 @@ export class Worker<
       await this.startStalledCheckTimer();
 
       const jobsInProgress = new Set<{ job: Job; ts: number }>();
-      await this.startLockExtenderTimer(jobsInProgress);
+      this.startLockExtenderTimer(jobsInProgress);
 
       const asyncFifoQueue = (this.asyncFifoQueue =
         new AsyncFifoQueue<void | Job<DataType, ResultType, NameType>>());
@@ -424,7 +434,6 @@ export class Worker<
       }
 
       this.running = false;
-      // return Promise.all(processing);
       return asyncFifoQueue.waitAll();
     } catch (error) {
       this.running = false;
@@ -638,11 +647,10 @@ export class Worker<
           }
 
           if (
-            (err instanceof DelayedError || err.name == 'DelayedError') ||
-            (
-              err instanceof WaitingChildrenError ||
-              err.name == 'WaitingChildrenError'
-            )
+            err instanceof DelayedError ||
+            err.name == 'DelayedError' ||
+            err instanceof WaitingChildrenError ||
+            err.name == 'WaitingChildrenError'
           ) {
             return;
           }
@@ -785,47 +793,55 @@ export class Worker<
     if (!this.opts.skipStalledCheck) {
       clearTimeout(this.stalledCheckTimer);
 
-      await this.runStalledJobsCheck();
-      this.stalledCheckTimer = setTimeout(async () => {
-        this.startStalledCheckTimer();
-      }, this.opts.stalledInterval);
-    }
-  }
-
-  private async startLockExtenderTimer(
-    jobsInProgress: Set<{ job: Job; ts: number }>,
-  ): Promise<void> {
-    if (!this.opts.skipLockRenewal) {
-      clearTimeout(this.extendLocksTimer);
-
-      this.extendLocksTimer = setTimeout(async () => {
-        // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
-        const now = Date.now();
-        const jobsToExtend = [];
-
-        for (const item of jobsInProgress) {
-          const { job, ts } = item;
-          if (!ts) {
-            item.ts = now;
-            continue;
-          }
-
-          if (ts + this.opts.lockRenewTime / 2 < now) {
-            item.ts = now;
-            jobsToExtend.push(job);
-          }
-        }
-
+      if (!this.closing) {
         try {
-          if (jobsToExtend.length) {
-            await this.extendLocks(jobsToExtend);
-          }
+          await this.checkConnectionError(() => this.moveStalledJobsToWait());
+          this.stalledCheckTimer = setTimeout(async () => {
+            await this.startStalledCheckTimer();
+          }, this.opts.stalledInterval);
         } catch (err) {
           this.emit('error', <Error>err);
         }
+      }
+    }
+  }
 
-        this.startLockExtenderTimer(jobsInProgress);
-      }, this.opts.lockRenewTime / 2);
+  private startLockExtenderTimer(
+    jobsInProgress: Set<{ job: Job; ts: number }>,
+  ): void {
+    if (!this.opts.skipLockRenewal) {
+      clearTimeout(this.extendLocksTimer);
+
+      if (!this.closing) {
+        this.extendLocksTimer = setTimeout(async () => {
+          // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
+          const now = Date.now();
+          const jobsToExtend = [];
+
+          for (const item of jobsInProgress) {
+            const { job, ts } = item;
+            if (!ts) {
+              item.ts = now;
+              continue;
+            }
+
+            if (ts + this.opts.lockRenewTime / 2 < now) {
+              item.ts = now;
+              jobsToExtend.push(job);
+            }
+          }
+
+          try {
+            if (jobsToExtend.length) {
+              await this.extendLocks(jobsToExtend);
+            }
+          } catch (err) {
+            this.emit('error', <Error>err);
+          }
+
+          this.startLockExtenderTimer(jobsInProgress);
+        }, this.opts.lockRenewTime / 2);
+      }
     }
   }
 
@@ -894,16 +910,6 @@ export class Worker<
     }
   }
 
-  private async runStalledJobsCheck() {
-    try {
-      if (!this.closing) {
-        await this.checkConnectionError(() => this.moveStalledJobsToWait());
-      }
-    } catch (err) {
-      this.emit('error', <Error>err);
-    }
-  }
-
   private async moveStalledJobsToWait() {
     const chunkSize = 50;
     const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
@@ -919,11 +925,12 @@ export class Worker<
         ),
       );
 
-      if (i % chunkSize === 0) {
+      if ((i + 1) % chunkSize === 0) {
         this.notifyFailedJobs(await Promise.all(jobPromises));
         jobPromises.length = 0;
       }
     }
+
     this.notifyFailedJobs(await Promise.all(jobPromises));
   }
 
@@ -938,17 +945,10 @@ export class Worker<
     );
   }
 
-  private async moveLimitedBackToWait(
+  private moveLimitedBackToWait(
     job: Job<DataType, ResultType, NameType>,
     token: string,
   ) {
-    const multi = (await this.client).multi();
-    multi.pttl(this.keys.limiter);
-    this.scripts.moveJobFromActiveToWait(multi, job.id, token);
-    const [[err1, limitUntil], [err2]] = await multi.exec();
-    if (err1 || err2) {
-      throw err1 || err2;
-    }
-    return parseInt(limitUntil as string) || 0;
+    return this.scripts.moveJobFromActiveToWait(job.id, token);
   }
 }

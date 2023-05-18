@@ -303,11 +303,10 @@ export class Scripts {
       : { count: shouldRemove ? 0 : -1 };
   }
 
-  async moveToFinished<
-    DataType = any,
-    ReturnType = any,
-    NameType extends string = string,
-  >(jobId: string, args: (string | number | boolean | Buffer)[]) {
+  async moveToFinished(
+    jobId: string,
+    args: (string | number | boolean | Buffer)[],
+  ) {
     const client = await this.queue.client;
 
     const result = await (<any>client).moveToFinished(args);
@@ -762,7 +761,9 @@ export class Scripts {
       this.queue.toKey(job.id),
       this.queue.keys.events,
       this.queue.toKey(state),
-      this.queue.toKey('wait'),
+      this.queue.keys.wait,
+      this.queue.keys.meta,
+      this.queue.keys.paused,
     ];
 
     const args = [
@@ -875,11 +876,8 @@ export class Scripts {
    * @param jobId - Job id
    * @returns
    */
-  moveJobFromActiveToWait(
-    client: ChainableCommander,
-    jobId: string,
-    token: string,
-  ) {
+  async moveJobFromActiveToWait(jobId: string, token: string) {
+    const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
     const keys = [
@@ -887,11 +885,17 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.stalled,
       lockKey,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+      this.queue.keys.limiter,
+      this.queue.keys.events,
     ];
 
     const args = [jobId, token];
 
-    return (<any>client).moveJobFromActiveToWait(keys.concat(args));
+    const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
+
+    return pttl < 0 ? 0 : pttl;
   }
 
   async obliterate(opts: { force: boolean; count: number }): Promise<number> {
@@ -914,37 +918,6 @@ export class Scripts {
     }
     return result;
   }
-
-  /*
-//   *
-//    * Attempts to reprocess a job
-//    *
-//    * @param {Job} job
-//    * @param {Object} options
-//    * @param {String} options.state The expected job state. If the job is not found
-//    * on the provided state, then it's not reprocessed. Supported states: 'failed', 'completed'
-//    *
-//    * @return {Promise<Number>} Returns a promise that evaluates to a return code:
-//    * 1 means the operation was a success
-//    * 0 means the job does not exist
-//    * -1 means the job is currently locked and can't be retried.
-//    * -2 means the job was not found in the expected set
-
-  static reprocessJob(job: Jov, state: string) {
-    var queue = job.queue;
-
-    var keys = [
-      queue.toKey(job.id),
-      queue.toKey(job.id) + ':lock',
-      queue.toKey(state),
-      queue.toKey('wait'),
-    ];
-
-    var args = [job.id, (job.opts.lifo ? 'R' : 'L') + 'PUSH', queue.token];
-
-    return queue.client.reprocessJob(keys.concat(args));
-  }
-  */
 }
 
 export function raw2NextJobData(raw: any[]) {

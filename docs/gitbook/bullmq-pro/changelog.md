@@ -1,3 +1,17 @@
+## [5.2.4](https://github.com/taskforcesh/bullmq-pro/compare/v5.2.3...v5.2.4) (2023-05-16)
+
+
+### Bug Fixes
+
+* **rate-limit:** consider groups when global dynamic rate limit ([#145](https://github.com/taskforcesh/bullmq-pro/issues/145)) ([6f5d1e3](https://github.com/taskforcesh/bullmq-pro/commit/6f5d1e3014824149d1c857b79587bd5fd01f9bba))
+
+## [5.2.3](https://github.com/taskforcesh/bullmq-pro/compare/v5.2.2...v5.2.3) (2023-05-09)
+
+
+### Bug Fixes
+
+* **deps:** upgrade bullmq to 3.13.2 ([#144](https://github.com/taskforcesh/bullmq-pro/issues/144)) ([4dd0bb7](https://github.com/taskforcesh/bullmq-pro/commit/4dd0bb7ff69b8270f4adf1f513a7164fb49cc375))
+
 ## [5.2.2](https://github.com/taskforcesh/bullmq-pro/compare/v5.2.1...v5.2.2) (2023-04-18)
 
 

@@ -3,8 +3,12 @@
 
   Input:
     KEYS[1] Job id key
-  
-    ARGV[1] data        
+
+    ARGV[1] data
+
+  Output:
+    0 - OK
+   -1 - Missing job.
 ]]
 local rcall = redis.call
 

@@ -940,22 +940,26 @@ describe('repeat', function () {
 
     let counter = 10;
     let prev: Job;
-    const completing = new Promise<void>(resolve => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
-        if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          const diff = moment(job.timestamp).diff(
-            moment(prev.timestamp),
-            'months',
-            true,
-          );
-          expect(diff).to.be.gte(1);
-        }
-        prev = job;
+        try {
+          if (prev) {
+            expect(prev.timestamp).to.be.lt(job.timestamp);
+            const diff = moment(job.timestamp).diff(
+              moment(prev.timestamp),
+              'months',
+              true,
+            );
+            expect(diff).to.be.gte(1);
+          }
+          prev = job;
 
-        counter--;
-        if (counter == 0) {
-          resolve();
+          counter--;
+          if (counter == 0) {
+            resolve();
+          }
+        } catch (error) {
+          reject(error);
         }
       });
     });

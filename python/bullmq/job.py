@@ -55,6 +55,13 @@ class Job:
         self.data = data
         return self.scripts.updateData(self.id, data)
 
+    def retry(self, state: str = "failed"):
+        self.failedReason = None
+        self.finishedOn = None
+        self.processedOn = None
+        self.returnvalue = None
+        return self.scripts.reprocessJob(self, state)
+
     def updateProgress(self, progress):
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)

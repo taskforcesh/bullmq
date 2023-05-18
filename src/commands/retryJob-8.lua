@@ -50,8 +50,8 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   rcall(ARGV[3], target, ARGV[4])
 
   -- Emit waiting event
-  rcall("XADD", KEYS[6], "*", "event", "waiting", "jobId", ARGV[4], "prev", "failed");
-  
+  rcall("XADD", KEYS[6], "*", "event", "waiting", "jobId", ARGV[4], "prev", "failed")
+
   return 0
 else
   return -1

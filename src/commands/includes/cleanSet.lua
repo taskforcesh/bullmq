@@ -29,7 +29,7 @@ local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, l
     if limit > 0 and deletedCount >= limit then
       break
     end
-  
+
     local jobKey = jobKeyPrefix .. job
     -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
     jobTS = getTimestamp(jobKey, attributes)
@@ -45,6 +45,6 @@ local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, l
       rcall("ZREM", setKey, unpack(deleted, from, to))
     end
   end
-  
+
   return {deleted, deletedCount}
 end

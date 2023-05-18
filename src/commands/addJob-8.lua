@@ -101,7 +101,7 @@ else
     rcall("XADD", KEYS[8], "*", "event", "duplicated", "jobId", jobId)
 
     return jobId .. "" -- convert to string
-  end  
+  end
 end
 
 -- Store the job.
@@ -150,7 +150,7 @@ else
   -- Standard or priority add
   if priority == 0 then
     -- LIFO or FIFO
-    local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH';
+    local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
     rcall(pushCmd, target, jobId)
   else
     -- Priority add

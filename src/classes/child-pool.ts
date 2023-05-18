@@ -1,141 +1,56 @@
-import { ChildProcess, fork } from 'child_process';
 import * as path from 'path';
-import { AddressInfo, createServer } from 'net';
-import { killAsync } from './process-utils';
-import { ParentCommand, ChildCommand } from '../interfaces';
-import { parentSend } from '../utils';
+import { Child } from './child';
 
 const CHILD_KILL_TIMEOUT = 30_000;
 
-export interface ChildProcessExt extends ChildProcess {
-  processFile?: string;
-}
-
-const getFreePort = async () => {
-  return new Promise(resolve => {
-    const server = createServer();
-    server.listen(0, () => {
-      const { port } = server.address() as AddressInfo;
-      server.close(() => resolve(port));
-    });
-  });
-};
-
-const convertExecArgv = async (execArgv: string[]): Promise<string[]> => {
-  const standard: string[] = [];
-  const convertedArgs: string[] = [];
-
-  for (let i = 0; i < execArgv.length; i++) {
-    const arg = execArgv[i];
-    if (arg.indexOf('--inspect') === -1) {
-      standard.push(arg);
-    } else {
-      const argName = arg.split('=')[0];
-      const port = await getFreePort();
-      convertedArgs.push(`${argName}=${port}`);
-    }
-  }
-
-  return standard.concat(convertedArgs);
-};
-
-/**
- * @see https://nodejs.org/api/process.html#process_exit_codes
- */
-const exitCodesErrors: { [index: number]: string } = {
-  1: 'Uncaught Fatal Exception',
-  2: 'Unused',
-  3: 'Internal JavaScript Parse Error',
-  4: 'Internal JavaScript Evaluation Failure',
-  5: 'Fatal Error',
-  6: 'Non-function Internal Exception Handler',
-  7: 'Internal Exception Handler Run-Time Failure',
-  8: 'Unused',
-  9: 'Invalid Argument',
-  10: 'Internal JavaScript Run-Time Failure',
-  12: 'Invalid Debug Argument',
-  13: 'Unfinished Top-Level Await',
-};
-
-async function initChild(child: ChildProcess, processFile: string) {
-  const onComplete = new Promise<void>((resolve, reject) => {
-    const onMessageHandler = (msg: any) => {
-      if (msg.cmd === ParentCommand.InitCompleted) {
-        resolve();
-      } else if (msg.cmd === ParentCommand.InitFailed) {
-        const err = new Error();
-        err.stack = msg.err.stack;
-        err.message = msg.err.message;
-        reject(err);
-      }
-      child.off('message', onMessageHandler);
-      child.off('close', onCloseHandler);
-    };
-
-    const onCloseHandler = (code: number, signal: number) => {
-      if (code > 128) {
-        code -= 128;
-      }
-      const msg = exitCodesErrors[code] || `Unknown exit code ${code}`;
-      reject(
-        new Error(`Error initializing child: ${msg} and signal ${signal}`),
-      );
-      child.off('message', onMessageHandler);
-      child.off('close', onCloseHandler);
-    };
-
-    child.on('message', onMessageHandler);
-    child.on('close', onCloseHandler);
-  });
-
-  await parentSend(child, { cmd: ChildCommand.Init, value: processFile });
-  await onComplete;
+interface ChildPoolOpts {
+  mainFile?: string;
+  useWorkerThreads?: boolean;
 }
 
 export class ChildPool {
-  retained: { [key: number]: ChildProcessExt } = {};
-  free: { [key: string]: ChildProcessExt[] } = {};
+  retained: { [key: number]: Child } = {};
+  free: { [key: string]: Child[] } = {};
+  private opts: ChildPoolOpts;
 
-  constructor(
-    private masterFile = path.join(process.cwd(), 'dist/cjs/classes/master.js'),
-  ) {}
+  constructor({
+    mainFile = path.join(process.cwd(), 'dist/cjs/classes/main.js'),
+    useWorkerThreads,
+  }: ChildPoolOpts) {
+    this.opts = { mainFile, useWorkerThreads };
+  }
 
-  async retain(processFile: string): Promise<ChildProcessExt> {
-    const _this = this;
-    let child = _this.getFree(processFile).pop();
+  async retain(processFile: string): Promise<Child> {
+    let child = this.getFree(processFile).pop();
 
     if (child) {
-      _this.retained[child.pid] = child;
+      this.retained[child.pid] = child;
       return child;
     }
 
-    const execArgv = await convertExecArgv(process.execArgv);
-
-    child = fork(this.masterFile, [], { execArgv, stdio: 'pipe' });
-    child.processFile = processFile;
-
-    _this.retained[child.pid] = child;
-
-    child.on('exit', _this.remove.bind(_this, child));
-
-    child.stdout.pipe(process.stdout);
-    child.stderr.pipe(process.stderr);
+    child = new Child(this.opts.mainFile, processFile, {
+      useWorkerThreads: this.opts.useWorkerThreads,
+    });
+    child.on('exit', this.remove.bind(this, child));
 
     try {
-      await initChild(child, child.processFile);
+      await child.init();
+      this.retained[child.pid] = child;
+
       return child;
     } catch (err) {
-      _this.release(child);
+      console.error(err);
+      this.release(child);
       throw err;
     }
   }
 
-  release(child: ChildProcessExt): void {
+  release(child: Child): void {
     delete this.retained[child.pid];
     this.getFree(child.processFile).push(child);
   }
 
-  remove(child: ChildProcessExt): void {
+  remove(child: Child): void {
     delete this.retained[child.pid];
 
     const free = this.getFree(child.processFile);
@@ -147,11 +62,11 @@ export class ChildPool {
   }
 
   async kill(
-    child: ChildProcess,
+    child: Child,
     signal: 'SIGTERM' | 'SIGKILL' = 'SIGKILL',
   ): Promise<void> {
     this.remove(child);
-    await killAsync(child, signal, CHILD_KILL_TIMEOUT);
+    return child.kill(signal, CHILD_KILL_TIMEOUT);
   }
 
   async clean(): Promise<void> {
@@ -162,11 +77,11 @@ export class ChildPool {
     await Promise.all(children.map(c => this.kill(c, 'SIGTERM')));
   }
 
-  getFree(id: string): ChildProcessExt[] {
+  getFree(id: string): Child[] {
     return (this.free[id] = this.free[id] || []);
   }
 
-  getAllFree(): ChildProcessExt[] {
+  getAllFree(): Child[] {
     return Object.values(this.free).reduce(
       (first, second) => first.concat(second),
       [],
