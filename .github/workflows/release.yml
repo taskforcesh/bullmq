@@ -32,8 +32,3 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
       - run: yarn copy:lua:python
-      - name: Setup Python
-        uses: actions/setup-python@@57ded4d7d5e986d7296eab16560982c6dd7c923b # v4
-        with:
-          python-version: '3.10'
-          cache: 'pip'
