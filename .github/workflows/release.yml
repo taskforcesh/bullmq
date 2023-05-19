@@ -13,8 +13,6 @@ jobs:
       contents: write # for release publishing
 
     name: Release
-    env:
-      commitmsg: ${{ github.event.head_commit.message }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
