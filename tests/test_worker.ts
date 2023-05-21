@@ -2070,6 +2070,10 @@ describe('workers', function () {
 
         await worker.waitUntilReady();
 
+        const completing = new Promise(resolve => {
+          worker.on('completed', after(4, resolve));
+        });
+
         await queue.add(
           'test',
           { foo: 'bar' },
@@ -2088,9 +2092,7 @@ describe('workers', function () {
 
         await queue.addBulk(jobs);
 
-        await new Promise(resolve => {
-          worker.on('completed', after(4, resolve));
-        });
+        await completing;
 
         await worker.close();
       });

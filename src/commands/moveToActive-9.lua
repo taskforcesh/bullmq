@@ -67,9 +67,11 @@ if jobId then
     -- Move again since we just got the marker job.
     jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
+    -- Since it is possible that between a call to BRPOPLPUSH and moveToActive
+    -- another script puts a new maker in wait, we need to check again.
     if jobId and string.sub(jobId, 1, 2) == "0:" then
       rcall("LREM", KEYS[2], 1, jobId)
-      jobId = nil
+      jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
     end
   end
 
