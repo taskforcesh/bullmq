@@ -3,7 +3,7 @@ certifi==2022.12.7
 distlib==0.3.6
 filelock==3.12.0
 msgpack==1.0.5
-pipenv==2023.4.29
+pipenv==2023.5.19
 platformdirs==3.5.1
 redis==4.5.5
 six==1.16.0
