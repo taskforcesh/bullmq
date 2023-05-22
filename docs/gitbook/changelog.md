@@ -1,3 +1,10 @@
+# [3.14.0](https://github.com/taskforcesh/bullmq/compare/v3.13.4...v3.14.0) (2023-05-22)
+
+
+### Features
+
+* **worker:** make extendLocks overridable ([7b1386b](https://github.com/taskforcesh/bullmq/commit/7b1386bb823562d9666a1ad6e206e1deb63e57ec))
+
 ## [3.13.4](https://github.com/taskforcesh/bullmq/compare/v3.13.3...v3.13.4) (2023-05-11)
 
 
