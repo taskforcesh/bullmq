@@ -883,7 +883,7 @@ export class Worker<
     } while (retry);
   }
 
-  private async extendLocks(jobs: Job[]) {
+  protected async extendLocks(jobs: Job[]) {
     try {
       const multi = (await this.client).multi();
       for (const job of jobs) {
