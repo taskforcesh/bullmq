@@ -6,9 +6,11 @@
 from __future__ import annotations
 from redis import Redis
 from bullmq.error_code import ErrorCode
+from bullmq.utils import isRedisVersionLowerThan
 from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from bullmq.job import Job
+    from bullmq.redis_connection import RedisConnection
 
 import time
 import json
@@ -21,32 +23,35 @@ basePath = os.path.dirname(os.path.realpath(__file__))
 
 class Scripts:
 
-    def __init__(self, prefix: str, queueName: str, redisClient: Redis):
+    def __init__(self, prefix: str, queueName: str, redisConnection: RedisConnection):
         self.prefix = prefix
         self.queueName = queueName
         self.keys = {}
-        self.redisClient = redisClient
+        self.redisConnection = redisConnection
+        self.redisClient = redisConnection.conn
         self.commands = {
-            "addJob": redisClient.register_script(self.getScript("addJob-8.lua")),
-            "extendLock": redisClient.register_script(self.getScript("extendLock-2.lua")),
-            "getCounts": redisClient.register_script(self.getScript("getCounts-1.lua")),
-            "moveToActive": redisClient.register_script(self.getScript("moveToActive-9.lua")),
-            "moveToDelayed": redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
-            "moveToFinished": redisClient.register_script(self.getScript("moveToFinished-12.lua")),
-            "moveStalledJobsToWait": redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
-            "pause": redisClient.register_script(self.getScript("pause-4.lua")),
-            "obliterate": redisClient.register_script(self.getScript("obliterate-2.lua")),
-            "reprocessJob": redisClient.register_script(self.getScript("reprocessJob-6.lua")),
-            "retryJob": redisClient.register_script(self.getScript("retryJob-8.lua")),
-            "retryJobs": redisClient.register_script(self.getScript("retryJobs-6.lua")),
-            "saveStacktrace": redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
-            "updateData": redisClient.register_script(self.getScript("updateData-1.lua")),
-            "updateProgress": redisClient.register_script(self.getScript("updateProgress-2.lua")),
+            "addJob": self.redisClient.register_script(self.getScript("addJob-8.lua")),
+            "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
+            "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
+            "getState": self.redisClient.register_script(self.getScript("getState-7.lua")),
+            "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-7.lua")),
+            "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-9.lua")),
+            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
+            "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-12.lua")),
+            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
+            "pause": self.redisClient.register_script(self.getScript("pause-4.lua")),
+            "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
+            "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
+            "retryJob": self.redisClient.register_script(self.getScript("retryJob-8.lua")),
+            "retryJobs": self.redisClient.register_script(self.getScript("retryJobs-6.lua")),
+            "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
+            "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
+            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-2.lua")),
         }
 
         # loop all the names and add them to the keys object
         names = ["", "active", "wait", "paused", "completed", "failed", "delayed",
-                 "stalled", "limiter", "priority", "id", "stalled-check", "meta", "events"]
+                 "stalled", "limiter", "priority", "id", "stalled-check", "meta", "events", "waiting-children"]
         for name in names:
             self.keys[name] = self.toKey(name)
 
@@ -147,6 +152,21 @@ class Scripts:
             map(lambda type: 'wait' if type == 'waiting' else type, types))
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
+
+    async def getState(self, job_id):
+        keys = self.getKeys(['completed', 'failed', 'delayed', 'active', 'wait',
+                'paused', 'waiting-children'])
+
+        args = [job_id]
+
+        redis_version = await self.redisConnection.getRedisVersion()
+
+        if isRedisVersionLowerThan(redis_version, '6.0.6'):
+            result = await self.commands["getState"](keys=keys, args=args)
+            return result
+
+        result = await self.commands["getStateV2"](keys=keys, args=args)
+        return result
 
     async def updateData(self, job_id: str, data):
         keys = [self.toKey(job_id)]

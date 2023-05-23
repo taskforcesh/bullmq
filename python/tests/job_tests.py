@@ -7,8 +7,9 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 import unittest
 
 from bullmq import Queue, Job
+from uuid import uuid4
 
-queueName = "__bullmq_test_queue__"
+queueName = f"__test_queue__{uuid4().hex}"
 
 class TestJob(unittest.IsolatedAsyncioTestCase):
 
@@ -35,6 +36,16 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await job.updateProgress({"total": 120, "completed": 40})
         stored_job = await Job.fromId(queue, job.id)
         self.assertEqual(stored_job.progress, {"total": 120, "completed": 40})
+        
+        await queue.close()
+
+    async def test_get_job_state(self):
+        queue = Queue(queueName)
+        job = await queue.add("test-job", {"foo": "bar"}, {})
+        state = await job.getState()
+
+        print(state)
+        self.assertEqual(state, "waiting")
         
         await queue.close()
 
