@@ -57,3 +57,6 @@ The event stream is auto-trimmed so that its size does not grow too much, by def
 ## Read more:
 
 * 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/QueueEvents.html)
+* 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/QueueEventsListener.html)
+* 💡 [Queue Listener API Reference](https://api.docs.bullmq.io/interfaces/QueueListener.html)
+* 💡 [Worker Listener API Reference](https://api.docs.bullmq.io/interfaces/WorkerListener.html)
