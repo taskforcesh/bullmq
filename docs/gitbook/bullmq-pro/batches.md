@@ -51,9 +51,34 @@ const worker = new WorkerPro("My Queue", async (job: JobPro) => {
 
 Only the jobs that are `setAsFailed` will fail, the rest will be moved to complete when the processor for the batch job completes.
 
+### Handling events
+
+Batches are handled by wrapping all the jobs in a batch into a dummy job that keeps all the jobs in an internal array. This approach simplifies the mechanics of running batches, however, it also affects things like how events are handled. For instance, if you need to listen for individual jobs that have completed or failed you must use global events, as the event handler on the worker instance will only report on the events produced by the wrapper batch job, and not the jobs themselves.
+
+It is possible to call getBatch to get all the jobs belonging to a given batch.
+
+```typescript
+ worker.on('completed', job => {
+    const batch = job.getBatch();e
+ });
+```
+
+Using a global event listener you can listen to individual job events even though they may be processed in a batch:
+
+```typescript
+import { QueueEventsPro } from "@taskforcesh/bullmq-pro"
+
+const queueEvents = new QueueEventsPro(queueName, { connection });
+queueEvents.on('completed', (jobId, err) => {
+
+});
+```
+
+
+
 ### Limitations
 
-Currently, all worker options can be used with the batches, however, there are some unsupported features that may be resolved in the future:
+Currently, all worker options can be used with the batches, however, there are some unsupported features that may be implemented in the future:
 
 * [Dynamic rate limit](https://docs.bullmq.io/guide/rate-limiting#manual-rate-limit)
 * [Manually processing jobs](https://docs.bullmq.io/patterns/manually-fetching-jobs)
