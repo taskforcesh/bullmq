@@ -931,13 +931,6 @@ describe('repeat', function () {
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-    await queue.add(
-      'repeat',
-      { foo: 'bar' },
-      { repeat: { pattern: '* 25 9 7 * *' } },
-    );
-    nextTick();
-
     let counter = 10;
     let prev: Job;
     const completing = new Promise<void>((resolve, reject) => {
@@ -965,6 +958,13 @@ describe('repeat', function () {
     });
 
     worker.run();
+
+    await queue.add(
+      'repeat',
+      { foo: 'bar' },
+      { repeat: { pattern: '* 25 9 7 * *' } },
+    );
+    nextTick();
 
     await completing;
     await worker.close();
