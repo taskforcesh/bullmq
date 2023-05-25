@@ -323,6 +323,67 @@ describe('Rate Limiter', function () {
       await worker.close();
     });
 
+    describe('when priority is provided', () => {
+      it('should obey the rate limit respecting priority', async function () {
+        this.timeout(6000);
+
+        let extraCount = 3;
+        let priority = 9;
+        const numJobs = 4;
+        const dynamicLimit = 250;
+        const duration = 100;
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            if (job.attemptsMade === 1) {
+              if (extraCount > 0) {
+                await queue.add('rate test', {}, { priority });
+                priority -= 1;
+                extraCount -= 1;
+              }
+              await worker.rateLimit(dynamicLimit);
+              throw Worker.RateLimitError();
+            }
+          },
+          {
+            connection,
+            limiter: {
+              max: 1,
+              duration,
+            },
+          },
+        );
+
+        const result = new Promise<void>((resolve, reject) => {
+          queueEvents.on(
+            'completed',
+            // after every job has been completed
+            after(numJobs, async args => {
+              await worker.close();
+
+              try {
+                expect(args.jobId).to.be.equal('1');
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            }),
+          );
+
+          queueEvents.on('failed', async err => {
+            await worker.close();
+            reject(err);
+          });
+        });
+
+        await queue.add('rate test', {}, { priority: 10 });
+
+        await result;
+        await worker.close();
+      });
+    });
+
     describe('when queue is paused', () => {
       it('moves job to paused', async function () {
         const dynamicLimit = 250;
