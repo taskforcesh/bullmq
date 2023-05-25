@@ -598,6 +598,32 @@ describe('Job', function () {
       await queueEvents.close();
     });
 
+    describe('when job is removed', function () {
+      it('should not save stacktrace', async function () {
+        const client = await queue.client;
+        const worker = new Worker(queueName, null, {
+          connection,
+          lockDuration: 100,
+          skipLockRenewal: true,
+        });
+        const token = 'my-token';
+        await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
+        const job = (await worker.getNextJob(token)) as Job;
+        await delay(100);
+        await job.remove();
+
+        await expect(
+          job.moveToFailed(new Error('test error'), '0'),
+        ).to.be.rejectedWith(`Missing key for job ${job.id}. failed`);
+
+        const processed = await client.hgetall(`bull:${queueName}:${job.id}`);
+
+        expect(processed).to.deep.equal({});
+
+        await worker.close();
+      });
+    });
+
     describe('when attempts made equal to attempts given', function () {
       it('marks the job as failed', async function () {
         const worker = new Worker(queueName, null, { connection });
