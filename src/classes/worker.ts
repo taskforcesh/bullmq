@@ -192,7 +192,7 @@ export class Worker<
 
   constructor(
     name: string,
-    processor?: string | Processor<DataType, ResultType, NameType>,
+    processor?: string | null | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
     Connection?: typeof RedisConnection,
   ) {

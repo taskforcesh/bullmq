@@ -931,7 +931,7 @@ describe('repeat', function () {
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-    let counter = 10;
+    let counter = 25;
     let prev: Job;
     const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
