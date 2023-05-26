@@ -5,11 +5,11 @@
 -- Includes
 --- @include "getNextDelayedTimestamp"
 
-local function addDelayMarkerIfNeeded(target, delayedKey)
-  if rcall("LLEN", target) == 0 then
+local function addDelayMarkerIfNeeded(targetKey, delayedKey)
+  if rcall("LLEN", targetKey) == 0 then
     local nextTimestamp = getNextDelayedTimestamp(delayedKey)
     if nextTimestamp ~= nil then
-      rcall("LPUSH", target, "0:" .. nextTimestamp)
+      rcall("LPUSH", targetKey, "0:" .. nextTimestamp)
     end
   end
 end

@@ -31,7 +31,8 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 
-promoteDelayedJobs(KEYS[7], KEYS[2], KEYS[8], KEYS[3], KEYS[5], KEYS[6], ARGV[1], ARGV[2])
+local target = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
+promoteDelayedJobs(KEYS[7], target, KEYS[8], KEYS[6], ARGV[1], ARGV[2])
 
 if rcall("EXISTS", KEYS[4]) == 1 then
 
@@ -43,8 +44,6 @@ if rcall("EXISTS", KEYS[4]) == 1 then
       return -2
     end
   end
-
-  local target = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
 
   rcall("LREM", KEYS[1], 0, ARGV[4])
   rcall(ARGV[3], target, ARGV[4])
