@@ -892,7 +892,7 @@ export class Scripts {
       this.queue.keys.events,
     ];
 
-    const args = [jobId, token, this.queue.toKey('')];
+    const args = [jobId, token, this.queue.toKey(jobId)];
 
     const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
 

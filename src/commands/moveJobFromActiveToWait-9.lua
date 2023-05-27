@@ -14,7 +14,7 @@
 
     ARGV[1] job id
     ARGV[2] lock token
-    ARGV[3] prefix
+    ARGV[3] job id key
 ]]
 local rcall = redis.call
 
@@ -35,7 +35,7 @@ if lockToken == token and pttl > 0 then
 
     rcall("SREM", KEYS[3], jobId)
 
-    local priority = tonumber(rcall("HGET", ARGV[3] .. jobId, "priority")) or 0
+    local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
     if priority > 0 then
       addJobWithPriority(KEYS[8], priority, target, jobId)
