@@ -37,11 +37,14 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/getNextDelayedTimestamp"
---- @include "includes/promoteDelayedJobs"
 --- @include "includes/getRateLimitTTL"
+--- @include "includes/getTargetQueueList"
+--- @include "includes/promoteDelayedJobs"
+
+local target = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
-promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[9], KEYS[4], ARGV[1], ARGV[2])
+promoteDelayedJobs(KEYS[7], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2])
 
 local opts
 if (ARGV[3] ~= "") then
