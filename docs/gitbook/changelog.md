@@ -1,3 +1,15 @@
+## [3.14.1](https://github.com/taskforcesh/bullmq/compare/v3.14.0...v3.14.1) (2023-05-27)
+
+
+### Features
+
+* **python:** add getState method ([#1906](https://github.com/taskforcesh/bullmq/issues/1906)) ([f0867a6](https://github.com/taskforcesh/bullmq/commit/f0867a679c75555fa764078481252110c1e7377f))
+
+
+### Performance Improvements
+
+* **retry-job:** get target queue list once ([#1921](https://github.com/taskforcesh/bullmq/issues/1921)) ([8a7a9dd](https://github.com/taskforcesh/bullmq/commit/8a7a9ddd793161a8591485ed18a191ece37026a8))
+
 # [3.14.0](https://github.com/taskforcesh/bullmq/compare/v3.13.4...v3.14.0) (2023-05-22)
 
 
