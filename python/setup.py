@@ -19,7 +19,7 @@ setup(
     author_email='manast@taskforce.sh',
     license='MIT',
     packages=['bullmq'],
-    package_data={'bullmq': ['commands/*.lua']},
+    package_data={'bullmq': ['commands/*.lua', 'types/*']},
     install_requires=['redis',
                       'msgpack',            
                       ],
