@@ -2,6 +2,7 @@
   "name": "bullmq",
   "version": "3.14.1",
   "description": "Queue for messages and jobs based on Redis",
+  "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
