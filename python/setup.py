@@ -20,9 +20,11 @@ setup(
     license='MIT',
     packages=['bullmq'],
     package_data={'bullmq': ['commands/*.lua', 'types/*']},
-    install_requires=['redis',
-                      'msgpack',            
-                      ],
+    install_requires=[
+        'redis',
+        'msgpack',
+        'semver',
+    ],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
