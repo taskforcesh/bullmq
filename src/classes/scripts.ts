@@ -888,10 +888,11 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.limiter,
+      this.queue.keys.priority,
       this.queue.keys.events,
     ];
 
-    const args = [jobId, token];
+    const args = [jobId, token, this.queue.toKey(jobId)];
 
     const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
 
