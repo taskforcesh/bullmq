@@ -27,7 +27,7 @@ If several jobs are added with the same priority value, then the jobs within tha
 
 ## Change priority
 
-If you want to change the priority after inserting a job, just use **changePriority** method. For example, let's say you want to change the priority from 16 to 1:
+If you want to change the priority after inserting a job, just use the **changePriority** method. For example, let's say that you want to change the priority from 16 to 1:
 
 ```typescript
 const job = await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });

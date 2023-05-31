@@ -37,7 +37,7 @@ await job.changeDelay(4000);
 ```
 
 {% hint style="warning" %}
-Take in count that your job must be in delayed state when you change the delay.
+Take in count that your job must be into delayed state when you change the delay.
 {% endhint %}
 
 ## Read more:

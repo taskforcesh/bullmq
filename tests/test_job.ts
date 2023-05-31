@@ -609,7 +609,7 @@ describe('Job', function () {
         const token = 'my-token';
         await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
         const job = (await worker.getNextJob(token)) as Job;
-        await delay(100);
+        await delay(105);
         await job.remove();
 
         await expect(
