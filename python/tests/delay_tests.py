@@ -9,8 +9,9 @@ import time
 
 from asyncio import Future
 from bullmq import Queue, Job, Worker
+from uuid import uuid4
 
-queueName = "__bullmq_test_queue__"
+queueName = f"__test_queue__{uuid4().hex}"
 
 class TestJob(unittest.IsolatedAsyncioTestCase):
 

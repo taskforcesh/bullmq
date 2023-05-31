@@ -6,13 +6,13 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 
 from asyncio import Future
 from bullmq import Queue, Worker, Job
+from uuid import uuid4
 
 import asyncio
 import unittest
 import time
 
-queueName = "__test_queue__"
-
+queueName = f"__test_queue__{uuid4().hex}"
 
 class TestWorker(unittest.IsolatedAsyncioTestCase):
 

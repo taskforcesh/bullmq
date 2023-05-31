@@ -37,11 +37,14 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/getNextDelayedTimestamp"
---- @include "includes/promoteDelayedJobs"
 --- @include "includes/getRateLimitTTL"
+--- @include "includes/getTargetQueueList"
+--- @include "includes/promoteDelayedJobs"
+
+local target = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
-promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[9], KEYS[4], ARGV[1], ARGV[2])
+promoteDelayedJobs(KEYS[7], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2])
 
 local opts
 if (ARGV[3] ~= "") then
@@ -67,9 +70,11 @@ if jobId then
     -- Move again since we just got the marker job.
     jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
+    -- Since it is possible that between a call to BRPOPLPUSH and moveToActive
+    -- another script puts a new maker in wait, we need to check again.
     if jobId and string.sub(jobId, 1, 2) == "0:" then
       rcall("LREM", KEYS[2], 1, jobId)
-      jobId = nil
+      jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
     end
   end
 

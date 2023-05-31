@@ -186,8 +186,10 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- and not rate limited.
     if (ARGV[7] == "1") then
 
+        local target = getTargetQueueList(KEYS[11], KEYS[1], KEYS[8])
+
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], KEYS[1], KEYS[3], KEYS[8], KEYS[11],
+        promoteDelayedJobs(KEYS[7], target, KEYS[3],
                            KEYS[4], ARGV[8], timestamp)
 
         -- Check if we are rate limited first.

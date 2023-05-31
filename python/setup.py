@@ -10,7 +10,7 @@ with open(path.join(".", 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='bullmq',
-    version='0.3.0',    
+    version='0.4.1',    
     description='BullMQ for Python',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -19,10 +19,12 @@ setup(
     author_email='manast@taskforce.sh',
     license='MIT',
     packages=['bullmq'],
-    package_data={'bullmq': ['commands/*.lua']},
-    install_requires=['redis',
-                      'msgpack',            
-                      ],
+    package_data={'bullmq': ['commands/*.lua', 'types/*']},
+    install_requires=[
+        'redis',
+        'msgpack',
+        'semver',
+    ],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',

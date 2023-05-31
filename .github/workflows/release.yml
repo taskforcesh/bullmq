@@ -13,6 +13,8 @@ jobs:
       contents: write # for release publishing
 
     name: Release
+    env:
+      commitmsg: ${{ github.event.head_commit.message }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -24,10 +26,32 @@ jobs:
         with:
           node-version: lts/*
           cache: 'yarn'
-      - name: Install dependencies
+      - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
-      - name: Release
+      - name: Release Node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
+      - run: yarn copy:lua:python
+      - name: Setup Python
+        uses: actions/setup-python@57ded4d7d5e986d7296eab16560982c6dd7c923b # v4
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+      - name: Install dependencies Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 mypy types-redis
+          pip install -r python/requirements.txt
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+          cd python
+      - name: Release Python
+        if: ${{ startsWith(env.commitmsg, 'ci(python)') }}
+        run: |
+          echo Commit MSG = $commitmsg

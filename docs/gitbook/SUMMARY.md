@@ -65,6 +65,7 @@
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
+* [Batches](bullmq-pro/batches.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
   * [Producers](bullmq-pro/nestjs/producers.md)
   * [API Reference](https://nestjs.bullmq.pro/)

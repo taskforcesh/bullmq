@@ -192,7 +192,7 @@ export class Worker<
 
   constructor(
     name: string,
-    processor?: string | Processor<DataType, ResultType, NameType>,
+    processor?: string | null | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
     Connection?: typeof RedisConnection,
   ) {
@@ -883,7 +883,7 @@ export class Worker<
     } while (retry);
   }
 
-  private async extendLocks(jobs: Job[]) {
+  protected async extendLocks(jobs: Job[]) {
     try {
       const multi = (await this.client).multi();
       for (const job of jobs) {
