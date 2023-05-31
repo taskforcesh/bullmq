@@ -527,6 +527,40 @@ export class Scripts {
     return keys.concat([delay, JSON.stringify(timestamp), jobId]);
   }
 
+  async changePriority(
+    jobId: string,
+    priority = 0,
+    lifo = false,
+  ): Promise<void> {
+    const client = await this.queue.client;
+
+    const args = this.changePriorityArgs(jobId, priority, lifo);
+    const result = await (<any>client).changePriority(args);
+    if (result < 0) {
+      throw this.finishedErrors(result, jobId, 'changePriority');
+    }
+  }
+
+  private changePriorityArgs(
+    jobId: string,
+    priority = 0,
+    lifo = false,
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      this.queue.keys.wait,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+      this.queue.keys.priority,
+    ];
+
+    return keys.concat([
+      priority,
+      this.queue.toKey(jobId),
+      jobId,
+      lifo ? 1 : 0,
+    ]);
+  }
+
   // Note: We have an issue here with jobs using custom job ids
   moveToDelayedArgs(
     jobId: string,

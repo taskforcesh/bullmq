@@ -739,6 +739,18 @@ export class Job<
   }
 
   /**
+   * Change job priority.
+   *
+   * @returns void
+   */
+  async changePriority(opts: {
+    priority?: number;
+    lifo?: boolean;
+  }): Promise<void> {
+    await this.scripts.changePriority(this.id, opts.priority, opts.lifo);
+  }
+
+  /**
    * Get this jobs children result values if any.
    *
    * @returns Object mapping children job keys with their values.
