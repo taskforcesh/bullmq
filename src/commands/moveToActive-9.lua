@@ -46,17 +46,17 @@ local target = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
 -- Check if there are delayed jobs that we can move to wait.
 promoteDelayedJobs(KEYS[7], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2])
 
-local opts
+local opts = cmsgpack.unpack(ARGV[4])
+local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
+local expireTime = getRateLimitTTL(maxJobs, KEYS[6])
 if (ARGV[3] ~= "") then
   jobId = ARGV[3]
   -- clean stalled key
   rcall("SREM", KEYS[5], jobId)
 else
   -- Check if we are rate limited first.
-  opts = cmsgpack.unpack(ARGV[4])
-  local pttl = getRateLimitTTL(opts, KEYS[6])
-  if pttl > 0 then
-    return { 0, 0, pttl }
+  if expireTime > 0 then
+    return { 0, 0, expireTime }
   end
 
   -- no job ID, try non-blocking move from wait to active
@@ -67,6 +67,11 @@ end
 if jobId then
   if string.sub(jobId, 1, 2) == "0:" then
     rcall("LREM", KEYS[2], 1, jobId)
+
+    if expireTime > 0 then
+      return { 0, 0, expireTime }
+    end
+
     -- Move again since we just got the marker job.
     jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
@@ -79,9 +84,8 @@ if jobId then
   end
 
   if jobId then
-    opts = opts or cmsgpack.unpack(ARGV[4])
     -- this script is not really moving, it is preparing the job for processing
-    return moveJobFromWaitToActive(KEYS, ARGV[1], jobId, ARGV[2], opts)
+    return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
   end
 end
 
