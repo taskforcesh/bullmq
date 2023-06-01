@@ -206,7 +206,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 rcall("LREM", KEYS[2], 1, jobId)
 
                 if expireTime > 0 then
-                    return { 0, 0, expireTime }
+                    return { 0, 0, expireTime, 0 }
                 end              
             else
                 -- this script is not really moving, it is preparing the job for processing

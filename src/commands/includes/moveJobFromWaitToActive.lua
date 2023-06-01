@@ -37,7 +37,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
       rcall("RPUSH", targetKey, jobId)
 
       -- Return when we can process more jobs
-      return {0, 0, expireTime}
+      return {0, 0, expireTime, 0}
     end
   end
 
@@ -54,5 +54,5 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
   rcall("HSET", jobKey, "processedOn", processedOn)
   rcall("HINCRBY", jobKey, "attemptsMade", 1)
 
-  return {rcall("HGETALL", jobKey), jobId, 0} -- get job data
+  return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data
 end

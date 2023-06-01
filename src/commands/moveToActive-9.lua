@@ -56,7 +56,7 @@ if (ARGV[3] ~= "") then
 else
   -- Check if we are rate limited first.
   if expireTime > 0 then
-    return { 0, 0, expireTime }
+    return { 0, 0, expireTime, 0 }
   end
 
   -- no job ID, try non-blocking move from wait to active
@@ -69,7 +69,7 @@ if jobId then
     rcall("LREM", KEYS[2], 1, jobId)
 
     if expireTime > 0 then
-      return { 0, 0, expireTime }
+      return { 0, 0, expireTime, 0 }
     end
 
     -- Move again since we just got the marker job.
