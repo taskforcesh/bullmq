@@ -196,7 +196,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         -- Check if we are rate limited first.
         local expireTime = getRateLimitTTL(maxJobs, KEYS[6])
 
-        if expireTime > 0 then return {0, 0, expireTime} end
+        if expireTime > 0 then return {0, 0, expireTime, 0} end
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
@@ -204,10 +204,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if jobId then
             if string.sub(jobId, 1, 2) == "0:" then
                 rcall("LREM", KEYS[2], 1, jobId)
-
-                if expireTime > 0 then
-                    return { 0, 0, expireTime, 0 }
-                end              
             else
                 -- this script is not really moving, it is preparing the job for processing
                 return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs, expireTime, opts)
@@ -216,7 +212,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         -- Return the timestamp for the next delayed job if any.
         local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
-        if (nextTimestamp ~= nil) then
+        if nextTimestamp ~= nil then
             -- The result is guaranteed to be positive, since the
             -- ZRANGEBYSCORE command would have return a job otherwise.
             return {0, 0, 0, nextTimestamp}

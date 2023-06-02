@@ -94,3 +94,5 @@ local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
 if (nextTimestamp ~= nil) then
   return { 0, 0, 0, nextTimestamp}
 end
+
+return { 0, 0, 0, 0}
