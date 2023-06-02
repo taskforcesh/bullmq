@@ -202,7 +202,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if jobId then
             if string.sub(jobId, 1, 2) == "0:" then
                 rcall("LREM", KEYS[2], 1, jobId)
-                if pttl > 0 then return {0, 0, pttl, 0} end
             else
                 -- this script is not really moving, it is preparing the job for processing
                 return moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
