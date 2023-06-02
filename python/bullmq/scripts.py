@@ -21,6 +21,26 @@ import os
 basePath = os.path.dirname(os.path.realpath(__file__))
 
 
+COMMANDS_AVAILABLE = [
+            "addJob",
+            "extendLock",
+            "getCounts",
+            "getState",
+            "getStateV2",
+            "moveToActive",
+            "moveToDelayed",
+            "moveToFinished",
+            "moveStalledJobsToWait",
+            "pause",
+            "obliterate",
+            "reprocessJob",
+            "retryJob",
+            "retryJobs",
+            "saveStacktrace",
+            "updateData",
+            "updateProgress", 
+        ]
+
 class Scripts:
 
     def __init__(self, prefix: str, queueName: str, redisConnection: RedisConnection):
@@ -29,31 +49,29 @@ class Scripts:
         self.keys = {}
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
-        self.commands = {
-            "addJob": self.redisClient.register_script(self.getScript("addJob-8.lua")),
-            "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
-            "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
-            "getState": self.redisClient.register_script(self.getScript("getState-7.lua")),
-            "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-7.lua")),
-            "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-9.lua")),
-            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
-            "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-12.lua")),
-            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
-            "pause": self.redisClient.register_script(self.getScript("pause-4.lua")),
-            "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
-            "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
-            "retryJob": self.redisClient.register_script(self.getScript("retryJob-8.lua")),
-            "retryJobs": self.redisClient.register_script(self.getScript("retryJobs-6.lua")),
-            "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
-            "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
-            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-2.lua")),
-        }
+        self.commands = self.getCommands()
 
         # loop all the names and add them to the keys object
         names = ["", "active", "wait", "paused", "completed", "failed", "delayed",
                  "stalled", "limiter", "priority", "id", "stalled-check", "meta", "events", "waiting-children"]
         for name in names:
             self.keys[name] = self.toKey(name)
+
+    def getCommands(self):
+        cmds = {}
+        for command in COMMANDS_AVAILABLE:
+            cmds[command] = self.find_and_register(command) 
+        return cmds
+    
+    def find_and_register(self, command: str):
+        import glob
+        paths = glob.glob(f"{basePath}/commands/{command}-*.lua")
+        if len(paths) == 0:
+            raise Exception(f"Command {command} not found")
+        if len(paths) > 1:
+            raise Exception(f"Multiple commands found for {command}")
+        name = paths[0].split("/")[-1]
+        return self.redisClient.register_script(self.getScript(name))
 
     def toKey(self, name: str):
         return f"{self.prefix}:{self.queueName}:{name}"
