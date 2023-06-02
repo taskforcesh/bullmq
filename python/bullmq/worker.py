@@ -78,6 +78,7 @@ class Worker(EventEmitter):
                 # This should never happen or we will have an endless loop
                 print("ERROR:", e)
                 traceback.print_exc()
+                raise Exception("Error in worker")
                 return
 
         self.running = False
@@ -199,3 +200,4 @@ def extract_result(job_task):
             # print error message and ignore the job
             print("ERROR:", e)
             traceback.print_exc()    
+        time.sleep(0.1)
