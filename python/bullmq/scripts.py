@@ -16,7 +16,7 @@ import time
 import json
 import msgpack
 import os
-
+import glob
 
 basePath = os.path.dirname(os.path.realpath(__file__))
 
@@ -60,11 +60,10 @@ class Scripts:
     def getCommands(self):
         cmds = {}
         for command in COMMANDS_AVAILABLE:
-            cmds[command] = self.find_and_register(command) 
+            cmds[command] = self.findAndRegister(command) 
         return cmds
     
-    def find_and_register(self, command: str):
-        import glob
+    def findAndRegister(self, command: str):
         paths = glob.glob(f"{basePath}/commands/{command}-*.lua")
         if len(paths) == 0:
             raise Exception(f"Command {command} not found")
