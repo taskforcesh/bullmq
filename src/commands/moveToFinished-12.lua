@@ -194,7 +194,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         -- Check if we are rate limited first.
         local pttl = getRateLimitTTL(opts, KEYS[6])
-        if pttl > 0 then return {0, 0, pttl} end
+        if pttl > 0 then return {0, 0, pttl, 0} end
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
@@ -203,7 +203,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if string.sub(jobId, 1, 2) == "0:" then
                 rcall("LREM", KEYS[2], 1, jobId)
             else
-                opts = opts or cmsgpack.unpack(ARGV[4])
                 -- this script is not really moving, it is preparing the job for processing
                 return moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
             end

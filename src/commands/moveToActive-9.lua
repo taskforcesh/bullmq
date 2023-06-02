@@ -56,7 +56,7 @@ else
   opts = cmsgpack.unpack(ARGV[4])
   local pttl = getRateLimitTTL(opts, KEYS[6])
   if pttl > 0 then
-    return { 0, 0, pttl }
+    return { 0, 0, pttl, 0 }
   end
 
   -- no job ID, try non-blocking move from wait to active
