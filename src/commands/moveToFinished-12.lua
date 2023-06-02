@@ -202,6 +202,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         if jobId then
             if string.sub(jobId, 1, 2) == "0:" then
                 rcall("LREM", KEYS[2], 1, jobId)
+                if pttl > 0 then return {0, 0, pttl, 0} end
             else
                 -- this script is not really moving, it is preparing the job for processing
                 return moveJobFromWaitToActive(KEYS, ARGV[8], jobId, timestamp, opts)
@@ -210,7 +211,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         -- Return the timestamp for the next delayed job if any.
         local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
-        if (nextTimestamp ~= nil) then
+        if nextTimestamp ~= nil then
             -- The result is guaranteed to be positive, since the
             -- ZRANGEBYSCORE command would have return a job otherwise.
             return {0, 0, 0, nextTimestamp}
