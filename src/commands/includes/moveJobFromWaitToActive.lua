@@ -22,7 +22,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
   local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
   local expireTime
 
-  if(maxJobs) then
+  if maxJobs then
     local rateLimiterKey = keys[6];
 
     expireTime = tonumber(rcall("PTTL", rateLimiterKey))
@@ -45,7 +45,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
       rcall("RPUSH", keys[1], jobId)
 
       -- Return when we can process more jobs
-      return {0, 0, expireTime}
+      return {0, 0, expireTime, 0}
     end
   end
 
@@ -62,5 +62,5 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
   rcall("HSET", jobKey, "processedOn", processedOn)
   rcall("HINCRBY", jobKey, "attemptsMade", 1)
 
-  return {rcall("HGETALL", jobKey), jobId, expireTime} -- get job data
+  return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data
 end
