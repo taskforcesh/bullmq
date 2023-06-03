@@ -65,6 +65,9 @@ class Job:
     def getState(self):
         return self.scripts.getState(self.id)
 
+    def changePriority(self, opts: dict):
+        return self.scripts.changePriority(self.id, opts.get("priority", 0), opts.get("lifo", False))
+
     def updateProgress(self, progress):
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)
