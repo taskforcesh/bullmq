@@ -31,6 +31,7 @@ class Scripts:
         self.redisClient = redisConnection.conn
         self.commands = {
             "addJob": self.redisClient.register_script(self.getScript("addJob-8.lua")),
+            "changePriority": self.redisClient.register_script(self.getScript("changePriority-4.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
             "getState": self.redisClient.register_script(self.getScript("getState-7.lua")),
@@ -39,8 +40,8 @@ class Scripts:
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
-            "pause": self.redisClient.register_script(self.getScript("pause-4.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
+            "pause": self.redisClient.register_script(self.getScript("pause-4.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-8.lua")),
             "retryJobs": self.redisClient.register_script(self.getScript("retryJobs-6.lua")),
@@ -167,6 +168,21 @@ class Scripts:
 
         result = await self.commands["getStateV2"](keys=keys, args=args)
         return result
+
+    async def changePriority(self, job_id: str, priority:int = 0, lifo:bool = False):
+        keys = [self.keys['wait'],
+            self.keys['paused'],
+            self.keys['meta'],
+            self.keys['priority']]
+        
+        args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0]
+
+        result = await self.commands["changePriority"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job_id, 'updateData')
+        return None
 
     async def updateData(self, job_id: str, data):
         keys = [self.toKey(job_id)]
