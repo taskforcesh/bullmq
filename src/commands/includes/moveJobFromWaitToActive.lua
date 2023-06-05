@@ -17,19 +17,11 @@
     opts - limiter
 ]]
 
-local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts)
+local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, processedOn,
+    maxJobs, expireTime, opts)
   -- Check if we need to perform rate limiting.
-  local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
-  local expireTime
-
   if maxJobs then
     local rateLimiterKey = keys[6];
-
-    expireTime = tonumber(rcall("PTTL", rateLimiterKey))
-    if expireTime <= 0 then
-      rcall("DEL", rateLimiterKey)
-    end
-
     local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
 
     if jobCounter == 1 then
@@ -39,10 +31,10 @@ local function moveJobFromWaitToActive(keys, keyPrefix, jobId, processedOn, opts
     end
 
     -- check if we passed rate limit, we need to remove the job and return expireTime
-    if jobCounter > maxJobs then      
+    if expireTime > 0 then
       -- remove from active queue and add back to the wait list
       rcall("LREM", keys[2], 1, jobId)
-      rcall("RPUSH", keys[1], jobId)
+      rcall("RPUSH", targetKey, jobId)
 
       -- Return when we can process more jobs
       return {0, 0, expireTime, 0}

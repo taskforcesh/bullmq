@@ -107,6 +107,60 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
+  describe('when queue is paused between rate limit', () => {
+    it('should add active jobs to paused', async function () {
+      this.timeout(20000);
+
+      const numJobs = 4;
+
+      const commontOpts = {
+        connection,
+        limiter: {
+          max: 1,
+          duration: 2000,
+        },
+      };
+      const worker1 = new Worker(queueName, async () => {}, commontOpts);
+      const worker2 = new Worker(queueName, async () => {}, commontOpts);
+      const worker3 = new Worker(queueName, async () => {}, commontOpts);
+      const worker4 = new Worker(queueName, async () => {}, commontOpts);
+
+      const result = new Promise<void>((resolve, reject) => {
+        queueEvents.once('completed', async () => {
+          resolve();
+        });
+
+        queueEvents.on('failed', async err => {
+          reject(err);
+        });
+      });
+
+      await delay(500);
+
+      const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+        name: 'rate test',
+        data: {},
+      }));
+      await queue.addBulk(jobs);
+
+      await queue.pause();
+
+      await result;
+
+      await delay(500);
+
+      const counts = await queue.getJobCounts('paused', 'completed', 'wait');
+      expect(counts).to.have.property('paused', numJobs - 1);
+      expect(counts).to.have.property('completed', 1);
+      expect(counts).to.have.property('wait', 0);
+
+      await worker1.close();
+      await worker2.close();
+      await worker3.close();
+      await worker4.close();
+    });
+  });
+
   describe('when using flows', () => {
     it('should obey the rate limit per queue', async function () {
       this.timeout(20000);
