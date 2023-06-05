@@ -1,3 +1,15 @@
+## [3.15.1](https://github.com/taskforcesh/bullmq/compare/v3.15.0...v3.15.1) (2023-06-05)
+
+
+### Bug Fixes
+
+* **rate-limit:** consider paused queue ([#1931](https://github.com/taskforcesh/bullmq/issues/1931)) ([d97864a](https://github.com/taskforcesh/bullmq/commit/d97864a550992aeb8673557c7d8f186ab4ccb5bf))
+
+
+### Features
+
+* **python:** add changePriority method ([#1943](https://github.com/taskforcesh/bullmq/issues/1943)) ([945bcd3](https://github.com/taskforcesh/bullmq/commit/945bcd39db0f76ef6e9a513304714c120317c7f3))
+
 # [3.15.0](https://github.com/taskforcesh/bullmq/compare/v3.14.2...v3.15.0) (2023-05-31)
 
 
