@@ -1,4 +1,5 @@
 from setuptools import setup
+from bullmq import __version__
 
 # To use a consistent encoding
 from codecs import open
@@ -10,7 +11,7 @@ with open(path.join(".", 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='bullmq',
-    version='0.4.3',    
+    version=__version__,
     description='BullMQ for Python',
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -25,6 +26,12 @@ setup(
         'msgpack',
         'semver',
     ],
+    extras_require={
+        "dev": [
+            "pre-commit==2.20.0",
+            "python-semantic-release==7.34.3",
+        ]
+    },
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
