@@ -52,6 +52,9 @@ jobs:
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
           cd python
       - name: Release Python
-        if: ${{ startsWith(env.commitmsg, 'ci(python)') }}
+        if: ${{ startsWith(env.commitmsg, 'feat(python)') || startsWith(env.commitmsg, 'fix(python)') }}
         run: |
-          echo Commit MSG = $commitmsg
+          export VERSION=$(semantic-release print-version)
+          if [ ! -z "$VERSION" ]; then
+            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} PYPI_TOKEN=${{ secrets.PYPI_TOKEN }} semantic-release publish
+          fi
