@@ -28,7 +28,7 @@ setup(
     ],
     extras_require={
         "dev": [
-            "pre-commit==2.20.0",
+            "pre-commit==2.21.0",
             "python-semantic-release==7.34.3",
         ]
     },
