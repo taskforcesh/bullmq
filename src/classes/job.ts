@@ -21,6 +21,7 @@ import {
   JobJsonSandbox,
   MinimalQueue,
   RedisJobOptions,
+  MinimalQueueEvents,
 } from '../types';
 import {
   errorObject,
@@ -917,7 +918,7 @@ export class Job<
    * @param ttl - Time in milliseconds to wait for job to finish before timing out.
    */
   async waitUntilFinished(
-    queueEvents: MinimalQueue,
+    queueEvents: MinimalQueueEvents,
     ttl?: number,
   ): Promise<ReturnType> {
     await this.queue.waitUntilReady();
