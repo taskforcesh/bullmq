@@ -39,6 +39,7 @@
       opts - attemptsMade
       opts - maxMetricsSize
       opts - fpof - fail parent on fail
+      opts - rdof - remove dependency on fail
 
     Output:
       0 OK
@@ -58,6 +59,7 @@ local rcall = redis.call
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
+--- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
@@ -128,6 +130,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         parentId = getJobIdFromKey(parentKey)
         parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
     end
+
     if parentId ~= "" then
         if ARGV[5] == "completed" then
             local dependenciesSet = parentKey .. ":dependencies"
@@ -136,9 +139,17 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                                          dependenciesSet, parentId, jobIdKey,
                                          ARGV[4], timestamp)
             end
-        elseif opts['fpof'] then
-            moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
-                                                  parentId, jobIdKey, timestamp)
+        else
+            if opts['fpof'] then
+                moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
+                                            parentId, jobIdKey, timestamp)
+            elseif opts['rdof'] then
+                local dependenciesSet = parentKey .. ":dependencies"
+                if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
+                    moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
+                        parentKey, parentId, timestamp)
+                end 
+            end
         end
     end
 
