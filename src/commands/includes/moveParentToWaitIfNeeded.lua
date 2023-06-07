@@ -22,15 +22,20 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey, p
       local score = delayedTimestamp * 0x1000
       local parentDelayedKey = parentQueueKey .. ":delayed" 
       rcall("ZADD", parentDelayedKey, score, parentId)
-  
+      rcall("XADD", parentQueueKey .. ":events", "*", "event", "delayed", "jobId", parentId,
+        "delay", delayedTimestamp)
+
       addDelayMarkerIfNeeded(parentTarget, parentDelayedKey)
     -- Standard or priority add
-    elseif priority == 0 then
-      rcall("RPUSH", parentTarget, parentId)
     else
-      addJobWithPriority(parentQueueKey .. ":priority", priority, parentTarget, parentId)
+      if priority == 0 then
+        rcall("RPUSH", parentTarget, parentId)
+      else
+        addJobWithPriority(parentQueueKey .. ":priority", priority, parentTarget, parentId)
+      end
+  
+      rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId,
+        "prev", "waiting-children")
     end
-
-    rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
   end
 end
