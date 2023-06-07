@@ -8,7 +8,7 @@ platformdirs==3.5.1
 pre-commit==2.20.0
 python-semantic-release==7.34.3
 redis==4.5.5
-semver==3.0.0
+semver==2.13.0
 six==1.16.0
 virtualenv==20.23.0
 virtualenv-clone==0.5.7
