@@ -29,7 +29,7 @@ setup(
     extras_require={
         "dev": [
             "pre-commit==2.20.0",
-            "python-semantic-release==7.32.1",
+            "python-semantic-release==7.34.3",
         ]
     },
     classifiers=[
