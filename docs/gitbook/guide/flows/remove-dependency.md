@@ -1,8 +1,8 @@
 # Remove Dependency
 
-In some situations, you need to move a job to wait when one of its children fail.
+In some situations, you may have a parent job and need to ignore when one of its children fail.
 
-The pattern to solve this requirement consists on using **removeDependencyOnFailure** option.
+The pattern to solve this requirement consists on using the **removeDependencyOnFailure** option.
 
 ```typescript
 const flow = new FlowProducer({ connection });

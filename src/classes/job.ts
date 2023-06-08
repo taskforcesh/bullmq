@@ -1078,6 +1078,12 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
+    if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {
+      throw new Error(
+        `RemoveDependencyOnFailure and failParentOnFailure options could not be used together`,
+      );
+    }
+
     if (`${parseInt(this.id, 10)}` === this.id) {
       //TODO: throw an error in next breaking change
       console.warn(

@@ -119,6 +119,19 @@ describe('Job', function () {
         );
       });
     });
+
+    describe('when removeDependencyOnFailure and failParentOnFailure options are provided', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = {
+          removeDependencyOnFailure: true,
+          failParentOnFailure: true,
+        };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'RemoveDependencyOnFailure and failParentOnFailure options could not be used together',
+        );
+      });
+    });
   });
 
   describe('JSON.stringify', () => {
