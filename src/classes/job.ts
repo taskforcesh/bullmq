@@ -33,7 +33,7 @@ import {
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './unrecoverable-error';
-import { QueueEvents } from "@src/classes/queue-events";
+import type { QueueEvents } from '@src/classes/queue-events';
 
 const logger = debuglog('bull');
 
