@@ -50,10 +50,10 @@ jobs:
           flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-          cd python
       - name: Release Python
         if: ${{ contains(env.commitmsg, '(python):') }}
         run: |
+          cd python
           export VERSION=$(semantic-release print-version)
           if [ ! -z "$VERSION" ]; then
             GH_TOKEN=${{ secrets.GITHUB_TOKEN }} PYPI_TOKEN=${{ secrets.PYPI_TOKEN }} semantic-release publish
