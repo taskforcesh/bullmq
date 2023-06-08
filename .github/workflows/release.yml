@@ -54,6 +54,8 @@ jobs:
         if: ${{ contains(env.commitmsg, '(python):') }}
         run: |
           cd python
+          git config --global user.email "manast@taskforce.sh"
+          git config --global user.name "manast"
           export VERSION=$(semantic-release print-version)
           if [ ! -z "$VERSION" ]; then
             GH_TOKEN=${{ secrets.GITHUB_TOKEN }} PYPI_TOKEN=${{ secrets.PYPI_TOKEN }} semantic-release publish
