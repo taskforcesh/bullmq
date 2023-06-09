@@ -28,12 +28,14 @@ jobs:
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
+      - run: yarn build
       - name: Release Node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
       - run: yarn copy:lua:python
+      - run: ls ./python/bullmq
       - run: ls ./python/bullmq/commands
       - name: Setup Python
         uses: actions/setup-python@bd6b4b6205c4dbad673328db7b31b7fab9e241c0 # v4
