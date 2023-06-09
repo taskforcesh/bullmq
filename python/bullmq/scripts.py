@@ -36,12 +36,13 @@ class Scripts:
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
             "getState": self.redisClient.register_script(self.getScript("getState-7.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-7.lua")),
+            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-9.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-12.lua")),
-            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-4.lua")),
+            "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-8.lua")),
             "retryJobs": self.redisClient.register_script(self.getScript("retryJobs-6.lua")),
@@ -146,6 +147,12 @@ class Scripts:
             if result < 0:
                 raise self.finishedErrors(result, job_id, 'moveToDelayed', 'active')
         return None
+
+    async def remove(self, job_id: str):
+        keys = self.getKeys([''])
+        args = [job_id]
+
+        return self.commands["removeJob"](keys=keys, args=args)
 
     def getCounts(self, types):
         keys = self.getKeys([''])

@@ -72,6 +72,12 @@ class Job:
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)
 
+    async def remove(self):
+        removed = await self.scripts.remove(self.id)
+        
+        if not removed:
+            raise Exception(f"Could not remove job {self.id}")
+
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
         self.failedReason = error_message
