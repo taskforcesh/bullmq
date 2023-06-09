@@ -12,7 +12,6 @@ import {
 } from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
-  clientCommandMessageReg,
   delay,
   DELAY_TIME_1,
   isNotConnectionError,
