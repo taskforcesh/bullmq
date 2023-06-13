@@ -107,7 +107,7 @@ class Worker(EventEmitter):
             timeout = min(delay_until - int(time.time() * 1000)
                           if delay_until else 5000, 5000) / 1000
             
-            redis_version = await self.redisConnection.getRedisVersion()
+            redis_version = await self.blockingRedisConnection.getRedisVersion()
             # Only Redis v6.0.0 and above supports doubles as block time
             timeout = int(math.ceil(timeout)) if isRedisVersionLowerThan(redis_version, '6.0.0') else timeout
 
