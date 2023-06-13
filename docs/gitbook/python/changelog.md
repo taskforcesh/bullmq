@@ -1,3 +1,7 @@
+# Changelog
+
+<!--next-version-placeholder-->
+
 # [0.3.0](https://github.com/taskforcesh/bullmq/compare/ca48163...46d6f94) (2023-03-18)
 
 
