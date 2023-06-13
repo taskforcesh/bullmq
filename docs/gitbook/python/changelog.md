@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v0.5.3 (2023-06-13)
+### Fix
+* **worker:** Use timeout as integer for redis lower than v6.0.0 (python) ([#1981](https://github.com/taskforcesh/bullmq/issues/1981)) ([`0df6afa`](https://github.com/taskforcesh/bullmq/commit/0df6afad5e71a693b721ba52ffa6be733ee45ccb))
+
+### Documentation
+* **python:** Add missing version sections ([#1974](https://github.com/taskforcesh/bullmq/issues/1974)) ([`77b4de7`](https://github.com/taskforcesh/bullmq/commit/77b4de7c3b41ae63e311a2c373e0d2fc787f2f53))
+
 # [0.3.0](https://github.com/taskforcesh/bullmq/compare/ca48163...46d6f94) (2023-03-18)
 
 
