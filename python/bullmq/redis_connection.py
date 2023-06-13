@@ -19,6 +19,7 @@ class RedisConnection:
     def __init__(self, redisOpts: dict | str = {}):
         self.version = None
         retry = Retry(ExponentialBackoff(), 3)
+        retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
         if isinstance(redisOpts, dict):
             host = redisOpts.get("host") or "localhost"
@@ -28,10 +29,10 @@ class RedisConnection:
 
             self.conn = redis.Redis(
                 host=host, port=port, db=db, password=password, decode_responses=True,
-                retry=retry, retry_on_error=[BusyLoadingError, ConnectionError, TimeoutError])
+                retry=retry, retry_on_error=retry_errors)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
-                retry_on_error=[BusyLoadingError, ConnectionError, TimeoutError])
+                retry_on_error=retry_errors)
 
     def disconnect(self):
         """
