@@ -1,1 +1,1 @@
-docs/gitbook/python/changelog.md
+../docs/gitbook/python/changelog.md
