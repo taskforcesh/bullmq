@@ -1,4 +1,11 @@
 import redis.asyncio as redis
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
+from redis.exceptions import (
+   BusyLoadingError,
+   ConnectionError,
+   TimeoutError
+)
 import warnings
 
 class RedisConnection:
@@ -11,6 +18,8 @@ class RedisConnection:
 
     def __init__(self, redisOpts: dict | str = {}):
         self.version = None
+        retry = Retry(ExponentialBackoff(), 3)
+
         if isinstance(redisOpts, dict):
             host = redisOpts.get("host") or "localhost"
             port = redisOpts.get("port") or 6379
@@ -18,9 +27,11 @@ class RedisConnection:
             password = redisOpts.get("password") or None
 
             self.conn = redis.Redis(
-                host=host, port=port, db=db, password=password, decode_responses=True)
+                host=host, port=port, db=db, password=password, decode_responses=True,
+                retry=retry, retry_on_error=[BusyLoadingError, ConnectionError, TimeoutError])
         else:
-            self.conn = redis.from_url(redisOpts, decode_responses=True)
+            self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
+                retry_on_error=[BusyLoadingError, ConnectionError, TimeoutError])
 
     def disconnect(self):
         """
