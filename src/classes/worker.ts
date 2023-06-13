@@ -16,6 +16,7 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
+  isRedisVersionLowerThan,
   WORKER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
@@ -531,10 +532,12 @@ export class Worker<
         );
 
         // Only Redis v6.0.0 and above supports doubles as block time
-        blockTimeout =
-          this.blockingConnection.redisVersion < '6.0.0'
-            ? Math.ceil(blockTimeout)
-            : blockTimeout;
+        blockTimeout = isRedisVersionLowerThan(
+          this.blockingConnection.redisVersion,
+          '6.0.0',
+        )
+          ? Math.ceil(blockTimeout)
+          : blockTimeout;
 
         // We restrict the maximum block timeout to 10 second to avoid
         // blocking the connection for too long in the case of reconnections

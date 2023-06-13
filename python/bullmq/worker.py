@@ -6,10 +6,12 @@ from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
 from bullmq.types import WorkerOptions
+from bullmq.utils import isRedisVersionLowerThan
 
 import asyncio
 import traceback
 import time
+import math
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
@@ -104,6 +106,11 @@ class Worker(EventEmitter):
         if job is None:
             timeout = min(delay_until - int(time.time() * 1000)
                           if delay_until else 5000, 5000) / 1000
+            
+            redis_version = await self.redisConnection.getRedisVersion()
+            # Only Redis v6.0.0 and above supports doubles as block time
+            timeout = int(math.ceil(timeout)) if isRedisVersionLowerThan(redis_version, '6.0.0') else timeout
+
             job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
             if job_id:
                 job, job_id, limit_until, delay_until = await self.scripts.moveToActive(token, self.opts, job_id)
