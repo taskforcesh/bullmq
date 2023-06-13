@@ -104,7 +104,7 @@ class Worker(EventEmitter):
         if job is None:
             timeout = min(delay_until - int(time.time() * 1000)
                           if delay_until else 5000, 5000) / 1000
-            job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
+            job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], int(timeout))
             if job_id:
                 job, job_id, limit_until, delay_until = await self.scripts.moveToActive(token, self.opts, job_id)
 
