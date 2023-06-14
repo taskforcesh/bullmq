@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v0.5.4 (2023-06-14)
+### Fix
+* **python:** Add retry strategy in connection ([#1975](https://github.com/taskforcesh/bullmq/issues/1975)) ([`7c5ee20`](https://github.com/taskforcesh/bullmq/commit/7c5ee20471b989d297c8c5e87a6ea497a2077ae6))
+
 ## v0.5.3 (2023-06-13)
 ### Fix
 * **worker:** Use timeout as integer for redis lower than v6.0.0 (python) ([#1981](https://github.com/taskforcesh/bullmq/issues/1981)) ([`0df6afa`](https://github.com/taskforcesh/bullmq/commit/0df6afad5e71a693b721ba52ffa6be733ee45ccb))
