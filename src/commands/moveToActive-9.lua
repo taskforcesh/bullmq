@@ -44,7 +44,7 @@ local rcall = redis.call
 local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
-promoteDelayedJobs(KEYS[7], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2])
+promoteDelayedJobs(KEYS[7], KEYS[1], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2], paused)
 
 local opts = cmsgpack.unpack(ARGV[4])
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
@@ -91,13 +91,13 @@ if jobId then
 
   if jobId then
     -- this script is not really moving, it is preparing the job for processing
-    return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
+    return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   else
     local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
     if #prioritizedJob > 0 then
       jobId = prioritizedJob[1]
       rcall("LPUSH", KEYS[2], jobId)
-      return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
+      return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
     end
   end
 end

@@ -32,10 +32,10 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 
-local target = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
+local target, paused = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
 -- Check if there are delayed jobs that we can move to wait.
 -- test example: when there are delayed jobs between retries
-promoteDelayedJobs(KEYS[7], target, KEYS[8], KEYS[6], ARGV[1], ARGV[2])
+promoteDelayedJobs(KEYS[7], KEYS[2], target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], paused)
 
 if rcall("EXISTS", KEYS[4]) == 1 then
 
@@ -57,7 +57,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     rcall(ARGV[3], target, ARGV[4])
   else
     -- Priority add
-    addJobWithPriority(KEYS[8], priority, target, ARGV[4])
+    addJobWithPriority(KEYS[2], KEYS[8], priority, target, ARGV[4])
   end
 
   -- Emit waiting event

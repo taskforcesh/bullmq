@@ -186,17 +186,20 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- and not rate limited.
     if (ARGV[7] == "1") then
 
-        local target = getTargetQueueList(KEYS[11], KEYS[1], KEYS[8])
+        local target, paused = getTargetQueueList(KEYS[11], KEYS[1], KEYS[8])
 
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], target, KEYS[3],
-                           KEYS[4], ARGV[8], timestamp)
+        promoteDelayedJobs(KEYS[7], KEYS[1], target, KEYS[3],
+                           KEYS[4], ARGV[8], timestamp, paused)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.
         local expireTime = getRateLimitTTL(maxJobs, KEYS[6])
 
         if expireTime > 0 then return {0, 0, expireTime, 0} end
+
+        -- paused queue
+        if paused then return {0, 0, 0, 0} end
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
@@ -206,14 +209,14 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 rcall("LREM", KEYS[2], 1, jobId)
             else
                 -- this script is not really moving, it is preparing the job for processing
-                return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs, expireTime, opts)
+                return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs, expireTime, paused, opts)
             end
         else
             local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
             if #prioritizedJob > 0 then
               jobId = prioritizedJob[1]
               rcall("LPUSH", KEYS[2], jobId)
-              return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs, expireTime, opts)
+              return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs, expireTime, paused, opts)
             end
         end
 

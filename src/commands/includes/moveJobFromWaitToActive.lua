@@ -17,8 +17,11 @@
     opts - limiter
 ]]
 
+-- Includes
+--- @include "addJobWithPriority"
+
 local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, processedOn,
-    maxJobs, expireTime, opts)
+    maxJobs, expireTime, paused, opts)
   -- Check if we need to perform rate limiting.
   if maxJobs then
     local rateLimiterKey = keys[6];
@@ -33,7 +36,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
       if priority == 0 then
         rcall("RPUSH", targetKey, jobId)
       else
-        rcall("ZADD", keys[6], priority, jobId)
+        addJobWithPriority(keys[1], keys[6], priority, targetKey, paused, jobId)
       end
 
       -- Return when we can process more jobs

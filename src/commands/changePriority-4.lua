@@ -38,7 +38,7 @@ if rcall("EXISTS", jobKey) == 1 then
       rcall(pushCmd, target, jobId)
     else
       -- Priority add
-      addJobWithPriority(KEYS[4], priority, target, jobId)
+      addJobWithPriority(KEYS[1], KEYS[4], priority, target, jobId)
     end
   end
 
