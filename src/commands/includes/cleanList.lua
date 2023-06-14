@@ -35,9 +35,6 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd,
         -- occur at the end of the script
         rcall("LSET", listKey, rangeEnd - jobIdsLen + i, deletionMarker)
         removeJob(job, true, jobKeyPrefix)
-        if isWaiting then
-          rcall("ZREM", jobKeyPrefix .. "priority", job)
-        end
         deletedCount = deletedCount + 1
         table.insert(deleted, job)
       end

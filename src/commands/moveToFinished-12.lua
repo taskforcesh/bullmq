@@ -208,6 +208,13 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 -- this script is not really moving, it is preparing the job for processing
                 return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs, expireTime, opts)
             end
+        else
+            local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
+            if #prioritizedJob > 0 then
+              jobId = prioritizedJob[1]
+              rcall("LPUSH", KEYS[2], jobId)
+              return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs, expireTime, opts)
+            end
         end
 
         -- Return the timestamp for the next delayed job if any.

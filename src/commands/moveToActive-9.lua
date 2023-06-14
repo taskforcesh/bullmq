@@ -41,7 +41,7 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 
-local target = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
+local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
 promoteDelayedJobs(KEYS[7], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2])
@@ -59,6 +59,9 @@ else
     return { 0, 0, expireTime, 0 }
   end
 
+  -- paused queue
+  if paused then return {0, 0, 0, 0} end
+
   -- no job ID, try non-blocking move from wait to active
   jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 end
@@ -71,6 +74,9 @@ if jobId then
     if expireTime > 0 then
       return { 0, 0, expireTime, 0 }
     end
+
+    -- paused queue
+    if paused then return {0, 0, 0, 0} end
 
     -- Move again since we just got the marker job.
     jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
@@ -86,13 +92,20 @@ if jobId then
   if jobId then
     -- this script is not really moving, it is preparing the job for processing
     return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
+  else
+    local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
+    if #prioritizedJob > 0 then
+      jobId = prioritizedJob[1]
+      rcall("LPUSH", KEYS[2], jobId)
+      return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
+    end
   end
 end
 
 -- Return the timestamp for the next delayed job if any.
 local nextTimestamp = getNextDelayedTimestamp(KEYS[7])
 if (nextTimestamp ~= nil) then
-  return { 0, 0, 0, nextTimestamp}
+  return { 0, 0, 0, nextTimestamp }
 end
 
 return { 0, 0, 0, 0}

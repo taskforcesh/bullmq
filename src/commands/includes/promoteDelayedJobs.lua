@@ -25,7 +25,7 @@ local function promoteDelayedJobs(delayedKey, targetKey, priorityKey,
                 -- LIFO or FIFO
                 rcall("LPUSH", targetKey, jobId)
             else
-                addJobWithPriority(priorityKey, priority, targetKey, jobId)
+                rcall("ZADD", priorityKey, priority, jobId)
             end
 
             -- Emit waiting event

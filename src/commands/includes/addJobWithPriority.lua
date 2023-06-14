@@ -1,15 +1,9 @@
 --[[
   Function to add job considering priority.
 ]]
-
-local function addJobWithPriority(priorityKey, priority, targetKey, jobId)
-  rcall("ZADD", priorityKey, priority, jobId)
-  local count = rcall("ZCOUNT", priorityKey, 0, priority)
-
-  local len = rcall("LLEN", targetKey)
-  local id = rcall("LINDEX", targetKey, len - (count - 1))
-  if id then
-    rcall("LINSERT", targetKey, "BEFORE", id, jobId)
+local function addJobWithPriority(priorityKey, priority, targetKey, paused, jobId)
+  if paused then
+    rcall("ZADD", priorityKey, priority, jobId)
   else
     rcall("RPUSH", targetKey, jobId)
   end

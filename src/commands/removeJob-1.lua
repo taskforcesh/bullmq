@@ -49,7 +49,6 @@ local function removeJob( prefix, jobId, parentKey)
 
     local prev = removeJobFromAnyState(prefix, jobId)
 
-    rcall("ZREM", prefix .. "priority", jobId)
     rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
 
     -- -- delete keys related to rate limiter

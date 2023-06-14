@@ -145,7 +145,7 @@ elseif (delayedTimestamp ~= 0) then
   local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
   addDelayMarkerIfNeeded(target, KEYS[5])
 else
-  local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
+  local target, paused = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
 
   -- Standard or priority add
   if priority == 0 then
@@ -153,8 +153,17 @@ else
     local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
     rcall(pushCmd, target, jobId)
   else
-    -- Priority add
-    addJobWithPriority(KEYS[6], priority, target, jobId)
+    if paused then
+      rcall("ZADD", KEYS[6], priority, jobId)
+    else
+      local waitLen = rcall("LLEN", KEYS[1])
+
+      if waitLen == 0 then
+        rcall("LPUSH", target, jobId)
+      else
+        rcall("ZADD", KEYS[6], priority, jobId)
+      end
+    end
   end
   -- Emit waiting event
   rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)

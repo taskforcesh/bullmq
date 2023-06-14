@@ -30,7 +30,7 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
     elseif priority == 0 then
       rcall("RPUSH", parentTarget, parentId)
     else
-      addJobWithPriority(parentQueueKey .. ":priority", priority, parentTarget, parentId)
+      rcall("ZADD", parentQueueKey .. ":priority", priority, parentId)
     end
 
     rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
