@@ -814,8 +814,7 @@ describe('Job', function () {
 
         const worker = new Worker(
           queueName,
-          async job => {
-            console.log(job.name);
+          async () => {
             await delay(20);
           },
           { connection },

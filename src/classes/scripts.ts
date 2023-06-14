@@ -146,7 +146,7 @@ export class Scripts {
       dst = 'wait';
     }
 
-    const keys = [src, dst, 'meta'].map((name: string) =>
+    const keys = [src, dst, 'meta', 'priority'].map((name: string) =>
       this.queue.toKey(name),
     );
 
