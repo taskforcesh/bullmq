@@ -388,6 +388,7 @@ export class Queue<
       | 'wait'
       | 'active'
       | 'paused'
+      | 'priority'
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {

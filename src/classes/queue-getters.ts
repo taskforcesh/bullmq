@@ -82,6 +82,7 @@ export class QueueGetters<
       'delayed',
       'failed',
       'paused',
+      'priority',
       'waiting',
       'waiting-children',
     ];

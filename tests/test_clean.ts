@@ -175,6 +175,19 @@ describe('Cleaner', () => {
     expect(count).to.be.eql(0);
   });
 
+  describe('when priority state is provided', async () => {
+    it('should clean the number of jobs requested', async () => {
+      await queue.add('test', { some: 'data' }, { priority: 1 }); // as queue is empty, this job will be added to wait
+      await queue.add('test', { some: 'data' }, { priority: 2 });
+      await queue.add('test', { some: 'data' }, { priority: 3 });
+      await delay(100);
+      const jobs = await queue.clean(0, 1, 'priority');
+      expect(jobs.length).to.be.eql(1);
+      const count = await queue.getJobCounts('priority');
+      expect(count.priority).to.be.eql(1);
+    });
+  });
+
   describe('when delayed state is provided', async () => {
     it('cleans all delayed jobs', async () => {
       await queue.add('test', { some: 'data' }, { delay: 5000 });
@@ -630,17 +643,6 @@ describe('Cleaner', () => {
         });
       });
     });
-  });
-
-  it('should clean the number of jobs requested', async () => {
-    await queue.add('test', { some: 'data' }, { priority: 1 });
-    await queue.add('test', { some: 'data' }, { priority: 2 });
-    await queue.add('test', { some: 'data' }, { priority: 3 });
-    await delay(100);
-    const jobs = await queue.clean(0, 1, 'wait');
-    expect(jobs.length).to.be.eql(1);
-    const count = await queue.count();
-    expect(count).to.be.eql(2);
   });
 
   it('should clean a job without a timestamp', async () => {

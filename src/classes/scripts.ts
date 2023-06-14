@@ -551,6 +551,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.priority,
+      this.queue.keys[''],
     ];
 
     return keys.concat([
