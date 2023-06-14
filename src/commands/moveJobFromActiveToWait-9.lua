@@ -31,14 +31,14 @@ local pttl = rcall("PTTL", KEYS[7])
 if lockToken == token and pttl > 0 then
   local removed = rcall("LREM", KEYS[1], 1, jobId)
   if (removed > 0) then
-    local target = getTargetQueueList(KEYS[6], KEYS[2], KEYS[5])
+    local target, paused = getTargetQueueList(KEYS[6], KEYS[2], KEYS[5])
 
     rcall("SREM", KEYS[3], jobId)
 
     local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
     if priority > 0 then
-      addJobWithPriority(KEYS[2], KEYS[8], priority, target, jobId)
+      addJobWithPriority(KEYS[2], KEYS[8], priority, target, paused, jobId)
     else
       rcall("RPUSH", target, jobId)
     end
