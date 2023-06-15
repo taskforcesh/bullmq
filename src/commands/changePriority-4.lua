@@ -5,7 +5,6 @@
     KEYS[2] 'paused'
     KEYS[3] 'meta'
     KEYS[4] 'priority'
-    KEYS[5] 'prefix'
 
     ARGV[1] priority value
     ARGV[2] job key
@@ -27,18 +26,6 @@ local rcall = redis.call
 
 if rcall("EXISTS", jobKey) == 1 then
   local target, paused = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
-  
-  --verify last job in targetKey
-  local lastJobId = rcall("LINDEX", target, -1)
-  if lastJobId then
-    local lastJobPriority = tonumber(rcall("HGET", KEYS[5] .. lastJobId, "priority")) or 0
-
-    if lastJobPriority > priority and priority > 0 then
-      rcall("RPOP", target)
-      --re-add to priority
-      rcall("ZADD", KEYS[4], lastJobPriority, lastJobId)
-    end
-  end
 
   local isPrioritized = rcall("ZREM", KEYS[4], jobId) > 0
   if isPrioritized then
