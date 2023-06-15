@@ -22,4 +22,4 @@ if KEYS[3] ~= "" then
   removeZSetJobs(KEYS[3], true, queueBaseKey, 0) --delayed
 end
 
-rcall("DEL", KEYS[4])
+removeZSetJobs(KEYS[4], true, queueBaseKey, 0) --priority

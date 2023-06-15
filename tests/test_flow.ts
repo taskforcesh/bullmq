@@ -682,7 +682,9 @@ describe('flows', () => {
       ];
 
       let childrenProcessor,
-        processedChildren = 0;
+        grandChildrenProcessor,
+        processedChildren = 0,
+        processedGrandChildren = 0;
       const processingChildren = new Promise<void>(
         resolve =>
           (childrenProcessor = async (job: Job) => {
@@ -698,6 +700,18 @@ describe('flows', () => {
 
             if (job.name === 'test') {
               await delay(500);
+            }
+          }),
+      );
+
+      const processingGrandChildren = new Promise<void>(
+        resolve =>
+          (grandChildrenProcessor = async () => {
+            processedGrandChildren++;
+            await delay(50);
+
+            if (processedGrandChildren == 3) {
+              resolve();
             }
           }),
       );
@@ -718,10 +732,11 @@ describe('flows', () => {
       });
       const childrenWorker = new Worker(queueName, childrenProcessor, {
         connection,
+        autorun: false,
       });
       const grandchildrenWorker = new Worker(
         grandchildrenQueueName,
-        async () => {},
+        grandChildrenProcessor,
         {
           connection,
         },
@@ -820,6 +835,10 @@ describe('flows', () => {
       expect(children[1].job.data.foo).to.be.eql('qux');
       expect(children[2].job.id).to.be.ok;
       expect(children[2].job.data.foo).to.be.eql('bar');
+
+      await processingGrandChildren;
+
+      childrenWorker.run();
 
       await processingChildren;
       await childrenWorker.close();

@@ -882,7 +882,7 @@ describe('Job', function () {
     });
 
     describe('when lifo option is provided as false', () => {
-      it('moves job to the tail of wait list', async () => {
+      it('moves job to the tail of wait list and has more priority', async () => {
         await queue.pause();
         const job = await Job.create(
           queue,
@@ -909,7 +909,7 @@ describe('Job', function () {
           worker.on(
             'completed',
             after(2, job => {
-              expect(job.name).to.be.eql('test1');
+              expect(job.name).to.be.eql('test2');
               resolve();
             }),
           );
@@ -985,7 +985,7 @@ describe('Job', function () {
         () => {
           return delay(100);
         },
-        { connection },
+        { connection, autorun: false },
       );
       await worker.waitUntilReady();
 
@@ -1010,6 +1010,9 @@ describe('Job', function () {
 
       await add('a');
       await add('b', 1);
+
+      worker.run();
+
       await processStarted;
       const job = await add('c', 2000);
 

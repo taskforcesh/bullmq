@@ -9,6 +9,6 @@ local function moveJobFromPriorityToWaitIfNeeded(waitKey, priorityKey)
     if #prioritizedJob > 0 then
       local prioritizedJobId = prioritizedJob[1]
       rcall("LPUSH", waitKey, prioritizedJobId)
-    end  
+    end
   end
 end

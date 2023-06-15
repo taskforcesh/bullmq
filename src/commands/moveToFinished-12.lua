@@ -215,10 +215,10 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         else
             local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
             if #prioritizedJob > 0 then
-              jobId = prioritizedJob[1]
-              rcall("LPUSH", KEYS[2], jobId)
-              return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
-                expireTime, paused, opts)
+                jobId = prioritizedJob[1]
+                rcall("LPUSH", KEYS[2], jobId)
+                return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
+                    expireTime, paused, opts)
             end
         end
 
