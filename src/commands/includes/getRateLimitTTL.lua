@@ -2,7 +2,7 @@ local function getRateLimitTTL(maxJobs, rateLimiterKey)
   if maxJobs then
     local pttl = rcall("PTTL", rateLimiterKey)
 
-    if pttl <= 0 then
+    if pttl == 0 then
       rcall("DEL", rateLimiterKey)
     end
 

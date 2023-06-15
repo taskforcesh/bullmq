@@ -37,7 +37,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
       if priority == 0 then
         rcall("RPUSH", targetKey, jobId)
       else
-        addJobWithPriority(keys[1], keys[3], priority, targetKey, paused, jobId)
+        addJobWithPriority(keys[1], keys[3], priority, paused, jobId)
       end
 
       -- Return when we can process more jobs

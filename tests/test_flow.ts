@@ -1221,12 +1221,17 @@ describe('flows', () => {
           }
           return values[job.data.order - 1];
         };
+      });
 
+      const processingGrandchildren = new Promise<void>(resolve => {
         grandChildrenProcessor = async (job: Job) => {
           processedGrandChildren++;
           await delay(10);
           expect(processedGrandChildren).to.be.equal(job.data.order);
 
+          if (processedGrandChildren === 3) {
+            resolve();
+          }
           return values[job.data.order - 1];
         };
       });
@@ -1259,6 +1264,7 @@ describe('flows', () => {
         connection,
       });
       const childrenWorker = new Worker(queueName, childrenProcessor, {
+        autorun: false,
         connection,
       });
       const grandChildrenWorker = new Worker(
@@ -1326,6 +1332,10 @@ describe('flows', () => {
 
       expect(parentState).to.be.eql('waiting-children');
       expect(children).to.have.length(3);
+
+      await processingGrandchildren;
+
+      childrenWorker.run();
 
       await processingChildren;
       await processingParent;

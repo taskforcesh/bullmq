@@ -585,7 +585,7 @@ describe('Rate Limiter', function () {
   });
 
   it('should obey priority', async function () {
-    this.timeout(20000);
+    this.timeout(10000);
 
     const numJobs = 10;
     const priorityBuckets: { [key: string]: number } = {

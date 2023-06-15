@@ -16,7 +16,7 @@
 local rcall = redis.call
 
 -- Includes
---- @include "includes/moveJobFromPriorityToWaitIfNeeded"
+--- @include "includes/addPriorityMarkerIfNeeded"
 
 if rcall("EXISTS", KEYS[1]) == 1 then
   rcall("RENAME", KEYS[1], KEYS[2])
@@ -26,7 +26,11 @@ if ARGV[1] == "paused" then
   rcall("HSET", KEYS[3], "paused", 1)
 else
   rcall("HDEL", KEYS[3], "paused")
-  moveJobFromPriorityToWaitIfNeeded(KEYS[2], KEYS[4])
+  local priorityCount = rcall("ZCARD", KEYS[4])
+
+  if priorityCount > 0 then
+    addPriorityMarkerIfNeeded(KEYS[2])
+  end
 end
 
 rcall("XADD", KEYS[5], "*", "event", ARGV[1]);

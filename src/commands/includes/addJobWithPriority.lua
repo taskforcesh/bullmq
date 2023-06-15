@@ -3,11 +3,11 @@
 ]]
 
 -- Includes
---- @include "moveJobFromPriorityToWaitIfNeeded"
+--- @include "addPriorityMarkerIfNeeded"
 
-local function addJobWithPriority(waitKey, priorityKey, priority, targetKey, paused, jobId)
+local function addJobWithPriority(waitKey, priorityKey, priority, paused, jobId)
   rcall("ZADD", priorityKey, priority, jobId)
   if not paused then
-    moveJobFromPriorityToWaitIfNeeded(waitKey, priorityKey)
+    addPriorityMarkerIfNeeded(waitKey)
   end
 end

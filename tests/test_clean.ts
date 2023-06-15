@@ -184,7 +184,7 @@ describe('Cleaner', () => {
       const jobs = await queue.clean(0, 1, 'priority');
       expect(jobs.length).to.be.eql(1);
       const count = await queue.getJobCounts('priority');
-      expect(count.priority).to.be.eql(1);
+      expect(count.priority).to.be.eql(2);
     });
   });
 
@@ -620,14 +620,17 @@ describe('Cleaner', () => {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(1);
+          expect(count).to.be.eql(0);
 
-          await queue.clean(0, 0, 'wait');
+          const priorityCount = await queue.getJobCounts('priority');
+          expect(priorityCount.priority).to.be.eql(1);
+
+          await queue.clean(0, 0, 'priority');
 
           const client = await queue.client;
           const keys = await client.keys(`bull:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(3);
+          expect(keys.length).to.be.eql(4);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);

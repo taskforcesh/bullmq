@@ -838,7 +838,7 @@ export class Scripts {
     const args: (string | number | boolean | Buffer)[] = [
       queueKeys[''],
       Date.now(),
-      jobId,
+      jobId || '',
       pack({
         token,
         lockDuration: opts.lockDuration,

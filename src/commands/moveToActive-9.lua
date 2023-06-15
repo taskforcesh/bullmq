@@ -100,6 +100,13 @@ if jobId then
       return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
     end
   end
+else
+  local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
+  if #prioritizedJob > 0 then
+    jobId = prioritizedJob[1]
+    rcall("LPUSH", KEYS[2], jobId)
+    return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+  end
 end
 
 -- Return the timestamp for the next delayed job if any.

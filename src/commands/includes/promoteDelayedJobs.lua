@@ -18,20 +18,22 @@ local function promoteDelayedJobs(delayedKey, waitKey, targetKey, priorityKey,
         rcall("ZREM", delayedKey, unpack(jobs))
 
         for _, jobId in ipairs(jobs) do
+            local jobKey = prefix .. jobId
             local priority =
-                tonumber(rcall("HGET", prefix .. jobId, "priority")) or 0
+                tonumber(rcall("HGET", jobKey, "priority")) or 0
 
             if priority == 0 then
                 -- LIFO or FIFO
                 rcall("LPUSH", targetKey, jobId)
             else
-                addJobWithPriority(waitKey, priorityKey, priority, targetKey, paused, jobId)
+                rcall("SET", "DEBUG", "DELAYED")
+                addJobWithPriority(waitKey, priorityKey, priority, paused, jobId)
             end
 
             -- Emit waiting event
             rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId",
                   jobId, "prev", "delayed")
-            rcall("HSET", prefix .. jobId, "delay", 0)
+            rcall("HSET", jobKey, "delay", 0)
         end
     end
 end

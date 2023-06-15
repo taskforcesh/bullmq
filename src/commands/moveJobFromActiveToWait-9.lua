@@ -38,7 +38,7 @@ if lockToken == token and pttl > 0 then
     local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
     if priority > 0 then
-      addJobWithPriority(KEYS[2], KEYS[8], priority, target, paused, jobId)
+      addJobWithPriority(KEYS[2], KEYS[8], priority, paused, jobId)
     else
       rcall("RPUSH", target, jobId)
     end
