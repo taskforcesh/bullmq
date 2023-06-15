@@ -41,7 +41,7 @@ class Scripts:
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
-            "pause": self.redisClient.register_script(self.getScript("pause-4.lua")),
+            "pause": self.redisClient.register_script(self.getScript("pause-5.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-8.lua")),
@@ -231,7 +231,7 @@ class Scripts:
         """
         src = "wait" if pause else "paused"
         dst = "paused" if pause else "wait"
-        keys = self.getKeys([src, dst, 'meta', 'events'])
+        keys = self.getKeys([src, dst, 'meta', 'priority', 'events'])
         return self.commands["pause"](keys, args=["paused" if pause else "resumed"])
 
     async def obliterate(self, count: int, force: bool = False):
