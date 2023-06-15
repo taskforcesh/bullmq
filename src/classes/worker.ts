@@ -503,7 +503,6 @@ export class Worker<
   ): Promise<Job<DataType, ResultType, NameType>> {
     // If we get the special delayed job ID, we pick the delay as the next
     // block timeout.
-    //
     if (jobId && jobId.startsWith('0:')) {
       this.blockUntil = parseInt(jobId.split(':')[1]) || 0;
     }
