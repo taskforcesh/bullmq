@@ -578,7 +578,7 @@ export class Worker<
     delayUntil?: number,
     token?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    if (!jobData) {
+    if (!jobData && !limitUntil) {
       if (!this.drained) {
         this.emit('drained');
         this.drained = true;

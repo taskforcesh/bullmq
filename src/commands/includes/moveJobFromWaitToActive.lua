@@ -22,6 +22,7 @@
 
 local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, processedOn,
     maxJobs, expireTime, paused, opts)
+  local jobKey = keyPrefix .. jobId
   -- Check if we need to perform rate limiting.
   if maxJobs then
     local rateLimiterKey = keys[6];
@@ -31,12 +32,12 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
       -- remove from active queue and add back to the wait list
       rcall("LREM", keys[2], 1, jobId)
 
-      local priority = tonumber(rcall("HGET", ARGV[1] .. jobId, "priority")) or 0
+      local priority = tonumber(rcall("HGET", jobKey, "priority")) or 0
 
       if priority == 0 then
         rcall("RPUSH", targetKey, jobId)
       else
-        addJobWithPriority(keys[1], keys[6], priority, targetKey, paused, jobId)
+        addJobWithPriority(keys[1], keys[3], priority, targetKey, paused, jobId)
       end
 
       -- Return when we can process more jobs
@@ -52,7 +53,6 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
     end
   end
 
-  local jobKey = keyPrefix .. jobId
   local lockKey = jobKey .. ':lock'
 
   -- get a lock
