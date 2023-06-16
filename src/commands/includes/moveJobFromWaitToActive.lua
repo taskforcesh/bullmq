@@ -18,7 +18,7 @@
 ]]
 
 -- Includes
---- @include "addJobWithPriority"
+--- @include "pushBackJobWithPriority"
 
 local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, processedOn,
     maxJobs, expireTime, opts)
@@ -37,7 +37,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
       local priority = tonumber(rcall("HGET", jobKey, "priority")) or 0
 
       if priority > 0 then
-        addJobWithPriority(keys[3], priority-1, targetKey, jobId)
+        pushBackJobWithPriority(keys[3], priority, targetKey, jobId)
       else
         rcall("RPUSH", targetKey, jobId)
       end
