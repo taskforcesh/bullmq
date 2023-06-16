@@ -90,7 +90,7 @@ export class Scripts {
     ];
 
     const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: !!opts.fpof, rdof: !!opts.rdof }
+      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof }
       : null;
 
     const args = [
