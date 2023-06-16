@@ -89,17 +89,9 @@ export class Scripts {
       queueKeys.events,
     ];
 
-    const parent: Record<string, any> = job.parent ? { ...job.parent } : null;
-
-    if (parent) {
-      if (opts.fpof) {
-        parent.fpof = true;
-      }
-
-      if (opts.rdof) {
-        parent.rdof = true;
-      }
-    }
+    const parent: Record<string, any> = job.parent
+      ? { ...job.parent, fpof: !!opts.fpof, rdof: !!opts.rdof }
+      : null;
 
     const args = [
       queueKeys[''],

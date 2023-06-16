@@ -2,7 +2,7 @@
 
 In some situations, you may have a parent job and need to ignore when one of its children fail.
 
-The pattern to solve this requirement consists on using the **removeDependencyOnFailure** option.
+The pattern to solve this requirement consists on using the **removeDependencyOnFailure** option. This option will make sure that when a job fails, the dependency is removed from the parent, so the parent will complete without waiting for the failed children.
 
 ```typescript
 const flow = new FlowProducer({ connection });
@@ -40,7 +40,7 @@ const originalTree = await flow.add({
 ```
 
 {% hint style="info" %}
-As soon as a _child_ with this option fails, the parent job will be moved to waiting state only if there are not more pending children.
+As soon as a **child** with this option fails, the parent job will be moved to a waiting state only if there are no more pending children.
 {% endhint %}
 
 ## Read more:

@@ -1081,7 +1081,7 @@ export class Job<
 
     if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {
       throw new Error(
-        `RemoveDependencyOnFailure and failParentOnFailure options could not be used together`,
+        `RemoveDependencyOnFailure and failParentOnFailure options can not be used together`,
       );
     }
 

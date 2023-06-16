@@ -128,7 +128,7 @@ describe('Job', function () {
           failParentOnFailure: true,
         };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
-          'RemoveDependencyOnFailure and failParentOnFailure options could not be used together',
+          'RemoveDependencyOnFailure and failParentOnFailure options can not be used together',
         );
       });
     });
