@@ -30,7 +30,6 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getTargetQueueList"
---- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/promoteDelayedJobs"
 
 local jobKey = KEYS[5]

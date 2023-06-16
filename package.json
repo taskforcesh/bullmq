@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "3.15.2",
+  "version": "3.15.8",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -109,7 +109,7 @@
     "rimraf": "^3.0.2",
     "rrule": "^2.6.9",
     "semantic-release": "^19.0.3",
-    "sinon": "^14.0.0",
+    "sinon": "^15.1.0",
     "test-console": "^2.0.0",
     "ts-mocha": "^10.0.0",
     "ts-node": "^10.7.0",

@@ -2050,51 +2050,104 @@ describe('workers', function () {
     });
 
     describe('when there are delayed jobs between retries', () => {
-      it('promotes delayed jobs', async () => {
-        let id = 0;
+      describe('when using retryJob', () => {
+        it('promotes delayed jobs first', async () => {
+          let id = 0;
 
-        const worker = new Worker(
-          queueName,
-          async job => {
-            id++;
-            await delay(200);
-            if (job.attemptsMade === 1) {
-              expect(job.id).to.be.eql(`${id}`);
-            }
-            if (job.id == '1' && job.attemptsMade < 2) {
-              throw new Error('Not yet!');
-            }
-          },
-          { connection },
-        );
+          const worker = new Worker(
+            queueName,
+            async job => {
+              id++;
+              await delay(200);
+              if (job.attemptsMade === 1) {
+                expect(job.id).to.be.eql(`${id}`);
+              }
+              if (job.id == '1' && job.attemptsMade < 2) {
+                throw new Error('Not yet!');
+              }
+            },
+            { connection },
+          );
 
-        await worker.waitUntilReady();
+          await worker.waitUntilReady();
 
-        const completing = new Promise(resolve => {
-          worker.on('completed', after(4, resolve));
+          const completing = new Promise(resolve => {
+            worker.on('completed', after(4, resolve));
+          });
+
+          await queue.add(
+            'test',
+            { foo: 'bar' },
+            {
+              attempts: 2,
+            },
+          );
+
+          const jobs = Array.from(Array(3).keys()).map(index => ({
+            name: 'test',
+            data: {},
+            opts: {
+              delay: 200,
+            },
+          }));
+
+          await queue.addBulk(jobs);
+
+          await completing;
+
+          await worker.close();
         });
+      });
 
-        await queue.add(
-          'test',
-          { foo: 'bar' },
-          {
-            attempts: 2,
-          },
-        );
+      describe('when job has more priority than delayed jobs', () => {
+        it('executes retried job first', async () => {
+          let id = 0;
 
-        const jobs = Array.from(Array(3).keys()).map(index => ({
-          name: 'test',
-          data: {},
-          opts: {
-            delay: 200,
-          },
-        }));
+          const worker = new Worker(
+            queueName,
+            async job => {
+              await delay(200);
+              if (job.attemptsMade === 1) {
+                id++;
+                expect(job.id).to.be.eql(`${id}`);
+              }
+              if (job.id == '1' && job.attemptsMade < 2) {
+                throw new Error('Not yet!');
+              }
+            },
+            { connection },
+          );
 
-        await queue.addBulk(jobs);
+          await worker.waitUntilReady();
 
-        await completing;
+          const completing = new Promise(resolve => {
+            worker.on('completed', after(4, resolve));
+          });
 
-        await worker.close();
+          await queue.add(
+            'test',
+            { foo: 'bar' },
+            {
+              attempts: 2,
+              priority: 1,
+            },
+          );
+
+          const jobs = Array.from(Array(3).keys()).map(index => ({
+            name: 'test',
+            data: {},
+            opts: {
+              delay: 200,
+              priority: 2,
+            },
+          }));
+
+          await queue.addBulk(jobs);
+
+          await completing;
+
+          await worker.close();
+        });
       });
     });
 

@@ -33,6 +33,7 @@ import {
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './unrecoverable-error';
+import type { QueueEvents } from './queue-events';
 
 const logger = debuglog('bull');
 
@@ -918,7 +919,7 @@ export class Job<
    * @param ttl - Time in milliseconds to wait for job to finish before timing out.
    */
   async waitUntilFinished(
-    queueEvents: MinimalQueue,
+    queueEvents: QueueEvents,
     ttl?: number,
   ): Promise<ReturnType> {
     await this.queue.waitUntilReady();

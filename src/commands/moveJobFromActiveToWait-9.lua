@@ -19,7 +19,7 @@
 local rcall = redis.call
 
 -- Includes
---- @include "includes/addJobWithPriority"
+--- @include "includes/pushBackJobWithPriority"
 --- @include "includes/getTargetQueueList"
 
 local jobId = ARGV[1]
@@ -38,7 +38,7 @@ if lockToken == token and pttl > 0 then
     local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
     if priority > 0 then
-      addJobWithPriority(KEYS[8], priority, target, jobId)
+      pushBackJobWithPriority(KEYS[8], priority, target, jobId)
     else
       rcall("RPUSH", target, jobId)
     end

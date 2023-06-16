@@ -436,6 +436,78 @@ describe('Rate Limiter', function () {
         await result;
         await worker.close();
       });
+
+      describe('when priority is the same for some jobs', () => {
+        it('should get jobs in fifo order', async function () {
+          this.timeout(6000);
+
+          const numJobs = 4;
+          const dynamicLimit = 250;
+          const duration = 100;
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await worker.rateLimit(dynamicLimit);
+              throw Worker.RateLimitError();
+            },
+            {
+              connection,
+              limiter: {
+                max: 1,
+                duration,
+              },
+            },
+          );
+
+          for (let i = 1; i <= numJobs; i++) {
+            await queue.add(`${i}`, {}, { priority: 10 });
+          }
+
+          await delay(dynamicLimit);
+
+          const jobs = await queue.getJobs(['waiting'], 0, -1, true);
+          expect(jobs.map(x => x.name)).to.eql(['1', '2', '3', '4']);
+
+          await worker.close();
+        });
+      });
+
+      describe('when priority is different for some jobs', () => {
+        it('should get jobs in fifo order', async function () {
+          this.timeout(6000);
+
+          const numJobs = 4;
+          const dynamicLimit = 250;
+          const duration = 100;
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await worker.rateLimit(dynamicLimit);
+              throw Worker.RateLimitError();
+            },
+            {
+              connection,
+              limiter: {
+                max: 1,
+                duration,
+              },
+            },
+          );
+
+          for (let i = 1; i <= numJobs; i++) {
+            await queue.add(`${i}`, {}, { priority: ((i - 1) % 2) + 1 });
+          }
+
+          await delay(dynamicLimit * 4);
+
+          const jobs = await queue.getJobs(['waiting'], 0, -1, true);
+          expect(jobs.map(x => x.name)).to.eql(['1', '3', '2', '4']);
+
+          await worker.close();
+        });
+      });
     });
 
     describe('when queue is paused', () => {

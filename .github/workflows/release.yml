@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@8e5e7e5ab8b370d6c329ec480221332ada57f0ab # v3
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
         with:
           fetch-depth: 0
       - name: Setup Node.js
@@ -28,6 +28,7 @@ jobs:
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
+      - run: yarn build
       - name: Release Node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,8 +51,14 @@ jobs:
           flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-          cd python
       - name: Release Python
-        if: ${{ startsWith(env.commitmsg, 'ci(python)') }}
+        if: ${{ contains(env.commitmsg, '(python)') }}
         run: |
-          echo Commit MSG = $commitmsg
+          cd python
+          pip install packaging
+          git config --global user.email "manast@taskforce.sh"
+          git config --global user.name "manast"
+          export VERSION=$(semantic-release print-version)
+          if [ ! -z "$VERSION" ]; then
+            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} PYPI_TOKEN=${{ secrets.PYPI_TOKEN }} semantic-release publish
+          fi

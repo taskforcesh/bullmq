@@ -17,11 +17,35 @@
     opts - limiter
 ]]
 
+-- Includes
+--- @include "pushBackJobWithPriority"
+
 local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, processedOn,
     maxJobs, expireTime, opts)
+  rcall("ZREM", keys[3], jobId) -- remove from priority
+  local jobKey = keyPrefix .. jobId
+
   -- Check if we need to perform rate limiting.
   if maxJobs then
     local rateLimiterKey = keys[6];
+
+    -- check if we passed rate limit, we need to remove the job and return expireTime
+    if expireTime > 0 then
+      -- remove from active queue and add back to the wait list
+      rcall("LREM", keys[2], 1, jobId)
+
+      local priority = tonumber(rcall("HGET", jobKey, "priority")) or 0
+
+      if priority > 0 then
+        pushBackJobWithPriority(keys[3], priority, targetKey, jobId)
+      else
+        rcall("RPUSH", targetKey, jobId)
+      end
+
+      -- Return when we can process more jobs
+      return {0, 0, expireTime, 0}
+    end
+
     local jobCounter = tonumber(rcall("INCR", rateLimiterKey))
 
     if jobCounter == 1 then
@@ -29,19 +53,8 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
       local integerDuration = math.floor(math.abs(limiterDuration))
       rcall("PEXPIRE", rateLimiterKey, integerDuration)
     end
-
-    -- check if we passed rate limit, we need to remove the job and return expireTime
-    if expireTime > 0 then
-      -- remove from active queue and add back to the wait list
-      rcall("LREM", keys[2], 1, jobId)
-      rcall("RPUSH", targetKey, jobId)
-
-      -- Return when we can process more jobs
-      return {0, 0, expireTime, 0}
-    end
   end
 
-  local jobKey = keyPrefix .. jobId
   local lockKey = jobKey .. ':lock'
 
   -- get a lock
@@ -49,7 +62,6 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
     rcall("SET", lockKey, opts['token'], "PX", opts['lockDuration'])
   end
 
-  rcall("ZREM", keys[3], jobId) -- remove from priority
   rcall("XADD", keys[4], "*", "event", "active", "jobId", jobId, "prev", "waiting")
   rcall("HSET", jobKey, "processedOn", processedOn)
   rcall("HINCRBY", jobKey, "attemptsMade", 1)
