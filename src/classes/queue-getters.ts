@@ -288,7 +288,12 @@ export class QueueGetters<
       if (asc && multiCommands[index] === 'lrange') {
         results = results.concat(result.reverse());
       } else {
-        results = results.concat(result);
+        if(types[index] === "priority"){
+          const jobIds = result.map(pattern => pattern.substring(14));
+          results = results.concat(jobIds);
+        } else {
+          results = results.concat(result);
+        }
       }
     });
 

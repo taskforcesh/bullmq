@@ -10,6 +10,7 @@
     ARGV[2] job key
     ARGV[3] job id
     ARGV[4] lifo
+    ARGV[5] timestamp
 
     Output:
        0  - OK
@@ -30,7 +31,7 @@ if rcall("EXISTS", jobKey) == 1 then
   local isPrioritized = rcall("ZREM", KEYS[4], jobId) > 0
   if isPrioritized then
     -- Priority add
-    addJobWithPriority(KEYS[1], KEYS[4], priority, paused, jobId)
+    addJobWithPriority(KEYS[1], KEYS[4], priority, paused, jobId, ARGV[5])
   else
     local numRemovedElements = rcall("LREM", target, -1, jobId)
     if numRemovedElements > 0 then
@@ -41,7 +42,7 @@ if rcall("EXISTS", jobKey) == 1 then
         rcall(pushCmd, target, jobId)
       else
         -- Priority add
-        addJobWithPriority(KEYS[1], KEYS[4], priority, paused, jobId)
+        addJobWithPriority(KEYS[1], KEYS[4], priority, paused, jobId, ARGV[5])
       end
     end  
   end

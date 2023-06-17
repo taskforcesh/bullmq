@@ -57,8 +57,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     rcall(ARGV[3], target, ARGV[4])
   else
     -- Priority add
-    rcall("SET", "DEBUG", "NORMAL")
-    addJobWithPriority(KEYS[2], KEYS[8], priority, paused, ARGV[4])
+    addJobWithPriority(KEYS[2], KEYS[8], priority, paused, ARGV[4], ARGV[2])
   end
 
   -- Emit waiting event

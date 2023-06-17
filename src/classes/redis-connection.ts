@@ -179,10 +179,10 @@ export class RedisConnection extends EventEmitter {
     this._client.on('ready', this.handleClientReady);
 
     await RedisConnection.waitUntilReady(this._client);
-    await this.loadCommands();
+    this.loadCommands();
 
+    this.version = await this.getRedisVersion();
     if (this.opts && this.opts.skipVersionCheck !== true && !this.closing) {
-      this.version = await this.getRedisVersion();
       if (
         isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
       ) {

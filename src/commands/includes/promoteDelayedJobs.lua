@@ -27,7 +27,7 @@ local function promoteDelayedJobs(delayedKey, waitKey, targetKey, priorityKey,
                 rcall("LPUSH", targetKey, jobId)
             else
                 rcall("SET", "DEBUG", "DELAYED")
-                addJobWithPriority(waitKey, priorityKey, priority, paused, jobId)
+                addJobWithPriority(waitKey, priorityKey, priority, paused, jobId, timestamp)
             end
 
             -- Emit waiting event

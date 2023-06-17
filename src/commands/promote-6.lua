@@ -11,6 +11,7 @@
 
       ARGV[1]  queue.toKey('')
       ARGV[2]  jobId
+      ARGV[3]  timestamp
 
     Output:
        0 - OK
@@ -41,7 +42,7 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
     -- LIFO or FIFO
     rcall("LPUSH", target, jobId)
   else
-    addJobWithPriority(KEYS[2], KEYS[5], priority, paused, jobId)
+    addJobWithPriority(KEYS[2], KEYS[5], priority, paused, jobId, ARGV[3])
   end
 
   -- Emit waiting event (wait..ing@token)
