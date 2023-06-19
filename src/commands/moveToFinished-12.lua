@@ -56,6 +56,7 @@ local rcall = redis.call
 --- Includes
 --- @include "includes/collectMetrics"
 --- @include "includes/getNextDelayedTimestamp"
+--- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/promoteDelayedJobs"
@@ -213,10 +214,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                     expireTime, paused, opts)
             end
         else
-            local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
-            if #prioritizedJob > 0 then
-                jobId = string.sub(prioritizedJob[1], 15, -1)
-                rcall("LPUSH", KEYS[2], jobId)
+            jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2])
+            if jobId then
                 return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
                     expireTime, paused, opts)
             end

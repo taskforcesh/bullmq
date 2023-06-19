@@ -983,7 +983,7 @@ describe('Job', function () {
       const worker = new Worker(
         queueName,
         () => {
-          return delay(100);
+          return delay(200);
         },
         { connection, autorun: false },
       );

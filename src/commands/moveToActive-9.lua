@@ -35,10 +35,11 @@ local jobId
 local rcall = redis.call
 
 -- Includes
---- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/moveJobFromPriorityToActive"
+--- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/promoteDelayedJobs"
 
 local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
@@ -93,18 +94,14 @@ if jobId then
     -- this script is not really moving, it is preparing the job for processing
     return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   else
-    local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
-    if #prioritizedJob > 0 then
-      jobId = string.sub(prioritizedJob[1], 15, -1)
-      rcall("LPUSH", KEYS[2], jobId)
+    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2])
+    if jobId then
       return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
     end
   end
 else
-  local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
-  if #prioritizedJob > 0 then
-    jobId = string.sub(prioritizedJob[1], 15, -1)
-    rcall("LPUSH", KEYS[2], jobId)
+  jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2])
+  if jobId then
     return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   end
 end
