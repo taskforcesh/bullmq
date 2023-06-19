@@ -34,8 +34,8 @@ class Scripts:
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-4.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
-            "getState": self.redisClient.register_script(self.getScript("getState-7.lua")),
-            "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-7.lua")),
+            "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
+            "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-9.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
@@ -163,9 +163,9 @@ class Scripts:
 
     async def getState(self, job_id):
         keys = self.getKeys(['completed', 'failed', 'delayed', 'active', 'wait',
-                'paused', 'waiting-children'])
+                'paused', 'waiting-children', 'priority'])
 
-        args = [job_id]
+        args = [job_id, self.toKey(job_id)]
 
         redis_version = await self.redisConnection.getRedisVersion()
 
@@ -182,7 +182,7 @@ class Scripts:
             self.keys['meta'],
             self.keys['priority']]
         
-        args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0]
+        args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0, round(time.time() * 1000)]
 
         result = await self.commands["changePriority"](keys=keys, args=args)
 
