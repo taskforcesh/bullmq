@@ -148,7 +148,7 @@ class Scripts:
                 raise self.finishedErrors(result, job_id, 'moveToDelayed', 'active')
         return None
 
-    async def remove(self, job_id: str):
+    def remove(self, job_id: str):
         keys = self.getKeys([''])
         args = [job_id]
 

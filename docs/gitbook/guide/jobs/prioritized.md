@@ -46,3 +46,7 @@ await job.changePriority({
   lifo: true,
 });
 ```
+
+## Read more:
+
+- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/Job.html#changePriority)
