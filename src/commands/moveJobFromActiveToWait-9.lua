@@ -39,7 +39,7 @@ if lockToken == token and pttl > 0 then
     local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
     if priority > 0 then
-      pushBackJobWithPriority(KEYS[8], priority, jobId, ARGV[4])
+      pushBackJobWithPriority(KEYS[8], priority, ARGV[3], jobId, ARGV[4])
     else
       rcall("RPUSH", target, jobId)
     end

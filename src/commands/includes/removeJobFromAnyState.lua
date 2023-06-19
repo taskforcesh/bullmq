@@ -19,16 +19,19 @@ local function removeJobFromAnyState( prefix, jobId)
   elseif rcall("ZSCORE", prefix .. "failed", jobId) then
     rcall("ZREM", prefix .. "failed", jobId)
     return "failed"
-  elseif rcall("ZSCORE", prefix .. "priority", jobId) then
-    rcall("ZREM", prefix .. "priority", jobId)
-    return "priority"
-  -- We remove only 1 element from the list, since we assume they are not added multiple times
-  elseif rcall("LREM", prefix .. "wait", 1, jobId) == 1 then
-    return "wait"
-  elseif rcall("LREM", prefix .. "paused", 1, jobId) == 1 then
-    return "paused"
-  elseif rcall("LREM", prefix .. "active", 1, jobId) == 1 then
-    return "active"
+  else
+    local pprefix = rcall("HGET", prefix .. jobId, "pprefix")
+    if pprefix and rcall("ZSCORE", prefix .. "priority", pprefix .. ":" .. jobId) then
+      rcall("ZREM", prefix .. "priority", jobId)
+      return "priority"
+    -- We remove only 1 element from the list, since we assume they are not added multiple times
+    elseif rcall("LREM", prefix .. "wait", 1, jobId) == 1 then
+      return "wait"
+    elseif rcall("LREM", prefix .. "paused", 1, jobId) == 1 then
+      return "paused"
+    elseif rcall("LREM", prefix .. "active", 1, jobId) == 1 then
+      return "active"
+    end
   end
 
   return "unknown"

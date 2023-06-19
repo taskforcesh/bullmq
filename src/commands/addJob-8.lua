@@ -153,7 +153,7 @@ else
     local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
     rcall(pushCmd, target, jobId)
   else
-    addJobWithPriority(KEYS[1], KEYS[6], priority, paused, jobId, timestamp)
+    addJobWithPriority(KEYS[1], KEYS[6], jobIdKey, priority, paused, jobId, timestamp)
   end
   -- Emit waiting event
   rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)

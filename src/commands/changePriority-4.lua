@@ -28,10 +28,12 @@ local rcall = redis.call
 if rcall("EXISTS", jobKey) == 1 then
   local target, paused = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
 
-  local isPrioritized = rcall("ZREM", KEYS[4], jobId) > 0
+  local pprefix = rcall("HGET", jobKey, "pprefix")
+
+  local isPrioritized = pprefix and (rcall("ZREM", KEYS[4], pprefix .. ":" .. jobId) > 0)
   if isPrioritized then
     -- Priority add
-    addJobWithPriority(KEYS[1], KEYS[4], priority, paused, jobId, ARGV[5])
+    addJobWithPriority(KEYS[1], KEYS[4], jobKey, priority, paused, jobId, ARGV[5])
   else
     local numRemovedElements = rcall("LREM", target, -1, jobId)
     if numRemovedElements > 0 then
@@ -42,9 +44,9 @@ if rcall("EXISTS", jobKey) == 1 then
         rcall(pushCmd, target, jobId)
       else
         -- Priority add
-        addJobWithPriority(KEYS[1], KEYS[4], priority, paused, jobId, ARGV[5])
+        addJobWithPriority(KEYS[1], KEYS[4], jobKey, priority, paused, jobId, ARGV[5])
       end
-    end  
+    end
   end
 
   rcall("HSET", jobKey, "priority", priority)

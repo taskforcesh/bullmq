@@ -28,7 +28,8 @@ local jobId = ARGV[2]
 --- @include "includes/getTargetQueueList"
 
 if rcall("ZREM", KEYS[1], jobId) == 1 then
-  local priority = tonumber(rcall("HGET", ARGV[1] .. jobId, "priority")) or 0
+  local jobKey = ARGV[1] .. jobId
+  local priority = tonumber(rcall("HGET", jobKey, "priority")) or 0
   local target, paused = getTargetQueueList(KEYS[4], KEYS[2], KEYS[3])
 
   -- Remove delayed "marker" from the wait list if there is any.
@@ -42,13 +43,13 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
     -- LIFO or FIFO
     rcall("LPUSH", target, jobId)
   else
-    addJobWithPriority(KEYS[2], KEYS[5], priority, paused, jobId, ARGV[3])
+    addJobWithPriority(KEYS[2], KEYS[5], jobKey, priority, paused, jobId, ARGV[3])
   end
 
   -- Emit waiting event (wait..ing@token)
   rcall("XADD", KEYS[6], "*", "event", "waiting", "jobId", jobId, "prev", "delayed");
 
-  rcall("HSET", ARGV[1] .. jobId, "delay", 0)
+  rcall("HSET", jobKey, "delay", 0)
 
   return 0
 else

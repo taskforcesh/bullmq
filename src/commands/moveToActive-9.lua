@@ -95,10 +95,7 @@ if jobId then
   else
     local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
     if #prioritizedJob > 0 then
-      --jobId = prioritizedJob[1]
-      rcall("SET", "DEBUG0", prioritizedJob[1])
       jobId = string.sub(prioritizedJob[1], 15, -1)
-      rcall("SET", "DEBUG0", jobId)
       rcall("LPUSH", KEYS[2], jobId)
       return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
     end
@@ -106,10 +103,7 @@ if jobId then
 else
   local prioritizedJob = rcall("ZPOPMIN", KEYS[3])
   if #prioritizedJob > 0 then
-    --jobId = prioritizedJob[1]
-    rcall("SET", "DEBUG2", prioritizedJob[1])
     jobId = string.sub(prioritizedJob[1], 15, -1)
-    rcall("SET", "DEBUG2", jobId)
     rcall("LPUSH", KEYS[2], jobId)
     return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   end

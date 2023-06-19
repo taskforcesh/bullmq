@@ -485,14 +485,19 @@ export class Scripts {
       'wait',
       'paused',
       'waiting-children',
+      'priority',
     ].map((key: string) => {
       return this.queue.toKey(key);
     });
 
     if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
-      return (<any>client).getState(keys.concat([jobId]));
+      return (<any>client).getState(
+        keys.concat([jobId, this.queue.toKey(jobId)]),
+      );
     }
-    return (<any>client).getStateV2(keys.concat([jobId]));
+    return (<any>client).getStateV2(
+      keys.concat([jobId, this.queue.toKey(jobId)]),
+    );
   }
 
   async changeDelay(jobId: string, delay: number): Promise<void> {
@@ -558,7 +563,7 @@ export class Scripts {
       this.queue.toKey(jobId),
       jobId,
       lifo ? 1 : 0,
-      Date.now()
+      Date.now(),
     ]);
   }
 
