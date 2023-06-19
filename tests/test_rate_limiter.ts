@@ -442,7 +442,7 @@ describe('Rate Limiter', function () {
           this.timeout(6000);
 
           const numJobs = 4;
-          const dynamicLimit = 250;
+          const dynamicLimit = 500;
           const duration = 100;
 
           const worker = new Worker(
@@ -459,12 +459,13 @@ describe('Rate Limiter', function () {
               },
             },
           );
+          await worker.waitUntilReady();
 
           for (let i = 1; i <= numJobs; i++) {
             await queue.add(`${i}`, {}, { priority: 10 });
           }
 
-          await delay(dynamicLimit);
+          await delay(dynamicLimit / 2);
 
           const jobs = await queue.getJobs(['priority'], 0, -1, true);
           expect(jobs.map(x => x.name)).to.eql(['1', '2', '3', '4']);
