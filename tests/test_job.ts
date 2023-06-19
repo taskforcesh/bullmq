@@ -979,47 +979,41 @@ describe('Job', function () {
     });
 
     it('should process a promoted job according to its priority', async function () {
-      this.timeout(10000);
+      this.timeout(5000);
+      const completed: string[] = [];
       const worker = new Worker(
         queueName,
-        () => {
+        job => {
+          completed.push(job.id!);
           return delay(200);
         },
         { connection, autorun: false },
       );
       await worker.waitUntilReady();
 
-      const completed: string[] = [];
-
-      const done = new Promise<void>(resolve => {
-        worker.on('completed', job => {
-          completed.push(job.id!);
-          if (completed.length > 3) {
+      const completing = new Promise<void>(resolve => {
+        worker.on(
+          'completed',
+          after(4, () => {
             expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
             resolve();
-          }
-        });
+          }),
+        );
       });
 
-      const processStarted = new Promise(resolve =>
-        worker.on('active', after(2, resolve)),
+      await queue.add('test', {}, { jobId: 'a', priority: 1 });
+      await queue.add('test', {}, { jobId: 'b', priority: 2 });
+      await queue.add('test', {}, { jobId: 'd', priority: 4 });
+      const job = await queue.add(
+        'test',
+        {},
+        { jobId: 'c', delay: 2000, priority: 3 },
       );
-
-      const add = (jobId: string, ms = 0) =>
-        queue.add('test', {}, { jobId, delay: ms, priority: 1 });
-
-      await add('a');
-      await add('b', 1);
+      await job.promote();
 
       worker.run();
 
-      await processStarted;
-      const job = await add('c', 2000);
-
-      await job.promote();
-      await add('d', 1);
-
-      await done;
+      await completing;
     });
 
     it('should not promote a job that is not delayed', async () => {
