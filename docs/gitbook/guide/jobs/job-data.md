@@ -1,4 +1,6 @@
-All jobs save data as an attribute.
+# Job Data
+
+Every job can have its own custom data. The data is stored in the **data** attribute of the job:
 
 {% tabs %}
 {% tab title="TypeScript" %}
