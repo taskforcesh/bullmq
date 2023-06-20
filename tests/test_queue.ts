@@ -129,7 +129,7 @@ describe('queues', function () {
       const client = await queue.client;
       const keys = await client.keys(`bull:${queue.name}:*`);
 
-      expect(keys.length).to.be.eql(3);
+      expect(keys.length).to.be.eql(4);
     });
 
     describe('when having a flow', async () => {

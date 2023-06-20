@@ -21,6 +21,7 @@
       KEYS[10] jobId key
       KEYS[11] meta key
       KEYS[12] metrics key
+      KEYS[13] pc priority counter
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
@@ -191,7 +192,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         -- Check if there are delayed jobs that can be promoted
         promoteDelayedJobs(KEYS[7], KEYS[1], target, KEYS[3],
-                           KEYS[4], ARGV[8], timestamp, paused)
+                           KEYS[4], ARGV[8], timestamp, paused, KEYS[13])
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.

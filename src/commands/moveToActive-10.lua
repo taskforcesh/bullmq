@@ -20,6 +20,7 @@
     -- Promote delayed jobs
     KEYS[8] paused key
     KEYS[9] meta key
+    KEYS[10] pc priority counter
 
     -- Arguments
     ARGV[1] key prefix
@@ -45,7 +46,7 @@ local rcall = redis.call
 local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
-promoteDelayedJobs(KEYS[7], KEYS[1], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2], paused)
+promoteDelayedJobs(KEYS[7], KEYS[1], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2], paused, KEYS[10])
 
 local opts = cmsgpack.unpack(ARGV[4])
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])

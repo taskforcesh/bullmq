@@ -10,6 +10,7 @@
       KEYS[6] events stream
       KEYS[7] delayed key
       KEYS[8] priority key
+      KEYS[9] 'pc' priority counter
 
       ARGV[1]  key prefix
       ARGV[2]  timestamp
@@ -35,7 +36,7 @@ local rcall = redis.call
 local target, paused = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
 -- Check if there are delayed jobs that we can move to wait.
 -- test example: when there are delayed jobs between retries
-promoteDelayedJobs(KEYS[7], KEYS[2], target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], paused)
+promoteDelayedJobs(KEYS[7], KEYS[2], target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], paused, KEYS[9])
 
 if rcall("EXISTS", KEYS[4]) == 1 then
 
@@ -57,7 +58,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     rcall(ARGV[3], target, ARGV[4])
   else
     -- Priority add
-    addJobWithPriority(KEYS[2], KEYS[8], KEYS[4], priority, paused, ARGV[4], ARGV[2])
+    addJobWithPriority(KEYS[2], KEYS[8], KEYS[4], priority, paused, ARGV[4], KEYS[9])
   end
 
   -- Emit waiting event

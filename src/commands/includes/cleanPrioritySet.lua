@@ -19,7 +19,7 @@ local function cleanPrioritySet(setKey, jobKeyPrefix, rangeStart, rangeEnd, time
       break
     end
 
-    local jobId = string.sub(job, 15, -1)
+    local jobId = string.match(job, "[%d]+:(.*)")
 
     local jobKey = jobKeyPrefix .. jobId
     -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed

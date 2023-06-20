@@ -5,7 +5,7 @@
 
 local function removePriorityJobKeys(keys, hard, baseKey, max)
   for i, key in ipairs(keys) do
-    removeJob(string.sub(key, 15, -1), hard, baseKey)
+    removeJob(string.match(key, "[%d]+:(.*)"), hard, baseKey)
   end
   return max - #keys
 end

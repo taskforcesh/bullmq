@@ -56,6 +56,7 @@ export class Scripts {
       undefined,
       queueKeys.meta,
       undefined,
+      queueKeys.pc,
     ];
   }
 
@@ -87,6 +88,7 @@ export class Scripts {
       queueKeys.priority,
       queueKeys.completed,
       queueKeys.events,
+      queueKeys.pc,
     ];
 
     const fpof = opts.fpof ? { fpof: true } : {};
@@ -556,6 +558,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.priority,
+      this.queue.keys.pc,
     ];
 
     return keys.concat([
@@ -563,7 +566,6 @@ export class Scripts {
       this.queue.toKey(jobId),
       jobId,
       lifo ? 1 : 0,
-      Date.now(),
     ]);
   }
 
@@ -734,6 +736,7 @@ export class Scripts {
       this.queue.keys.events,
       this.queue.keys.delayed,
       this.queue.keys.priority,
+      this.queue.keys.pc,
     );
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
@@ -838,6 +841,7 @@ export class Scripts {
       queueKeys.delayed,
       queueKeys.paused,
       queueKeys.meta,
+      queueKeys.pc,
     ];
 
     const args: (string | number | boolean | Buffer)[] = [
@@ -867,6 +871,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.priority,
+      this.queue.keys.pc,
       this.queue.keys.events,
     ];
 
@@ -932,7 +937,7 @@ export class Scripts {
       this.queue.keys.events,
     ];
 
-    const args = [jobId, token, this.queue.toKey(jobId), Date.now()];
+    const args = [jobId, token, this.queue.toKey(jobId)];
 
     const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
 

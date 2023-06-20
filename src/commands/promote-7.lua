@@ -7,7 +7,8 @@
       KEYS[3] 'paused'
       KEYS[4] 'meta'
       KEYS[5] 'priority'
-      KEYS[6] 'event stream'
+      KEYS[6] 'pc' priority counter
+      KEYS[7] 'event stream'
 
       ARGV[1]  queue.toKey('')
       ARGV[2]  jobId
@@ -43,11 +44,11 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
     -- LIFO or FIFO
     rcall("LPUSH", target, jobId)
   else
-    addJobWithPriority(KEYS[2], KEYS[5], jobKey, priority, paused, jobId, ARGV[3])
+    addJobWithPriority(KEYS[2], KEYS[5], jobKey, priority, paused, jobId, KEYS[6])
   end
 
   -- Emit waiting event (wait..ing@token)
-  rcall("XADD", KEYS[6], "*", "event", "waiting", "jobId", jobId, "prev", "delayed");
+  rcall("XADD", KEYS[7], "*", "event", "waiting", "jobId", jobId, "prev", "delayed");
 
   rcall("HSET", jobKey, "delay", 0)
 

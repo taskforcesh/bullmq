@@ -630,7 +630,7 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`bull:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(4);
+          expect(keys.length).to.be.eql(5);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);

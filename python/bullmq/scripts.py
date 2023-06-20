@@ -30,21 +30,21 @@ class Scripts:
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
         self.commands = {
-            "addJob": self.redisClient.register_script(self.getScript("addJob-8.lua")),
-            "changePriority": self.redisClient.register_script(self.getScript("changePriority-4.lua")),
+            "addJob": self.redisClient.register_script(self.getScript("addJob-9.lua")),
+            "changePriority": self.redisClient.register_script(self.getScript("changePriority-5.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
             "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
-            "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-9.lua")),
+            "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-10.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-12.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-5.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
-            "retryJob": self.redisClient.register_script(self.getScript("retryJob-8.lua")),
+            "retryJob": self.redisClient.register_script(self.getScript("retryJob-9.lua")),
             "retryJobs": self.redisClient.register_script(self.getScript("retryJobs-6.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
@@ -53,7 +53,7 @@ class Scripts:
 
         # loop all the names and add them to the keys object
         names = ["", "active", "wait", "paused", "completed", "failed", "delayed",
-                 "stalled", "limiter", "priority", "id", "stalled-check", "meta", "events", "waiting-children"]
+                 "stalled", "limiter", "priority", "id", "stalled-check", "meta", "pc", "events", "waiting-children"]
         for name in names:
             self.keys[name] = self.toKey(name)
 
@@ -96,7 +96,7 @@ class Scripts:
         packedOpts = msgpack.packb(job.opts)
 
         keys = self.getKeys(['wait', 'paused', 'meta', 'id',
-                            'delayed', 'priority', 'completed', 'events'])
+                            'delayed', 'priority', 'completed', 'events', 'pc'])
 
         return self.commands["addJob"](keys=keys, args=[packedArgs, jsonData, packedOpts])
 
@@ -113,6 +113,7 @@ class Scripts:
         keys.append(self.keys['events'])
         keys.append(self.keys['delayed'])
         keys.append(self.keys['priority'])
+        keys.append(self.keys['pc'])
 
         push_cmd = "R" if lifo else "L"
 
@@ -180,9 +181,10 @@ class Scripts:
         keys = [self.keys['wait'],
             self.keys['paused'],
             self.keys['meta'],
-            self.keys['priority']]
+            self.keys['priority'],
+            self.keys['pc']]
         
-        args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0, round(time.time() * 1000)]
+        args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0]
 
         result = await self.commands["changePriority"](keys=keys, args=args)
 
@@ -266,7 +268,7 @@ class Scripts:
         limiter = opts.get("limiter", None)
 
         keys = self.getKeys(['wait', 'active', 'priority', 'events',
-                            'stalled', 'limiter', 'delayed', 'paused', 'meta'])
+                            'stalled', 'limiter', 'delayed', 'paused', 'meta', 'pc'])
         packedOpts = msgpack.packb(
             {"token": token, "lockDuration": lockDuration, "limiter": limiter}, use_bin_type=True)
         args = [self.keys[''], timestamp, jobId or "", packedOpts]
@@ -301,6 +303,7 @@ class Scripts:
         keys.append(self.toKey(job.id))
         keys.append(self.keys['meta'])
         keys.append(metricsKey)
+        keys.append(self.keys['pc'])
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
             if type(shouldRemove) == int:

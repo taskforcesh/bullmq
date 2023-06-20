@@ -1140,7 +1140,7 @@ describe('workers', function () {
         expect(job.data.foo).to.be.equal('bar');
         throw jobError;
       },
-      { connection },
+      { autorun: false, connection },
     );
     await worker.waitUntilReady();
 
@@ -1148,7 +1148,7 @@ describe('workers', function () {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise<void>(resolve => {
+    const failing = new Promise<void>(resolve => {
       worker.once('failed', async (job, err) => {
         expect(job).to.be.ok;
         expect(job.finishedOn).to.be.a('number');
@@ -1157,6 +1157,10 @@ describe('workers', function () {
         resolve();
       });
     });
+
+    worker.run();
+
+    await failing;
 
     await worker.close();
   });

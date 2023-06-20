@@ -23,6 +23,7 @@
       KEYS[6] 'priority'
       KEYS[7] 'completed'
       KEYS[8] events stream key
+      KEYS[9] 'pc' priority counter
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -153,7 +154,7 @@ else
     local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
     rcall(pushCmd, target, jobId)
   else
-    addJobWithPriority(KEYS[1], KEYS[6], jobIdKey, priority, paused, jobId, timestamp)
+    addJobWithPriority(KEYS[1], KEYS[6], jobIdKey, priority, paused, jobId, KEYS[9])
   end
   -- Emit waiting event
   rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)

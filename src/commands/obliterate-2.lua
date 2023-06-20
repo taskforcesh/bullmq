@@ -89,6 +89,7 @@ if(maxCount > 0) then
     baseKey .. 'stalled-check',
     baseKey .. 'stalled',
     baseKey .. 'id',
+    baseKey .. 'pc',
     baseKey .. 'meta',
     baseKey .. 'repeat',
     baseKey .. 'metrics:completed',
