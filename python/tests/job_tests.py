@@ -44,8 +44,26 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         job = await queue.add("test-job", {"foo": "bar"}, {})
         state = await job.getState()
 
-        print(state)
         self.assertEqual(state, "waiting")
+        
+        await queue.close()
+
+    async def test_update_job_data(self):
+        queue = Queue(queueName)
+        job = await queue.add("test", {"foo": "bar"}, {})
+        await job.updateData({"baz": "qux"})
+        stored_job = await Job.fromId(queue, job.id)
+        
+        self.assertEqual(stored_job.data, {"baz": "qux"})
+        
+        await queue.close()
+
+    async def test_update_job_data_when_is_removed(self):
+        queue = Queue(queueName)
+        job = await queue.add("test", {"foo": "bar"}, {})
+        await job.remove()
+        with self.assertRaises(TypeError):
+            await job.updateData({"baz": "qux"})
         
         await queue.close()
 

@@ -33,11 +33,8 @@ describe('repeat', function () {
 
   const connection = { host: 'localhost' };
 
-  beforeEach(function () {
-    this.clock = sinon.useFakeTimers();
-  });
-
   beforeEach(async function () {
+    this.clock = sinon.useFakeTimers();
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection });
     repeat = new Repeat(queueName, { connection });
