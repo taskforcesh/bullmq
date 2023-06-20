@@ -12,7 +12,6 @@
 
       ARGV[1]  queue.toKey('')
       ARGV[2]  jobId
-      ARGV[3]  timestamp
 
     Output:
        0 - OK

@@ -865,7 +865,7 @@ export class Scripts {
   async promote(jobId: string): Promise<number> {
     const client = await this.queue.client;
 
-    const keys: (string | number)[] = [
+    const keys = [
       this.queue.keys.delayed,
       this.queue.keys.wait,
       this.queue.keys.paused,
@@ -875,7 +875,7 @@ export class Scripts {
       this.queue.keys.events,
     ];
 
-    const args = [this.queue.toKey(''), jobId, Date.now()];
+    const args = [this.queue.toKey(''), jobId];
 
     return (<any>client).promote(keys.concat(args));
   }
@@ -925,7 +925,7 @@ export class Scripts {
     const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
-    const keys: (string | number)[] = [
+    const keys = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,
