@@ -30,7 +30,6 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         queue = Queue(queueName)
 
         async def process(job: Job, token: str):
-            print('hola')
             return "done"
 
         worker = Worker(queueName, process)
