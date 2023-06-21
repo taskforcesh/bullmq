@@ -1,3 +1,26 @@
+# [4.0.0](https://github.com/taskforcesh/bullmq/compare/v3.15.8...v4.0.0) (2023-06-21)
+
+
+### Bug Fixes
+
+* **python:** pass right params to xtrim method ([#2004](https://github.com/taskforcesh/bullmq/issues/2004)) ([a55fd77](https://github.com/taskforcesh/bullmq/commit/a55fd777655f7d4bb7af9e4fa2f7b4f48f559189))
+
+
+### Performance Improvements
+
+* **priority:** add prioritized as a new state ([#1984](https://github.com/taskforcesh/bullmq/issues/1984)) (python) ([42a890a](https://github.com/taskforcesh/bullmq/commit/42a890a2bfe45b29348030f886766400f5d41aa3))
+
+
+### BREAKING CHANGES
+
+* **priority:** priority is separeted in its own zset, no duplication needed
+
+* feat(queue): add removeDeprecatedPriorityKey method
+
+* refactor: change job method name update to updateData
+
+ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
+
 ## [3.15.8](https://github.com/taskforcesh/bullmq/compare/v3.15.7...v3.15.8) (2023-06-16)
 
 
