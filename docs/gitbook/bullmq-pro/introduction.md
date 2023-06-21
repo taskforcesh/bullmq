@@ -8,6 +8,7 @@ There is a growing number of features that will be implemented in BullMQ Pro, yo
 
 ![](<../.gitbook/assets/image (4).png>)
 
-### Pricing
+### Commercial License
 
-BullMQ Pro is licensed per organization with unlimited use on all your projects. The current price is 95$/mo or 950$/year. You can try it for free by generating a new token on the "BullMQ Pro" tab in your account.
+BullMQ Pro is licensed per organization with unlimited use on all your projects. You can try it for free by requesting a token on this page: [https://taskforce.sh/account/bullmqpro](https://taskforce.sh/account/bullmqpro) and if you find it valuable subscript on the Subscriptions tab: [https://taskforce.sh/account/subscriptions](https://taskforce.sh/account/subscriptions).
+
