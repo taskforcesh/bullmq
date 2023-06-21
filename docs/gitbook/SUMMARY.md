@@ -44,6 +44,7 @@
 * [NestJs](guide/nestjs/README.md)
   * [Producers](guide/nestjs/producers.md)
 * [Going to production](guide/going-to-production.md)
+* [Migration to newer versions](guide/migration-to-newer-versions.md)
 
 ## Patterns
 
@@ -73,6 +74,7 @@
   * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)
 * [Changelog](bullmq-pro/changelog.md)
+* [Support](bullmq-pro/support.md)
 
 ## Bull
 

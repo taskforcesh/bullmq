@@ -46,6 +46,42 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    async def test_trim_events_manually(self):
+        queue = Queue(queueName)
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+
+        events_length = await queue.client.xlen(f"{queue.prefix}:{queueName}:events")
+        self.assertEqual(events_length, 8)
+
+        await queue.trimEvents(0);
+
+        events_length = await queue.client.xlen(f"{queue.prefix}:{queue.name}:events")
+
+        self.assertEqual(events_length, 0)
+
+        await queue.close()
+
+    async def test_trim_events_manually_with_custom_prefix(self):
+        queue = Queue(queueName, {}, {"prefix": "test"})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+
+        events_length = await queue.client.xlen(f"test:{queueName}:events")
+        self.assertEqual(events_length, 8)
+
+        await queue.trimEvents(0);
+
+        events_length = await queue.client.xlen(f"test:{queue.name}:events")
+
+        self.assertEqual(events_length, 0)
+
+        await queue.close()
+
     async def test_retry_failed_jobs(self):
         queue = Queue(queueName)
         job_count = 8
