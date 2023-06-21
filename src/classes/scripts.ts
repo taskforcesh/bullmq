@@ -934,7 +934,6 @@ export class Scripts {
       this.queue.keys.meta,
       this.queue.keys.limiter,
       this.queue.keys.prioritized,
-      this.queue.keys.pc,
       this.queue.keys.events,
     ];
 
