@@ -101,7 +101,7 @@ class Queue:
 
         @param maxLength:
         """
-        return self.client.xtrim(self.opts.get("prefix", f"bull:{self.name}:events"), "MAXLEN", "~", maxLength)
+        return self.client.xtrim(f"{self.prefix}:{self.name}:events", maxlen = maxLength, approximate = "~")
 
     async def getJobCounts(self, *types):
         """
