@@ -33,7 +33,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
   if maxJobs then
     local rateLimiterKey = keys[6];
 
-    -- check if we passed rate limit, we need to remove the job and return expireTime
+    -- check if we exceeded rate limit, we need to remove the job and return expireTime
     if expireTime > 0 then
       -- remove from active queue and add back to the wait list
       rcall("LREM", keys[2], 1, jobId)
