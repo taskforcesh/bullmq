@@ -9,7 +9,7 @@
     KEYS[5] paused key
     KEYS[6] meta key
     KEYS[7] limiter key
-    KEYS[8] priority key
+    KEYS[8] prioritized key
     KEYS[9] pc priority counter
     KEYS[10] event key
 

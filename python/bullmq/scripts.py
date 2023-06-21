@@ -53,7 +53,7 @@ class Scripts:
 
         # loop all the names and add them to the keys object
         names = ["", "active", "wait", "paused", "completed", "failed", "delayed",
-                 "stalled", "limiter", "priority", "id", "stalled-check", "meta", "pc", "events", "waiting-children"]
+                 "stalled", "limiter", "prioritized", "id", "stalled-check", "meta", "pc", "events", "waiting-children"]
         for name in names:
             self.keys[name] = self.toKey(name)
 
@@ -96,7 +96,7 @@ class Scripts:
         packedOpts = msgpack.packb(job.opts)
 
         keys = self.getKeys(['wait', 'paused', 'meta', 'id',
-                            'delayed', 'priority', 'completed', 'events', 'pc'])
+                            'delayed', 'prioritized', 'completed', 'events', 'pc'])
 
         return self.commands["addJob"](keys=keys, args=[packedArgs, jsonData, packedOpts])
 
@@ -112,7 +112,7 @@ class Scripts:
         keys.append(self.keys['meta'])
         keys.append(self.keys['events'])
         keys.append(self.keys['delayed'])
-        keys.append(self.keys['priority'])
+        keys.append(self.keys['prioritized'])
         keys.append(self.keys['pc'])
 
         push_cmd = "R" if lifo else "L"
@@ -128,7 +128,7 @@ class Scripts:
         if timestamp > 0:
             max_timestamp = max_timestamp * 0x1000 + (convert_to_int(job_id) & 0xfff)
 
-        keys = self.getKeys(['wait', 'active', 'priority', 'delayed'])
+        keys = self.getKeys(['wait', 'active', 'prioritized', 'delayed'])
         keys.append(self.toKey(job_id))
         keys.append(self.keys['events'])
         keys.append(self.keys['paused'])
@@ -164,7 +164,7 @@ class Scripts:
 
     async def getState(self, job_id):
         keys = self.getKeys(['completed', 'failed', 'delayed', 'active', 'wait',
-                'paused', 'waiting-children', 'priority'])
+                'paused', 'waiting-children', 'prioritized'])
 
         args = [job_id, self.toKey(job_id)]
 
@@ -181,7 +181,7 @@ class Scripts:
         keys = [self.keys['wait'],
             self.keys['paused'],
             self.keys['meta'],
-            self.keys['priority'],
+            self.keys['prioritized'],
             self.keys['pc']]
         
         args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0]
@@ -233,7 +233,7 @@ class Scripts:
         """
         src = "wait" if pause else "paused"
         dst = "paused" if pause else "wait"
-        keys = self.getKeys([src, dst, 'meta', 'priority', 'events'])
+        keys = self.getKeys([src, dst, 'meta', 'prioritized', 'events'])
         return self.commands["pause"](keys, args=["paused" if pause else "resumed"])
 
     async def obliterate(self, count: int, force: bool = False):
@@ -267,7 +267,7 @@ class Scripts:
         lockDuration = opts.get("lockDuration", 0)
         limiter = opts.get("limiter", None)
 
-        keys = self.getKeys(['wait', 'active', 'priority', 'events',
+        keys = self.getKeys(['wait', 'active', 'prioritized', 'events',
                             'stalled', 'limiter', 'delayed', 'paused', 'meta', 'pc'])
         packedOpts = msgpack.packb(
             {"token": token, "lockDuration": lockDuration, "limiter": limiter}, use_bin_type=True)
@@ -298,12 +298,10 @@ class Scripts:
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 
-        keys = self.getKeys(['wait', 'active', 'priority', 'events',
-                            'stalled', 'limiter', 'delayed', 'paused', target])
+        keys = self.getKeys(['wait', 'active', 'prioritized', 'events',
+                            'stalled', 'limiter', 'delayed', 'paused', 'meta', 'pc', target])
         keys.append(self.toKey(job.id))
-        keys.append(self.keys['meta'])
         keys.append(metricsKey)
-        keys.append(self.keys['pc'])
 
         def getKeepJobs(shouldRemove: bool | dict | int | None):
             if type(shouldRemove) == int:

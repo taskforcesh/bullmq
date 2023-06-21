@@ -646,7 +646,7 @@ describe('Jobs getters', function () {
   });
 
   describe('.getJobCounts', () => {
-    it(`returns job counts for active, completed, delayed, failed, paused, priority,
+    it(`returns job counts for active, completed, delayed, failed, paused, prioritized,
     waiting and waiting-children`, async () => {
       await queue.waitUntilReady();
 
@@ -695,7 +695,7 @@ describe('Jobs getters', function () {
         delayed: 1,
         failed: 1,
         paused: 0,
-        priority: 1,
+        prioritized: 1,
         waiting: 1,
         'waiting-children': 1,
       });

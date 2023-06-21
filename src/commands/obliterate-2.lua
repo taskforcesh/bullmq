@@ -70,8 +70,8 @@ if(maxCount <= 0) then
   return 1
 end
 
-local priorityKey = baseKey .. 'priority'
-maxCount = removeZSetJobs(priorityKey, true, baseKey, maxCount)
+local prioritizedKey = baseKey .. 'prioritized'
+maxCount = removeZSetJobs(prioritizedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end

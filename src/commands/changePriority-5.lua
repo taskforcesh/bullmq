@@ -4,7 +4,7 @@
     KEYS[1] 'wait',
     KEYS[2] 'paused'
     KEYS[3] 'meta'
-    KEYS[4] 'priority'
+    KEYS[4] 'prioritized'
     KEYS[5] 'pc' priority counter
 
     ARGV[1] priority value

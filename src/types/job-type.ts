@@ -4,7 +4,7 @@ export type JobState =
   | FinishedStatus
   | 'active'
   | 'delayed'
-  | 'priority'
+  | 'prioritized'
   | 'waiting'
   | 'waiting-children';
 

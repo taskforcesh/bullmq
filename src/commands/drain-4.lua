@@ -6,7 +6,7 @@
     KEYS[1] 'wait',
     KEYS[2] 'paused'
     KEYS[3] 'delayed'
-    KEYS[4] 'priority'
+    KEYS[4] 'prioritized'
 
     ARGV[1]  queue key prefix
 ]]
@@ -23,4 +23,4 @@ if KEYS[3] ~= "" then
   removeZSetJobs(KEYS[3], true, queueBaseKey, 0) --delayed
 end
 
-removeZSetJobs(KEYS[4], true, queueBaseKey, 0) --priority
+removeZSetJobs(KEYS[4], true, queueBaseKey, 0) --prioritized

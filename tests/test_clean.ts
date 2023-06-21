@@ -175,16 +175,16 @@ describe('Cleaner', () => {
     expect(count).to.be.eql(0);
   });
 
-  describe('when priority state is provided', async () => {
+  describe('when prioritized state is provided', async () => {
     it('should clean the number of jobs requested', async () => {
       await queue.add('test', { some: 'data' }, { priority: 1 }); // as queue is empty, this job will be added to wait
       await queue.add('test', { some: 'data' }, { priority: 2 });
       await queue.add('test', { some: 'data' }, { priority: 3 });
       await delay(100);
-      const jobs = await queue.clean(0, 1, 'priority');
+      const jobs = await queue.clean(0, 1, 'prioritized');
       expect(jobs.length).to.be.eql(1);
-      const count = await queue.getJobCounts('priority');
-      expect(count.priority).to.be.eql(2);
+      const count = await queue.getJobCounts('prioritized');
+      expect(count.prioritized).to.be.eql(2);
     });
   });
 
@@ -622,10 +622,10 @@ describe('Cleaner', () => {
           const count = await queue.count();
           expect(count).to.be.eql(0);
 
-          const priorityCount = await queue.getJobCounts('priority');
-          expect(priorityCount.priority).to.be.eql(1);
+          const priorityCount = await queue.getJobCounts('prioritized');
+          expect(priorityCount.prioritized).to.be.eql(1);
 
-          await queue.clean(0, 0, 'priority');
+          await queue.clean(0, 0, 'prioritized');
 
           const client = await queue.client;
           const keys = await client.keys(`bull:${queueName}:*`);

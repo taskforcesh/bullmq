@@ -4,7 +4,7 @@
   Input:
     keys[1] wait key
     keys[2] active key
-    keys[3] priority key
+    keys[3] prioritized key
     keys[4] stream events key
     keys[5] stalled key
 

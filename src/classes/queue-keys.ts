@@ -14,7 +14,7 @@ export class QueueKeys {
       'resumed',
       'id',
       'delayed',
-      'priority',
+      'prioritized',
       'stalled-check',
       'completed',
       'failed',

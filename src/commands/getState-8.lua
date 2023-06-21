@@ -9,7 +9,7 @@
     KEYS[5] 'wait' key
     KEYS[6] 'paused' key
     KEYS[7] 'waiting-children' key
-    KEYS[8] 'priority' key
+    KEYS[8] 'prioritized' key
 
     ARGV[1] job id
     ARGV[2] job key
@@ -18,7 +18,7 @@
     'failed'
     'delayed'
     'active'
-    'priority'
+    'prioritized'
     'waiting'
     'waiting-children'
     'unknown'
@@ -38,7 +38,7 @@ if rcall("ZSCORE", KEYS[3], ARGV[1]) ~= false then
 end
 
 if rcall("ZSCORE", KEYS[8], ARGV[1]) ~= false then
-  return "priority"
+  return "prioritized"
 end
 
 -- Includes

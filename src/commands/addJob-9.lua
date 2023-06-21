@@ -20,7 +20,7 @@
       KEYS[3] 'meta'
       KEYS[4] 'id'
       KEYS[5] 'delayed'
-      KEYS[6] 'priority'
+      KEYS[6] 'prioritized'
       KEYS[7] 'completed'
       KEYS[8] events stream key
       KEYS[9] 'pc' priority counter

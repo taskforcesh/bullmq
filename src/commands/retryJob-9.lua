@@ -9,7 +9,7 @@
       KEYS[5] 'meta'
       KEYS[6] events stream
       KEYS[7] delayed key
-      KEYS[8] priority key
+      KEYS[8] prioritized key
       KEYS[9] 'pc' priority counter
 
       ARGV[1]  key prefix

@@ -6,7 +6,7 @@
       KEYS[2] 'wait'
       KEYS[3] 'paused'
       KEYS[4] 'meta'
-      KEYS[5] 'priority'
+      KEYS[5] 'prioritized'
       KEYS[6] 'pc' priority counter
       KEYS[7] 'event stream'
 
