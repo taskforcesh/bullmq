@@ -236,7 +236,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         local activeLen = rcall("LLEN", KEYS[2])
 
         if activeLen == 0 then
-            rcall("XADD", KEYS[4], "*", "event", "drained")
+            local prioritizedLen = rcall("ZCARD", KEYS[3])
+
+            if prioritizedLen == 0 then
+                rcall("XADD", KEYS[4], "*", "event", "drained")
+            end
         end
     end
 
