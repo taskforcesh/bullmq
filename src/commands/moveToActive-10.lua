@@ -95,13 +95,13 @@ if jobId then
     -- this script is not really moving, it is preparing the job for processing
     return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   else
-    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2])
+    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
     if jobId then
       return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
     end
   end
 else
-  jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2])
+  jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
   if jobId then
     return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   end
