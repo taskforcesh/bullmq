@@ -16,12 +16,12 @@
       KEYS[7] delayed key
 
       KEYS[8] paused key
+      KEYS[9] meta key
+      KEYS[10] pc priority counter
 
-      KEYS[9] completed/failed key
-      KEYS[10] jobId key
-      KEYS[11] meta key
-      KEYS[12] metrics key
-      KEYS[13] pc priority counter
+      KEYS[11] completed/failed key
+      KEYS[12] jobId key
+      KEYS[13] metrics key
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
@@ -68,7 +68,7 @@ local rcall = redis.call
 --- @include "includes/updateParentDepsIfNeeded"
 --- @include "includes/getRateLimitTTL"
 
-local jobIdKey = KEYS[10]
+local jobIdKey = KEYS[12]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local opts = cmsgpack.unpack(ARGV[9])
 
@@ -119,7 +119,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     if (numRemovedElements < 1) then return -3 end
 
     -- Trim events before emiting them to avoid trimming events emitted in this script
-    trimEvents(KEYS[11], KEYS[4])
+    trimEvents(KEYS[9], KEYS[4])
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -146,7 +146,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     -- Remove job?
     if maxCount ~= 0 then
-        local targetSet = KEYS[9]
+        local targetSet = KEYS[11]
         -- Add to complete/failed set
         rcall("ZADD", targetSet, timestamp, jobId)
         rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp)
@@ -181,18 +181,18 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     -- Collect metrics
     if maxMetricsSize ~= "" then
-        collectMetrics(KEYS[12], KEYS[12] .. ':data', maxMetricsSize, timestamp)
+        collectMetrics(KEYS[13], KEYS[13] .. ':data', maxMetricsSize, timestamp)
     end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[7] == "1") then
 
-        local target, paused = getTargetQueueList(KEYS[11], KEYS[1], KEYS[8])
+        local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
 
         -- Check if there are delayed jobs that can be promoted
         promoteDelayedJobs(KEYS[7], KEYS[1], target, KEYS[3],
-                           KEYS[4], ARGV[8], timestamp, paused, KEYS[13])
+                           KEYS[4], ARGV[8], timestamp, paused, KEYS[10])
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.

@@ -5,9 +5,8 @@
 local function moveJobFromPriorityToActive(priorityKey, activeKey)
   local prioritizedJob = rcall("ZPOPMIN", priorityKey)
   if #prioritizedJob > 0 then
-    local jobId = string.match(prioritizedJob[1], "[%d]+:(.*)")
-    rcall("LPUSH", activeKey, jobId)
-    return jobId
+    rcall("LPUSH", activeKey, prioritizedJob[1])
+    return prioritizedJob[1]
   end
 end
   

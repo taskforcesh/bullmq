@@ -10,7 +10,8 @@
     KEYS[6] meta key
     KEYS[7] limiter key
     KEYS[8] priority key
-    KEYS[9] event key
+    KEYS[9] pc priority counter
+    KEYS[10] event key
 
     ARGV[1] job id
     ARGV[2] lock token
@@ -38,7 +39,7 @@ if lockToken == token and pttl > 0 then
     local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
     if priority > 0 then
-      pushBackJobWithPriority(KEYS[8], priority, ARGV[3], jobId)
+      pushBackJobWithPriority(KEYS[8], priority, jobId, KEYS[9])
     else
       rcall("RPUSH", target, jobId)
     end
@@ -46,7 +47,7 @@ if lockToken == token and pttl > 0 then
     rcall("DEL", lockKey)
 
     -- Emit waiting event
-    rcall("XADD", KEYS[9], "*", "event", "waiting", "jobId", jobId)
+    rcall("XADD", KEYS[10], "*", "event", "waiting", "jobId", jobId)
   end
 end
 

@@ -1085,6 +1085,16 @@ export class Job<
       );
     }
 
+    if (this.opts.priority) {
+      if (Math.trunc(this.opts.priority) !== this.opts.priority) {
+        throw new Error(`Priority should not be float`);
+      }
+
+      if (this.opts.priority > 2097152) {
+        throw new Error(`Priority should not be greater than 2097152`);
+      }
+    }
+
     return this.scripts.addJob(
       client,
       jobData,

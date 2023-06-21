@@ -12,6 +12,10 @@
     keys[6] rate limiter key
     keys[7] delayed key
 
+    keys[8] paused key
+    keys[9] meta key
+    keys[10] pc priority counter
+
     opts - token - lock token
     opts - lockDuration
     opts - limiter
@@ -39,7 +43,7 @@ local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, proces
       if priority == 0 then
         rcall("RPUSH", targetKey, jobId)
       else
-        pushBackJobWithPriority(keys[3], priority, jobKey, jobId)
+        pushBackJobWithPriority(keys[3], priority, jobId, keys[10])
       end
 
       -- Return when we can process more jobs

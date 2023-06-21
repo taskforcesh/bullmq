@@ -119,6 +119,26 @@ describe('Job', function () {
         );
       });
     });
+
+    describe('when priority option is provided as float', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { priority: 1.1 };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Priority should not be float',
+        );
+      });
+    });
+
+    describe('when priority option is provided with a value greater than 2097152', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { priority: 2097153 };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Priority should not be greater than 2097152',
+        );
+      });
+    });
   });
 
   describe('JSON.stringify', () => {

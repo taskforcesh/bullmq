@@ -52,11 +52,11 @@ export class Scripts {
       queueKeys.limiter,
       queueKeys.delayed,
       queueKeys.paused,
-      undefined,
-      undefined,
       queueKeys.meta,
-      undefined,
       queueKeys.pc,
+      undefined,
+      undefined,
+      undefined,
     ];
   }
 
@@ -258,9 +258,9 @@ export class Scripts {
     const metricsKey = this.queue.toKey(`metrics:${target}`);
 
     const keys = this.moveToFinishedKeys;
-    keys[8] = queueKeys[target];
-    keys[9] = this.queue.toKey(job.id ?? '');
-    keys[11] = metricsKey;
+    keys[10] = queueKeys[target];
+    keys[11] = this.queue.toKey(job.id ?? '');
+    keys[12] = metricsKey;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
@@ -934,6 +934,7 @@ export class Scripts {
       this.queue.keys.meta,
       this.queue.keys.limiter,
       this.queue.keys.priority,
+      this.queue.keys.pc,
       this.queue.keys.events,
     ];
 

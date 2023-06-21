@@ -21,8 +21,8 @@ local baseKey = KEYS[2]
 
 local rcall = redis.call
 
+-- Includes
 --- @include "includes/removeJobs"
---- @include "includes/removePriorityJobs"
 --- @include "includes/removeZSetJobs"
 
 local function removeLockKeys(keys)
@@ -71,7 +71,7 @@ if(maxCount <= 0) then
 end
 
 local priorityKey = baseKey .. 'priority'
-maxCount = removePriorityJobs(priorityKey, true, baseKey, maxCount)
+maxCount = removeZSetJobs(priorityKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end

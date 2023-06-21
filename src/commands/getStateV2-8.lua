@@ -36,8 +36,7 @@ if rcall("ZSCORE", KEYS[3], ARGV[1]) ~= false then
   return "delayed"
 end
 
-local pprefix = rcall("HGET", ARGV[2], "pp")
-if pprefix and rcall("ZSCORE", KEYS[8], pprefix .. ":" .. ARGV[1]) ~= false then
+if rcall("ZSCORE", KEYS[8], ARGV[1]) ~= false then
   return "priority"
 end
 

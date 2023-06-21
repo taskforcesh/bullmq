@@ -31,7 +31,7 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
     elseif priority == 0 then
       rcall("RPUSH", parentTarget, parentId)
     else
-      addJobWithPriority(parentWaitKey, parentQueueKey .. ":priority", parentKey, priority, paused,
+      addJobWithPriority(parentWaitKey, parentQueueKey .. ":priority", priority, paused,
         parentId, parentQueueKey .. ":pc")
     end
 

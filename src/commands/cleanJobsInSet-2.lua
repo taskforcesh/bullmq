@@ -29,7 +29,6 @@ end
 -- Includes
 --- @include "includes/cleanList"
 --- @include "includes/cleanSet"
---- @include "includes/cleanPrioritySet"
 
 local result
 if ARGV[4] == "active" then
@@ -37,7 +36,7 @@ if ARGV[4] == "active" then
 elseif ARGV[4] == "delayed" then
   result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], limit, {"processedOn", "timestamp"})
 elseif ARGV[4] == "priority" then
-  result = cleanPrioritySet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], limit, {"timestamp"})
+  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], limit, {"timestamp"})
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true)
 else
