@@ -204,7 +204,7 @@ describe('Job', function () {
         'test',
         { foo: 'bar' },
       );
-      await job.update({ baz: 'qux' });
+      await job.updateData({ baz: 'qux' });
 
       const updatedJob = await Job.fromId(queue, job.id);
       expect(updatedJob.data).to.be.eql({ baz: 'qux' });
@@ -214,7 +214,7 @@ describe('Job', function () {
       it('throws error', async function () {
         const job = await Job.create(queue, 'test', { foo: 'bar' });
         await job.remove();
-        await expect(job.update({ foo: 'baz' })).to.be.rejectedWith(
+        await expect(job.updateData({ foo: 'baz' })).to.be.rejectedWith(
           `Missing key for job ${job.id}. updateData`,
         );
       });

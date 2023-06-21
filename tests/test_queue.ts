@@ -407,7 +407,7 @@ describe('queues', function () {
     });
   });
 
-  describe('.removePriorityKey', () => {
+  describe('.removeDeprecatedPriorityKey', () => {
     it('removes old priority key', async () => {
       const client = await queue.client;
       await client.zadd(`bull:${queue.name}:priority`, 1, 'a');
@@ -417,7 +417,7 @@ describe('queues', function () {
 
       expect(count).to.be.eql(2);
 
-      await queue.removePriorityKey();
+      await queue.removeDeprecatedPriorityKey();
 
       const updatedCount = await client.zcard(`bull:${queue.name}:priority`);
 

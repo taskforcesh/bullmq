@@ -459,7 +459,7 @@ export class Queue<
   /**
    * Delete old priority helper key.
    */
-  async removePriorityKey(): Promise<number> {
+  async removeDeprecatedPriorityKey(): Promise<number> {
     const client = await this.client;
     return client.del(this.toKey('priority'));
   }

@@ -410,14 +410,14 @@ describe('flows', () => {
                     },
                   },
                 });
-                await job.update({
+                await job.updateData({
                   step: Step.Second,
                 });
                 step = Step.Second;
                 break;
               }
               case Step.Second: {
-                await job.update({
+                await job.updateData({
                   step: Step.Third,
                 });
                 step = Step.Third;
@@ -426,7 +426,7 @@ describe('flows', () => {
               case Step.Third: {
                 const shouldWait = await job.moveToWaitingChildren(token);
                 if (!shouldWait) {
-                  await job.update({
+                  await job.updateData({
                     step: Step.Finish,
                   });
                   step = Step.Finish;

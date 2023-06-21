@@ -103,7 +103,7 @@ class Queue:
         """
         return self.client.xtrim(self.opts.get("prefix", f"bull:{self.name}:events"), "MAXLEN", "~", maxLength)
 
-    def removePriorityKey(self):
+    def removeDeprecatedPriorityKey(self):
         """
         Delete old priority helper key.
         """

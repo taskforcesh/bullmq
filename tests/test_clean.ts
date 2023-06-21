@@ -480,7 +480,7 @@ describe('Cleaner', () => {
                       },
                     );
                     await delay(1000);
-                    await job.update({
+                    await job.updateData({
                       step: Step.Second,
                     });
                     step = Step.Second;
@@ -488,7 +488,7 @@ describe('Cleaner', () => {
                   }
                   case Step.Second: {
                     await delay(100);
-                    await job.update({
+                    await job.updateData({
                       step: Step.Third,
                     });
                     step = Step.Third;
@@ -497,7 +497,7 @@ describe('Cleaner', () => {
                   case Step.Third: {
                     const shouldWait = await job.moveToWaitingChildren(token!);
                     if (!shouldWait) {
-                      await job.update({
+                      await job.updateData({
                         step: Step.Finish,
                       });
                       step = Step.Finish;

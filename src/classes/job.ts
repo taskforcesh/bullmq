@@ -429,7 +429,7 @@ export class Job<
    *
    * @param data - the data that will replace the current jobs data.
    */
-  update(data: DataType): Promise<void> {
+  updateData(data: DataType): Promise<void> {
     this.data = data;
 
     return this.scripts.updateData<DataType, ReturnType, NameType>(this, data);

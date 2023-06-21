@@ -36,7 +36,7 @@ const sandbox = <T, R, N extends string>(
             await job.log(msg.value);
             break;
           case ParentCommand.Update:
-            await job.update(msg.value);
+            await job.updateData(msg.value);
             break;
         }
       };
