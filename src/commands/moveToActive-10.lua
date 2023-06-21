@@ -40,7 +40,7 @@ local rcall = redis.call
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPriorityToActive"
---- @include "includes/moveJobFromWaitToActive"
+--- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
 local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
@@ -93,17 +93,17 @@ if jobId then
 
   if jobId then
     -- this script is not really moving, it is preparing the job for processing
-    return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   else
     jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
     if jobId then
-      return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+      return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
     end
   end
 else
   jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
   if jobId then
-    return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   end
 end
 

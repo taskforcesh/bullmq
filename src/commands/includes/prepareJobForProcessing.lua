@@ -25,7 +25,7 @@
 --- @include "addJobWithPriority"
 --- @include "pushBackJobWithPriority"
 
-local function moveJobFromWaitToActive(keys, keyPrefix, targetKey, jobId, processedOn,
+local function prepareJobForProcessing(keys, keyPrefix, targetKey, jobId, processedOn,
     maxJobs, expireTime, paused, opts)
   local jobKey = keyPrefix .. jobId
 

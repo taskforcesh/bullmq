@@ -58,7 +58,7 @@ local rcall = redis.call
 --- @include "includes/collectMetrics"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/moveJobFromPriorityToActive"
---- @include "includes/moveJobFromWaitToActive"
+--- @include "includes/prepareJobForProcessing"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeJobsByMaxAge"
@@ -211,13 +211,13 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 rcall("LREM", KEYS[2], 1, jobId)
             else
                 -- this script is not really moving, it is preparing the job for processing
-                return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
+                return prepareJobForProcessing(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
                     expireTime, paused, opts)
             end
         else
             jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
-                return moveJobFromWaitToActive(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
+                return prepareJobForProcessing(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
                     expireTime, paused, opts)
             end
         end

@@ -135,7 +135,7 @@ describe('Job', function () {
         const data = { foo: 'bar' };
         const opts = { priority: 2097153 };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
-          'Priority should not be greater than 2097152',
+          'Priority should be between 0 and 2097152',
         );
       });
     });

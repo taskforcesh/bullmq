@@ -1090,8 +1090,9 @@ export class Job<
         throw new Error(`Priority should not be float`);
       }
 
-      if (this.opts.priority > 2097152) {
-        throw new Error(`Priority should not be greater than 2097152`);
+      const priorityLimit = 2 ** 21;
+      if (this.opts.priority > 2 ** 21) {
+        throw new Error(`Priority should be between 0 and ${priorityLimit}`);
       }
     }
 
