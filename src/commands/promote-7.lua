@@ -6,8 +6,9 @@
       KEYS[2] 'wait'
       KEYS[3] 'paused'
       KEYS[4] 'meta'
-      KEYS[5] 'priority'
-      KEYS[6] 'event stream'
+      KEYS[5] 'prioritized'
+      KEYS[6] 'pc' priority counter
+      KEYS[7] 'event stream'
 
       ARGV[1]  queue.toKey('')
       ARGV[2]  jobId
@@ -27,8 +28,9 @@ local jobId = ARGV[2]
 --- @include "includes/getTargetQueueList"
 
 if rcall("ZREM", KEYS[1], jobId) == 1 then
-  local priority = tonumber(rcall("HGET", ARGV[1] .. jobId, "priority")) or 0
-  local target = getTargetQueueList(KEYS[4], KEYS[2], KEYS[3])
+  local jobKey = ARGV[1] .. jobId
+  local priority = tonumber(rcall("HGET", jobKey, "priority")) or 0
+  local target, paused = getTargetQueueList(KEYS[4], KEYS[2], KEYS[3])
 
   -- Remove delayed "marker" from the wait list if there is any.
   -- Since we are adding a job we do not need the marker anymore.
@@ -41,14 +43,13 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
     -- LIFO or FIFO
     rcall("LPUSH", target, jobId)
   else
-    -- Priority add
-    addJobWithPriority(KEYS[5], priority, target, jobId)
+    addJobWithPriority(KEYS[2], KEYS[5], priority, paused, jobId, KEYS[6])
   end
 
   -- Emit waiting event (wait..ing@token)
-  rcall("XADD", KEYS[6], "*", "event", "waiting", "jobId", jobId, "prev", "delayed");
+  rcall("XADD", KEYS[7], "*", "event", "waiting", "jobId", jobId, "prev", "delayed");
 
-  rcall("HSET", ARGV[1] .. jobId, "delay", 0)
+  rcall("HSET", jobKey, "delay", 0)
 
   return 0
 else

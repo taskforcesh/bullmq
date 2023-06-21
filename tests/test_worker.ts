@@ -1140,7 +1140,7 @@ describe('workers', function () {
         expect(job.data.foo).to.be.equal('bar');
         throw jobError;
       },
-      { connection },
+      { autorun: false, connection },
     );
     await worker.waitUntilReady();
 
@@ -1148,7 +1148,7 @@ describe('workers', function () {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    await new Promise<void>(resolve => {
+    const failing = new Promise<void>(resolve => {
       worker.once('failed', async (job, err) => {
         expect(job).to.be.ok;
         expect(job.finishedOn).to.be.a('number');
@@ -1157,6 +1157,10 @@ describe('workers', function () {
         resolve();
       });
     });
+
+    worker.run();
+
+    await failing;
 
     await worker.close();
   });
@@ -2298,7 +2302,7 @@ describe('workers', function () {
             while (step !== Step.Finish) {
               switch (step) {
                 case Step.Initial: {
-                  await job.update({
+                  await job.updateData({
                     step: Step.Second,
                   });
                   step = Step.Second;
@@ -2308,7 +2312,7 @@ describe('workers', function () {
                   if (job.attemptsMade < 3) {
                     throw new Error('Not yet!');
                   }
-                  await job.update({
+                  await job.updateData({
                     step: Step.Finish,
                   });
                   step = Step.Finish;
@@ -2366,13 +2370,13 @@ describe('workers', function () {
                 switch (step) {
                   case Step.Initial: {
                     await job.moveToDelayed(Date.now() + 200, token);
-                    await job.update({
+                    await job.updateData({
                       step: Step.Second,
                     });
                     throw new DelayedError();
                   }
                   case Step.Second: {
-                    await job.update({
+                    await job.updateData({
                       step: Step.Finish,
                     });
                     step = Step.Finish;
@@ -2442,7 +2446,7 @@ describe('workers', function () {
                         },
                       },
                     );
-                    await job.update({
+                    await job.updateData({
                       step: Step.Second,
                     });
                     step = Step.Second;
@@ -2459,7 +2463,7 @@ describe('workers', function () {
                         },
                       },
                     );
-                    await job.update({
+                    await job.updateData({
                       step: Step.Third,
                     });
                     step = Step.Third;
@@ -2469,7 +2473,7 @@ describe('workers', function () {
                     waitingChildrenStepExecutions++;
                     const shouldWait = await job.moveToWaitingChildren(token);
                     if (!shouldWait) {
-                      await job.update({
+                      await job.updateData({
                         step: Step.Finish,
                       });
                       step = Step.Finish;
@@ -2819,7 +2823,7 @@ describe('workers', function () {
               if (err instanceof CustomError) {
                 const data = job.data;
                 data.ids = err.failedIds;
-                await job.update(data);
+                await job.updateData(data);
                 return 2500;
               }
               return 500;

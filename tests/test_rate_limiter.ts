@@ -442,7 +442,7 @@ describe('Rate Limiter', function () {
           this.timeout(6000);
 
           const numJobs = 4;
-          const dynamicLimit = 250;
+          const dynamicLimit = 500;
           const duration = 100;
 
           const worker = new Worker(
@@ -459,14 +459,15 @@ describe('Rate Limiter', function () {
               },
             },
           );
+          await worker.waitUntilReady();
 
           for (let i = 1; i <= numJobs; i++) {
             await queue.add(`${i}`, {}, { priority: 10 });
           }
 
-          await delay(dynamicLimit);
+          await delay(dynamicLimit / 2);
 
-          const jobs = await queue.getJobs(['waiting'], 0, -1, true);
+          const jobs = await queue.getJobs(['prioritized'], 0, -1, true);
           expect(jobs.map(x => x.name)).to.eql(['1', '2', '3', '4']);
 
           await worker.close();
@@ -502,7 +503,7 @@ describe('Rate Limiter', function () {
 
           await delay(dynamicLimit * 4);
 
-          const jobs = await queue.getJobs(['waiting'], 0, -1, true);
+          const jobs = await queue.getJobs(['prioritized'], 0, -1, true);
           expect(jobs.map(x => x.name)).to.eql(['1', '3', '2', '4']);
 
           await worker.close();
@@ -657,7 +658,7 @@ describe('Rate Limiter', function () {
   });
 
   it('should obey priority', async function () {
-    this.timeout(20000);
+    this.timeout(10000);
 
     const numJobs = 10;
     const priorityBuckets: { [key: string]: number } = {

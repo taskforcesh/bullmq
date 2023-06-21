@@ -20,9 +20,10 @@
       KEYS[3] 'meta'
       KEYS[4] 'id'
       KEYS[5] 'delayed'
-      KEYS[6] 'priority'
+      KEYS[6] 'prioritized'
       KEYS[7] 'completed'
       KEYS[8] events stream key
+      KEYS[9] 'pc' priority counter
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -145,7 +146,7 @@ elseif (delayedTimestamp ~= 0) then
   local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
   addDelayMarkerIfNeeded(target, KEYS[5])
 else
-  local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
+  local target, paused = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
 
   -- Standard or priority add
   if priority == 0 then
@@ -153,8 +154,7 @@ else
     local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
     rcall(pushCmd, target, jobId)
   else
-    -- Priority add
-    addJobWithPriority(KEYS[6], priority, target, jobId)
+    addJobWithPriority(KEYS[1], KEYS[6], priority, paused, jobId, KEYS[9])
   end
   -- Emit waiting event
   rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)

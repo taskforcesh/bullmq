@@ -9,7 +9,7 @@
   Input:
     KEYS[1] wait key
     KEYS[2] active key
-    KEYS[3] priority key
+    KEYS[3] prioritized key
     KEYS[4] stream events key
     KEYS[5] stalled key
 
@@ -20,6 +20,7 @@
     -- Promote delayed jobs
     KEYS[8] paused key
     KEYS[9] meta key
+    KEYS[10] pc priority counter
 
     -- Arguments
     ARGV[1] key prefix
@@ -35,16 +36,17 @@ local jobId
 local rcall = redis.call
 
 -- Includes
---- @include "includes/moveJobFromWaitToActive"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/moveJobFromPriorityToActive"
+--- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
-local target = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
+local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
-promoteDelayedJobs(KEYS[7], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2])
+promoteDelayedJobs(KEYS[7], KEYS[1], target, KEYS[3], KEYS[4], ARGV[1], ARGV[2], paused, KEYS[10])
 
 local opts = cmsgpack.unpack(ARGV[4])
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
@@ -59,6 +61,9 @@ else
     return { 0, 0, expireTime, 0 }
   end
 
+  -- paused queue
+  if paused then return {0, 0, 0, 0} end
+
   -- no job ID, try non-blocking move from wait to active
   jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 end
@@ -71,6 +76,9 @@ if jobId then
     if expireTime > 0 then
       return { 0, 0, expireTime, 0 }
     end
+
+    -- paused queue
+    if paused then return {0, 0, 0, 0} end
 
     -- Move again since we just got the marker job.
     jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
@@ -85,7 +93,17 @@ if jobId then
 
   if jobId then
     -- this script is not really moving, it is preparing the job for processing
-    return moveJobFromWaitToActive(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
+    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+  else
+    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
+    if jobId then
+      return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+    end
+  end
+else
+  jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
+  if jobId then
+    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
   end
 end
 

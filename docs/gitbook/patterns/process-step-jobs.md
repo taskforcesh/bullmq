@@ -17,7 +17,7 @@ const worker = new Worker(
       switch (step) {
         case Step.Initial: {
           await doInitialStepStuff();
-          await job.update({
+          await job.updateData({
             step: Step.Second,
           });
           step = Step.Second;
@@ -25,7 +25,7 @@ const worker = new Worker(
         }
         case Step.Second: {
           await doSecondStepStuff();
-          await job.update({
+          await job.updateData({
             step: Step.Finish,
           });
           step = Step.Finish;
@@ -67,7 +67,7 @@ const worker = new Worker(
         case Step.Initial: {
           await doInitialStepStuff();
           await job.moveToDelayed(Date.now() + 200, token);
-          await job.update({
+          await job.updateData({
             step: Step.Second,
           });
           step = Step.Second;
@@ -75,7 +75,7 @@ const worker = new Worker(
         }
         case Step.Second: {
           await doSecondStepStuff();
-          await job.update({
+          await job.updateData({
             step: Step.Finish,
           });
           throw new DelayedError();
@@ -124,7 +124,7 @@ const worker = new Worker(
               },
             },
           );
-          await job.update({
+          await job.updateData({
             step: Step.Second,
           });
           step = Step.Second;
@@ -142,7 +142,7 @@ const worker = new Worker(
               },
             },
           );
-          await job.update({
+          await job.updateData({
             step: Step.Third,
           });
           step = Step.Third;
@@ -151,7 +151,7 @@ const worker = new Worker(
         case Step.Third: {
           const shouldWait = await job.moveToWaitingChildren(token);
           if (!shouldWait) {
-            await job.update({
+            await job.updateData({
               step: Step.Finish,
             });
             step = Step.Finish;
@@ -223,7 +223,7 @@ const worker = new Worker(
             },
           });
 
-          await job.update({
+          await job.updateData({
             step: Step.Second,
           });
           step = Step.Second;
@@ -231,7 +231,7 @@ const worker = new Worker(
         }
         case Step.Second: {
           await doSecondStepStuff();
-          await job.update({
+          await job.updateData({
             step: Step.Third,
           });
           step = Step.Third;
@@ -240,7 +240,7 @@ const worker = new Worker(
         case Step.Third: {
           const shouldWait = await job.moveToWaitingChildren(token);
           if (!shouldWait) {
-            await job.update({
+            await job.updateData({
               step: Step.Finish,
             });
             step = Step.Finish;

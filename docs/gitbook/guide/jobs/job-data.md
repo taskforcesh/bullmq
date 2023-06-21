@@ -34,7 +34,7 @@ job.data # { color: 'red' }
 
 ## Update data
 
-If you want to change the data after inserting a job, just use the **update** method. For example:
+If you want to change the data after inserting a job, just use the **updateData** method. For example:
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -42,7 +42,7 @@ If you want to change the data after inserting a job, just use the **update** me
 ```typescript
 const job = await Job.create(queue, 'wall', { color: 'red' });
 
-await job.update({
+await job.updateData({
   color: 'blue',
 });
 
@@ -69,4 +69,4 @@ job.data # { color: 'blue' }
 
 ## Read more:
 
-- 💡 [Update API Reference](https://api.docs.bullmq.io/classes/Job.html#update)
+- 💡 [Update API Reference](https://api.docs.bullmq.io/classes/Job.html#updateData)

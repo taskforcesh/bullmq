@@ -1258,6 +1258,7 @@ describe('repeat', function () {
     const nextTick = 1000;
 
     let processor;
+    this.clock.setSystemTime(new Date('2017-02-02 7:21:42'));
 
     const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {

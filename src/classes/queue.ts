@@ -388,6 +388,7 @@ export class Queue<
       | 'wait'
       | 'active'
       | 'paused'
+      | 'prioritized'
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
@@ -453,5 +454,13 @@ export class Queue<
   async trimEvents(maxLength: number): Promise<number> {
     const client = await this.client;
     return client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+  }
+
+  /**
+   * Delete old priority helper key.
+   */
+  async removeDeprecatedPriorityKey(): Promise<number> {
+    const client = await this.client;
+    return client.del(this.toKey('priority'));
   }
 }

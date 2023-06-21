@@ -103,6 +103,12 @@ class Queue:
         """
         return self.client.xtrim(f"{self.prefix}:{self.name}:events", maxlen = maxLength, approximate = "~")
 
+    def removeDeprecatedPriorityKey(self):
+        """
+        Delete old priority helper key.
+        """
+        return self.client.delete(f"{self.prefix}:{self.name}:priority")
+
     async def getJobCounts(self, *types):
         """
         Returns the job counts for each type specified or every list/set in the queue by default.

@@ -9,11 +9,11 @@ const delay = require('./delay');
 module.exports = function (job) {
   return delay(50)
     .then(() => {
-      job.update({ foo: 'bar' });
+      job.updateData({ foo: 'bar' });
       return delay(100);
     })
     .then(() => {
-      job.update({ foo: 'baz' });
+      job.updateData({ foo: 'baz' });
       delay(100);
       return 'result';
     });

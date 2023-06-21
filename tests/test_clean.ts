@@ -175,6 +175,19 @@ describe('Cleaner', () => {
     expect(count).to.be.eql(0);
   });
 
+  describe('when prioritized state is provided', async () => {
+    it('should clean the number of jobs requested', async () => {
+      await queue.add('test', { some: 'data' }, { priority: 1 }); // as queue is empty, this job will be added to wait
+      await queue.add('test', { some: 'data' }, { priority: 2 });
+      await queue.add('test', { some: 'data' }, { priority: 3 });
+      await delay(100);
+      const jobs = await queue.clean(0, 1, 'prioritized');
+      expect(jobs.length).to.be.eql(1);
+      const count = await queue.getJobCounts('prioritized');
+      expect(count.prioritized).to.be.eql(2);
+    });
+  });
+
   describe('when delayed state is provided', async () => {
     it('cleans all delayed jobs', async () => {
       await queue.add('test', { some: 'data' }, { delay: 5000 });
@@ -467,7 +480,7 @@ describe('Cleaner', () => {
                       },
                     );
                     await delay(1000);
-                    await job.update({
+                    await job.updateData({
                       step: Step.Second,
                     });
                     step = Step.Second;
@@ -475,7 +488,7 @@ describe('Cleaner', () => {
                   }
                   case Step.Second: {
                     await delay(100);
-                    await job.update({
+                    await job.updateData({
                       step: Step.Third,
                     });
                     step = Step.Third;
@@ -484,7 +497,7 @@ describe('Cleaner', () => {
                   case Step.Third: {
                     const shouldWait = await job.moveToWaitingChildren(token!);
                     if (!shouldWait) {
-                      await job.update({
+                      await job.updateData({
                         step: Step.Finish,
                       });
                       step = Step.Finish;
@@ -607,14 +620,17 @@ describe('Cleaner', () => {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(1);
+          expect(count).to.be.eql(0);
 
-          await queue.clean(0, 0, 'wait');
+          const priorityCount = await queue.getJobCounts('prioritized');
+          expect(priorityCount.prioritized).to.be.eql(1);
+
+          await queue.clean(0, 0, 'prioritized');
 
           const client = await queue.client;
           const keys = await client.keys(`bull:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(3);
+          expect(keys.length).to.be.eql(5);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);
@@ -630,17 +646,6 @@ describe('Cleaner', () => {
         });
       });
     });
-  });
-
-  it('should clean the number of jobs requested', async () => {
-    await queue.add('test', { some: 'data' }, { priority: 1 });
-    await queue.add('test', { some: 'data' }, { priority: 2 });
-    await queue.add('test', { some: 'data' }, { priority: 3 });
-    await delay(100);
-    const jobs = await queue.clean(0, 1, 'wait');
-    expect(jobs.length).to.be.eql(1);
-    const count = await queue.count();
-    expect(count).to.be.eql(2);
   });
 
   it('should clean a job without a timestamp', async () => {
