@@ -74,6 +74,7 @@
   * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)
 * [Changelog](bullmq-pro/changelog.md)
+* [Support](bullmq-pro/support.md)
 
 ## Bull
 
