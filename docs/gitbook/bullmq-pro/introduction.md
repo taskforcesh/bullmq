@@ -10,5 +10,5 @@ There is a growing number of features that will be implemented in BullMQ Pro, yo
 
 ### Commercial License
 
-BullMQ Pro is licensed per organization with unlimited use on all your projects. You can try it for free by requesting a token on this page: [https://taskforce.sh/account/bullmqpro](https://taskforce.sh/account/bullmqpro) and if you find it valuable subscript on the Subscriptions tab: [https://taskforce.sh/account/subscriptions](https://taskforce.sh/account/subscriptions).
+BullMQ Pro is licensed per organization with unlimited use on all your projects. You can try it for free by requesting a token on this page: [https://taskforce.sh/account/bullmqpro](https://taskforce.sh/account/bullmqpro) and if you find it valuable subscribe on the Subscriptions tab: [https://taskforce.sh/account/subscriptions](https://taskforce.sh/account/subscriptions).
 
