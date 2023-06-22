@@ -331,6 +331,51 @@ describe('Jobs getters', function () {
     await failed;
   });
 
+  describe('.count', () => {
+    describe('when there are prioritized jobs', () => {
+      it('retries count considering prioritized jobs', async () => {
+        await queue.waitUntilReady();
+
+        for (const index of Array.from(Array(8).keys())) {
+          await queue.add('test', { idx: index }, { priority: index + 1 });
+        }
+        await queue.add('test', {});
+
+        const count = await queue.count();
+
+        expect(count).to.be.equal(9);
+      });
+    });
+  });
+
+  describe('.getPrioritized', () => {
+    it('retries prioritized job instances', async () => {
+      await queue.waitUntilReady();
+
+      for (const index of Array.from(Array(8).keys())) {
+        await queue.add('test', { idx: index }, { priority: index + 1 });
+      }
+
+      const prioritizedJobs = await queue.getPrioritized();
+
+      expect(prioritizedJobs.length).to.be.equal(8);
+    });
+  });
+
+  describe('.getPrioritizedCount', () => {
+    it('retries prioritized count', async () => {
+      await queue.waitUntilReady();
+
+      for (const index of Array.from(Array(8).keys())) {
+        await queue.add('test', { idx: index }, { priority: index + 1 });
+      }
+
+      const prioritizedCount = await queue.getPrioritizedCount();
+
+      expect(prioritizedCount).to.be.equal(8);
+    });
+  });
+
   it('should get all failed jobs when no range is provided', async () => {
     const worker = new Worker(
       queueName,
