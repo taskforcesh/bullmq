@@ -91,14 +91,14 @@ export class QueueGetters<
 
   /**
     Returns the number of jobs waiting to be processed. This includes jobs that are
-    "waiting" or "delayed" or "prioritized".
+    "waiting" or "delayed" or "prioritized" or "waiting-children".
   */
   async count(): Promise<number> {
     const count = await this.getJobCountByTypes(
       'waiting',
       'paused',
-      'prioritized',
       'delayed',
+      'prioritized',
       'waiting-children',
     );
 
