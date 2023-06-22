@@ -212,13 +212,13 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             else
                 -- this script is not really moving, it is preparing the job for processing
                 return prepareJobForProcessing(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
-                    expireTime, paused, opts)
+                    expireTime, opts)
             end
         else
             jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
                 return prepareJobForProcessing(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
-                    expireTime, paused, opts)
+                    expireTime, opts)
             end
         end
 

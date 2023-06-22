@@ -93,17 +93,17 @@ if jobId then
 
   if jobId then
     -- this script is not really moving, it is preparing the job for processing
-    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
   else
     jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
     if jobId then
-      return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+      return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
     end
   end
 else
   jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
   if jobId then
-    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, paused, opts)
+    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2], maxJobs, expireTime, opts)
   end
 end
 

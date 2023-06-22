@@ -25,7 +25,7 @@
 --- @include "pushBackJobWithPriority"
 
 local function prepareJobForProcessing(keys, keyPrefix, targetKey, jobId, processedOn,
-    maxJobs, expireTime, paused, opts)
+    maxJobs, expireTime, opts)
   local jobKey = keyPrefix .. jobId
 
   -- Check if we need to perform rate limiting.
