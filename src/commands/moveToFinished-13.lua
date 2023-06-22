@@ -210,7 +210,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             if string.sub(jobId, 1, 2) == "0:" then
                 rcall("LREM", KEYS[2], 1, jobId)
             else
-                -- this script is not really moving, it is preparing the job for processing
                 return prepareJobForProcessing(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
                     expireTime, opts)
             end
