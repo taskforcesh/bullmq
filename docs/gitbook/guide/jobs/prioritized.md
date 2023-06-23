@@ -3,7 +3,7 @@
 Jobs can also include a priority option. Using priorities, job's processing order will be affected by the specified priority instead of following a FIFO or LIFO pattern.
 
 {% hint style="warning" %}
-Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity O(n) relative to the number of jobs waiting in the Queue.
+Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity O(log(n)) relative to the number of jobs in prioritized set in the Queue.
 {% endhint %}
 
 Note that the priorities go from 1 to MAX_INT, whereas a lower number is always a higher priority than higher numbers.

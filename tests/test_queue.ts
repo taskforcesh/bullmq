@@ -118,7 +118,7 @@ describe('queues', function () {
 
       await Promise.all(added);
       const count = await queue.count();
-      expect(count).to.be.eql(0);
+      expect(count).to.be.eql(100);
       const priorityCount = await queue.getJobCountByTypes('prioritized');
       expect(priorityCount).to.be.eql(100);
 

@@ -12,7 +12,6 @@
     KEYS[8] 'prioritized' key
 
     ARGV[1] job id
-    ARGV[2] job key
   Output:
     'completed'
     'failed'
