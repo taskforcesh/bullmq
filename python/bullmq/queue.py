@@ -126,6 +126,27 @@ class Queue:
             counts[current_types[index]] = val or 0
         return counts
 
+    def getActive(self, start = 0, end=-1):
+        return self.getJobs(['active'], start, end, True)
+
+    def getCompleted(self, start = 0, end=-1):
+        return self.getJobs(['completed'], start, end, False)
+
+    def getDelayed(self, start = 0, end=-1):
+        return self.getJobs(['delayed'], start, end, True)
+
+    def getFailed(self, start = 0, end=-1):
+        return self.getJobs(['completed'], start, end, False)
+
+    def getPrioritized(self, start = 0, end=-1):
+        return self.getJobs(['prioritized'], start, end, True)
+
+    def getWaiting(self, start = 0, end=-1):
+        return self.getJobs(['waiting'], start, end, True)
+
+    def getWaitingChildren(self, start = 0, end=-1):
+        return self.getJobs(['waiting-children'], start, end, True)
+
     async def getJobs(self, types, start=0, end=-1, asc:bool=False):
         current_types = self.sanitizeJobTypes(types)
         job_ids = await self.scripts.getRanges(current_types, start, end, asc)
@@ -145,6 +166,7 @@ class Queue:
                 if current_job and current_job.id == job_id:
                     jobs[index] = current_job
                     jobs[i] = pivot_job
+                    continue
 
         return jobs
 
