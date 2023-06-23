@@ -45,6 +45,7 @@ export class QueueGetters<
         case 'completed':
         case 'failed':
         case 'delayed':
+        case 'prioritized':
         case 'repeat':
         case 'waiting-children':
           return callback(key, count ? 'zcard' : 'zrange');
@@ -89,13 +90,15 @@ export class QueueGetters<
   }
 
   /**
-    Returns the number of jobs waiting to be processed. This includes jobs that are "waiting" or "delayed".
+    Returns the number of jobs waiting to be processed. This includes jobs that are
+    "waiting" or "delayed" or "prioritized" or "waiting-children".
   */
   async count(): Promise<number> {
     const count = await this.getJobCountByTypes(
       'waiting',
       'paused',
       'delayed',
+      'prioritized',
       'waiting-children',
     );
 
@@ -174,6 +177,13 @@ export class QueueGetters<
   }
 
   /**
+   * Returns the number of jobs in prioritized status.
+   */
+  getPrioritizedCount(): Promise<number> {
+    return this.getJobCountByTypes('prioritized');
+  }
+
+  /**
    * Returns the number of jobs in waiting or paused statuses.
    */
   getWaitingCount(): Promise<number> {
@@ -233,6 +243,18 @@ export class QueueGetters<
     end = -1,
   ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['delayed'], start, end, true);
+  }
+
+  /**
+   * Returns the jobs that are in the "prioritized" status.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
+   */
+  getPrioritized(
+    start = 0,
+    end = -1,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
+    return this.getJobs(['prioritized'], start, end, true);
   }
 
   /**

@@ -493,13 +493,9 @@ export class Scripts {
     });
 
     if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
-      return (<any>client).getState(
-        keys.concat([jobId, this.queue.toKey(jobId)]),
-      );
+      return (<any>client).getState(keys.concat([jobId]));
     }
-    return (<any>client).getStateV2(
-      keys.concat([jobId, this.queue.toKey(jobId)]),
-    );
+    return (<any>client).getStateV2(keys.concat([jobId]));
   }
 
   async changeDelay(jobId: string, delay: number): Promise<void> {

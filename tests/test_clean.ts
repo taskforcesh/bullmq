@@ -620,7 +620,7 @@ describe('Cleaner', () => {
           });
 
           const count = await queue.count();
-          expect(count).to.be.eql(0);
+          expect(count).to.be.eql(1);
 
           const priorityCount = await queue.getJobCounts('prioritized');
           expect(priorityCount.prioritized).to.be.eql(1);

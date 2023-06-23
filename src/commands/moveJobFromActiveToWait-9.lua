@@ -31,7 +31,7 @@ local pttl = rcall("PTTL", KEYS[7])
 if lockToken == token and pttl > 0 then
   local removed = rcall("LREM", KEYS[1], 1, jobId)
   if (removed > 0) then
-    local target, paused = getTargetQueueList(KEYS[6], KEYS[2], KEYS[5])
+    local target = getTargetQueueList(KEYS[6], KEYS[2], KEYS[5])
 
     rcall("SREM", KEYS[3], jobId)
 
