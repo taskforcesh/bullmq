@@ -1,5 +1,7 @@
+import asyncio
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueOptions, RetryJobsOptions, JobOptions
+from bullmq.utils import extract_result
 from bullmq.scripts import Scripts
 from bullmq.job import Job
 
@@ -123,6 +125,28 @@ class Queue:
         for index, val in enumerate(responses):
             counts[current_types[index]] = val or 0
         return counts
+
+    async def getJobs(self, types, start=0, end=-1, asc:bool=False):
+        current_types = self.sanitizeJobTypes(types)
+        job_ids = await self.scripts.getRanges(current_types, start, end, asc)
+        tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]   
+        job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+        jobs = [extract_result(job_task) for job_task in job_set]
+        jobs_len = len(jobs)
+
+        # we filter `None` out to remove:
+        jobs = list(filter(lambda j: j is not None, jobs))
+
+        for index, job_id in enumerate(job_ids):
+            pivot_job = jobs[index]
+
+            for i in range(index,jobs_len):
+                current_job = jobs[i]
+                if current_job and current_job.id == job_id:
+                    jobs[index] = current_job
+                    jobs[i] = pivot_job
+
+        return jobs
 
     def sanitizeJobTypes(self, types):
         current_types = list(types)

@@ -330,9 +330,9 @@ export class QueueGetters<
     end = -1,
     asc = false,
   ): Promise<Job<DataType, ResultType, NameType>[]> {
-    types = this.sanitizeJobTypes(types);
+    const currentTypes = this.sanitizeJobTypes(types);
 
-    const jobIds = await this.getRanges(types, start, end, asc);
+    const jobIds = await this.getRanges(currentTypes, start, end, asc);
 
     return Promise.all(
       jobIds.map(

@@ -34,6 +34,7 @@ class Scripts:
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-5.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
+            "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")),
             "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
@@ -99,6 +100,51 @@ class Scripts:
                             'delayed', 'prioritized', 'completed', 'events', 'pc'])
 
         return self.commands["addJob"](keys=keys, args=[packedArgs, jsonData, packedOpts])
+
+    def getRangesArgs(self, types, start: int = 0, end: int = 1, asc: bool = False):
+        transformed_types = []
+        for type in types:
+            transformed_types.append("wait" if type == "waiting" else type)
+
+        keys = self.getKeys([''])
+        args = [start, end, "1" if asc else "0"] + transformed_types
+
+        return (keys, args)
+
+    async def getRanges(self, types, start: int = 0, end: int = 1, asc: bool = False):
+        commands = []
+
+        switcher = {
+            "completed": "zrange",
+            "delayed": "zrange",
+            "failed": "zrange",
+            "priority": "zrange",
+            "repeat": "zrange",
+            "waiting-children": "zrange",
+            "active": "lrange",
+            "paused": "lrange",
+            "wait": "lrange"
+        }
+        transformed_types = []
+        for type in types:
+            transformed_type = "wait" if type == "waiting" else type
+            transformed_types.append(transformed_type)
+            commands.append(switcher.get(transformed_type))
+
+        keys, args = self.getRangesArgs(transformed_types, start, end, asc)
+
+        responses = await self.commands["getRanges"](keys=keys, args=args)
+
+        results = []
+        for i, response in enumerate(responses):
+            result = response or []
+
+            if asc and commands[i] == "lrange":
+                results+=result.reverse()
+            else:
+                results+=result
+
+        return results
 
     def saveStacktraceArgs(self, job_id: str, stacktrace: str, failedReason: str):
         keys = [self.toKey(job_id)]
@@ -190,7 +236,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'updateData')
+                raise self.finishedErrors(result, job_id, 'changePriority', None)
         return None
 
     async def updateData(self, job_id: str, data):
@@ -202,7 +248,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'updateData')
+                raise self.finishedErrors(result, job_id, 'updateData', None)
         return None
 
     async def reprocessJob(self, job: Job, state: str):
@@ -291,7 +337,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'updateProgress')
+                raise self.finishedErrors(result, job_id, 'updateProgress', None)
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
@@ -373,8 +419,7 @@ class Scripts:
             time.time() * 1000), stalledInterval]
         return self.commands["moveStalledJobsToWait"](keys, args)
 
-
-    def finishedErrors(code: int, jobId: str, command: str, state: str) -> TypeError:
+    def finishedErrors(self, code: int, jobId: str, command: str, state: str) -> TypeError:
         if code == ErrorCode.JobNotExist.value:
             return TypeError(f"Missing key for job {jobId}.{command}")
         elif code == ErrorCode.JobLockNotExist.value:
