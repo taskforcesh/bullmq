@@ -236,7 +236,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'updateData')
+                raise self.finishedErrors(result, job_id, 'changePriority', None)
         return None
 
     async def updateData(self, job_id: str, data):
@@ -248,7 +248,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'updateData')
+                raise self.finishedErrors(result, job_id, 'updateData', None)
         return None
 
     async def reprocessJob(self, job: Job, state: str):
@@ -337,7 +337,7 @@ class Scripts:
 
         if result is not None:
             if result < 0:
-                raise self.finishedErrors(result, job_id, 'updateProgress')
+                raise self.finishedErrors(result, job_id, 'updateProgress', None)
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
