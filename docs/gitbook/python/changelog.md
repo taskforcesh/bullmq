@@ -2,6 +2,11 @@
 
 <!--next-version-placeholder-->
 
+## v1.1.0 (2023-06-23)
+### Feature
+* **python:** Add getJobs method in queue class ([#2011](https://github.com/taskforcesh/bullmq/issues/2011)) ([`8d5d6c1`](https://github.com/taskforcesh/bullmq/commit/8d5d6c14442b7b967c42cb6ec3907a4d1a5bd575))
+* **queue:** Add getPrioritized and getPrioritizedCount methods ([#2005](https://github.com/taskforcesh/bullmq/issues/2005)) ([`7363abe`](https://github.com/taskforcesh/bullmq/commit/7363abebce6e3bcf067fc7c220d845807ebb1489))
+
 ## v1.0.0 (2023-06-21)
 ### Breaking
 * priority is separeted in its own zset, no duplication needed ([`42a890a`](https://github.com/taskforcesh/bullmq/commit/42a890a2bfe45b29348030f886766400f5d41aa3))
