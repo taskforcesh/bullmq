@@ -144,7 +144,7 @@ class Scripts:
             else:
                 results+=result
 
-        return list(set(results))
+        return results
 
     def saveStacktraceArgs(self, job_id: str, stacktrace: str, failedReason: str):
         keys = [self.toKey(job_id)]

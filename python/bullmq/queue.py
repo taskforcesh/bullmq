@@ -132,9 +132,19 @@ class Queue:
         tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]   
         job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         jobs = [extract_result(job_task) for job_task in job_set]
+        jobs_len = len(jobs)
 
         # we filter `None` out to remove:
         jobs = list(filter(lambda j: j is not None, jobs))
+
+        for index, job_id in enumerate(job_ids):
+            pivot_job = jobs[index]
+
+            for i in range(index,jobs_len):
+                current_job = jobs[i]
+                if current_job and current_job.id == job_id:
+                    jobs[index] = current_job
+                    jobs[i] = pivot_job
 
         return jobs
 
