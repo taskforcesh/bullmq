@@ -8,6 +8,7 @@ import { RedisConnection } from './redis-connection';
 
 export class Repeat extends QueueBase {
   private repeatStrategy: RepeatStrategy;
+  private repeatKeyHashAlgorithm: String;
 
   constructor(
     name: string,
@@ -18,6 +19,9 @@ export class Repeat extends QueueBase {
 
     this.repeatStrategy =
       (opts.settings && opts.settings.repeatStrategy) || getNextMillis;
+
+    this.repeatKeyHashAlgorithm =
+        (opts.settings && opts.settings.repeatKeyHashAlgorithm) || 'md5';
   }
 
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -113,7 +117,7 @@ export class Repeat extends QueueBase {
     const jobId = getRepeatJobId(
       name,
       nextMillis,
-      md5(repeatJobKey),
+      hash(repeatJobKey),
       opts.repeat.jobId,
     );
     const now = Date.now();
@@ -145,7 +149,7 @@ export class Repeat extends QueueBase {
     const repeatJobId = getRepeatJobId(
       name,
       '',
-      md5(repeatJobKey),
+      hash(repeatJobKey),
       jobId || repeat.jobId,
     );
 
@@ -158,7 +162,7 @@ export class Repeat extends QueueBase {
     const repeatJobId = getRepeatJobId(
       data.name,
       '',
-      md5(repeatJobKey),
+      hash(repeatJobKey),
       data.id,
     );
 
@@ -207,7 +211,7 @@ function getRepeatJobId(
   namespace: string,
   jobId?: string,
 ) {
-  const checksum = md5(`${name}${jobId || ''}${namespace}`);
+  const checksum = hash(`${name}${jobId || ''}${namespace}`);
   return `repeat:${checksum}:${nextMillis}`;
   // return `repeat:${jobId || ''}:${name}:${namespace}:${nextMillis}`;
   //return `repeat:${name}:${namespace}:${nextMillis}`;
@@ -254,6 +258,6 @@ export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
   }
 };
 
-function md5(str: string) {
-  return createHash('md5').update(str).digest('hex');
+function hash(str: string) {
+  return createHash(this.repeatKeyHashAlgorithm).update(str).digest('hex');
 }
