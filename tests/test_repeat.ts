@@ -1057,6 +1057,14 @@ describe('repeat', function () {
     expect(repeatableJobsAfterRemove).to.have.length(0);
   });
 
+  it('retrieves repeatable job by key', async () => {
+    const repeat = { pattern: '*/2 * * * * *' };
+    const createdJob = await queue.add('remove', { foo: 'bar' }, { repeat });
+    const foundJob = await queue.getRepeatableJobByKey(createdJob.repeatJobKey);
+
+    expect(createdJob.id).deep.equals(foundJob.id);
+  });
+
   describe('when repeatable job does not exist', function () {
     it('returns false', async () => {
       const repeat = { pattern: '*/2 * * * * *' };

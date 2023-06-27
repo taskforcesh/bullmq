@@ -165,6 +165,15 @@ export class Repeat extends QueueBase {
     return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
+  async getJobIdFromRepeatKey(repeatJobKey: string): Promise<string> {
+    const data = this.keyToData(repeatJobKey);
+    const nextMillis = await (
+      await this.client
+    ).zscore(this.keys.repeat, repeatJobKey);
+
+    return getRepeatJobId(data.name, nextMillis, md5(repeatJobKey), data.id);
+  }
+
   private keyToData(key: string, next?: number) {
     const data = key.split(':');
     const pattern = data.slice(4).join(':') || null;

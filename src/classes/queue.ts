@@ -307,6 +307,21 @@ export class Queue<
   }
 
   /**
+   * Gets a repeatable job from its key
+   *
+   * @param key - Job repeatable key
+   */
+  async getRepeatableJobByKey(
+    key: string,
+  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
+    const repeatJobId = await (await this.repeat).getJobIdFromRepeatKey(key);
+
+    if (repeatJobId) {
+      return this.getJob(repeatJobId);
+    }
+  }
+
+  /**
    * Removes a repeatable job.
    *
    * Note: you need to use the exact same repeatOpts when deleting a repeatable job
