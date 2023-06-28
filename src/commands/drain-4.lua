@@ -13,7 +13,7 @@
 local rcall = redis.call
 local queueBaseKey = ARGV[1]
 
---- @include "includes/removeJobs"
+--- @include "includes/removeListJobs"
 --- @include "includes/removeZSetJobs"
 
 removeListJobs(KEYS[1], true, queueBaseKey, 0) --wait

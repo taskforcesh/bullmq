@@ -23,6 +23,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/removeJobs"
+--- @include "includes/removeListJobs"
 --- @include "includes/removeZSetJobs"
 
 local function removeLockKeys(keys)

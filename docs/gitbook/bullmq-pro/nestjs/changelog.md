@@ -1,3 +1,15 @@
+# [2.0.0](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v1.1.0...v2.0.0) (2023-06-28)
+
+
+### Features
+
+* **nestjs:** support version 10 and bullmq-pro version 6 ([#9](https://github.com/taskforcesh/nestjs-bullmq-pro/issues/9)) ([e55489e](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/e55489e634e3feddc05347f4d74f74b67de38293))
+
+
+### BREAKING CHANGES
+
+* **nestjs:** abandon nestjs version 7
+
 # [1.1.0](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v1.0.3...v1.1.0) (2023-02-04)
 
 
@@ -32,4 +44,3 @@
 ### Features
 
 * initial setup \([12119d7](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/12119d76cde0679c8f5b6892d029a8d62ce303d2)\)
-
