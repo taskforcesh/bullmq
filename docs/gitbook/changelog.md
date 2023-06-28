@@ -8,9 +8,9 @@
 # [4.0.0](https://github.com/taskforcesh/bullmq/compare/v3.15.8...v4.0.0) (2023-06-21)
 
 
-### Bug Fixes
+### Features
 
-* **python:** pass right params to xtrim method ([#2004](https://github.com/taskforcesh/bullmq/issues/2004)) ([a55fd77](https://github.com/taskforcesh/bullmq/commit/a55fd777655f7d4bb7af9e4fa2f7b4f48f559189))
+* **queue:** add removeDeprecatedPriorityKey method
 
 
 ### Performance Improvements
@@ -22,9 +22,7 @@
 
 * **priority:** priority is separeted in its own zset, no duplication needed
 
-* feat(queue): add removeDeprecatedPriorityKey method
-
-* refactor: change job method name update to updateData
+* **job:** change job method name update to updateData
 
 ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 
@@ -40,7 +38,6 @@ ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 
 ### Bug Fixes
 
-* **python:** add retry strategy in connection ([#1975](https://github.com/taskforcesh/bullmq/issues/1975)) ([7c5ee20](https://github.com/taskforcesh/bullmq/commit/7c5ee20471b989d297c8c5e87a6ea497a2077ae6))
 * **worker:** set redis version always in initialization ([#1989](https://github.com/taskforcesh/bullmq/issues/1989)) fixes [#1988](https://github.com/taskforcesh/bullmq/issues/1988) ([a1544a8](https://github.com/taskforcesh/bullmq/commit/a1544a8c0f29522cd33772b14f559969db852d1d))
 
 ## [3.15.6](https://github.com/taskforcesh/bullmq/compare/v3.15.5...v3.15.6) (2023-06-13)
