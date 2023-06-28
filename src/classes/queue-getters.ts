@@ -345,6 +345,37 @@ export class QueueGetters<
   }
 
   /**
+   * Returns jobs regardless of statuses (note that JobType is synonym for job status)
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs, default 5.
+   * @param asc - if true, the jobs will be returned in ascending order.
+   */
+  async getJobsAsync(
+    start = 0,
+    end = 5,
+    asc = false,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
+    const length = end - start + 1 + start;
+    let jobPromises = [],
+      jobs = [];
+
+    for (let i = start + 1; i <= length; i++) {
+      const jobId = `${i}`;
+      jobPromises.unshift(
+        this.Job.fromId(this, jobId) as Promise<
+          Job<DataType, ResultType, NameType>
+        >,
+      );
+    }
+    jobs = await Promise.all(jobPromises);
+    const filteredJobs = jobs.filter(job => job != null);
+    if (asc) {
+      filteredJobs.reverse();
+    }
+    return filteredJobs;
+  }
+
+  /**
    * Returns the logs for a given Job.
    * @param jobId - the id of the job to get the logs for.
    * @param start - zero based index from where to start returning jobs.
