@@ -136,6 +136,9 @@ class Queue:
     def getCompletedCount(self):
         return self.getJobCountByTypes('completed')
 
+    def getFailedCount(self):
+        return self.getJobCountByTypes('failed')
+
     def getActive(self, start = 0, end=-1):
         return self.getJobs(['active'], start, end, True)
 
