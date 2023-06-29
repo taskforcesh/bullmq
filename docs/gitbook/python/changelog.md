@@ -4,7 +4,7 @@
 
 ## v1.3.1 (2023-06-29)
 ### Fix
-* **python:** Nuild egg-info at the root location ([`3c2d06e`](https://github.com/taskforcesh/bullmq/commit/3c2d06e7e6e0944135fe6bd8045d08dd43fe7d9c))
+* **python:** Build egg-info at the root location ([`3c2d06e`](https://github.com/taskforcesh/bullmq/commit/3c2d06e7e6e0944135fe6bd8045d08dd43fe7d9c))
 
 ## v1.3.0 (2023-06-29)
 ### Feature
