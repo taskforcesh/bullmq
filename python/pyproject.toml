@@ -1,0 +1,39 @@
+[tool.poetry]
+name = "bullmq"
+version = "1.2.0"
+homepage = "https://bullmq.io"
+repository = "https://github.com/taskforcesh/bullmq/tree/master/python"
+description = "BullMQ for Python"
+authors = ["Taskforce.sh Inc. <manast@taskforce.sh>"]
+license = "MIT"
+readme = "README.md"
+classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT License',
+        'Operating System :: POSIX :: Linux',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+    ]
+include = ["commands/*.lua", "types/*"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+redis = "4.5.*"
+msgpack = "1.0.*"
+semver = "2.13.*"
+
+[tool.poetry.group.dev.dependencies]
+pre-commit = "3.3.*"
+python-semantic-release = "7.34.*"
+flake8 = "^6.0.*"
+mypy = "^1.4.*"
+types-redis = "^4.5.5.*"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
