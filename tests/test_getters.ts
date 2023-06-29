@@ -749,4 +749,73 @@ describe('Jobs getters', function () {
       await flow.close();
     });
   });
+
+  describe('.getJobsAsync', () => {
+    async function createTempJobs(length) {
+      length = !(length % 2) ? length : length - 1;
+      for (let i = 0; i < length / 2; i++) {
+        // These jobs will be processed successfully
+        await queue.add('successful_job', {});
+      }
+      for (let i = 0; i < length / 2; i++) {
+        // These jobs will fail when processed
+        await queue.add('failing_job', {});
+      }
+      const worker = new Worker(queueName, async job => {
+        if (job.name === 'failing_job') {
+          throw new Error('Job failed');
+        }
+      });
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', () => {
+          resolve();
+        });
+      });
+      const failing = new Promise<void>(resolve => {
+        worker.on('failed', () => {
+          resolve();
+        });
+      });
+      await completing;
+      await failing;
+
+      return worker;
+    }
+
+    it('should return list of jobs of all statuses limited by value', async () => {
+      const total = 28;
+      const worker = await createTempJobs(total);
+      const limit = 10;
+      let start = 0;
+      let end;
+
+      while (start < total) {
+        end = start + limit - 1;
+        const jobs = await queue.getJobsAsync(start, end, false);
+        const jobsLength = jobs.length;
+        expect(jobsLength).to.be.lessThanOrEqual(limit);
+        start += limit;
+      }
+
+      await worker.close();
+    });
+
+    it('should handle case when asc is true', async () => {
+      const total = 10;
+      const worker = await createTempJobs(total);
+      const limit = 10;
+      let start = 0;
+      let end;
+
+      while (start < total) {
+        end = start + limit - 1;
+        const jobs = await queue.getJobsAsync(start, end, false);
+        expect(jobs[0].id).to.be.equal(limit.toString());
+        start += limit;
+      }
+
+      await worker.close();
+    });
+  });
 });
