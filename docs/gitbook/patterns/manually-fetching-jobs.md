@@ -44,6 +44,10 @@ const job = (await worker.getNextJob(token)) as Job;
 await job.extendLock(token, 30000);
 ```
 
+### Choosing a token
+
+A token represents ownership, that a given worker is currently working on a given job. If the worker dies unexpectedly, the job could be picked up by another worker when the lock expires. A good approach for generating tokes for jobs is simply to generate a UUID for every new job, but it all depends on your specific use case.
+
 ## Checking for stalled jobs
 
 When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move jobs that may stall (they have lost their locks) back to the wait status (or failed if they have exhausted the maximum number of [stalled attempts](https://api.docs.bullmq.io/interfaces/WorkerOptions.html#maxStalledCount), which is 1 by default).
