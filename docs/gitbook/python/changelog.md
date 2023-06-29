@@ -2,6 +2,15 @@
 
 <!--next-version-placeholder-->
 
+## v1.2.1 (2023-06-29)
+### Fix
+* **python:** Add recommended pyproject.toml configuration ([#2029](https://github.com/taskforcesh/bullmq/issues/2029)) ([`d03ffc9`](https://github.com/taskforcesh/bullmq/commit/d03ffc9c98425a96d6e9dd47a6625382556a4cbf))
+
+### Documentation
+* **changelogs:** Update changelogs ([#2028](https://github.com/taskforcesh/bullmq/issues/2028)) ([`667de07`](https://github.com/taskforcesh/bullmq/commit/667de075f4762ab72dbaa5567bbacfd5147d4770))
+* Update README.md ([`dc63efe`](https://github.com/taskforcesh/bullmq/commit/dc63efe6596c61487f0f7a9fbe06466fbd42d835))
+* Update broken patterns link in the readme ([#2025](https://github.com/taskforcesh/bullmq/issues/2025)) ([`0e6e836`](https://github.com/taskforcesh/bullmq/commit/0e6e836376dc89d432f384e5ada0c9356d57252a))
+
 ## v1.2.0 (2023-06-24)
 ### Feature
 * **queue:** Add get job methods by state ([#2012](https://github.com/taskforcesh/bullmq/issues/2012)) ([`57b2b72`](https://github.com/taskforcesh/bullmq/commit/57b2b72f79afb683067d49170df5d2eed46e3712))
