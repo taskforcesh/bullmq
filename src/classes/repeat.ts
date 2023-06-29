@@ -8,7 +8,7 @@ import { RedisConnection } from './redis-connection';
 
 export class Repeat extends QueueBase {
   private repeatStrategy: RepeatStrategy;
-  private repeatKeyHashAlgorithm: String;
+  private repeatKeyHashAlgorithm: string;
 
   constructor(
     name: string,
@@ -21,7 +21,7 @@ export class Repeat extends QueueBase {
       (opts.settings && opts.settings.repeatStrategy) || getNextMillis;
 
     this.repeatKeyHashAlgorithm =
-        (opts.settings && opts.settings.repeatKeyHashAlgorithm) || 'md5';
+      (opts.settings && opts.settings.repeatKeyHashAlgorithm) || 'md5';
   }
 
   async addNextRepeatableJob<T = any, R = any, N extends string = string>(
@@ -114,10 +114,10 @@ export class Repeat extends QueueBase {
     //
     // Generate unique job id for this iteration.
     //
-    const jobId = getRepeatJobId(
+    const jobId = this.getRepeatJobId(
       name,
       nextMillis,
-      hash(repeatJobKey),
+      this.hash(repeatJobKey),
       opts.repeat.jobId,
     );
     const now = Date.now();
@@ -146,10 +146,10 @@ export class Repeat extends QueueBase {
     jobId?: string,
   ): Promise<number> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
-    const repeatJobId = getRepeatJobId(
+    const repeatJobId = this.getRepeatJobId(
       name,
       '',
-      hash(repeatJobKey),
+      this.hash(repeatJobKey),
       jobId || repeat.jobId,
     );
 
@@ -159,10 +159,10 @@ export class Repeat extends QueueBase {
   async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
-    const repeatJobId = getRepeatJobId(
+    const repeatJobId = this.getRepeatJobId(
       data.name,
       '',
-      hash(repeatJobKey),
+      this.hash(repeatJobKey),
       data.id,
     );
 
@@ -203,18 +203,22 @@ export class Repeat extends QueueBase {
     const client = await this.client;
     return client.zcard(this.toKey('repeat'));
   }
-}
 
-function getRepeatJobId(
-  name: string,
-  nextMillis: number | string,
-  namespace: string,
-  jobId?: string,
-) {
-  const checksum = hash(`${name}${jobId || ''}${namespace}`);
-  return `repeat:${checksum}:${nextMillis}`;
-  // return `repeat:${jobId || ''}:${name}:${namespace}:${nextMillis}`;
-  //return `repeat:${name}:${namespace}:${nextMillis}`;
+  private hash(str: string) {
+    return createHash(this.repeatKeyHashAlgorithm).update(str).digest('hex');
+  }
+
+  private getRepeatJobId(
+    name: string,
+    nextMillis: number | string,
+    namespace: string,
+    jobId?: string,
+  ) {
+    const checksum = this.hash(`${name}${jobId || ''}${namespace}`);
+    return `repeat:${checksum}:${nextMillis}`;
+    // return `repeat:${jobId || ''}:${name}:${namespace}:${nextMillis}`;
+    //return `repeat:${name}:${namespace}:${nextMillis}`;
+  }
 }
 
 function getRepeatKey(name: string, repeat: RepeatOptions) {
@@ -257,7 +261,3 @@ export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
     // Ignore error
   }
 };
-
-function hash(str: string) {
-  return createHash(this.repeatKeyHashAlgorithm).update(str).digest('hex');
-}
