@@ -272,8 +272,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         worker.off('completed', completing)
 
-        completed_count = await queue.getJobCounts('completed')
-        self.assertEqual(completed_count['completed'], 4)
+        completed_count = await queue.getCompletedCount()
+        self.assertEqual(completed_count, 4)
 
         await queue.close()
         await worker.close()
