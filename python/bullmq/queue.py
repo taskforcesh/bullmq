@@ -111,6 +111,13 @@ class Queue:
         """
         return self.client.delete(f"{self.prefix}:{self.name}:priority")
 
+    async def getJobCountByTypes(self, *types):
+      result = await self.getJobCounts(*types)
+      sum = 0
+      for attribute in result:
+        sum += result[attribute]
+      return sum
+
     async def getJobCounts(self, *types):
         """
         Returns the job counts for each type specified or every list/set in the queue by default.
@@ -125,6 +132,9 @@ class Queue:
         for index, val in enumerate(responses):
             counts[current_types[index]] = val or 0
         return counts
+
+    def getCompletedCount(self):
+        return self.getJobCountByTypes('completed')
 
     def getActive(self, start = 0, end=-1):
         return self.getJobs(['active'], start, end, True)
