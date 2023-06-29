@@ -42,7 +42,6 @@ dev = [
 "Bug Tracker" = "https://github.com/taskforcesh/bullmq/issues"
 
 [tool.setuptools.packages.find]
-where = ["bullmq"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
