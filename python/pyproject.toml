@@ -11,7 +11,6 @@ long_description_content_type="text/markdown"
 authors = [
     {name = "Taskforce.sh Inc.", email = "manast@taskforce.sh"},
 ]
-license='MIT'
 classifiers=[
     'Development Status :: 3 - Alpha',
     'Intended Audience :: Developers',
