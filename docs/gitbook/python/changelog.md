@@ -4,24 +4,11 @@
 
 ## v1.3.0 (2023-06-29)
 ### Feature
-* **python:** Add getFailedCount queue method ([#2036](https://github.com/taskforcesh/bullmq/issues/2036)) ([`92d7227`](https://github.com/taskforcesh/bullmq/commit/92d7227bf5ec63a75b7af3fc7c312d9b4a81d69f))
-* **python:** Add getCompleted queue method ([#2033](https://github.com/taskforcesh/bullmq/issues/2033)) ([`3e9db5e`](https://github.com/taskforcesh/bullmq/commit/3e9db5ef4d868f8b420e368a711c20c2568a5910))
+* **queue:** Add getFailedCount method ([#2036](https://github.com/taskforcesh/bullmq/issues/2036)) ([`92d7227`](https://github.com/taskforcesh/bullmq/commit/92d7227bf5ec63a75b7af3fc7c312d9b4a81d69f))
+* **queue:** Add getCompletedCount method ([#2033](https://github.com/taskforcesh/bullmq/issues/2033)) ([`3e9db5e`](https://github.com/taskforcesh/bullmq/commit/3e9db5ef4d868f8b420e368a711c20c2568a5910))
 
 ### Fix
-* **python:** Add recommended pyproject.toml configuration ([#2029](https://github.com/taskforcesh/bullmq/issues/2029)) ([`d03ffc9`](https://github.com/taskforcesh/bullmq/commit/d03ffc9c98425a96d6e9dd47a6625382556a4cbf))
-
-### Documentation
-* **changelogs:** Update changelogs ([#2028](https://github.com/taskforcesh/bullmq/issues/2028)) ([`667de07`](https://github.com/taskforcesh/bullmq/commit/667de075f4762ab72dbaa5567bbacfd5147d4770))
-* Update README.md ([`dc63efe`](https://github.com/taskforcesh/bullmq/commit/dc63efe6596c61487f0f7a9fbe06466fbd42d835))
-* Update broken patterns link in the readme ([#2025](https://github.com/taskforcesh/bullmq/issues/2025)) ([`0e6e836`](https://github.com/taskforcesh/bullmq/commit/0e6e836376dc89d432f384e5ada0c9356d57252a))
-
-## v1.3.0 (2023-06-29)
-### Feature
-* **python:** Add getCompleted queue method ([#2033](https://github.com/taskforcesh/bullmq/issues/2033)) ([`3e9db5e`](https://github.com/taskforcesh/bullmq/commit/3e9db5ef4d868f8b420e368a711c20c2568a5910))
-
-## v1.2.1 (2023-06-29)
-### Fix
-* **python:** Add recommended pyproject.toml configuration ([#2029](https://github.com/taskforcesh/bullmq/issues/2029)) ([`d03ffc9`](https://github.com/taskforcesh/bullmq/commit/d03ffc9c98425a96d6e9dd47a6625382556a4cbf))
+* **release:** Add recommended pyproject.toml configuration ([#2029](https://github.com/taskforcesh/bullmq/issues/2029)) ([`d03ffc9`](https://github.com/taskforcesh/bullmq/commit/d03ffc9c98425a96d6e9dd47a6625382556a4cbf))
 
 ### Documentation
 * **changelogs:** Update changelogs ([#2028](https://github.com/taskforcesh/bullmq/issues/2028)) ([`667de07`](https://github.com/taskforcesh/bullmq/commit/667de075f4762ab72dbaa5567bbacfd5147d4770))
