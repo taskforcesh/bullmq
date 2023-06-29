@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.3.1 (2023-06-29)
+### Fix
+* **python:** Nuild egg-info at the root location ([`3c2d06e`](https://github.com/taskforcesh/bullmq/commit/3c2d06e7e6e0944135fe6bd8045d08dd43fe7d9c))
+
 ## v1.3.0 (2023-06-29)
 ### Feature
 * **queue:** Add getFailedCount method ([#2036](https://github.com/taskforcesh/bullmq/issues/2036)) ([`92d7227`](https://github.com/taskforcesh/bullmq/commit/92d7227bf5ec63a75b7af3fc7c312d9b4a81d69f))
