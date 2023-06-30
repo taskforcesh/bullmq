@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v1.4.0 (2023-06-30)
+### Feature
+* **python:** Add getJobState queue method ([#2040](https://github.com/taskforcesh/bullmq/issues/2040)) ([`8ec9ed6`](https://github.com/taskforcesh/bullmq/commit/8ec9ed67d2803224a3b866c51f67239a5c4b7042))
+
+### Documentation
+* **bullmq-pro:** Update changelog ([`b71e1ca`](https://github.com/taskforcesh/bullmq/commit/b71e1ca6b3bd77557a6c1219802faaeff8768392))
+
 ## v1.3.1 (2023-06-29)
 ### Fix
 * **python:** Build egg-info at the root location ([`3c2d06e`](https://github.com/taskforcesh/bullmq/commit/3c2d06e7e6e0944135fe6bd8045d08dd43fe7d9c))
