@@ -25,7 +25,7 @@ jobs:
         run: |
           yarn pretest
           yarn docs:json
-          yarn docs
+          yarn docs:merge
         env:
           CI: true
       - name: deploy
