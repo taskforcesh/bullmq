@@ -32,7 +32,7 @@
     "cm": "git cz",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
     "docs:merge": "typedoc --entryPointStrategy merge ./apiVersions/v4.json ./apiVersions/v3.json ./apiVersions/v2.json ./apiVersions/v1.json",
-    "docs:json": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v4.json",
+    "docs:json": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v4.json --name v4",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
     "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
