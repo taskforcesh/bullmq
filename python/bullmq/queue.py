@@ -133,6 +133,9 @@ class Queue:
             counts[current_types[index]] = val or 0
         return counts
 
+    def getJobState(self, job_id: str):
+        return self.scripts.getState(job_id)
+
     def getCompletedCount(self):
         return self.getJobCountByTypes('completed')
 
