@@ -24,6 +24,7 @@ jobs:
       - name: build
         run: |
           yarn pretest
+          yarn docs:json
           yarn docs
         env:
           CI: true
