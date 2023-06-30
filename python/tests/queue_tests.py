@@ -42,6 +42,14 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job1.id, jobs[1].id)
         await queue.close()
 
+    async def test_get_job_state(self):
+        queue = Queue(queueName)
+        job = await queue.add("test-job", {"foo": "bar"}, {})
+        state = await queue.getJobState(job.id)
+
+        self.assertEqual(state, "waiting")
+        await queue.close()
+
     async def test_add_job_with_options(self):
         queue = Queue(queueName)
         data = {"foo": "bar"}
