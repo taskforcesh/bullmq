@@ -32,7 +32,7 @@ dev = [
     "pre-commit==3.3.3",
     "build==0.8.0",
     "python-semantic-release==7.28.1",
-    "types-redis==4.5.5.0"
+    "types-redis==4.6.0.1"
 ]
 
 [project.urls]
