@@ -14,6 +14,12 @@ import {
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
 import { removeAllQueueData } from '../src/utils';
+import {
+  createRepeatableJobKey,
+  extractRepeatableJobChecksumFromRedisKey,
+  getRepeatableJobKeyPrefix,
+  getRepeatJobIdCheckum,
+} from './utils/repeat_utils';
 
 const moment = require('moment');
 
@@ -658,6 +664,61 @@ describe('repeat', function () {
         delayStub.restore();
       });
     });
+  });
+
+  it('should have repeatable job key with sha256 hashing when sha256 hash algorithm is provided', async function () {
+    this.timeout(20000);
+    const settings = {
+      repeatKeyHashAlgorithm: 'sha256',
+    };
+    const currentQueue = new Queue(queueName, { connection, settings });
+
+    const worker = new Worker(queueName, null, { connection, settings });
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const jobName = 'jobName';
+    const jobId = 'jobId';
+    const endDate = '';
+    const tz = '';
+    const every = 50;
+    const suffix = every;
+    await currentQueue.add(
+      jobName,
+      { foo: 'bar' },
+      {
+        repeat: {
+          jobId,
+          every,
+        },
+      },
+    );
+
+    const keyPrefix = getRepeatableJobKeyPrefix(queueName);
+    const jobsRedisKeys = await new IORedis().keys(`${keyPrefix}*`);
+    expect(jobsRedisKeys.length).to.be.equal(1);
+
+    const actualHashedRepeatableJobKey =
+      extractRepeatableJobChecksumFromRedisKey(jobsRedisKeys[0]);
+    const expectedRawKey = createRepeatableJobKey(
+      jobName,
+      jobId,
+      endDate,
+      tz,
+      suffix,
+    );
+    const expectedRepeatJobIdCheckum = getRepeatJobIdCheckum(
+      jobName,
+      expectedRawKey,
+      settings.repeatKeyHashAlgorithm,
+      jobId,
+    );
+
+    expect(actualHashedRepeatableJobKey).to.be.equal(
+      expectedRepeatJobIdCheckum,
+    );
+
+    await currentQueue.close();
+    await worker.close();
+    delayStub.restore();
   });
 
   it('should repeat every 2 seconds and start immediately', async function () {

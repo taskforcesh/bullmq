@@ -1,3 +1,21 @@
+# [4.2.0](https://github.com/taskforcesh/bullmq/compare/v4.1.0...v4.2.0) (2023-07-03)
+
+
+### Bug Fixes
+
+* **python:** add recommended pyproject.toml configuration ([#2029](https://github.com/taskforcesh/bullmq/issues/2029)) ([d03ffc9](https://github.com/taskforcesh/bullmq/commit/d03ffc9c98425a96d6e9dd47a6625382556a4cbf))
+* **python:** nuild egg-info at the root location ([3c2d06e](https://github.com/taskforcesh/bullmq/commit/3c2d06e7e6e0944135fe6bd8045d08dd43fe7d9c))
+
+
+### Features
+
+* **common:** add option to change repeatable jobs redis key hash algorithm ([#2023](https://github.com/taskforcesh/bullmq/issues/2023)) ([ca17364](https://github.com/taskforcesh/bullmq/commit/ca17364cc2a52f6577fb66f09ec3168bbf9f1e07))
+* **python:** add get job methods by state ([#2012](https://github.com/taskforcesh/bullmq/issues/2012)) ([57b2b72](https://github.com/taskforcesh/bullmq/commit/57b2b72f79afb683067d49170df5d2eed46e3712))
+* **python:** add getCompleted queue method ([#2033](https://github.com/taskforcesh/bullmq/issues/2033)) ([3e9db5e](https://github.com/taskforcesh/bullmq/commit/3e9db5ef4d868f8b420e368a711c20c2568a5910))
+* **python:** add getFailedCount queue method ([#2036](https://github.com/taskforcesh/bullmq/issues/2036)) ([92d7227](https://github.com/taskforcesh/bullmq/commit/92d7227bf5ec63a75b7af3fc7c312d9b4a81d69f))
+* **python:** add getJobs method in queue class ([#2011](https://github.com/taskforcesh/bullmq/issues/2011)) ([8d5d6c1](https://github.com/taskforcesh/bullmq/commit/8d5d6c14442b7b967c42cb6ec3907a4d1a5bd575))
+* **python:** add getJobState queue method ([#2040](https://github.com/taskforcesh/bullmq/issues/2040)) ([8ec9ed6](https://github.com/taskforcesh/bullmq/commit/8ec9ed67d2803224a3b866c51f67239a5c4b7042))
+
 # [4.1.0](https://github.com/taskforcesh/bullmq/compare/v4.0.0...v4.1.0) (2023-06-23)
 
 
