@@ -64,6 +64,36 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    async def test_is_paused(self):
+        queue = Queue(queueName)
+        await queue.pause()
+        isPaused = await queue.isPaused()
+
+        self.assertEqual(isPaused, True)
+
+        await queue.resume()
+
+        isPaused = await queue.isPaused()
+
+        self.assertEqual(isPaused, False)
+
+        await queue.close()
+
+    async def test_is_paused_with_custom_prefix(self):
+        queue = Queue(queueName, {}, {"prefix": "test"})
+        await queue.pause()
+        isPaused = await queue.isPaused()
+
+        self.assertEqual(isPaused, True)
+
+        await queue.resume()
+
+        isPaused = await queue.isPaused()
+
+        self.assertEqual(isPaused, False)
+
+        await queue.close()
+
     async def test_trim_events_manually(self):
         queue = Queue(queueName)
         await queue.add("test", data={}, opts={})

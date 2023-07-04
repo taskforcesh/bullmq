@@ -4,10 +4,7 @@
 
 ## v1.4.0 (2023-06-30)
 ### Feature
-* **python:** Add getJobState queue method ([#2040](https://github.com/taskforcesh/bullmq/issues/2040)) ([`8ec9ed6`](https://github.com/taskforcesh/bullmq/commit/8ec9ed67d2803224a3b866c51f67239a5c4b7042))
-
-### Documentation
-* **bullmq-pro:** Update changelog ([`b71e1ca`](https://github.com/taskforcesh/bullmq/commit/b71e1ca6b3bd77557a6c1219802faaeff8768392))
+* **queue:** Add getJobState method ([#2040](https://github.com/taskforcesh/bullmq/issues/2040)) ([`8ec9ed6`](https://github.com/taskforcesh/bullmq/commit/8ec9ed67d2803224a3b866c51f67239a5c4b7042))
 
 ## v1.3.1 (2023-06-29)
 ### Fix
@@ -32,7 +29,7 @@
 
 ## v1.1.0 (2023-06-23)
 ### Feature
-* **queue:** Add getJobs method in queue class ([#2011](https://github.com/taskforcesh/bullmq/issues/2011)) ([`8d5d6c1`](https://github.com/taskforcesh/bullmq/commit/8d5d6c14442b7b967c42cb6ec3907a4d1a5bd575))
+* **queue:** Add getJobs method ([#2011](https://github.com/taskforcesh/bullmq/issues/2011)) ([`8d5d6c1`](https://github.com/taskforcesh/bullmq/commit/8d5d6c14442b7b967c42cb6ec3907a4d1a5bd575))
 
 ## v1.0.0 (2023-06-21)
 ### Breaking
