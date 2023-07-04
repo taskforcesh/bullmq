@@ -63,7 +63,7 @@ class Queue:
         """
         Returns true if the queue is currently paused.
         """
-        paused_key_exists = await self.client.hexists(self.opts.get("prefix", f"bull:{self.name}:meta"), "paused")
+        paused_key_exists = await self.client.hexists(f"{self.prefix}:{self.name}:meta", "paused")
         return paused_key_exists == 1
 
     async def obliterate(self, force: bool = False):
