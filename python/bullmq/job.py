@@ -5,6 +5,7 @@ from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
 from bullmq.types import JobOptions
+from bullmq.utils import get_parent_key
 
 import json
 import time
@@ -48,6 +49,9 @@ class Job:
         self.returnvalue = None
         self.failedReason = None
         self.repeatJobKey = None
+        parent = opts.get("parent")
+        self.parentKey = get_parent_key(parent)
+        self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
         self.stacktrace: List[str] = []
         self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
 
@@ -143,6 +147,8 @@ class Job:
 
         await self.scripts.commands["saveStacktrace"](keys=keys, args=args, client=pipe)
 
+    def moveToWaitingChildren(self, token, opts:dict):
+        return self.scripts.moveToWaitingChildren(self.id, token, opts)
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
@@ -181,13 +187,11 @@ class Job:
 
         job.stacktrace = json.loads(rawData.get("stacktrace", "[]"))
 
-        # if (json.parentKey) {
-        #   job.parentKey = json.parentKey;
-        # }
+        if rawData.get("parentKey"):
+            job.parentKey = rawData.get("parentKey")
 
-        # if (json.parent) {
-        #   job.parent = JSON.parse(json.parent);
-        # }
+        if rawData.get("parent"):
+           job.parent = json.loads(rawData.get("parent"))
 
         return job
 

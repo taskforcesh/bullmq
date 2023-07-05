@@ -6,7 +6,7 @@
 from __future__ import annotations
 from redis import Redis
 from bullmq.error_code import ErrorCode
-from bullmq.utils import isRedisVersionLowerThan
+from bullmq.utils import isRedisVersionLowerThan, get_parent_key
 from typing import Any, TYPE_CHECKING
 if TYPE_CHECKING:
     from bullmq.job import Job
@@ -41,6 +41,7 @@ class Scripts:
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-10.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-13.lua")),
+            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-4.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-5.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
@@ -75,22 +76,9 @@ class Scripts:
             return self.keys[key]
         return list(map(mapKey, keys))
 
-    def addJob(self, job: Job):
-        """
-        Add an item to the queue
-        """
-        packedArgs = msgpack.packb(
-            [self.keys[""], job.id or "", job.name, job.timestamp], use_bin_type=True)
+    def addJobArgs(self, job: Job):
         #  We are still lacking some arguments here:
         #  ARGV[1] msgpacked arguments array
-        #         [1]  key prefix,
-        #         [2]  custom id (will not generate one automatically)
-        #         [3]  name
-        #         [4]  timestamp
-        #         [5]  parentKey?
-        #         [6]  waitChildrenKey key.
-        #         [7]  parent dependencies key.
-        #         [8]  parent? {id, queueKey}
         #         [9]  repeat job key
 
         jsonData = json.dumps(job.data, separators=(',', ':'))
@@ -98,8 +86,41 @@ class Scripts:
 
         keys = self.getKeys(['wait', 'paused', 'meta', 'id',
                             'delayed', 'prioritized', 'completed', 'events', 'pc'])
+        parent = job.parent
+        parentKey = job.parentKey
 
-        return self.commands["addJob"](keys=keys, args=[packedArgs, jsonData, packedOpts])
+        packedArgs = msgpack.packb(
+            [self.keys[""], job.id or "", job.name, job.timestamp, job.parentKey,
+                f"{parentKey}:waiting-children" if parentKey else None,
+                f"{parentKey}:dependencies" if parentKey else None, parent],use_bin_type=True)
+        
+        args = [packedArgs, jsonData, packedOpts]
+
+        return (keys,args)
+
+    def addJob(self, job: Job):
+        """
+        Add an item to the queue
+        """
+        keys, args = self.addJobArgs(job)
+
+        return self.commands["addJob"](keys=keys, args=args)
+
+    async def moveToWaitingChildrenArgs(self, job_id, token, opts):
+        keys = [self.toKey(job_id) + ":lock", self.keys['active'], self.keys['waiting-children'], self.keys[job_id]]
+        child_key = opts.get("child") if opts else None
+        args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id]
+
+        return (keys, args)
+
+    async def moveToWaitingChildren(self, job_id, token, opts):
+        keys, args = self.moveToWaitingChildrenArgs(job_id, token, opts)
+        result = await self.commands["moveToWaitingChildren"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job_id, 'moveToWaitingChildren', 'active')
+        return None
 
     def getRangesArgs(self, types, start: int = 0, end: int = 1, asc: bool = False):
         transformed_types = []
