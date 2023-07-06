@@ -21,11 +21,13 @@ jobs:
       - name: yarn install
         run: |
           yarn install
+      - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
+        with:
+          ref: docs-api
       - name: build
         run: |
           git config --global user.email "manast@taskforce.sh"
           git config --global user.name "manast"
-          git checkout docs-api
           git merge master --no-commit
           yarn pretest
           yarn docs:json
