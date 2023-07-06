@@ -7,6 +7,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 from asyncio import Future
 from bullmq import Queue, Worker, Job, WaitingChildrenError
 from uuid import uuid4
+from enum import Enum
 
 import asyncio
 import unittest
