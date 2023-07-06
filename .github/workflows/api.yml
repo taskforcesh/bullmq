@@ -33,7 +33,6 @@ jobs:
           yarn pretest
           yarn docs:json
           git add .
-          git push docs-api
           yarn docs:merge
         env:
           CI: true
