@@ -28,12 +28,12 @@ jobs:
         run: |
           git config --global user.email "manast@taskforce.sh"
           git config --global user.name "manast"
-          git merge master --no-commit
+          git merge origin/master --no-commit
           yarn pretest
           yarn docs:json
           git add .
           git commit -m "chore(api): update documentation" --no-verify
-          git push origin docs-api
+          git push origin/docs-api
           yarn docs:merge
         env:
           CI: true
