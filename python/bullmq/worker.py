@@ -1,5 +1,6 @@
 from typing import Callable
 from uuid import uuid4
+from bullmq.custom_errors import WaitingChildrenError
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
 from bullmq.event_emitter import EventEmitter
@@ -124,7 +125,10 @@ class Worker(EventEmitter):
             result = await self.processor(job, token)
             if not self.forceClosing:
                 await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
+                job.returnvalue = result
             self.emit("completed", job, result)
+        except WaitingChildrenError:
+            return
         except Exception as err:
             try:
                 print("Error processing job", err)

@@ -13,3 +13,7 @@ def extract_result(job_task):
             # print error message and ignore the job
             print("ERROR:", e)
             traceback.print_exc()
+
+def get_parent_key(opts:dict):
+    if opts:
+        return f"{opts.get('queue')}:{opts.get('id')}"
