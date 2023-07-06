@@ -28,7 +28,7 @@ jobs:
         run: |
           git config --global user.email "manast@taskforce.sh"
           git config --global user.name "manast"
-          git merge origin/master --no-commit
+          git merge origin/master --no-commit --allow-unrelated-histories
           yarn pretest
           yarn docs:json
           git add .
