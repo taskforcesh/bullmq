@@ -11,4 +11,3 @@ local function moveJobFromPriorityToActive(priorityKey, activeKey, priorityCount
     rcall("DEL", priorityCounterKey)
   end
 end
-  
