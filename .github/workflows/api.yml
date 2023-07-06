@@ -23,8 +23,16 @@ jobs:
           yarn install
       - name: build
         run: |
+          git config --global user.email "manast@taskforce.sh"
+          git config --global user.name "manast"
+          git checkout docs-api
+          git merge master --no-commit
           yarn pretest
-          yarn docs
+          yarn docs:json
+          git add .
+          git commit -m "chore(api): update documentation" --no-verify
+          git push origin docs-api
+          yarn docs:merge
         env:
           CI: true
       - name: deploy
