@@ -54,7 +54,7 @@ class Scripts:
         }
 
         # loop all the names and add them to the keys object
-        names = ["", "active", "wait", "paused", "completed", "failed", "delayed",
+        names = ["", "active", "wait", "waiting-children", "paused", "completed", "failed", "delayed",
                  "stalled", "limiter", "prioritized", "id", "stalled-check", "meta", "pc", "events", "waiting-children"]
         for name in names:
             self.keys[name] = self.toKey(name)
@@ -76,7 +76,7 @@ class Scripts:
             return self.keys[key]
         return list(map(mapKey, keys))
 
-    def addJobArgs(self, job: Job):
+    def addJobArgs(self, job: Job, waiting_children_key):
         #  We are still lacking some arguments here:
         #  ARGV[1] msgpacked arguments array
         #         [9]  repeat job key
@@ -91,7 +91,7 @@ class Scripts:
 
         packedArgs = msgpack.packb(
             [self.keys[""], job.id or "", job.name, job.timestamp, job.parentKey,
-                f"{parentKey}:waiting-children" if parentKey else None,
+                waiting_children_key,
                 f"{parentKey}:dependencies" if parentKey else None, parent],use_bin_type=True)
         
         args = [packedArgs, jsonData, packedOpts]
@@ -102,12 +102,15 @@ class Scripts:
         """
         Add an item to the queue
         """
-        keys, args = self.addJobArgs(job)
+        keys, args = self.addJobArgs(job, None)
 
         return self.commands["addJob"](keys=keys, args=args)
 
-    async def moveToWaitingChildrenArgs(self, job_id, token, opts):
-        keys = [self.toKey(job_id) + ":lock", self.keys['active'], self.keys['waiting-children'], self.keys[job_id]]
+    def moveToWaitingChildrenArgs(self, job_id, token, opts):
+        keys = [self.toKey(job_id) + ":lock",
+                self.keys['active'],
+                self.keys['waiting-children'],
+                self.toKey(job_id)]
         child_key = opts.get("child") if opts else None
         args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id]
 
@@ -118,7 +121,11 @@ class Scripts:
         result = await self.commands["moveToWaitingChildren"](keys=keys, args=args)
 
         if result is not None:
-            if result < 0:
+            if result == 1:
+                return False
+            elif result == 0:
+                return True
+            elif result < 0:
                 raise self.finishedErrors(result, job_id, 'moveToWaitingChildren', 'active')
         return None
 

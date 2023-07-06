@@ -5,7 +5,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
-from bullmq import Queue, Worker, Job
+from bullmq import Queue, Worker, Job, WaitingChildrenError
 from uuid import uuid4
 
 import asyncio
@@ -186,6 +186,90 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
         await worker.close()
+
+    async def test_create_children_at_runtime(self):
+        parent_queue_name = f"__parent_queue__{uuid4().hex}"
+        parent_queue = Queue(parent_queue_name)
+        queue = Queue(queueName)
+
+        class Step(int, Enum):
+            Initial = 1
+            Second = 2
+            Third = 3
+            Finish = 4
+
+        waiting_children_step_executions = 0
+
+        async def parent_process(job: Job, token: str):
+            step = job.data.get("step")
+            while step != Step.Finish:
+                if step == Step.Initial:
+                    await queue.add('child-1', {"foo": "bar" },{
+                        "parent": {
+                            "id": job.id,
+                            "queue": job.queueQualifiedName
+                        }
+                    })
+                    await job.updateData({
+                        "step": Step.Second
+                    })
+                    step = Step.Second
+                elif step == Step.Second:
+                    await queue.add('child-2', {"foo": "bar" },{
+                        "parent": {
+                            "id": job.id,
+                            "queue": job.queueQualifiedName
+                        }
+                    })
+                    await job.updateData({
+                        "step": Step.Third
+                    })
+                    step = Step.Third
+                elif step == Step.Third:
+                    nonlocal waiting_children_step_executions
+                    waiting_children_step_executions += 1
+                    should_wait = await job.moveToWaitingChildren(token, {})
+                    if not should_wait:
+                        await job.updateData({
+                            "step": Step.Finish
+                        })
+                        step = Step.Finish
+                        return Step.Finish
+                    else:
+                        raise WaitingChildrenError
+                else:
+                    raise Exception("invalid step")
+
+        async def children_process(job: Job, token: str):
+            await asyncio.sleep(0.2)
+            return None
+
+        worker = Worker(parent_queue_name, parent_process, {})
+        children_worker = Worker(queueName, children_process, {})
+
+        await parent_queue.add( "test", {"step": Step.Initial},
+            {
+                "attempts": 3,
+                "backoff": 1000
+            }
+        )
+
+        completed_events = Future()
+
+        def completing(job: Job, result):
+            self.assertEqual(job.returnvalue, Step.Finish)
+            completed_events.set_result(None)
+
+        worker.on("completed", completing)
+
+        await completed_events
+
+        self.assertEqual(waiting_children_step_executions, 2)
+
+        await worker.close()
+        await children_worker.close()
+        await parent_queue.close()
+        await queue.close()
 
 
 if __name__ == '__main__':

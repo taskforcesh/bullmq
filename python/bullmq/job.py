@@ -35,6 +35,7 @@ class Job:
         self.timestamp = opts.get("timestamp", round(time.time() * 1000))
         final_opts = {"attempts": 0, "delay": 0}
         final_opts.update(opts or {})
+        final_opts.update({"backoff": Backoffs.normalize(opts.get('backoff'))})
         self.discarded = False
         self.opts = final_opts
         self.queue = queue
@@ -149,6 +150,10 @@ class Job:
 
     def moveToWaitingChildren(self, token, opts:dict):
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
+
+    @property
+    def queueQualifiedName(self):
+        return f"{self.queue.prefix}:{self.queue.name}"
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):

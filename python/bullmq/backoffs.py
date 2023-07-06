@@ -14,7 +14,7 @@ class Backoffs:
     def normalize(backoff: int | BackoffOptions):
         if type(backoff) == int and math.isfinite(backoff):
             return {
-                "type": 'fixed',
+                "type": "fixed",
                 "delay": backoff
             }
         elif backoff:
