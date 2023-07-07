@@ -33,3 +33,7 @@ queue.add("cat", { sound: "meow" });
 queue.add("cow", { sound: "moo" });
 queue.add("dog", { sound: "bark" });
 ```
+
+## Read more:
+
+- 💡 [Queue3 API Reference](https://api.docs.bullmq.io/classes/v1.Queue3.html)
