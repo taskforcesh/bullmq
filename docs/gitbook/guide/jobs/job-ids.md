@@ -24,4 +24,4 @@ await myQueue.add(
 
 ## Read more:
 
-- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/QueueEventsListener.html#duplicated)
+- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/v4.QueueEventsListener.html#duplicated)

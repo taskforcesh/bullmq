@@ -18,7 +18,7 @@ const counts = await myQueue.getJobCounts('wait', 'completed', 'failed');
 // Returns an object like this { wait: number, completed: number, failed: number }
 ```
 
-The available status are: _completed, failed, delayed, active, wait, paused_ and _repeat._
+The available status are: _completed, failed, delayed, active, wait, waiting-children, prioritized, _paused_ and _repeat._
 
 #### Get Jobs
 
@@ -32,5 +32,5 @@ const completed = await myQueue.getJobs(['completed'], 0, 100, true);
 
 ## Read more:
 
-* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/Queue.html#getJobCounts)
-* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/Queue.html#getJobs)
+* 💡 [Get Job Counts API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#getJobCounts)
+* 💡 [Get Jobs API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#getJobs)

@@ -49,4 +49,4 @@ await job.changePriority({
 
 ## Read more:
 
-- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/Job.html#changePriority)
+- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v4.Job.html#changePriority)

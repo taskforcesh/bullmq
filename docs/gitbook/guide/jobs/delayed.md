@@ -42,4 +42,4 @@ Take in count that your job must be into delayed state when you change the delay
 
 ## Read more:
 
-- 💡 [Change Delay API Reference](https://api.docs.bullmq.io/classes/Job.html#changeDelay)
+- 💡 [Change Delay API Reference](https://api.docs.bullmq.io/classes/v4.Job.html#changeDelay)
