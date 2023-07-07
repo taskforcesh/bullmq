@@ -120,7 +120,6 @@ describe('Job', function () {
       });
     });
 
-<<<<<<< HEAD
     describe('when removeDependencyOnFailure and failParentOnFailure options are provided', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
@@ -130,7 +129,10 @@ describe('Job', function () {
         };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
           'RemoveDependencyOnFailure and failParentOnFailure options can not be used together',
-=======
+        );
+      });
+    });
+
     describe('when priority option is provided as float', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
@@ -147,7 +149,6 @@ describe('Job', function () {
         const opts = { priority: 2097153 };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
           'Priority should be between 0 and 2097152',
->>>>>>> master
         );
       });
     });
