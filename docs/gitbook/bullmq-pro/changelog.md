@@ -1,3 +1,40 @@
+## [6.0.1](https://github.com/taskforcesh/bullmq-pro/compare/v6.0.0...v6.0.1) (2023-06-29)
+
+
+### Bug Fixes
+
+* **job:** save groupId even when the job is a parent ([#157](https://github.com/taskforcesh/bullmq-pro/issues/157)) ([1debbf4](https://github.com/taskforcesh/bullmq-pro/commit/1debbf40ca4aa8f8b5ab45c36e8732f7ffe5442b))
+
+# [6.0.0](https://github.com/taskforcesh/bullmq-pro/compare/v5.3.5...v6.0.0) (2023-06-26)
+
+
+### Performance Improvements
+
+* **priority:** add prioritized as a new state  ([#155](https://github.com/taskforcesh/bullmq-pro/issues/155)) ([b2391ca](https://github.com/taskforcesh/bullmq-pro/commit/b2391cab4d63e97f807eaed3a6e814be01de0f32))
+
+
+### BREAKING CHANGES
+
+* **priority:** priority is separeted in its own zset, no duplication needed
+
+* refactor: change job method name update to updateData
+
+ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
+
+## [5.3.5](https://github.com/taskforcesh/bullmq-pro/compare/v5.3.4...v5.3.5) (2023-06-16)
+
+
+### Bug Fixes
+
+* **deps:** upgrade bullmq to 3.15.8 ([#153](https://github.com/taskforcesh/bullmq-pro/issues/153)) ([7832290](https://github.com/taskforcesh/bullmq-pro/commit/783229095057d147047cd2f95be7d9ab9d0ef5ca))
+
+## [5.3.4](https://github.com/taskforcesh/bullmq-pro/compare/v5.3.3...v5.3.4) (2023-06-06)
+
+
+### Bug Fixes
+
+* **deps:** upgrade bullmq to 3.15.1 ([#152](https://github.com/taskforcesh/bullmq-pro/issues/152)) ([89df87d](https://github.com/taskforcesh/bullmq-pro/commit/89df87d9561f0b3a2323cecb04a0786fec1a72a5))
+
 ## [5.3.3](https://github.com/taskforcesh/bullmq-pro/compare/v5.3.2...v5.3.3) (2023-05-30)
 
 
@@ -794,4 +831,3 @@ Fixes https://github.com/taskforcesh/bullmq-pro-support/issues/25
 * **groups:** initial implementation ([b1da106](https://github.com/taskforcesh/bullmq-pro/commit/b1da106d7870e8e2783a6028b5088e6c4fa82086))
 * add queue-pro, worker-pro and redis-connection-pro ([b9de319](https://github.com/taskforcesh/bullmq-pro/commit/b9de3193b7820dc0dcf5ae1a2f673f7ed5a82aed))
 * initial commit ([7924260](https://github.com/taskforcesh/bullmq-pro/commit/7924260d621dd98b8acc6aefb53c21f6d3e06186))
-

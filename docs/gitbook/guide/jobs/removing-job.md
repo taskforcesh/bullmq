@@ -53,4 +53,4 @@ In case one of the children is locked, it will stop the deletion process.
 
 ### Read more:
 
-* 💡 [Remove API Reference](https://api.docs.bullmq.io/classes/Job.html#remove)
+* 💡 [Remove API Reference](https://api.docs.bullmq.io/classes/v4.Job.html#remove)

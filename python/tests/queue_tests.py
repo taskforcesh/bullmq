@@ -32,6 +32,24 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.id, "1")
         await queue.close()
 
+    async def test_get_jobs(self):
+        queue = Queue(queueName)
+        job1 = await queue.add("test-job", {"foo": "bar"}, {})
+        job2 = await queue.add("test-job", {"foo": "bar"}, {})
+        jobs = await queue.getJobs(["wait"])
+    
+        self.assertEqual(job2.id, jobs[0].id)
+        self.assertEqual(job1.id, jobs[1].id)
+        await queue.close()
+
+    async def test_get_job_state(self):
+        queue = Queue(queueName)
+        job = await queue.add("test-job", {"foo": "bar"}, {})
+        state = await queue.getJobState(job.id)
+
+        self.assertEqual(state, "waiting")
+        await queue.close()
+
     async def test_add_job_with_options(self):
         queue = Queue(queueName)
         data = {"foo": "bar"}
@@ -43,6 +61,72 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.attempts, attempts)
         self.assertEqual(job.delay, delay)
         self.assertEqual(job.data, data)
+
+        await queue.close()
+
+    async def test_is_paused(self):
+        queue = Queue(queueName)
+        await queue.pause()
+        isPaused = await queue.isPaused()
+
+        self.assertEqual(isPaused, True)
+
+        await queue.resume()
+
+        isPaused = await queue.isPaused()
+
+        self.assertEqual(isPaused, False)
+
+        await queue.close()
+
+    async def test_is_paused_with_custom_prefix(self):
+        queue = Queue(queueName, {}, {"prefix": "test"})
+        await queue.pause()
+        isPaused = await queue.isPaused()
+
+        self.assertEqual(isPaused, True)
+
+        await queue.resume()
+
+        isPaused = await queue.isPaused()
+
+        self.assertEqual(isPaused, False)
+
+        await queue.close()
+
+    async def test_trim_events_manually(self):
+        queue = Queue(queueName)
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+
+        events_length = await queue.client.xlen(f"{queue.prefix}:{queueName}:events")
+        self.assertEqual(events_length, 8)
+
+        await queue.trimEvents(0);
+
+        events_length = await queue.client.xlen(f"{queue.prefix}:{queue.name}:events")
+
+        self.assertEqual(events_length, 0)
+
+        await queue.close()
+
+    async def test_trim_events_manually_with_custom_prefix(self):
+        queue = Queue(queueName, {}, {"prefix": "test"})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+        await queue.add("test", data={}, opts={})
+
+        events_length = await queue.client.xlen(f"test:{queueName}:events")
+        self.assertEqual(events_length, 8)
+
+        await queue.trimEvents(0);
+
+        events_length = await queue.client.xlen(f"test:{queue.name}:events")
+
+        self.assertEqual(events_length, 0)
 
         await queue.close()
 
@@ -79,9 +163,9 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         worker.off('failed', failing)
 
-        failed_count = await queue.getJobCounts('failed')
+        failed_count = await queue.getFailedCount()
 
-        self.assertEqual(failed_count['failed'], 8)
+        self.assertEqual(failed_count, 8)
 
         order = 0
 
@@ -226,8 +310,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         worker.off('completed', completing)
 
-        completed_count = await queue.getJobCounts('completed')
-        self.assertEqual(completed_count['completed'], 4)
+        completed_count = await queue.getCompletedCount()
+        self.assertEqual(completed_count, 4)
 
         await queue.close()
         await worker.close()

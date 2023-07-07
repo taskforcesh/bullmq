@@ -2,6 +2,60 @@
 
 <!--next-version-placeholder-->
 
+## v1.6.0 (2023-07-06)
+### Feature
+* **python:** Add moveToWaitingChildren job method ([#2049](https://github.com/taskforcesh/bullmq/issues/2049)) ([`6d0e224`](https://github.com/taskforcesh/bullmq/commit/6d0e224cd985069055786f447b0ba7c394a76b8a))
+
+## v1.5.0 (2023-07-04)
+### Feature
+* **common:** Add option to change repeatable jobs redis key hash algorithm ([#2023](https://github.com/taskforcesh/bullmq/issues/2023)) ([`ca17364`](https://github.com/taskforcesh/bullmq/commit/ca17364cc2a52f6577fb66f09ec3168bbf9f1e07))
+
+### Fix
+* **python:** Fix isPaused method when custom prefix is present ([#2047](https://github.com/taskforcesh/bullmq/issues/2047)) ([`7ec1c5b`](https://github.com/taskforcesh/bullmq/commit/7ec1c5b2ccbd575ecd50d339f5377e204ca7aa16))
+
+## v1.4.0 (2023-06-30)
+### Feature
+* **queue:** Add getJobState method ([#2040](https://github.com/taskforcesh/bullmq/issues/2040)) ([`8ec9ed6`](https://github.com/taskforcesh/bullmq/commit/8ec9ed67d2803224a3b866c51f67239a5c4b7042))
+
+## v1.3.1 (2023-06-29)
+### Fix
+* **python:** Build egg-info at the root location ([`3c2d06e`](https://github.com/taskforcesh/bullmq/commit/3c2d06e7e6e0944135fe6bd8045d08dd43fe7d9c))
+
+## v1.3.0 (2023-06-29)
+### Feature
+* **queue:** Add getFailedCount method ([#2036](https://github.com/taskforcesh/bullmq/issues/2036)) ([`92d7227`](https://github.com/taskforcesh/bullmq/commit/92d7227bf5ec63a75b7af3fc7c312d9b4a81d69f))
+* **queue:** Add getCompletedCount method ([#2033](https://github.com/taskforcesh/bullmq/issues/2033)) ([`3e9db5e`](https://github.com/taskforcesh/bullmq/commit/3e9db5ef4d868f8b420e368a711c20c2568a5910))
+
+### Fix
+* **release:** Add recommended pyproject.toml configuration ([#2029](https://github.com/taskforcesh/bullmq/issues/2029)) ([`d03ffc9`](https://github.com/taskforcesh/bullmq/commit/d03ffc9c98425a96d6e9dd47a6625382556a4cbf))
+
+### Documentation
+* **changelogs:** Update changelogs ([#2028](https://github.com/taskforcesh/bullmq/issues/2028)) ([`667de07`](https://github.com/taskforcesh/bullmq/commit/667de075f4762ab72dbaa5567bbacfd5147d4770))
+* Update README.md ([`dc63efe`](https://github.com/taskforcesh/bullmq/commit/dc63efe6596c61487f0f7a9fbe06466fbd42d835))
+* Update broken patterns link in the readme ([#2025](https://github.com/taskforcesh/bullmq/issues/2025)) ([`0e6e836`](https://github.com/taskforcesh/bullmq/commit/0e6e836376dc89d432f384e5ada0c9356d57252a))
+
+## v1.2.0 (2023-06-24)
+### Feature
+* **queue:** Add get job methods by state ([#2012](https://github.com/taskforcesh/bullmq/issues/2012)) ([`57b2b72`](https://github.com/taskforcesh/bullmq/commit/57b2b72f79afb683067d49170df5d2eed46e3712))
+
+## v1.1.0 (2023-06-23)
+### Feature
+* **queue:** Add getJobs method ([#2011](https://github.com/taskforcesh/bullmq/issues/2011)) ([`8d5d6c1`](https://github.com/taskforcesh/bullmq/commit/8d5d6c14442b7b967c42cb6ec3907a4d1a5bd575))
+
+## v1.0.0 (2023-06-21)
+### Breaking
+* priority is separeted in its own zset, no duplication needed ([`42a890a`](https://github.com/taskforcesh/bullmq/commit/42a890a2bfe45b29348030f886766400f5d41aa3))
+
+### Performance
+* **priority:** Add prioritized as a new state (#1984) (python) ([`42a890a`](https://github.com/taskforcesh/bullmq/commit/42a890a2bfe45b29348030f886766400f5d41aa3))
+
+## v0.5.6 (2023-06-21)
+### Fix
+* **queue:** Pass right params to trimEvents method ([#2004](https://github.com/taskforcesh/bullmq/issues/2004)) ([`a55fd77`](https://github.com/taskforcesh/bullmq/commit/a55fd777655f7d4bb7af9e4fa2f7b4f48f559189))
+
+### Documentation
+* **update:** Add job data section ([#1999](https://github.com/taskforcesh/bullmq/issues/1999)) ([`854b1ca`](https://github.com/taskforcesh/bullmq/commit/854b1cabd082c1df4d55e7973f0e0b0cd4aefb79))
+
 ## v0.5.5 (2023-06-16)
 ### Fix
 * **rate-limit:** Keep priority fifo order (#1991) fixes #1929 (python) ([`56bd7ad`](https://github.com/taskforcesh/bullmq/commit/56bd7ad8c4daffcfb1f9f199abfc5d6495eb291e))
@@ -9,7 +63,7 @@
 
 ## v0.5.4 (2023-06-14)
 ### Fix
-* **python:** Add retry strategy in connection ([#1975](https://github.com/taskforcesh/bullmq/issues/1975)) ([`7c5ee20`](https://github.com/taskforcesh/bullmq/commit/7c5ee20471b989d297c8c5e87a6ea497a2077ae6))
+* **connection:** Add retry strategy in connection ([#1975](https://github.com/taskforcesh/bullmq/issues/1975)) ([`7c5ee20`](https://github.com/taskforcesh/bullmq/commit/7c5ee20471b989d297c8c5e87a6ea497a2077ae6))
 
 ## v0.5.3 (2023-06-13)
 ### Fix

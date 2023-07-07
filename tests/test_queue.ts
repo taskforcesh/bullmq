@@ -73,7 +73,7 @@ import { default as IORedis } from 'ioredis';
 import { describe, beforeEach, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, Worker } from '../src/classes';
+import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('queues', function () {
@@ -110,7 +110,7 @@ describe('queues', function () {
   describe('.drain', () => {
     it('count added, unprocessed jobs', async () => {
       const maxJobs = 100;
-      const added = [];
+      const added: Promise<Job<any, any, string>>[] = [];
 
       for (let i = 1; i <= maxJobs; i++) {
         added.push(queue.add('test', { foo: 'bar', num: i }, { priority: i }));
@@ -118,7 +118,10 @@ describe('queues', function () {
 
       await Promise.all(added);
       const count = await queue.count();
-      expect(count).to.be.eql(maxJobs);
+      expect(count).to.be.eql(100);
+      const priorityCount = await queue.getJobCountByTypes('prioritized');
+      expect(priorityCount).to.be.eql(100);
+
       await queue.drain();
       const countAfterEmpty = await queue.count();
       expect(countAfterEmpty).to.be.eql(0);
@@ -126,7 +129,7 @@ describe('queues', function () {
       const client = await queue.client;
       const keys = await client.keys(`bull:${queue.name}:*`);
 
-      expect(keys.length).to.be.eql(3);
+      expect(keys.length).to.be.eql(4);
     });
 
     describe('when having a flow', async () => {
@@ -401,6 +404,24 @@ describe('queues', function () {
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).to.be.eql(0);
       });
+    });
+  });
+
+  describe('.removeDeprecatedPriorityKey', () => {
+    it('removes old priority key', async () => {
+      const client = await queue.client;
+      await client.zadd(`bull:${queue.name}:priority`, 1, 'a');
+      await client.zadd(`bull:${queue.name}:priority`, 2, 'b');
+
+      const count = await client.zcard(`bull:${queue.name}:priority`);
+
+      expect(count).to.be.eql(2);
+
+      await queue.removeDeprecatedPriorityKey();
+
+      const updatedCount = await client.zcard(`bull:${queue.name}:priority`);
+
+      expect(updatedCount).to.be.eql(0);
     });
   });
 

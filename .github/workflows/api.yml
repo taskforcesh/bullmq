@@ -13,6 +13,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
+        with:
+          # check out all branches
+          fetch-depth: 0
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@64ed1c7eab4cce3362f8c340dee64e5eaeef8f7c # v3
         with:
@@ -23,8 +26,14 @@ jobs:
           yarn install
       - name: build
         run: |
+          git config --global user.email "manast@taskforce.sh"
+          git config --global user.name "manast"
+          git checkout docs-api
+          git merge master --no-edit -m "chore: merge master branch on $(date +%F)"
           yarn pretest
-          yarn docs
+          yarn docs:json
+          git add .
+          yarn docs:merge
         env:
           CI: true
       - name: deploy

@@ -11,7 +11,8 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey, p
   local isParentActive = rcall("ZSCORE", parentQueueKey .. ":waiting-children", parentId)
   if rcall("SCARD", parentDependenciesKey) == 0 and isParentActive then 
     rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
-    local parentTarget = getTargetQueueList(parentQueueKey .. ":meta", parentQueueKey .. ":wait",
+    local parentWaitKey = parentQueueKey .. ":wait"
+    local parentTarget, paused = getTargetQueueList(parentQueueKey .. ":meta", parentWaitKey,
       parentQueueKey .. ":paused")
     local jobAttributes = rcall("HMGET", parentKey, "priority", "delay")
     local priority = tonumber(jobAttributes[1]) or 0
@@ -26,12 +27,12 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey, p
         "delay", delayedTimestamp)
 
       addDelayMarkerIfNeeded(parentTarget, parentDelayedKey)
-    -- Standard or priority add
     else
       if priority == 0 then
         rcall("RPUSH", parentTarget, parentId)
       else
-        addJobWithPriority(parentQueueKey .. ":priority", priority, parentTarget, parentId)
+        addJobWithPriority(parentWaitKey, parentQueueKey .. ":priority", priority, paused,
+          parentId, parentQueueKey .. ":pc")
       end
   
       rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId,

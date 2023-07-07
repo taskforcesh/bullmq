@@ -430,7 +430,7 @@ export class Job<
    *
    * @param data - the data that will replace the current jobs data.
    */
-  update(data: DataType): Promise<void> {
+  updateData(data: DataType): Promise<void> {
     this.data = data;
 
     return this.scripts.updateData<DataType, ReturnType, NameType>(this, data);
@@ -552,7 +552,7 @@ export class Job<
     );
 
     const result = await this.scripts.moveToFinished(this.id, args);
-    this.finishedOn = args[13] as number;
+    this.finishedOn = args[14] as number;
 
     return result;
   }
@@ -633,7 +633,7 @@ export class Job<
         fetchNext,
       );
       (<any>multi).moveToFinished(args);
-      finishedOn = args[13];
+      finishedOn = args[14];
       command = 'failed';
     }
 
@@ -1090,6 +1090,17 @@ export class Job<
       console.warn(
         'Custom Ids should not be integers: https://github.com/taskforcesh/bullmq/pull/1569',
       );
+    }
+
+    if (this.opts.priority) {
+      if (Math.trunc(this.opts.priority) !== this.opts.priority) {
+        throw new Error(`Priority should not be float`);
+      }
+
+      const priorityLimit = 2 ** 21;
+      if (this.opts.priority > 2 ** 21) {
+        throw new Error(`Priority should be between 0 and ${priorityLimit}`);
+      }
     }
 
     return this.scripts.addJob(

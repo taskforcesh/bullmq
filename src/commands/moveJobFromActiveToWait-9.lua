@@ -9,7 +9,7 @@
     KEYS[5] paused key
     KEYS[6] meta key
     KEYS[7] limiter key
-    KEYS[8] priority key
+    KEYS[8] prioritized key
     KEYS[9] event key
 
     ARGV[1] job id
@@ -38,7 +38,7 @@ if lockToken == token and pttl > 0 then
     local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
     if priority > 0 then
-      pushBackJobWithPriority(KEYS[8], priority, target, jobId)
+      pushBackJobWithPriority(KEYS[8], priority, jobId)
     else
       rcall("RPUSH", target, jobId)
     end

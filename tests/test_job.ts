@@ -120,6 +120,7 @@ describe('Job', function () {
       });
     });
 
+<<<<<<< HEAD
     describe('when removeDependencyOnFailure and failParentOnFailure options are provided', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
@@ -129,6 +130,24 @@ describe('Job', function () {
         };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
           'RemoveDependencyOnFailure and failParentOnFailure options can not be used together',
+=======
+    describe('when priority option is provided as float', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { priority: 1.1 };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Priority should not be float',
+        );
+      });
+    });
+
+    describe('when priority option is provided with a value greater than 2097152', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { priority: 2097153 };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Priority should be between 0 and 2097152',
+>>>>>>> master
         );
       });
     });
@@ -197,7 +216,7 @@ describe('Job', function () {
         'test',
         { foo: 'bar' },
       );
-      await job.update({ baz: 'qux' });
+      await job.updateData({ baz: 'qux' });
 
       const updatedJob = await Job.fromId(queue, job.id);
       expect(updatedJob.data).to.be.eql({ baz: 'qux' });
@@ -207,7 +226,7 @@ describe('Job', function () {
       it('throws error', async function () {
         const job = await Job.create(queue, 'test', { foo: 'bar' });
         await job.remove();
-        await expect(job.update({ foo: 'baz' })).to.be.rejectedWith(
+        await expect(job.updateData({ foo: 'baz' })).to.be.rejectedWith(
           `Missing key for job ${job.id}. updateData`,
         );
       });
@@ -895,7 +914,7 @@ describe('Job', function () {
     });
 
     describe('when lifo option is provided as false', () => {
-      it('moves job to the tail of wait list', async () => {
+      it('moves job to the tail of wait list and has more priority', async () => {
         await queue.pause();
         const job = await Job.create(
           queue,
@@ -922,7 +941,7 @@ describe('Job', function () {
           worker.on(
             'completed',
             after(2, job => {
-              expect(job.name).to.be.eql('test1');
+              expect(job.name).to.be.eql('test2');
               resolve();
             }),
           );
@@ -992,44 +1011,41 @@ describe('Job', function () {
     });
 
     it('should process a promoted job according to its priority', async function () {
-      this.timeout(10000);
+      this.timeout(5000);
+      const completed: string[] = [];
       const worker = new Worker(
         queueName,
-        () => {
-          return delay(100);
+        job => {
+          completed.push(job.id!);
+          return delay(200);
         },
-        { connection },
+        { connection, autorun: false },
       );
       await worker.waitUntilReady();
 
-      const completed: string[] = [];
-
-      const done = new Promise<void>(resolve => {
-        worker.on('completed', job => {
-          completed.push(job.id!);
-          if (completed.length > 3) {
+      const completing = new Promise<void>(resolve => {
+        worker.on(
+          'completed',
+          after(4, () => {
             expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
             resolve();
-          }
-        });
+          }),
+        );
       });
 
-      const processStarted = new Promise(resolve =>
-        worker.on('active', after(2, resolve)),
+      await queue.add('test', {}, { jobId: 'a', priority: 1 });
+      await queue.add('test', {}, { jobId: 'b', priority: 2 });
+      await queue.add('test', {}, { jobId: 'd', priority: 4 });
+      const job = await queue.add(
+        'test',
+        {},
+        { jobId: 'c', delay: 2000, priority: 3 },
       );
-
-      const add = (jobId: string, ms = 0) =>
-        queue.add('test', {}, { jobId, delay: ms, priority: 1 });
-
-      await add('a');
-      await add('b', 1);
-      await processStarted;
-      const job = await add('c', 2000);
-
       await job.promote();
-      await add('d', 1);
 
-      await done;
+      worker.run();
+
+      await completing;
     });
 
     it('should not promote a job that is not delayed', async () => {

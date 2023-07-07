@@ -14,7 +14,7 @@ export class QueueKeys {
       'resumed',
       'id',
       'delayed',
-      'priority',
+      'prioritized',
       'stalled-check',
       'completed',
       'failed',
@@ -26,6 +26,7 @@ export class QueueKeys {
       'meta',
       'events',
       'delay',
+      'pc',
     ].forEach(key => {
       keys[key] = this.toKey(name, key);
     });

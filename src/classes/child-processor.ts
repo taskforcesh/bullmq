@@ -150,7 +150,7 @@ function wrapJob(
     /*
      * Emulate the real job `update` function.
      */
-    update: async (data: any) => {
+    updateData: async (data: any) => {
       send({
         cmd: ParentCommand.Update,
         value: data,

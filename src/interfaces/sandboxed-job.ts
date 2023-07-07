@@ -10,6 +10,6 @@ export interface SandboxedJob<T = any, R = any>
   opts: JobsOptions;
   updateProgress: (value: object | number) => Promise<void>;
   log: (row: any) => void;
-  update: (data: any) => Promise<void>;
+  updateData: (data: any) => Promise<void>;
   returnValue: R;
 }

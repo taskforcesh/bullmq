@@ -331,6 +331,51 @@ describe('Jobs getters', function () {
     await failed;
   });
 
+  describe('.count', () => {
+    describe('when there are prioritized jobs', () => {
+      it('retries count considering prioritized jobs', async () => {
+        await queue.waitUntilReady();
+
+        for (const index of Array.from(Array(8).keys())) {
+          await queue.add('test', { idx: index }, { priority: index + 1 });
+        }
+        await queue.add('test', {});
+
+        const count = await queue.count();
+
+        expect(count).to.be.equal(9);
+      });
+    });
+  });
+
+  describe('.getPrioritized', () => {
+    it('retries prioritized job instances', async () => {
+      await queue.waitUntilReady();
+
+      for (const index of Array.from(Array(8).keys())) {
+        await queue.add('test', { idx: index }, { priority: index + 1 });
+      }
+
+      const prioritizedJobs = await queue.getPrioritized();
+
+      expect(prioritizedJobs.length).to.be.equal(8);
+    });
+  });
+
+  describe('.getPrioritizedCount', () => {
+    it('retries prioritized count', async () => {
+      await queue.waitUntilReady();
+
+      for (const index of Array.from(Array(8).keys())) {
+        await queue.add('test', { idx: index }, { priority: index + 1 });
+      }
+
+      const prioritizedCount = await queue.getPrioritizedCount();
+
+      expect(prioritizedCount).to.be.equal(8);
+    });
+  });
+
   it('should get all failed jobs when no range is provided', async () => {
     const worker = new Worker(
       queueName,
@@ -646,7 +691,8 @@ describe('Jobs getters', function () {
   });
 
   describe('.getJobCounts', () => {
-    it('returns job counts for active, completed, delayed, failed, paused, waiting and waiting-children', async () => {
+    it(`returns job counts for active, completed, delayed, failed, paused, prioritized,
+    waiting and waiting-children`, async () => {
       await queue.waitUntilReady();
 
       let fail = true;
@@ -683,6 +729,7 @@ describe('Jobs getters', function () {
       });
 
       await queue.add('test', { idx: 2 }, { delay: 5000 });
+      await queue.add('test', { idx: 3 }, { priority: 5 });
 
       await completing;
 
@@ -693,6 +740,7 @@ describe('Jobs getters', function () {
         delayed: 1,
         failed: 1,
         paused: 0,
+        prioritized: 1,
         waiting: 1,
         'waiting-children': 1,
       });

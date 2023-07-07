@@ -1,5 +1,7 @@
+import asyncio
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueOptions, RetryJobsOptions, JobOptions
+from bullmq.utils import extract_result
 from bullmq.scripts import Scripts
 from bullmq.job import Job
 
@@ -61,7 +63,7 @@ class Queue:
         """
         Returns true if the queue is currently paused.
         """
-        paused_key_exists = await self.client.hexists(self.opts.get("prefix", f"bull:{self.name}:meta"), "paused")
+        paused_key_exists = await self.client.hexists(f"{self.prefix}:{self.name}:meta", "paused")
         return paused_key_exists == 1
 
     async def obliterate(self, force: bool = False):
@@ -101,7 +103,20 @@ class Queue:
 
         @param maxLength:
         """
-        return self.client.xtrim(self.opts.get("prefix", f"bull:{self.name}:events"), "MAXLEN", "~", maxLength)
+        return self.client.xtrim(f"{self.prefix}:{self.name}:events", maxlen = maxLength, approximate = "~")
+
+    def removeDeprecatedPriorityKey(self):
+        """
+        Delete old priority helper key.
+        """
+        return self.client.delete(f"{self.prefix}:{self.name}:priority")
+
+    async def getJobCountByTypes(self, *types):
+      result = await self.getJobCounts(*types)
+      sum = 0
+      for attribute in result:
+        sum += result[attribute]
+      return sum
 
     async def getJobCounts(self, *types):
         """
@@ -117,6 +132,59 @@ class Queue:
         for index, val in enumerate(responses):
             counts[current_types[index]] = val or 0
         return counts
+
+    def getJobState(self, job_id: str):
+        return self.scripts.getState(job_id)
+
+    def getCompletedCount(self):
+        return self.getJobCountByTypes('completed')
+
+    def getFailedCount(self):
+        return self.getJobCountByTypes('failed')
+
+    def getActive(self, start = 0, end=-1):
+        return self.getJobs(['active'], start, end, True)
+
+    def getCompleted(self, start = 0, end=-1):
+        return self.getJobs(['completed'], start, end, False)
+
+    def getDelayed(self, start = 0, end=-1):
+        return self.getJobs(['delayed'], start, end, True)
+
+    def getFailed(self, start = 0, end=-1):
+        return self.getJobs(['completed'], start, end, False)
+
+    def getPrioritized(self, start = 0, end=-1):
+        return self.getJobs(['prioritized'], start, end, True)
+
+    def getWaiting(self, start = 0, end=-1):
+        return self.getJobs(['waiting'], start, end, True)
+
+    def getWaitingChildren(self, start = 0, end=-1):
+        return self.getJobs(['waiting-children'], start, end, True)
+
+    async def getJobs(self, types, start=0, end=-1, asc:bool=False):
+        current_types = self.sanitizeJobTypes(types)
+        job_ids = await self.scripts.getRanges(current_types, start, end, asc)
+        tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]   
+        job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
+        jobs = [extract_result(job_task) for job_task in job_set]
+        jobs_len = len(jobs)
+
+        # we filter `None` out to remove:
+        jobs = list(filter(lambda j: j is not None, jobs))
+
+        for index, job_id in enumerate(job_ids):
+            pivot_job = jobs[index]
+
+            for i in range(index,jobs_len):
+                current_job = jobs[i]
+                if current_job and current_job.id == job_id:
+                    jobs[index] = current_job
+                    jobs[i] = pivot_job
+                    continue
+
+        return jobs
 
     def sanitizeJobTypes(self, types):
         current_types = list(types)

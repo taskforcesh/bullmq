@@ -46,15 +46,16 @@ export class Scripts {
     this.moveToFinishedKeys = [
       queueKeys.wait,
       queueKeys.active,
-      queueKeys.priority,
+      queueKeys.prioritized,
       queueKeys.events,
       queueKeys.stalled,
       queueKeys.limiter,
       queueKeys.delayed,
       queueKeys.paused,
-      undefined,
-      undefined,
       queueKeys.meta,
+      queueKeys.pc,
+      undefined,
+      undefined,
       undefined,
     ];
   }
@@ -84,9 +85,10 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
-      queueKeys.priority,
+      queueKeys.prioritized,
       queueKeys.completed,
       queueKeys.events,
+      queueKeys.pc,
     ];
 
     const parent: Record<string, any> = job.parent
@@ -147,7 +149,7 @@ export class Scripts {
       dst = 'wait';
     }
 
-    const keys = [src, dst, 'meta'].map((name: string) =>
+    const keys = [src, dst, 'meta', 'prioritized'].map((name: string) =>
       this.queue.toKey(name),
     );
 
@@ -257,9 +259,9 @@ export class Scripts {
     const metricsKey = this.queue.toKey(`metrics:${target}`);
 
     const keys = this.moveToFinishedKeys;
-    keys[8] = queueKeys[target];
-    keys[9] = this.queue.toKey(job.id ?? '');
-    keys[11] = metricsKey;
+    keys[10] = queueKeys[target];
+    keys[11] = this.queue.toKey(job.id ?? '');
+    keys[12] = metricsKey;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
@@ -356,7 +358,7 @@ export class Scripts {
       queueKeys.wait,
       queueKeys.paused,
       delayed ? queueKeys.delayed : '',
-      queueKeys.priority,
+      queueKeys.prioritized,
     ];
 
     const args = [queueKeys['']];
@@ -487,6 +489,7 @@ export class Scripts {
       'wait',
       'paused',
       'waiting-children',
+      'prioritized',
     ].map((key: string) => {
       return this.queue.toKey(key);
     });
@@ -552,7 +555,8 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.paused,
       this.queue.keys.meta,
-      this.queue.keys.priority,
+      this.queue.keys.prioritized,
+      this.queue.keys.pc,
     ];
 
     return keys.concat([
@@ -585,7 +589,7 @@ export class Scripts {
     const keys: (string | number)[] = [
       'wait',
       'active',
-      'priority',
+      'prioritized',
       'delayed',
       jobId,
     ].map(name => {
@@ -729,7 +733,8 @@ export class Scripts {
     keys.push(
       this.queue.keys.events,
       this.queue.keys.delayed,
-      this.queue.keys.priority,
+      this.queue.keys.prioritized,
+      this.queue.keys.pc,
     );
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
@@ -827,19 +832,20 @@ export class Scripts {
     const keys = [
       queueKeys.wait,
       queueKeys.active,
-      queueKeys.priority,
+      queueKeys.prioritized,
       queueKeys.events,
       queueKeys.stalled,
       queueKeys.limiter,
       queueKeys.delayed,
       queueKeys.paused,
       queueKeys.meta,
+      queueKeys.pc,
     ];
 
     const args: (string | number | boolean | Buffer)[] = [
       queueKeys[''],
       Date.now(),
-      jobId,
+      jobId || '',
       pack({
         token,
         lockDuration: opts.lockDuration,
@@ -862,7 +868,8 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.paused,
       this.queue.keys.meta,
-      this.queue.keys.priority,
+      this.queue.keys.prioritized,
+      this.queue.keys.pc,
       this.queue.keys.events,
     ];
 
@@ -924,7 +931,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.limiter,
-      this.queue.keys.priority,
+      this.queue.keys.prioritized,
       this.queue.keys.events,
     ];
 
