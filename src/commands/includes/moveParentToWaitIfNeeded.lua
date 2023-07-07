@@ -31,7 +31,7 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey, p
       if priority == 0 then
         rcall("RPUSH", parentTarget, parentId)
       else
-        addJobWithPriority(parentWaitKey, parentQueueKey .. ":priority", priority, paused,
+        addJobWithPriority(parentWaitKey, parentQueueKey .. ":prioritized", priority, paused,
           parentId, parentQueueKey .. ":pc")
       end
   
