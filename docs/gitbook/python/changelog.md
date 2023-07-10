@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v1.6.1 (2023-07-10)
+### Fix
+* **python:** Add requires-python config (#2056) fixes #1979 ([`a557970`](https://github.com/taskforcesh/bullmq/commit/a557970c755d370ed23850e2f32af35774002bc9))
+
+### Documentation
+* **gitbook:** Update v4 references ([`b0adbf8`](https://github.com/taskforcesh/bullmq/commit/b0adbf857ddf4c39fdd8de53fa60d0f0169a7f7a))
+
 ## v1.6.0 (2023-07-06)
 ### Feature
 * **python:** Add moveToWaitingChildren job method ([#2049](https://github.com/taskforcesh/bullmq/issues/2049)) ([`6d0e224`](https://github.com/taskforcesh/bullmq/commit/6d0e224cd985069055786f447b0ba7c394a76b8a))
