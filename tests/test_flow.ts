@@ -2310,6 +2310,17 @@ describe('flows', () => {
           connection,
         },
       );
+      const queueEvents = new QueueEvents(topQueueName, { connection });
+      await queueEvents.waitUntilReady();
+
+      const delayed = new Promise<void>(resolve => {
+        queueEvents.on('delayed', async ({ jobId, delay }) => {
+          const milliseconds = delay - Date.now();
+          expect(milliseconds).to.be.lessThanOrEqual(3000);
+          expect(milliseconds).to.be.greaterThan(2000);
+          resolve();
+        });
+      });
 
       const completed = new Promise<void>((resolve, reject) => {
         childrenWorker.on('completed', async function () {
@@ -2371,6 +2382,7 @@ describe('flows', () => {
       expect(children[0].job.data.foo).to.be.eql('bar');
 
       await completed;
+      await delayed;
       await childrenWorker.close();
 
       const isDelayed = await job.isDelayed();
