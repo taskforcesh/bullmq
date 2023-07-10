@@ -1,3 +1,17 @@
+## [4.2.1](https://github.com/taskforcesh/bullmq/compare/v4.2.0...v4.2.1) (2023-07-10)
+
+
+### Bug Fixes
+
+* **flow:** emit delayed event when parent is moved to delayed ([#2055](https://github.com/taskforcesh/bullmq/issues/2055)) ([f419ff1](https://github.com/taskforcesh/bullmq/commit/f419ff1ec5cb34986fe4b79402c727a6487e949c))
+* **python:** add requires-python config ([#2056](https://github.com/taskforcesh/bullmq/issues/2056)) fixes [#1979](https://github.com/taskforcesh/bullmq/issues/1979) ([a557970](https://github.com/taskforcesh/bullmq/commit/a557970c755d370ed23850e2f32af35774002bc9))
+* **python:** fix isPaused method when custom prefix is present ([#2047](https://github.com/taskforcesh/bullmq/issues/2047)) ([7ec1c5b](https://github.com/taskforcesh/bullmq/commit/7ec1c5b2ccbd575ecd50d339f5377e204ca7aa16))
+
+
+### Features
+
+* **python:** add moveToWaitingChildren job method ([#2049](https://github.com/taskforcesh/bullmq/issues/2049)) ([6d0e224](https://github.com/taskforcesh/bullmq/commit/6d0e224cd985069055786f447b0ba7c394a76b8a))
+
 # [4.2.0](https://github.com/taskforcesh/bullmq/compare/v4.1.0...v4.2.0) (2023-07-03)
 
 
