@@ -96,7 +96,7 @@ jobs:
       matrix:
         node-version: [lts/*]
         redis-version: [7-alpine]
-        python-version: ['3.10']
+        python-version: ['3.9', '3.10']
 
     steps:
       - name: Checkout repository
