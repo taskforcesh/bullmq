@@ -26,15 +26,17 @@ local function updateParentDepsIfNeeded(parentKey, parentQueueKey, parentDepende
       local parentDelayedKey = parentQueueKey .. ":delayed" 
       rcall("ZADD", parentDelayedKey, score, parentId)
 
+      rcall("XADD", parentQueueKey .. ":events", "*", "event", "delayed", "jobId", parentId,
+        "delay", delayedTimestamp)
       addDelayMarkerIfNeeded(parentTarget, parentDelayedKey)
-    -- Standard or priority add
-    elseif priority == 0 then
-      rcall("RPUSH", parentTarget, parentId)
     else
-      addJobWithPriority(parentWaitKey, parentQueueKey .. ":prioritized", priority, paused,
-        parentId, parentQueueKey .. ":pc")
+      if priority == 0 then
+        rcall("RPUSH", parentTarget, parentId)
+      else
+        addJobWithPriority(parentWaitKey, parentQueueKey .. ":prioritized", priority, paused,
+          parentId, parentQueueKey .. ":pc")
+      end
+      rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
     end
-
-    rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting", "jobId", parentId, "prev", "waiting-children")
   end
 end
