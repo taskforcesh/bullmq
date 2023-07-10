@@ -12,7 +12,7 @@ have been ported so far:
 - [ ] Add jobs to queues.
 
   - [x] Regular jobs.
-  - [ ] Delayed jobs.
+  - [x] Delayed jobs.
   - [ ] Job priority.
   - [ ] Repeatable.
 
@@ -20,7 +20,7 @@ have been ported so far:
 - [ ] Job events.
 - [x] Job progress.
 - [ ] Job retries.
-- [ ] Job backoff.
+- [x] Job backoff.
 - [x] Getters.
 
 ## Installation
