@@ -50,6 +50,7 @@ class Job:
         self.returnvalue = None
         self.failedReason = None
         self.repeatJobKey = None
+        self.token: str = None
         parent = opts.get("parent")
         self.parentKey = get_parent_key(parent)
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
