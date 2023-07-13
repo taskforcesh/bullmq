@@ -492,6 +492,8 @@ export class Job<
    * Completely remove the job from the queue.
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
+   *
+   * @param opts - Options to remove a job
    */
   async remove({ removeChildren = false } = {}): Promise<void> {
     await this.queue.waitUntilReady();

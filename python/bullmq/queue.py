@@ -136,6 +136,9 @@ class Queue:
     def getJobState(self, job_id: str):
         return self.scripts.getState(job_id)
 
+    def remove(self, job_id: str, opts: dict = {}):
+        return self.scripts.remove(job_id, opts.get("removeChildre", True))
+
     def getCompletedCount(self):
         return self.getJobCountByTypes('completed')
 

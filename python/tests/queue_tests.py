@@ -368,6 +368,14 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
         await worker.close()
 
+    async def test_remove_job(self):
+        queue = Queue(queueName)
+        job = await queue.add("test", {"foo": "bar"}, {})
+        await queue.remove(job.id)
+        job = await Job.fromId(queue, job.id)
+        self.assertIsNone(job)
+
+        await queue.close()
 
 if __name__ == '__main__':
     unittest.main()

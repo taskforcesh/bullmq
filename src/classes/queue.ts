@@ -352,11 +352,12 @@ export class Queue<
    * dependencies.
    *
    * @param jobId - The id of the job to remove
+   * @param opts - Options to remove a job
    * @returns 1 if it managed to remove the job or 0 if the job or
    * any of its dependencies were locked.
    */
-  remove(jobId: string): Promise<number> {
-    return this.scripts.remove(jobId);
+  remove(jobId: string, { removeChildren = true } = {}): Promise<number> {
+    return this.scripts.remove(jobId, removeChildren);
   }
 
   /**
