@@ -4,7 +4,9 @@
 
     Input:
       KEYS[1] queue prefix
+
       ARGV[1] jobId
+      ARGV[2] remove children
 
     Events:
       'removed'
@@ -18,32 +20,34 @@ local rcall = redis.call
 --- @include "includes/removeJobFromAnyState"
 --- @include "includes/removeParentDependencyKey"
 
-local function removeJob( prefix, jobId, parentKey)
+local function removeJob( prefix, jobId, parentKey, removeChildren)
     local jobKey = prefix .. jobId;
 
     removeParentDependencyKey(jobKey, false, parentKey)
 
-    -- Check if this job has children
-    -- If so, we are going to try to remove the children recursively in deep first way because
-    -- if some job is locked we must exit with and error.
-    --local countProcessed = rcall("HLEN", jobKey .. ":processed")
-    local processed = rcall("HGETALL", jobKey .. ":processed")
+    if (removeChildren == "1") then
+        -- Check if this job has children
+        -- If so, we are going to try to remove the children recursively in deep first way because
+        -- if some job is locked we must exit with and error.
+        --local countProcessed = rcall("HLEN", jobKey .. ":processed")
+        local processed = rcall("HGETALL", jobKey .. ":processed")
 
-    if (#processed > 0) then
-        for i = 1, #processed, 2 do
-            local childJobId = getJobIdFromKey(processed[i])
-            local childJobPrefix = getJobKeyPrefix(processed[i], childJobId)
-            removeJob( childJobPrefix, childJobId, jobKey )
+        if (#processed > 0) then
+            for i = 1, #processed, 2 do
+                local childJobId = getJobIdFromKey(processed[i])
+                local childJobPrefix = getJobKeyPrefix(processed[i], childJobId)
+                removeJob( childJobPrefix, childJobId, jobKey )
+            end
         end
-    end
 
-    local dependencies = rcall("SMEMBERS", jobKey .. ":dependencies")
-    if (#dependencies > 0) then
-        for i, childJobKey in ipairs(dependencies) do
-            -- We need to get the jobId for this job.
-            local childJobId = getJobIdFromKey(childJobKey)
-            local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
-            removeJob( childJobPrefix, childJobId, jobKey )
+        local dependencies = rcall("SMEMBERS", jobKey .. ":dependencies")
+        if (#dependencies > 0) then
+            for i, childJobKey in ipairs(dependencies) do
+                -- We need to get the jobId for this job.
+                local childJobId = getJobIdFromKey(childJobKey)
+                local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
+                removeJob( childJobPrefix, childJobId, jobKey )
+            end
         end
     end
 
@@ -64,8 +68,8 @@ end
 
 local prefix = KEYS[1]
 
-if not isLocked(prefix, ARGV[1]) then
-    removeJob(prefix, ARGV[1])
+if not isLocked(prefix, ARGV[1], ARGV[2]) then
+    removeJob(prefix, ARGV[1], nil, ARGV[2])
     return 1
 end
 return 0
