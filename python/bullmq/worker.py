@@ -40,6 +40,7 @@ class Worker(EventEmitter):
         self.running = False
         self.processing = set()
         self.jobs = set()
+        self.id = uuid4().hex
 
         if opts.get("autorun", True):
             asyncio.ensure_future(self.run())
@@ -55,15 +56,17 @@ class Worker(EventEmitter):
         self.running = True
         jobs = []
 
-        token = uuid4().hex
+        token_postfix = 0
 
         while not self.closed:
             if len(jobs) == 0 and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+                token_postfix+=1
+                token = f'{self.id}:{token_postfix}'
                 waiting_job = asyncio.ensure_future(self.getNextJob(token))
                 self.processing.add(waiting_job)
 
             if len(jobs) > 0:
-                jobs_to_process = [self.processJob(job, token) for job in jobs]
+                jobs_to_process = [self.processJob(job, job.token) for job in jobs]
                 processing_jobs = [asyncio.ensure_future(
                     j) for j in jobs_to_process]
                 self.processing.update(processing_jobs)
@@ -117,7 +120,9 @@ class Worker(EventEmitter):
                 job, job_id, limit_until, delay_until = await self.scripts.moveToActive(token, self.opts, job_id)
 
         if job and job_id:
-            return Job.fromJSON(self, job, job_id)
+            job_instance = Job.fromJSON(self, job, job_id)
+            job_instance.token = token
+            return job_instance
 
     async def processJob(self, job: Job, token: str):
         try:
