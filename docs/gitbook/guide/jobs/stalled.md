@@ -6,6 +6,7 @@ Stalled jobs checks will only work if there is at least one [`QueueScheduler`](.
 
 {% hint style="danger" %}
 From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore.
+For manually fetching jobs check this [pattern](https://docs.bullmq.io/patterns/manually-fetching-jobs#checking-for-stalled-jobs)
 {% endhint %}
 
 When a job is in an active state, i.e., it is being processed by a worker, it needs to continuously update the queue to notify that the worker is still working on the job. This mechanism prevents a worker that crashes or enters an endless loop from keeping a job in an active state forever.
