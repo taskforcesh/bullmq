@@ -272,6 +272,54 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await parent_queue.close()
         await queue.close()
 
+    async def test_process_job_respecting_the_concurrency_set(self):
+        num_jobs_processing = 0
+        pending_message_to_process = 8
+        wait = 0.01
+        job_count = 0
+        queue = Queue(queueName)
+
+        async def process(job: Job, token: str):
+            nonlocal num_jobs_processing
+            nonlocal wait 
+            nonlocal pending_message_to_process
+            num_jobs_processing += 1
+            #print('hola', num_jobs_processing)
+            #self.assertLess(num_jobs_processing, 5)
+            #print('que', wait)
+            wait += 0.1
+            await asyncio.sleep(wait)
+            #print('tal', pending_message_to_process)
+            #self.assertEqual(num_jobs_processing, min(pending_message_to_process, 4))
+            #print('habla')
+            pending_message_to_process -= 1
+            num_jobs_processing -= 1
+            #print('salida', num_jobs_processing, pending_message_to_process)
+            
+            return None
+
+        for index in range(8):
+            await queue.add("test", data={})
+
+        worker = Worker(queueName, process, {"concurrency": 4 })
+
+        completed_events = Future()
+
+        def completing(job: Job, result):
+            completed_events.set_result(None)
+
+        def completing(job: Job, result):
+            nonlocal job_count
+            if job_count == 7:
+                completed_events.set_result(None)
+            job_count += 1
+
+        worker.on("completed", completing)
+
+        await completed_events
+
+        await queue.close()
+        await worker.close()
 
 if __name__ == '__main__':
     unittest.main()
