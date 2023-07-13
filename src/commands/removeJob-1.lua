@@ -25,7 +25,7 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
 
     removeParentDependencyKey(jobKey, false, parentKey)
 
-    if (removeChildren == "1") then
+    if removeChildren == "1" then
         -- Check if this job has children
         -- If so, we are going to try to remove the children recursively in deep first way because
         -- if some job is locked we must exit with and error.
@@ -36,7 +36,7 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
             for i = 1, #processed, 2 do
                 local childJobId = getJobIdFromKey(processed[i])
                 local childJobPrefix = getJobKeyPrefix(processed[i], childJobId)
-                removeJob( childJobPrefix, childJobId, jobKey )
+                removeJob( childJobPrefix, childJobId, jobKey, removeChildren )
             end
         end
 
@@ -46,7 +46,7 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
                 -- We need to get the jobId for this job.
                 local childJobId = getJobIdFromKey(childJobKey)
                 local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
-                removeJob( childJobPrefix, childJobId, jobKey )
+                removeJob( childJobPrefix, childJobId, jobKey, removeChildren )
             end
         end
     end

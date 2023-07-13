@@ -495,7 +495,7 @@ export class Job<
    *
    * @param opts - Options to remove a job
    */
-  async remove({ removeChildren = false } = {}): Promise<void> {
+  async remove({ removeChildren = true } = {}): Promise<void> {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
