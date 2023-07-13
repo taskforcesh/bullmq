@@ -284,21 +284,16 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             nonlocal wait 
             nonlocal pending_message_to_process
             num_jobs_processing += 1
-            #print('hola', num_jobs_processing)
-            #self.assertLess(num_jobs_processing, 5)
-            #print('que', wait)
+            self.assertLess(num_jobs_processing, 5)
             wait += 0.1
             await asyncio.sleep(wait)
-            #print('tal', pending_message_to_process)
-            #self.assertEqual(num_jobs_processing, min(pending_message_to_process, 4))
-            #print('habla')
+            self.assertEqual(num_jobs_processing, min(pending_message_to_process, 4))
             pending_message_to_process -= 1
             num_jobs_processing -= 1
-            #print('salida', num_jobs_processing, pending_message_to_process)
-            
+
             return None
 
-        for index in range(8):
+        for _ in range(8):
             await queue.add("test", data={})
 
         worker = Worker(queueName, process, {"concurrency": 4 })

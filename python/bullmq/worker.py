@@ -59,21 +59,19 @@ class Worker(EventEmitter):
         token_postfix = 0
 
         while not self.closed:
-            if len(jobs) == 0 and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+            while len(self.processing) < self.opts.get("concurrency") and not self.closing:
                 token_postfix+=1
                 token = f'{self.id}:{token_postfix}'
                 waiting_job = asyncio.ensure_future(self.getNextJob(token))
                 self.processing.add(waiting_job)
 
-            if len(jobs) > 0:
-                jobs_to_process = [self.processJob(job, job.token) for job in jobs]
-                processing_jobs = [asyncio.ensure_future(
-                    j) for j in jobs_to_process]
-                self.processing.update(processing_jobs)
-
             try:
                 jobs, pending = await getCompleted(self.processing)
 
+                jobs_to_process = [self.processJob(job, job.token) for job in jobs]
+                processing_jobs = [asyncio.ensure_future(
+                    j) for j in jobs_to_process]
+                pending.update(processing_jobs)
                 self.processing = pending
 
                 if (len(jobs) == 0 or len(self.processing) == 0) and self.closing:
@@ -181,11 +179,10 @@ class Worker(EventEmitter):
         """
         Close the worker
         """
+        self.closing = True
         if force:
             self.forceClosing = True
             self.cancelProcessing()
-
-        self.closing = True
 
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
@@ -196,7 +193,7 @@ class Worker(EventEmitter):
                 job.cancel()
 
 
-async def getCompleted(task_set: set) -> tuple[list[Job], list]:
+async def getCompleted(task_set: set) -> tuple[list[Job], set]:
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
     jobs = [extract_result(job_task) for job_task in job_set]
     # we filter `None` out to remove:
