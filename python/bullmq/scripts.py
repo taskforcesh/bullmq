@@ -223,9 +223,9 @@ class Scripts:
                 raise self.finishedErrors(result, job_id, 'moveToDelayed', 'active')
         return None
 
-    def remove(self, job_id: str):
+    def remove(self, job_id: str, remove_children: bool):
         keys = self.getKeys([''])
-        args = [job_id]
+        args = [job_id, 1 if remove_children else 0]
 
         return self.commands["removeJob"](keys=keys, args=args)
 
