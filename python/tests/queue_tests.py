@@ -92,6 +92,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(isPaused, False)
 
+        await queue.obliterate()
         await queue.close()
 
     async def test_trim_events_manually(self):
@@ -128,6 +129,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(events_length, 0)
 
+        await queue.obliterate()
         await queue.close()
 
     async def test_retry_failed_jobs(self):
