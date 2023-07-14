@@ -1377,6 +1377,8 @@ describe('flows', () => {
             return resolve();
           }
 
+          await delay(200);
+
           throw new Error('failed');
         };
       });
