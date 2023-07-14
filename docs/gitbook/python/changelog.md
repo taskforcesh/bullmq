@@ -2,6 +2,18 @@
 
 <!--next-version-placeholder-->
 
+## v1.7.0 (2023-07-14)
+### Feature
+* **python:** Add remove method in queue ([#2066](https://github.com/taskforcesh/bullmq/issues/2066)) ([`808ee72`](https://github.com/taskforcesh/bullmq/commit/808ee7231c75d4d826881f25e346f01b2fd2dc23))
+* **worker:** Add id as part of token ([#2061](https://github.com/taskforcesh/bullmq/issues/2061)) ([`e255356`](https://github.com/taskforcesh/bullmq/commit/e2553562271e1e4143a8fef616349bb30de4899d))
+
+### Fix
+* **flow:** Emit delayed event when parent is moved to delayed ([#2055](https://github.com/taskforcesh/bullmq/issues/2055)) ([`f419ff1`](https://github.com/taskforcesh/bullmq/commit/f419ff1ec5cb34986fe4b79402c727a6487e949c))
+
+### Documentation
+* **stalled:** Add pattern reference for manual fetching jobs ([`a82401c`](https://github.com/taskforcesh/bullmq/commit/a82401c00cc7378cdf8206b5c74afeaaead39c2c))
+* **bullmq-pro:** Update changelog to v6.0.5 ([`37c203c`](https://github.com/taskforcesh/bullmq/commit/37c203c303e00a2aa4d8933bc5e68239547b1aca))
+
 ## v1.6.1 (2023-07-10)
 ### Fix
 * **pyproject:** Add requires-python config (#2056) fixes #1979 ([`a557970`](https://github.com/taskforcesh/bullmq/commit/a557970c755d370ed23850e2f32af35774002bc9))
