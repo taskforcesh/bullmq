@@ -205,7 +205,8 @@ class Job:
     async def fromId(queue: Queue, jobId: str):
         key = f"{queue.prefix}:{queue.name}:{jobId}"
         raw_data = await queue.client.hgetall(key)
-        return Job.fromJSON(queue, raw_data, jobId)
+        if len(raw_data):
+            return Job.fromJSON(queue, raw_data, jobId)
 
 
 def optsFromJSON(rawOpts: dict) -> dict:
