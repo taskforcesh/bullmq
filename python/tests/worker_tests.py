@@ -301,9 +301,6 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         completed_events = Future()
 
         def completing(job: Job, result):
-            completed_events.set_result(None)
-
-        def completing(job: Job, result):
             nonlocal job_count
             if job_count == 7:
                 completed_events.set_result(None)
