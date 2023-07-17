@@ -91,8 +91,9 @@ export class Scripts {
       queueKeys.pc,
     ];
 
-    const fpof = opts.fpof ? { fpof: true } : {};
-    const parent = job.parent ? { ...job.parent, ...fpof } : null;
+    const parent: Record<string, any> = job.parent
+      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof }
+      : null;
 
     const args = [
       queueKeys[''],
@@ -284,6 +285,7 @@ export class Scripts {
           ? opts.metrics?.maxDataPoints
           : '',
         fpof: !!job.opts?.failParentOnFailure,
+        rdof: !!job.opts?.removeDependencyOnFailure,
       }),
     ];
 

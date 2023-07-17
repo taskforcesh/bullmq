@@ -2,6 +2,9 @@
   Function to recursively move from waitingChildren to failed.
 ]]
 
+-- Includes
+--- @include "moveParentToWaitIfNeeded"
+
 local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
   if rcall("ZREM", parentQueueKey .. ":waiting-children", parentId) == 1 then
     rcall("ZADD", parentQueueKey .. ":failed", timestamp, parentId)
@@ -22,6 +25,13 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
           parentKey,
           timestamp
         )
+      elseif parentData['rdof'] then
+        local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
+        local grandParentDependenciesSet = grandParentKey .. ":dependencies"
+        if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
+          moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
+            grandParentKey, parentData['id'], timestamp)
+        end
       end
     end
   end
