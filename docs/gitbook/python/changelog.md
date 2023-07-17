@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v1.8.0 (2023-07-17)
+### Feature
+* **job:** Add removeDependencyOnFailure option ([#1953](https://github.com/taskforcesh/bullmq/issues/1953)) ([`ffd49e2`](https://github.com/taskforcesh/bullmq/commit/ffd49e289c57252487200d47b92193228ae7451f))
+
+### Fix
+* **python:** Respect concurrency in worker (#2062) fixes #2063 ([`1b95185`](https://github.com/taskforcesh/bullmq/commit/1b95185e8f4a4349037b59e61455bdec79792644))
+
 ## v1.7.0 (2023-07-14)
 ### Feature
 * **python:** Add remove method in queue ([#2066](https://github.com/taskforcesh/bullmq/issues/2066)) ([`808ee72`](https://github.com/taskforcesh/bullmq/commit/808ee7231c75d4d826881f25e346f01b2fd2dc23))
