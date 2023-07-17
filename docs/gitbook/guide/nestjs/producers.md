@@ -1,3 +1,5 @@
+# Producers
+
 Job producers add jobs to queues. Producers are typically application services (Nest providers). To add jobs to a queue, first inject the queue into the service as follows:
 
 ```typescript
@@ -18,12 +20,12 @@ The **@InjectQueue()** decorator identifies the queue by its name, as provided i
 Now, add a job by calling the queue's add() method.
 
 ```typescript
-const job = await this.audioQueue.add({
+const job = await this.audioQueue.add('sample', {
   foo: 'bar',
 });
 ```
 
-# Flow Producers
+## Flow Producers
 
 To add flows, first inject the flow producer into the service as follows:
 
@@ -61,6 +63,6 @@ const job = await this.fooFlowProducer.add({
 });
 ```
 
-## Read more:
+### Read more:
 
-- 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)
+* 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)
