@@ -286,7 +286,7 @@ class Scripts:
         keys.append(self.keys['wait'])
         keys.append(self.keys['meta'])
         keys.append(self.keys['paused'])
-        
+
         args = [
             job.id,
             ("R" if job.opts.get("lifo") else "L") + "PUSH",
@@ -333,7 +333,7 @@ class Scripts:
         result = await self.commands["retryJobs"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
         return result
 
-    async def moveToActive(self, token: str, opts: dict, jobId: str = "") -> list[Any]:
+    async def moveToActive(self, token: str, opts: dict, jobId: str = None) -> list[Any]:
         """
         Add an item to the queue
         """
