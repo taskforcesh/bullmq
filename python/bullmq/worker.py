@@ -131,22 +131,23 @@ class Worker(EventEmitter):
         delay_until: int = 0, token: str = None):
         self.limitUntil = max(limit_until, 0) or 0
 
-        if delay_until:
-            self.blockUntil = max(delay_until, 0) or 0
-
         if not job_data:
             if not self.drained:
                 self.drained = True
                 self.blockUntil = 0
-        else:
+
+        if delay_until:
+            self.blockUntil = max(delay_until, 0) or 0
+
+        if job_data:
             self.drained = False
             job_instance = Job.fromJSON(self, job_data, job_id)
             job_instance.token = token
             return job_instance
 
     async def waitForJob(self):
-        timeout = min(self.blockUntil - int(time.time() * 1000)
-                        if self.blockUntil else 5000, 5000) / 1000
+        timeout = max(min(self.blockUntil - int(time.time() * 1000)
+                        if self.blockUntil else 5000, 5000) / 1000, 0.00001)
 
         redis_version = await self.blockingRedisConnection.getRedisVersion()
         # Only Redis v6.0.0 and above supports doubles as block time
