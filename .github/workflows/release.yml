@@ -10,6 +10,7 @@ env:
 jobs:
   release:
     permissions:
+      id-token: write
       contents: write # for release publishing
 
     name: Release
@@ -51,14 +52,18 @@ jobs:
           flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-      - name: Release Python
-        if: ${{ contains(env.commitmsg, '(python)') }}
-        run: |
-          cd python
-          pip install packaging
-          git config --global user.email "manast@taskforce.sh"
-          git config --global user.name "manast"
-          export VERSION=$(semantic-release print-version)
-          if [ ! -z "$VERSION" ]; then
-            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} PYPI_TOKEN=${{ secrets.PYPI_TOKEN }} semantic-release publish
-          fi
+      - name: Python Semantic Release
+        uses: python-semantic-release/python-semantic-release@master
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish package distributions to PyPI
+        id: pypi-publish
+
+        # NOTE: DO NOT wrap the conditional in ${{ }} as it will always evaluate to true.
+        # See https://github.com/actions/runner/issues/1173
+        if: steps.release.outputs.released == 'true'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          verbose: true
+          user: ${{ secrets.PYPI_USERNAME }}
+          password: ${{ secrets.PYPI_PASSWORD }}
