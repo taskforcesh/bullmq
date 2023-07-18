@@ -27,3 +27,9 @@ try {
 }
 
 ```
+
+
+
+{% hint style="info" %}
+The maxSize option is not yet available for "addBulk".
+{% endhint %}
