@@ -78,8 +78,8 @@ class Job:
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)
 
-    async def remove(self):
-        removed = await self.scripts.remove(self.id)
+    async def remove(self, opts: dict = {}):
+        removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
         
         if not removed:
             raise Exception(f"Could not remove job {self.id}")

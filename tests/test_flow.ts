@@ -2741,7 +2741,7 @@ describe('flows', () => {
     });
   });
 
-  describe('remove', () => {
+  describe('.remove', () => {
     it('should remove all children when removing a parent', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
       const name = 'child-job';
@@ -2804,6 +2804,74 @@ describe('flows', () => {
       await flow.close();
       await parentQueue.close();
       await removeAllQueueData(new IORedis(), parentQueueName);
+    });
+
+    describe('when removeChildren option is provided as false', () => {
+      it('does not remove any children when removing a parent', async () => {
+        const parentQueueName = `parent-queue-${v4()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            { name, data: { idx: 0, foo: 'bar' }, queueName },
+            {
+              name,
+              data: { idx: 0, foo: 'baz' },
+              queueName,
+              children: [{ name, data: { idx: 0, foo: 'qux' }, queueName }],
+            },
+          ],
+        });
+
+        expect(await tree.job.getState()).to.be.equal('waiting-children');
+
+        expect(await tree.children[0].job.getState()).to.be.equal('waiting');
+        expect(await tree.children[1].job.getState()).to.be.equal(
+          'waiting-children',
+        );
+
+        expect(await tree.children[1].children[0].job.getState()).to.be.equal(
+          'waiting',
+        );
+
+        for (let i = 0; i < tree.children.length; i++) {
+          const child = tree.children[i];
+          const childJob = await Job.fromId(queue, child.job.id);
+          expect(childJob.parent).to.deep.equal({
+            id: tree.job.id,
+            queueKey: `bull:${parentQueueName}`,
+          });
+        }
+
+        await tree.job.remove({ removeChildren: false });
+
+        const parentQueue = new Queue(parentQueueName, { connection });
+        const parentJob = await Job.fromId(parentQueue, tree.job.id);
+        expect(parentJob).to.be.undefined;
+
+        for (let i = 0; i < tree.children.length; i++) {
+          const child = tree.children[i];
+          const childJob = await Job.fromId(queue, child.job.id);
+          expect(childJob).to.not.be.undefined;
+        }
+
+        expect(await tree.children[0].job.getState()).to.be.equal('waiting');
+        expect(await tree.children[1].job.getState()).to.be.equal(
+          'waiting-children',
+        );
+        expect(await tree.job.getState()).to.be.equal('unknown');
+
+        const jobs = await queue.getJobCountByTypes('waiting');
+        expect(jobs).to.be.equal(2);
+
+        await flow.close();
+        await parentQueue.close();
+        await removeAllQueueData(new IORedis(), parentQueueName);
+      });
     });
 
     describe('when there are processed children', () => {

@@ -181,11 +181,13 @@ export class Scripts {
     return (<any>client).removeRepeatable(args);
   }
 
-  async remove(jobId: string): Promise<number> {
+  async remove(jobId: string, removeChildren: boolean): Promise<number> {
     const client = await this.queue.client;
 
-    const keys = [''].map(name => this.queue.toKey(name));
-    return (<any>client).removeJob(keys.concat([jobId]));
+    const keys: (string | number)[] = [''].map(name => this.queue.toKey(name));
+    return (<any>client).removeJob(
+      keys.concat([jobId, removeChildren ? 1 : 0]),
+    );
   }
 
   async extendLock(

@@ -493,14 +493,16 @@ export class Job<
    * Completely remove the job from the queue.
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
+   *
+   * @param opts - Options to remove a job
    */
-  async remove(): Promise<void> {
+  async remove({ removeChildren = true } = {}): Promise<void> {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
     const job = this;
 
-    const removed = await this.scripts.remove(job.id);
+    const removed = await this.scripts.remove(job.id, removeChildren);
     if (removed) {
       queue.emit('removed', job);
     } else {
