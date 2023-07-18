@@ -10,17 +10,17 @@ You can use the "maxSize" option when adding jobs to a group like this:
 import { QueuePro, GroupMaxSizeExceededError } from '@taskforcesh/bullmq-pro';
 
 const queue = new QueuePro('myQueue', { connection });
-
+const groupId = 'my group';
 try {
   await queue.add('paint', { foo: 'bar' }, {
       group: {
-        id: '1',
+        id: groupId,
         maxSize: 7,
       },
     });
 } catch (err) {
   if (err instanceof GroupMaxSizeExceededError){
-    console.log(roup ${}`)
+    console.log(`Job discarded for group ${groupId}`)
   } else {
     throw err;
   }
