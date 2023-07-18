@@ -1,3 +1,15 @@
+# [4.5.0](https://github.com/taskforcesh/bullmq/compare/v4.4.0...v4.5.0) (2023-07-18)
+
+
+### Bug Fixes
+
+* **python:** respect concurrency in worker ([#2062](https://github.com/taskforcesh/bullmq/issues/2062)) fixes [#2063](https://github.com/taskforcesh/bullmq/issues/2063) ([1b95185](https://github.com/taskforcesh/bullmq/commit/1b95185e8f4a4349037b59e61455bdec79792644))
+
+
+### Features
+
+* **job:** add option for removing children in remove method (python) ([#2064](https://github.com/taskforcesh/bullmq/issues/2064)) ([841dc87](https://github.com/taskforcesh/bullmq/commit/841dc87a689897df81438ad1f43e45a4da77c388))
+
 # [4.4.0](https://github.com/taskforcesh/bullmq/compare/v4.3.0...v4.4.0) (2023-07-17)
 
 
