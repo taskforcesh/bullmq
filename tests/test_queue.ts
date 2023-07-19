@@ -647,4 +647,43 @@ describe('queues', function () {
       });
     });
   });
+
+  describe('.promoteJobs', () => {
+    it('promotes all delayed jobs by default', async () => {
+      await queue.waitUntilReady();
+      const jobCount = 8;
+
+      for (let i = 0; i < jobCount; i++) {
+        await queue.add('test', { idx: i }, { delay: 10000 });
+      }
+
+      const delayedCount = await queue.getJobCounts('delayed');
+      expect(delayedCount.delayed).to.be.equal(jobCount);
+
+      await queue.promoteJobs();
+
+      const waitingCount = await queue.getJobCounts('waiting');
+      expect(waitingCount.waiting).to.be.equal(jobCount);
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(10);
+        },
+        { connection },
+      );
+      await worker.waitUntilReady();
+
+      const completing = new Promise<number>(resolve => {
+        worker.on('completed', after(jobCount, resolve));
+      });
+
+      await completing;
+
+      const promotedCount = await queue.getJobCounts('delayed');
+      expect(promotedCount.delayed).to.be.equal(0);
+
+      await worker.close();
+    });
+  });
 });
