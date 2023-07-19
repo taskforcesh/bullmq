@@ -430,8 +430,11 @@ export class Queue<
   /**
    * Retry all the failed jobs.
    *
-   * @param opts - contains number to limit how many jobs will be moved to wait status per iteration,
-   * state (failed, completed) failed by default or from which timestamp.
+   * @param opts: { count: number; state: FinishedStatus; timestamp: number}
+   *   - count  number to limit how many jobs will be moved to wait status per iteration,
+   *   - state  failed by default or completed.
+   *   - timestamp from which timestamp to start moving jobs to wait status, default Date.now().
+   *
    * @returns
    */
   async retryJobs(
@@ -444,6 +447,21 @@ export class Queue<
         opts.count,
         opts.timestamp,
       );
+    } while (cursor);
+  }
+
+  /**
+   * Promote all the delayed jobs.
+   *
+   * @param opts: { count: number }
+   *   - count  number to limit how many jobs will be moved to wait status per iteration
+   *
+   * @returns
+   */
+  async promoteJobs(opts: { count?: number } = {}): Promise<void> {
+    let cursor = 0;
+    do {
+      cursor = await this.scripts.promoteJobs(opts.count);
     } while (cursor);
   }
 
