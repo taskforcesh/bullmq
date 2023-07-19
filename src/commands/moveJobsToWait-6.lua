@@ -1,8 +1,7 @@
 --[[
-  Attempts to retry all jobs
+  Move completed, failed or delayed jobs to wait.
 
-  Note: as this script now can be used also for completed and delayed jobs, the name "retry" 
-  is not really accurate anymore.
+  Note: Does not support jobs with priorities.
 
   Input:
     KEYS[1] base key
@@ -40,9 +39,7 @@ if (#jobs > 0) then
             local jobKey = KEYS[1] .. key
             rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason")
         end
-    end
-
-    if KEYS[3]:match("completed$") then
+    elseif KEYS[3]:match("completed$") then
         for i, key in ipairs(jobs) do
             local jobKey = KEYS[1] .. key
             rcall("HDEL", jobKey, "finishedOn", "processedOn", "returnvalue")
@@ -65,8 +62,6 @@ end
 
 maxCount = maxCount - #jobs
 
-if (maxCount <= 0) then 
-  return 1 
-end
+if (maxCount <= 0) then return 1 end
 
 return 0
