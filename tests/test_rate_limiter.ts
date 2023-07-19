@@ -383,8 +383,8 @@ describe('Rate Limiter', function () {
       await worker.close();
     });
 
-    describe('when dynamic limit is used', () => {
-      it('should obey the rate limit', async function () {
+    describe('when reaching max attempts and we want to move the job to failed', () => {
+      it('should throw Unrecoverable error', async function () {
         const dynamicLimit = 550;
         const duration = 100;
         const margin = 0.95; // 5% margin for CI
