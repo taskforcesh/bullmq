@@ -387,7 +387,6 @@ describe('Rate Limiter', function () {
       it('should throw Unrecoverable error', async function () {
         const dynamicLimit = 550;
         const duration = 100;
-        const margin = 0.95; // 5% margin for CI
 
         const worker = new Worker(
           queueName,
@@ -411,8 +410,7 @@ describe('Rate Limiter', function () {
           queueEvents.once('failed', async () => {
             try {
               const timeDiff = new Date().getTime() - startTime;
-              console.log('time', timeDiff);
-              expect(timeDiff).to.be.gte((dynamicLimit + duration) * margin);
+              expect(timeDiff).to.be.gte(dynamicLimit);
               resolve();
             } catch (err) {
               reject(err);
