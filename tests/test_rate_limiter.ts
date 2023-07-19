@@ -3,7 +3,13 @@ import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  Queue,
+  QueueEvents,
+  Worker,
+  UnrecoverableError,
+} from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
@@ -375,6 +381,58 @@ describe('Rate Limiter', function () {
 
       await result;
       await worker.close();
+    });
+
+    describe('when dynamic limit is used', () => {
+      it('should obey the rate limit', async function () {
+        const dynamicLimit = 550;
+        const duration = 100;
+        const margin = 0.95; // 5% margin for CI
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            await worker.rateLimit(dynamicLimit);
+            if (job.attemptsMade >= job.opts.attempts!) {
+              throw new UnrecoverableError('Unrecoverable');
+            }
+            throw Worker.RateLimitError();
+          },
+          {
+            connection,
+            limiter: {
+              max: 1,
+              duration,
+            },
+          },
+        );
+
+        const result = new Promise<void>((resolve, reject) => {
+          queueEvents.once('failed', async () => {
+            try {
+              const timeDiff = new Date().getTime() - startTime;
+              console.log('time', timeDiff);
+              expect(timeDiff).to.be.gte((dynamicLimit + duration) * margin);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        const startTime = new Date().getTime();
+        await queue.add(
+          'rate-test',
+          { foo: 'bar' },
+          {
+            attempts: 2,
+            backoff: 1000,
+          },
+        );
+
+        await result;
+        await worker.close();
+      });
     });
 
     describe('when priority is provided', () => {
