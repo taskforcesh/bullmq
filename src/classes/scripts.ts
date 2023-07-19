@@ -778,7 +778,7 @@ export class Scripts {
 
     const args = this.retryJobsArgs(state, count, timestamp);
 
-    return (<any>client).retryJobs(args);
+    return (<any>client).moveJobsToWait(args);
   }
 
   async promoteJobs(count = 1000): Promise<number> {
@@ -786,7 +786,7 @@ export class Scripts {
 
     const args = this.retryJobsArgs('delayed', count, Number.MAX_VALUE);
 
-    return (<any>client).retryJobs(args);
+    return (<any>client).moveJobsToWait(args);
   }
 
   /**
