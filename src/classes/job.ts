@@ -437,6 +437,17 @@ export class Job<
   }
 
   /**
+   * Alias for `updateData`
+   * @deprecated
+   * @param data - the data that will replace the current jobs data.
+   */
+  update(data: DataType): Promise<void> {
+    this.data = data;
+
+    return this.scripts.updateData<DataType, ReturnType, NameType>(this, data);
+  }
+
+  /**
    * Updates a job's progress
    *
    * @param progress - number or object to be saved as progress.
