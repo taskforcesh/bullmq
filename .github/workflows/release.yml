@@ -54,9 +54,15 @@ jobs:
           flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Python Semantic Release
         if: ${{ contains(env.commitmsg, '(python)') }}
-        uses: python-semantic-release/python-semantic-release@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd python
+          pip install python-semantic-release
+          git config --global user.email "manast@taskforce.sh"
+          git config --global user.name "manast"
+          export VERSION=$(semantic-release -vv --noop version --print)
+          if [ ! -z "$VERSION" ]; then
+            GH_TOKEN=${{ secrets.GITHUB_TOKEN }} semantic-release publish
+          fi
       - name: Publish package distributions to PyPI
         id: pypi-publish
         if: ${{ contains(env.commitmsg, '(python)') }}
