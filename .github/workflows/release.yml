@@ -59,7 +59,7 @@ jobs:
           pip install python-semantic-release
           git config --global user.email "manast@taskforce.sh"
           git config --global user.name "manast"
-          export VERSION=$(semantic-release -vv --noop version --print)
+          export VERSION=$(semantic-release version --print)
           if [ ! -z "$VERSION" ]; then
             GH_TOKEN=${{ secrets.GITHUB_TOKEN }} semantic-release publish
           fi
