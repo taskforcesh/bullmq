@@ -22,7 +22,7 @@ keywords = ["python", "bullmq", "queues"]
 dependencies = [
     "redis >= 4.5.0, < 5",
     "msgpack >= 1.0.0, < 2",
-    "semver >= 3.0.1"
+    "semver >= 2.13.0, < 3"
 ]
 
 [project.optional-dependencies]
@@ -30,6 +30,7 @@ dev = [
     "setuptools==68.0.0",
     "pre-commit==3.3.3",
     "build==0.8.0",
+    "python-semantic-release==7.28.1",
     "types-redis==4.6.0.2"
 ]
 
@@ -44,40 +45,11 @@ exclude = ["tests*"]
 bullmq = ["commands/*.lua", "types/*"]
 
 [tool.semantic_release]
-version_variables = ["bullmq/__init__.py:__version__"]
+branch = "master"
+version_variable = "bullmq/__init__.py:__version__"
 version_toml = "pyproject.toml:project.version"
 build_command = "python3 setup.py sdist"
 tag_format = "vpy{version}"
 version_source = "commit"
-upload_to_pypi = true
-
-[tool.semantic_release.commit_parser_options]
-allowed_tags = [
-  "build",
-  "chore",
-  "ci",
-  "docs",
-  "feat",
-  "fix",
-  "perf",
-  "style",
-  "refactor",
-  "test",
-]
-minor_tags = ["feat"]
-patch_tags = ["fix", "perf"]
-
-[tool.semantic_release.changelog]
 changelog_file = "../docs/gitbook/python/changelog.md"
-exclude_commit_patterns = ["^((?!python).)*$"]
-
-[tool.semantic_release.branches.master]
-match = "master"
-prerelease = false
-prerelease_token = "rc"
-
-[tool.semantic_release.remote]
-name = "origin"
-type = "github"
-ignore_token_for_push = false
-token = { env = "GH_TOKEN" }
+upload_to_pypi = true
