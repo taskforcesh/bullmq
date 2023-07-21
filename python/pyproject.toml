@@ -45,7 +45,7 @@ bullmq = ["commands/*.lua", "types/*"]
 
 [tool.semantic_release]
 version_variables = ["bullmq/__init__.py:__version__"]
-version_toml = "pyproject.toml:project.version"
+version_toml = ["pyproject.toml:project.version"]
 build_command = "python3 setup.py sdist"
 tag_format = "vpy{version}"
 version_source = "commit"
