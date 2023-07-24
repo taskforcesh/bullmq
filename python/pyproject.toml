@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bullmq"
-version = "1.10.0"
+version = "1.9.0"
 description='BullMQ for Python'
 readme="README.md"
 authors = [
@@ -53,16 +53,9 @@ upload_to_pypi = true
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = [
-  "build",
-  "chore",
-  "ci",
-  "docs",
   "feat",
   "fix",
   "perf",
-  "style",
-  "refactor",
-  "test",
 ]
 minor_tags = ["feat"]
 patch_tags = ["fix", "perf"]
