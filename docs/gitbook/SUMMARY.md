@@ -69,6 +69,7 @@
   * [Concurrency](bullmq-pro/groups/concurrency.md)
   * [Max group size](bullmq-pro/groups/max-group-size.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
+  * [Prioritized intra-groups](bullmq-pro/groups/prioritized.md)
 * [Batches](bullmq-pro/batches.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
   * [Producers](bullmq-pro/nestjs/producers.md)
