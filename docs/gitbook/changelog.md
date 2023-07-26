@@ -1,3 +1,10 @@
+## [4.6.2](https://github.com/taskforcesh/bullmq/compare/v4.6.1...v4.6.2) (2023-07-26)
+
+
+### Performance Improvements
+
+* **retry:** compare prev state instead of regex expression ([#2099](https://github.com/taskforcesh/bullmq/issues/2099)) ([c141283](https://github.com/taskforcesh/bullmq/commit/c1412831903d1fae0955af097e0be049024839fe))
+
 # [4.6.0](https://github.com/taskforcesh/bullmq/compare/v4.5.0...v4.6.0) (2023-07-19)
 
 
