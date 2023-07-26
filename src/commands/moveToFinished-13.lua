@@ -150,7 +150,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
                     moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
                         parentKey, parentId, timestamp)
-                end 
+                end
             end
         end
     end
