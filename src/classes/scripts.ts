@@ -750,7 +750,7 @@ export class Scripts {
     ]);
   }
 
-  protected retryJobsArgs(
+  protected moveJobsToWaitArgs(
     state: FinishedStatus | 'delayed',
     count: number,
     timestamp: number,
@@ -776,7 +776,7 @@ export class Scripts {
   ): Promise<number> {
     const client = await this.queue.client;
 
-    const args = this.retryJobsArgs(state, count, timestamp);
+    const args = this.moveJobsToWaitArgs(state, count, timestamp);
 
     return (<any>client).moveJobsToWait(args);
   }
@@ -784,7 +784,7 @@ export class Scripts {
   async promoteJobs(count = 1000): Promise<number> {
     const client = await this.queue.client;
 
-    const args = this.retryJobsArgs('delayed', count, Number.MAX_VALUE);
+    const args = this.moveJobsToWaitArgs('delayed', count, Number.MAX_VALUE);
 
     return (<any>client).moveJobsToWait(args);
   }

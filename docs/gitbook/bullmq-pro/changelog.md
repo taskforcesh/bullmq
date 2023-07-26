@@ -1,3 +1,17 @@
+## [6.2.2](https://github.com/taskforcesh/bullmq-pro/compare/v6.2.1...v6.2.2) (2023-07-26)
+
+
+### Bug Fixes
+
+* **deps:** upgrade bullmq to 4.6.0 ([#167](https://github.com/taskforcesh/bullmq-pro/issues/167)) ([9cf92a6](https://github.com/taskforcesh/bullmq-pro/commit/9cf92a62dc3f1e9316bd4559fde4700ff4d9b12c))
+
+## [6.2.1](https://github.com/taskforcesh/bullmq-pro/compare/v6.2.0...v6.2.1) (2023-07-25)
+
+
+### Bug Fixes
+
+* **flow:** emit delayed event when parent is moved to delayed ([#166](https://github.com/taskforcesh/bullmq-pro/issues/166)) ([38afe1c](https://github.com/taskforcesh/bullmq-pro/commit/38afe1cf3187ddee33d33a39438587d921b8743a))
+
 # [6.2.0](https://github.com/taskforcesh/bullmq-pro/compare/v6.1.1...v6.2.0) (2023-07-25)
 
 
