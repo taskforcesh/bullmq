@@ -23,7 +23,7 @@ export default (
           await childProcessor.start(msg.job);
           break;
         case ChildCommand.Stop:
-          break;
+          process.exit(0);
       }
     } catch (err) {
       console.error('Error handling child message');

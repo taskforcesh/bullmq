@@ -36,7 +36,7 @@ const sandbox = <T, R, N extends string>(
             await job.log(msg.value);
             break;
           case ParentCommand.Update:
-            await job.updateData(msg.value);
+            await job.update(msg.value);
             break;
         }
       };
@@ -58,11 +58,9 @@ const sandbox = <T, R, N extends string>(
       child.off('message', msgHandler);
       child.off('exit', exitHandler);
 
-      if (child.exitCode !== null || /SIG.*/.test(`${child.signalCode}`)) {
-        childPool.remove(child);
-      } else {
-        childPool.release(child);
-      }
+      await childPool.kill(child).catch(err => {
+        console.error(err);
+      });
     }
   };
 };
