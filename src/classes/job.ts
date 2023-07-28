@@ -1067,6 +1067,18 @@ export class Job<
   addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
     const jobData = this.asJSON();
 
+    this.validateOptions(jobData);
+
+    return this.scripts.addJob(
+      client,
+      jobData,
+      jobData.opts,
+      this.id,
+      parentOpts,
+    );
+  }
+
+  protected validateOptions(jobData: JobJson) {
     const exceedLimit =
       this.opts.sizeLimit &&
       lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
@@ -1104,14 +1116,6 @@ export class Job<
         throw new Error(`Priority should be between 0 and ${priorityLimit}`);
       }
     }
-
-    return this.scripts.addJob(
-      client,
-      jobData,
-      jobData.opts,
-      this.id,
-      parentOpts,
-    );
   }
 
   protected saveStacktrace(multi: ChainableCommander, err: Error): void {
