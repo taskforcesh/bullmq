@@ -1,3 +1,10 @@
+## [4.6.3](https://github.com/taskforcesh/bullmq/compare/v4.6.2...v4.6.3) (2023-07-28)
+
+
+### Performance Improvements
+
+* **job:** generate priority limit constant once ([#2102](https://github.com/taskforcesh/bullmq/issues/2102)) ([8880f9f](https://github.com/taskforcesh/bullmq/commit/8880f9f2983282d343d603a89abe5e1e6bff78e5))
+
 ## [4.6.2](https://github.com/taskforcesh/bullmq/compare/v4.6.0...v4.6.2) (2023-07-26)
 
 
