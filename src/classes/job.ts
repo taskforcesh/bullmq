@@ -45,6 +45,8 @@ const optsDecodeMap = {
 
 const optsEncodeMap = invert(optsDecodeMap);
 
+export const PRIORITY_LIMIT = 2 ** 21;
+
 /**
  * Job
  *
@@ -1111,9 +1113,8 @@ export class Job<
         throw new Error(`Priority should not be float`);
       }
 
-      const priorityLimit = 2 ** 21;
-      if (this.opts.priority > 2 ** 21) {
-        throw new Error(`Priority should be between 0 and ${priorityLimit}`);
+      if (this.opts.priority > PRIORITY_LIMIT) {
+        throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
       }
     }
   }
