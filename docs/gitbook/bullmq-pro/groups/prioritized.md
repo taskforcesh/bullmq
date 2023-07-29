@@ -6,8 +6,8 @@ BullMQ Pro supports priorities per group. A job is prioritized in a group when g
 await myQueue.add('paint', { foo: 'bar' }, {
     group: {
         id: 'groupId',
-    },
-    priority: 10
+        priority: 10
+    }
 });
 ```
 
