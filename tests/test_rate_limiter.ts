@@ -330,11 +330,17 @@ describe('Rate Limiter', function () {
       const duration = 100;
       const margin = 0.95; // 5% margin for CI
 
+      const ttl = await queue.getRateLimitTtl();
+      expect(ttl).to.be.equal(-2);
+
       const worker = new Worker(
         queueName,
         async job => {
           if (job.attemptsMade === 1) {
             await worker.rateLimit(dynamicLimit);
+            const currentTtl = await queue.getRateLimitTtl();
+            expect(currentTtl).to.be.lessThanOrEqual(250);
+            expect(currentTtl).to.be.greaterThan(100);
             throw Worker.RateLimitError();
           }
         },
