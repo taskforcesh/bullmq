@@ -66,5 +66,5 @@ const job = await this.fooFlowProducer.add({
 - 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)
 - 💡 [Inject Queue API Reference](https://nestjs.bullmq.pro/functions/InjectQueue.html)
 - 💡 [Inject Flow Producer API Reference](https://nestjs.bullmq.pro/functions/InjectFlowProducer.html)
-- 💡 [QueuePro API Reference](https://api.bullmq.pro/classes/Queue.html)
-- 💡 [FlowProducerPro API Reference](https://api.bullmq.pro/classes/FlowProducer.html)
+- 💡 [QueuePro API Reference](https://api.bullmq.pro/classes/v6.Queue.html)
+- 💡 [FlowProducerPro API Reference](https://api.bullmq.pro/classes/v6.FlowProducer.html)
