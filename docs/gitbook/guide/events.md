@@ -89,7 +89,7 @@ await queue.trimEvents(10) # left 10 events
 
 ## Read more:
 
-- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/QueueEvents.html)
-- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/QueueEventsListener.html)
-- 💡 [Queue Listener API Reference](https://api.docs.bullmq.io/interfaces/QueueListener.html)
-- 💡 [Worker Listener API Reference](https://api.docs.bullmq.io/interfaces/WorkerListener.html)
+- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v4.QueueEvents.html)
+- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v4.QueueEventsListener.html)
+- 💡 [Queue Listener API Reference](https://api.docs.bullmq.io/interfaces/v4.QueueListener.html)
+- 💡 [Worker Listener API Reference](https://api.docs.bullmq.io/interfaces/v4.WorkerListener.html)

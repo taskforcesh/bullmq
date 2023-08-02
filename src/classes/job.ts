@@ -40,9 +40,12 @@ const logger = debuglog('bull');
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
   kl: 'keepLogs',
+  rdof: 'removeDependencyOnFailure',
 };
 
 const optsEncodeMap = invert(optsDecodeMap);
+
+export const PRIORITY_LIMIT = 2 ** 21;
 
 /**
  * Job
@@ -492,14 +495,16 @@ export class Job<
    * Completely remove the job from the queue.
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
+   *
+   * @param opts - Options to remove a job
    */
-  async remove(): Promise<void> {
+  async remove({ removeChildren = true } = {}): Promise<void> {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
     const job = this;
 
-    const removed = await this.scripts.remove(job.id);
+    const removed = await this.scripts.remove(job.id, removeChildren);
     if (removed) {
       queue.emit('removed', job);
     } else {
@@ -1064,6 +1069,18 @@ export class Job<
   addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
     const jobData = this.asJSON();
 
+    this.validateOptions(jobData);
+
+    return this.scripts.addJob(
+      client,
+      jobData,
+      jobData.opts,
+      this.id,
+      parentOpts,
+    );
+  }
+
+  protected validateOptions(jobData: JobJson) {
     const exceedLimit =
       this.opts.sizeLimit &&
       lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
@@ -1078,6 +1095,12 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
+    if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {
+      throw new Error(
+        `RemoveDependencyOnFailure and failParentOnFailure options can not be used together`,
+      );
+    }
+
     if (`${parseInt(this.id, 10)}` === this.id) {
       //TODO: throw an error in next breaking change
       console.warn(
@@ -1090,19 +1113,10 @@ export class Job<
         throw new Error(`Priority should not be float`);
       }
 
-      const priorityLimit = 2 ** 21;
-      if (this.opts.priority > 2 ** 21) {
-        throw new Error(`Priority should be between 0 and ${priorityLimit}`);
+      if (this.opts.priority > PRIORITY_LIMIT) {
+        throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
       }
     }
-
-    return this.scripts.addJob(
-      client,
-      jobData,
-      jobData.opts,
-      this.id,
-      parentOpts,
-    );
   }
 
   protected saveStacktrace(multi: ChainableCommander, err: Error): void {

@@ -5,6 +5,11 @@ export type JobsOptions = BaseJobOptions & {
    * If true, moves parent to failed.
    */
   failParentOnFailure?: boolean;
+
+  /**
+   * If true, removes the job from its parent dependencies when it fails after all attempts.
+   */
+  removeDependencyOnFailure?: boolean;
 };
 
 /**
@@ -20,4 +25,9 @@ export type RedisJobOptions = BaseJobOptions & {
    * Maximum amount of log entries that will be preserved
    */
   kl?: number;
+
+  /**
+   * If true, removes the job from its parent dependencies when it fails after all attempts.
+   */
+  rdof?: boolean;
 };

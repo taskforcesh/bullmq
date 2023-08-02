@@ -56,6 +56,7 @@
 * [Throttle jobs](patterns/throttle-jobs.md)
 * [Process Step Jobs](patterns/process-step-jobs.md)
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
+* [Stop retrying jobs](patterns/stop-retrying-jobs.md)
 
 ## BullMQ Pro
 
@@ -66,7 +67,9 @@
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
+  * [Max group size](bullmq-pro/groups/max-group-size.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
+  * [Prioritized intra-groups](bullmq-pro/groups/prioritized.md)
 * [Batches](bullmq-pro/batches.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
   * [Producers](bullmq-pro/nestjs/producers.md)

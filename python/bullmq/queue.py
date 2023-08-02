@@ -216,3 +216,6 @@ class Queue:
         Close the queue instance.
         """
         return self.redisConnection.close()
+
+    def remove(self, job_id: str, opts: dict = {}):
+        return self.scripts.remove(job_id, opts.get("removeChildren", True))

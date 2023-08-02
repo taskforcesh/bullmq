@@ -1,8 +1,8 @@
-# Fail Parent
+# Remove Dependency
 
-In some situations, you need to fail a job when one of its children fail.
+In some situations, you may have a parent job and need to ignore when one of its children fail.
 
-The pattern to solve this requirement consists on using **failParentOnFailure** option.
+The pattern to solve this requirement consists on using the **removeDependencyOnFailure** option. This option will make sure that when a job fails, the dependency is removed from the parent, so the parent will complete without waiting for the failed children.
 
 ```typescript
 const flow = new FlowProducer({ connection });
@@ -16,13 +16,12 @@ const originalTree = await flow.add({
       name,
       data: { idx: 0, foo: 'bar' },
       queueName: 'childrenQueueName',
-      opts: { failParentOnFailure: true },
+      opts: { removeDependencyOnFailure: true },
       children: [
         {
           name,
           data: { idx: 1, foo: 'bah' },
           queueName: 'grandChildrenQueueName',
-          opts: { failParentOnFailure: true },
         },
         {
           name,
@@ -41,9 +40,9 @@ const originalTree = await flow.add({
 ```
 
 {% hint style="info" %}
-As soon as a _child_ with this option fails, the parent job will be moved to failed state. This option will be validated recursively, so a grandparent could be failed and so on.
+As soon as a **child** with this option fails, the parent job will be moved to a waiting state only if there are no more pending children.
 {% endhint %}
 
 ## Read more:
 
-- 💡 [Add Flow API Reference](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#add)
+- 💡 [Add Flow API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html#add)

@@ -47,7 +47,7 @@ class Scripts:
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-9.lua")),
-            "retryJobs": self.redisClient.register_script(self.getScript("retryJobs-6.lua")),
+            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-6.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
             "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-2.lua")),
@@ -223,9 +223,9 @@ class Scripts:
                 raise self.finishedErrors(result, job_id, 'moveToDelayed', 'active')
         return None
 
-    def remove(self, job_id: str):
+    def remove(self, job_id: str, remove_children: bool):
         keys = self.getKeys([''])
-        args = [job_id]
+        args = [job_id, 1 if remove_children else 0]
 
         return self.commands["removeJob"](keys=keys, args=args)
 
@@ -286,7 +286,7 @@ class Scripts:
         keys.append(self.keys['wait'])
         keys.append(self.keys['meta'])
         keys.append(self.keys['paused'])
-        
+
         args = [
             job.id,
             ("R" if job.opts.get("lifo") else "L") + "PUSH",
@@ -330,10 +330,10 @@ class Scripts:
         current_state = state or 'failed'
         keys = self.getKeys(
             ['', 'events', current_state, 'wait', 'paused', 'meta'])
-        result = await self.commands["retryJobs"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
+        result = await self.commands["moveJobsToWait"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
         return result
 
-    async def moveToActive(self, token: str, opts: dict, jobId: str = "") -> list[Any]:
+    async def moveToActive(self, token: str, opts: dict, jobId: str = None) -> list[Any]:
         """
         Add an item to the queue
         """

@@ -91,8 +91,9 @@ export class Scripts {
       queueKeys.pc,
     ];
 
-    const fpof = opts.fpof ? { fpof: true } : {};
-    const parent = job.parent ? { ...job.parent, ...fpof } : null;
+    const parent: Record<string, any> = job.parent
+      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof }
+      : null;
 
     const args = [
       queueKeys[''],
@@ -180,11 +181,13 @@ export class Scripts {
     return (<any>client).removeRepeatable(args);
   }
 
-  async remove(jobId: string): Promise<number> {
+  async remove(jobId: string, removeChildren: boolean): Promise<number> {
     const client = await this.queue.client;
 
-    const keys = [''].map(name => this.queue.toKey(name));
-    return (<any>client).removeJob(keys.concat([jobId]));
+    const keys: (string | number)[] = [''].map(name => this.queue.toKey(name));
+    return (<any>client).removeJob(
+      keys.concat([jobId, removeChildren ? 1 : 0]),
+    );
   }
 
   async extendLock(
@@ -284,6 +287,7 @@ export class Scripts {
           ? opts.metrics?.maxDataPoints
           : '',
         fpof: !!job.opts?.failParentOnFailure,
+        rdof: !!job.opts?.removeDependencyOnFailure,
       }),
     ];
 
@@ -746,8 +750,8 @@ export class Scripts {
     ]);
   }
 
-  protected retryJobsArgs(
-    state: FinishedStatus,
+  protected moveJobsToWaitArgs(
+    state: FinishedStatus | 'delayed',
     count: number,
     timestamp: number,
   ): (string | number)[] {
@@ -772,9 +776,17 @@ export class Scripts {
   ): Promise<number> {
     const client = await this.queue.client;
 
-    const args = this.retryJobsArgs(state, count, timestamp);
+    const args = this.moveJobsToWaitArgs(state, count, timestamp);
 
-    return (<any>client).retryJobs(args);
+    return (<any>client).moveJobsToWait(args);
+  }
+
+  async promoteJobs(count = 1000): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.moveJobsToWaitArgs('delayed', count, Number.MAX_VALUE);
+
+    return (<any>client).moveJobsToWait(args);
   }
 
   /**

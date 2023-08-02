@@ -2,7 +2,7 @@
 
 Sometimes it is necessary to add a complete bulk of jobs from different queues atomically. For example, there could be a requirement that all the jobs must be created or none of them. Also, adding a bulk of jobs can be faster since it reduces the number of roundtrips to Redis:
 
-You may be thinking on [queue.addBulk](https://api.docs.bullmq.io/classes/Queue.html#addBulk), but this method only adds jobs from a single queue. Another option is [flowProducer.addBulk](https://api.docs.bullmq.io/classes/FlowProducer.html#addBulk), so let's see an example:
+You may be thinking on [queue.addBulk](https://api.docs.bullmq.io/classes/v4.Queue.html#addBulk), but this method only adds jobs from a single queue. Another option is [flowProducer.addBulk](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#addBulk), so let's see an example:
 
 ```typescript
 import { FlowProducer } from 'bullmq';
@@ -29,4 +29,4 @@ This call can only succeed or fail, and all or none of the jobs will be added.
 
 ## Read more:
 
-- 💡 [Add Bulk API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html#addBulk)
+- 💡 [Add Bulk API Reference](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#addBulk)

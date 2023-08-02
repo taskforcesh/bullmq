@@ -50,6 +50,7 @@ class Job:
         self.returnvalue = None
         self.failedReason = None
         self.repeatJobKey = None
+        self.token: str = None
         parent = opts.get("parent")
         self.parentKey = get_parent_key(parent)
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
@@ -77,8 +78,8 @@ class Job:
         self.progress = progress
         return self.scripts.updateProgress(self.id, progress)
 
-    async def remove(self):
-        removed = await self.scripts.remove(self.id)
+    async def remove(self, opts: dict = {}):
+        removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
         
         if not removed:
             raise Exception(f"Could not remove job {self.id}")
@@ -204,7 +205,8 @@ class Job:
     async def fromId(queue: Queue, jobId: str):
         key = f"{queue.prefix}:{queue.name}:{jobId}"
         raw_data = await queue.client.hgetall(key)
-        return Job.fromJSON(queue, raw_data, jobId)
+        if len(raw_data):
+            return Job.fromJSON(queue, raw_data, jobId)
 
 
 def optsFromJSON(rawOpts: dict) -> dict:

@@ -86,4 +86,4 @@ const worker = new Worker(
 
 ## Read more:
 
-- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/Worker.html#rateLimit)
+- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v4.Worker.html#rateLimit)

@@ -3,7 +3,13 @@ import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
 import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  Queue,
+  QueueEvents,
+  Worker,
+  UnrecoverableError,
+} from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
@@ -375,6 +381,56 @@ describe('Rate Limiter', function () {
 
       await result;
       await worker.close();
+    });
+
+    describe('when reaching max attempts and we want to move the job to failed', () => {
+      it('should throw Unrecoverable error', async function () {
+        const dynamicLimit = 550;
+        const duration = 100;
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            await worker.rateLimit(dynamicLimit);
+            if (job.attemptsMade >= job.opts.attempts!) {
+              throw new UnrecoverableError('Unrecoverable');
+            }
+            throw Worker.RateLimitError();
+          },
+          {
+            connection,
+            limiter: {
+              max: 1,
+              duration,
+            },
+          },
+        );
+
+        const result = new Promise<void>((resolve, reject) => {
+          queueEvents.once('failed', async () => {
+            try {
+              const timeDiff = new Date().getTime() - startTime;
+              expect(timeDiff).to.be.gte(dynamicLimit);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        const startTime = new Date().getTime();
+        await queue.add(
+          'rate-test',
+          { foo: 'bar' },
+          {
+            attempts: 2,
+            backoff: 1000,
+          },
+        );
+
+        await result;
+        await worker.close();
+      });
     });
 
     describe('when priority is provided', () => {
