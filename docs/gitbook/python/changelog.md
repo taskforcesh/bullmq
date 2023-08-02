@@ -7,9 +7,6 @@
 * **job:** Add option for removing children in remove method (python) ([#2064](https://github.com/taskforcesh/bullmq/issues/2064)) ([`841dc87`](https://github.com/taskforcesh/bullmq/commit/841dc87a689897df81438ad1f43e45a4da77c388))
 
 ## v1.8.0 (2023-07-17)
-### Feature
-* **job:** Add removeDependencyOnFailure option ([#1953](https://github.com/taskforcesh/bullmq/issues/1953)) ([`ffd49e2`](https://github.com/taskforcesh/bullmq/commit/ffd49e289c57252487200d47b92193228ae7451f))
-
 ### Fix
 * **python:** Respect concurrency in worker (#2062) fixes #2063 ([`1b95185`](https://github.com/taskforcesh/bullmq/commit/1b95185e8f4a4349037b59e61455bdec79792644))
 
@@ -17,13 +14,6 @@
 ### Feature
 * **python:** Add remove method in queue ([#2066](https://github.com/taskforcesh/bullmq/issues/2066)) ([`808ee72`](https://github.com/taskforcesh/bullmq/commit/808ee7231c75d4d826881f25e346f01b2fd2dc23))
 * **worker:** Add id as part of token ([#2061](https://github.com/taskforcesh/bullmq/issues/2061)) ([`e255356`](https://github.com/taskforcesh/bullmq/commit/e2553562271e1e4143a8fef616349bb30de4899d))
-
-### Fix
-* **flow:** Emit delayed event when parent is moved to delayed ([#2055](https://github.com/taskforcesh/bullmq/issues/2055)) ([`f419ff1`](https://github.com/taskforcesh/bullmq/commit/f419ff1ec5cb34986fe4b79402c727a6487e949c))
-
-### Documentation
-* **stalled:** Add pattern reference for manual fetching jobs ([`a82401c`](https://github.com/taskforcesh/bullmq/commit/a82401c00cc7378cdf8206b5c74afeaaead39c2c))
-* **bullmq-pro:** Update changelog to v6.0.5 ([`37c203c`](https://github.com/taskforcesh/bullmq/commit/37c203c303e00a2aa4d8933bc5e68239547b1aca))
 
 ## v1.6.1 (2023-07-10)
 ### Fix

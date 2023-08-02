@@ -8,7 +8,7 @@ export interface DefaultJobOptions {
   timestamp?: number;
 
   /**
-   * Ranges from 1 (highest priority) to MAX_INT (lowest priority). Note that
+   * Ranges from 1 (highest priority) to 2 097 152 (lowest priority). Note that
    * using priorities has a slight impact on performance,
    * so do not use it if not required.
    */

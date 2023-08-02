@@ -34,12 +34,12 @@ local target = getTargetQueueList(metaKey, KEYS[4], KEYS[5])
 local jobs = rcall('ZRANGEBYSCORE', KEYS[3], 0, timestamp, 'LIMIT', 0, maxCount)
 if (#jobs > 0) then
 
-    if KEYS[3]:match("failed$") then
+    if ARGV[3] == "failed" then
         for i, key in ipairs(jobs) do
             local jobKey = KEYS[1] .. key
             rcall("HDEL", jobKey, "finishedOn", "processedOn", "failedReason")
         end
-    elseif KEYS[3]:match("completed$") then
+    elseif ARGV[3] == "completed" then
         for i, key in ipairs(jobs) do
             local jobKey = KEYS[1] .. key
             rcall("HDEL", jobKey, "finishedOn", "processedOn", "returnvalue")

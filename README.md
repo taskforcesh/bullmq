@@ -105,9 +105,9 @@ Some notable organizations using BullMQ:
       <td valign="center">
        <a href="https://novu.co">
         <img
-          src="https://super-static-assets.s3.amazonaws.com/1e9f5a51-c4c6-4fca-b6e8-25fa0186f139/images/4052d2f1-dc73-4421-984c-cdd02e989fdb.png"
+          src="https://assets.super.so/1e9f5a51-c4c6-4fca-b6e8-25fa0186f139/images/0f550019-16db-4a65-90d1-1bdb7d3c5f20/novu-logo-gradient-light-background2x.png"
           width="150"
-          alt="Curri"
+          alt="Novu"
         />
       </a>
     </td>

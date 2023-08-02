@@ -45,6 +45,8 @@ const optsDecodeMap = {
 
 const optsEncodeMap = invert(optsDecodeMap);
 
+export const PRIORITY_LIMIT = 2 ** 21;
+
 /**
  * Job
  *
@@ -1067,6 +1069,18 @@ export class Job<
   addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
     const jobData = this.asJSON();
 
+    this.validateOptions(jobData);
+
+    return this.scripts.addJob(
+      client,
+      jobData,
+      jobData.opts,
+      this.id,
+      parentOpts,
+    );
+  }
+
+  protected validateOptions(jobData: JobJson) {
     const exceedLimit =
       this.opts.sizeLimit &&
       lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
@@ -1099,19 +1113,10 @@ export class Job<
         throw new Error(`Priority should not be float`);
       }
 
-      const priorityLimit = 2 ** 21;
-      if (this.opts.priority > 2 ** 21) {
-        throw new Error(`Priority should be between 0 and ${priorityLimit}`);
+      if (this.opts.priority > PRIORITY_LIMIT) {
+        throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
       }
     }
-
-    return this.scripts.addJob(
-      client,
-      jobData,
-      jobData.opts,
-      this.id,
-      parentOpts,
-    );
   }
 
   protected saveStacktrace(multi: ChainableCommander, err: Error): void {

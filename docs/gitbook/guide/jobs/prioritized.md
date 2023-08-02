@@ -6,7 +6,7 @@ Jobs can also include a priority option. Using priorities, job's processing orde
 Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity O(log(n)) relative to the number of jobs in prioritized set in the Queue.
 {% endhint %}
 
-Note that the priorities go from 1 to MAX_INT, whereas a lower number is always a higher priority than higher numbers.
+Note that the priorities go from 1 to 2 097 152, whereas a lower number is always a higher priority than higher numbers.
 
 Jobs without a priority assigned will get the least priority.
 
@@ -47,6 +47,18 @@ await job.changePriority({
 });
 ```
 
+## Get Prioritized jobs
+
+As prioritized is a new state. You must use **getJobs** or **getPrioritized** method as:
+
+```typescript
+const jobs = await queue.getJobs(['prioritized']);
+
+const jobs2 = await queue.getPrioritized();
+```
+
 ## Read more:
 
+- 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 - 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v4.Job.html#changePriority)
+- 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#getPrioritized)
