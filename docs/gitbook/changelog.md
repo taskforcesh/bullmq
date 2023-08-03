@@ -1,3 +1,10 @@
+# [4.7.0](https://github.com/taskforcesh/bullmq/compare/v4.6.3...v4.7.0) (2023-08-03)
+
+
+### Features
+
+* **queue:** add getRateLimitTtl method ([#2105](https://github.com/taskforcesh/bullmq/issues/2105)) ([7426c64](https://github.com/taskforcesh/bullmq/commit/7426c64b109f1beacf742d57a987282597385469))
+
 ## [4.6.3](https://github.com/taskforcesh/bullmq/compare/v4.6.2...v4.6.3) (2023-07-28)
 
 
