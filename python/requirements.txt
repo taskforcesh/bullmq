@@ -10,5 +10,5 @@ python-semantic-release==7.28.1
 redis==4.6.0
 semver==2.13.0
 six==1.16.0
-virtualenv==20.23.1
+virtualenv==20.24.2
 virtualenv-clone==0.5.7
