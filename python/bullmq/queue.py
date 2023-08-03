@@ -22,6 +22,11 @@ class Queue:
         self.prefix = opts.get("prefix", "bull")
         self.scripts = Scripts(
             self.prefix, name, self.redisConnection)
+        self.keys = self.scripts.queue_keys.getKeys(name)
+        self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
+
+    def toKey(self, type: str):
+        return self.scripts.queue_keys.toKey(self.name, type)
 
     async def add(self, name: str, data, opts: JobOptions = {}):
         """
@@ -63,7 +68,7 @@ class Queue:
         """
         Returns true if the queue is currently paused.
         """
-        paused_key_exists = await self.client.hexists(f"{self.prefix}:{self.name}:meta", "paused")
+        paused_key_exists = await self.client.hexists(self.keys["meta"], "paused")
         return paused_key_exists == 1
 
     async def obliterate(self, force: bool = False):
@@ -103,13 +108,13 @@ class Queue:
 
         @param maxLength:
         """
-        return self.client.xtrim(f"{self.prefix}:{self.name}:events", maxlen = maxLength, approximate = "~")
+        return self.client.xtrim(self.keys["events"], maxlen = maxLength, approximate = "~")
 
     def removeDeprecatedPriorityKey(self):
         """
         Delete old priority helper key.
         """
-        return self.client.delete(f"{self.prefix}:{self.name}:priority")
+        return self.client.delete(self.toKey("priority"))
 
     async def getJobCountByTypes(self, *types):
       result = await self.getJobCounts(*types)

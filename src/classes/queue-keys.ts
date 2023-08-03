@@ -9,9 +9,8 @@ export class QueueKeys {
       '',
       'active',
       'wait',
-      'waiting',
+      'waiting-children',
       'paused',
-      'resumed',
       'id',
       'delayed',
       'prioritized',
@@ -21,11 +20,8 @@ export class QueueKeys {
       'stalled',
       'repeat',
       'limiter',
-      'drained',
-      'progress',
       'meta',
       'events',
-      'delay',
       'pc',
     ].forEach(key => {
       keys[key] = this.toKey(name, key);
@@ -35,10 +31,10 @@ export class QueueKeys {
   }
 
   toKey(name: string, type: string): string {
-    return `${this.getPrefixedQueueName(name)}:${type}`;
+    return `${this.getQueueQualifiedName(name)}:${type}`;
   }
 
-  getPrefixedQueueName(name: string): string {
+  getQueueQualifiedName(name: string): string {
     return `${this.prefix}:${name}`;
   }
 }

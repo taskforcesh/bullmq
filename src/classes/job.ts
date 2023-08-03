@@ -64,6 +64,12 @@ export class Job<
 > implements MinimalJob<DataType, ReturnType, NameType>
 {
   /**
+   * It includes the prefix, the namespace separator :, and queue name.
+   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+   */
+  public readonly queueQualifiedName: string;
+
+  /**
    * The progress a job has performed so far.
    * @defaultValue 0
    */
@@ -183,6 +189,8 @@ export class Job<
 
     this.toKey = queue.toKey.bind(queue);
     this.scripts = new Scripts(queue);
+
+    this.queueQualifiedName = queue.qualifiedName;
   }
 
   /**
@@ -713,14 +721,6 @@ export class Job<
    */
   get prefix(): string {
     return this.queue.opts.prefix;
-  }
-
-  /**
-   * @returns it includes the prefix, the namespace separator :, and queue name.
-   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
-   */
-  get queueQualifiedName(): string {
-    return `${this.prefix}:${this.queueName}`;
   }
 
   /**
