@@ -2,6 +2,29 @@
 
 <!--next-version-placeholder-->
 
+## v1.10.0 (2023-08-03)
+### Feature
+* **python:** Add username option into redisOpts ([#2108](https://github.com/taskforcesh/bullmq/issues/2108)) ([`d27f33e`](https://github.com/taskforcesh/bullmq/commit/d27f33e997d30e6c0c7d4484bea338347c3fe67e))
+* **queue:** Add getRateLimitTtl method ([#2105](https://github.com/taskforcesh/bullmq/issues/2105)) ([`7426c64`](https://github.com/taskforcesh/bullmq/commit/7426c64b109f1beacf742d57a987282597385469))
+* **queue:** Add promoteJobs to promote all delayed jobs ([`6074592`](https://github.com/taskforcesh/bullmq/commit/6074592574256ec4b1c340126288e803e56b1a64))
+
+### Fix
+* **python:** Upgrade semver to prevent warnings ([#2074](https://github.com/taskforcesh/bullmq/issues/2074)) ([`fc7f92b`](https://github.com/taskforcesh/bullmq/commit/fc7f92bc3cd5208e79405d4573a1b64f692c3be2))
+
+### Documentation
+* **bullmq-pro:** Add v6 api references ([#2106](https://github.com/taskforcesh/bullmq/issues/2106)) ([`235ff47`](https://github.com/taskforcesh/bullmq/commit/235ff4702fea4c2ae49b26c39efe7f1739e445f9))
+* **bullmq-pro:** Update changelog to version 6.2.4 ([`3cff81e`](https://github.com/taskforcesh/bullmq/commit/3cff81e517b6b40d68180e3b23f7cb64239ed334))
+* **bullmq-pro:** Add prioritized section ([#2096](https://github.com/taskforcesh/bullmq/issues/2096)) ([`a0f153c`](https://github.com/taskforcesh/bullmq/commit/a0f153c091f9abd21959109621ce22a2f32e3334))
+* **readme:** Update usedBy section ([`2ad2530`](https://github.com/taskforcesh/bullmq/commit/2ad253055ca6d8f117c434c9eac98c69c4aa1895))
+* **changelog:** Fix 4.6.2 version link ([`7706a08`](https://github.com/taskforcesh/bullmq/commit/7706a08a58fed28006ea0bacc93b094ee15cbea1))
+* Restore python changelog ([#2089](https://github.com/taskforcesh/bullmq/issues/2089)) ([`f43ea5e`](https://github.com/taskforcesh/bullmq/commit/f43ea5ed9910e91f9e4aaaba31e6f3da61555a02))
+* **retry:** Add stop retrying jobs pattern (#2080) ref #1571 ([`dd40cf1`](https://github.com/taskforcesh/bullmq/commit/dd40cf1eaf13767ddcd5e68c4f33d974b65e6f18))
+* **api:** Remove old api files in favor of typedoc ([#2078](https://github.com/taskforcesh/bullmq/issues/2078)) ([`75a594f`](https://github.com/taskforcesh/bullmq/commit/75a594f36a2e8c62e16f55d917d1b8f906d18a8c))
+
+### Performance
+* **job:** Generate priority limit constant once ([#2102](https://github.com/taskforcesh/bullmq/issues/2102)) ([`8880f9f`](https://github.com/taskforcesh/bullmq/commit/8880f9f2983282d343d603a89abe5e1e6bff78e5))
+* **retry:** Compare prev state instead of regex expression ([#2099](https://github.com/taskforcesh/bullmq/issues/2099)) ([`c141283`](https://github.com/taskforcesh/bullmq/commit/c1412831903d1fae0955af097e0be049024839fe))
+
 ## v1.9.0 (2023-07-18)
 ### Feature
 * **job:** Add option for removing children in remove method (python) ([#2064](https://github.com/taskforcesh/bullmq/issues/2064)) ([`841dc87`](https://github.com/taskforcesh/bullmq/commit/841dc87a689897df81438ad1f43e45a4da77c388))
