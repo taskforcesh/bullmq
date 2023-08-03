@@ -4,7 +4,7 @@ distlib==0.3.6
 filelock==3.12.2
 msgpack==1.0.5
 pipenv==2023.7.4
-platformdirs==3.6.0
+platformdirs==3.10.0
 pre-commit==3.3.3
 python-semantic-release==7.28.1
 redis==4.6.0
