@@ -10,13 +10,13 @@ class QueueKeys:
         names = ["", "active", "wait", "waiting-children", "paused", "completed", "failed", "delayed",
                  "stalled", "limiter", "prioritized", "id", "stalled-check", "meta", "pc", "events"]
         keys = {}
-        for name in names:
-            keys[name] = self.toKey(name)
+        for name_type in names:
+            keys[name_type] = self.toKey(name, name_type)
 
         return keys
 
-    def toKey(self, name: str, type: str):
-        return f"{self.getQueueQualifiedName(name)}:{type}"
+    def toKey(self, name: str, name_type: str):
+        return f"{self.getQueueQualifiedName(name)}:{name_type}"
 
     def getQueueQualifiedName(self, name: str):
         return f"{self.prefix}:{name}"
