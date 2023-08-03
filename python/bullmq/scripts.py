@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 from redis import Redis
+from bullmq.queue_keys import QueueKeys
 from bullmq.error_code import ErrorCode
 from bullmq.utils import isRedisVersionLowerThan, get_parent_key
 from typing import Any, TYPE_CHECKING
@@ -53,14 +54,11 @@ class Scripts:
             "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-2.lua")),
         }
 
-        # loop all the names and add them to the keys object
-        names = ["", "active", "wait", "waiting-children", "paused", "completed", "failed", "delayed",
-                 "stalled", "limiter", "prioritized", "id", "stalled-check", "meta", "pc", "events", "waiting-children"]
-        for name in names:
-            self.keys[name] = self.toKey(name)
+        self.queue_keys = QueueKeys(prefix)
+        self.keys = self.queue_keys.getKeys(queueName)
 
     def toKey(self, name: str):
-        return f"{self.prefix}:{self.queueName}:{name}"
+        return self.queue_keys.toKey(self.queueName, name)
 
     def getScript(self, name: str):
         """

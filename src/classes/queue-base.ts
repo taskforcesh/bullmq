@@ -22,6 +22,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   protected scripts: Scripts;
   protected connection: RedisConnection;
+  public readonly qualifiedName: string;
 
   /**
    *
@@ -66,6 +67,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     });
 
     const queueKeys = new QueueKeys(opts.prefix);
+    this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
     this.scripts = new Scripts(this);

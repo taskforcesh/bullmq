@@ -56,6 +56,7 @@ class Job:
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
         self.stacktrace: List[str] = []
         self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
+        self.queueQualifiedName = queue.qualifiedName
 
     def updateData(self, data):
         self.data = data
@@ -151,10 +152,6 @@ class Job:
 
     def moveToWaitingChildren(self, token, opts:dict):
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
-
-    @property
-    def queueQualifiedName(self):
-        return f"{self.queue.prefix}:{self.queue.name}"
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):

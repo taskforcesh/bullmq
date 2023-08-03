@@ -7,6 +7,7 @@ export type MinimalQueue = Pick<
   | 'toKey'
   | 'keys'
   | 'opts'
+  | 'qualifiedName'
   | 'closing'
   | 'waitUntilReady'
   | 'removeListener'
