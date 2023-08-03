@@ -3,7 +3,7 @@ certifi==2023.5.7
 distlib==0.3.6
 filelock==3.12.2
 msgpack==1.0.5
-pipenv==2023.7.4
+pipenv==2023.7.23
 platformdirs==3.6.0
 pre-commit==3.3.3
 python-semantic-release==7.28.1
