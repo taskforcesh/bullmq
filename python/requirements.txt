@@ -1,5 +1,5 @@
 async-timeout==4.0.2
-certifi==2023.5.7
+certifi==2023.7.22
 distlib==0.3.6
 filelock==3.12.2
 msgpack==1.0.5
