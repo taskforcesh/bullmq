@@ -28,9 +28,9 @@ class Job:
     A Job instance is also passed to the Worker's process function.
     """
 
-    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}):
+    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}, job_id: str = None):
         self.name = name
-        self.id = opts.get("jobId", None)
+        self.id = opts.get("jobId", None) or job_id
         self.progress = 0
         self.timestamp = opts.get("timestamp", round(time.time() * 1000))
         final_opts = {"attempts": 0, "delay": 0}

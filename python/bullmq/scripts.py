@@ -57,6 +57,10 @@ class Scripts:
         self.queue_keys = QueueKeys(prefix)
         self.keys = self.queue_keys.getKeys(queueName)
 
+    def resetQueueKeys(self, queue_name: str):
+        self.queueName = queue_name
+        self.keys = self.queue_keys.getKeys(queue_name)
+
     def toKey(self, name: str):
         return self.queue_keys.toKey(self.queueName, name)
 
@@ -74,7 +78,7 @@ class Scripts:
             return self.keys[key]
         return list(map(mapKey, keys))
 
-    def addJobArgs(self, job: Job, waiting_children_key):
+    def addJobArgs(self, job: Job, waiting_children_key: str|None):
         #  We are still lacking some arguments here:
         #  ARGV[1] msgpacked arguments array
         #         [9]  repeat job key
@@ -96,13 +100,21 @@ class Scripts:
 
         return (keys,args)
 
-    def addJob(self, job: Job):
+    def addJob(self, job: Job, pipe = None):
         """
         Add an item to the queue
         """
         keys, args = self.addJobArgs(job, None)
 
-        return self.commands["addJob"](keys=keys, args=args)
+        return self.commands["addJob"](keys=keys, args=args, client = pipe)
+
+    def addParentJob(self, job: Job, waiting_children_key: str, pipe = None):
+        """
+        Add an item to the queue that is a parent
+        """
+        keys, args = self.addJobArgs(job, waiting_children_key)
+
+        return self.commands["addJob"](keys=keys, args=args, client=pipe)
 
     def moveToWaitingChildrenArgs(self, job_id, token, opts):
         keys = [self.toKey(job_id) + ":lock",
@@ -367,6 +379,7 @@ class Scripts:
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+        transformed_value = json.dumps(val, separators=(',', ':')) if type(val) == dict else val
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 
@@ -412,7 +425,7 @@ class Scripts:
             "fpof": getFailParentOnFailure(job),
         }, use_bin_type=True)
 
-        args = [job.id, timestamp, propVal, val or "", target, "",
+        args = [job.id, timestamp, propVal, transformed_value or "", target, "",
                 fetchNext and "fetch" or "", self.keys[''], packedOpts]
         return (keys, args)
 

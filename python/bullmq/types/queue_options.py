@@ -2,7 +2,7 @@
 from typing import TypedDict
 
 
-class QueueOptions(TypedDict, total=False):
+class QueueBaseOptions(TypedDict, total=False):
     """
     Options for the Queue class.
     """
