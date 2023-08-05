@@ -64,7 +64,7 @@ class Worker(EventEmitter):
         token_postfix = 0
 
         while not self.closed:
-            while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+            while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing and not self.limitUntil:
                 token_postfix+=1
                 token = f'{self.id}:{token_postfix}'
                 waiting_job = asyncio.ensure_future(self.getNextJob(token))
@@ -100,7 +100,7 @@ class Worker(EventEmitter):
         @returns a Job or undefined if no job was available in the queue.
         """
 
-        if not self.waiting:
+        if not self.waiting and not self.limitUntil:
             self.waiting = self.waitForJob()
 
             try:
@@ -110,6 +110,8 @@ class Worker(EventEmitter):
             finally:
                 self.waiting = None
         else:
+            if self.limitUntil:
+                await asyncio.sleep(self.limitUntil / 1000)
             job_instance = await self.moveToActive(token)
             return job_instance
 
