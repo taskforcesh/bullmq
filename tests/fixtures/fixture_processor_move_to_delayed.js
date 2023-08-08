@@ -11,7 +11,7 @@ module.exports = function (job, token) {
   return delay(500)
     .then(() => {
       job.moveToDelayed(5000, token);
-      return delay(200);
+      return delay(250);
     })
     .then(() => {
       throw new DelayedError();
