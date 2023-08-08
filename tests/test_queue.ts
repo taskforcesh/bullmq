@@ -107,6 +107,17 @@ describe('queues', function () {
     });
   });
 
+  describe('when empty name is provided', () => {
+    it('throws an error', function () {
+      expect(
+        () =>
+          new Queue('', {
+            connection,
+          }),
+      ).to.throw('Queue name must be provided');
+    });
+  });
+
   describe('.drain', () => {
     it('count added, unprocessed jobs', async () => {
       const maxJobs = 100;
