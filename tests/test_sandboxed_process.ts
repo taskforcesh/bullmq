@@ -392,7 +392,8 @@ function sandboxProcessTests(
     });
 
     it('should process and update data', async () => {
-      const processFile = __dirname + '/fixtures/fixture_processor_update.js';
+      const processFile =
+        __dirname + '/fixtures/fixture_processor_update_data.js';
 
       const worker = new Worker(queueName, processFile, {
         connection,
@@ -419,6 +420,42 @@ function sandboxProcessTests(
       await queue.add('test', { bar: 'foo' });
 
       await completing;
+      await worker.close();
+    });
+
+    it('should process and move to delayed', async () => {
+      const processFile =
+        __dirname + '/fixtures/fixture_processor_move_to_delayed.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const delaying = new Promise<void>((resolve, reject) => {
+        queueEvents.on('delayed', async ({ delay }) => {
+          try {
+            expect(Number(delay)).to.be.greaterThanOrEqual(5000);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              1,
+            );
+            expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      const job = await queue.add('test', { bar: 'foo' });
+
+      await delaying;
+
+      const state = await queue.getJobState(job.id!);
+
+      expect(state).to.be.equal('delayed');
+
       await worker.close();
     });
 

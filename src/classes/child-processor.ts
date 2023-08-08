@@ -63,7 +63,7 @@ export class ChildProcessor {
     });
   }
 
-  public async start(jobJson: JobJson): Promise<void> {
+  public async start(jobJson: JobJson, token?: string): Promise<void> {
     if (this.status !== ChildStatus.Idle) {
       return this.send({
         cmd: ParentCommand.Error,
@@ -74,7 +74,7 @@ export class ChildProcessor {
     this.currentJobPromise = (async () => {
       try {
         const job = wrapJob(jobJson, this.send);
-        const result = (await this.processor(job)) || {};
+        const result = (await this.processor(job, token)) || {};
         await this.send({
           cmd: ParentCommand.Completed,
           value: result,
@@ -148,7 +148,16 @@ function wrapJob(
       });
     },
     /*
-     * Emulate the real job `update` function.
+     * Emulate the real job `moveToDelayed` function.
+     */
+    moveToDelayed: async (timestamp: number, token?: string) => {
+      send({
+        cmd: ParentCommand.MoveToDelayed,
+        value: { timestamp, token },
+      });
+    },
+    /*
+     * Emulate the real job `updateData` function.
      */
     updateData: async (data: any) => {
       send({

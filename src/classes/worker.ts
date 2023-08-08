@@ -642,7 +642,7 @@ export class Worker<
 
           if (
             err instanceof DelayedError ||
-            err.name == 'DelayedError' ||
+            err.message == 'DelayedError' ||
             err instanceof WaitingChildrenError ||
             err.name == 'WaitingChildrenError'
           ) {
