@@ -1,3 +1,15 @@
+## [4.7.1](https://github.com/taskforcesh/bullmq/compare/v4.7.0...v4.7.1) (2023-08-10)
+
+
+### Features
+
+* **python:** add username option into redisOpts ([#2108](https://github.com/taskforcesh/bullmq/issues/2108)) ([d27f33e](https://github.com/taskforcesh/bullmq/commit/d27f33e997d30e6c0c7d4484bea338347c3fe67e))
+
+
+### Performance Improvements
+
+* **rate-limit:** get pttl only if needed ([#2129](https://github.com/taskforcesh/bullmq/issues/2129)) ([12ce2f3](https://github.com/taskforcesh/bullmq/commit/12ce2f3746626a81ea961961bb1a629077eed68a))
+
 # [4.7.0](https://github.com/taskforcesh/bullmq/compare/v4.6.3...v4.7.0) (2023-08-03)
 
 
