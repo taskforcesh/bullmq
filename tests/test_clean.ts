@@ -199,6 +199,16 @@ describe('Cleaner', () => {
       expect(count).to.be.eql(0);
     });
 
+    it('cleans all delayed jobs when limit is given', async () => {
+      await queue.add('test', { some: 'data' }, { delay: 5000 });
+      await queue.add('test', { some: 'data' }, { delay: 5000 });
+      await delay(100);
+      const jobs = await queue.clean(0, 1000, 'delayed');
+      expect(jobs.length).to.be.eql(2);
+      const count = await queue.count();
+      expect(count).to.be.eql(0);
+    });
+
     it('does not clean anything if all jobs are in grace period', async () => {
       await queue.add('test', { some: 'data' }, { delay: 5000 });
       await queue.add('test', { some: 'data' }, { delay: 5000 });
