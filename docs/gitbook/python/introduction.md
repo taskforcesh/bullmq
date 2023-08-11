@@ -46,11 +46,6 @@ async def process(job):
     # job.data will include the data added to the queue
     return doSomethingAsync(job)
 
-worker = Worker("myQueue", process)
-
-# When no need to process more jobs we should close the worker
-await worker.close()
-
 async def main():
     # Feel free to remove the connection parameter, if your redis runs on localhost
     worker = Worker("myQueue", process, {"connection": "rediss://<user>:<password>@<host>:<port>"})
