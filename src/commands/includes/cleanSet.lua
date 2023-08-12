@@ -9,8 +9,9 @@
 --- @include "getTimestamp"
 --- @include "removeJob"
 
-local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, limit, attributes)
-  local jobs = getJobsInZset(setKey, rangeStart, rangeEnd, timestamp, limit)
+local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, limit, attributes, useTimestampAsScore)
+  local jobs = getJobsInZset(setKey, rangeStart, rangeEnd, timestamp, limit, useTimestampAsScore)
+  rcall("SET", "DEBUG4",  #jobs)
   local deleted = {}
   local deletedCount = 0
   local jobTS

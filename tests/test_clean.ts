@@ -175,6 +175,26 @@ describe('Cleaner', () => {
     expect(count).to.be.eql(0);
   });
 
+  it('should clean all delayed jobs when limit is given', async () => {
+    await queue.add('test', { some: 'data' }, { delay: 5000 });
+    await queue.add('test', { some: 'data' }, { delay: 5000 });
+    await delay(100);
+    const jobs = await queue.clean(0, 1000, 'delayed');
+    expect(jobs.length).to.be.eql(2);
+    const count = await queue.count();
+    expect(count).to.be.eql(0);
+  });
+
+  it('should clean all prioritized jobs when limit is given', async () => {
+    await queue.add('test', { some: 'data' }, { priority: 5000 });
+    await queue.add('test', { some: 'data' }, { priority: 5001 });
+    await delay(100);
+    const jobs = await queue.clean(0, 1000, 'prioritized');
+    expect(jobs.length).to.be.eql(2);
+    const count = await queue.count();
+    expect(count).to.be.eql(0);
+  });
+
   describe('when prioritized state is provided', async () => {
     it('should clean the number of jobs requested', async () => {
       await queue.add('test', { some: 'data' }, { priority: 1 }); // as queue is empty, this job will be added to wait
