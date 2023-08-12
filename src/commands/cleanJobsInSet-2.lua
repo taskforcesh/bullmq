@@ -34,7 +34,6 @@ local result
 if ARGV[4] == "active" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false)
 elseif ARGV[4] == "delayed" then
-  rcall("SET", "DEBUG0",  ARGV[2])
   result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], limit,
                     {"processedOn", "timestamp"}, false)
 elseif ARGV[4] == "prioritized" then

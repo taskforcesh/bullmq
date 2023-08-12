@@ -9,9 +9,7 @@ local function getTimestamp(jobKey, attributes)
 
   local jobTs
   for _, ts in ipairs(rcall("HMGET", jobKey, unpack(attributes))) do
-    rcall("SET", "DEBUG1", type(ts))
     if (ts) then
-      rcall("SET", "DEBUG2", ts)
       jobTs = ts
       break
     end
