@@ -9,7 +9,7 @@
 --- @include "getTimestamp"
 --- @include "removeJob"
 
-local function cleanSet(setKey, jobKeyPrefix, rangeEnd, timestamp, limit, attributes)
+local function cleanSet(setKey, jobKeyPrefix, rangeEnd, timestamp, limit, attributes, isFinished)
   local jobs = getJobsInZset(setKey, rangeEnd, limit)
   local deleted = {}
   local deletedCount = 0
@@ -20,13 +20,18 @@ local function cleanSet(setKey, jobKeyPrefix, rangeEnd, timestamp, limit, attrib
     end
 
     local jobKey = jobKeyPrefix .. job
-    -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
-    -- TODO: check if in completed/failed this is needed, as ZRANGEBYSCORE could bring all the expected jobs
-    jobTS = getTimestamp(jobKey, attributes)
-    if (not jobTS or jobTS <= timestamp) then
+    if isFinished then
       removeJob(job, true, jobKeyPrefix)
       deletedCount = deletedCount + 1
       table.insert(deleted, job)
+    else
+      -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
+      jobTS = getTimestamp(jobKey, attributes)
+      if (not jobTS or jobTS <= timestamp) then
+        removeJob(job, true, jobKeyPrefix)
+        deletedCount = deletedCount + 1
+        table.insert(deleted, job)
+      end
     end
   end
 
