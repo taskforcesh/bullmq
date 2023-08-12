@@ -43,6 +43,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       ...opts,
     };
 
+    if (!name) {
+      throw new Error('Queue name must be provided');
+    }
+
     if (!opts.connection) {
       console.warn(
         [
