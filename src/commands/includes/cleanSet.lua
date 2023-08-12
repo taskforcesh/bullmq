@@ -9,8 +9,8 @@
 --- @include "getTimestamp"
 --- @include "removeJob"
 
-local function cleanSet(setKey, jobKeyPrefix, rangeStart, rangeEnd, timestamp, limit, attributes, useTimestampAsScore)
-  local jobs = getJobsInZset(setKey, rangeStart, rangeEnd, timestamp, limit, useTimestampAsScore)
+local function cleanSet(setKey, jobKeyPrefix, rangeEnd, timestamp, limit, attributes)
+  local jobs = getJobsInZset(setKey, rangeEnd, limit)
   local deleted = {}
   local deletedCount = 0
   local jobTS
