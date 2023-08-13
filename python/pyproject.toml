@@ -63,6 +63,7 @@ patch_tags = ["fix", "perf"]
 [tool.semantic_release.changelog]
 changelog_file = "../docs/gitbook/python/changelog.md"
 exclude_commit_patterns = ["^((?!python).)*$"]
+template_dir = "./templates"
 
 [tool.semantic_release.branches.master]
 match = "master"
