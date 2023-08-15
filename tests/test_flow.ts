@@ -1308,7 +1308,7 @@ describe('flows', () => {
       const processingChildren = new Promise<void>(resolve => {
         childrenProcessor = async (job: Job) => {
           processedChildren++;
-          await delay(20);
+          await delay(25);
           expect(processedChildren).to.be.equal(job.data.order);
 
           if (processedChildren === 3) {
@@ -1321,7 +1321,7 @@ describe('flows', () => {
       const processingGrandchildren = new Promise<void>(resolve => {
         grandChildrenProcessor = async (job: Job) => {
           processedGrandChildren++;
-          await delay(10);
+          await delay(25);
           expect(processedGrandChildren).to.be.equal(job.data.order);
 
           if (processedGrandChildren === 3) {
@@ -1365,7 +1365,7 @@ describe('flows', () => {
       const grandChildrenWorker = new Worker(
         grandChildrenQueueName,
         grandChildrenProcessor,
-        { connection },
+        { autorun: false, connection },
       );
 
       await parentWorker.waitUntilReady();
@@ -1427,6 +1427,8 @@ describe('flows', () => {
 
       expect(parentState).to.be.eql('waiting-children');
       expect(children).to.have.length(3);
+
+      grandChildrenWorker.run();
 
       await processingGrandchildren;
 
