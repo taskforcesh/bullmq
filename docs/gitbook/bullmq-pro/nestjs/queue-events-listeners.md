@@ -1,6 +1,6 @@
 # Queue Events Listeners
 
-To register a QueueEvents instance, you may need to use **QueueEventsListener** decorator:
+To register a QueueEvents instance, you need to use **QueueEventsListener** decorator:
 
 ```typescript
 import {
