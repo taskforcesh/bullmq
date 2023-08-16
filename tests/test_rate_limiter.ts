@@ -113,6 +113,17 @@ describe('Rate Limiter', function () {
     await worker.close();
   });
 
+  it('should quickly close a worker even with slow rate-limit', async function () {
+    const limiter = { max: 1, duration: 60 * 1000 };
+    const worker = new Worker(queueName, async () => {}, {
+      connection: { host: 'localhost' },
+      limiter,
+    });
+    await queue.add('test', 1);
+    await delay(500);
+    await worker.close();
+  });
+
   describe('when queue is paused between rate limit', () => {
     it('should add active jobs to paused', async function () {
       this.timeout(20000);

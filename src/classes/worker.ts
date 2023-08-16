@@ -166,6 +166,7 @@ export class Worker<
   private running = false;
   private blockUntil = 0;
   private limitUntil = 0;
+  private abortDelayController: AbortController | null = null;
 
   protected processFn: Processor<DataType, ResultType, NameType>;
 
@@ -474,8 +475,9 @@ export class Worker<
       }
     } else {
       if (this.limitUntil) {
-        // TODO: We need to be able to break this delay when we are closing the worker.
-        await this.delay(this.limitUntil);
+        this.abortDelayController?.abort();
+        this.abortDelayController = new AbortController();
+        await this.delay(this.limitUntil, this.abortDelayController);
       }
       return this.moveToActive(token);
     }
@@ -567,8 +569,11 @@ export class Worker<
    *
    * This function is exposed only for testing purposes.
    */
-  async delay(milliseconds?: number): Promise<void> {
-    await delay(milliseconds || DELAY_TIME_1);
+  async delay(
+    milliseconds?: number,
+    abortController?: AbortController,
+  ): Promise<void> {
+    await delay(milliseconds || DELAY_TIME_1, abortController);
   }
 
   protected async nextJobFromJobData(
@@ -741,6 +746,8 @@ export class Worker<
     }
     this.closing = (async () => {
       this.emit('closing', 'closing queue');
+
+      this.abortDelayController?.abort();
 
       const client = await this.blockingConnection.client;
 
