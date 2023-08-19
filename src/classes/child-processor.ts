@@ -44,24 +44,14 @@ export class ChildProcessor {
     }
 
     const origProcessor = processor;
-    if (processor.length > 1) {
-      processor = function (arg: any) {
-        try {
-          return Promise.resolve(origProcessor(arg));
-        } catch (err) {
-          return Promise.reject(err);
-        }
-      };
-    } else {
-      const origProcessor = processor;
-      processor = function (...args: any[]) {
-        try {
-          return Promise.resolve(origProcessor(...args));
-        } catch (err) {
-          return Promise.reject(err);
-        }
-      };
-    }
+    processor = function (job: SandboxedJob, token?: string) {
+      try {
+        return Promise.resolve(origProcessor(job, token));
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    };
+
     this.processor = processor;
     this.status = ChildStatus.Idle;
     await this.send({
