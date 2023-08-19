@@ -226,6 +226,6 @@ def optsFromJSON(rawOpts: dict) -> dict:
 
 def getReturnValue(value: Any):
     try:
-        json.loads(value)
+        return json.loads(value)
     except Exception as err:
         return value
