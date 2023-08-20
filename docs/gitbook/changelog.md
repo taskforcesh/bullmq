@@ -1,3 +1,10 @@
+# [4.8.0](https://github.com/taskforcesh/bullmq/compare/v4.7.4...v4.8.0) (2023-08-20)
+
+
+### Features
+
+* **sandbox:** emulate moveToDelayed method ([#2122](https://github.com/taskforcesh/bullmq/issues/2122)) ref [#2118](https://github.com/taskforcesh/bullmq/issues/2118) ([4c4559b](https://github.com/taskforcesh/bullmq/commit/4c4559b3c678313b3727c9781a6d3f963bcfda4e))
+
 ## [4.7.4](https://github.com/taskforcesh/bullmq/compare/v4.7.3...v4.7.4) (2023-08-19)
 
 
