@@ -20,7 +20,7 @@ export default (
           await childProcessor.init(msg.value);
           break;
         case ChildCommand.Start:
-          await childProcessor.start(msg.job);
+          await childProcessor.start(msg.job, msg?.token);
           break;
         case ChildCommand.Stop:
           break;
