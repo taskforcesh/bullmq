@@ -1,3 +1,32 @@
+## [4.7.4](https://github.com/taskforcesh/bullmq/compare/v4.7.3...v4.7.4) (2023-08-19)
+
+
+### Bug Fixes
+
+* **python:** job getReturnValue not returning returnvalue ([#2143](https://github.com/taskforcesh/bullmq/issues/2143)) ([dcb8e6a](https://github.com/taskforcesh/bullmq/commit/dcb8e6a8e62346fac8574bd9aac56c5a25589a2c))
+* **sandbox:** ignore extra params on processor ([#2142](https://github.com/taskforcesh/bullmq/issues/2142)) ([3602c20](https://github.com/taskforcesh/bullmq/commit/3602c20ab80cbe0a0d3de66210a01ad119e1090b))
+
+## [4.7.3](https://github.com/taskforcesh/bullmq/compare/v4.7.2...v4.7.3) (2023-08-17)
+
+
+### Bug Fixes
+
+* **worker:** abort rate-limit delay when closing worker ([264a81c](https://github.com/taskforcesh/bullmq/commit/264a81ca5f4e4f88c361d507312324b5f6c3225c))
+
+## [4.7.2](https://github.com/taskforcesh/bullmq/compare/v4.7.1...v4.7.2) (2023-08-12)
+
+
+### Bug Fixes
+
+* **queue:** throw error when name is not provided ([#2123](https://github.com/taskforcesh/bullmq/issues/2123)) ([78fb0e2](https://github.com/taskforcesh/bullmq/commit/78fb0e2a93cfa59a43a0fb337f857e78f1c6fcf4))
+
+## [4.7.1](https://github.com/taskforcesh/bullmq/compare/v4.7.0...v4.7.1) (2023-08-10)
+
+
+### Performance Improvements
+
+* **rate-limit:** get pttl only if needed ([#2129](https://github.com/taskforcesh/bullmq/issues/2129)) ([12ce2f3](https://github.com/taskforcesh/bullmq/commit/12ce2f3746626a81ea961961bb1a629077eed68a))
+
 # [4.7.0](https://github.com/taskforcesh/bullmq/compare/v4.6.3...v4.7.0) (2023-08-03)
 
 
@@ -29,11 +58,6 @@
 # [4.5.0](https://github.com/taskforcesh/bullmq/compare/v4.4.0...v4.5.0) (2023-07-18)
 
 
-### Bug Fixes
-
-* **python:** respect concurrency in worker ([#2062](https://github.com/taskforcesh/bullmq/issues/2062)) fixes [#2063](https://github.com/taskforcesh/bullmq/issues/2063) ([1b95185](https://github.com/taskforcesh/bullmq/commit/1b95185e8f4a4349037b59e61455bdec79792644))
-
-
 ### Features
 
 * **job:** add option for removing children in remove method (python) ([#2064](https://github.com/taskforcesh/bullmq/issues/2064)) ([841dc87](https://github.com/taskforcesh/bullmq/commit/841dc87a689897df81438ad1f43e45a4da77c388))
@@ -44,7 +68,6 @@
 ### Features
 
 * **job:** add removeDependencyOnFailure option ([#1953](https://github.com/taskforcesh/bullmq/issues/1953)) ([ffd49e2](https://github.com/taskforcesh/bullmq/commit/ffd49e289c57252487200d47b92193228ae7451f))
-* **python:** add remove method in queue ([#2066](https://github.com/taskforcesh/bullmq/issues/2066)) ([808ee72](https://github.com/taskforcesh/bullmq/commit/808ee7231c75d4d826881f25e346f01b2fd2dc23))
 
 # [4.3.0](https://github.com/taskforcesh/bullmq/compare/v4.2.1...v4.3.0) (2023-07-14)
 

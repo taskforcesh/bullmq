@@ -43,6 +43,7 @@
 * [Architecture](guide/architecture.md)
 * [NestJs](guide/nestjs/README.md)
   * [Producers](guide/nestjs/producers.md)
+  * [Queue Events Listeners](guide/nestjs/queue-events-listeners.md)
 * [Going to production](guide/going-to-production.md)
 * [Migration to newer versions](guide/migration-to-newer-versions.md)
 
@@ -73,6 +74,7 @@
 * [Batches](bullmq-pro/batches.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
   * [Producers](bullmq-pro/nestjs/producers.md)
+  * [Queue Events Listeners](bullmq-pro/nestjs/queue-events-listeners.md)
   * [API Reference](https://nestjs.bullmq.pro/)
   * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)

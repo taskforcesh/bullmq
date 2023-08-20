@@ -2,6 +2,21 @@
 
 <!--next-version-placeholder-->
 
+## v1.10.1 (2023-08-19)
+### Fix
+* **python:** Job getReturnValue not returning returnvalue ([#2143](https://github.com/taskforcesh/bullmq/issues/2143)) ([`dcb8e6a`](https://github.com/taskforcesh/bullmq/commit/dcb8e6a8e62346fac8574bd9aac56c5a25589a2c))
+* **worker:** Abort rate-limit delay when closing worker ([`264a81c`](https://github.com/taskforcesh/bullmq/commit/264a81ca5f4e4f88c361d507312324b5f6c3225c))
+* **queue:** Throw error when name is not provided ([#2123](https://github.com/taskforcesh/bullmq/issues/2123)) ([`78fb0e2`](https://github.com/taskforcesh/bullmq/commit/78fb0e2a93cfa59a43a0fb337f857e78f1c6fcf4))
+
+### Documentation
+* **nestjs:** Add queue events listeners section ([`d82fdcc`](https://github.com/taskforcesh/bullmq/commit/d82fdcc2b1ff6909678b6b717449af8df2f10bd6))
+* **nestjs-bullmq-pro:** Add queue events listeners section ([#2138](https://github.com/taskforcesh/bullmq/issues/2138)) ([`75dd80b`](https://github.com/taskforcesh/bullmq/commit/75dd80b190963bd5401e8d076500eb8c65c897b8))
+* **changelog:** Update bullmq-pro to 6.3.3 ([#2137](https://github.com/taskforcesh/bullmq/issues/2137)) ([`9569509`](https://github.com/taskforcesh/bullmq/commit/9569509af9ee400d8744106b85bc7c329b866d1d))
+* **bullmq-pro:** Update changelog to version 6.3.0 ([#2111](https://github.com/taskforcesh/bullmq/issues/2111)) ([`e2cb45f`](https://github.com/taskforcesh/bullmq/commit/e2cb45f3e31167c1fd6b1e58b2a322273762c68f))
+
+### Performance
+* **rate-limit:** Get pttl only if needed ([#2129](https://github.com/taskforcesh/bullmq/issues/2129)) ([`12ce2f3`](https://github.com/taskforcesh/bullmq/commit/12ce2f3746626a81ea961961bb1a629077eed68a))
+
 ## v1.10.0 (2023-08-03)
 ### Feature
 * **redis-connection:** Add username option into redisOpts ([#2108](https://github.com/taskforcesh/bullmq/issues/2108)) ([`d27f33e`](https://github.com/taskforcesh/bullmq/commit/d27f33e997d30e6c0c7d4484bea338347c3fe67e))
@@ -15,11 +30,11 @@
 
 ## v1.8.0 (2023-07-17)
 ### Fix
-* **python:** Respect concurrency in worker (#2062) fixes #2063 ([`1b95185`](https://github.com/taskforcesh/bullmq/commit/1b95185e8f4a4349037b59e61455bdec79792644))
+* **worker:** Respect concurrency (#2062) fixes #2063 ([`1b95185`](https://github.com/taskforcesh/bullmq/commit/1b95185e8f4a4349037b59e61455bdec79792644))
 
 ## v1.7.0 (2023-07-14)
 ### Feature
-* **python:** Add remove method in queue ([#2066](https://github.com/taskforcesh/bullmq/issues/2066)) ([`808ee72`](https://github.com/taskforcesh/bullmq/commit/808ee7231c75d4d826881f25e346f01b2fd2dc23))
+* **queue:** Add remove method ([#2066](https://github.com/taskforcesh/bullmq/issues/2066)) ([`808ee72`](https://github.com/taskforcesh/bullmq/commit/808ee7231c75d4d826881f25e346f01b2fd2dc23))
 * **worker:** Add id as part of token ([#2061](https://github.com/taskforcesh/bullmq/issues/2061)) ([`e255356`](https://github.com/taskforcesh/bullmq/commit/e2553562271e1e4143a8fef616349bb30de4899d))
 
 ## v1.6.1 (2023-07-10)

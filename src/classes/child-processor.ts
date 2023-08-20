@@ -1,4 +1,3 @@
-import { promisify } from 'util';
 import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
 import { errorToJSON } from '../utils';
 
@@ -44,18 +43,15 @@ export class ChildProcessor {
       });
     }
 
-    if (processor.length > 1) {
-      processor = promisify(processor);
-    } else {
-      const origProcessor = processor;
-      processor = function (...args: any[]) {
-        try {
-          return Promise.resolve(origProcessor(...args));
-        } catch (err) {
-          return Promise.reject(err);
-        }
-      };
-    }
+    const origProcessor = processor;
+    processor = function (job: SandboxedJob, token?: string) {
+      try {
+        return Promise.resolve(origProcessor(job, token));
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    };
+
     this.processor = processor;
     this.status = ChildStatus.Idle;
     await this.send({

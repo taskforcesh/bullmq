@@ -73,6 +73,43 @@ function sandboxProcessTests(
       await worker.close();
     });
 
+    describe('when processor has more than 1 param', () => {
+      it('should ignore extra params, process and complete', async () => {
+        const processFile =
+          __dirname + '/fixtures/fixture_processor_with_extra_param.js';
+
+        const worker = new Worker(queueName, processFile, {
+          connection,
+          drainDelay: 1,
+          useWorkerThreads,
+        });
+
+        const completing = new Promise<void>((resolve, reject) => {
+          worker.on('completed', async (job: Job, value: any) => {
+            try {
+              expect(job.data).to.be.eql({ foo: 'bar' });
+              expect(value).to.be.eql(42);
+              expect(
+                Object.keys(worker['childPool'].retained),
+              ).to.have.lengthOf(0);
+              expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+              await worker.close();
+              resolve();
+            } catch (err) {
+              await worker.close();
+              reject(err);
+            }
+          });
+        });
+
+        await queue.add('test', { foo: 'bar' });
+
+        await completing;
+
+        await worker.close();
+      });
+    });
+
     describe('when processor file is .cjs (CommonJS)', () => {
       it('processes and completes', async () => {
         const processFile = __dirname + '/fixtures/fixture_processor.cjs';
