@@ -15,7 +15,11 @@ import {
 } from '../src/classes';
 import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
-import { delay, removeAllQueueData } from '../src/utils';
+import {
+  delay,
+  isRedisVersionLowerThan,
+  removeAllQueueData,
+} from '../src/utils';
 
 describe('workers', function () {
   const sandbox = sinon.createSandbox();
@@ -3371,7 +3375,7 @@ describe('workers', function () {
             { idx: index, ...value },
             {
               parent: {
-                id: parent.id,
+                id: parent.id!,
                 queue: 'bull:' + parentQueueName,
               },
             },
@@ -3379,6 +3383,7 @@ describe('workers', function () {
         }),
       );
 
+      childrenWorker.redisVersion;
       const { nextUnprocessedCursor: nextCursor1, unprocessed: unprocessed1 } =
         await parent.getDependencies({
           unprocessed: {
@@ -3387,7 +3392,11 @@ describe('workers', function () {
           },
         });
 
-      expect(unprocessed1.length).to.be.greaterThanOrEqual(50);
+      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+        expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
+      } else {
+        expect(unprocessed1!.length).to.be.equal(65);
+      }
 
       const { nextUnprocessedCursor: nextCursor2, unprocessed: unprocessed2 } =
         await parent.getDependencies({
@@ -3397,7 +3406,12 @@ describe('workers', function () {
           },
         });
 
-      expect(unprocessed2.length).to.be.lessThanOrEqual(15);
+      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+        expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
+      } else {
+        expect(unprocessed2!.length).to.be.equal(65);
+      }
+
       expect(nextCursor2).to.be.equal(0);
 
       await childrenWorker.close();
