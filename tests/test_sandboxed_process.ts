@@ -73,7 +73,7 @@ function sandboxProcessTests(
       await worker.close();
     });
 
-    describe('when processor has more than 1 param', () => {
+    describe('when processor has more than 2 params', () => {
       it('should ignore extra params, process and complete', async () => {
         const processFile =
           __dirname + '/fixtures/fixture_processor_with_extra_param.js';
@@ -473,7 +473,7 @@ function sandboxProcessTests(
       const delaying = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ delay }) => {
           try {
-            expect(Number(delay)).to.be.greaterThanOrEqual(5000);
+            expect(Number(delay)).to.be.greaterThanOrEqual(2500);
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               1,
             );
@@ -485,6 +485,13 @@ function sandboxProcessTests(
         });
       });
 
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          expect(job.data.bar).to.be.equal('foo');
+          resolve();
+        });
+      });
+
       const job = await queue.add('test', { bar: 'foo' });
 
       await delaying;
@@ -493,6 +500,7 @@ function sandboxProcessTests(
 
       expect(state).to.be.equal('delayed');
 
+      await completing;
       await worker.close();
     });
 

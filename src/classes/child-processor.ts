@@ -70,6 +70,7 @@ export class ChildProcessor {
     this.currentJobPromise = (async () => {
       try {
         const job = wrapJob(jobJson, this.send);
+        //console.log('el token', token, job.id)
         const result = (await this.processor(job, token)) || {};
         await this.send({
           cmd: ParentCommand.Completed,
