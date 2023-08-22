@@ -211,7 +211,7 @@ export class Worker<
       Connection,
     );
 
-    if (this.opts.stalledInterval <= 0) {
+    if (this.opts.stalledInterval && this.opts.stalledInterval <= 0) {
       throw new Error('stalledInterval must be greater than 0');
     }
 
