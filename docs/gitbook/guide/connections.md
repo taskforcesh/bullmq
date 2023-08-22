@@ -15,7 +15,7 @@ const myQueue = new Queue('myqueue', { connection: {
   port: 32856
 }});
 
-const myWorker = new Worker('myworker', async (job)=>{}, { connection: {
+const myWorker = new Worker('myqueue', async (job)=>{}, { connection: {
   host: "myredis.taskforce.run",
   port: 32856
 }});
@@ -29,7 +29,7 @@ const connection = new IORedis();
 
 // Reuse the ioredis instance
 const myQueue = new Queue('myqueue', { connection });
-const myWorker = new Worker('myworker', async (job)=>{}, { connection });
+const myWorker = new Worker('myqueue', async (job)=>{}, { connection });
 ```
 
 Note that in the second example, even though the ioredis instance is being reused, the worker will create a duplicated connection that it needs internally to make blocking connections. Please read on the [ioredis](https://github.com/luin/ioredis/blob/master/API.md) documentation on how to properly create an instance of `IORedis.`
@@ -41,10 +41,9 @@ When using ioredis connections, be carefull not to use the "keyPrefix" option in
 If you can afford many connections, by all means just use them. Redis connections have quite low overhead, so you should not need to care about reusing connections unless your service provider is imposing you hard limitations.
 
 {% hint style="danger" %}
-Make sure that your redis instance has the setting&#x20;
+Make sure that your redis instance has the setting
 
 `maxmemory-policy=noeviction`
 
 in order to avoid automatic removal of keys which would cause unexpected errors in BullMQ
 {% endhint %}
-
