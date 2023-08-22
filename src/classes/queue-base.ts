@@ -61,6 +61,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       opts.connection,
       opts.sharedConnection,
       opts.blockingConnection,
+      opts.skipVersionCheck,
     );
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
