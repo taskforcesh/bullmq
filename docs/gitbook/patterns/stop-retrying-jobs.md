@@ -39,7 +39,8 @@ const worker = new Worker(
         throw new UnrecoverableError('Unrecoverable');
       }
       // Do not forget to throw this special exception,
-      // since the job is no longer active after being rate limited.
+      // since the we must differentiate this case from a failure
+      // in order to move job to wait again.
       throw Worker.RateLimitError();
     }
   },
