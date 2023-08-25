@@ -108,7 +108,7 @@ export class QueueGetters<
   /**
    * Returns the time to live for a rate limited key in milliseconds.
    * @returns -2 if the key does not exist.
-   * @returns -1 if the key exists but has no associated expire.
+   * -1 if the key exists but has no associated expire.
    * @see {@link https://redis.io/commands/pttl/}
    */
   async getRateLimitTtl(): Promise<number> {
