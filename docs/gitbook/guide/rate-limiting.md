@@ -74,8 +74,8 @@ const worker = new Worker(
     if (isRateLimited) {
       await worker.rateLimit(duration);
       // Do not forget to throw this special exception,
-      // since the we must differentiate this case from a failure
-      // in order to move job to wait again.
+      // since we must differentiate this case from a failure
+      // in order to move the job to wait again.
       throw Worker.RateLimitError();
     }
   },
