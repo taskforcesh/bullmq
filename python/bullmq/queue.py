@@ -1,6 +1,6 @@
 import asyncio
 from bullmq.redis_connection import RedisConnection
-from bullmq.types import QueueOptions, RetryJobsOptions, JobOptions
+from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions
 from bullmq.utils import extract_result
 from bullmq.scripts import Scripts
 from bullmq.job import Job
@@ -11,7 +11,7 @@ class Queue:
     Instantiate a Queue object
     """
 
-    def __init__(self, name: str, redisOpts: dict | str = {}, opts: QueueOptions = {}):
+    def __init__(self, name: str, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
