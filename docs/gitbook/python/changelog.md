@@ -2,6 +2,17 @@
 
 <!--next-version-placeholder-->
 
+## v1.11.0 (2023-08-26)
+### Feature
+* **python:** Add flow producer class ([#2115](https://github.com/taskforcesh/bullmq/issues/2115)) ([`14a769b`](https://github.com/taskforcesh/bullmq/commit/14a769b193d97576ff9b3f2a65de47463ba04ffd))
+* **sandbox:** Emulate moveToDelayed method (#2122) ref #2118 ([`4c4559b`](https://github.com/taskforcesh/bullmq/commit/4c4559b3c678313b3727c9781a6d3f963bcfda4e))
+
+### Fix
+* **sandbox:** Ignore extra params on processor ([#2142](https://github.com/taskforcesh/bullmq/issues/2142)) ([`3602c20`](https://github.com/taskforcesh/bullmq/commit/3602c20ab80cbe0a0d3de66210a01ad119e1090b))
+
+### Documentation
+* **rate-limit:** Add getRateLimitTtl usage ([#2116](https://github.com/taskforcesh/bullmq/issues/2116)) ([`51219fd`](https://github.com/taskforcesh/bullmq/commit/51219fd8685ccf1703548dda49303cd03690a95e))
+
 ## v1.10.1 (2023-08-19)
 ### Fix
 * **python:** Job getReturnValue not returning returnvalue ([#2143](https://github.com/taskforcesh/bullmq/issues/2143)) ([`dcb8e6a`](https://github.com/taskforcesh/bullmq/commit/dcb8e6a8e62346fac8574bd9aac56c5a25589a2c))
