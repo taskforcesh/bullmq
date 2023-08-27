@@ -19,7 +19,7 @@ describe('Queue', function() {
   });
 
   beforeEach(async function() {
-    queueName = 'test-' + v4();
+    queueName = '{test-' + v4() + '}';
     queue = new Queue(queueName);
     queueEvents = new QueueEvents(queueName);
     await queueEvents.init();
@@ -85,7 +85,7 @@ describe('queues', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `{test-${v4()}}`;
     queue = new Queue(queueName, { connection });
     await queue.waitUntilReady();
   });
@@ -212,7 +212,7 @@ describe('queues', function () {
         describe('when parent has pending children in different queue', async () => {
           it('keeps parent in waiting-children', async () => {
             await queue.waitUntilReady();
-            const childrenQueueName = `test-${v4()}`;
+            const childrenQueueName = `{test-${v4()}}`;
             const childrenQueue = new Queue(childrenQueueName, { connection });
             await childrenQueue.waitUntilReady();
             const name = 'child-job';
@@ -253,7 +253,7 @@ describe('queues', function () {
         describe('when parent has more than 1 pending children', async () => {
           it('deletes each children until trying to move parent to wait', async () => {
             await queue.waitUntilReady();
-            const parentQueueName = `test-${v4()}`;
+            const parentQueueName = `{test-${v4()}}`;
             const parentQueue = new Queue(parentQueueName, { connection });
             await parentQueue.waitUntilReady();
             const name = 'child-job';
@@ -301,7 +301,7 @@ describe('queues', function () {
         describe('when parent has only 1 pending children', async () => {
           it('moves parent to wait to try to process it', async () => {
             await queue.waitUntilReady();
-            const parentQueueName = `test-${v4()}`;
+            const parentQueueName = `{test-${v4()}}`;
             const parentQueue = new Queue(parentQueueName, { connection });
             await parentQueue.waitUntilReady();
             const name = 'child-job';

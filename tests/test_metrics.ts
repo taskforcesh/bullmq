@@ -26,7 +26,7 @@ describe('metrics', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `{test-${v4()}}`;
     queue = new Queue(queueName, { connection });
     repeat = new Repeat(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });

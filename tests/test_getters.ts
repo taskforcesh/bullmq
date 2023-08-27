@@ -15,7 +15,7 @@ describe('Jobs getters', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `{test-${v4()}}`;
     queue = new Queue(queueName, { connection });
   });
 

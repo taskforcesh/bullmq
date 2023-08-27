@@ -30,7 +30,7 @@ describe('workers', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `{test-${v4()}}`;
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queueEvents.waitUntilReady();
@@ -118,7 +118,7 @@ describe('workers', function () {
 
   describe('when sharing connection', () => {
     it('should not fail', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `{test-${v4()}}`;
 
       const connection = new IORedis({
         host: 'localhost',
@@ -740,7 +740,7 @@ describe('workers', function () {
 
     it('should not close the connection', async () => {
       const connection = new IORedis();
-      const queueName2 = `test-shared-${v4()}`;
+      const queueName2 = `{test-shared-${v4()}}`;
 
       const queue2 = new Queue(queueName2, {
         defaultJobOptions: { removeOnComplete: true },

@@ -15,7 +15,7 @@ describe('events', function () {
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `{test-${v4()}}`;
     queue = new Queue(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
     await queue.waitUntilReady();
@@ -30,7 +30,7 @@ describe('events', function () {
 
   describe('when autorun option is provided as false', function () {
     it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `{test-${v4()}}`;
       const queue2 = new Queue(queueName2, { connection });
       const queueEvents2 = new QueueEvents(queueName2, {
         autorun: false,
@@ -56,7 +56,7 @@ describe('events', function () {
 
     describe('when run method is called when queueEvent is running', function () {
       it('throws error', async () => {
-        const queueName2 = `test-${v4()}`;
+        const queueName2 = `{test-${v4()}}`;
         const queue2 = new Queue(queueName2, { connection });
         const queueEvents2 = new QueueEvents(queueName2, {
           autorun: false,
@@ -545,7 +545,7 @@ describe('events', function () {
   });
 
   it('should trim events manually', async () => {
-    const queueName = 'test-manual-' + v4();
+    const queueName = `{test-manual-${v4()}}`;
     const trimmedQueue = new Queue(queueName, { connection });
 
     await trimmedQueue.add('test', {});

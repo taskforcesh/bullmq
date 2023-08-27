@@ -41,7 +41,7 @@ describe('repeat', function () {
 
   beforeEach(async function () {
     this.clock = sinon.useFakeTimers();
-    queueName = `test-${v4()}`;
+    queueName = `{test-${v4()}}`;
     queue = new Queue(queueName, { connection });
     repeat = new Repeat(queueName, { connection });
     queueEvents = new QueueEvents(queueName, { connection });
@@ -409,7 +409,7 @@ describe('repeat', function () {
 
   it('should remove repeated job when using removeOnComplete', async function () {
     this.timeout(10000);
-    const queueName2 = `test-${v4()}`;
+    const queueName2 = `{test-${v4()}}`;
     const queue2 = new Queue(queueName2, {
       connection,
       defaultJobOptions: {
