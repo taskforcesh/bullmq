@@ -411,7 +411,7 @@ describe('Cleaner', () => {
 
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
-          const childrenQueueName = `${queueName}-child`;
+          const childrenQueueName = `${queueName}-child-${v4()}`;
           const childrenQueue = new Queue(childrenQueueName, { connection });
           await childrenQueue.waitUntilReady();
           const name = 'child-job';
@@ -550,7 +550,7 @@ describe('Cleaner', () => {
     describe('when parent belongs to different queue', async () => {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
-          const parentQueueName = `${queueName}-parent`;
+          const parentQueueName = `${queueName}-parent-${v4()}`;
           const parentQueue = new Queue(parentQueueName, { connection });
           await parentQueue.waitUntilReady();
           const name = 'child-job';
@@ -599,7 +599,7 @@ describe('Cleaner', () => {
 
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
-          const parentQueueName = `${queueName}-parent`;
+          const parentQueueName = `${queueName}-parent-${v4()}`;
           const parentQueue = new Queue(parentQueueName, { connection });
           await parentQueue.waitUntilReady();
           const name = 'child-job';

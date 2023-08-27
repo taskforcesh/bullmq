@@ -247,7 +247,7 @@ describe('Job', function () {
       const values = [{ idx: 0, bar: 'something' }];
       const token = 'my-token';
       const token2 = 'my-token2';
-      const parentQueueName = `${queueName}-parent`;
+      const parentQueueName = `${queueName}-parent-${v4()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection });
       const parentWorker = new Worker(parentQueueName, null, { connection });
@@ -527,7 +527,7 @@ describe('Job', function () {
       ];
       const token = 'my-token';
 
-      const parentQueueName = `${queueName}-parent`;
+      const parentQueueName = `${queueName}-parent-${v4()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection });
 

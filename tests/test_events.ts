@@ -402,7 +402,7 @@ describe('events', function () {
         connection,
       });
       const name = 'parent-job';
-      const childrenQueueName = `${queueName}-child`;
+      const childrenQueueName = `${queueName}-child-${v4()}`;
 
       const childrenWorker = new Worker(
         childrenQueueName,

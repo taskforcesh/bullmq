@@ -182,7 +182,7 @@ describe('Rate Limiter', function () {
     it('should obey the rate limit per queue', async function () {
       this.timeout(20000);
       const name = 'child-job';
-      const parentQueueName = `${queueName}-parent`;
+      const parentQueueName = `${queueName}-parent-${v4()}`;
       const parentQueueEvents = new QueueEvents(parentQueueName, {
         connection,
       });
