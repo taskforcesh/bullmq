@@ -119,7 +119,7 @@ that may exist from a previous unfinished session.</p>
 <li>
 <h5><span class="tsd-kind-parameter">name</span>: <span class="tsd-signature-type">string</span></h5></li>
 <li>
-<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">opts</span>: <span class="tsd-signature-type ">CommonOptions</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">opts</span>: <span class="tsd-signature-type ">CommonOptions</span></h5><code class="tsd-tag ts-flagOptional">Optional</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.constructor</p>
@@ -155,7 +155,7 @@ that may exist from a previous unfinished session.</p>
 <li>
 <h5><span class="tsd-kind-parameter">data</span>: <span class="tsd-signature-type">any</span></h5></li>
 <li>
-<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">opts</span>: <a href="../interfaces/v1.JobsOptions.html" class="tsd-signature-type tsd-kind-interface">JobsOptions</a></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">opts</span>: <a href="../interfaces/v1.JobsOptions.html" class="tsd-signature-type tsd-kind-interface">JobsOptions</a></h5><code class="tsd-tag ts-flagOptional">Optional</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="v1.Job.html" class="tsd-signature-type tsd-kind-class">Job</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
 <li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/5f3338c1c/src/classes/compat.ts#L114">classes/compat.ts:114</a></li></ul></aside></li></ul></section>
@@ -184,19 +184,16 @@ You can clean the jobs with the following states: completed, wait (typo for wait
 <li>
 <h5><span class="tsd-kind-parameter">grace</span>: <span class="tsd-signature-type">number</span></h5>
 <div class="tsd-comment tsd-typography"><p>Grace period in milliseconds.</p>
-</div>
-<div class="tsd-comment tsd-typography"></div></li>
+</div></li>
 <li>
 <h5><span class="tsd-kind-parameter">limit</span>: <span class="tsd-signature-type">number</span></h5>
 <div class="tsd-comment tsd-typography"><p>Maximum amount of jobs to clean per call. If not provided will clean all matching jobs.</p>
-</div>
-<div class="tsd-comment tsd-typography"></div></li>
+</div></li>
 <li>
 <h5><span class="tsd-kind-parameter">type</span>: <span class="tsd-signature-type">&quot;wait&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;completed&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;failed&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;active&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;delayed&quot;</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">&quot;paused&quot;</span><span class="tsd-signature-symbol"> = &#39;completed&#39;</span></h5>
 <div class="tsd-comment tsd-typography"><p>Status of the job to clean. Values are completed, wait,
 active, paused, delayed, and failed. Defaults to completed.</p>
-</div>
-<div class="tsd-comment tsd-typography"></div></li></ul></div>
+</div></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">[]</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
@@ -249,7 +246,7 @@ this value may be true only for a very small amount of time.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span></h5></li>
 <li>
-<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">listener</span>: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">)</span></h5>
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">listener</span>: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">)</span></h5><code class="tsd-tag ts-flagOptional">Optional</code> 
 <ul class="tsd-parameters">
 <li class="tsd-parameter-signature">
 <ul class="tsd-signatures">
@@ -259,7 +256,7 @@ this value may be true only for a very small amount of time.</p>
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5><code class="tsd-tag ts-flagRest">Rest</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4></li></ul></li></ul></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
@@ -419,7 +416,7 @@ If the specified job cannot be located, the promise callback parameter will be s
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">types</span>: <a href="../types/v1.JobType.html" class="tsd-signature-type tsd-kind-type-alias">JobType</a><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">types</span>: <a href="../modules/v1.html#JobType" class="tsd-signature-type tsd-kind-reference">JobType</a><span class="tsd-signature-symbol">[]</span></h5><code class="tsd-tag ts-flagRest">Rest</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
@@ -435,7 +432,7 @@ If the specified job cannot be located, the promise callback parameter will be s
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">types</span>: <a href="../types/v1.JobType.html" class="tsd-signature-type tsd-kind-type-alias">JobType</a><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">types</span>: <a href="../modules/v1.html#JobType" class="tsd-signature-type tsd-kind-reference">JobType</a><span class="tsd-signature-symbol">[]</span></h5><code class="tsd-tag ts-flagRest">Rest</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-symbol">{ </span><br/><span>    </span>[<span class="tsd-kind-index-signature">index</span>: <span class="tsd-signature-type">string</span>]<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">number</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
@@ -473,7 +470,7 @@ Optional parameters for range and ordering are provided.</p>
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><span class="tsd-kind-parameter">types</span>: <a href="../types/v1.JobType.html" class="tsd-signature-type tsd-kind-type-alias">JobType</a><span class="tsd-signature-symbol"> | </span><a href="../types/v1.JobType.html" class="tsd-signature-type tsd-kind-type-alias">JobType</a><span class="tsd-signature-symbol">[]</span></h5></li>
+<h5><span class="tsd-kind-parameter">types</span>: <a href="../modules/v1.html#JobType" class="tsd-signature-type tsd-kind-reference">JobType</a><span class="tsd-signature-symbol"> | </span><a href="../modules/v1.html#JobType" class="tsd-signature-type tsd-kind-reference">JobType</a><span class="tsd-signature-symbol">[]</span></h5></li>
 <li>
 <h5><span class="tsd-kind-parameter">start</span>: <span class="tsd-signature-type">number</span><span class="tsd-signature-symbol"> = 0</span></h5></li>
 <li>
@@ -610,9 +607,9 @@ This replaces the <code>ready</code> event emitted on Queue in previous versions
 <li>
 <h5><span class="tsd-kind-parameter">data</span>: <span class="tsd-signature-type">any</span></h5></li>
 <li>
-<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">opts</span>: <a href="../interfaces/v1.JobsOptions.html" class="tsd-signature-type tsd-kind-interface">JobsOptions</a></h5></li>
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">opts</span>: <a href="../interfaces/v1.JobsOptions.html" class="tsd-signature-type tsd-kind-interface">JobsOptions</a></h5><code class="tsd-tag ts-flagOptional">Optional</code> </li>
 <li>
-<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">skipCheckExists</span>: <span class="tsd-signature-type">boolean</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">skipCheckExists</span>: <span class="tsd-signature-type">boolean</span></h5><code class="tsd-tag ts-flagOptional">Optional</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><a href="v1.Job.html" class="tsd-signature-type tsd-kind-class">Job</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
@@ -628,7 +625,7 @@ This replaces the <code>ready</code> event emitted on Queue in previous versions
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><span class="tsd-signature-type">symbol</span></h5></li>
 <li>
-<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">listener</span>: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">)</span></h5>
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">listener</span>: <span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">(</span><span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span><span class="tsd-signature-symbol">)</span><span class="tsd-signature-symbol"> =&gt; </span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">)</span></h5><code class="tsd-tag ts-flagOptional">Optional</code> 
 <ul class="tsd-parameters">
 <li class="tsd-parameter-signature">
 <ul class="tsd-signatures">
@@ -638,7 +635,7 @@ This replaces the <code>ready</code> event emitted on Queue in previous versions
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5><code class="tsd-tag ts-flagRest">Rest</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4></li></ul></li></ul></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <p>Overrides EventEmitter.off</p>
@@ -667,7 +664,7 @@ This replaces the <code>ready</code> event emitted on Queue in previous versions
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5><code class="tsd-tag ts-flagRest">Rest</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4></li></ul></li></ul></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
@@ -684,7 +681,7 @@ This replaces the <code>ready</code> event emitted on Queue in previous versions
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;error&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.ErrorEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">ErrorEventCallback3</a></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#ErrorEventCallback3" class="tsd-signature-type tsd-kind-reference">ErrorEventCallback3</a></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -700,7 +697,7 @@ This replaces the <code>ready</code> event emitted on Queue in previous versions
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;waiting&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.WaitingEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">WaitingEventCallback3</a></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#WaitingEventCallback3" class="tsd-signature-type tsd-kind-reference">WaitingEventCallback3</a></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -716,7 +713,7 @@ This replaces the <code>ready</code> event emitted on Queue in previous versions
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;active&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.ActiveEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">ActiveEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#ActiveEventCallback3" class="tsd-signature-type tsd-kind-reference">ActiveEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -733,7 +730,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;stalled&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.StalledEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">StalledEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#StalledEventCallback3" class="tsd-signature-type tsd-kind-reference">StalledEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -749,7 +746,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;progress&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.ProgressEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">ProgressEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#ProgressEventCallback3" class="tsd-signature-type tsd-kind-reference">ProgressEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -765,7 +762,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;completed&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.CompletedEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">CompletedEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#CompletedEventCallback3" class="tsd-signature-type tsd-kind-reference">CompletedEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -781,7 +778,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;failed&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.FailedEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">FailedEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#FailedEventCallback3" class="tsd-signature-type tsd-kind-reference">FailedEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -797,7 +794,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;paused&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.EventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">EventCallback3</a></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#EventCallback3" class="tsd-signature-type tsd-kind-reference">EventCallback3</a></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -813,7 +810,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;resumed&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.EventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">EventCallback3</a></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#EventCallback3" class="tsd-signature-type tsd-kind-reference">EventCallback3</a></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -829,7 +826,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;removed&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.RemovedEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">RemovedEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#RemovedEventCallback3" class="tsd-signature-type tsd-kind-reference">RemovedEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -846,7 +843,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;cleaned&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.CleanedEventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">CleanedEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#CleanedEventCallback3" class="tsd-signature-type tsd-kind-reference">CleanedEventCallback3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography">
 <h4>See</h4><p>Queue#clean() for details</p>
@@ -865,7 +862,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">event</span>: <span class="tsd-signature-type">&quot;drained&quot;</span></h5></li>
 <li>
-<h5><span class="tsd-kind-parameter">callback</span>: <a href="../types/v1.EventCallback3.html" class="tsd-signature-type tsd-kind-type-alias">EventCallback3</a></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">callback</span>: <a href="../modules/v1.html#EventCallback3" class="tsd-signature-type tsd-kind-reference">EventCallback3</a></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <p>Overrides EventEmitter.on</p>
@@ -892,7 +889,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5><code class="tsd-tag ts-flagRest">Rest</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4></li></ul></li></ul></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <p>Overrides EventEmitter.once</p>
@@ -911,8 +908,7 @@ This is useful for debugging job workers that crash or pause the event loop.</p>
 <li>
 <h5><span class="tsd-kind-parameter">list</span>: <span class="tsd-signature-type">string</span></h5>
 <div class="tsd-comment tsd-typography"><p>String with all redis clients</p>
-</div>
-<div class="tsd-comment tsd-typography"></div></li></ul></div>
+</div></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-symbol">{ </span><br/><span>    </span>[<span class="tsd-kind-index-signature">key</span>: <span class="tsd-signature-type">string</span>]<span class="tsd-signature-symbol">: </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span><span class="tsd-signature-symbol">[]</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
@@ -942,7 +938,7 @@ lock expires. This can be useful to stop a worker from taking new jobs prior to 
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">doNotWaitActive</span>: <span class="tsd-signature-type">boolean</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-parameter">doNotWaitActive</span>: <span class="tsd-signature-type">boolean</span></h5><code class="tsd-tag ts-flagOptional">Optional</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <ul>
 <li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/5f3338c1c/src/classes/compat.ts#L132">classes/compat.ts:132</a></li></ul></aside></li></ul></section>
@@ -969,7 +965,7 @@ If it is resolved, its value will be the &quot;completed&quot; event&#39;s secon
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><span class="tsd-kind-parameter">processor</span>: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><a href="../types/v1.Processor.html" class="tsd-signature-type tsd-kind-type-alias">Processor</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
+<h5><span class="tsd-kind-parameter">processor</span>: <span class="tsd-signature-type">string</span><span class="tsd-signature-symbol"> | </span><a href="../modules/v1.html#Processor" class="tsd-signature-type tsd-kind-reference">Processor</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">, </span><span class="tsd-signature-type">string</span><span class="tsd-signature-symbol">&gt;</span></h5></li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type ">Promise</span><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type">void</span><span class="tsd-signature-symbol">&gt;</span></h4>
 <div class="tsd-comment tsd-typography"></div><aside class="tsd-sources">
 <ul>
@@ -1009,7 +1005,7 @@ If it is resolved, its value will be the &quot;completed&quot; event&#39;s secon
 <h4 class="tsd-parameters-title">Parameters</h4>
 <ul class="tsd-parameter-list">
 <li>
-<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5></li></ul></div>
+<h5><code class="tsd-tag ts-flagRest">Rest</code> <span class="tsd-signature-symbol">...</span><span class="tsd-kind-parameter">args</span>: <span class="tsd-signature-type">any</span><span class="tsd-signature-symbol">[]</span></h5><code class="tsd-tag ts-flagRest">Rest</code> </li></ul></div>
 <h4 class="tsd-returns-title">Returns <span class="tsd-signature-type">void</span></h4></li></ul></li></ul></li></ul></div>
 <h4 class="tsd-returns-title">Returns <a href="v1.Queue3.html" class="tsd-signature-type tsd-kind-class">Queue3</a><span class="tsd-signature-symbol">&lt;</span><span class="tsd-signature-type tsd-kind-type-parameter">T</span><span class="tsd-signature-symbol">&gt;</span></h4><aside class="tsd-sources">
 <p>Overrides EventEmitter.removeListener</p>
@@ -1245,40 +1241,40 @@ instances.</p>
 <li><a href="../interfaces/v1.Strategies.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-256"></use></svg><span>Strategies</span></a></li>
 <li><a href="../interfaces/v1.WorkerListener.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-256"></use></svg><span>Worker<wbr/>Listener</span></a></li>
 <li><a href="../interfaces/v1.WorkerOptions.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-256"></use></svg><span>Worker<wbr/>Options</span></a></li>
-<li><a href="../types/v1.ActiveEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><g id="icon-4194304"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-type-alias)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6"></rect><path d="M11.31 16V8.224H8.91V7.24H14.79V8.224H12.39V16H11.31Z" fill="var(--color-text)"></path></g></svg><span>Active<wbr/>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.BackoffFunction.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Backoff<wbr/>Function</span></a></li>
-<li><a href="../types/v1.BulkJobOptions.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Bulk<wbr/>Job<wbr/>Options</span></a></li>
-<li><a href="../types/v1.CleanedEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Cleaned<wbr/>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.ClusterOptions.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Cluster<wbr/>Options</span></a></li>
-<li><a href="../types/v1.CompletedEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Completed<wbr/>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.ConnectionOptions.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Connection<wbr/>Options</span></a></li>
-<li><a href="../types/v1.EntryId.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Entry<wbr/>Id</span></a></li>
-<li><a href="../types/v1.EntryRaw.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Entry<wbr/>Raw</span></a></li>
-<li><a href="../types/v1.ErrorEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Error<wbr/>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.EventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.FailedEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Failed<wbr/>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.FinishedPropValAttribute.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Finished<wbr/>Prop<wbr/>Val<wbr/>Attribute</span></a></li>
-<li><a href="../types/v1.FinishedStatus.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Finished<wbr/>Status</span></a></li>
-<li><a href="../types/v1.FlowQueuesOpts.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Flow<wbr/>Queues<wbr/>Opts</span></a></li>
-<li><a href="../types/v1.JobData.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>Data</span></a></li>
-<li><a href="../types/v1.JobJsonSandbox.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>Json<wbr/>Sandbox</span></a></li>
-<li><a href="../types/v1.JobState.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>State</span></a></li>
-<li><a href="../types/v1.JobStatusClean3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>Status<wbr/>Clean3</span></a></li>
-<li><a href="../types/v1.JobType.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>Type</span></a></li>
-<li><a href="../types/v1.KeysMap.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Keys<wbr/>Map</span></a></li>
-<li><a href="../types/v1.MinimalQueue.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Minimal<wbr/>Queue</span></a></li>
-<li><a href="../types/v1.ParentOpts.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Parent<wbr/>Opts</span></a></li>
-<li><a href="../types/v1.Processor.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Processor</span></a></li>
-<li><a href="../types/v1.ProgressEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Progress<wbr/>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.RedisClient.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Redis<wbr/>Client</span></a></li>
-<li><a href="../types/v1.RedisOptions.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Redis<wbr/>Options</span></a></li>
-<li><a href="../types/v1.RemovedEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Removed<wbr/>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.RepeatStrategy.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Repeat<wbr/>Strategy</span></a></li>
-<li><a href="../types/v1.SandboxedJobProcessor.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Sandboxed<wbr/>Job<wbr/>Processor</span></a></li>
-<li><a href="../types/v1.StalledEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Stalled<wbr/>Event<wbr/>Callback3</span></a></li>
-<li><a href="../types/v1.StreamName.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Stream<wbr/>Name</span></a></li>
-<li><a href="../types/v1.StreamReadRaw.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Stream<wbr/>Read<wbr/>Raw</span></a></li>
-<li><a href="../types/v1.WaitingEventCallback3.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Waiting<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#ActiveEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><g id="icon-4194304"><rect fill="var(--color-icon-background)" stroke="#FF4D82" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="12"></rect><path d="M10.354 17V8.24H13.066C13.586 8.24 14.042 8.348 14.434 8.564C14.826 8.772 15.13 9.064 15.346 9.44C15.562 9.816 15.67 10.256 15.67 10.76C15.67 11.352 15.514 11.86 15.202 12.284C14.898 12.708 14.482 13 13.954 13.16L15.79 17H14.518L12.838 13.28H11.434V17H10.354ZM11.434 12.308H13.066C13.514 12.308 13.874 12.168 14.146 11.888C14.418 11.6 14.554 11.224 14.554 10.76C14.554 10.288 14.418 9.912 14.146 9.632C13.874 9.352 13.514 9.212 13.066 9.212H11.434V12.308Z" fill="var(--color-text)"></path></g></svg><span>Active<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#BackoffFunction"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Backoff<wbr/>Function</span></a></li>
+<li><a href="../modules/v1.html#BulkJobOptions"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Bulk<wbr/>Job<wbr/>Options</span></a></li>
+<li><a href="../modules/v1.html#CleanedEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Cleaned<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#ClusterOptions"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Cluster<wbr/>Options</span></a></li>
+<li><a href="../modules/v1.html#CompletedEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Completed<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#ConnectionOptions"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Connection<wbr/>Options</span></a></li>
+<li><a href="../modules/v1.html#EntryId"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Entry<wbr/>Id</span></a></li>
+<li><a href="../modules/v1.html#EntryRaw"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Entry<wbr/>Raw</span></a></li>
+<li><a href="../modules/v1.html#ErrorEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Error<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#EventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#FailedEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Failed<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#FinishedPropValAttribute"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Finished<wbr/>Prop<wbr/>Val<wbr/>Attribute</span></a></li>
+<li><a href="../modules/v1.html#FinishedStatus"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Finished<wbr/>Status</span></a></li>
+<li><a href="../modules/v1.html#FlowQueuesOpts"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Flow<wbr/>Queues<wbr/>Opts</span></a></li>
+<li><a href="../modules/v1.html#JobData"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>Data</span></a></li>
+<li><a href="../modules/v1.html#JobJsonSandbox"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>Json<wbr/>Sandbox</span></a></li>
+<li><a href="../modules/v1.html#JobState"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>State</span></a></li>
+<li><a href="../modules/v1.html#JobStatusClean3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>Status<wbr/>Clean3</span></a></li>
+<li><a href="../modules/v1.html#JobType"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Job<wbr/>Type</span></a></li>
+<li><a href="../modules/v1.html#KeysMap"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Keys<wbr/>Map</span></a></li>
+<li><a href="../modules/v1.html#MinimalQueue"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Minimal<wbr/>Queue</span></a></li>
+<li><a href="../modules/v1.html#ParentOpts"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Parent<wbr/>Opts</span></a></li>
+<li><a href="../modules/v1.html#Processor"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Processor</span></a></li>
+<li><a href="../modules/v1.html#ProgressEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Progress<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#RedisClient"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Redis<wbr/>Client</span></a></li>
+<li><a href="../modules/v1.html#RedisOptions"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Redis<wbr/>Options</span></a></li>
+<li><a href="../modules/v1.html#RemovedEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Removed<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#RepeatStrategy"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Repeat<wbr/>Strategy</span></a></li>
+<li><a href="../modules/v1.html#SandboxedJobProcessor"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Sandboxed<wbr/>Job<wbr/>Processor</span></a></li>
+<li><a href="../modules/v1.html#StalledEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Stalled<wbr/>Event<wbr/>Callback3</span></a></li>
+<li><a href="../modules/v1.html#StreamName"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Stream<wbr/>Name</span></a></li>
+<li><a href="../modules/v1.html#StreamReadRaw"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Stream<wbr/>Read<wbr/>Raw</span></a></li>
+<li><a href="../modules/v1.html#WaitingEventCallback3"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-4194304"></use></svg><span>Waiting<wbr/>Event<wbr/>Callback3</span></a></li>
 <li><a href="../variables/v1.DELAY_TIME_1.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><g id="icon-32"><rect fill="var(--color-icon-background)" stroke="var(--color-ts-variable)" stroke-width="1.5" x="1" y="1" width="22" height="22" rx="6"></rect><path d="M11.106 16L8.85 7.24H9.966L11.454 13.192C11.558 13.608 11.646 13.996 11.718 14.356C11.79 14.708 11.842 14.976 11.874 15.16C11.906 14.976 11.954 14.708 12.018 14.356C12.09 13.996 12.178 13.608 12.282 13.192L13.758 7.24H14.85L12.582 16H11.106Z" fill="var(--color-text)"></path></g></svg><span>DELAY_<wbr/>TIME_<wbr/>1</span></a></li>
 <li><a href="../variables/v1.DELAY_TIME_5.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-32"></use></svg><span>DELAY_<wbr/>TIME_<wbr/>5</span></a></li>
 <li><a href="../variables/v1.QUEUE_EVENT_SUFFIX.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-32"></use></svg><span>QUEUE_<wbr/>EVENT_<wbr/>SUFFIX</span></a></li>
@@ -1306,5 +1302,5 @@ instances.</p>
 <li><a href="../functions/v1.removeAllQueueData.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-64"></use></svg><span>remove<wbr/>All<wbr/>Queue<wbr/>Data</span></a></li>
 <li><a href="../functions/v1.tryCatch.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-64"></use></svg><span>try<wbr/>Catch</span></a></li></ul></div></details></li></ul></nav></div></div></div>
 <div class="tsd-generator">
-<p>Generated using <a href="https://typedoc.org/" target="_blank">TypeDoc</a></p></div>
+<p>Generated using <a href="https://typedoc.org/" rel="noopener" target="_blank">TypeDoc</a></p></div>
 <div class="overlay"></div></body></html>
