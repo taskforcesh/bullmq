@@ -15,15 +15,7 @@
 
 ## v1.10.1 (2023-08-19)
 ### Fix
-* **python:** Job getReturnValue not returning returnvalue ([#2143](https://github.com/taskforcesh/bullmq/issues/2143)) ([`dcb8e6a`](https://github.com/taskforcesh/bullmq/commit/dcb8e6a8e62346fac8574bd9aac56c5a25589a2c))
-* **worker:** Abort rate-limit delay when closing worker ([`264a81c`](https://github.com/taskforcesh/bullmq/commit/264a81ca5f4e4f88c361d507312324b5f6c3225c))
-* **queue:** Throw error when name is not provided ([#2123](https://github.com/taskforcesh/bullmq/issues/2123)) ([`78fb0e2`](https://github.com/taskforcesh/bullmq/commit/78fb0e2a93cfa59a43a0fb337f857e78f1c6fcf4))
-
-### Documentation
-* **nestjs:** Add queue events listeners section ([`d82fdcc`](https://github.com/taskforcesh/bullmq/commit/d82fdcc2b1ff6909678b6b717449af8df2f10bd6))
-* **nestjs-bullmq-pro:** Add queue events listeners section ([#2138](https://github.com/taskforcesh/bullmq/issues/2138)) ([`75dd80b`](https://github.com/taskforcesh/bullmq/commit/75dd80b190963bd5401e8d076500eb8c65c897b8))
-* **changelog:** Update bullmq-pro to 6.3.3 ([#2137](https://github.com/taskforcesh/bullmq/issues/2137)) ([`9569509`](https://github.com/taskforcesh/bullmq/commit/9569509af9ee400d8744106b85bc7c329b866d1d))
-* **bullmq-pro:** Update changelog to version 6.3.0 ([#2111](https://github.com/taskforcesh/bullmq/issues/2111)) ([`e2cb45f`](https://github.com/taskforcesh/bullmq/commit/e2cb45f3e31167c1fd6b1e58b2a322273762c68f))
+* **job:** Job getReturnValue not returning returnvalue ([#2143](https://github.com/taskforcesh/bullmq/issues/2143)) ([`dcb8e6a`](https://github.com/taskforcesh/bullmq/commit/dcb8e6a8e62346fac8574bd9aac56c5a25589a2c))
 
 ### Performance
 * **rate-limit:** Get pttl only if needed ([#2129](https://github.com/taskforcesh/bullmq/issues/2129)) ([`12ce2f3`](https://github.com/taskforcesh/bullmq/commit/12ce2f3746626a81ea961961bb1a629077eed68a))
