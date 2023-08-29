@@ -1,6 +1,6 @@
 # Prioritized intra-groups
 
-BullMQ Pro supports priorities per group. A job is prioritized in a group when group and priority options are provided together.
+BullMQ Pro supports priorities per group. A job is prioritized in a group when group and priority options are provided _together_.
 
 ```typescript
 await myQueue.add(

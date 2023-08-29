@@ -1,6 +1,6 @@
 # Rate limiting
 
-BullMQ provides rate limiting for the queues. It is possible to configure the workers so that they obey a given rate limiting option:
+BullMQ provides queue rate limiting. It is possible to configure workers so that they obey a given rate limiting option:
 
 ```typescript
 import { Worker, QueueScheduler } from 'bullmq';
@@ -16,11 +16,11 @@ const scheduler = new QueueScheduler('painter');
 ```
 
 {% hint style="warning" %}
-Jobs that get rate limited will actually stay in waiting state.
+Jobs that get rate limited will actually stay in the waiting state.
 {% endhint %}
 
 {% hint style="danger" %}
-From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore.
+From BullMQ 2.0 and onwards, the `QueueScheduler` is not needed anymore.
 {% endhint %}
 
 {% hint style="info" %}
@@ -60,9 +60,9 @@ await queue.add('rate limited paint', { customerId: 'my-customer-id' });
 
 ### Manual rate-limit
 
-Sometimes is useful to rate-limit a queue manually instead of based on some static options. For example, if you have an API that returns 429 (Too many requests), and you want to rate-limit the queue based on that response.
+Sometimes is useful to rate-limit a queue manually instead of based on some static options. For example, you may have an API that returns `429 Too Many Requests`, and you want to rate-limit the queue based on that response.
 
-For this purpose, you can use the worker method **rateLimit** like this:
+For this purpose, you can use the worker method **`rateLimit`** like this:
 
 ```typescript
 import { Worker } from 'bullmq';
@@ -89,7 +89,7 @@ const worker = new Worker(
 
 Sometimes is useful to know if our queue is rate limited.
 
-For this purpose, you can use the **getRateLimitTtl** method like this:
+For this purpose, you can use the **`getRateLimitTtl`** method like this:
 
 ```typescript
 import { Queue } from 'bullmq';

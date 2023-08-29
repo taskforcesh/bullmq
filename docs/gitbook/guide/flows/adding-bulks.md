@@ -1,6 +1,6 @@
 # Adding flows in bulk
 
-Sometimes it is necessary to add a complete bulk of flows atomically. For example, there could be a requirement that all the flows must be created or none of them. Also, adding a bulk of flows can be faster since it reduces the number of roundtrips to Redis:
+Sometimes it is necessary to atomically add flows in bulk. For example, there could be a requirement that all the flows must be created or none of them. Also, adding flows in bulk can be faster since it reduces the number of roundtrips to Redis:
 
 ```typescript
 import { FlowProducer } from 'bullmq';

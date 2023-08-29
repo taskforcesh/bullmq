@@ -1,6 +1,6 @@
 # Job Data
 
-Every job can have its own custom data. The data is stored in the **data** attribute of the job:
+Every job can have its own custom data. The data is stored in the **`data`** attribute of the job:
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -34,7 +34,7 @@ job.data # { color: 'red' }
 
 ## Update data
 
-If you want to change the data after inserting a job, just use the **updateData** method. For example:
+If you want to change the data after inserting a job, just use the **`updateData`** method. For example:
 
 {% tabs %}
 {% tab title="TypeScript" %}
