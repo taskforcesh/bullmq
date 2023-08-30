@@ -1865,6 +1865,59 @@ describe('workers', function () {
     });
   });
 
+  describe('Job fetch mode', () => {
+    it('should default to concurrent', async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          // No-op
+        },
+        {
+          connection,
+        },
+      );
+      expect(worker.opts.jobFetchMode).to.equal('concurrent');
+      await worker.close();
+    });
+
+    it('should process job in parallel in sequential fetch mode', async () => {
+      const concurrency = 4;
+      let processing = 0;
+      let processingMax = 0;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          processing++;
+          processingMax = Math.max(processing, processingMax);
+          await delay(Math.round(Math.random() * 10));
+          processingMax = Math.max(processing, processingMax);
+          processing--;
+        },
+        {
+          connection,
+          concurrency,
+          jobFetchMode: 'sequential',
+        },
+      );
+      expect(worker.opts.jobFetchMode).to.equal('sequential');
+      await worker.waitUntilReady();
+
+      const waiting = new Promise((resolve, reject) => {
+        worker.on('completed', after(8, resolve));
+        worker.on('failed', reject);
+      });
+
+      await Promise.all(times(8, () => queue.add('test', {})));
+
+      await waiting;
+      expect(processingMax).to.be.lessThanOrEqual(concurrency);
+      expect(processingMax).to.be.greaterThan(1);
+      expect(processing).to.be.eql(0);
+      await worker.close();
+    });
+  });
+
   describe('Retries and backoffs', () => {
     it('deletes token after moving jobs to delayed', async function () {
       const worker = new Worker(

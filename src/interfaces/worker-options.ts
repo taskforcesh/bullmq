@@ -137,6 +137,19 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default false
    */
   useWorkerThreads?: boolean;
+
+  /**
+   * Worker jobs fetch mode.
+   *
+   * In concurrent mode, jobs are fetched concurrently up to `concurrency` in
+   * parallel. This makes queue processing faster, but also puts more pressure
+   * on the redis server.
+   * In sequential mode, jobs are fetched sequentially. This does not mean that
+   * jobs are processed sequentially!
+   *
+   * @default "concurrent"
+   */
+  jobFetchMode?: 'concurrent' | 'sequential';
 }
 
 export interface GetNextJobOptions {
