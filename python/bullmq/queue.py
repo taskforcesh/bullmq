@@ -19,6 +19,7 @@ class Queue:
         self.redisConnection = RedisConnection(redisOpts)
         self.client = self.redisConnection.conn
         self.opts = opts
+        self.jobsOpts = opts.get("defaultJobOptions", {})
         self.prefix = opts.get("prefix", "bull")
         self.scripts = Scripts(
             self.prefix, name, self.redisConnection)
@@ -40,6 +41,43 @@ class Queue:
         job_id = await self.scripts.addJob(job)
         job.id = job_id
         return job
+
+    async def addBulk(self, jobs: list[dict[str,dict | str]]):
+        """
+        Adds an array of jobs to the queue. This method may be faster than adding
+        one job at a time in a sequence
+        """
+        jobs_data = []
+        for job in jobs:
+            opts = {}
+            opts.update(self.jobsOpts)
+            opts.update(job.get("opts", {}))
+            
+            jobs_data.append({
+                "name": job.get("name"),
+                "data": job.get("data"),
+                "opts": opts
+            })
+
+        result = []
+        async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
+            for job_data in jobs_data:
+                current_job_opts = job_data.get("opts", {})
+                job = Job(
+                    queue=self,
+                    name=job_data.get("name"),
+                    data=job_data.get("data"),
+                    opts=current_job_opts,
+                    job_id = current_job_opts.get("jobId")
+                    )
+                job_id = await self.scripts.addJob(job, pipe)
+                job.id = job_id
+                result.append(job)
+            job_ids = await pipe.execute()
+            for index, job_id in enumerate(job_ids):
+                result[index].id = job_id
+
+        return result
 
     def pause(self):
         """
