@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v1.12.0 (2023-08-31)
+### Feature
+* **python:** Add addBulk method in queue class ([#2161](https://github.com/taskforcesh/bullmq/issues/2161)) ([`555dd44`](https://github.com/taskforcesh/bullmq/commit/555dd44a0190f4957e43f083e2f59d7f58b90ac9))
+
+### Documentation
+* **typedoc:** Change defaultValue tag styling ([#2160](https://github.com/taskforcesh/bullmq/issues/2160)) ([`1b0ff8e`](https://github.com/taskforcesh/bullmq/commit/1b0ff8ef51e27df906a93dae317534e2c2e9ccb3))
+
 ## v1.11.0 (2023-08-26)
 ### Feature
 * **python:** Add flow producer class ([#2115](https://github.com/taskforcesh/bullmq/issues/2115)) ([`14a769b`](https://github.com/taskforcesh/bullmq/commit/14a769b193d97576ff9b3f2a65de47463ba04ffd))
