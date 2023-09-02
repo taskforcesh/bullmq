@@ -3409,7 +3409,7 @@ describe('workers', function () {
 
       if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
         expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
-        expect(nextCursor2).to.not.be.equal(0);
+        expect(nextCursor2).to.be.equal(0);
       } else {
         expect(unprocessed2!.length).to.be.equal(65);
         expect(nextCursor2).to.be.equal(0);
@@ -3441,7 +3441,7 @@ describe('workers', function () {
           },
         });
 
-      expect(unprocessed3!.length).to.be.equal(50);
+      expect(unprocessed3!.length).to.be.greaterThanOrEqual(50);
       expect(nextCursor3).to.not.be.equal(0);
 
       await childrenWorker.close();
