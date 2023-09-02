@@ -1577,7 +1577,7 @@ describe('workers', function () {
   });
 
   it('stalled interval cannot be zero', function () {
-    this.timeout(10000);
+    this.timeout(8000);
     expect(
       () =>
         new Worker(queueName, async () => {}, {
