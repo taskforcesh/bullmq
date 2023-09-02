@@ -211,10 +211,6 @@ export class Worker<
       Connection,
     );
 
-    if (this.opts.stalledInterval <= 0) {
-      throw new Error('stalledInterval must be greater than 0');
-    }
-
     this.opts = {
       drainDelay: 5,
       concurrency: 1,
@@ -225,6 +221,10 @@ export class Worker<
       runRetryDelay: 15000,
       ...this.opts,
     };
+
+    if (this.opts.stalledInterval <= 0) {
+      throw new Error('stalledInterval must be greater than 0');
+    }
 
     this.concurrency = this.opts.concurrency;
 

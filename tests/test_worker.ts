@@ -15,7 +15,11 @@ import {
 } from '../src/classes';
 import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
-import { delay, removeAllQueueData } from '../src/utils';
+import {
+  delay,
+  isRedisVersionLowerThan,
+  removeAllQueueData,
+} from '../src/utils';
 
 describe('workers', function () {
   const sandbox = sinon.createSandbox();
@@ -1573,7 +1577,7 @@ describe('workers', function () {
   });
 
   it('stalled interval cannot be zero', function () {
-    this.timeout(10000);
+    this.timeout(8000);
     expect(
       () =>
         new Worker(queueName, async () => {}, {
@@ -3371,7 +3375,7 @@ describe('workers', function () {
             { idx: index, ...value },
             {
               parent: {
-                id: parent.id,
+                id: parent.id!,
                 queue: 'bull:' + parentQueueName,
               },
             },
@@ -3387,7 +3391,13 @@ describe('workers', function () {
           },
         });
 
-      expect(unprocessed1.length).to.be.greaterThanOrEqual(50);
+      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+        expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
+        expect(nextCursor1).to.not.be.equal(0);
+      } else {
+        expect(unprocessed1!.length).to.be.equal(65);
+        expect(nextCursor1).to.be.equal(0);
+      }
 
       const { nextUnprocessedCursor: nextCursor2, unprocessed: unprocessed2 } =
         await parent.getDependencies({
@@ -3397,8 +3407,42 @@ describe('workers', function () {
           },
         });
 
-      expect(unprocessed2.length).to.be.lessThanOrEqual(15);
+      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+        expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
+        expect(nextCursor2).to.be.equal(0);
+      } else {
+        expect(unprocessed2!.length).to.be.equal(65);
+        expect(nextCursor2).to.be.equal(0);
+      }
+
       expect(nextCursor2).to.be.equal(0);
+
+      await Promise.all(
+        Array.from(Array(64).keys()).map((index: number) => {
+          return Job.create(
+            queue,
+            `child${index}`,
+            { idx: index, ...value },
+            {
+              parent: {
+                id: parent.id!,
+                queue: 'bull:' + parentQueueName,
+              },
+            },
+          );
+        }),
+      );
+
+      const { nextUnprocessedCursor: nextCursor3, unprocessed: unprocessed3 } =
+        await parent.getDependencies({
+          unprocessed: {
+            cursor: 0,
+            count: 50,
+          },
+        });
+
+      expect(unprocessed3!.length).to.be.greaterThanOrEqual(50);
+      expect(nextCursor3).to.not.be.equal(0);
 
       await childrenWorker.close();
       await parentWorker.close();
