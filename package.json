@@ -88,6 +88,7 @@
     "chai": "^4.3.4",
     "chai-as-promised": "^7.1.1",
     "commitizen": "^4.2.5",
+    "conventional-changelog-conventionalcommits": "^7.0.1",
     "copyfiles": "^2.4.1",
     "coveralls": "^3.1.1",
     "eslint": "^7.32.0",
@@ -172,12 +173,71 @@
       [
         "@semantic-release/commit-analyzer",
         {
+          "preset": "conventionalcommits",
           "releaseRules": [
             {
-              "scope": "python*",
-              "release": false
+              "scope": "python",
+              "hidden": true
+            },
+            {
+              "type": "feat",
+              "section": "Features"
+            },
+            {
+              "type": "feature",
+              "section": "Features"
+            },
+            {
+              "type": "fix",
+              "section": "Bug Fixes"
+            },
+            {
+              "type": "perf",
+              "section": "Performance Improvements"
+            },
+            {
+              "type": "revert",
+              "section": "Reverts"
+            },
+            {
+              "type": "docs",
+              "section": "Documentation",
+              "hidden": true
+            },
+            {
+              "type": "style",
+              "section": "Styles",
+              "hidden": true
+            },
+            {
+              "type": "chore",
+              "section": "Miscellaneous Chores",
+              "hidden": true
+            },
+            {
+              "type": "refactor",
+              "section": "Code Refactoring",
+              "hidden": true
+            },
+            {
+              "type": "test",
+              "section": "Tests",
+              "hidden": true
+            },
+            {
+              "type": "build",
+              "section": "Build System",
+              "hidden": true
+            },
+            {
+              "type": "ci",
+              "section": "Continuous Integration",
+              "hidden": true
             }
-          ]
+          ],
+          "presetConfig": {
+            "ignoreCommits": "python"
+          }
         }
       ],
       "@semantic-release/release-notes-generator",
