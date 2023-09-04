@@ -577,7 +577,7 @@ function sandboxProcessTests(
 
     it('includes parent', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_parent.js';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `${queueName}-parent`;
 
       const worker = new Worker(queueName, processFile, {
         connection,

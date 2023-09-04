@@ -55,7 +55,7 @@ describe('bulk jobs', () => {
 
   it('should allow to pass parent option', async () => {
     const name = 'test';
-    const parentQueueName = `parent-queue-${v4()}`;
+    const parentQueueName = `${queueName}-parent`;
     const parentQueue = new Queue(parentQueueName, { connection });
 
     const parentWorker = new Worker(parentQueueName, null, { connection });
