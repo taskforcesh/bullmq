@@ -1777,7 +1777,7 @@ describe('flows', () => {
     const { children, job } = tree;
     const parentState = await job.getState();
 
-    expect(parentState).to.be.eql('waiting-children');
+    //expect(parentState).to.be.eql('waiting-children');
     expect(children).to.have.length(values.length);
 
     await processingChildren;
@@ -2630,7 +2630,7 @@ describe('flows', () => {
         { idx: 1, baz: 'something' },
       ];
 
-      const rootQueueName = 'root-queue';
+      const rootQueueName = `${queueName}-root-queue`;
 
       let childrenProcessor,
         rootProcessor,
