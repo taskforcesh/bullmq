@@ -149,7 +149,7 @@ describe('flows', () => {
     });
   });
 
-  describe('when removeOnComplete contains age in children and ', () => {
+  describe('when removeOnComplete contains age in children and time is reached', () => {
     it('keeps children results in parent', async () => {
       const worker = new Worker(
         queueName,
@@ -157,43 +157,56 @@ describe('flows', () => {
           await delay(1000);
           return job.name;
         },
-        { connection },
+        { connection, removeOnComplete: { age: 1 } },
       );
       await worker.waitUntilReady();
 
       const flow = new FlowProducer({ connection });
-      const { children } = await flow.add({
-        name: 'parent',
-        data: {},
-        queueName,
-        children: [
-          {
-            queueName,
-            name: 'child0',
-            data: {},
-            opts: {
-              removeOnComplete: {
-                age: 1,
+      const { children } = await flow.add(
+        {
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {
+                removeOnComplete: {
+                  age: 1,
+                },
               },
             },
-          },
-          {
-            queueName,
-            name: 'child1',
-            data: {},
-            opts: {
-              removeOnComplete: {
-                age: 1,
+            {
+              queueName,
+              name: 'child1',
+              data: {},
+              opts: {
+                removeOnComplete: {
+                  age: 1,
+                },
               },
             },
-          },
-        ],
-        opts: {
-          removeOnComplete: {
-            age: 1,
+          ],
+          opts: {
+            removeOnComplete: {
+              age: 1,
+            },
           },
         },
-      });
+        {
+          queuesOptions: {
+            [queueName]: {
+              defaultJobOptions: {
+                removeOnComplete: {
+                  age: 1,
+                },
+              },
+            },
+          },
+        },
+      );
 
       const completed = new Promise<void>((resolve, reject) => {
         worker.on('completed', async (job: Job) => {
