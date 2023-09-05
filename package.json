@@ -177,62 +177,75 @@
           "releaseRules": [
             {
               "scope": "python",
-              "hidden": true
+              "hidden": true,
+              "release": false
             },
             {
               "type": "feat",
-              "section": "Features"
+              "section": "Features",
+              "release": true
             },
             {
               "type": "feature",
-              "section": "Features"
+              "section": "Features",
+              "release": true
             },
             {
               "type": "fix",
-              "section": "Bug Fixes"
+              "section": "Bug Fixes",
+              "release": true
             },
             {
               "type": "perf",
-              "section": "Performance Improvements"
+              "section": "Performance Improvements",
+              "release": true
             },
             {
               "type": "revert",
-              "section": "Reverts"
+              "section": "Reverts",
+              "release": true
             },
             {
               "type": "docs",
               "section": "Documentation",
-              "hidden": true
+              "hidden": true,
+              "release": false
             },
             {
               "type": "style",
               "section": "Styles",
-              "hidden": true
+              "hidden": true,
+              "release": false
             },
             {
               "type": "chore",
               "section": "Miscellaneous Chores",
-              "hidden": true
+              "hidden": true,
+              "release": false
             },
             {
               "type": "refactor",
               "section": "Code Refactoring",
-              "hidden": true
+              "hidden": true,
+              "release": false
             },
             {
               "type": "test",
               "section": "Tests",
-              "hidden": true
+              "hidden": true,
+              "release": false
             },
             {
               "type": "build",
               "section": "Build System",
-              "hidden": true
+              "hidden": true,
+              "release": false
             },
             {
               "type": "ci",
               "section": "Continuous Integration",
-              "hidden": true
+              "hidden": true,
+              "release": false
             }
           ],
           "presetConfig": {
