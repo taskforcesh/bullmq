@@ -50,6 +50,15 @@ class FlowProducer:
             children.append(job)
         return children
 
+    async def addNodes(self, nodes: list[dict], pipe):
+        trees = []
+        for node in nodes:
+            parent_opts = node.get("opts", {}).get("parent", None)
+            jobs_tree = await self.addNode(node, {"parentOpts": parent_opts},None, pipe)
+            trees.append(jobs_tree)
+
+        return trees
+
     async def addNode(self, node: dict, parent: dict, queues_opts: dict, pipe):
         prefix = node.get("prefix", self.prefix)
         queue = self.queueFromNode(node, QueueKeys(prefix), prefix)
@@ -113,6 +122,15 @@ class FlowProducer:
             jobs_tree = await self.addNode(flow, {"parentOpts": parent_opts},opts.get("queuesOptions"), pipe)
             await pipe.execute()
             result = jobs_tree
+
+        return result
+
+    async def addBulk(self, flows: list[dict]):
+        result = None
+        async with self.redisConnection.conn.pipeline(transaction=True) as pipe:
+            job_trees = await self.addNodes(flows, pipe)
+            await pipe.execute()
+            result = job_trees
 
         return result
 
