@@ -516,7 +516,9 @@ export class Job<
     if (removed) {
       queue.emit('removed', job);
     } else {
-      throw new Error(`Job ${job.id} is locked`);
+      throw new Error(
+        `Job ${this.id} could not be removed because it is locked by another worker`,
+      );
     }
   }
 
