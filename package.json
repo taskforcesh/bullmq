@@ -174,7 +174,7 @@
         {
           "releaseRules": [
             {
-              "message": "*[python]*",
+              "message": "*\\[python\\]*",
               "release": false
             }
           ]
