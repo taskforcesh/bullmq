@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.13.1 (2023-09-11)
+### Fix
+* **move-to-finished:** Consider addition of prioritized jobs when processing last active job (#2176) (python) ([`4b01f35`](https://github.com/taskforcesh/bullmq/commit/4b01f359c290cfc62ea74ff3ab0b43ccc6956a02))
+
 ## v1.13.0 (2023-09-07)
 ### Feature
 * **flow-producer:** Add addBulk method (python) ([#2174](https://github.com/taskforcesh/bullmq/issues/2174)) ([`c67dfb4`](https://github.com/taskforcesh/bullmq/commit/c67dfb49931ee4cb96573af660e9f2316942687c))
