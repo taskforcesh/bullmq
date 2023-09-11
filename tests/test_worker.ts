@@ -669,6 +669,9 @@ describe('workers', function () {
     const worker = new Worker(queueName, processor, { connection });
     await worker.waitUntilReady();
 
+    // wait for all jobs to enter the queue and then start processing
+    await Promise.all([normalPriority, mediumPriority, highPriority]);
+
     await processing;
 
     await worker.close();
@@ -683,8 +686,9 @@ describe('workers', function () {
       const processing = new Promise<void>((resolve, reject) => {
         processor = async (job: Job) => {
           try {
-            if (job.name == 'test1')
-              {await queue.add('test', { p: 2 }, { priority: 2 });}
+            if (job.name == 'test1') {
+              await queue.add('test', { p: 2 }, { priority: 2 });
+            }
 
             expect(job.id).to.be.ok;
             expect(job.data.p).to.be.eql(2);
