@@ -624,10 +624,10 @@ describe('workers', function () {
     await worker.close();
   });
 
-  it('should processes jobs by priority', async () => {
-    const normalPriority = [];
-    const mediumPriority = [];
-    const highPriority = [];
+  it('should process jobs by priority', async () => {
+    const normalPriority: Promise<Job>[] = [];
+    const mediumPriority: Promise<Job>[] = [];
+    const highPriority: Promise<Job>[] = [];
 
     let processor;
 
@@ -675,6 +675,40 @@ describe('workers', function () {
     await processing;
 
     await worker.close();
+  });
+
+  describe('when prioritized job is added while processing last active job', () => {
+    it('should process prioritized job whithout delay', async function () {
+      this.timeout(1000);
+      await queue.add('test1', { p: 2 }, { priority: 2 });
+      let counter = 0;
+      let processor;
+      const processing = new Promise<void>((resolve, reject) => {
+        processor = async (job: Job) => {
+          try {
+            if (job.name == 'test1') {
+              await queue.add('test', { p: 2 }, { priority: 2 });
+            }
+
+            expect(job.id).to.be.ok;
+            expect(job.data.p).to.be.eql(2);
+          } catch (err) {
+            reject(err);
+          }
+
+          if (++counter === 2) {
+            resolve();
+          }
+        };
+      });
+
+      const worker = new Worker(queueName, processor, { connection });
+      await worker.waitUntilReady();
+
+      await processing;
+
+      await worker.close();
+    });
   });
 
   it('process several jobs serially', async () => {
