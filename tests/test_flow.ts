@@ -3079,7 +3079,7 @@ describe('flows', () => {
       expect(await (nextJob as Job).getState()).to.be.equal('active');
 
       await expect(tree.job.remove()).to.be.rejectedWith(
-        `Could not remove job ${tree.job.id}`,
+        `Job ${tree.job.id} could not be removed because it is locked by another worker`,
       );
 
       expect(await tree.job.getState()).to.be.equal('waiting-children');

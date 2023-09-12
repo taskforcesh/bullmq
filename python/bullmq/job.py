@@ -83,7 +83,7 @@ class Job:
         removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
         
         if not removed:
-            raise Exception(f"Could not remove job {self.id}")
+            raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)

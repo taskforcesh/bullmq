@@ -55,14 +55,6 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
 
     rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
 
-    -- -- delete keys related to rate limiter
-        -- local limiterIndexTable = KEYS[10] .. ":index"
-        -- local limitedSetKey = rcall("HGET", limiterIndexTable, jobId)
-        -- if limitedSetKey then
-        --     rcall("SREM", limitedSetKey, jobId)
-        --     rcall("HDEL", limiterIndexTable, jobId)
-    -- end
-
     rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", prev);
 end
 

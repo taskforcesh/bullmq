@@ -9,29 +9,14 @@
 ## v1.13.0 (2023-09-07)
 ### Feature
 * **flow-producer:** Add addBulk method (python) ([#2174](https://github.com/taskforcesh/bullmq/issues/2174)) ([`c67dfb4`](https://github.com/taskforcesh/bullmq/commit/c67dfb49931ee4cb96573af660e9f2316942687c))
-* **connection:** Provide skipVersionCheck option for shared connections (#2149) ref #2148 ([`914820f`](https://github.com/taskforcesh/bullmq/commit/914820f720cbc48b49f4bd1c46d148eb2bb5b79c))
-
-### Documentation
-* **auto-removal:** Clarify removal regardless of job names ([`bab0c61`](https://github.com/taskforcesh/bullmq/commit/bab0c6168f22af4e6aa7e9c47ecaad226d8fbf1d))
-* **python:** Add flowProducer usage ([#2163](https://github.com/taskforcesh/bullmq/issues/2163)) ([`96f84b7`](https://github.com/taskforcesh/bullmq/commit/96f84b7efb4d187ddeab3169c833c35e7786e608))
 
 ## v1.12.0 (2023-08-31)
 ### Feature
-* **python:** Add addBulk method in queue class ([#2161](https://github.com/taskforcesh/bullmq/issues/2161)) ([`555dd44`](https://github.com/taskforcesh/bullmq/commit/555dd44a0190f4957e43f083e2f59d7f58b90ac9))
-
-### Documentation
-* **typedoc:** Change defaultValue tag styling ([#2160](https://github.com/taskforcesh/bullmq/issues/2160)) ([`1b0ff8e`](https://github.com/taskforcesh/bullmq/commit/1b0ff8ef51e27df906a93dae317534e2c2e9ccb3))
+* **queue:** Add addBulk method ([#2161](https://github.com/taskforcesh/bullmq/issues/2161)) ([`555dd44`](https://github.com/taskforcesh/bullmq/commit/555dd44a0190f4957e43f083e2f59d7f58b90ac9))
 
 ## v1.11.0 (2023-08-26)
 ### Feature
-* **python:** Add flow producer class ([#2115](https://github.com/taskforcesh/bullmq/issues/2115)) ([`14a769b`](https://github.com/taskforcesh/bullmq/commit/14a769b193d97576ff9b3f2a65de47463ba04ffd))
-* **sandbox:** Emulate moveToDelayed method (#2122) ref #2118 ([`4c4559b`](https://github.com/taskforcesh/bullmq/commit/4c4559b3c678313b3727c9781a6d3f963bcfda4e))
-
-### Fix
-* **sandbox:** Ignore extra params on processor ([#2142](https://github.com/taskforcesh/bullmq/issues/2142)) ([`3602c20`](https://github.com/taskforcesh/bullmq/commit/3602c20ab80cbe0a0d3de66210a01ad119e1090b))
-
-### Documentation
-* **rate-limit:** Add getRateLimitTtl usage ([#2116](https://github.com/taskforcesh/bullmq/issues/2116)) ([`51219fd`](https://github.com/taskforcesh/bullmq/commit/51219fd8685ccf1703548dda49303cd03690a95e))
+* Add flow producer class ([#2115](https://github.com/taskforcesh/bullmq/issues/2115)) ([`14a769b`](https://github.com/taskforcesh/bullmq/commit/14a769b193d97576ff9b3f2a65de47463ba04ffd))
 
 ## v1.10.1 (2023-08-19)
 ### Fix
