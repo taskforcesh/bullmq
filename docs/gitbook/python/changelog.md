@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.13.2 (2023-09-12)
+### Fix
+* **remove:** Change error message when job is locked (python) ([#2175](https://github.com/taskforcesh/bullmq/issues/2175)) ([`2f5628f`](https://github.com/taskforcesh/bullmq/commit/2f5628feffab66cdcc78abf4d7bb608bdcaa65bb))
+
 ## v1.13.1 (2023-09-11)
 ### Fix
 * **move-to-finished:** Consider addition of prioritized jobs when processing last active job (#2176) (python) ([`4b01f35`](https://github.com/taskforcesh/bullmq/commit/4b01f359c290cfc62ea74ff3ab0b43ccc6956a02))
