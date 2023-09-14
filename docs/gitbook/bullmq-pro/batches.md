@@ -21,7 +21,7 @@ const worker = new WorkerPro(
       await doSomethingWithBatchedJob(batchedJob);
     }
   },
-  { connection, batches: { size: 10 } },
+  { connection, batch: { size: 10 } },
 );
 ```
 
@@ -50,7 +50,7 @@ const worker = new WorkerPro(
       }
     }
   },
-  { connection, batches: { size: 10 } },
+  { connection, batch: { size: 10 } },
 );
 ```
 
