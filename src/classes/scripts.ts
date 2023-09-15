@@ -4,6 +4,7 @@
 
 /*eslint-env node */
 'use strict';
+import { Job } from '../classes';
 import { Packr } from 'msgpackr';
 
 const packer = new Packr({
@@ -14,6 +15,7 @@ const packer = new Packr({
 const pack = packer.pack;
 
 import {
+  FilteredJobsResult,
   JobJson,
   JobJsonRaw,
   MinimalJob,
@@ -32,7 +34,12 @@ import {
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
-import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
+import {
+  array2obj,
+  isEmpty,
+  getParentKey,
+  isRedisVersionLowerThan,
+} from '../utils';
 import { ChainableCommander } from 'ioredis';
 
 export type JobData = [JobJsonRaw | number, string?];
@@ -403,6 +410,85 @@ export class Scripts {
     const args = this.getRangesArgs(types, start, end, asc);
 
     return (<any>client).getRanges(args);
+  }
+
+  /**
+   * Retrieve jobs by a user-defined mongo-compatible filter object
+   * @param type  - type of job
+   * @param filter - mongo-like filter
+   * @param cursor  - cursor position
+   * @param count - count of jobs to return per iteration
+   */
+  async getJobsByFilter(
+    type: JobType,
+    filter: Record<string, unknown>,
+    cursor: number,
+    count = 10,
+  ): Promise<FilteredJobsResult> {
+    const client = await this.queue.client;
+    type = type === 'waiting' ? 'wait' : type; // alias
+    const key = type ? this.queue.toKey(type) : '';
+    const prefix = this.queue.toKey('');
+    const criteria = JSON.stringify(filter);
+
+    const response = await (<any>client).getJobsByFilter(
+      key,
+      prefix,
+      criteria,
+      cursor,
+      count,
+    );
+
+    const newCursor = response[0] === '0' ? null : Number(response[0]);
+    const jobs: Job[] = [];
+
+    let currentJob: Record<string, any> = {};
+    let jobId: string = null;
+    const iterCount = Number(response[1]);
+    const totalCount = Number(response[2]);
+
+    const queue: MinimalQueue = this.queue;
+
+    function addJobIfNeeded() {
+      if (currentJob && !isEmpty(currentJob) && jobId) {
+        // TODO: verify this
+        const trace = currentJob['stacktrace'];
+        if (!Array.isArray(trace)) {
+          if (typeof trace === 'string') {
+            currentJob['stacktrace'] = JSON.parse(trace);
+          } else {
+            currentJob['stacktrace'] = [];
+          }
+        }
+        const raw = currentJob as JobJsonRaw;
+        const job = Job.fromJSON(queue, raw, jobId);
+        const ts = currentJob['timestamp'];
+        job.timestamp = ts ? parseInt(ts) : Date.now();
+        jobs.push(job);
+      }
+    }
+
+    for (let i = 3; i < response.length; i += 2) {
+      const key = response[i];
+      const value = response[i + 1];
+
+      if (key === 'jobId') {
+        addJobIfNeeded();
+        jobId = value;
+        currentJob = {};
+      } else {
+        currentJob[key] = value;
+      }
+    }
+
+    addJobIfNeeded();
+
+    return {
+      cursor: newCursor,
+      total: totalCount,
+      count: iterCount,
+      jobs,
+    };
   }
 
   private getCountsArgs(types: JobType[]): (string | number)[] {
