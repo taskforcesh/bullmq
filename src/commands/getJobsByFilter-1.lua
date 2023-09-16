@@ -1116,43 +1116,6 @@ end
 
 ExprOperators['$substrBytes'] = ExprOperators['$substr']
 
-ExprOperators['$indexOfBytes'] = function(expr)
-  local exec = parseExpression(expr)
-
-  return function(obj)
-    local args = exec(obj)
-    local argLen = #args
-    local haystack = args[1]
-    local needle = args[2]
-    if (isNil(haystack)) then return nil end
-    assert(isString(haystack), '$indexOfBytes: expected a string as the first argument')
-    assert(isString(needle), '$indexOfBytes: expected a string as the second argument')
-    local start = tonumber(args[3] or 0, "$indexOfBytes: start index should be a number")
-    assert(start >= 0, "$indexOfBytes: start index should be a positive number")
-
-    local len = string.len(haystack)
-    if (len == 0) then
-      return nil
-    end
-
-    local _end = len - 1
-    if argLen > 3 then
-      _end = tonumber(args[4], "$indexOfBytes: end index should be a number")
-      assert(_end >= 0, "$indexOfBytes: end index should be a positive number")
-    end
-    --- convert from 0 to 1 based indices
-    start = start + 1
-    _end = _end + 1
-
-    local part = string.sub(haystack, start, _end)
-    local index = string.find(part, needle, 1, true)
-    if (index ~= nil) then
-      return (index[1] + start - 1)
-    end
-    return index
-  end
-end
-
 ExprOperators['$toLower'] = function(expr)
   local exec = parseExpression(expr)
 
