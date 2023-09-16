@@ -104,7 +104,7 @@ describe('getJobsByFilter', () => {
       expected = expected.sort(compare);
     }
 
-    expect(result).to.equal(expected);
+    expect(result).to.eql(expected);
   }
 
   async function findFirst(
@@ -458,9 +458,10 @@ describe('getJobsByFilter', () => {
         expected: any[],
       ): Promise<void> {
         const result = await find(data, query);
-        expect(result).to.equal(expected);
+        expect(result).to.be.eql(expected);
       }
 
+      // eslint-disable-next-line mocha/no-exclusive-tests
       it('should not match without array index selector to nested value ', async () => {
         await attempt({ 'data.key0.key1.key2.a': 'value2' }, []);
       });
