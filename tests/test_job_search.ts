@@ -165,8 +165,9 @@ describe('getJobsByFilter', () => {
       await attempt({ opts: { $exists: true } });
     });
 
+    // eslint-disable-next-line mocha/no-exclusive-tests
     it('accepts simple json documents', async () => {
-      await attempt({ 'data.firstName': 'Francis', isActive: true });
+      await attempt({ 'data.firstName': 'Francis', 'data.isActive': true });
     });
   });
 
@@ -580,7 +581,7 @@ describe('getJobsByFilter', () => {
       expectMatch = true,
     ): Promise<void> {
       const { jobs } = await queue.getJobsByFilter('waiting', criteria, 0);
-      expect(!!jobs.length).to.be(expectMatch);
+      expect(!!jobs.length).to.equal(expectMatch);
     }
 
     describe('$cond', () => {

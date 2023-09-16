@@ -340,7 +340,7 @@ local function resolve(obj, segments, unwrapArray)
   local function resolve2(o, path)
     local value = o
     local index = 1
-    debug('resolving path ' .. tostr(path) .. ' in object ' .. tostr(o))
+    --- debug('resolving path ' .. tostr(path) .. ' in object ' .. tostr(o))
 
     while (index <= #path) do
       local field = path[index]
@@ -682,7 +682,8 @@ local function normalize(expr)
   -- normalized primitives
   local t = getType(expr)
   if (JS_SIMPLE_TYPES[t]) then
-    return { ['$eq'] = expr }
+    local converted = { ['$eq'] = expr }
+    return converted
   end
 
   -- normalize object expression
@@ -698,7 +699,9 @@ local function normalize(expr)
 
     -- no valid query operator found, so we do simple comparison
     if (not hasOperator) then
-      return { ['$eq'] = expr }
+      local converted = { ['$eq'] = expr }
+      --- debug('no operator found in ' .. tostr(expr) .. ', converted to ' .. tostr(converted))
+      return converted
     end
 
   end
@@ -717,6 +720,7 @@ local function compileQuery(criteria)
   local function processOperator(field, operator, value)
     local operatorFn = QueryOperators[operator]
     assert(operatorFn ~= nil, 'invalid query operator "' .. operator .. '" found');
+    --- debug('compiling predicate for (' .. field ..' ' .. operator ..' ' .. tostr(value) ..')')
     compiled[#compiled + 1] = operatorFn(field, value)
   end
 
@@ -842,7 +846,7 @@ local function getFieldResolver(field)
     else
       handler = function(obj)
         local val = resolve(obj, path)
-        debug('value: ' .. tostr(val))
+        debug('path = ' .. tostr(path) .. ', value = ' .. tostr(val))
         return isnum and tonumber(val) or val
       end
     end
