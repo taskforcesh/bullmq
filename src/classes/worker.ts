@@ -350,8 +350,12 @@ export class Worker<
   }
 
   set concurrency(concurrency: number) {
-    if (typeof concurrency !== 'number' || concurrency < 1) {
-      throw new Error('concurrency must be a number greater than 0');
+    if (
+      typeof concurrency !== 'number' ||
+      concurrency < 1 ||
+      !isFinite(concurrency)
+    ) {
+      throw new Error('concurrency must be a finite number greater than 0');
     }
     this.opts.concurrency = concurrency;
   }
@@ -564,8 +568,6 @@ export class Worker<
       if (!this.closing) {
         await this.delay();
       }
-    } finally {
-      this.waiting = null;
     }
   }
 
@@ -595,6 +597,8 @@ export class Worker<
       }
     }
 
+    // Update limitUntil and delayUntil
+    // TODO: Refactor out of this function
     this.limitUntil = Math.max(limitUntil, 0) || 0;
     if (delayUntil) {
       this.blockUntil = Math.max(delayUntil, 0) || 0;
