@@ -62,7 +62,7 @@ describe('getJobsByFilter', () => {
   let queueName: string;
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `search-test-${v4()}`;
     queue = new Queue(queueName, { connection });
     await queue.waitUntilReady();
   });
@@ -77,7 +77,7 @@ describe('getJobsByFilter', () => {
     criteria: Record<string, any>,
   ): Promise<any[]> {
     const bulkData = arr.map(item => {
-      return { name: 'default', data: item };
+      return { name: 'search', data: item };
     });
     await queue.addBulk(bulkData);
     const { jobs } = await queue.getJobsByFilter('waiting', criteria, 0, 100);
@@ -147,7 +147,7 @@ describe('getJobsByFilter', () => {
       }
 
       it(`${operator}: ${JSON.stringify(args)} => ${expected}`, async () => {
-        await queue.add('default', data);
+        await queue.add('search', data);
         await checkExpression(condition, expected);
       });
     }
@@ -155,21 +155,55 @@ describe('getJobsByFilter', () => {
 
   describe('Basic field access', () => {
     beforeEach(async () => {
-      await queue.add('default', Person);
+      await queue.add('search-basic', Person);
     });
 
     it('can access basic job fields', async () => {
-      await attempt({ id: { $exists: true } });
       await attempt({ name: { $exists: true } });
       await attempt({ timestamp: { $exists: true } });
       await attempt({ data: { $exists: true } });
       await attempt({ opts: { $exists: true } });
     });
+
+    it('accepts simple json documents', async () => {
+      await attempt({ 'data.firstName': 'Francis', isActive: true });
+    });
+  });
+
+  describe('computed job fields', () => {
+    let job: Job;
+
+    beforeEach(async () => {
+      job = await queue.add('search-compuuted-fields', Person);
+    });
+
+    async function updateJob(data: Record<string, any>) {
+      const client = await queue.client;
+      const key = job.toKey(job.id);
+      await client.hmset(key, data);
+    }
+
+    it('can filter on job runtime', async () => {
+      await updateJob({ finishedOn: 10000, processedOn: 5000 });
+      await attempt({ runtime: { $eq: 5000 } });
+    });
+
+    it('can filter on job responseTime', async () => {
+      const timestamp = job.timestamp;
+      await updateJob({ finishedOn: 10000 + timestamp });
+      await attempt({ runtime: { $gt: 5000 } });
+    });
+
+    it('can filter on job waitTime', async () => {
+      const timestamp = job.timestamp;
+      await updateJob({ processedOn: 10000 + timestamp });
+      await attempt({ runtime: { $lt: 25000 } });
+    });
   });
 
   describe('Comparison, Evaluation, and Element Operators', () => {
     beforeEach(async () => {
-      await queue.add('default', Person);
+      await queue.add('search-operators', Person);
     });
 
     it('$eq', async () => {
@@ -265,16 +299,14 @@ describe('getJobsByFilter', () => {
   });
 
   describe('Query Logical Operators', function () {
-    let job: Job;
-
     beforeEach(async () => {
-      job = await queue.add('default', Person);
+      await queue.add('search', Person);
     });
 
     describe('$and', () => {
       it('can use conjunction true AND true', async () => {
         await attempt({
-          $and: [{ 'data.firstName': 'Francis' }, { name: 'default' }],
+          $and: [{ 'data.firstName': 'Francis' }, { name: 'search' }],
         });
       });
 
@@ -540,7 +572,7 @@ describe('getJobsByFilter', () => {
     };
 
     beforeEach(async () => {
-      await queue.add('default', data);
+      await queue.add('search', data);
     });
 
     async function check(
@@ -945,7 +977,7 @@ describe('getJobsByFilter', () => {
         };
         const conditional = { $indexOfBytes: [haystack, needle, start, end] };
         const criteria = { $expr: { $eq: [5, conditional] } };
-        await queue.add('default', data);
+        await queue.add('search', data);
         if (expected) {
           expect(() => checkExpression(criteria, 0)).to.throw(expected);
         } else {
@@ -1026,7 +1058,7 @@ describe('getJobsByFilter', () => {
           [operator]: { input: '$data.value', ...(chars && { chars }) },
         };
         it(`${operator}: ${input}`, async () => {
-          await queue.add('default', data);
+          await queue.add('search', data);
           await checkExpression(expression, expected);
         });
       }
@@ -1066,7 +1098,7 @@ describe('getJobsByFilter', () => {
   describe('Type Operators', () => {
     describe('$type', () => {
       beforeEach(async () => {
-        await queue.add('default', Person);
+        await queue.add('search', Person);
       });
 
       it('can handle "object"', async () => {
