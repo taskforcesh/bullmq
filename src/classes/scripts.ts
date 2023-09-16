@@ -423,7 +423,7 @@ export class Scripts {
     type: JobType,
     filter: Record<string, unknown>,
     cursor: number,
-    count = 10,
+    count = 20,
   ): Promise<FilteredJobsResult> {
     const client = await this.queue.client;
     type = type === 'waiting' ? 'wait' : type; // alias
@@ -444,8 +444,6 @@ export class Scripts {
 
     let currentJob: Record<string, any> = {};
     let jobId: string = null;
-    const iterCount = Number(response[1]);
-    const totalCount = Number(response[2]);
 
     const queue: MinimalQueue = this.queue;
 
@@ -468,7 +466,7 @@ export class Scripts {
       }
     }
 
-    for (let i = 3; i < response.length; i += 2) {
+    for (let i = 1; i < response.length; i += 2) {
       const key = response[i];
       const value = response[i + 1];
 
@@ -485,8 +483,6 @@ export class Scripts {
 
     return {
       cursor: newCursor,
-      total: totalCount,
-      count: iterCount,
       jobs,
     };
   }

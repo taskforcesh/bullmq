@@ -340,7 +340,7 @@ local function resolve(obj, segments, unwrapArray)
   local function resolve2(o, path)
     local value = o
     local index = 1
-    -- debug('resolving path ' .. tostr(path) .. ' in object ' .. tostr(o))
+    debug('resolving path ' .. tostr(path) .. ' in object ' .. tostr(o))
 
     while (index <= #path) do
       local field = path[index]
@@ -620,6 +620,7 @@ end
 
 Predicates['$exists'] = function(a, b)
   local non_existent = isNil(a)
+  debug('exists: ' .. tostr(a) .. ', ' .. tostr(b) .. ', ' .. tostr(non_existent))
   return
   ((b == false or b == 0) and non_existent) or
           ((b == true or b == 1) and (not non_existent))
@@ -842,7 +843,7 @@ local function getFieldResolver(field)
     else
       handler = function(obj)
         local val = resolve(obj, path)
-        -- debug('value: ' .. tostr(val))
+        debug('value: ' .. tostr(val))
         return isnum and tonumber(val) or val
       end
     end
@@ -1593,7 +1594,7 @@ local function createComparison(name)
       local args = exec(obj)
       assert(isArray(args) and #args == 2, name .. ': comparison expects 2 arguments. Got ' .. tostr(args))
       local val = fn(args[1], args[2])
-      --- debug('Comparison: ' .. tostr(args[1]) .. ' ' .. name .. ' ' .. tostr(args[2]) .. ' = ' .. tostr(val))
+      debug('Comparison: ' .. tostr(args[1]) .. ' ' .. name .. ' ' .. tostr(args[2]) .. ' = ' .. tostr(val))
       return val
     end
   end
@@ -1608,7 +1609,7 @@ local function initOperators()
         -- value of field must be fully resolved.
         local lhs = resolveFn(obj)
         local val = predicate(lhs, value)
-        --- debug('Predicate: ' .. tostr(lhs) .. ' ' .. name .. ' ' .. tostr(value) .. ' = ' .. tostr(val))
+        debug('Predicate: ' .. tostr(lhs) .. ' ' .. name .. ' ' .. tostr(value) .. ' = ' .. tostr(val))
         return val
       end
     end
@@ -1725,9 +1726,12 @@ local function search(key, keyPrefix, criteria, cursor, count)
     local jobIdKey = keyPrefix .. jobId
     local jobHash = redis.pcall('HGETALL', jobIdKey)
 
+    debug('key: ' .. jobIdKey.. ', data: ' .. tostr(jobHash))
+
     if (isObject(jobHash) and #jobHash) then
       local job = prepareJobHash(jobId, jobHash)
       if (predicate(job)) then
+        debug('Matched: ' .. tostr(job));
         table.insert(result, "jobId")
         table.insert(result, jobId)
 
