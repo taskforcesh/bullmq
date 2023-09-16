@@ -6,6 +6,7 @@ import { default as IORedis } from 'ioredis';
 import { afterEach, beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { Job, Queue } from '../src/classes';
+import { sortBy as _sortBy } from 'lodash';
 import { removeAllQueueData } from '../src/utils';
 
 const Person: Record<string, any> = {
@@ -89,20 +90,15 @@ describe('getJobsByFilter', () => {
     data: Record<string, any>[],
     query: Record<string, any>,
     filterFn: (arg0: any) => boolean = () => true,
-    sortBy: string = null,
+    sortBy: string | string[] = null,
   ): Promise<void> {
     // were checking expression operators, so transform query
     const criteria = { $expr: query };
     let result = await find(data, criteria);
     let expected = data.filter(filterFn);
     if (sortBy) {
-      const compare = (a: Record<string, any>, b: Record<string, any>) => {
-        const a2 = a[sortBy];
-        const b2 = b[sortBy];
-        return a2 === b2 ? 0 : a2 < b2 ? 1 : -1;
-      };
-      result = result.sort(compare);
-      expected = expected.sort(compare);
+      result = _sortBy(result, sortBy);
+      expected = _sortBy(expected, sortBy);
     }
 
     expect(result).to.eql(expected);
@@ -1263,7 +1259,10 @@ describe('getJobsByFilter', () => {
       criteria: Record<string, any>,
       expected: { _id: number; item?: any }[],
     ) {
-      const res = await find(data, criteria);
+      let res = await find(data, criteria);
+      res = _sortBy(res, '_id');
+      expected = _sortBy(expected, '_id');
+
       expect(res).to.eql(expected);
     }
 
