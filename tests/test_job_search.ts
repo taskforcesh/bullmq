@@ -191,13 +191,13 @@ describe('getJobsByFilter', () => {
     it('can filter on job responseTime', async () => {
       const timestamp = job.timestamp;
       await updateJob({ finishedOn: 10000 + timestamp });
-      await attempt({ runtime: { $gt: 5000 } });
+      await attempt({ responseTime: { $gt: 5000 } });
     });
 
     it('can filter on job waitTime', async () => {
       const timestamp = job.timestamp;
       await updateJob({ processedOn: 10000 + timestamp });
-      await attempt({ runtime: { $lt: 25000 } });
+      await attempt({ waitTime: { $lt: 25000 } });
     });
   });
 

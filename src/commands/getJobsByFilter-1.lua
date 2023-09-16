@@ -620,7 +620,6 @@ end
 
 Predicates['$exists'] = function(a, b)
   local non_existent = isNil(a)
-  debug('exists: ' .. tostr(a) .. ', ' .. tostr(b) .. ', ' .. tostr(non_existent))
   return
   ((b == false or b == 0) and non_existent) or
           ((b == true or b == 1) and (not non_existent))
@@ -659,13 +658,13 @@ Predicates['$type'] = function(a, b)
 end
 
 Predicates['$contains'] = function(haystack, needle)
-  return isString(haystack) and -- todo: toString()
+  return isString(haystack) and
           isString(needle) and
           string.find(haystack, needle) ~= nil
 end
 
 Predicates['$startsWith'] = function(haystack, needle)
-  return isString(haystack) and -- todo: toString()
+  return isString(haystack) and
           isString(needle) and
           string.sub(haystack, 1, string.len(needle)) == needle
 end
