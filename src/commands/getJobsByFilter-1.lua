@@ -637,6 +637,12 @@ Predicates['$mod'] = function(a, b)
   end)
 end
 
+Predicates['$isNumber'] = function(a, b)
+  local is_num = isNumber(a)
+  local comparator = b == true or b == 1
+  return is_num == comparator
+end
+
 Predicates['$type'] = function(a, b)
   local types = ensureArray(b)
   for _, t in ipairs(types) do

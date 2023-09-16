@@ -16,6 +16,7 @@ const Person: Record<string, any> = {
   title: 'Software Engineer',
   degree: 'Computer Science',
   jobs: 6,
+  height: 1.7,
   isActive: true,
   date: {
     year: 2013,
@@ -427,6 +428,23 @@ describe('getJobsByFilter', () => {
             { 'data.age': { $exists: true } },
           ],
         });
+      });
+    });
+
+    describe('$isNumber', () => {
+      it('correctly identifies integers', async () => {
+        await attempt({ 'data.jobs': { $isNumber: true } });
+        await attempt({ 'data.date.year': { $isNumber: true } });
+      });
+
+      it('correctly identifies floats', async () => {
+        await attempt({ 'data.height': { $isNumber: true } });
+      });
+
+      it('correctly identifies non numbers', async () => {
+        await attempt({ 'data.firstName': { $isNumber: false } });
+        await attempt({ 'data.retirement': { $isNumber: false } });
+        await attempt({ 'data.grades': { $isNumber: false } });
       });
     });
   });
@@ -1246,7 +1264,7 @@ describe('getJobsByFilter', () => {
       expected: { _id: number; item?: any }[],
     ) {
       const res = await find(data, criteria);
-      expect(res).to.deep.equal(expected);
+      expect(res).to.eql(expected);
     }
 
     it('should return all documents', async () => {
