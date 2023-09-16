@@ -661,7 +661,7 @@ end
 Predicates['$contains'] = function(haystack, needle)
   return isString(haystack) and -- todo: toString()
           isString(needle) and
-          string.find(haystack, 1, needle) ~= nil
+          string.find(haystack, needle) ~= nil
 end
 
 Predicates['$startsWith'] = function(haystack, needle)
