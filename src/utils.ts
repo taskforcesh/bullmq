@@ -1,4 +1,8 @@
 import { Cluster, Redis } from 'ioredis';
+
+// Note: this Polyfill is only needed for Node versions < 15.4.0
+import { AbortController } from 'node-abort-controller';
+
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
@@ -46,9 +50,19 @@ export function array2obj(arr: string[]): Record<string, string> {
   return obj;
 }
 
-export function delay(ms: number): Promise<void> {
+export function delay(
+  ms: number,
+  abortController?: AbortController,
+): Promise<void> {
   return new Promise(resolve => {
-    setTimeout(() => resolve(), ms);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const callback = () => {
+      abortController?.signal.removeEventListener('abort', callback);
+      clearTimeout(timeout);
+      resolve();
+    };
+    timeout = setTimeout(callback, ms);
+    abortController?.signal.addEventListener('abort', callback);
   });
 }
 

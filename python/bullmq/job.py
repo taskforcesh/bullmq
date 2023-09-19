@@ -28,9 +28,9 @@ class Job:
     A Job instance is also passed to the Worker's process function.
     """
 
-    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}):
+    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}, job_id: str = None):
         self.name = name
-        self.id = opts.get("jobId", None)
+        self.id = opts.get("jobId", None) or job_id
         self.progress = 0
         self.timestamp = opts.get("timestamp", round(time.time() * 1000))
         final_opts = {"attempts": 0, "delay": 0}
@@ -83,7 +83,7 @@ class Job:
         removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
         
         if not removed:
-            raise Exception(f"Could not remove job {self.id}")
+            raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
@@ -226,6 +226,6 @@ def optsFromJSON(rawOpts: dict) -> dict:
 
 def getReturnValue(value: Any):
     try:
-        json.loads(value)
+        return json.loads(value)
     except Exception as err:
         return value

@@ -516,7 +516,9 @@ export class Job<
     if (removed) {
       queue.emit('removed', job);
     } else {
-      throw new Error('Could not remove job ' + job.id);
+      throw new Error(
+        `Job ${this.id} could not be removed because it is locked by another worker`,
+      );
     }
   }
 
@@ -775,7 +777,12 @@ export class Job<
 
   /**
    * Get children job keys if this job is a parent and has children.
-   *
+   * @remarks
+   * Count options before Redis v7.2 works as expected with any quantity of entries
+   * on processed/unprocessed dependencies, since v7.2 you must consider that count
+   * won't have any effect until processed/unprocessed dependencies have a length
+   * greater than 127
+   * @see https://redis.io/docs/management/optimization/memory-optimization/#redis--72
    * @returns dependencies separated by processed and unprocessed.
    */
   async getDependencies(opts: DependenciesOpts = {}): Promise<{

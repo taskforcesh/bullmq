@@ -40,6 +40,7 @@ export class RedisConnection extends EventEmitter {
   private initializing: Promise<RedisClient>;
 
   private version: string;
+  private skipVersionCheck: boolean;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
   private handleClientReady: () => void;
@@ -48,6 +49,7 @@ export class RedisConnection extends EventEmitter {
     opts?: ConnectionOptions,
     private readonly shared: boolean = false,
     private readonly blocking = true,
+    skipVersionCheck = false,
   ) {
     super();
 
@@ -86,6 +88,8 @@ export class RedisConnection extends EventEmitter {
       this.checkBlockingOptions(deprecationMessage, this.opts);
     }
 
+    this.skipVersionCheck =
+      skipVersionCheck || !!(this.opts && this.opts.skipVersionCheck);
     this.handleClientError = (err: Error): void => {
       this.emit('error', err);
     };
@@ -182,12 +186,12 @@ export class RedisConnection extends EventEmitter {
     this.loadCommands();
 
     this.version = await this.getRedisVersion();
-    if (this.opts && this.opts.skipVersionCheck !== true && !this.closing) {
+    if (this.skipVersionCheck !== true && !this.closing) {
       if (
         isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
       ) {
         throw new Error(
-          `Redis version needs to be greater than ${RedisConnection.minimumVersion} Current: ${this.version}`,
+          `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} Current: ${this.version}`,
         );
       }
 

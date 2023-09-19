@@ -6,7 +6,7 @@ const sandbox = <T, R, N extends string>(
   processFile: any,
   childPool: ChildPool,
 ) => {
-  return async function process(job: Job<T, R, N>): Promise<R> {
+  return async function process(job: Job<T, R, N>, token?: string): Promise<R> {
     const child = await childPool.retain(processFile);
     let msgHandler: any;
     let exitHandler: any;
@@ -14,6 +14,7 @@ const sandbox = <T, R, N extends string>(
     await child.send({
       cmd: ChildCommand.Start,
       job: job.asJSONSandbox(),
+      token,
     });
 
     const done: Promise<R> = new Promise((resolve, reject) => {
@@ -34,6 +35,9 @@ const sandbox = <T, R, N extends string>(
             break;
           case ParentCommand.Log:
             await job.log(msg.value);
+            break;
+          case ParentCommand.MoveToDelayed:
+            await job.moveToDelayed(msg.value?.timestamp, msg.value?.token);
             break;
           case ParentCommand.Update:
             await job.updateData(msg.value);

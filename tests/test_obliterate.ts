@@ -401,7 +401,7 @@ describe('Obliterate', function () {
 
     await queue.obliterate({ force: true });
 
-    const { logs } = await queue.getJobLogs(job.id);
+    const { logs } = await queue.getJobLogs(job.id!);
     expect(logs).to.have.length(0);
   });
 
