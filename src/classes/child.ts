@@ -1,7 +1,7 @@
 import { ChildProcess, fork } from 'child_process';
 import { Worker } from 'worker_threads';
 import { AddressInfo, createServer } from 'net';
-import { ChildCommand, ParentCommand } from '../';
+import { ChildCommand, ParentCommand } from '../commands';
 import { EventEmitter } from 'events';
 
 /**
