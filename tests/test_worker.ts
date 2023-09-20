@@ -1631,7 +1631,21 @@ describe('workers', function () {
         throw new Error('Should have thrown an exception');
       } catch (err) {
         expect(err.message).to.be.equal(
-          'concurrency must be a number greater than 0',
+          'concurrency must be a finite number greater than 0',
+        );
+      }
+    });
+
+    it('should thrown an exception if I specify a NaN concurrency', () => {
+      try {
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          concurrency: NaN,
+        });
+        throw new Error('Should have thrown an exception');
+      } catch (err) {
+        expect(err.message).to.be.equal(
+          'concurrency must be a finite number greater than 0',
         );
       }
     });
