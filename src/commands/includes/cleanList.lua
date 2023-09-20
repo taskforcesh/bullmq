@@ -30,7 +30,7 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd,
       -- Fetch all three of these (in that order) and use the first one that is set so that we'll leave jobs
       -- that have been active within the grace period:
       jobTS = getTimestamp(jobKey, {"finishedOn", "processedOn", "timestamp"})
-      if (not jobTS or jobTS < timestamp) then
+      if (not jobTS or jobTS <= timestamp) then
         -- replace the entry with a deletion marker; the actual deletion will
         -- occur at the end of the script
         rcall("LSET", listKey, rangeEnd - jobIdsLen + i, deletionMarker)
