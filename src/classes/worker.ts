@@ -568,6 +568,8 @@ export class Worker<
       if (!this.closing) {
         await this.delay();
       }
+    } finally {
+      this.waiting = null;
     }
   }
 
