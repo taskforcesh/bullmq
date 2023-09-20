@@ -2,7 +2,7 @@
 
 In some situations, you need to get a job and all of its children, grandchildren and so on.
 
-The pattern to solve this requirement consists on using [getFlow](https://api.docs.bullmq.io/classes/FlowProducer.html#getFlow) method.
+The pattern to solve this requirement consists on using [getFlow](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#getFlow) method.
 
 ```typescript
 const flow = new FlowProducer({ connection });

@@ -5,6 +5,7 @@ export enum ParentCommand {
   InitFailed,
   InitCompleted,
   Log,
+  MoveToDelayed,
   Progress,
   Update,
 }

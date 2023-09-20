@@ -14,6 +14,12 @@ import {
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
 import { removeAllQueueData } from '../src/utils';
+import {
+  createRepeatableJobKey,
+  extractRepeatableJobChecksumFromRedisKey,
+  getRepeatableJobKeyPrefix,
+  getRepeatJobIdCheckum,
+} from './utils/repeat_utils';
 
 const moment = require('moment');
 
@@ -33,11 +39,8 @@ describe('repeat', function () {
 
   const connection = { host: 'localhost' };
 
-  beforeEach(function () {
-    this.clock = sinon.useFakeTimers();
-  });
-
   beforeEach(async function () {
+    this.clock = sinon.useFakeTimers();
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection });
     repeat = new Repeat(queueName, { connection });
@@ -663,6 +666,61 @@ describe('repeat', function () {
     });
   });
 
+  it('should have repeatable job key with sha256 hashing when sha256 hash algorithm is provided', async function () {
+    this.timeout(20000);
+    const settings = {
+      repeatKeyHashAlgorithm: 'sha256',
+    };
+    const currentQueue = new Queue(queueName, { connection, settings });
+
+    const worker = new Worker(queueName, null, { connection, settings });
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+    const jobName = 'jobName';
+    const jobId = 'jobId';
+    const endDate = '';
+    const tz = '';
+    const every = 50;
+    const suffix = every;
+    await currentQueue.add(
+      jobName,
+      { foo: 'bar' },
+      {
+        repeat: {
+          jobId,
+          every,
+        },
+      },
+    );
+
+    const keyPrefix = getRepeatableJobKeyPrefix(queueName);
+    const jobsRedisKeys = await new IORedis().keys(`${keyPrefix}*`);
+    expect(jobsRedisKeys.length).to.be.equal(1);
+
+    const actualHashedRepeatableJobKey =
+      extractRepeatableJobChecksumFromRedisKey(jobsRedisKeys[0]);
+    const expectedRawKey = createRepeatableJobKey(
+      jobName,
+      jobId,
+      endDate,
+      tz,
+      suffix,
+    );
+    const expectedRepeatJobIdCheckum = getRepeatJobIdCheckum(
+      jobName,
+      expectedRawKey,
+      settings.repeatKeyHashAlgorithm,
+      jobId,
+    );
+
+    expect(actualHashedRepeatableJobKey).to.be.equal(
+      expectedRepeatJobIdCheckum,
+    );
+
+    await currentQueue.close();
+    await worker.close();
+    delayStub.restore();
+  });
+
   it('should repeat every 2 seconds and start immediately', async function () {
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
@@ -931,36 +989,41 @@ describe('repeat', function () {
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
+    let counter = 25;
+    let prev: Job;
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        try {
+          if (prev) {
+            expect(prev.timestamp).to.be.lt(job.timestamp);
+            const diff = moment(job.timestamp).diff(
+              moment(prev.timestamp),
+              'months',
+              true,
+            );
+            expect(diff).to.be.gte(1);
+          }
+          prev = job;
+
+          counter--;
+          if (counter == 0) {
+            resolve();
+          }
+        } catch (error) {
+          console.log(error);
+          reject(error);
+        }
+      });
+    });
+
+    worker.run();
+
     await queue.add(
       'repeat',
       { foo: 'bar' },
       { repeat: { pattern: '* 25 9 7 * *' } },
     );
     nextTick();
-
-    let counter = 10;
-    let prev: Job;
-    const completing = new Promise<void>(resolve => {
-      worker.on('completed', async job => {
-        if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          const diff = moment(job.timestamp).diff(
-            moment(prev.timestamp),
-            'months',
-            true,
-          );
-          expect(diff).to.be.gte(1);
-        }
-        prev = job;
-
-        counter--;
-        if (counter == 0) {
-          resolve();
-        }
-      });
-    });
-
-    worker.run();
 
     await completing;
     await worker.close();
@@ -1257,6 +1320,7 @@ describe('repeat', function () {
     const nextTick = 1000;
 
     let processor;
+    this.clock.setSystemTime(new Date('2017-02-02 7:21:42'));
 
     const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {

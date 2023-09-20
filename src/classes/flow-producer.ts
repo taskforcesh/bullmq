@@ -305,7 +305,7 @@ export class FlowProducer extends EventEmitter {
         parent: {
           parentOpts: {
             id: parentId,
-            queue: queueKeysParent.getPrefixedQueueName(node.queueName),
+            queue: queueKeysParent.getQueueQualifiedName(node.queueName),
           },
           parentDependenciesKey,
         },
@@ -400,10 +400,10 @@ export class FlowProducer extends EventEmitter {
     maxChildren: number,
   ) {
     const getChild = (key: string) => {
-      const [prefix, queueName, id, groupId] = key.split(':');
+      const [prefix, queueName, id] = key.split(':');
 
       return this.getNode(client, {
-        id: groupId ? `${id}:${groupId}` : id,
+        id,
         queueName,
         prefix,
         depth,
@@ -433,6 +433,7 @@ export class FlowProducer extends EventEmitter {
       keys: queueKeys.getKeys(node.queueName),
       toKey: (type: string) => queueKeys.toKey(node.queueName, type),
       opts: { prefix },
+      qualifiedName: queueKeys.getQueueQualifiedName(node.queueName),
       closing: this.closing,
       waitUntilReady: async () => this.connection.client,
       removeListener: this.removeListener.bind(this) as any,

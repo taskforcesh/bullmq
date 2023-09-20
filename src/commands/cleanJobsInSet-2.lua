@@ -34,11 +34,19 @@ local result
 if ARGV[4] == "active" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false)
 elseif ARGV[4] == "delayed" then
-  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], limit, {"processedOn", "timestamp"})
+  rangeEnd = "+inf"
+  result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
+                    {"processedOn", "timestamp"}, false)
+elseif ARGV[4] == "prioritized" then
+  rangeEnd = "+inf"
+  result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
+                    {"timestamp"}, false)
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
   result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true)
 else
-  result = cleanSet(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], limit, {"finishedOn"} )
+  rangeEnd = ARGV[2]
+  result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
+                    {"finishedOn"}, true)
 end
 
 rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", result[2])

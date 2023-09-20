@@ -16,6 +16,10 @@ await myQueue.add(
 );
 ```
 
+{% hint style="warning" %}
+Jobs will be deleted regardless of their names.
+{% endhint %}
+
 ### Keep a certain number of jobs
 
 It is also possible to specify a maximum number of jobs to keep. A good practice is to keep a handful of completed jobs and a much larger value of failed jobs:
@@ -40,7 +44,7 @@ new Worker('test', async job => {}, {
 
 ### Keep jobs based on their age
 
-Another possibility is to keep jobs up to a certain age. The "removeOn" option accepts a "[KeepJobs](https://api.docs.bullmq.io/interfaces/KeepJobs.html)" object, that includes an "age" and a "count" fields. The age is used to specify how old jobs to keep (in seconds), and the count can be used to limit the total amount to keep. The count option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
+Another possibility is to keep jobs up to a certain age. The "removeOn" option accepts a "[KeepJobs](https://api.docs.bullmq.io/interfaces/v4.KeepJobs.html)" object, that includes an "age" and a "count" fields. The age is used to specify how old jobs to keep (in seconds), and the count can be used to limit the total amount to keep. The count option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
 
 ```typescript
 await myQueue.add(
@@ -83,4 +87,4 @@ One of the strategies to implement idempotence with BullMQ is to use unique job 
 
 ## Read more:
 
-- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/QueueEventsListener.html#duplicated)
+- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/v4.QueueEventsListener.html#duplicated)

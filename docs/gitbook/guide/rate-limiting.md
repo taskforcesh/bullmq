@@ -74,7 +74,8 @@ const worker = new Worker(
     if (isRateLimited) {
       await worker.rateLimit(duration);
       // Do not forget to throw this special exception,
-      // since the job is no longer active after being rate limited.
+      // since we must differentiate this case from a failure
+      // in order to move the job to wait again.
       throw Worker.RateLimitError();
     }
   },
@@ -84,6 +85,25 @@ const worker = new Worker(
 );
 ```
 
+### Get Queue Rate Limit Ttl
+
+Sometimes is useful to know if our queue is rate limited.
+
+For this purpose, you can use the **getRateLimitTtl** method like this:
+
+```typescript
+import { Queue } from 'bullmq';
+
+const queue = new Queue('myQueue', { connection });
+
+const ttl = await queue.getRateLimitTtl();
+
+if (ttl > 0) {
+  console.log('Queue is rate limited');
+}
+```
+
 ## Read more:
 
-- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/Worker.html#rateLimit)
+- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v4.Worker.html#rateLimit)
+- 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#getRateLimitTtl)

@@ -39,4 +39,3 @@ WORKDIR /app
 
 ADD .npmrc /app/.npmr
 ```
-

@@ -39,13 +39,16 @@ import { QueueEvents } from 'bullmq';
 
 const queueEvents = new QueueEvents('Paint');
 
-queueEvents.on('completed', ({jobId: string}) => {
+queueEvents.on('completed', ({ jobId: string }) => {
   // Called every time a job is completed in any worker.
 });
 
-queueEvents.on('progress', ({ jobId, data }: { jobId: string; data: number | object }) => {
-  // jobId received a progress event
-});
+queueEvents.on(
+  'progress',
+  ({ jobId, data }: { jobId: string; data: number | object }) => {
+    // jobId received a progress event
+  },
+);
 ```
 
 The QueueEvents class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
@@ -54,6 +57,39 @@ The QueueEvents class is implemented using [Redis streams](https://redis.io/topi
 The event stream is auto-trimmed so that its size does not grow too much, by default it is \~10.000 events, but this can be configured with the `streams.events.maxLen` option.
 {% endhint %}
 
+### Manual trim events
+
+In case you need to trim your events manually, you can use **trimEvents** method:
+
+{% tabs %}
+{% tab title="TypeScript" %}
+
+```typescript
+import { Queue } from 'bullmq';
+
+const queue = new Queue('paint');
+
+await queue.trimEvents(10); // left 10 events
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Queue
+
+queue = Queue('paint')
+
+await queue.trimEvents(10) # left 10 events
+```
+
+{% endtab %}
+{% endtabs %}
+
 ## Read more:
 
-* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/QueueEvents.html)
+- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v4.QueueEvents.html)
+- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v4.QueueEventsListener.html)
+- 💡 [Queue Listener API Reference](https://api.docs.bullmq.io/interfaces/v4.QueueListener.html)
+- 💡 [Worker Listener API Reference](https://api.docs.bullmq.io/interfaces/v4.WorkerListener.html)

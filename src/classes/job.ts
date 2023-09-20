@@ -33,15 +33,19 @@ import {
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
 import { UnrecoverableError } from './unrecoverable-error';
+import type { QueueEvents } from './queue-events';
 
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
   kl: 'keepLogs',
+  rdof: 'removeDependencyOnFailure',
 };
 
 const optsEncodeMap = invert(optsDecodeMap);
+
+export const PRIORITY_LIMIT = 2 ** 21;
 
 /**
  * Job
@@ -59,6 +63,12 @@ export class Job<
   NameType extends string = string,
 > implements MinimalJob<DataType, ReturnType, NameType>
 {
+  /**
+   * It includes the prefix, the namespace separator :, and queue name.
+   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+   */
+  public readonly queueQualifiedName: string;
+
   /**
    * The progress a job has performed so far.
    * @defaultValue 0
@@ -179,6 +189,8 @@ export class Job<
 
     this.toKey = queue.toKey.bind(queue);
     this.scripts = new Scripts(queue);
+
+    this.queueQualifiedName = queue.qualifiedName;
   }
 
   /**
@@ -428,7 +440,7 @@ export class Job<
    *
    * @param data - the data that will replace the current jobs data.
    */
-  update(data: DataType): Promise<void> {
+  updateData(data: DataType): Promise<void> {
     this.data = data;
 
     return this.scripts.updateData<DataType, ReturnType, NameType>(this, data);
@@ -491,18 +503,22 @@ export class Job<
    * Completely remove the job from the queue.
    * Note, this call will throw an exception if the job
    * is being processed when the call is performed.
+   *
+   * @param opts - Options to remove a job
    */
-  async remove(): Promise<void> {
+  async remove({ removeChildren = true } = {}): Promise<void> {
     await this.queue.waitUntilReady();
 
     const queue = this.queue;
     const job = this;
 
-    const removed = await this.scripts.remove(job.id);
+    const removed = await this.scripts.remove(job.id, removeChildren);
     if (removed) {
       queue.emit('removed', job);
     } else {
-      throw new Error('Could not remove job ' + job.id);
+      throw new Error(
+        `Job ${this.id} could not be removed because it is locked by another worker`,
+      );
     }
   }
 
@@ -541,13 +557,18 @@ export class Job<
       throw errorObject.value;
     }
 
-    return this.scripts.moveToCompleted(
+    const args = this.scripts.moveToCompletedArgs(
       this,
       stringifiedReturnValue,
       this.opts.removeOnComplete,
       token,
       fetchNext,
     );
+
+    const result = await this.scripts.moveToFinished(this.id, args);
+    this.finishedOn = args[14] as number;
+
+    return result;
   }
 
   /**
@@ -610,7 +631,7 @@ export class Job<
         (<any>multi).retryJob(
           this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
         );
-        command = 'retry';
+        command = 'retryJob';
       }
     } else {
       // If not, move to failed
@@ -626,7 +647,7 @@ export class Job<
         fetchNext,
       );
       (<any>multi).moveToFinished(args);
-      finishedOn = args[13];
+      finishedOn = args[14];
       command = 'failed';
     }
 
@@ -705,14 +726,6 @@ export class Job<
   }
 
   /**
-   * @returns it includes the prefix, the namespace separator :, and queue name.
-   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
-   */
-  get queueQualifiedName(): string {
-    return `${this.prefix}:${this.queueName}`;
-  }
-
-  /**
    * Get current state.
    *
    * @returns Returns one of these values:
@@ -734,6 +747,18 @@ export class Job<
   }
 
   /**
+   * Change job priority.
+   *
+   * @returns void
+   */
+  async changePriority(opts: {
+    priority?: number;
+    lifo?: boolean;
+  }): Promise<void> {
+    await this.scripts.changePriority(this.id, opts.priority, opts.lifo);
+  }
+
+  /**
    * Get this jobs children result values if any.
    *
    * @returns Object mapping children job keys with their values.
@@ -752,7 +777,12 @@ export class Job<
 
   /**
    * Get children job keys if this job is a parent and has children.
-   *
+   * @remarks
+   * Count options before Redis v7.2 works as expected with any quantity of entries
+   * on processed/unprocessed dependencies, since v7.2 you must consider that count
+   * won't have any effect until processed/unprocessed dependencies have a length
+   * greater than 127
+   * @see https://redis.io/docs/management/optimization/memory-optimization/#redis--72
    * @returns dependencies separated by processed and unprocessed.
    */
   async getDependencies(opts: DependenciesOpts = {}): Promise<{
@@ -900,7 +930,7 @@ export class Job<
    * @param ttl - Time in milliseconds to wait for job to finish before timing out.
    */
   async waitUntilFinished(
-    queueEvents: MinimalQueue,
+    queueEvents: QueueEvents,
     ttl?: number,
   ): Promise<ReturnType> {
     await this.queue.waitUntilReady();
@@ -955,7 +985,7 @@ export class Job<
       ];
       const finished = status != 0;
       if (finished) {
-        if (status == -5 || status == 2) {
+        if (status == -1 || status == 2) {
           onFailed({ failedReason: result });
         } else {
           onCompleted({ returnvalue: getReturnValue(result) });
@@ -1046,6 +1076,18 @@ export class Job<
   addJob(client: RedisClient, parentOpts?: ParentOpts): Promise<string> {
     const jobData = this.asJSON();
 
+    this.validateOptions(jobData);
+
+    return this.scripts.addJob(
+      client,
+      jobData,
+      jobData.opts,
+      this.id,
+      parentOpts,
+    );
+  }
+
+  protected validateOptions(jobData: JobJson) {
     const exceedLimit =
       this.opts.sizeLimit &&
       lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
@@ -1060,6 +1102,12 @@ export class Job<
       throw new Error(`Delay and repeat options could not be used together`);
     }
 
+    if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {
+      throw new Error(
+        `RemoveDependencyOnFailure and failParentOnFailure options can not be used together`,
+      );
+    }
+
     if (`${parseInt(this.id, 10)}` === this.id) {
       //TODO: throw an error in next breaking change
       console.warn(
@@ -1067,13 +1115,15 @@ export class Job<
       );
     }
 
-    return this.scripts.addJob(
-      client,
-      jobData,
-      jobData.opts,
-      this.id,
-      parentOpts,
-    );
+    if (this.opts.priority) {
+      if (Math.trunc(this.opts.priority) !== this.opts.priority) {
+        throw new Error(`Priority should not be float`);
+      }
+
+      if (this.opts.priority > PRIORITY_LIMIT) {
+        throw new Error(`Priority should be between 0 and ${PRIORITY_LIMIT}`);
+      }
+    }
   }
 
   protected saveStacktrace(multi: ChainableCommander, err: Error): void {

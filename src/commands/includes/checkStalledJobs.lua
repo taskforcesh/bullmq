@@ -18,7 +18,8 @@
 
     Events:
       'stalled' with stalled job id.
-]] local rcall = redis.call
+]]
+local rcall = redis.call
 
 -- Includes
 --- @include "batches"

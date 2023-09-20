@@ -19,6 +19,9 @@ local function removeJobFromAnyState( prefix, jobId)
   elseif rcall("ZSCORE", prefix .. "failed", jobId) then
     rcall("ZREM", prefix .. "failed", jobId)
     return "failed"
+  elseif rcall("ZSCORE", prefix .. "prioritized", jobId) then
+    rcall("ZREM", prefix .. "prioritized", jobId)
+    return "prioritized"
   -- We remove only 1 element from the list, since we assume they are not added multiple times
   elseif rcall("LREM", prefix .. "wait", 1, jobId) == 1 then
     return "wait"

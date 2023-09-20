@@ -29,4 +29,4 @@ It is ok to have as many QueueScheduler instances as you want, just keep in mind
 
 ## Read more:
 
-* 💡 [Queue Scheduler API Reference](https://github.com/taskforcesh/bullmq/blob/v1.91.1/docs/gitbook/api/bullmq.queuescheduler.md)
+* 💡 [Queue Scheduler API Reference](https://api.docs.bullmq.io/classes/v1.QueueScheduler.html)

@@ -26,8 +26,6 @@ describe('Pause', function () {
   });
 
   it('should not process delayed jobs', async function () {
-    this.timeout(5000);
-
     let processed = false;
 
     const worker = new Worker(
@@ -40,7 +38,7 @@ describe('Pause', function () {
     await worker.waitUntilReady();
 
     await queue.pause();
-    await queue.add('test', {}, { delay: 200 });
+    await queue.add('test', {}, { delay: 300 });
     const counts = await queue.getJobCounts('waiting', 'delayed');
 
     expect(counts).to.have.property('waiting', 0);

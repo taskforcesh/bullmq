@@ -1,6 +1,5 @@
-import { promisify } from 'util';
 import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
-import { childSend, errorToJSON } from '../utils';
+import { errorToJSON } from '../utils';
 
 enum ChildStatus {
   Idle,
@@ -13,13 +12,15 @@ enum ChildStatus {
  * ChildProcessor
  *
  * This class acts as the interface between a child process and it parent process
- * so that jobs can be processed in different processes than the parent.
+ * so that jobs can be processed in different processes.
  *
  */
 export class ChildProcessor {
   public status?: ChildStatus;
   public processor: any;
   public currentJobPromise: Promise<unknown> | undefined;
+
+  constructor(private send: (msg: any) => Promise<void>) {}
 
   public async init(processorFile: string): Promise<void> {
     let processor;
@@ -36,34 +37,31 @@ export class ChildProcessor {
       }
     } catch (err) {
       this.status = ChildStatus.Errored;
-      return childSend(process, {
+      return this.send({
         cmd: ParentCommand.InitFailed,
         err: errorToJSON(err),
       });
     }
 
-    if (processor.length > 1) {
-      processor = promisify(processor);
-    } else {
-      const origProcessor = processor;
-      processor = function (...args: any[]) {
-        try {
-          return Promise.resolve(origProcessor(...args));
-        } catch (err) {
-          return Promise.reject(err);
-        }
-      };
-    }
+    const origProcessor = processor;
+    processor = function (job: SandboxedJob, token?: string) {
+      try {
+        return Promise.resolve(origProcessor(job, token));
+      } catch (err) {
+        return Promise.reject(err);
+      }
+    };
+
     this.processor = processor;
     this.status = ChildStatus.Idle;
-    await childSend(process, {
+    await this.send({
       cmd: ParentCommand.InitCompleted,
     });
   }
 
-  public async start(jobJson: JobJson): Promise<void> {
+  public async start(jobJson: JobJson, token?: string): Promise<void> {
     if (this.status !== ChildStatus.Idle) {
-      return childSend(process, {
+      return this.send({
         cmd: ParentCommand.Error,
         err: errorToJSON(new Error('cannot start a not idling child process')),
       });
@@ -71,14 +69,14 @@ export class ChildProcessor {
     this.status = ChildStatus.Started;
     this.currentJobPromise = (async () => {
       try {
-        const job = wrapJob(jobJson);
-        const result = (await this.processor(job)) || {};
-        await childSend(process, {
+        const job = this.wrapJob(jobJson, this.send);
+        const result = (await this.processor(job, token)) || {};
+        await this.send({
           cmd: ParentCommand.Completed,
           value: result,
         });
       } catch (err) {
-        await childSend(process, {
+        await this.send({
           cmd: ParentCommand.Failed,
           value: errorToJSON(!(<Error>err).message ? new Error(<any>err) : err),
         });
@@ -99,57 +97,69 @@ export class ChildProcessor {
       process.exit(process.exitCode || 0);
     }
   }
-}
 
-/**
- * Enhance the given job argument with some functions
- * that can be called from the sandboxed job processor.
- *
- * Note, the `job` argument is a JSON deserialized message
- * from the main node process to this forked child process,
- * the functions on the original job object are not in tact.
- * The wrapped job adds back some of those original functions.
- */
-function wrapJob(job: JobJson): SandboxedJob {
-  let progressValue = job.progress;
+  /**
+   * Enhance the given job argument with some functions
+   * that can be called from the sandboxed job processor.
+   *
+   * Note, the `job` argument is a JSON deserialized message
+   * from the main node process to this forked child process,
+   * the functions on the original job object are not in tact.
+   * The wrapped job adds back some of those original functions.
+   */
+  protected wrapJob(
+    job: JobJson,
+    send: (msg: any) => Promise<void>,
+  ): SandboxedJob {
+    let progressValue = job.progress;
 
-  const updateProgress = async (progress: number | object) => {
-    // Locally store reference to new progress value
-    // so that we can return it from this process synchronously.
-    progressValue = progress;
-    // Send message to update job progress.
-    await childSend(process, {
-      cmd: ParentCommand.Progress,
-      value: progress,
-    });
-  };
-
-  return {
-    ...job,
-    data: JSON.parse(job.data || '{}'),
-    opts: job.opts,
-    returnValue: JSON.parse(job.returnvalue || '{}'),
-    /*
-     * Emulate the real job `updateProgress` function, should works as `progress` function.
-     */
-    updateProgress,
-    /*
-     * Emulate the real job `log` function.
-     */
-    log: async (row: any) => {
-      childSend(process, {
-        cmd: ParentCommand.Log,
-        value: row,
+    const updateProgress = async (progress: number | object) => {
+      // Locally store reference to new progress value
+      // so that we can return it from this process synchronously.
+      progressValue = progress;
+      // Send message to update job progress.
+      await send({
+        cmd: ParentCommand.Progress,
+        value: progress,
       });
-    },
-    /*
-     * Emulate the real job `update` function.
-     */
-    update: async (data: any) => {
-      childSend(process, {
-        cmd: ParentCommand.Update,
-        value: data,
-      });
-    },
-  };
+    };
+
+    return {
+      ...job,
+      data: JSON.parse(job.data || '{}'),
+      opts: job.opts,
+      returnValue: JSON.parse(job.returnvalue || '{}'),
+      /*
+       * Emulate the real job `updateProgress` function, should works as `progress` function.
+       */
+      updateProgress,
+      /*
+       * Emulate the real job `log` function.
+       */
+      log: async (row: any) => {
+        send({
+          cmd: ParentCommand.Log,
+          value: row,
+        });
+      },
+      /*
+       * Emulate the real job `moveToDelayed` function.
+       */
+      moveToDelayed: async (timestamp: number, token?: string) => {
+        send({
+          cmd: ParentCommand.MoveToDelayed,
+          value: { timestamp, token },
+        });
+      },
+      /*
+       * Emulate the real job `updateData` function.
+       */
+      updateData: async (data: any) => {
+        send({
+          cmd: ParentCommand.Update,
+          value: data,
+        });
+      },
+    };
+  }
 }

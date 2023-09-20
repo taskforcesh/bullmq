@@ -3,8 +3,10 @@ import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
-import { MetricsTime, Queue, QueueEvents, Repeat, Worker } from '../src';
+
+import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
+import { MetricsTime } from '../src/enums';
 
 const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
@@ -396,7 +398,7 @@ describe('metrics', function () {
     );
 
     const pageSize = 10;
-    const data = [];
+    const data: number[] = [];
     let skip = 0;
 
     while (skip < numPoints) {
