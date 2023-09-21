@@ -2,10 +2,9 @@ import * as fs from 'fs';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
-
 // Note: this Polyfill is only needed for Node versions < 15.4.0
 import { AbortController } from 'node-abort-controller';
-
+import { ErrorMessages } from '../enums';
 import {
   GetNextJobOptions,
   IoredisListener,
@@ -75,6 +74,14 @@ export interface WorkerListener<
     result: ResultType,
     prev: string,
   ) => void;
+
+  /**
+   * Listen to 'discarded' event.
+   *
+   * This event is triggered when a job is picked after the discardTtl.
+   * Job is removed.
+   */
+  discarded: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
 
   /**
    * Listen to 'drained' event.
@@ -148,8 +155,6 @@ export interface WorkerListener<
   stalled: (jobId: string, prev: string) => void;
 }
 
-const RATE_LIMIT_ERROR = 'bullmq:rateLimitExceeded';
-
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
@@ -192,7 +197,7 @@ export class Worker<
   >>;
 
   static RateLimitError(): Error {
-    return new Error(RATE_LIMIT_ERROR);
+    return new Error(ErrorMessages.RATE_LIMIT);
   }
 
   constructor(
@@ -549,11 +554,6 @@ export class Worker<
           ? Math.ceil(blockTimeout)
           : blockTimeout;
 
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
-
         const jobId = await client.brpoplpush(
           this.keys.wait,
           this.keys.active,
@@ -650,7 +650,7 @@ export class Worker<
     const handleFailed = async (err: Error) => {
       if (!this.connection.closing) {
         try {
-          if (err.message == RATE_LIMIT_ERROR) {
+          if (err.message == ErrorMessages.RATE_LIMIT) {
             this.limitUntil = await this.moveLimitedBackToWait(job, token);
             return;
           }
@@ -681,8 +681,16 @@ export class Worker<
 
     try {
       jobsInProgress.add(inProgressItem);
-      const result = await this.callProcessJob(job, token);
-      return await handleCompleted(result);
+      if (this.opts.discardTtl) {
+        if (this.opts.discardTtl < Date.now() - job.timestamp) {
+          await this.discardJob(job.id, token);
+
+          this.emit('discarded', job, 'active');
+        }
+      } else {
+        const result = await this.callProcessJob(job, token);
+        return await handleCompleted(result);
+      }
     } catch (err) {
       return handleFailed(<Error>err);
     } finally {
@@ -961,5 +969,9 @@ export class Worker<
     token: string,
   ) {
     return this.scripts.moveJobFromActiveToWait(job.id, token);
+  }
+
+  private async discardJob(jobId: string, token: string) {
+    await this.scripts.discardJob(jobId, token);
   }
 }

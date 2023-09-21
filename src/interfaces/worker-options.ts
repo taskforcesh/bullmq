@@ -125,6 +125,11 @@ export interface WorkerOptions extends QueueBaseOptions {
   runRetryDelay?: number;
 
   /**
+   * Time for discard jobs without processing them.
+   */
+  discardTtl?: number;
+
+  /**
    * More advanced options.
    */
   settings?: AdvancedOptions;

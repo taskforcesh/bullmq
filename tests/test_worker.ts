@@ -885,6 +885,45 @@ describe('workers', function () {
     });
   });
 
+  describe('when discardTtl is provided', function () {
+    it('remove jobs when time is greater than discardTtl', async () => {
+      const maxJobs = 5;
+
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        discardTtl: 100,
+      });
+      await worker.waitUntilReady();
+
+      const jobs = Array.from(Array(maxJobs).keys()).map(index => ({
+        name: 'test',
+        data: { index },
+      }));
+
+      await queue.addBulk(jobs);
+
+      const failing = new Promise<void>(resolve => {
+        worker.on(
+          'discarded',
+          after(maxJobs, (job: Job, prev: string) => {
+            expect(prev).to.be.eql('active');
+            expect(job.name).to.be.eql('test');
+            resolve();
+          }),
+        );
+      });
+
+      await delay(150);
+
+      worker.run();
+
+      await failing;
+
+      await worker.close();
+    });
+  });
+
   it('process a job that updates progress as number', async () => {
     let processor;
 
