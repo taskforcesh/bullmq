@@ -277,6 +277,9 @@ export class Worker<
       isRedisInstance(opts.connection)
         ? (<Redis>opts.connection).duplicate({ connectionName })
         : { ...opts.connection, connectionName },
+      false,
+      true,
+      opts.skipVersionCheck,
     );
     this.blockingConnection.on('error', error => this.emit('error', error));
     this.blockingConnection.on('ready', () =>
