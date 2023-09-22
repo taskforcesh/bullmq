@@ -4,7 +4,7 @@
  */
 'use strict';
 
-const { DelayedError } = require('../../dist/cjs/classes/delayed-error');
+const { DelayedError } = require('../../dist/cjs/classes');
 const delay = require('./delay');
 
 module.exports = function (job, token) {

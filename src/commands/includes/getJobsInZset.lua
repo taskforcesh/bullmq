@@ -2,11 +2,10 @@
 -- of items in a sorted set only run a single iteration. If we simply used
 -- ZRANGE, we may take a long time traversing through jobs that are within the
 -- grace period.
-local function getJobsInZset(zsetKey, rangeStart, rangeEnd, maxTimestamp, limit)
+local function getJobsInZset(zsetKey, rangeEnd, limit)
   if limit > 0 then
-    return rcall("ZRANGEBYSCORE", zsetKey, 0, maxTimestamp, "LIMIT", 0, limit)
+    return rcall("ZRANGEBYSCORE", zsetKey, 0, rangeEnd, "LIMIT", 0, limit)
   else
-    return rcall("ZRANGE", zsetKey, rangeStart, rangeEnd)
+    return rcall("ZRANGEBYSCORE", zsetKey, 0, rangeEnd)
   end
 end
-  
