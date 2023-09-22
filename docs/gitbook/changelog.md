@@ -1,3 +1,10 @@
+## [4.11.4](https://github.com/taskforcesh/bullmq/compare/v4.11.3...v4.11.4) (2023-09-22)
+
+
+### Bug Fixes
+
+* **queue:** batched unpack now uses range ([#2188](https://github.com/taskforcesh/bullmq/issues/2188)) ([b5e97f4](https://github.com/taskforcesh/bullmq/commit/b5e97f420bc0c4bc82772f3e87883ee522be43d9))
+
 ## [4.11.3](https://github.com/taskforcesh/bullmq/compare/v4.11.2...v4.11.3) (2023-09-22)
 
 
