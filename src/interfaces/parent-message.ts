@@ -1,4 +1,4 @@
-import { ChildCommand } from './child-command';
+import { ChildCommand } from '../enums/child-command';
 import { JobJson } from './job-json';
 
 export interface ParentMessage {

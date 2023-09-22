@@ -165,31 +165,26 @@ export class Worker<
   readonly opts: WorkerOptions;
   readonly id: string;
 
-  private drained: boolean = false;
-  private waiting: Promise<string> | null = null;
-  private running = false;
-  private blockUntil = 0;
-  private limitUntil = 0;
   private abortDelayController: AbortController | null = null;
-
-  protected processFn: Processor<DataType, ResultType, NameType>;
-
-  private resumeWorker: () => void;
-  protected paused: Promise<void>;
-  private _repeat: Repeat;
-  private childPool: ChildPool;
-
-  private extendLocksTimer: NodeJS.Timeout | null = null;
-
-  private blockingConnection: RedisConnection;
-
-  private stalledCheckTimer: NodeJS.Timeout;
-
   private asyncFifoQueue: AsyncFifoQueue<void | Job<
     DataType,
     ResultType,
     NameType
   >>;
+  private blockingConnection: RedisConnection;
+  private blockUntil = 0;
+  private childPool: ChildPool;
+  private drained: boolean = false;
+  private extendLocksTimer: NodeJS.Timeout | null = null;
+  private limitUntil = 0;
+  private resumeWorker: () => void;
+  private stalledCheckTimer: NodeJS.Timeout;
+  private waiting: Promise<string> | null = null;
+  private _repeat: Repeat;
+  
+  protected paused: Promise<void>;
+  protected processFn: Processor<DataType, ResultType, NameType>;
+  protected running = false;
 
   static RateLimitError(): Error {
     return new Error(RATE_LIMIT_ERROR);
