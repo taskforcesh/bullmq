@@ -8,7 +8,7 @@ Adding prioritized jobs is a slower operation than the other types of jobs, with
 
 Note that the priorities go from 1 to 2 097 152, whereas a lower number is always a higher priority than higher numbers.
 
-Jobs without a priority assigned will get the least priority.
+Jobs without a priority assigned will get the most priority.
 
 ```typescript
 import { Queue } from 'bullmq';
