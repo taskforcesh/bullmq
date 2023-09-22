@@ -1,4 +1,5 @@
-import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
+import { ParentCommand } from '../enums';
+import { JobJson, SandboxedJob } from '../interfaces';
 import { errorToJSON } from '../utils';
 
 enum ChildStatus {

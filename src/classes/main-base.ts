@@ -4,7 +4,7 @@
  */
 import { toString } from 'lodash';
 import { ChildProcessor } from './child-processor';
-import { ParentCommand, ChildCommand } from '../interfaces';
+import { ParentCommand, ChildCommand } from '../enums';
 import { errorToJSON } from '../utils';
 
 export default (

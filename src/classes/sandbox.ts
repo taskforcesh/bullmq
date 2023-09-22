@@ -1,4 +1,5 @@
-import { ChildCommand, ChildMessage, ParentCommand } from '../interfaces';
+import { ChildCommand, ParentCommand } from '../enums';
+import { ChildMessage } from '../interfaces';
 import { ChildPool } from './child-pool';
 import { Job } from './job';
 
