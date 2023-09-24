@@ -176,6 +176,17 @@ class Queue:
             counts[current_types[index]] = val or 0
         return counts
 
+    async def clean(self, grace: int, limit: int, type: str):
+        """
+        Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
+        grace period
+        
+        * @returns: Id jobs from the deleted records
+        """
+        jobs = await self.scripts.cleanJobsInSet(type, grace, limit)
+
+        return jobs
+
     def getJobState(self, job_id: str):
         return self.scripts.getState(job_id)
 

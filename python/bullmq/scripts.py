@@ -33,6 +33,7 @@ class Scripts:
         self.commands = {
             "addJob": self.redisClient.register_script(self.getScript("addJob-9.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-5.lua")),
+            "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
             "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")),
@@ -115,6 +116,17 @@ class Scripts:
         keys, args = self.addJobArgs(job, waiting_children_key)
 
         return self.commands["addJob"](keys=keys, args=args, client=pipe)
+
+    def cleanJobsInSetArgs(self, set: str, grace: int, limit:int = 0):
+        keys = [self.toKey(set),
+                self.keys['events']]
+        args = [self.keys[''], round(time.time() * 1000) - grace, limit, set]
+
+        return (keys, args)
+
+    def cleanJobsInSet(self, set: str, grace: int = 0, limit:int = 0):
+        keys, args = self.cleanJobsInSetArgs(set, grace, limit)
+        return self.commands["cleanJobsInSet"](keys=keys, args=args)
 
     def moveToWaitingChildrenArgs(self, job_id, token, opts):
         keys = [self.toKey(job_id) + ":lock",
