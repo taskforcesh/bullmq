@@ -6,9 +6,8 @@ msgpack==1.0.5
 pipenv==2023.7.4
 platformdirs==3.6.0
 pre-commit==3.3.3
-python-semantic-release==7.28.1
 redis==4.6.0
-semver==2.13.0
+semver==3.0.1
 six==1.16.0
 virtualenv==20.23.1
 virtualenv-clone==0.5.7
