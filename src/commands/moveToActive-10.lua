@@ -59,14 +59,13 @@ local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
 local jobId = nil
 if ARGV[3] ~= "" then
     jobId = ARGV[3]
-end
 
-if jobId then
     -- clean stalled key
     rcall("SREM", KEYS[5], jobId)
 end
 
 if not jobId or (jobId and string.sub(jobId, 1, 2) == "0:") then
+    -- If jobId is special ID 0:delay, then there is no job to process
     if jobId then rcall("LREM", activeKey, 1, jobId) end
 
     -- Check if we are rate limited first.
@@ -86,7 +85,6 @@ if not jobId or (jobId and string.sub(jobId, 1, 2) == "0:") then
     end
 end
 
--- If jobId is special ID 0:delay, then there is no job to process
 if jobId then
     return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2],
                                    maxJobs, expireTime, opts)
