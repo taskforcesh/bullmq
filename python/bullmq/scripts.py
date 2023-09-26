@@ -391,7 +391,7 @@ class Scripts:
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
-        transformed_value = json.dumps(val, separators=(',', ':')) if type(val) == dict else val
+        transformed_value = json.dumps(val, separators=(',', ':'))
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 
