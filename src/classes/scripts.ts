@@ -224,23 +224,21 @@ export class Scripts {
   }
 
   async updateProgress<T = any, R = any, N extends string = string>(
-    job: MinimalJob<T, R, N>,
+    jobId: string,
     progress: number | object,
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const keys = [this.queue.toKey(job.id), this.queue.keys.events];
+    const keys = [this.queue.toKey(jobId), this.queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
     const result = await (<any>client).updateProgress(
-      keys.concat([job.id, progressJson]),
+      keys.concat([jobId, progressJson]),
     );
 
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'updateProgress');
+      throw this.finishedErrors(result, jobId, 'updateProgress');
     }
-
-    this.queue.emit('progress', job, progress);
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(

@@ -326,15 +326,31 @@ describe('Job', function () {
     it('can set and get progress as number', async function () {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(42);
-      const storedJob = await Job.fromId(queue, job.id);
+      const storedJob = await Job.fromId(queue, job.id!);
       expect(storedJob!.progress).to.be.equal(42);
     });
 
     it('can set and get progress as object', async function () {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress({ total: 120, completed: 40 });
-      const storedJob = await Job.fromId(queue, job.id);
-      expect(storedJob.progress).to.eql({ total: 120, completed: 40 });
+      const storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.eql({ total: 120, completed: 40 });
+    });
+
+    it('cat set progress as number using the Queue instance', async () => {
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await queue.updateJobProgress(job.id!, 42);
+
+      const storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.be.equal(42);
+    });
+
+    it('cat set progress as object using the Queue instance', async () => {
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      await queue.updateJobProgress(job.id!, { total: 120, completed: 40 });
+      const storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.eql({ total: 120, completed: 40 });
     });
 
     describe('when job is removed', () => {
@@ -404,20 +420,34 @@ describe('Job', function () {
       const count1 = await job.log(firstLog);
       expect(count1).to.be.equal(1);
 
-      const logs1 = await queue.getJobLogs(job.id);
+      const logs1 = await queue.getJobLogs(job.id!);
       expect(logs1).to.be.eql({ logs: [firstLog], count: 1 });
 
       const count2 = await job.log(secondLog);
       expect(count2).to.be.equal(2);
 
-      const logs2 = await queue.getJobLogs(job.id);
+      const logs2 = await queue.getJobLogs(job.id!);
       expect(logs2).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
 
       const count3 = await job.log(thirdLog);
       expect(count3).to.be.equal(2);
 
-      const logs3 = await queue.getJobLogs(job.id);
+      const logs3 = await queue.getJobLogs(job.id!);
       expect(logs3).to.be.eql({ logs: [secondLog, thirdLog], count: 2 });
+    });
+
+    it('should allow to add job logs from Queue instance', async () => {
+      const firstLog = 'some log text 1';
+      const secondLog = 'some log text 2';
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await queue.addJobLog(job.id!, firstLog);
+      await queue.addJobLog(job.id!, secondLog);
+
+      const logs = await queue.getJobLogs(job.id!);
+
+      expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
     });
   });
 

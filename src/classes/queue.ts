@@ -361,6 +361,36 @@ export class Queue<
   }
 
   /**
+   * Updates the given job's progress.
+   *
+   * @param jobId - The id of the job to update
+   * @param progress - number or object to be saved as progress.
+   */
+  async updateJobProgress(
+    jobId: string,
+    progress: number | object,
+  ): Promise<void> {
+    return this.scripts.updateProgress(jobId, progress);
+  }
+
+  /**
+   * Logs one row of job's log data.
+   *
+   * @param jobId - The job id to log against.
+   * @param logRow - string with log data to be logged.
+   * @param keepLogs - max number of log entries to keep (0 for unlimited).
+   *
+   * @returns The total number of log entries for this job so far.
+   */
+  async addJobLog(
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    return Job.addJobLog(this, jobId, logRow, keepLogs);
+  }
+
+  /**
    * Drains the queue, i.e., removes all jobs that are waiting
    * or delayed, but not active, completed or failed.
    *
