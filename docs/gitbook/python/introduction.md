@@ -42,7 +42,7 @@ In order to consume the jobs from the queue you need to use the Worker class, pr
 ```python
 from bullmq import Worker
 
-async def process(job):
+async def process(job, job_token):
     # job.data will include the data added to the queue
     return doSomethingAsync(job)
 
