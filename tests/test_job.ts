@@ -340,7 +340,7 @@ describe('Job', function () {
     it('cat set progress as number using the Queue instance', async () => {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
 
-      await queue.updateJobProgress(job.id!, 43);
+      await queue.updateJobProgress(job.id!, 42);
 
       const storedJob = await Job.fromId(queue, job.id!);
       expect(storedJob!.progress).to.be.equal(42);
