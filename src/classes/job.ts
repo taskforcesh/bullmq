@@ -1001,8 +1001,12 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    return this.scripts.moveToDelayed(this.id, timestamp, token);
+  moveToDelayed(
+    timestamp: number,
+    token?: string,
+    skipAttempt?: boolean,
+  ): Promise<void> {
+    return this.scripts.moveToDelayed(this.id, timestamp, token, skipAttempt);
   }
 
   /**

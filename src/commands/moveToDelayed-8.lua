@@ -16,6 +16,7 @@
     ARGV[3] delayedTimestamp
     ARGV[4] the id of the job
     ARGV[5] queue token
+    ARGV[6] skip attempt
 
   Output:
     0 - OK
@@ -51,6 +52,10 @@ if rcall("EXISTS", jobKey) == 1 then
   local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
   if numRemovedElements < 1 then
     return -3
+  end
+
+  if ARGV[6] == "1" then
+    rcall("HINCRBY", jobKey, "attemptsMade", -1)
   end
 
   rcall("ZADD", delayedKey, score, jobId)

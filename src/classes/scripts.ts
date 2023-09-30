@@ -574,6 +574,7 @@ export class Scripts {
     jobId: string,
     timestamp: number,
     token: string,
+    skipAttempt?: boolean,
   ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
@@ -609,6 +610,7 @@ export class Scripts {
       JSON.stringify(timestamp),
       jobId,
       token,
+      skipAttempt ? '1' : '0',
     ]);
   }
 
@@ -649,10 +651,11 @@ export class Scripts {
     jobId: string,
     timestamp: number,
     token = '0',
+    skipAttempt = false,
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.moveToDelayedArgs(jobId, timestamp, token);
+    const args = this.moveToDelayedArgs(jobId, timestamp, token, skipAttempt);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
