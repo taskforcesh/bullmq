@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v1.15.0 (2023-09-30)
+### Feature
+* Expose addJobLog and updateJobProgress to the Queue instance ([#2202](https://github.com/taskforcesh/bullmq/issues/2202)) ([`2056939`](https://github.com/taskforcesh/bullmq/commit/205693907a4d6c2da9bd0690fb552b1d1e369c08))
+
+### Documentation
+* **python:** Fix introduction example ([#2201](https://github.com/taskforcesh/bullmq/issues/2201)) ([`8cc175e`](https://github.com/taskforcesh/bullmq/commit/8cc175e32e79ae4e4730980a4f4cc8a2975f0165))
+
 ## v1.14.0 (2023-09-26)
 ### Feature
 * **queue:** Add clean method [python] ([#2194](https://github.com/taskforcesh/bullmq/issues/2194)) ([`3b67193`](https://github.com/taskforcesh/bullmq/commit/3b6719379cbec5beb1b7dfb5f06d46cbbf74010f))
