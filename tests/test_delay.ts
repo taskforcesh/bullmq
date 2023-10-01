@@ -296,6 +296,7 @@ describe('Delayed jobs', function () {
               'waited less than delay time and margin',
             ).to.be.lessThan(delay * margin);
           } catch (err) {
+            console.error(err);
             reject(err);
           }
           if (!numJobs) {
@@ -306,9 +307,12 @@ describe('Delayed jobs', function () {
       );
     });
 
-    while (numJobs--) {
+    while (numJobs) {
+      numJobs -= 1;
       await queue.add('my-queue', { foo: 'bar' }, { delay });
-      await new Promise(r => setTimeout(r, 300));
+      if (numJobs) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
     }
 
     await processing;
