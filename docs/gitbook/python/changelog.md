@@ -4,28 +4,16 @@
 
 ## v1.15.0 (2023-09-30)
 ### Feature
-* Expose addJobLog and updateJobProgress to the Queue instance ([#2202](https://github.com/taskforcesh/bullmq/issues/2202)) ([`2056939`](https://github.com/taskforcesh/bullmq/commit/205693907a4d6c2da9bd0690fb552b1d1e369c08))
-
-### Documentation
-* **python:** Fix introduction example ([#2201](https://github.com/taskforcesh/bullmq/issues/2201)) ([`8cc175e`](https://github.com/taskforcesh/bullmq/commit/8cc175e32e79ae4e4730980a4f4cc8a2975f0165))
+* Nothing change
 
 ## v1.14.0 (2023-09-26)
 ### Feature
 * **queue:** Add clean method [python] ([#2194](https://github.com/taskforcesh/bullmq/issues/2194)) ([`3b67193`](https://github.com/taskforcesh/bullmq/commit/3b6719379cbec5beb1b7dfb5f06d46cbbf74010f))
-* **sandbox:** Convert wrapJob method as protected for extension ([#2182](https://github.com/taskforcesh/bullmq/issues/2182)) ([`1494b55`](https://github.com/taskforcesh/bullmq/commit/1494b5566573356e0248b4a5cab48ae21d82f1da))
 
 ### Fix
 * **move-to-finished:** Stringify any return value [python] (#2198) fixes #2196 ([`07f1335`](https://github.com/taskforcesh/bullmq/commit/07f13356eb1c0136f03dfdf946d163f0ef3c4d62))
 * **queue:** Batched unpack now uses range ([#2188](https://github.com/taskforcesh/bullmq/issues/2188)) ([`b5e97f4`](https://github.com/taskforcesh/bullmq/commit/b5e97f420bc0c4bc82772f3e87883ee522be43d9))
-* **worker:** Forward skipVersionCheck to blockingConnection (#2189) ref #2149 ([`c8aa9a3`](https://github.com/taskforcesh/bullmq/commit/c8aa9a36224cba8ecb19af1bf652f4f1c4c20d40))
-* **worker:** Throw exception with NaN as concurrency ([#2184](https://github.com/taskforcesh/bullmq/issues/2184)) ([`f36ac8b`](https://github.com/taskforcesh/bullmq/commit/f36ac8b61dcd4bb3d9e283278310cd50cfc83fae))
 * **queue:** Differentiate score purpose per state in clean method (#2133) fixes #2124 ([`862f10b`](https://github.com/taskforcesh/bullmq/commit/862f10b586276314d9bffff2a5e6caf939399f7e))
-
-### Documentation
-* **rate-limit:** Add missing limiter options in examples ref #2193 ([`c948c8a`](https://github.com/taskforcesh/bullmq/commit/c948c8aa2861f0352a915b1279d40a5de518230d))
-* **bullmq-pro:** Update changelog to v6.4.0 ([#2192](https://github.com/taskforcesh/bullmq/issues/2192)) ([`21e51e8`](https://github.com/taskforcesh/bullmq/commit/21e51e8bb706a1545776d92a4c2a63b5061de97e))
-* **prioritized:** Fix doc regarding jobs without a priority assigned ([#2191](https://github.com/taskforcesh/bullmq/issues/2191)) ([`743fc82`](https://github.com/taskforcesh/bullmq/commit/743fc82381650b76990f6a492e592b085cf51300))
-* **bulmq-pro:** Fix batch option usage ([#2180](https://github.com/taskforcesh/bullmq/issues/2180)) ([`40c69fb`](https://github.com/taskforcesh/bullmq/commit/40c69fb7605e79eb66ba6d1c98a55c9944b086cf))
 
 ## v1.13.2 (2023-09-12)
 ### Fix
