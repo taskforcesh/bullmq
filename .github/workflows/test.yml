@@ -98,9 +98,10 @@ jobs:
     services:
       dragonflydb:
         image: docker.dragonflydb.io/dragonflydb/dragonfly
+        env:
+          DFLY_default_lua_flags: allow-undeclared-keys
         ports:
           - 6379:6379
-        options: --default_lua_flags=allow-undeclared-keys
 
     steps:
       - name: Checkout repository
