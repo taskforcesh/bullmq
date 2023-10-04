@@ -53,8 +53,12 @@ if rcall("EXISTS", jobKey) == 1 then
     return -3
   end
 
+  local maxEvents = rcall("HGET", KEYS[8], "opts.maxLenEvents") or 10000
+
   rcall("ZADD", delayedKey, score, jobId)
-  rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
+  rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
+  --rcall("XADD", KEYS[6], "*", "event", "delayed",
+    "jobId", jobId, "delay", delayedTimestamp)
 
   -- Check if we need to push a marker job to wake up sleeping workers.
   local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])
