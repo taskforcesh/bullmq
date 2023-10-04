@@ -1,3 +1,10 @@
+## [4.12.1](https://github.com/taskforcesh/bullmq/compare/v4.12.0...v4.12.1) (2023-10-04)
+
+
+### Bug Fixes
+
+* **delayed:** trim events when moving jobs to delayed (python) ([#2211](https://github.com/taskforcesh/bullmq/issues/2211)) ([eca8c2d](https://github.com/taskforcesh/bullmq/commit/eca8c2d4dfeafbd8ac36a49764dbd4897303628c))
+
 # [4.12.0](https://github.com/taskforcesh/bullmq/compare/v4.11.4...v4.12.0) (2023-09-29)
 
 
