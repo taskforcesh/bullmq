@@ -210,10 +210,14 @@ export class RedisConnection extends EventEmitter {
     return this._client;
   }
 
-  async disconnect(): Promise<void> {
+  async disconnect(wait = true): Promise<void> {
     const client = await this.client;
     if (client.status !== 'end') {
       let _resolve, _reject;
+
+      if (!wait) {
+        return client.disconnect();
+      }
 
       const disconnecting = new Promise<void>((resolve, reject) => {
         client.once('end', resolve);
