@@ -57,7 +57,6 @@ if rcall("EXISTS", jobKey) == 1 then
 
   rcall("ZADD", delayedKey, score, jobId)
   rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
-  --rcall("XADD", KEYS[6], "*", "event", "delayed",
     "jobId", jobId, "delay", delayedTimestamp)
 
   -- Check if we need to push a marker job to wake up sleeping workers.
