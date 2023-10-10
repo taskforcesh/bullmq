@@ -611,7 +611,6 @@ describe('events', function () {
           },
         });
 
-        const i = 0;
         const worker = new Worker(
           queueName,
           async () => {
@@ -646,6 +645,60 @@ describe('events', function () {
         await trimmedQueue.addBulk(jobs);
 
         await waitDelayedEvent;
+
+        const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+        expect(eventsLength).to.be.lte(35);
+        expect(eventsLength).to.be.gte(20);
+
+        await worker.close();
+        await trimmedQueue.close();
+        await removeAllQueueData(new IORedis(), queueName);
+      });
+    });
+
+    describe('when jobs are retried inmediately', function () {
+      it('should trim events so its length is at least the threshold', async () => {
+        const numJobs = 80;
+        const trimmedQueue = new Queue(queueName, {
+          connection,
+          streams: {
+            events: {
+              maxLen: 20,
+            },
+          },
+        });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(25);
+            throw new Error('error');
+          },
+          { connection },
+        );
+
+        await trimmedQueue.waitUntilReady();
+        await worker.waitUntilReady();
+
+        const client = await trimmedQueue.client;
+
+        const waitCompletedEvent = new Promise<void>(resolve => {
+          queueEvents.on('waiting', async ({ jobId, prev }) => {
+            if (prev === 'failed' && jobId === numJobs + '') {resolve();}
+          });
+        });
+
+        const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+          name: 'test',
+          data: { foo: 'bar' },
+          opts: {
+            attempts: 2,
+          },
+        }));
+        await trimmedQueue.addBulk(jobs);
+
+        await waitCompletedEvent;
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
 
