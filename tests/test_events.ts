@@ -505,63 +505,231 @@ describe('events', function () {
     await worker.close();
   });
 
-  it('should trim events automatically', async () => {
-    const trimmedQueue = new Queue(queueName, {
-      connection,
-      prefix,
-      streams: {
-        events: {
-          maxLen: 0,
+  describe('when maxLen is 0', function () {
+    it('should trim events automatically', async () => {
+      const trimmedQueue = new Queue(queueName, {
+        connection,
+        prefix,
+        streams: {
+          events: {
+            maxLen: 0,
+          },
         },
-      },
-    });
+      });
 
-    const worker = new Worker(
-      queueName,
-      async () => {
-        await delay(100);
-      },
-      { connection, prefix },
-    );
-
-    await trimmedQueue.waitUntilReady();
-    await worker.waitUntilReady();
-
-    const client = await trimmedQueue.client;
-
-    const waitCompletedEvent = new Promise<void>(resolve => {
-      queueEvents.on(
-        'completed',
-        after(3, async () => {
-          resolve();
-        }),
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(100);
+        },
+        { connection, prefix },
       );
+
+      await trimmedQueue.waitUntilReady();
+      await worker.waitUntilReady();
+
+      const client = await trimmedQueue.client;
+
+      const waitCompletedEvent = new Promise<void>(resolve => {
+        queueEvents.on(
+          'completed',
+          after(3, async () => {
+            resolve();
+          }),
+        );
+      });
+
+      await trimmedQueue.addBulk([
+        { name: 'test', data: { foo: 'bar' } },
+        { name: 'test', data: { foo: 'baz' } },
+        { name: 'test', data: { foo: 'bar' } },
+      ]);
+
+      await waitCompletedEvent;
+
+      const [[id, [_, drained]], [, [, completed]]] = await client.xrevrange(
+        trimmedQueue.keys.events,
+        '+',
+        '-',
+      );
+
+      expect(drained).to.be.equal('drained');
+      expect(completed).to.be.equal('completed');
+
+      const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+      expect(eventsLength).to.be.lte(2);
+
+      await worker.close();
+      await trimmedQueue.close();
+      await removeAllQueueData(new IORedis(), queueName);
+    });
+  });
+
+  describe('when maxLen is greater than 0', function () {
+    it('should trim events so its length is at least the threshold', async () => {
+      const numJobs = 80;
+      const trimmedQueue = new Queue(queueName, {
+        connection,
+        streams: {
+          events: {
+            maxLen: 20,
+          },
+        },
+      });
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(50);
+        },
+        { connection },
+      );
+
+      await trimmedQueue.waitUntilReady();
+      await worker.waitUntilReady();
+
+      const client = await trimmedQueue.client;
+
+      const waitCompletedEvent = new Promise<void>(resolve => {
+        queueEvents.on(
+          'completed',
+          after(numJobs, async () => {
+            resolve();
+          }),
+        );
+      });
+
+      const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+        name: 'test',
+        data: { foo: 'bar' },
+      }));
+
+      await trimmedQueue.addBulk(jobs);
+
+      await waitCompletedEvent;
+
+      const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+      expect(eventsLength).to.be.lte(35);
+      expect(eventsLength).to.be.gte(20);
+
+      await worker.close();
+      await trimmedQueue.close();
+      await removeAllQueueData(new IORedis(), queueName);
     });
 
-    await trimmedQueue.addBulk([
-      { name: 'test', data: { foo: 'bar' } },
-      { name: 'test', data: { foo: 'baz' } },
-      { name: 'test', data: { foo: 'bar' } },
-    ]);
+    describe('when jobs are moved to delayed', function () {
+      it('should trim events so its length is at least the threshold', async () => {
+        const numJobs = 80;
+        const trimmedQueue = new Queue(queueName, {
+          connection,
+          streams: {
+            events: {
+              maxLen: 20,
+            },
+          },
+        });
 
-    await waitCompletedEvent;
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(50);
+            throw new Error('error');
+          },
+          { connection },
+        );
 
-    const [[id, [_, drained]], [, [, completed]]] = await client.xrevrange(
-      trimmedQueue.keys.events,
-      '+',
-      '-',
-    );
+        await trimmedQueue.waitUntilReady();
+        await worker.waitUntilReady();
 
-    expect(drained).to.be.equal('drained');
-    expect(completed).to.be.equal('completed');
+        const client = await trimmedQueue.client;
 
-    const eventsLength = await client.xlen(trimmedQueue.keys.events);
+        const waitDelayedEvent = new Promise<void>(resolve => {
+          queueEvents.on(
+            'delayed',
+            after(numJobs, async () => {
+              resolve();
+            }),
+          );
+        });
 
-    expect(eventsLength).to.be.lte(2);
+        const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+          name: 'test',
+          data: { foo: 'bar' },
+          opts: {
+            attempts: 2,
+            backoff: 5000,
+          },
+        }));
+        await trimmedQueue.addBulk(jobs);
 
-    await worker.close();
-    await trimmedQueue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+        await waitDelayedEvent;
+
+        const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+        expect(eventsLength).to.be.lte(35);
+        expect(eventsLength).to.be.gte(20);
+
+        await worker.close();
+        await trimmedQueue.close();
+        await removeAllQueueData(new IORedis(), queueName);
+      });
+    });
+
+    describe('when jobs are retried inmediately', function () {
+      it('should trim events so its length is at least the threshold', async () => {
+        const numJobs = 80;
+        const trimmedQueue = new Queue(queueName, {
+          connection,
+          streams: {
+            events: {
+              maxLen: 20,
+            },
+          },
+        });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(25);
+            throw new Error('error');
+          },
+          { connection },
+        );
+
+        await trimmedQueue.waitUntilReady();
+        await worker.waitUntilReady();
+
+        const client = await trimmedQueue.client;
+
+        const waitCompletedEvent = new Promise<void>(resolve => {
+          queueEvents.on('waiting', async ({ jobId, prev }) => {
+            if (prev === 'failed' && jobId === numJobs + '') {resolve();}
+          });
+        });
+
+        const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+          name: 'test',
+          data: { foo: 'bar' },
+          opts: {
+            attempts: 2,
+          },
+        }));
+        await trimmedQueue.addBulk(jobs);
+
+        await waitCompletedEvent;
+
+        const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+        expect(eventsLength).to.be.lte(35);
+        expect(eventsLength).to.be.gte(20);
+
+        await worker.close();
+        await trimmedQueue.close();
+        await removeAllQueueData(new IORedis(), queueName);
+      });
+    });
   });
 
   it('should trim events manually', async () => {

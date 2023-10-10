@@ -60,8 +60,11 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     addJobWithPriority(KEYS[2], KEYS[8], priority, paused, ARGV[4], KEYS[9])
   end
 
+  local maxEvents = rcall("HGET", KEYS[5], "opts.maxLenEvents") or 10000
+
   -- Emit waiting event
-  rcall("XADD", KEYS[6], "*", "event", "waiting", "jobId", ARGV[4], "prev", "failed")
+  rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
+    "jobId", ARGV[4], "prev", "failed")
 
   return 0
 else

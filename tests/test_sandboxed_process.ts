@@ -416,7 +416,7 @@ function sandboxProcessTests(
         worker.on('completed', async (job: Job, value: any) => {
           try {
             expect(job.data).to.be.eql({ foo: 'bar' });
-            expect(value).to.be.eql(37);
+            expect(value).to.be.eql(100);
             expect(job.progress).to.be.eql(100);
             expect(progresses).to.be.eql([10, 27, 78, 100]);
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
