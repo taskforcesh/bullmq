@@ -99,7 +99,9 @@ jobs:
       dragonflydb:
         image: docker.dragonflydb.io/dragonflydb/dragonfly
         env:
-          DFLY_default_lua_flags: allow-undeclared-keys
+          DFLY_cluster_mode: emulated
+          DFLY_lock_on_hashtags: true
+          BULLMQ_TEST_PREFIX: '{b}'
         ports:
           - 6379:6379
 

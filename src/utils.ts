@@ -81,7 +81,7 @@ export function isRedisCluster(obj: unknown): obj is Cluster {
 export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
-  prefix = 'bull',
+  prefix = process.env.BULLMQ_TEST_PREFIX || 'bull',
 ): Promise<void | boolean> {
   if (client instanceof Cluster) {
     // todo compat with cluster ?

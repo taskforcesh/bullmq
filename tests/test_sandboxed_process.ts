@@ -8,6 +8,8 @@ import { delay, removeAllQueueData } from '../src/utils';
 import { Child } from '../src/classes/child';
 const { stdout, stderr } = require('test-console');
 
+const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
 describe('Sandboxed process using child processes', () => {
   sandboxProcessTests();
 });
@@ -28,8 +30,8 @@ function sandboxProcessTests(
 
     beforeEach(async function () {
       queueName = `test-${v4()}`;
-      queue = new Queue(queueName, { connection });
-      queueEvents = new QueueEvents(queueName, { connection });
+      queue = new Queue(queueName, { connection, prefix });
+      queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
     });
 
@@ -44,6 +46,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -80,6 +83,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -116,6 +120,7 @@ function sandboxProcessTests(
         const worker = new Worker(queueName, processFile, {
           autorun: false,
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -152,6 +157,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -191,6 +197,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -233,6 +240,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -275,6 +283,7 @@ function sandboxProcessTests(
       const processFile = __dirname + '/fixtures/fixture_processor.js';
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -315,6 +324,7 @@ function sandboxProcessTests(
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         concurrency: 4,
         drainDelay: 1,
         useWorkerThreads,
@@ -351,6 +361,7 @@ function sandboxProcessTests(
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         concurrency: 1,
         drainDelay: 1,
         useWorkerThreads,
@@ -394,6 +405,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -434,6 +446,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -466,6 +479,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -510,6 +524,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -546,6 +561,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -581,6 +597,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -591,7 +608,7 @@ function sandboxProcessTests(
             expect(job.data).to.be.eql({ foo: 'bar' });
             expect(value).to.be.eql({
               id: 'job-id',
-              queueKey: `bull:${parentQueueName}`,
+              queueKey: `${prefix}:${parentQueueName}`,
             });
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               0,
@@ -606,7 +623,7 @@ function sandboxProcessTests(
         });
       });
 
-      const flow = new FlowProducer({ connection });
+      const flow = new FlowProducer({ connection, prefix });
       await flow.add({
         name: 'parent-job',
         queueName: parentQueueName,
@@ -626,6 +643,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -664,6 +682,7 @@ function sandboxProcessTests(
         const missingProcessFile = __dirname + '/fixtures/missing_processor.js';
         worker = new Worker(queueName, missingProcessFile, {
           connection,
+          prefix,
           useWorkerThreads,
         });
       } catch (err) {
@@ -682,6 +701,7 @@ function sandboxProcessTests(
 
       new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -698,6 +718,7 @@ function sandboxProcessTests(
 
       new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -714,6 +735,7 @@ function sandboxProcessTests(
 
       new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -730,6 +752,7 @@ function sandboxProcessTests(
 
       new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -748,6 +771,7 @@ function sandboxProcessTests(
 
         new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -765,6 +789,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -800,6 +825,7 @@ function sandboxProcessTests(
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         useWorkerThreads,
       });
 

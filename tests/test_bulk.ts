@@ -5,6 +5,8 @@ import { v4 } from 'uuid';
 import { Queue, Worker, Job } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
+const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
 describe('bulk jobs', () => {
   let queue: Queue;
   let queueName: string;
@@ -12,7 +14,7 @@ describe('bulk jobs', () => {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
@@ -35,7 +37,7 @@ describe('bulk jobs', () => {
           }
         }),
     );
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     const jobs = await queue.addBulk([
@@ -56,10 +58,13 @@ describe('bulk jobs', () => {
   it('should allow to pass parent option', async () => {
     const name = 'test';
     const parentQueueName = `parent-queue-${v4()}`;
-    const parentQueue = new Queue(parentQueueName, { connection });
+    const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
-    const parentWorker = new Worker(parentQueueName, null, { connection });
-    const childrenWorker = new Worker(queueName, null, { connection });
+    const parentWorker = new Worker(parentQueueName, null, {
+      connection,
+      prefix,
+    });
+    const childrenWorker = new Worker(queueName, null, { connection, prefix });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
@@ -71,7 +76,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`,
+            queue: `${prefix}:${parentQueueName}`,
           },
         },
       },
@@ -81,7 +86,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`,
+            queue: `${prefix}:${parentQueueName}`,
           },
         },
       },
@@ -120,7 +125,7 @@ describe('bulk jobs', () => {
           }
         }),
     );
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     const jobs = await queue.addBulk([

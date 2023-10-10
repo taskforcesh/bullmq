@@ -9,6 +9,8 @@ import { v4 } from 'uuid';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
+const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
 describe('Jobs getters', function () {
   let queue: Queue;
   let queueName: string;
@@ -16,7 +18,7 @@ describe('Jobs getters', function () {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
@@ -26,14 +28,14 @@ describe('Jobs getters', function () {
 
   describe('.getQueueEvents', () => {
     it('gets all queueEvents for this queue', async function () {
-      const queueEvent = new QueueEvents(queueName, { connection });
+      const queueEvent = new QueueEvents(queueName, { connection, prefix });
       await queueEvent.waitUntilReady();
       await delay(10);
 
       const queueEvents = await queue.getQueueEvents();
       expect(queueEvents).to.have.length(1);
 
-      const queueEvent2 = new QueueEvents(queueName, { connection });
+      const queueEvent2 = new QueueEvents(queueName, { connection, prefix });
       await queueEvent2.waitUntilReady();
       await delay(10);
 
@@ -42,7 +44,7 @@ describe('Jobs getters', function () {
 
       await queueEvent.close();
       await queueEvent2.close();
-    });
+    }).timeout(8000);
   });
 
   describe('.getWorkers', () => {
@@ -50,6 +52,7 @@ describe('Jobs getters', function () {
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
+        prefix,
       });
       await new Promise<void>(resolve => {
         worker.on('ready', () => {
@@ -63,6 +66,7 @@ describe('Jobs getters', function () {
       const worker2 = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
+        prefix,
       });
       await new Promise<void>(resolve => {
         worker2.on('ready', () => {
@@ -79,10 +83,11 @@ describe('Jobs getters', function () {
 
     it('gets only workers related only to one queue', async function () {
       const queueName2 = `${queueName}2`;
-      const queue2 = new Queue(queueName2, { connection });
+      const queue2 = new Queue(queueName2, { connection, prefix });
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
+        prefix,
       });
       await new Promise<void>(resolve => {
         worker.on('ready', () => {
@@ -92,6 +97,7 @@ describe('Jobs getters', function () {
       const worker2 = new Worker(queueName2, async () => {}, {
         autorun: false,
         connection,
+        prefix,
       });
       await new Promise<void>(resolve => {
         worker2.on('ready', () => {
@@ -119,6 +125,7 @@ describe('Jobs getters', function () {
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection: ioredisConnection,
+          prefix,
         });
         await new Promise<void>(async resolve => {
           worker.on('ready', () => {
@@ -133,6 +140,7 @@ describe('Jobs getters', function () {
 
         const worker2 = new Worker(queueName, async () => {}, {
           connection: ioredisConnection,
+          prefix,
         });
         await new Promise<void>(async resolve => {
           worker2.on('ready', () => {
@@ -156,6 +164,7 @@ describe('Jobs getters', function () {
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection,
+          prefix,
         });
         await new Promise<void>(resolve => {
           worker.on('ready', () => {
@@ -253,7 +262,7 @@ describe('Jobs getters', function () {
         resolve();
       };
     });
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
 
     await queue.add('test', { foo: 'bar' });
     await processing;
@@ -275,7 +284,10 @@ describe('Jobs getters', function () {
   });
 
   it('should get completed jobs', async () => {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
     let counter = 2;
 
     const completed = new Promise<void>(resolve => {
@@ -306,7 +318,7 @@ describe('Jobs getters', function () {
       async () => {
         throw new Error('Forced error');
       },
-      { connection },
+      { connection, prefix },
     );
 
     let counter = 2;
@@ -382,7 +394,7 @@ describe('Jobs getters', function () {
       async () => {
         throw new Error('Forced error');
       },
-      { connection },
+      { connection, prefix },
     );
 
     const counter = 4;
@@ -440,7 +452,10 @@ describe('Jobs getters', function () {
   */
 
   it('should return all completed jobs when not setting start/end', function (done) {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
 
     worker.on(
       'completed',
@@ -476,7 +491,7 @@ describe('Jobs getters', function () {
       async () => {
         throw new Error('error');
       },
-      { connection },
+      { connection, prefix },
     );
 
     worker.on(
@@ -507,7 +522,10 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when setting positive range', function (done) {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
 
     worker.on(
       'completed',
@@ -535,7 +553,10 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when setting a negative range', function (done) {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
 
     worker.on(
       'completed',
@@ -560,7 +581,10 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when range overflows', function (done) {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async job => {}, {
+      connection,
+      prefix,
+    });
 
     worker.on(
       'completed',
@@ -595,7 +619,7 @@ describe('Jobs getters', function () {
           return queue.pause();
         }
       },
-      { connection },
+      { connection, prefix },
     );
 
     worker.on(
@@ -662,7 +686,7 @@ describe('Jobs getters', function () {
           return queue.pause();
         }
       },
-      { connection },
+      { connection, prefix },
     );
 
     worker.on(
@@ -705,7 +729,7 @@ describe('Jobs getters', function () {
             throw new Error('failed');
           }
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -715,7 +739,7 @@ describe('Jobs getters', function () {
         });
       });
 
-      const flow = new FlowProducer({ connection });
+      const flow = new FlowProducer({ connection, prefix });
       await flow.add({
         name: 'parent-job',
         queueName,
