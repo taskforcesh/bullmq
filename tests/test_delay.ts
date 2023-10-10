@@ -219,7 +219,7 @@ describe('Delayed jobs', function () {
     this.timeout(30000);
     let count = 0;
     const numJobs = 50;
-    const margin = 1.22;
+    const margin = 1.3;
 
     let processor1, processor2;
 

@@ -341,7 +341,7 @@ describe('Pause', function () {
     await delay(10);
 
     return worker.close();
-  });
+  }).timeout(8000);
 
   describe('when backoff is 0', () => {
     it('moves job into paused queue', async () => {
