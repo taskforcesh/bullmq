@@ -6,9 +6,6 @@
 ### Fix
 * **delayed:** Trim events when moving jobs to delayed (python) ([#2211](https://github.com/taskforcesh/bullmq/issues/2211)) ([`eca8c2d`](https://github.com/taskforcesh/bullmq/commit/eca8c2d4dfeafbd8ac36a49764dbd4897303628c))
 
-### Documentation
-* **changelog:** Update changes ([`158b850`](https://github.com/taskforcesh/bullmq/commit/158b850c8b89ae08e93951420340fb8ee39a8d0a))
-
 ## v1.15.0 (2023-09-30)
 ### Feature
 * Nothing change
