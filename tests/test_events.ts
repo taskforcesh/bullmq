@@ -657,7 +657,7 @@ describe('events', function () {
       });
     });
 
-    describe('when jobs are retried inmediately', function () {
+    describe('when jobs are retried immediately', function () {
       it('should trim events so its length is at least the threshold', async () => {
         const numJobs = 80;
         const trimmedQueue = new Queue(queueName, {
@@ -709,6 +709,34 @@ describe('events', function () {
         await trimmedQueue.close();
         await removeAllQueueData(new IORedis(), queueName);
       });
+    });
+  });
+
+  describe('when jobs removal is attempted', async () => {
+    it('should trim events so its length is at least the threshold', async () => {
+      const numRemovals = 200;
+      const trimmedQueue = new Queue(queueName, {
+        connection,
+        streams: {
+          events: {
+            maxLen: 20,
+          },
+        },
+      });
+
+      const client = await trimmedQueue.client;
+
+      for (let i = 0; i < numRemovals; i++) {
+        await trimmedQueue.remove(i.toString());
+      }
+
+      const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+      expect(eventsLength).to.be.lte(100);
+      expect(eventsLength).to.be.gte(20);
+
+      await trimmedQueue.close();
+      await removeAllQueueData(new IORedis(), queueName);
     });
   });
 

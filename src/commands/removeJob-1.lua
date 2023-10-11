@@ -55,7 +55,9 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
 
     rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
 
-    rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", prev);
+    local maxEvents = rcall("HGET", prefix .. "meta", "opts.maxLenEvents") or 10000
+
+    rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed", "jobId", jobId, "prev", prev);
 end
 
 local prefix = KEYS[1]
