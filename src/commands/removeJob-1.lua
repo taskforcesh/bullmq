@@ -53,9 +53,9 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
 
     local prev = removeJobFromAnyState(prefix, jobId)
 
-    rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed")
-
-    rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", prev);
+    if rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed") > 0 then
+        rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", prev)
+    end
 end
 
 local prefix = KEYS[1]
