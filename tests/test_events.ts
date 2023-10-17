@@ -734,6 +734,40 @@ describe('events', function () {
         await removeAllQueueData(new IORedis(), queueName);
       });
     });
+
+    describe('when jobs removal is attempted', async () => {
+      it('should trim events so its length is at least the threshold', async () => {
+        const numRemovals = 200;
+        const trimmedQueue = new Queue(queueName, {
+          connection,
+          streams: {
+            events: {
+              maxLen: 20,
+            },
+          },
+        });
+
+        const client = await trimmedQueue.client;
+
+        const jobs = Array.from(Array(numRemovals).keys()).map(() => ({
+          name: 'test',
+          data: { foo: 'bar' },
+        }));
+        await trimmedQueue.addBulk(jobs);
+
+        for (let i = 1; i <= numRemovals; i++) {
+          await trimmedQueue.remove(i.toString());
+        }
+
+        const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+        expect(eventsLength).to.be.lte(100);
+        expect(eventsLength).to.be.gte(20);
+
+        await trimmedQueue.close();
+        await removeAllQueueData(new IORedis(), queueName);
+      });
+    });
   });
 
   it('should trim events manually', async () => {
