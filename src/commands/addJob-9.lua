@@ -61,7 +61,6 @@ local parentData
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getTargetQueueList"
---- @include "includes/trimEvents"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/updateParentDepsIfNeeded"
 
@@ -75,8 +74,7 @@ end
 
 local jobCounter = rcall("INCR", KEYS[4])
 
--- Trim events before emiting them to avoid trimming events emitted in this script
-trimEvents(KEYS[3], KEYS[8])
+local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents") or 10000
 
 local parentDependenciesKey = args[7]
 local timestamp = args[4]
@@ -99,7 +97,8 @@ else
       end
       rcall("HMSET", jobIdKey, "parentKey", parentKey, "parent", parentData)
     end
-    rcall("XADD", KEYS[8], "*", "event", "duplicated", "jobId", jobId)
+    rcall("XADD", KEYS[8], "MAXLEN", "~", maxEvents, "*", "event", "duplicated",
+      "jobId", jobId)
 
     return jobId .. "" -- convert to string
   end
@@ -139,8 +138,8 @@ if waitChildrenKey ~= nil then
 elseif (delayedTimestamp ~= 0) then
   local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
   rcall("ZADD", KEYS[5], score, jobId)
-  rcall("XADD", KEYS[8], "*", "event", "delayed", "jobId", jobId, "delay",
-        delayedTimestamp)
+  rcall("XADD", KEYS[8], "MAXLEN", "~", maxEvents, "*", "event", "delayed", "jobId", jobId,
+    "delay", delayedTimestamp)
   -- If wait list is empty, and this delayed job is the next one to be processed,
   -- then we need to signal the workers by adding a dummy job (jobId 0:delay) to the wait list.
   local target = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
@@ -157,7 +156,8 @@ else
     addJobWithPriority(KEYS[1], KEYS[6], priority, paused, jobId, KEYS[9])
   end
   -- Emit waiting event
-  rcall("XADD", KEYS[8], "*", "event", "waiting", "jobId", jobId)
+  rcall("XADD", KEYS[8], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
+    "jobId", jobId)
 end
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
