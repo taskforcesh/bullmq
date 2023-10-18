@@ -2,6 +2,18 @@
 
 <!--next-version-placeholder-->
 
+## v1.15.2 (2023-10-18)
+### Fix
+* **events:** Do not publish removed event on non-existent jobs ([#2227](https://github.com/taskforcesh/bullmq/issues/2227)) ([`c134606`](https://github.com/taskforcesh/bullmq/commit/c1346064c6cd9f93c59b184f150eac11d51c91b4))
+* **events:** Trim events when retrying a job ([#2224](https://github.com/taskforcesh/bullmq/issues/2224)) ([`1986b05`](https://github.com/taskforcesh/bullmq/commit/1986b05ac03fe4ee48861aa60caadcc9df8170a6))
+* **sandbox:** Update progress value on job instance (#2214) fixes #2213 ([`3d0f36a`](https://github.com/taskforcesh/bullmq/commit/3d0f36a134b7f5c6b6de26967c9d71bcfb346e72))
+
+### Documentation
+* **changelog:** Update multiple changelogs ([`d4683b3`](https://github.com/taskforcesh/bullmq/commit/d4683b324ce56a2209553e28a3d52ad08ee19695))
+
+### Performance
+* **events:** Trim events when removing jobs (#2235) (python) ([`889815c`](https://github.com/taskforcesh/bullmq/commit/889815c412666e5fad8f32d2e3a2d41cf650f001))
+
 ## v1.15.1 (2023-10-04)
 ### Fix
 * **delayed:** Trim events when moving jobs to delayed (python) ([#2211](https://github.com/taskforcesh/bullmq/issues/2211)) ([`eca8c2d`](https://github.com/taskforcesh/bullmq/commit/eca8c2d4dfeafbd8ac36a49764dbd4897303628c))
