@@ -19,7 +19,7 @@ const worker = new WorkerPro('myQueue', processFn, {
     group: {
       limit: {
         max: 100,  // Limit to 100 jobs per second per group
-        duration 1000,
+        duration: 1000,
       }
     },
     connection
