@@ -288,8 +288,8 @@ describe('Job', function () {
       await removeAllQueueData(new IORedis(), parentQueueName);
     });
 
-    it('removes 4000 jobs in time rage of 4000ms', async function () {
-      this.timeout(4000);
+    it('removes 8000 jobs in time rage of 4000ms', async function () {
+      this.timeout(10000);
       const numJobs = 4000;
 
       // Create waiting jobs
@@ -311,9 +311,12 @@ describe('Job', function () {
       );
       const delayedJobs = await queue.addBulk(jobsDataWithDelay);
 
+      const startTime = Date.now();
       // Remove all jobs
       await Promise.all(delayedJobs.map(job => job.remove()));
       await Promise.all(waitingJobs.map(job => job.remove()));
+
+      expect(Date.now() - startTime).to.be.lessThan(4000);
 
       const countJobs = await queue.getJobCountByTypes('waiting', 'delayed');
       expect(countJobs).to.be.equal(0);

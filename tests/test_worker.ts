@@ -1685,43 +1685,46 @@ describe('workers', function () {
       let nbProcessing = 0;
       let pendingMessageToProcess = 8;
       let wait = 10;
+      let worker;
 
-      const worker = new Worker(
-        queueName,
-        async () => {
-          try {
-            nbProcessing++;
-            expect(nbProcessing).to.be.lessThan(5);
+      const processing = new Promise<void>((resolve, reject) => {
+        worker = new Worker(
+          queueName,
+          async () => {
+            try {
+              nbProcessing++;
+              expect(nbProcessing).to.be.lessThan(5);
 
-            wait += 100;
+              wait += 100;
 
-            await delay(wait);
-            //We should not have 4 more in parallel.
-            //At the end, due to empty list, no new job will process, so nbProcessing will decrease.
-            expect(nbProcessing).to.be.eql(
-              Math.min(pendingMessageToProcess, 4),
-            );
-            pendingMessageToProcess--;
-            nbProcessing--;
-          } catch (err) {
-            console.error(err);
-          }
-        },
-        {
-          connection,
-          concurrency: 4,
-        },
-      );
-      await worker.waitUntilReady();
+              await delay(wait);
 
-      const waiting = new Promise((resolve, reject) => {
-        worker.on('completed', after(8, resolve));
-        worker.on('failed', reject);
+              //We should not have 4 more in parallel.
+              //At the end, due to empty list, no new job will process, so nbProcessing will decrease.
+              expect(nbProcessing).to.be.eql(
+                Math.min(pendingMessageToProcess, 4),
+              );
+              pendingMessageToProcess--;
+              nbProcessing--;
+
+              if (pendingMessageToProcess == 0) {
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          },
+          {
+            connection,
+            concurrency: 4,
+          },
+        );
       });
+      await worker.waitUntilReady();
 
       await Promise.all(times(8, () => queue.add('test', {})));
 
-      await waiting;
+      await processing;
       await worker.close();
     });
 
