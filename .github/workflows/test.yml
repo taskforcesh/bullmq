@@ -101,7 +101,6 @@ jobs:
         env:
           DFLY_cluster_mode: emulated
           DFLY_lock_on_hashtags: true
-          BULLMQ_TEST_PREFIX: '{b}'
         ports:
           - 6379:6379
 
@@ -115,7 +114,7 @@ jobs:
           cache: 'yarn'
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
-      - run: yarn test
+      - run: BULLMQ_TEST_PREFIX={b} yarn test
 
   python:
     runs-on: ubuntu-latest
