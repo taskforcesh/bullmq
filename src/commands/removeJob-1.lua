@@ -54,7 +54,9 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
     local prev = removeJobFromAnyState(prefix, jobId)
 
     if rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed") > 0 then
-        rcall("XADD", prefix .. "events", "*", "event", "removed", "jobId", jobId, "prev", prev)
+        local maxEvents = rcall("HGET", prefix .. "meta", "opts.maxLenEvents") or 10000
+        rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",
+            "jobId", jobId, "prev", prev)
     end
 end
 
