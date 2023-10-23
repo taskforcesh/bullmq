@@ -571,6 +571,7 @@ describe('events', function () {
       const numJobs = 80;
       const trimmedQueue = new Queue(queueName, {
         connection,
+        prefix,
         streams: {
           events: {
             maxLen: 20,
@@ -583,7 +584,7 @@ describe('events', function () {
         async () => {
           await delay(50);
         },
-        { connection },
+        { connection, prefix },
       );
 
       await trimmedQueue.waitUntilReady();
@@ -624,6 +625,7 @@ describe('events', function () {
         const numJobs = 80;
         const trimmedQueue = new Queue(queueName, {
           connection,
+          prefix,
           streams: {
             events: {
               maxLen: 20,
@@ -637,7 +639,7 @@ describe('events', function () {
             await delay(50);
             throw new Error('error');
           },
-          { connection },
+          { connection, prefix },
         );
 
         await trimmedQueue.waitUntilReady();
@@ -682,6 +684,7 @@ describe('events', function () {
         const numJobs = 80;
         const trimmedQueue = new Queue(queueName, {
           connection,
+          prefix,
           streams: {
             events: {
               maxLen: 20,
@@ -695,7 +698,7 @@ describe('events', function () {
             await delay(25);
             throw new Error('error');
           },
-          { connection },
+          { connection, prefix },
         );
 
         await trimmedQueue.waitUntilReady();
@@ -705,7 +708,9 @@ describe('events', function () {
 
         const waitCompletedEvent = new Promise<void>(resolve => {
           queueEvents.on('waiting', async ({ jobId, prev }) => {
-            if (prev === 'failed' && jobId === numJobs + '') {resolve();}
+            if (prev === 'failed' && jobId === numJobs + '') {
+              resolve();
+            }
           });
         });
 
