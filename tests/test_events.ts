@@ -505,6 +505,28 @@ describe('events', function () {
     await worker.close();
   });
 
+  describe('when jobs removal is attempted on non-existed records', async () => {
+    it('should not publish removed events', async () => {
+      const numRemovals = 100;
+      const trimmedQueue = new Queue(queueName, {
+        connection,
+      });
+
+      const client = await trimmedQueue.client;
+
+      for (let i = 0; i < numRemovals; i++) {
+        await trimmedQueue.remove(i.toString());
+      }
+
+      const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+      expect(eventsLength).to.be.eql(0);
+
+      await trimmedQueue.close();
+      await removeAllQueueData(new IORedis(), queueName);
+    });
+  });
+
   describe('when maxLen is 0', function () {
     it('should trim events automatically', async () => {
       const trimmedQueue = new Queue(queueName, {
@@ -679,7 +701,7 @@ describe('events', function () {
       });
     });
 
-    describe('when jobs are retried inmediately', function () {
+    describe('when jobs are retried immediately', function () {
       it('should trim events so its length is at least the threshold', async () => {
         const numJobs = 80;
         const trimmedQueue = new Queue(queueName, {
@@ -731,6 +753,40 @@ describe('events', function () {
         expect(eventsLength).to.be.gte(20);
 
         await worker.close();
+        await trimmedQueue.close();
+        await removeAllQueueData(new IORedis(), queueName);
+      });
+    });
+
+    describe('when jobs removal is attempted', async () => {
+      it('should trim events so its length is at least the threshold', async () => {
+        const numRemovals = 200;
+        const trimmedQueue = new Queue(queueName, {
+          connection,
+          streams: {
+            events: {
+              maxLen: 20,
+            },
+          },
+        });
+
+        const client = await trimmedQueue.client;
+
+        const jobs = Array.from(Array(numRemovals).keys()).map(() => ({
+          name: 'test',
+          data: { foo: 'bar' },
+        }));
+        await trimmedQueue.addBulk(jobs);
+
+        for (let i = 1; i <= numRemovals; i++) {
+          await trimmedQueue.remove(i.toString());
+        }
+
+        const eventsLength = await client.xlen(trimmedQueue.keys.events);
+
+        expect(eventsLength).to.be.lte(100);
+        expect(eventsLength).to.be.gte(20);
+
         await trimmedQueue.close();
         await removeAllQueueData(new IORedis(), queueName);
       });

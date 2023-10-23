@@ -1,3 +1,17 @@
+## [4.12.5](https://github.com/taskforcesh/bullmq/compare/v4.12.4...v4.12.5) (2023-10-18)
+
+
+### Performance Improvements
+
+* **events:** trim events when removing jobs ([#2235](https://github.com/taskforcesh/bullmq/issues/2235)) (python) ([889815c](https://github.com/taskforcesh/bullmq/commit/889815c412666e5fad8f32d2e3a2d41cf650f001))
+
+## [4.12.4](https://github.com/taskforcesh/bullmq/compare/v4.12.3...v4.12.4) (2023-10-13)
+
+
+### Bug Fixes
+
+* **events:** do not publish removed event on non-existent jobs ([#2227](https://github.com/taskforcesh/bullmq/issues/2227)) ([c134606](https://github.com/taskforcesh/bullmq/commit/c1346064c6cd9f93c59b184f150eac11d51c91b4))
+
 ## [4.12.3](https://github.com/taskforcesh/bullmq/compare/v4.12.2...v4.12.3) (2023-10-10)
 
 
@@ -22,15 +36,9 @@
 # [4.12.0](https://github.com/taskforcesh/bullmq/compare/v4.11.4...v4.12.0) (2023-09-29)
 
 
-### Bug Fixes
-
-* **move-to-finished:** stringify any return value [python] ([#2198](https://github.com/taskforcesh/bullmq/issues/2198)) fixes [#2196](https://github.com/taskforcesh/bullmq/issues/2196) ([07f1335](https://github.com/taskforcesh/bullmq/commit/07f13356eb1c0136f03dfdf946d163f0ef3c4d62))
-
-
 ### Features
 
 * expose addJobLog and updateJobProgress to the Queue instance ([#2202](https://github.com/taskforcesh/bullmq/issues/2202)) ([2056939](https://github.com/taskforcesh/bullmq/commit/205693907a4d6c2da9bd0690fb552b1d1e369c08))
-* **queue:** add clean method [python] ([#2194](https://github.com/taskforcesh/bullmq/issues/2194)) ([3b67193](https://github.com/taskforcesh/bullmq/commit/3b6719379cbec5beb1b7dfb5f06d46cbbf74010f))
 
 ## [4.11.4](https://github.com/taskforcesh/bullmq/compare/v4.11.3...v4.11.4) (2023-09-22)
 
