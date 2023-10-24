@@ -510,6 +510,7 @@ describe('events', function () {
       const numRemovals = 100;
       const trimmedQueue = new Queue(queueName, {
         connection,
+        prefix,
       });
 
       const client = await trimmedQueue.client;
@@ -763,6 +764,7 @@ describe('events', function () {
         const numRemovals = 200;
         const trimmedQueue = new Queue(queueName, {
           connection,
+          prefix,
           streams: {
             events: {
               maxLen: 20,
