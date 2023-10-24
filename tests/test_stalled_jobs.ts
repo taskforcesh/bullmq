@@ -6,9 +6,8 @@ import { beforeEach, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('stalled jobs', function () {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
 
