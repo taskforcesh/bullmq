@@ -1306,8 +1306,11 @@ describe('flows', () => {
 
   describe('when custom prefix is set in flow producer', async () => {
     it('uses default prefix to add jobs', async () => {
-      const prefix = '{bull}';
-      const childrenQueue = new Queue(queueName, { prefix, connection });
+      const customPrefix = '{bull}';
+      const childrenQueue = new Queue(queueName, {
+        prefix: customPrefix,
+        connection,
+      });
 
       const name = 'child-job';
       const values = [{ bar: 'something' }];
@@ -1356,16 +1359,16 @@ describe('flows', () => {
 
       const parentWorker = new Worker(parentQueueName, parentProcessor, {
         connection,
-        prefix,
+        prefix: customPrefix,
       });
       const childrenWorker = new Worker(queueName, childrenProcessor, {
         connection,
-        prefix,
+        prefix: customPrefix,
       });
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
-      const flow = new FlowProducer({ prefix: '{bull}', connection });
+      const flow = new FlowProducer({ prefix: customPrefix, connection });
       const tree = await flow.add({
         name: 'parent-job',
         queueName: parentQueueName,
@@ -1393,8 +1396,8 @@ describe('flows', () => {
 
       await flow.close();
       await childrenQueue.close();
-      await removeAllQueueData(new IORedis(), parentQueueName, prefix);
-      await removeAllQueueData(new IORedis(), queueName, prefix);
+      await removeAllQueueData(new IORedis(), parentQueueName, customPrefix);
+      await removeAllQueueData(new IORedis(), queueName, customPrefix);
     });
   });
 
