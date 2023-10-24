@@ -12,9 +12,8 @@ const ONE_SECOND = 1000;
 const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('metrics', function () {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   this.timeout(10000);
   let repeat: Repeat;
   let queue: Queue;

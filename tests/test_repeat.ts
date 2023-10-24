@@ -30,9 +30,8 @@ const ONE_DAY = 24 * ONE_HOUR;
 
 const NoopProc = async (job: Job) => {};
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('repeat', function () {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   this.timeout(10000);
   let repeat: Repeat;
   let queue: Queue;

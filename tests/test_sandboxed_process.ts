@@ -8,8 +8,6 @@ import { delay, removeAllQueueData } from '../src/utils';
 import { Child } from '../src/classes/child';
 const { stdout, stderr } = require('test-console');
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('Sandboxed process using child processes', () => {
   sandboxProcessTests();
 });
@@ -22,6 +20,7 @@ function sandboxProcessTests(
   { useWorkerThreads } = { useWorkerThreads: false },
 ) {
   describe('sandboxed process', () => {
+    const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
     let queue: Queue;
     let queueEvents: QueueEvents;
     let queueName: string;

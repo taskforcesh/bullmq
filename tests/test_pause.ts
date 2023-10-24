@@ -5,9 +5,9 @@ import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('Pause', function () {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;

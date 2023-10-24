@@ -6,9 +6,8 @@ import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('Delayed jobs', function () {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   this.timeout(15000);
 
   let queue: Queue;

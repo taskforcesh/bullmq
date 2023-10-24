@@ -4,9 +4,8 @@ import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueBase } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('connection', () => {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
   const connection = { host: 'localhost' };
