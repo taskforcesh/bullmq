@@ -1,4 +1,3 @@
-import { type } from 'os';
 import { ParentCommand } from '../enums';
 import { JobJson, SandboxedJob } from '../interfaces';
 import { errorToJSON } from '../utils';
