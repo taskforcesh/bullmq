@@ -51,6 +51,7 @@ function sandboxProcessTests(
       const completing = new Promise<void>((resolve, reject) => {
         worker.on('completed', async (job: Job, value: any) => {
           try {
+            expect(job.returnvalue).to.be.eql(42);
             expect(job.data).to.be.eql({ foo: 'bar' });
             expect(value).to.be.eql(42);
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
@@ -770,8 +771,9 @@ function sandboxProcessTests(
       });
 
       const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async () => {
+        worker.on('completed', async job => {
           try {
+            expect(job.returnvalue).to.be.undefined;
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               0,
             );
