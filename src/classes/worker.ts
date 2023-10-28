@@ -606,7 +606,6 @@ export class Worker<
       const job = this.createJob(jobData, jobId);
       job.token = token;
       if (job.opts.repeat) {
-        console.log(job.opts.repeat);
         const repeat = await this.repeat;
         await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
       }
