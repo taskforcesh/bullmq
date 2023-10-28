@@ -181,7 +181,7 @@ export class Worker<
   private stalledCheckTimer: NodeJS.Timeout;
   private waiting: Promise<string> | null = null;
   private _repeat: Repeat;
-  
+
   protected paused: Promise<void>;
   protected processFn: Processor<DataType, ResultType, NameType>;
   protected running = false;
@@ -540,12 +540,9 @@ export class Worker<
         );
 
         // Only Redis v6.0.0 and above supports doubles as block time
-        blockTimeout = isRedisVersionLowerThan(
-          this.blockingConnection.redisVersion,
-          '6.0.0',
-        )
-          ? Math.ceil(blockTimeout)
-          : blockTimeout;
+        blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+          ? blockTimeout
+          : Math.ceil(blockTimeout);
 
         // We restrict the maximum block timeout to 10 second to avoid
         // blocking the connection for too long in the case of reconnections
@@ -609,6 +606,7 @@ export class Worker<
       const job = this.createJob(jobData, jobId);
       job.token = token;
       if (job.opts.repeat) {
+        console.log(job.opts.repeat);
         const repeat = await this.repeat;
         await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
       }

@@ -1053,6 +1053,44 @@ describe('repeat', function () {
     });
   });
 
+  describe('when repeatable job is promoted', function () {
+    it('keeps one repeatable and one delayed after being processed', async function () {
+      const options = {
+        repeat: {
+          pattern: '0 * 1 * *',
+        },
+      };
+
+      const worker = new Worker(queueName, async () => {}, { connection });
+
+      const completing = new Promise<void>(resolve => {
+        worker.on('completed', () => {
+          resolve();
+        });
+      });
+
+      const repeatableJob = await queue.add('test', { foo: 'bar' }, options);
+      const delayedCount = await queue.getDelayedCount();
+      expect(delayedCount).to.be.equal(1);
+
+      await repeatableJob.promote();
+      const delayedCount2 = await queue.getDelayedCount();
+      expect(delayedCount2).to.be.equal(1);
+
+      await completing;
+
+      const configs = await repeat.getRepeatableJobs(0, -1, true);
+
+      expect(delayedCount).to.be.equal(1);
+
+      const count = await queue.count();
+
+      expect(count).to.be.equal(1);
+      expect(configs).to.have.length(1);
+      await worker.close();
+    });
+  });
+
   it('should allow removing a named repeatable job', async function () {
     const numJobs = 3;
     const date = new Date('2017-02-07 9:24:00');
