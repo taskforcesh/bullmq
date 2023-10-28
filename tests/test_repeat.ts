@@ -1074,10 +1074,10 @@ describe('repeat', function () {
       expect(delayedCount).to.be.equal(1);
 
       await repeatableJob.promote();
+      await completing;
+
       const delayedCount2 = await queue.getDelayedCount();
       expect(delayedCount2).to.be.equal(1);
-
-      await completing;
 
       const configs = await repeat.getRepeatableJobs(0, -1, true);
 
