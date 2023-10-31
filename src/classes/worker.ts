@@ -530,7 +530,7 @@ export class Worker<
       const opts: WorkerOptions = <WorkerOptions>this.opts;
 
       if (!this.closing) {
-        const client = await this.blockingConnection.client;
+        const bclient = await this.blockingConnection.client;
 
         let blockTimeout = Math.max(
           this.blockUntil
@@ -539,21 +539,28 @@ export class Worker<
           0.01,
         );
 
-        // Only Redis v6.0.0 and above supports doubles as block time
-        blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
-          ? blockTimeout
-          : Math.ceil(blockTimeout);
+        let jobId;
 
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+        // Blocking for less than 50ms is useless.
+        if (blockTimeout > 0.05) {
+          blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+            ? blockTimeout
+            : Math.ceil(blockTimeout);
 
-        const jobId = await client.brpoplpush(
-          this.keys.wait,
-          this.keys.active,
-          blockTimeout,
-        );
+          // We restrict the maximum block timeout to 10 second to avoid
+          // blocking the connection for too long in the case of reconnections
+          // reference: https://github.com/taskforcesh/bullmq/issues/1658
+          blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+
+          jobId = await bclient.brpoplpush(
+            this.keys.wait,
+            this.keys.active,
+            blockTimeout,
+          );
+        } else {
+          jobId = await bclient.rpoplpush(this.keys.wait, this.keys.active);
+        }
+        this.blockUntil = 0;
         return jobId;
       }
     } catch (error) {
