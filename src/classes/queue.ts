@@ -314,7 +314,7 @@ export class Queue<
    *
    * @see removeRepeatableByKey
    *
-   * @param name -
+   * @param name - job name
    * @param repeatOpts -
    * @param jobId -
    * @returns
@@ -337,7 +337,7 @@ export class Queue<
    *
    * @see getRepeatableJobs
    *
-   * @param key - to the repeatable job.
+   * @param repeatJobKey - to the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
