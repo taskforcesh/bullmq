@@ -5,13 +5,14 @@ import { Queue, Job, Worker, QueueBase } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
 describe('connection', () => {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
   const connection = { host: 'localhost' };
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection: { host: 'localhost' } });
+    queue = new Queue(queueName, { connection: { host: 'localhost' }, prefix });
   });
 
   afterEach(async function () {
@@ -119,7 +120,7 @@ describe('connection', () => {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up
@@ -165,7 +166,7 @@ describe('connection', () => {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up

@@ -13,6 +13,7 @@ import {
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Cleaner', () => {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
@@ -20,8 +21,8 @@ describe('Cleaner', () => {
 
   beforeEach(async () => {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
     await queue.waitUntilReady();
   });
@@ -54,7 +55,7 @@ describe('Cleaner', () => {
       async () => {
         await delay(10);
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -92,7 +93,10 @@ describe('Cleaner', () => {
   });
 
   it('should only remove a job outside of the grace period', async () => {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
     await worker.waitUntilReady();
 
     await queue.add('test', { some: 'data' });
@@ -133,7 +137,7 @@ describe('Cleaner', () => {
         await delay(100);
         throw new Error('It failed');
       },
-      { connection, autorun: false },
+      { connection, prefix, autorun: false },
     );
     await worker.waitUntilReady();
 
@@ -236,7 +240,7 @@ describe('Cleaner', () => {
         it('removes parent record', async () => {
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName,
@@ -254,7 +258,7 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(3);
 
@@ -277,7 +281,7 @@ describe('Cleaner', () => {
               async () => {
                 return delay(20);
               },
-              { connection },
+              { connection, prefix },
             );
             await worker.waitUntilReady();
 
@@ -285,7 +289,7 @@ describe('Cleaner', () => {
               queueEvents.on('completed', after(4, resolve));
             });
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             await flow.add({
               name: 'parent-job',
               queueName,
@@ -302,7 +306,7 @@ describe('Cleaner', () => {
             await queue.clean(0, 0, 'completed');
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             // Expected keys: meta, id, stalled-check and events
             expect(keys.length).to.be.eql(4);
@@ -327,7 +331,7 @@ describe('Cleaner', () => {
                 }
                 return delay(10);
               },
-              { connection },
+              { connection, prefix },
             );
             await worker.waitUntilReady();
 
@@ -335,7 +339,7 @@ describe('Cleaner', () => {
               worker.on('failed', resolve);
             });
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             const tree = await flow.add({
               name: 'parent-job',
               queueName,
@@ -351,7 +355,7 @@ describe('Cleaner', () => {
             await queue.clean(0, 0, 'completed');
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
             // Expected keys: meta, id, stalled-check, events, failed and job
             expect(keys.length).to.be.eql(7);
 
@@ -384,7 +388,7 @@ describe('Cleaner', () => {
               }
               return delay(10);
             },
-            { connection },
+            { connection, prefix },
           );
           await worker.waitUntilReady();
 
@@ -396,7 +400,7 @@ describe('Cleaner', () => {
             worker.on('failed', resolve);
           });
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           const tree = await flow.add({
             name: 'parent-job',
             queueName,
@@ -413,7 +417,7 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'failed');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           // Expected keys: meta, id, stalled-check, events, failed and 2 jobs
           expect(keys.length).to.be.eql(7);
@@ -432,11 +436,14 @@ describe('Cleaner', () => {
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
           const childrenQueueName = `test-${v4()}`;
-          const childrenQueue = new Queue(childrenQueueName, { connection });
+          const childrenQueue = new Queue(childrenQueueName, {
+            connection,
+            prefix,
+          });
           await childrenQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName,
@@ -456,7 +463,7 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(6);
 
@@ -532,7 +539,7 @@ describe('Cleaner', () => {
                 }
               }
             },
-            { connection, concurrency: 2 },
+            { connection, prefix, concurrency: 2 },
           );
           await worker.waitUntilReady();
 
@@ -571,11 +578,14 @@ describe('Cleaner', () => {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
           const parentQueueName = `test-${v4()}`;
-          const parentQueue = new Queue(parentQueueName, { connection });
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
           await parentQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName: parentQueueName,
@@ -593,12 +603,12 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queueName}:*`);
+          const keys = await client.keys(`${prefix}:${queueName}:*`);
 
           expect(keys.length).to.be.eql(3);
 
           const eventsCount = await client.xlen(
-            `bull:${parentQueueName}:events`,
+            `${prefix}:${parentQueueName}:events`,
           );
 
           expect(eventsCount).to.be.eql(2); // added and waiting-children events
@@ -620,11 +630,14 @@ describe('Cleaner', () => {
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
           const parentQueueName = `test-${v4()}`;
-          const parentQueue = new Queue(parentQueueName, { connection });
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
           await parentQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName: parentQueueName,
@@ -648,7 +661,7 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'prioritized');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queueName}:*`);
+          const keys = await client.keys(`${prefix}:${queueName}:*`);
 
           expect(keys.length).to.be.eql(5);
 
@@ -674,7 +687,7 @@ describe('Cleaner', () => {
       async () => {
         throw new Error('It failed');
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -684,7 +697,7 @@ describe('Cleaner', () => {
     await queue.add('test', { some: 'data' });
 
     await delay(100);
-    await client.hdel(`bull:${queueName}:1`, 'timestamp');
+    await client.hdel(`${prefix}:${queueName}:1`, 'timestamp');
     const jobs = await queue.clean(0, 0, 'failed');
     expect(jobs.length).to.be.eql(2);
     const failed = await queue.getFailed();

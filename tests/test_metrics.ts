@@ -13,6 +13,7 @@ const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 
 describe('metrics', function () {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   this.timeout(10000);
   let repeat: Repeat;
   let queue: Queue;
@@ -27,9 +28,9 @@ describe('metrics', function () {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    repeat = new Repeat(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    repeat = new Repeat(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
@@ -139,6 +140,7 @@ describe('metrics', function () {
       },
       {
         connection,
+        prefix,
         metrics: {
           maxDataPoints: MetricsTime.ONE_HOUR * 2,
         },
@@ -229,6 +231,7 @@ describe('metrics', function () {
       },
       {
         connection,
+        prefix,
         metrics: {
           maxDataPoints: MetricsTime.FIFTEEN_MINUTES,
         },
@@ -294,6 +297,7 @@ describe('metrics', function () {
       },
       {
         connection,
+        prefix,
         metrics: {
           maxDataPoints: MetricsTime.ONE_HOUR * 2,
         },
@@ -363,6 +367,7 @@ describe('metrics', function () {
       },
       {
         connection,
+        prefix,
         metrics: {
           maxDataPoints: MetricsTime.ONE_HOUR * 2,
         },

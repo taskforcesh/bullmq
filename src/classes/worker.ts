@@ -862,7 +862,8 @@ export class Worker<
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
     if (this.waiting) {
-      await this.blockingConnection.disconnect();
+      // If we are not going to reconnect, we will not wait for the disconnection.
+      await this.blockingConnection.disconnect(reconnect);
     } else {
       reconnect = false;
     }

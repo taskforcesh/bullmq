@@ -13,6 +13,7 @@ import {
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
@@ -21,8 +22,8 @@ describe('Rate Limiter', function () {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
@@ -42,6 +43,7 @@ describe('Rate Limiter', function () {
       },
       {
         connection,
+        prefix,
         concurrency: 5,
         limiter: {
           max: 1,
@@ -73,6 +75,7 @@ describe('Rate Limiter', function () {
 
     const worker = new Worker(queueName, async () => {}, {
       connection,
+      prefix,
       limiter: {
         max: 1,
         duration: 1000,
@@ -117,6 +120,7 @@ describe('Rate Limiter', function () {
     const limiter = { max: 1, duration: 60 * 1000 };
     const worker = new Worker(queueName, async () => {}, {
       connection: { host: 'localhost' },
+      prefix,
       limiter,
     });
     await queue.add('test', 1);
@@ -132,6 +136,7 @@ describe('Rate Limiter', function () {
 
       const commontOpts = {
         connection,
+        prefix,
         limiter: {
           max: 1,
           duration: 2000,
@@ -185,6 +190,7 @@ describe('Rate Limiter', function () {
       const parentQueueName = `parent-queue-${v4()}`;
       const parentQueueEvents = new QueueEvents(parentQueueName, {
         connection,
+        prefix,
       });
       const numJobs = 10;
 
@@ -195,6 +201,7 @@ describe('Rate Limiter', function () {
         },
         {
           connection,
+          prefix,
           concurrency: 2,
           limiter: {
             max: 1,
@@ -210,6 +217,7 @@ describe('Rate Limiter', function () {
         },
         {
           connection,
+          prefix,
           concurrency: 2,
           limiter: {
             max: 1,
@@ -218,7 +226,7 @@ describe('Rate Limiter', function () {
         },
       );
 
-      const flow = new FlowProducer({ connection });
+      const flow = new FlowProducer({ connection, prefix });
       const result = new Promise<void>((resolve, reject) => {
         queueEvents.on(
           'completed',
@@ -292,6 +300,7 @@ describe('Rate Limiter', function () {
 
     const worker = new Worker(queueName, async () => {}, {
       connection,
+      prefix,
       limiter: {
         max: 2,
         duration: 1000,
@@ -357,6 +366,7 @@ describe('Rate Limiter', function () {
         },
         {
           connection,
+          prefix,
           limiter: {
             max: 1,
             duration,
@@ -416,6 +426,7 @@ describe('Rate Limiter', function () {
           },
           {
             connection,
+            prefix,
             limiter: {
               max: 1,
               duration,
@@ -475,6 +486,7 @@ describe('Rate Limiter', function () {
           },
           {
             connection,
+            prefix,
             limiter: {
               max: 1,
               duration,
@@ -526,6 +538,7 @@ describe('Rate Limiter', function () {
             },
             {
               connection,
+              prefix,
               limiter: {
                 max: 1,
                 duration,
@@ -563,6 +576,7 @@ describe('Rate Limiter', function () {
             },
             {
               connection,
+              prefix,
               limiter: {
                 max: 1,
                 duration,
@@ -601,6 +615,7 @@ describe('Rate Limiter', function () {
           },
           {
             connection,
+            prefix,
             autorun: false,
             limiter: {
               max: 1,
@@ -658,6 +673,7 @@ describe('Rate Limiter', function () {
           duration: 1000,
         },
         connection,
+        prefix,
       });
 
       const allCompleted = new Promise(resolve => {
@@ -705,6 +721,7 @@ describe('Rate Limiter', function () {
             duration: 1000,
           },
           connection,
+          prefix,
         });
 
         const allCompleted = new Promise(resolve => {
@@ -776,6 +793,7 @@ describe('Rate Limiter', function () {
       },
       {
         connection,
+        prefix,
         limiter: {
           max: 1,
           duration: 10,

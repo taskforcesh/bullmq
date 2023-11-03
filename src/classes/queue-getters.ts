@@ -221,7 +221,8 @@ export class QueueGetters<
   }
 
   /**
-   * Returns the jobs that are in the "waiting" status.
+   * Returns the jobs that are in the "waiting-children" status.
+   * I.E. parent jobs that have at least one child that has not completed yet.
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
