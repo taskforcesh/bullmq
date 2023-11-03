@@ -540,12 +540,9 @@ export class Worker<
         );
 
         // Only Redis v6.0.0 and above supports doubles as block time
-        blockTimeout = isRedisVersionLowerThan(
-          this.blockingConnection.redisVersion,
-          '6.0.0',
-        )
-          ? Math.ceil(blockTimeout)
-          : blockTimeout;
+        blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+          ? blockTimeout
+          : Math.ceil(blockTimeout);
 
         // We restrict the maximum block timeout to 10 second to avoid
         // blocking the connection for too long in the case of reconnections
@@ -782,6 +779,7 @@ export class Worker<
         .finally(() => client.disconnect())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
+      this.closed = true;
     })();
     return this.closing;
   }
@@ -821,7 +819,7 @@ export class Worker<
     if (!this.opts.skipLockRenewal) {
       clearTimeout(this.extendLocksTimer);
 
-      if (!this.closing) {
+      if (!this.closed) {
         this.extendLocksTimer = setTimeout(async () => {
           // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
           const now = Date.now();

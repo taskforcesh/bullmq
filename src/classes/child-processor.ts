@@ -71,10 +71,10 @@ export class ChildProcessor {
     this.currentJobPromise = (async () => {
       try {
         const job = this.wrapJob(jobJson, this.send);
-        const result = (await this.processor(job, token)) || {};
+        const result = await this.processor(job, token);
         await this.send({
           cmd: ParentCommand.Completed,
-          value: result,
+          value: typeof result === 'undefined' ? null : result,
         });
       } catch (err) {
         await this.send({

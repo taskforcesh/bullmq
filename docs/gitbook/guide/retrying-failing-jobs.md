@@ -1,6 +1,6 @@
 # Retrying failing jobs
 
-As your queues processes jobs, it is inevitable that over time some of these jobs will fail. In BullMQ, a job is considered failed in the following scenarios:
+As your queues process jobs, it is inevitable that over time some of these jobs will fail. In BullMQ, a job is considered failed in the following scenarios:
 
 - The processor function defined in your [Worker](https://docs.bullmq.io/guide/workers) has thrown an exception.
 - The job has become [stalled](https://docs.bullmq.io/guide/jobs/stalled) and it has consumed the "max stalled count" setting.
@@ -18,6 +18,10 @@ When a processor throws an exception, the worker will catch it and move the job 
 Often it is desirable to automatically retry failed jobs so that we do not give up until a certain amount of retries have failed. In order to activate automatic job retries you should use the [attempts](https://api.docs.bullmq.io/interfaces/v4.BaseJobOptions.html#attempts) setting with a value larger than 1 (see the examples below).
 
 BullMQ supports retries of failed jobs using back-off functions. It is possible to use the **built-in** backoff functions or provide **custom** ones. If you do not specify a back-off function, the jobs will be retried without delay as soon as they fail.
+
+{% hint style="info" %}
+Retried jobs will respect their priority when they are moved back to waiting state.
+{% endhint %}
 
 #### Built-in backoff strategies
 
@@ -81,6 +85,12 @@ const worker = new Worker('foo', async job => doSomeProcessing(), {
 });
 ```
 
+{% hint style="info" %}
+If your backoffStrategy returns 0, jobs will be moved at the end of our waiting list (priority 0) or moved back to prioritized state (priority > 0).
+
+If your backoffStrategy returns -1, jobs won't be retried, instead they will be moved to failed state.
+{% endhint %}
+
 You can then use your custom strategy when adding jobs:
 
 ```typescript
@@ -128,3 +138,7 @@ const worker = new Worker('foo', async job => doSomeProcessing(), {
   },
 });
 ```
+
+## Read more:
+
+- 💡 [Stop Retrying Jobs](../patterns/stop-retrying-jobs.md)

@@ -22,6 +22,10 @@ const deprecationMessage = [
   'On the next versions having this settings will throw an exception',
 ].join(' ');
 
+interface RedisCapabilities {
+  canDoubleTimeout: boolean;
+}
+
 export interface RawCommand {
   content: string;
   name: string;
@@ -33,11 +37,14 @@ export class RedisConnection extends EventEmitter {
   static recommendedMinimumVersion = '6.2.0';
 
   closing: boolean;
+  capabilities: RedisCapabilities = {
+    canDoubleTimeout: false,
+  };
 
   protected _client: RedisClient;
 
   private readonly opts: RedisOptions;
-  private initializing: Promise<RedisClient>;
+  private readonly initializing: Promise<RedisClient>;
 
   private version: string;
   private skipVersionCheck: boolean;
@@ -207,6 +214,11 @@ export class RedisConnection extends EventEmitter {
         );
       }
     }
+
+    this.capabilities = {
+      canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
+    };
+
     return this._client;
   }
 

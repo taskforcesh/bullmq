@@ -1646,6 +1646,39 @@ describe('workers', function () {
     ).to.throw('stalledInterval must be greater than 0');
   });
 
+  it('lock extender continues to run until all active jobs are completed when closing a worker', async function () {
+    this.timeout(4000);
+    let worker;
+
+    const startProcessing = new Promise<void>(resolve => {
+      worker = new Worker(
+        queueName,
+        async () => {
+          resolve();
+          return delay(2000);
+        },
+        {
+          connection,
+          lockDuration: 1000,
+          lockRenewTime: 500,
+          stalledInterval: 1000,
+        },
+      );
+    });
+
+    await queue.add('test', { bar: 'baz' });
+
+    const completed = new Promise((resolve, reject) => {
+      worker.on('completed', resolve);
+      worker.on('failed', reject);
+    });
+
+    await startProcessing;
+    await worker.close();
+
+    await completed;
+  });
+
   describe('Concurrency process', () => {
     it('should thrown an exception if I specify a concurrency of 0', () => {
       try {
