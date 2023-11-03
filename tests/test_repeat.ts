@@ -1077,7 +1077,10 @@ describe('repeat', function () {
         },
       };
 
-      const worker = new Worker(queueName, async () => {}, { connection });
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
 
       const completing = new Promise<void>(resolve => {
         worker.on('completed', () => {

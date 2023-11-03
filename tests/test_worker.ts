@@ -1662,6 +1662,7 @@ describe('workers', function () {
           lockDuration: 1000,
           lockRenewTime: 500,
           stalledInterval: 1000,
+          prefix,
         },
       );
     });
