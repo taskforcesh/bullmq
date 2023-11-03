@@ -779,6 +779,7 @@ export class Worker<
         .finally(() => client.disconnect())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
+      this.closed = true;
     })();
     return this.closing;
   }
@@ -818,7 +819,7 @@ export class Worker<
     if (!this.opts.skipLockRenewal) {
       clearTimeout(this.extendLocksTimer);
 
-      if (!this.closing) {
+      if (!this.closed) {
         this.extendLocksTimer = setTimeout(async () => {
           // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
           const now = Date.now();
