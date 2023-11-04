@@ -218,7 +218,7 @@ class Scripts:
 
         return (keys, args)
 
-    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str):
+    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0):
         max_timestamp = max(0, timestamp or 0)
 
         if timestamp > 0:
@@ -231,12 +231,12 @@ class Scripts:
         keys.append(self.keys['meta'])
 
         args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
-            job_id, token]
+            job_id, token, delay]
 
         return (keys, args)
 
-    async def moveToDelayed(self, job_id: str, timestamp: int, token: str = "0"):
-        keys, args = self.moveToDelayedArgs(job_id, timestamp, token)
+    async def moveToDelayed(self, job_id: str, timestamp: int, delay: int, token: str = "0"):
+        keys, args = self.moveToDelayedArgs(job_id, timestamp, token, delay)
 
         result = await self.commands["moveToDelayed"](keys=keys, args=args)
 

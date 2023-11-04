@@ -642,6 +642,7 @@ export class Job<
           this.id,
           Date.now() + delay,
           token,
+          delay,
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
@@ -1021,7 +1022,13 @@ export class Job<
    * @returns
    */
   moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    return this.scripts.moveToDelayed(this.id, timestamp, token);
+    const delay = timestamp - Date.now();
+    return this.scripts.moveToDelayed(
+      this.id,
+      timestamp,
+      delay > 0 ? delay : 0,
+      token,
+    );
   }
 
   /**
