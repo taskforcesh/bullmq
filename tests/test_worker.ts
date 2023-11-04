@@ -2016,6 +2016,7 @@ describe('workers', function () {
 
       await worker.close();
     });
+
     it('deletes token after moving jobs to delayed', async function () {
       const worker = new Worker(
         queueName,
