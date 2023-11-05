@@ -16,6 +16,7 @@
     ARGV[3] delayedTimestamp
     ARGV[4] the id of the job
     ARGV[5] queue token
+    ARGV[6] delay value
 
   Output:
     0 - OK
@@ -52,6 +53,8 @@ if rcall("EXISTS", jobKey) == 1 then
   if numRemovedElements < 1 then
     return -3
   end
+
+  rcall("HSET", jobKey, "delay", ARGV[6])
 
   local maxEvents = rcall("HGET", KEYS[8], "opts.maxLenEvents") or 10000
 

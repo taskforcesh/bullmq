@@ -1984,6 +1984,39 @@ describe('workers', function () {
   });
 
   describe('Retries and backoffs', () => {
+    it("updates job's delay property if it fails and backoff is set", async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          throw new Error('error');
+        },
+        { connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const job = await queue.add(
+        'test',
+        { bar: 'baz' },
+        { attempts: 3, backoff: 300 },
+      );
+
+      const failed = new Promise<void>((resolve, reject) => {
+        worker.once('failed', async () => {
+          try {
+            const gotJob = await queue.getJob(job.id!);
+            expect(gotJob!.delay).to.be.eql(300);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await failed;
+
+      await worker.close();
+    });
+
     it('deletes token after moving jobs to delayed', async function () {
       const worker = new Worker(
         queueName,

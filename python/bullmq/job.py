@@ -106,7 +106,8 @@ class Job:
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
                         round(time.time() * 1000) + delay,
-                        token
+                        token,
+                        delay
                     )
 
                     await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
