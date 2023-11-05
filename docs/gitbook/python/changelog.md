@@ -2,6 +2,22 @@
 
 <!--next-version-placeholder-->
 
+## v1.15.3 (2023-11-05)
+### Fix
+* **add-job:** Trim events when waiting-children event is published (#2262) (python) ([`198bf05`](https://github.com/taskforcesh/bullmq/commit/198bf05fa5a4e1ce50081296033a2e0f26ece498))
+* **worker:** Keep extending locks while closing workers ([#2259](https://github.com/taskforcesh/bullmq/issues/2259)) ([`c4d12ea`](https://github.com/taskforcesh/bullmq/commit/c4d12ea3a9837ffd7f58e2134796137c4181c3de))
+* **sandbox:** Do not return empty object result when it is undefined ([#2247](https://github.com/taskforcesh/bullmq/issues/2247)) ([`308db7f`](https://github.com/taskforcesh/bullmq/commit/308db7f58758a72b8abb272da8e92509813a2178))
+
+### Documentation
+* **job-ids:** Clarify separators (#2251) ref #2249 ([`8fa8b63`](https://github.com/taskforcesh/bullmq/commit/8fa8b63cf357a2a7a76b0ade50abba721b4828a0))
+* **repeatable:** Add example when removing repeatable jobs ([#2257](https://github.com/taskforcesh/bullmq/issues/2257)) ([`bc2d980`](https://github.com/taskforcesh/bullmq/commit/bc2d980e3409884a29220cd74cca3bbe5cacc9e6))
+* **retry:** Extend description ([#2164](https://github.com/taskforcesh/bullmq/issues/2164)) ([`07855ad`](https://github.com/taskforcesh/bullmq/commit/07855ad9c84e943b8300df26a2e0304c7535c391))
+* **bullmq-pro:** Update changelog with v6.6.1 ([`b026a3a`](https://github.com/taskforcesh/bullmq/commit/b026a3aef991aaa535cf77e0501e7ef68fa5b5b8))
+* **rate-limit:** Fix key typo in example ([#2240](https://github.com/taskforcesh/bullmq/issues/2240)) ([`a0455d4`](https://github.com/taskforcesh/bullmq/commit/a0455d422ff01aeb53091e55078284a8bff4a995))
+
+### Performance
+* **redis-connection:** Check redis version greater or equal than v6 only once ([#2252](https://github.com/taskforcesh/bullmq/issues/2252)) ([`a09b15a`](https://github.com/taskforcesh/bullmq/commit/a09b15af0d5dedfa83bce7130ee9094f3fb69e10))
+
 ## v1.15.2 (2023-10-18)
 ### Fix
 * **events:** Do not publish removed event on non-existent jobs ([#2227](https://github.com/taskforcesh/bullmq/issues/2227)) ([`c134606`](https://github.com/taskforcesh/bullmq/commit/c1346064c6cd9f93c59b184f150eac11d51c91b4))
