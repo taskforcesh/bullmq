@@ -134,7 +134,7 @@ local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
 local waitChildrenKey = args[6]
 if waitChildrenKey ~= nil then
   rcall("ZADD", waitChildrenKey, timestamp, jobId)
-  rcall("XADD", KEYS[8], "*", "event", "waiting-children", "jobId", jobId)
+  rcall("XADD", KEYS[8], "MAXLEN", "~", maxEvents, "*", "event", "waiting-children", "jobId", jobId)
 elseif (delayedTimestamp ~= 0) then
   local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
   rcall("ZADD", KEYS[5], score, jobId)
