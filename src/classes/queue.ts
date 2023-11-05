@@ -423,13 +423,13 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    limit = limit || Infinity;
-    const maxCountPerCall = Math.min(10000, limit);
+    const maxCount = limit || Infinity;
+    const maxCountPerCall = Math.min(10000, maxCount);
     const timestamp = Date.now() - grace;
     let deletedCount = 0;
     const deletedJobsIds: string[] = [];
 
-    while (deletedCount < limit) {
+    while (deletedCount < maxCount) {
       const jobsIds = await this.scripts.cleanJobsInSet(
         type,
         timestamp,
