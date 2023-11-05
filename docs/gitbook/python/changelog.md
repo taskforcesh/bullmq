@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.15.4 (2023-11-05)
+### Fix
+* Update delay job property when moving to delayed set ([#2261](https://github.com/taskforcesh/bullmq/issues/2261)) ([`69ece08`](https://github.com/taskforcesh/bullmq/commit/69ece08babd7716c14c38c3dd50630b44c7c1897))
+
 ## v1.15.3 (2023-11-05)
 ### Fix
 * **add-job:** Trim events when waiting-children event is published (#2262) (python) ([`198bf05`](https://github.com/taskforcesh/bullmq/commit/198bf05fa5a4e1ce50081296033a2e0f26ece498))
