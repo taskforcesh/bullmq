@@ -1,5 +1,5 @@
 import { after } from 'lodash';
-import { describe, beforeEach, it } from 'mocha';
+import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
@@ -7,13 +7,17 @@ import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
 describe('Delayed jobs', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   this.timeout(15000);
 
   let queue: Queue;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -23,7 +27,11 @@ describe('Delayed jobs', function () {
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should process a delayed job only after delayed time', async function () {

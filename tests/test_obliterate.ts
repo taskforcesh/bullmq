@@ -1,17 +1,23 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Obliterate', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async () => {
     queueName = `test-${v4()}`;
@@ -23,7 +29,11 @@ describe('Obliterate', function () {
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should obliterate an empty queue', async () => {
@@ -198,7 +208,7 @@ describe('Obliterate', function () {
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(1);
-
+          await childrenQueue.close();
           await flow.close();
         });
       });
@@ -254,7 +264,7 @@ describe('Obliterate', function () {
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
 
@@ -297,7 +307,7 @@ describe('Obliterate', function () {
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
     });
@@ -413,6 +423,9 @@ describe('Obliterate', function () {
 
     const { logs } = await queue.getJobLogs(job.id!);
     expect(logs).to.have.length(0);
+
+    await queueEvents.close();
+    await worker.close();
   });
 
   it('should obliterate a queue with high number of jobs in different statuses', async function () {

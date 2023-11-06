@@ -1,16 +1,21 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
+import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
 import { Queue, Worker, Job } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('bulk jobs', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   let queue: Queue;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -19,7 +24,11 @@ describe('bulk jobs', () => {
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  after(async function () {
+    await connection.quit();
   });
 
   it('should process jobs', async () => {
@@ -107,7 +116,7 @@ describe('bulk jobs', () => {
     await childrenWorker.close();
     await parentWorker.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(), parentQueueName);
+    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
   });
 
   it('should process jobs with custom ids', async () => {

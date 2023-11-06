@@ -3,12 +3,25 @@ import { default as IORedis, RedisOptions } from 'ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueBase } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
+import {
+  before,
+  describe,
+  it,
+  beforeEach,
+  afterEach,
+  after as afterAll,
+} from 'mocha';
 
 describe('connection', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -17,12 +30,17 @@ describe('connection', () => {
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('prefix', () => {
     it('should throw exception if using prefix with ioredis', async () => {
       const connection = new IORedis({
+        host: redisHost,
         keyPrefix: 'bullmq',
       });
 
