@@ -131,8 +131,6 @@ describe('connection', () => {
       });
       const queue = new Queue('myqueue', { connection });
       connection.disconnect();
-
-      await queue.close();
     });
   });
 
