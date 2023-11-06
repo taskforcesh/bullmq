@@ -68,15 +68,18 @@ describe('connection', () => {
 
   describe('blocking', () => {
     it('should override maxRetriesPerRequest: null as redis options', async () => {
-      connection = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
+      if (redisHost === 'localhost') {
+        // We cannot currently test this behaviour for remote redis servers
+        const queue = new QueueBase(queueName, {
+          connection: { host: 'localhost' },
+        });
 
-      const queue = new QueueBase(queueName, {
-        connection,
-      });
+        const options = connection.options;
 
-      const options = <RedisOptions>(await queue.client).options;
+        expect(options.maxRetriesPerRequest).to.be.equal(null);
 
-      expect(options.maxRetriesPerRequest).to.be.equal(null);
+        await queue.close();
+      }
     });
   });
 
@@ -92,6 +95,8 @@ describe('connection', () => {
       const options = <RedisOptions>(await queue.client).options;
 
       expect(options.maxRetriesPerRequest).to.be.equal(20);
+
+      await queue.close();
     });
   });
 
@@ -113,6 +118,9 @@ describe('connection', () => {
         'Eviction policy is volatile-lru. It should be "noeviction"',
       );
       await client.config('SET', 'maxmemory-policy', 'noeviction');
+
+      await queue.close();
+      await queue2.close();
     });
   });
 
@@ -121,8 +129,10 @@ describe('connection', () => {
       const connection = new IORedis.Cluster(['redis://10.0.6.161:7379'], {
         natMap: {},
       });
-      const myQueue = new Queue('myqueue', { connection });
+      const queue = new Queue('myqueue', { connection });
       connection.disconnect();
+
+      await queue.close();
     });
   });
 
