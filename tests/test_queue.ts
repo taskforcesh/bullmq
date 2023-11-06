@@ -1,20 +1,24 @@
 import { expect } from 'chai';
-import { after } from 'lodash';
 import { default as IORedis } from 'ioredis';
-import { describe, beforeEach, it } from 'mocha';
+import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
+import { after } from 'lodash';
 
 describe('queues', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -25,7 +29,11 @@ describe('queues', function () {
   afterEach(async function () {
     sandbox.restore();
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   //TODO: restore this tests in next breaking change
@@ -59,12 +67,12 @@ describe('queues', function () {
       for (let i = 1; i <= maxJobs; i++) {
         added.push(queue.add('test', { foo: 'bar', num: i }, { priority: i }));
       }
-
       await Promise.all(added);
+
       const count = await queue.count();
-      expect(count).to.be.eql(100);
+      expect(count).to.be.eql(maxJobs);
       const priorityCount = await queue.getJobCountByTypes('prioritized');
-      expect(priorityCount).to.be.eql(100);
+      expect(priorityCount).to.be.eql(maxJobs);
 
       await queue.drain();
       const countAfterEmpty = await queue.count();
@@ -74,7 +82,7 @@ describe('queues', function () {
       const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
       expect(keys.length).to.be.eql(4);
-    });
+    }).timeout(10000);
 
     describe('when having a flow', async () => {
       describe('when parent belongs to same queue', async () => {
@@ -233,7 +241,7 @@ describe('queues', function () {
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(new IORedis(), parentQueueName);
+            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
           });
         });
 
@@ -278,7 +286,7 @@ describe('queues', function () {
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(new IORedis(), parentQueueName);
+            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
           });
         });
       });

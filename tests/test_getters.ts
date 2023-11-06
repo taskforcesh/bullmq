@@ -3,17 +3,22 @@
 
 import { expect } from 'chai';
 import { after } from 'lodash';
-import { describe, beforeEach, it } from 'mocha';
+import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -22,7 +27,11 @@ describe('Jobs getters', function () {
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('.getQueueEvents', () => {
@@ -113,13 +122,16 @@ describe('Jobs getters', function () {
       await queue2.close();
       await worker.close();
       await worker2.close();
-      await removeAllQueueData(new IORedis(), queueName2);
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
 
     describe('when sharing connection', () => {
       // Test is very flaky on CI, so we skip it for now.
       it('gets all workers for a given queue', async function () {
-        const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
+        const ioredisConnection = new IORedis({
+          host: redisHost,
+          maxRetriesPerRequest: null,
+        });
 
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
@@ -195,7 +207,7 @@ describe('Jobs getters', function () {
     it('gets current job state', async function () {
       const job = await queue.add('test', { foo: 'bar' });
 
-      const jobState = await queue.getJobState(job.id);
+      const jobState = await queue.getJobState(job.id!);
 
       expect(jobState).to.be.equal('waiting');
     });
@@ -272,9 +284,9 @@ describe('Jobs getters', function () {
   it('should get a specific job', async () => {
     const data = { foo: 'sup!' };
     const job = await queue.add('test', data);
-    const returnedJob = await queue.getJob(job.id);
-    expect(returnedJob.data).to.eql(data);
-    expect(returnedJob.id).to.be.eql(job.id);
+    const returnedJob = await queue.getJob(job.id!);
+    expect(returnedJob!.data).to.eql(data);
+    expect(returnedJob!.id).to.be.eql(job.id);
   });
 
   it('should get undefined for nonexistent specific job', async () => {

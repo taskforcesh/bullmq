@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import {
   FlowProducer,
@@ -13,11 +13,16 @@ import {
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Cleaner', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async () => {
     queueName = `test-${v4()}`;
@@ -30,7 +35,11 @@ describe('Cleaner', () => {
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should clean an empty queue', async () => {
@@ -623,7 +632,7 @@ describe('Cleaner', () => {
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
 
@@ -675,7 +684,7 @@ describe('Cleaner', () => {
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
     });
@@ -691,7 +700,7 @@ describe('Cleaner', () => {
     );
     await worker.waitUntilReady();
 
-    const client = new IORedis();
+    const client = new IORedis(redisHost);
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });

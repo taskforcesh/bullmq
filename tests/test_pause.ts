@@ -1,18 +1,22 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Pause', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -24,7 +28,11 @@ describe('Pause', function () {
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should not process delayed jobs', async function () {
@@ -115,7 +123,7 @@ describe('Pause', function () {
       };
     });
 
-    new Worker(queueName, process, { connection, prefix });
+    const worker = new Worker(queueName, process, { connection, prefix });
 
     queueEvents.on('paused', async (args, eventId) => {
       isPaused = false;
@@ -133,7 +141,9 @@ describe('Pause', function () {
     await queue.add('test', { foo: 'paused' });
     await queue.add('test', { foo: 'paused' });
 
-    return processPromise;
+    await processPromise;
+
+    await worker.close();
   });
 
   it('should pause the queue locally', async () => {
@@ -168,7 +178,8 @@ describe('Pause', function () {
 
     await worker.resume();
 
-    return processPromise;
+    await processPromise;
+    worker.close();
   });
 
   it('should wait until active jobs are finished before resolving pause', async () => {
@@ -381,7 +392,7 @@ describe('Pause', function () {
       await waitingEvent;
       await processing;
 
-      await worker.close();
+      await worker!.close();
     });
   });
 });

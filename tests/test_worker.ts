@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, times } from 'lodash';
-import { describe, beforeEach, it } from 'mocha';
+import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import {
@@ -21,15 +21,20 @@ import {
   removeAllQueueData,
 } from '../src/utils';
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('workers', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -42,7 +47,11 @@ describe('workers', function () {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('when closing a worker', () => {
@@ -123,7 +132,8 @@ describe('workers', function () {
       const queueName2 = `test-${v4()}`;
 
       const connection = new IORedis({
-        host: 'localhost',
+        host: redisHost,
+        maxRetriesPerRequest: null,
       });
 
       const queue1 = new Queue(queueName2, { connection, prefix });
@@ -159,7 +169,7 @@ describe('workers', function () {
 
       await worker.close();
       await queue1.close();
-      await removeAllQueueData(new IORedis(), queueName2);
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
   });
 
@@ -753,7 +763,7 @@ describe('workers', function () {
 
   describe('when sharing a redis connection between workers', function () {
     it('should not close the connection', async () => {
-      const connection = new IORedis();
+      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
 
       return new Promise((resolve, reject) => {
         connection.on('ready', async () => {
@@ -786,7 +796,7 @@ describe('workers', function () {
     });
 
     it('should not close the connection', async () => {
-      const connection = new IORedis();
+      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
       const queueName2 = `test-shared-${v4()}`;
 
       const queue2 = new Queue(queueName2, {
@@ -819,7 +829,7 @@ describe('workers', function () {
       });
 
       await queue2.close();
-      await removeAllQueueData(new IORedis(), queueName2);
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
   });
 
@@ -1565,7 +1575,7 @@ describe('workers', function () {
     this.timeout(10000);
 
     const connection = new IORedis({
-      host: 'localhost',
+      host: redisHost,
       maxRetriesPerRequest: null,
     });
 
@@ -3436,7 +3446,7 @@ describe('workers', function () {
         await parentWorker.close();
 
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(), parentQueueName);
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       });
 
       describe('when job is not in active state', () => {
@@ -3521,7 +3531,7 @@ describe('workers', function () {
           await parentWorker.close();
 
           await parentQueue.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
     });
@@ -3630,7 +3640,7 @@ describe('workers', function () {
       await parentWorker.close();
 
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(), parentQueueName);
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should allow to fail jobs manually', async () => {
