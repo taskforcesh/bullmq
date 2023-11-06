@@ -25,7 +25,7 @@ describe('connection', () => {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection: { host: 'localhost' }, prefix });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
@@ -68,11 +68,10 @@ describe('connection', () => {
 
   describe('blocking', () => {
     it('should override maxRetriesPerRequest: null as redis options', async () => {
+      connection = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
+
       const queue = new QueueBase(queueName, {
-        connection: {
-          host: 'localhost',
-          maxRetriesPerRequest: 20,
-        },
+        connection,
       });
 
       const options = <RedisOptions>(await queue.client).options;
@@ -83,11 +82,10 @@ describe('connection', () => {
 
   describe('non-blocking', () => {
     it('should not override any redis options', async () => {
+      connection = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
+
       const queue = new QueueBase(queueName, {
-        connection: {
-          host: 'localhost',
-          maxRetriesPerRequest: 20,
-        },
+        connection,
         blockingConnection: false,
       });
 
