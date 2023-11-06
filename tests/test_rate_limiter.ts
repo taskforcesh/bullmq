@@ -127,7 +127,7 @@ describe('Rate Limiter', function () {
   it('should quickly close a worker even with slow rate-limit', async function () {
     const limiter = { max: 1, duration: 60 * 1000 };
     const worker = new Worker(queueName, async () => {}, {
-      connection: { host: 'localhost' },
+      connection,
       prefix,
       limiter,
     });
