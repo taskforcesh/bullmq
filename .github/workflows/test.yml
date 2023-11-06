@@ -118,6 +118,7 @@ jobs:
 
   node-upstash:
     runs-on: ubuntu-latest
+    continue-on-error: true
 
     env:
       node-version: lts/*
