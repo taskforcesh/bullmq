@@ -106,7 +106,6 @@ export class Queue<
     super(
       name,
       {
-        sharedConnection: isRedisInstance(opts?.connection),
         blockingConnection: false,
         ...opts,
       },
