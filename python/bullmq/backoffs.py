@@ -31,7 +31,7 @@ class Backoffs:
 def lookup_strategy(backoff: BackoffOptions, custom_strategy):
     backoff_type = backoff.get("type")
     if backoff_type in Backoffs.builtin_strategies:
-        Backoffs.builtin_strategies[backoff_type](backoff.delay)
+        Backoffs.builtin_strategies[backoff_type](backoff.get("delay"))
     elif custom_strategy:
         return custom_strategy
     else:
