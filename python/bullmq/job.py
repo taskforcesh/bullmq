@@ -91,6 +91,7 @@ class Job:
 
         move_to_failed = False
         finished_on = 0
+        delay = 0
         command = 'moveToFailed'
 
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
@@ -136,6 +137,9 @@ class Job:
 
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
+
+        if delay and type(delay) == int:
+            self.delay = delay
 
     async def saveStacktrace(self, pipe, err:str):
         stacktrace = traceback.format_exc()
