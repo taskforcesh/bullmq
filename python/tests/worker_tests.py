@@ -221,13 +221,13 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         start = round(time.time() * 1000)
         await queue.add("test", { "foo": "bar" },
-                {"attempts": 3, "backoff": {"type": "fixed", "delay": 3000}})
+                {"attempts": 3, "backoff": {"type": "fixed", "delay": 1000}})
 
         completed_events = Future()
 
         def completing(job: Job, result):
             elapse = round(time.time() * 1000) - start
-            self.assertGreater(elapse, 3000)
+            self.assertGreater(elapse, 2000)
             completed_events.set_result(None)
 
         worker.on("completed", completing)
