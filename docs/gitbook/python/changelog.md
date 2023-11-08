@@ -2,6 +2,15 @@
 
 <!--next-version-placeholder-->
 
+## v1.16.0 (2023-11-08)
+### Feature
+* **queue:** Improve clean to work iteratively ([#2260](https://github.com/taskforcesh/bullmq/issues/2260)) ([`0cfa66f`](https://github.com/taskforcesh/bullmq/commit/0cfa66fd0fa0dba9b3941f183cf6f06d8a4f281d))
+
+### Fix
+* **backoff:** Fix builtin backoff type (#2265) [python] ([`76959eb`](https://github.com/taskforcesh/bullmq/commit/76959eb9d9495eb1b6d2d31fab93c8951b5d3b93))
+* **connection:** Move redis instance check to queue base ([`13a339a`](https://github.com/taskforcesh/bullmq/commit/13a339a730f46ff22acdd4a046e0d9c4b7d88679))
+* **connection:** Better handling of attached listeners ([`02474ad`](https://github.com/taskforcesh/bullmq/commit/02474ad59a7b340d7bb2a7415ae7a88e14200398))
+
 ## v1.15.4 (2023-11-05)
 ### Fix
 * Update delay job property when moving to delayed set ([#2261](https://github.com/taskforcesh/bullmq/issues/2261)) ([`69ece08`](https://github.com/taskforcesh/bullmq/commit/69ece08babd7716c14c38c3dd50630b44c7c1897))
