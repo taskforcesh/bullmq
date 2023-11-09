@@ -2,16 +2,20 @@ import { Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 
 describe('stalled jobs', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -20,7 +24,11 @@ describe('stalled jobs', function () {
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('process stalled jobs when starting a queue', async function () {

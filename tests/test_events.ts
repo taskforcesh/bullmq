@@ -2,19 +2,23 @@ import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 import { after } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
-
 describe('events', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   this.timeout(8000);
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -27,7 +31,11 @@ describe('events', function () {
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('when autorun option is provided as false', function () {
@@ -54,7 +62,7 @@ describe('events', function () {
       await queue2.close();
       await queueEvents2.close();
       await expect(running).to.have.been.fulfilled;
-      await removeAllQueueData(new IORedis(), queueName2);
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
 
     describe('when run method is called when queueEvent is running', function () {
@@ -79,7 +87,7 @@ describe('events', function () {
         await queue2.close();
         await queueEvents2.close();
         await expect(running).to.have.been.fulfilled;
-        await removeAllQueueData(new IORedis(), queueName2);
+        await removeAllQueueData(new IORedis(redisHost), queueName2);
       });
     });
   });
@@ -154,6 +162,8 @@ describe('events', function () {
 
       const actualCount = await queue.count();
       expect(actualCount).to.be.equal(0);
+
+      await worker.close();
     });
   });
 
@@ -466,7 +476,7 @@ describe('events', function () {
       await worker.close();
       await childrenWorker.close();
       await flow.close();
-      await removeAllQueueData(new IORedis(), childrenQueueName);
+      await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
     });
   });
 
@@ -524,7 +534,7 @@ describe('events', function () {
       expect(eventsLength).to.be.eql(0);
 
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(), queueName);
+      await removeAllQueueData(new IORedis(redisHost), queueName);
     });
   });
 
@@ -585,7 +595,7 @@ describe('events', function () {
 
       await worker.close();
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(), queueName);
+      await removeAllQueueData(new IORedis(redisHost), queueName);
     });
   });
 
@@ -640,7 +650,7 @@ describe('events', function () {
 
       await worker.close();
       await trimmedQueue.close();
-      await removeAllQueueData(new IORedis(), queueName);
+      await removeAllQueueData(new IORedis(redisHost), queueName);
     });
 
     describe('when jobs are moved to delayed', function () {
@@ -698,7 +708,7 @@ describe('events', function () {
 
         await worker.close();
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(), queueName);
+        await removeAllQueueData(new IORedis(redisHost), queueName);
       });
     });
 
@@ -755,7 +765,7 @@ describe('events', function () {
 
         await worker.close();
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(), queueName);
+        await removeAllQueueData(new IORedis(redisHost), queueName);
       });
     });
 
@@ -790,7 +800,7 @@ describe('events', function () {
         expect(eventsLength).to.be.gte(20);
 
         await trimmedQueue.close();
-        await removeAllQueueData(new IORedis(), queueName);
+        await removeAllQueueData(new IORedis(redisHost), queueName);
       });
     });
   });
@@ -817,6 +827,6 @@ describe('events', function () {
     expect(eventsLength).to.be.equal(0);
 
     await trimmedQueue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 });

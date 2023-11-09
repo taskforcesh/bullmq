@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import {
   FlowProducer,
@@ -13,12 +13,16 @@ import {
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
@@ -30,7 +34,11 @@ describe('Rate Limiter', function () {
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should not put a job into the delayed queue when limit is hit', async function () {
@@ -119,7 +127,7 @@ describe('Rate Limiter', function () {
   it('should quickly close a worker even with slow rate-limit', async function () {
     const limiter = { max: 1, duration: 60 * 1000 };
     const worker = new Worker(queueName, async () => {}, {
-      connection: { host: 'localhost' },
+      connection,
       prefix,
       limiter,
     });

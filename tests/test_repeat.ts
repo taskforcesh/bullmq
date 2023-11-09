@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { rrulestr } from 'rrule';
@@ -31,6 +31,7 @@ const ONE_DAY = 24 * ONE_HOUR;
 const NoopProc = async (job: Job) => {};
 
 describe('repeat', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   this.timeout(10000);
   let repeat: Repeat;
@@ -38,7 +39,10 @@ describe('repeat', function () {
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     this.clock = sinon.useFakeTimers();
@@ -54,7 +58,11 @@ describe('repeat', function () {
     await queue.close();
     await repeat.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('when exponential backoff is applied', () => {
@@ -471,7 +479,7 @@ describe('repeat', function () {
 
     await queue2.close();
     await worker.close();
-    await removeAllQueueData(new IORedis(), queueName2);
+    await removeAllQueueData(new IORedis(redisHost), queueName2);
     delayStub.restore();
   });
 
@@ -707,7 +715,7 @@ describe('repeat', function () {
     );
 
     const keyPrefix = getRepeatableJobKeyPrefix(prefix, queueName);
-    const jobsRedisKeys = await new IORedis().keys(`${keyPrefix}*`);
+    const jobsRedisKeys = await new IORedis(redisHost).keys(`${keyPrefix}*`);
     expect(jobsRedisKeys.length).to.be.equal(1);
 
     const actualHashedRepeatableJobKey =
@@ -1240,6 +1248,7 @@ describe('repeat', function () {
     });
 
     await processing;
+    await worker.close();
     delayStub.restore();
   });
 
@@ -1292,7 +1301,7 @@ describe('repeat', function () {
     // Repeatable job was recreated
     expect(jobs.length).to.eql(0);
 
-    await worker.close();
+    await worker!.close();
   });
 
   it('should allow adding a repeatable job after removing it', async function () {
