@@ -2004,15 +2004,12 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
-      const job = await queue.add(
-        'test',
-        { bar: 'baz' },
-        { attempts: 3, backoff: 300 },
-      );
+      await queue.add('test', { bar: 'baz' }, { attempts: 3, backoff: 300 });
 
       const failed = new Promise<void>((resolve, reject) => {
-        worker.once('failed', async () => {
+        worker.once('failed', async job => {
           try {
+            expect(job?.delay).to.be.eql(300);
             const gotJob = await queue.getJob(job.id!);
             expect(gotJob!.delay).to.be.eql(300);
             resolve();
@@ -2071,6 +2068,52 @@ describe('workers', function () {
       expect(token).to.be.null;
 
       await worker.close();
+    });
+
+    describe('when backoff type is exponential', () => {
+      it("updates job's delay property if it fails and backoff is set", async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(100);
+            throw new Error('error');
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        await queue.add(
+          'test',
+          { bar: 'baz' },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 200,
+            },
+          },
+        );
+
+        const failed = new Promise<void>((resolve, reject) => {
+          worker.on('failed', async job => {
+            try {
+              const attemptsMade = job?.attemptsMade;
+              if (attemptsMade! > 2) {
+                expect(job!.delay).to.be.eql(0);
+                const gotJob = await queue.getJob(job.id!);
+                expect(gotJob!.delay).to.be.eql(0);
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        await failed;
+
+        await worker.close();
+      });
     });
 
     describe('when attempts is 1 and job fails', () => {

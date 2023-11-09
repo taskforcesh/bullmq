@@ -618,7 +618,7 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
-    let finishedOn;
+    let finishedOn, delay;
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
@@ -627,7 +627,7 @@ export class Job<
       const opts = queue.opts as WorkerOptions;
 
       // Check if backoff is needed
-      const delay = await Backoffs.calculate(
+      delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
         this.attemptsMade,
         err,
@@ -686,6 +686,10 @@ export class Job<
 
     if (finishedOn && typeof finishedOn === 'number') {
       this.finishedOn = finishedOn;
+    }
+
+    if (delay && typeof delay === 'number') {
+      this.delay = delay;
     }
   }
 
