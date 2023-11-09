@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.16.1 (2023-11-09)
+### Fix
+* **job:** Set delay value on current job instance when it is retried (#2266) (python) ([`76e075f`](https://github.com/taskforcesh/bullmq/commit/76e075f54d5745b6cec3cb11305bf3110d963eae))
+
 ## v1.16.0 (2023-11-08)
 ### Feature
 * **queue:** Improve clean to work iteratively ([#2260](https://github.com/taskforcesh/bullmq/issues/2260)) ([`0cfa66f`](https://github.com/taskforcesh/bullmq/commit/0cfa66fd0fa0dba9b3941f183cf6f06d8a4f281d))
