@@ -2550,6 +2550,88 @@ describe('workers', function () {
         await worker.close();
       });
 
+      describe('when timeout is provided', () => {
+        it('should check if timeout is reached in each step', async function () {
+          enum Step {
+            Initial,
+            Second,
+            Finish,
+          }
+
+          const worker = new Worker(
+            queueName,
+            async job => {
+              let { step, timeout } = job.data;
+              let timeoutReached = false;
+
+              setTimeout(() => {
+                timeoutReached = true;
+              }, timeout);
+              console.log(step, timeoutReached, job.data.timeout);
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await delay(1000);
+                    if (timeoutReached) {
+                      console.log('reaached1');
+                      throw new Error('Timeout');
+                    }
+                    await job.updateData({
+                      step: Step.Second,
+                      timeout,
+                    });
+                    step = Step.Second;
+                    break;
+                  }
+                  case Step.Second: {
+                    await delay(1000);
+                    if (timeoutReached) {
+                      throw new Error('Timeout');
+                    }
+                    await job.updateData({
+                      step: Step.Finish,
+                      timeout,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection, prefix },
+          );
+
+          await worker.waitUntilReady();
+
+          const start = Date.now();
+          await queue.add(
+            'test',
+            { step: Step.Initial, timeout: 1500 },
+            {
+              attempts: 3,
+              backoff: 500,
+            },
+          );
+
+          await new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              const elapse = Date.now() - start;
+              expect(elapse).to.be.greaterThan(3000);
+              expect(elapse).to.be.lessThan(4000);
+              expect(job.failedReason).to.be.eql('Timeout');
+              expect(job.returnvalue).to.be.eql(Step.Finish);
+              expect(job.attemptsMade).to.be.eql(2);
+              resolve();
+            });
+          });
+
+          await worker.close();
+        });
+      });
+
       describe('when moving job to delayed in one step', () => {
         it('should retry job after a delay time, keeping the current step', async function () {
           this.timeout(8000);
