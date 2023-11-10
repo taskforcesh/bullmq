@@ -1,6 +1,6 @@
 # Manually fetching jobs
 
-If you want to manually fetch the jobs from the queue instead of letting the automatic processor taking care of it, this pattern is for your.
+If you want to manually fetch the jobs from the queue instead of letting the automatic processor taking care of it, this pattern is for you.
 
 Manually transitioning states for jobs can be done with a few simple methods.
 
@@ -53,4 +53,4 @@ if (nextJobdata) {
 
 **Note**
 
-By default the lock duration for a job that has been returned by `getNextJob` or `moveToCompleted` is 30 seconds, if it takes more time than that the job will be automatically marked as stalled and depending on the max stalled options be moved back to the wait state or marked as failed. In order to avoid this you must use `job.extendLock(duration)` in order to give you some more time before the lock expires. The recommended is to extend the lock when half the lock time has passsed.
+By default the lock duration for a job that has been returned by `getNextJob` or `moveToCompleted` is 30 seconds, if it takes more time than that the job will be automatically marked as stalled and depending on the max stalled options be moved back to the wait state or marked as failed. In order to avoid this you must use `job.extendLock(duration)` in order to give you some more time before the lock expires. It is recommended to extend the lock when half the lock time has passsed.
