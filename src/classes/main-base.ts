@@ -44,6 +44,6 @@ export default (
 
     // An uncaughException leaves this process in a potentially undetermined state so
     // we must exit
-    process.exit(-1);
+    process.exit();
   });
 };

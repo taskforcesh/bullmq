@@ -8,6 +8,7 @@ import { AbortController } from 'node-abort-controller';
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
 import { ChildMessage, RedisClient } from './interfaces';
+import * as EventEmitter from 'events';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -78,6 +79,21 @@ export function isRedisCluster(obj: unknown): obj is Cluster {
   return isRedisInstance(obj) && (<Cluster>obj).isCluster;
 }
 
+export function increaseMaxListeners(
+  emitter: EventEmitter,
+  count: number,
+): void {
+  const maxListeners = emitter.getMaxListeners();
+  emitter.setMaxListeners(maxListeners + count);
+}
+
+export function decreaseMaxListeners(
+  emitter: EventEmitter,
+  count: number,
+): void {
+  increaseMaxListeners(emitter, -count);
+}
+
 export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
@@ -89,7 +105,7 @@ export async function removeAllQueueData(
     return Promise.resolve(false);
   }
   const pattern = `${prefix}:${queueName}:*`;
-  return new Promise<void>((resolve, reject) => {
+  const removing = await new Promise<void>((resolve, reject) => {
     const stream = client.scanStream({
       match: pattern,
     });
@@ -107,6 +123,8 @@ export async function removeAllQueueData(
     stream.on('end', () => resolve());
     stream.on('error', error => reject(error));
   });
+  await removing;
+  await client.quit();
 }
 
 export function getParentKey(opts: {

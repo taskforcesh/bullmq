@@ -37,5 +37,5 @@ If you use docker you must make sure that you also add the _**.npmrc**_ file abo
 ```docker
 WORKDIR /app
 
-ADD .npmrc /app/.npmr
+ADD .npmrc /app/.npmrc
 ```

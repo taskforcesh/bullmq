@@ -62,12 +62,28 @@ queue.on("error", (err) => {
 
 ### Gracefully shut-down workers
 
-Since your workers will run on servers, it is unavoidable that these servers will need to be restarted from time to time. As your workers may be processing jobs when the server is about to restart, it is important to properly close the workers to minimize the risk of stalled jobs. If a worker is killed without waiting for their jobs to complete, these jobs will be marked as stalled and processed automatically when new workers come online (with a waiting time of about 30 seconds by default). However it is better to avoid having stalled jobs, and as mentioned this can be done by closing the workers when the server is going to be restarted. In NodeJS you can accomplish this by listening to the SIGINT signal like this:
+Since your workers will run on servers, it is unavoidable that these servers will need to be restarted from time to time. As your workers may be processing jobs when the server is about to restart, it is important to properly close the workers to minimize the risk of stalled jobs. If a worker is killed without waiting for their jobs to complete, these jobs will be marked as stalled and processed automatically when new workers come online (with a waiting time of about 30 seconds by default). However it is better to avoid having stalled jobs, and as mentioned this can be done by closing the workers when the server is going to be restarted.&#x20;
+
+In a Node.js server, it is considered good practice to listen for both `SIGINT` and `SIGTERM` signals to close gracefully. Here's why:
+
+* `SIGINT` is typically sent when a user types Ctrl+C in the terminal to interrupt a process. Your server should listen to this signal during development or when it's running in the foreground, so you can shut it down properly when this key combination is pressed.
+* `SIGTERM` is the signal that is usually sent to a process to request its termination. Unlike `SIGKILL`, this signal can be caught by the process (which can then clean up resources and exit gracefully). This is the signal that system daemons, orchestration tools like Kubernetes, or process managers like PM2 typically use to stop a service.
+
+Here is an example on how you accomplish this:
 
 ```typescript
-process.on("SIGINT", async () => {
+
+const gracefulShutdown = async (signal) => {
+  console.log(`Received ${signal}, closing server...`);
   await worker.close();
-});
+  // Other asynchronous closings
+  process.exit(0);
+}
+
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
 ```
 
 Keep in mind that the code above does not guarantee that the jobs will never end up being stalled, as the job may take longer time than the grace period for the server to restart.
