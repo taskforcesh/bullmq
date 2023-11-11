@@ -7,7 +7,7 @@ export interface BackoffOptions {
   /**
    * Name of the backoff strategy.
    */
-  type: 'fixed' | 'exponential' | (string & {});
+  type: 'fixed' | 'exponential' | 'custom';
   /**
    * Delay in milliseconds.
    */
