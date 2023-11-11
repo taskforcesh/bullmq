@@ -40,7 +40,7 @@ export class Backoffs {
     job: MinimalJob,
     customStrategy?: BackoffStrategy,
   ): Promise<number> | number | undefined {
-    if (backoff) {
+    if (backoff || customStrategy) {
       const strategy = lookupStrategy(backoff, customStrategy);
 
       return strategy(attemptsMade, backoff.type, err, job);
