@@ -52,10 +52,10 @@ function lookupStrategy(
   backoff: BackoffOptions,
   customStrategy?: BackoffStrategy,
 ): BackoffStrategy {
-  if (backoff.type in Backoffs.builtinStrategies) {
-    return Backoffs.builtinStrategies[backoff.type](backoff.delay!);
-  } else if (customStrategy) {
+  if (customStrategy) {
     return customStrategy;
+  } else if (backoff.type in Backoffs.builtinStrategies) {
+    return Backoffs.builtinStrategies[backoff.type](backoff.delay!);
   } else {
     throw new Error(
       `Unknown backoff strategy ${backoff.type}.
