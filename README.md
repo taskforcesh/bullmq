@@ -226,14 +226,6 @@ Since there are a few job queue solutions, here is a table comparing them:
 | UI                        |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
 | Optimized for             | Jobs / Messages | Jobs / Messages | Jobs / Messages | Jobs  | Messages | Jobs   |
 
-# 🚀 Sponsor 🚀
-
-<a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">
-  <img src="https://www.memetria.com/images/logo/memetria-logo.svg" width=300 alt="Memetria for Redis" />
-</a>
-
-If you need high quality production Redis instances for your BullMQ project, please consider subscribing to [Memetria for Redis](https://dashboard.memetria.com/new?utm_campaign=BULLMQ), leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us sponsor the development of BullMQ!
-
 ## Contributing
 
 Fork the repo, make some changes, submit a pull-request! Here is the [contributing](contributing.md) doc that has more details.
