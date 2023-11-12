@@ -141,8 +141,8 @@ Some notable organizations using BullMQ:
       <td valign="center">
        <a href="https://www.nocodb.com">
         <img
-          src="https://www.nocodb.com/brand/logo-text.png"
-          width="150"
+          src="https://github.com/nocodb/nocodb/raw/develop/packages/nc-gui/assets/img/icons/512x512.png"
+          width="50"
           alt="NoCodeDB"
         />
       </a>
