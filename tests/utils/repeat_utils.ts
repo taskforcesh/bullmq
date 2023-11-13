@@ -10,8 +10,8 @@ export function createRepeatableJobKey(
   return `${jobName}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
 
-export function getRepeatableJobKeyPrefix(queueName: string) {
-  return `bull:${queueName}:repeat:`;
+export function getRepeatableJobKeyPrefix(prefix: string, queueName: string) {
+  return `${prefix}:${queueName}:repeat:`;
 }
 
 export function extractRepeatableJobChecksumFromRedisKey(

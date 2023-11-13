@@ -106,7 +106,6 @@ export class Queue<
     super(
       name,
       {
-        sharedConnection: isRedisInstance(opts?.connection),
         blockingConnection: false,
         ...opts,
       },
@@ -314,7 +313,7 @@ export class Queue<
    *
    * @see removeRepeatableByKey
    *
-   * @param name -
+   * @param name - job name
    * @param repeatOpts -
    * @param jobId -
    * @returns
@@ -337,7 +336,7 @@ export class Queue<
    *
    * @see getRepeatableJobs
    *
-   * @param key - to the repeatable job.
+   * @param repeatJobKey - to the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
@@ -423,14 +422,28 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    const jobs = await this.scripts.cleanJobsInSet(
-      type,
-      Date.now() - grace,
-      limit,
-    );
+    const maxCount = limit || Infinity;
+    const maxCountPerCall = Math.min(10000, maxCount);
+    const timestamp = Date.now() - grace;
+    let deletedCount = 0;
+    const deletedJobsIds: string[] = [];
 
-    this.emit('cleaned', jobs, type);
-    return jobs;
+    while (deletedCount < maxCount) {
+      const jobsIds = await this.scripts.cleanJobsInSet(
+        type,
+        timestamp,
+        maxCountPerCall,
+      );
+
+      this.emit('cleaned', jobsIds, type);
+      deletedCount += jobsIds.length;
+      deletedJobsIds.push(...jobsIds);
+
+      if (jobsIds.length < maxCountPerCall) {
+        break;
+      }
+    }
+    return deletedJobsIds;
   }
 
   /**

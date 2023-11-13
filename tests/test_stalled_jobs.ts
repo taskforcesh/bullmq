@@ -2,30 +2,39 @@ import { Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { expect } from 'chai';
 
 describe('stalled jobs', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('process stalled jobs when starting a queue', async function () {
     this.timeout(10000);
 
-    const queueEvents = new QueueEvents(queueName, { connection });
+    const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
 
     const concurrency = 4;
@@ -37,6 +46,7 @@ describe('stalled jobs', function () {
       },
       {
         connection,
+        prefix,
         lockDuration: 1000,
         stalledInterval: 100,
         concurrency,
@@ -61,6 +71,7 @@ describe('stalled jobs', function () {
 
     const worker2 = new Worker(queueName, async job => {}, {
       connection,
+      prefix,
       stalledInterval: 100,
       concurrency,
     });
@@ -102,6 +113,7 @@ describe('stalled jobs', function () {
       },
       {
         connection,
+        prefix,
         stalledInterval: 50,
         skipStalledCheck: true,
         concurrency,
@@ -126,7 +138,7 @@ describe('stalled jobs', function () {
   it('fail stalled jobs that stall more than allowable stalled limit', async function () {
     this.timeout(6000);
 
-    const queueEvents = new QueueEvents(queueName, { connection });
+    const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
 
     const concurrency = 4;
@@ -138,6 +150,7 @@ describe('stalled jobs', function () {
       },
       {
         connection,
+        prefix,
         lockDuration: 1000,
         stalledInterval: 100,
         maxStalledCount: 0,
@@ -164,6 +177,7 @@ describe('stalled jobs', function () {
 
     const worker2 = new Worker(queueName, async job => {}, {
       connection,
+      prefix,
       stalledInterval: 100,
       maxStalledCount: 0,
       concurrency,
@@ -200,7 +214,7 @@ describe('stalled jobs', function () {
     it('moves jobs to failed', async function () {
       this.timeout(6000);
 
-      const queueEvents = new QueueEvents(queueName, { connection });
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
 
       const concurrency = 4;
@@ -212,6 +226,7 @@ describe('stalled jobs', function () {
         },
         {
           connection,
+          prefix,
           lockDuration: 1000,
           stalledInterval: 100,
           maxStalledCount: 0,
@@ -238,6 +253,7 @@ describe('stalled jobs', function () {
 
       const worker2 = new Worker(queueName, async job => {}, {
         connection,
+        prefix,
         stalledInterval: 100,
         maxStalledCount: 0,
         concurrency,
@@ -267,7 +283,7 @@ describe('stalled jobs', function () {
       await globalAllFailed;
 
       const redisClient = await queue.client;
-      const keys = await redisClient.keys(`bull:${queueName}:*`);
+      const keys = await redisClient.keys(`${prefix}:${queueName}:*`);
 
       for (let i = 0; i < jobs.length; i++) {
         const job = jobs[i];
@@ -284,7 +300,7 @@ describe('stalled jobs', function () {
     it('moves jobs to failed with maxStalledCount > 1', async function () {
       this.timeout(60000);
 
-      const queueEvents = new QueueEvents(queueName, { connection });
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
 
       const concurrency = 4;
@@ -305,6 +321,7 @@ describe('stalled jobs', function () {
           },
           {
             connection,
+            prefix,
             lockDuration: 1000,
             stalledInterval: 100,
             maxStalledCount,
@@ -344,7 +361,7 @@ describe('stalled jobs', function () {
           await globalAllFailed;
 
           const redisClient = await queue.client;
-          const keys = await redisClient.keys(`bull:${queueName}:*`);
+          const keys = await redisClient.keys(`${prefix}:${queueName}:*`);
 
           for (let i = 0; i < jobs.length; i++) {
             const job = jobs[i];
@@ -373,6 +390,7 @@ describe('stalled jobs', function () {
           },
           {
             connection,
+            prefix,
             lockDuration: 1000,
             stalledInterval: 100,
             maxStalledCount: 0,
@@ -402,6 +420,7 @@ describe('stalled jobs', function () {
 
         const worker2 = new Worker(queueName, async job => {}, {
           connection,
+          prefix,
           stalledInterval: 100,
           maxStalledCount: 0,
           concurrency,
@@ -441,6 +460,7 @@ describe('stalled jobs', function () {
           },
           {
             connection,
+            prefix,
             lockDuration: 1000,
             stalledInterval: 100,
             maxStalledCount: 0,
@@ -470,6 +490,7 @@ describe('stalled jobs', function () {
 
         const worker2 = new Worker(queueName, async job => {}, {
           connection,
+          prefix,
           stalledInterval: 100,
           maxStalledCount: 0,
           concurrency,
@@ -512,6 +533,7 @@ describe('stalled jobs', function () {
           },
           {
             connection,
+            prefix,
             lockDuration: 1000,
             stalledInterval: 100,
             maxStalledCount: 0,
@@ -544,6 +566,7 @@ describe('stalled jobs', function () {
 
         const worker2 = new Worker(queueName, async job => {}, {
           connection,
+          prefix,
           stalledInterval: 100,
           maxStalledCount: 0,
           concurrency,
@@ -584,6 +607,7 @@ describe('stalled jobs', function () {
       },
       {
         connection,
+        prefix,
         lockDuration: 100, // lockRenewTime would be half of it i.e. 500
         stalledInterval: 50,
         concurrency,
@@ -605,6 +629,7 @@ describe('stalled jobs', function () {
 
     const worker2 = new Worker(queueName, async job => {}, {
       connection,
+      prefix,
       stalledInterval: 50,
       concurrency,
     });

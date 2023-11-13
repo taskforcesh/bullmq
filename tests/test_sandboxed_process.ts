@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { FlowProducer, Job, Queue, QueueEvents, Worker } from '../src/classes';
-import { beforeEach } from 'mocha';
+import { beforeEach, before, after as afterAll, it } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../src/utils';
 import { Child } from '../src/classes/child';
@@ -20,16 +20,21 @@ function sandboxProcessTests(
   { useWorkerThreads } = { useWorkerThreads: false },
 ) {
   describe('sandboxed process', () => {
+    const redisHost = process.env.REDIS_HOST || 'localhost';
+    const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
     let queue: Queue;
     let queueEvents: QueueEvents;
     let queueName: string;
 
-    const connection = { host: 'localhost' };
+    let connection;
+    before(async function () {
+      connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    });
 
     beforeEach(async function () {
       queueName = `test-${v4()}`;
-      queue = new Queue(queueName, { connection });
-      queueEvents = new QueueEvents(queueName, { connection });
+      queue = new Queue(queueName, { connection, prefix });
+      queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
     });
 
@@ -39,11 +44,16 @@ function sandboxProcessTests(
       await removeAllQueueData(new IORedis(), queueName);
     });
 
+    afterAll(async function () {
+      await connection.quit();
+    });
+
     it('should process and complete', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor.js';
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -58,10 +68,8 @@ function sandboxProcessTests(
               0,
             );
             expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-            await worker.close();
             resolve();
           } catch (err) {
-            await worker.close();
             reject(err);
           }
         });
@@ -81,6 +89,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -94,10 +103,8 @@ function sandboxProcessTests(
                 Object.keys(worker['childPool'].retained),
               ).to.have.lengthOf(0);
               expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-              await worker.close();
               resolve();
             } catch (err) {
-              await worker.close();
               reject(err);
             }
           });
@@ -117,6 +124,7 @@ function sandboxProcessTests(
         const worker = new Worker(queueName, processFile, {
           autorun: false,
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -130,10 +138,8 @@ function sandboxProcessTests(
                 Object.keys(worker['childPool'].retained),
               ).to.have.lengthOf(0);
               expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-              await worker.close();
               resolve();
             } catch (err) {
-              await worker.close();
               reject(err);
             }
           });
@@ -144,6 +150,7 @@ function sandboxProcessTests(
         await queue.add('foobar', { foo: 'bar' });
 
         await completing;
+        await worker.close();
       });
     });
 
@@ -153,6 +160,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -192,6 +200,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -234,6 +243,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -276,6 +286,7 @@ function sandboxProcessTests(
       const processFile = __dirname + '/fixtures/fixture_processor.js';
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -289,10 +300,8 @@ function sandboxProcessTests(
               0,
             );
             expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-            await worker.close();
             resolve();
           } catch (err) {
-            await worker.close();
             reject(err);
           }
         });
@@ -301,6 +310,7 @@ function sandboxProcessTests(
       await queue.add('foobar', { foo: 'bar' });
 
       await completing;
+      await worker.close();
     });
 
     it('should process with concurrent processors', async function () {
@@ -316,6 +326,7 @@ function sandboxProcessTests(
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         concurrency: 4,
         drainDelay: 1,
         useWorkerThreads,
@@ -336,7 +347,6 @@ function sandboxProcessTests(
             ).to.eql(4);
             after4();
           } catch (err) {
-            await worker.close();
             reject(err);
           }
         });
@@ -352,6 +362,7 @@ function sandboxProcessTests(
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         concurrency: 1,
         drainDelay: 1,
         useWorkerThreads,
@@ -367,7 +378,6 @@ function sandboxProcessTests(
       const completing = new Promise<void>((resolve, reject) => {
         const after4 = after(4, async () => {
           expect(worker['childPool'].getAllFree().length).to.eql(1);
-          await worker.close();
           resolve();
         });
 
@@ -380,13 +390,13 @@ function sandboxProcessTests(
             ).to.eql(1);
             await after4();
           } catch (err) {
-            await worker.close();
             reject(err);
           }
         });
       });
 
       await completing;
+      await worker.close();
     });
 
     it('should process and update progress', async () => {
@@ -395,6 +405,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -435,6 +446,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -467,6 +479,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -511,6 +524,7 @@ function sandboxProcessTests(
 
         const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -547,6 +561,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -560,10 +575,8 @@ function sandboxProcessTests(
               0,
             );
             expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-            await worker.close();
             resolve();
           } catch (err) {
-            await worker.close();
             reject(err);
           }
         });
@@ -582,6 +595,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -592,22 +606,20 @@ function sandboxProcessTests(
             expect(job.data).to.be.eql({ foo: 'bar' });
             expect(value).to.be.eql({
               id: 'job-id',
-              queueKey: `bull:${parentQueueName}`,
+              queueKey: `${prefix}:${parentQueueName}`,
             });
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               0,
             );
             expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
-            await worker.close();
             resolve();
           } catch (err) {
-            await worker.close();
             reject(err);
           }
         });
       });
 
-      const flow = new FlowProducer({ connection });
+      const flow = new FlowProducer({ connection, prefix });
       await flow.add({
         name: 'parent-job',
         queueName: parentQueueName,
@@ -627,6 +639,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -645,7 +658,6 @@ function sandboxProcessTests(
 
             resolve();
           } catch (err) {
-            await worker.close();
             reject(err);
           }
         });
@@ -665,6 +677,7 @@ function sandboxProcessTests(
         const missingProcessFile = __dirname + '/fixtures/missing_processor.js';
         worker = new Worker(queueName, missingProcessFile, {
           connection,
+          prefix,
           useWorkerThreads,
         });
       } catch (err) {
@@ -681,8 +694,9 @@ function sandboxProcessTests(
     it('should fail if the process crashes', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-      new Worker(queueName, processFile, {
+      const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -692,13 +706,16 @@ function sandboxProcessTests(
       await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
         'boom!',
       );
+
+      await worker.close();
     });
 
     it('should fail if the process exits 0', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-      new Worker(queueName, processFile, {
+      const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -708,13 +725,16 @@ function sandboxProcessTests(
       await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
         'Unexpected exit code: 0 signal: null',
       );
+
+      await worker.close();
     });
 
     it('should fail if the process exits non-0', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
-      new Worker(queueName, processFile, {
+      const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -724,13 +744,16 @@ function sandboxProcessTests(
       await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
         'Unexpected exit code: 1 signal: null',
       );
+
+      await worker.close();
     });
 
     it('should fail if the process file is broken', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_broken.js';
 
-      new Worker(queueName, processFile, {
+      const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -740,6 +763,8 @@ function sandboxProcessTests(
       await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
         'Broken file processor',
       );
+
+      await worker.close();
     });
 
     describe('when function is not exported', () => {
@@ -747,8 +772,9 @@ function sandboxProcessTests(
         const processFile =
           __dirname + '/fixtures/fixture_processor_missing_function.js';
 
-        new Worker(queueName, processFile, {
+        const worker = new Worker(queueName, processFile, {
           connection,
+          prefix,
           drainDelay: 1,
           useWorkerThreads,
         });
@@ -758,6 +784,8 @@ function sandboxProcessTests(
         await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
           'No function is exported in processor file',
         );
+
+        await worker.close();
       });
     });
 
@@ -766,6 +794,7 @@ function sandboxProcessTests(
 
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         drainDelay: 1,
         useWorkerThreads,
       });
@@ -786,6 +815,8 @@ function sandboxProcessTests(
             resolve();
           } catch (err) {
             reject(err);
+          } finally {
+            await worker.close();
           }
         });
       });
@@ -793,8 +824,6 @@ function sandboxProcessTests(
       await queue.add('test', { foo: 'bar' });
 
       await completing;
-
-      await worker.close();
     });
 
     it('should allow the job to complete and then exit on worker close', async function () {
@@ -802,6 +831,7 @@ function sandboxProcessTests(
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,
+        prefix,
         useWorkerThreads,
       });
 

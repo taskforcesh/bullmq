@@ -10,7 +10,7 @@ import {
   QueueBaseOptions,
   RedisClient,
 } from '../interfaces';
-import { getParentKey } from '../utils';
+import { getParentKey, isRedisInstance } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
@@ -108,7 +108,17 @@ export class FlowProducer extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new Connection(opts.connection);
+    this.connection = new Connection(
+      opts.connection,
+      opts.blockingConnection,
+      opts.skipVersionCheck,
+    );
+    this.connection = new Connection(
+      opts.connection,
+      isRedisInstance(opts?.connection),
+      false,
+      opts.skipVersionCheck,
+    );
     this.connection.on('error', error => this.emit('error', error));
     this.connection.on('close', this.emit.bind(this, 'ioredis:close'));
 

@@ -618,7 +618,7 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
-    let finishedOn;
+    let finishedOn, delay;
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
@@ -627,7 +627,7 @@ export class Job<
       const opts = queue.opts as WorkerOptions;
 
       // Check if backoff is needed
-      const delay = await Backoffs.calculate(
+      delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
         this.attemptsMade,
         err,
@@ -642,6 +642,7 @@ export class Job<
           this.id,
           Date.now() + delay,
           token,
+          delay,
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
@@ -685,6 +686,10 @@ export class Job<
 
     if (finishedOn && typeof finishedOn === 'number') {
       this.finishedOn = finishedOn;
+    }
+
+    if (delay && typeof delay === 'number') {
+      this.delay = delay;
     }
   }
 
@@ -1021,7 +1026,13 @@ export class Job<
    * @returns
    */
   moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    return this.scripts.moveToDelayed(this.id, timestamp, token);
+    const delay = timestamp - Date.now();
+    return this.scripts.moveToDelayed(
+      this.id,
+      timestamp,
+      delay > 0 ? delay : 0,
+      token,
+    );
   }
 
   /**

@@ -22,6 +22,10 @@ await myQueue.add(
 );
 ```
 
+{% hint style="danger" %}
+Custom job ids must not contains **:** separator as it will be translated in 2 different values, we are also following Redis naming convention. So if you need to add a separator, use a different value, for example **-**, **\_**.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/v4.QueueEventsListener.html#duplicated)

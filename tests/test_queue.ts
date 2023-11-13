@@ -1,99 +1,39 @@
-/*
-import { Queue } from '@src/classes';
-import { describe, beforeEach, it } from 'mocha';
-import { expect, assert } from 'chai';
-import * as IORedis from 'ioredis';
-import { v4 } from 'uuid';
-import { Worker } from '@src/classes/worker';
-import { after } from 'lodash';
-import { QueueEvents } from '@src/classes/queue-events';
-import { QueueScheduler } from '@src/classes/queue-scheduler';
-
-describe('Queue', function() {
-  let queue: Queue;
-  let queueName: string;
-  let queueEvents: QueueEvents;
-
-  beforeEach(function() {
-    client = new IORedis();
-  });
-
-  beforeEach(async function() {
-    queueName = 'test-' + v4();
-    queue = new Queue(queueName);
-    queueEvents = new QueueEvents(queueName);
-    await queueEvents.init();
-  });
-
-  afterEach(async function() {
-    await queue.close();
-    await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
-  });
-
-  it('creates a queue with default job options', () => {
-    const defaultJobOptions = { removeOnComplete: true };
-    const queue = new Queue('custom', {
-      defaultJobOptions,
-    });
-
-    expect(queue.defaultJobOptions).to.be.eql(defaultJobOptions);
-  });
-
-  describe('bulk jobs', () => {
-    it('should default name of job', () => {
-      const queue = new Queue('custom');
-
-      return queue.addBulk([{ name: 'specified' }, {}]).then(jobs => {
-        expect(jobs).to.have.length(2);
-
-        expect(jobs[0].name).to.equal('specified');
-        expect(jobs[1].name).to.equal('__default__');
-      });
-    });
-
-    it('should default options from queue', () => {
-      const queue = new Queue('custom', {
-        defaultJobOptions: {
-          removeOnComplete: true,
-        },
-      });
-
-      return queue.addBulk([{}]).then(jobs => {
-        expect(jobs[0].opts.removeOnComplete).to.equal(true);
-      });
-    });
-  });
-});
-*/
-
 import { expect } from 'chai';
-import { after } from 'lodash';
 import { default as IORedis } from 'ioredis';
-import { describe, beforeEach, it } from 'mocha';
+import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
+import { after } from 'lodash';
 
 describe('queues', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
 
   afterEach(async function () {
     sandbox.restore();
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   //TODO: restore this tests in next breaking change
@@ -113,6 +53,7 @@ describe('queues', function () {
         () =>
           new Queue('', {
             connection,
+            prefix,
           }),
       ).to.throw('Queue name must be provided');
     });
@@ -126,22 +67,22 @@ describe('queues', function () {
       for (let i = 1; i <= maxJobs; i++) {
         added.push(queue.add('test', { foo: 'bar', num: i }, { priority: i }));
       }
-
       await Promise.all(added);
+
       const count = await queue.count();
-      expect(count).to.be.eql(100);
+      expect(count).to.be.eql(maxJobs);
       const priorityCount = await queue.getJobCountByTypes('prioritized');
-      expect(priorityCount).to.be.eql(100);
+      expect(priorityCount).to.be.eql(maxJobs);
 
       await queue.drain();
       const countAfterEmpty = await queue.count();
       expect(countAfterEmpty).to.be.eql(0);
 
       const client = await queue.client;
-      const keys = await client.keys(`bull:${queue.name}:*`);
+      const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
       expect(keys.length).to.be.eql(4);
-    });
+    }).timeout(10000);
 
     describe('when having a flow', async () => {
       describe('when parent belongs to same queue', async () => {
@@ -150,7 +91,7 @@ describe('queues', function () {
             await queue.waitUntilReady();
             const name = 'child-job';
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             await flow.add({
               name: 'parent-job',
               queueName,
@@ -168,7 +109,7 @@ describe('queues', function () {
             await queue.drain();
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).to.be.eql(3);
 
@@ -184,7 +125,7 @@ describe('queues', function () {
             await queue.waitUntilReady();
             const name = 'child-job';
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             await flow.add({
               name: 'parent-job',
               queueName,
@@ -198,7 +139,7 @@ describe('queues', function () {
             await queue.drain();
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).to.be.eql(3);
 
@@ -213,11 +154,14 @@ describe('queues', function () {
           it('keeps parent in waiting-children', async () => {
             await queue.waitUntilReady();
             const childrenQueueName = `test-${v4()}`;
-            const childrenQueue = new Queue(childrenQueueName, { connection });
+            const childrenQueue = new Queue(childrenQueueName, {
+              connection,
+              prefix,
+            });
             await childrenQueue.waitUntilReady();
             const name = 'child-job';
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             await flow.add({
               name: 'parent-job',
               queueName,
@@ -237,7 +181,7 @@ describe('queues', function () {
             await queue.drain();
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).to.be.eql(6);
 
@@ -254,11 +198,14 @@ describe('queues', function () {
           it('deletes each children until trying to move parent to wait', async () => {
             await queue.waitUntilReady();
             const parentQueueName = `test-${v4()}`;
-            const parentQueue = new Queue(parentQueueName, { connection });
+            const parentQueue = new Queue(parentQueueName, {
+              connection,
+              prefix,
+            });
             await parentQueue.waitUntilReady();
             const name = 'child-job';
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             await flow.add({
               name: 'parent-job',
               queueName: parentQueueName,
@@ -276,7 +223,7 @@ describe('queues', function () {
             await queue.drain();
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).to.be.eql(3);
 
@@ -294,7 +241,7 @@ describe('queues', function () {
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(new IORedis(), parentQueueName);
+            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
           });
         });
 
@@ -302,11 +249,14 @@ describe('queues', function () {
           it('moves parent to wait to try to process it', async () => {
             await queue.waitUntilReady();
             const parentQueueName = `test-${v4()}`;
-            const parentQueue = new Queue(parentQueueName, { connection });
+            const parentQueue = new Queue(parentQueueName, {
+              connection,
+              prefix,
+            });
             await parentQueue.waitUntilReady();
             const name = 'child-job';
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             await flow.add({
               name: 'parent-job',
               queueName: parentQueueName,
@@ -320,7 +270,7 @@ describe('queues', function () {
             await queue.drain();
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             expect(keys.length).to.be.eql(3);
 
@@ -336,7 +286,7 @@ describe('queues', function () {
             expect(parentWaitCount).to.be.eql(1);
             await parentQueue.close();
             await flow.close();
-            await removeAllQueueData(new IORedis(), parentQueueName);
+            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
           });
         });
       });
@@ -421,16 +371,18 @@ describe('queues', function () {
   describe('.removeDeprecatedPriorityKey', () => {
     it('removes old priority key', async () => {
       const client = await queue.client;
-      await client.zadd(`bull:${queue.name}:priority`, 1, 'a');
-      await client.zadd(`bull:${queue.name}:priority`, 2, 'b');
+      await client.zadd(`${prefix}:${queue.name}:priority`, 1, 'a');
+      await client.zadd(`${prefix}:${queue.name}:priority`, 2, 'b');
 
-      const count = await client.zcard(`bull:${queue.name}:priority`);
+      const count = await client.zcard(`${prefix}:${queue.name}:priority`);
 
       expect(count).to.be.eql(2);
 
       await queue.removeDeprecatedPriorityKey();
 
-      const updatedCount = await client.zcard(`bull:${queue.name}:priority`);
+      const updatedCount = await client.zcard(
+        `${prefix}:${queue.name}:priority`,
+      );
 
       expect(updatedCount).to.be.eql(0);
     });
@@ -450,7 +402,7 @@ describe('queues', function () {
             throw new Error('failed');
           }
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -506,7 +458,7 @@ describe('queues', function () {
           async () => {
             await delay(25);
           },
-          { connection },
+          { connection, prefix },
         );
         await worker.waitUntilReady();
 
@@ -555,7 +507,7 @@ describe('queues', function () {
               throw new Error('failed');
             }
           },
-          { connection },
+          { connection, prefix },
         );
         await worker.waitUntilReady();
 
@@ -621,7 +573,7 @@ describe('queues', function () {
               throw new Error('failed');
             }
           },
-          { connection },
+          { connection, prefix },
         );
         await worker.waitUntilReady();
 
@@ -681,7 +633,7 @@ describe('queues', function () {
         async () => {
           await delay(10);
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
