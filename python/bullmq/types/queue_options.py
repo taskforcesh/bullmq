@@ -1,5 +1,5 @@
 
-from typing import TypedDict
+from typing import TypedDict, Any
 
 
 class QueueBaseOptions(TypedDict, total=False):
