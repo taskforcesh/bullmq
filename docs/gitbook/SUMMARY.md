@@ -60,6 +60,7 @@
 * [Process Step Jobs](patterns/process-step-jobs.md)
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
 * [Stop retrying jobs](patterns/stop-retrying-jobs.md)
+* [Timeout](patterns/timeout.md)
 
 ## BullMQ Pro
 

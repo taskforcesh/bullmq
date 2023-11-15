@@ -2577,13 +2577,11 @@ describe('workers', function () {
               setTimeout(() => {
                 timeoutReached = true;
               }, timeout);
-              console.log(step, timeoutReached, job.data.timeout);
               while (step !== Step.Finish) {
                 switch (step) {
                   case Step.Initial: {
                     await delay(1000);
                     if (timeoutReached) {
-                      console.log('reaached1');
                       throw new Error('Timeout');
                     }
                     await job.updateData({
