@@ -7,13 +7,8 @@
 * **job:** Set delay value on current job instance when it is retried (#2266) (python) ([`76e075f`](https://github.com/taskforcesh/bullmq/commit/76e075f54d5745b6cec3cb11305bf3110d963eae))
 
 ## v1.16.0 (2023-11-08)
-### Feature
-* **queue:** Improve clean to work iteratively ([#2260](https://github.com/taskforcesh/bullmq/issues/2260)) ([`0cfa66f`](https://github.com/taskforcesh/bullmq/commit/0cfa66fd0fa0dba9b3941f183cf6f06d8a4f281d))
-
 ### Fix
 * **backoff:** Fix builtin backoff type (#2265) [python] ([`76959eb`](https://github.com/taskforcesh/bullmq/commit/76959eb9d9495eb1b6d2d31fab93c8951b5d3b93))
-* **connection:** Move redis instance check to queue base ([`13a339a`](https://github.com/taskforcesh/bullmq/commit/13a339a730f46ff22acdd4a046e0d9c4b7d88679))
-* **connection:** Better handling of attached listeners ([`02474ad`](https://github.com/taskforcesh/bullmq/commit/02474ad59a7b340d7bb2a7415ae7a88e14200398))
 
 ## v1.15.4 (2023-11-05)
 ### Fix
@@ -22,27 +17,11 @@
 ## v1.15.3 (2023-11-05)
 ### Fix
 * **add-job:** Trim events when waiting-children event is published (#2262) (python) ([`198bf05`](https://github.com/taskforcesh/bullmq/commit/198bf05fa5a4e1ce50081296033a2e0f26ece498))
-* **worker:** Keep extending locks while closing workers ([#2259](https://github.com/taskforcesh/bullmq/issues/2259)) ([`c4d12ea`](https://github.com/taskforcesh/bullmq/commit/c4d12ea3a9837ffd7f58e2134796137c4181c3de))
-* **sandbox:** Do not return empty object result when it is undefined ([#2247](https://github.com/taskforcesh/bullmq/issues/2247)) ([`308db7f`](https://github.com/taskforcesh/bullmq/commit/308db7f58758a72b8abb272da8e92509813a2178))
-
-### Documentation
-* **job-ids:** Clarify separators (#2251) ref #2249 ([`8fa8b63`](https://github.com/taskforcesh/bullmq/commit/8fa8b63cf357a2a7a76b0ade50abba721b4828a0))
-* **repeatable:** Add example when removing repeatable jobs ([#2257](https://github.com/taskforcesh/bullmq/issues/2257)) ([`bc2d980`](https://github.com/taskforcesh/bullmq/commit/bc2d980e3409884a29220cd74cca3bbe5cacc9e6))
-* **retry:** Extend description ([#2164](https://github.com/taskforcesh/bullmq/issues/2164)) ([`07855ad`](https://github.com/taskforcesh/bullmq/commit/07855ad9c84e943b8300df26a2e0304c7535c391))
-* **bullmq-pro:** Update changelog with v6.6.1 ([`b026a3a`](https://github.com/taskforcesh/bullmq/commit/b026a3aef991aaa535cf77e0501e7ef68fa5b5b8))
-* **rate-limit:** Fix key typo in example ([#2240](https://github.com/taskforcesh/bullmq/issues/2240)) ([`a0455d4`](https://github.com/taskforcesh/bullmq/commit/a0455d422ff01aeb53091e55078284a8bff4a995))
-
-### Performance
-* **redis-connection:** Check redis version greater or equal than v6 only once ([#2252](https://github.com/taskforcesh/bullmq/issues/2252)) ([`a09b15a`](https://github.com/taskforcesh/bullmq/commit/a09b15af0d5dedfa83bce7130ee9094f3fb69e10))
 
 ## v1.15.2 (2023-10-18)
 ### Fix
 * **events:** Do not publish removed event on non-existent jobs ([#2227](https://github.com/taskforcesh/bullmq/issues/2227)) ([`c134606`](https://github.com/taskforcesh/bullmq/commit/c1346064c6cd9f93c59b184f150eac11d51c91b4))
 * **events:** Trim events when retrying a job ([#2224](https://github.com/taskforcesh/bullmq/issues/2224)) ([`1986b05`](https://github.com/taskforcesh/bullmq/commit/1986b05ac03fe4ee48861aa60caadcc9df8170a6))
-* **sandbox:** Update progress value on job instance (#2214) fixes #2213 ([`3d0f36a`](https://github.com/taskforcesh/bullmq/commit/3d0f36a134b7f5c6b6de26967c9d71bcfb346e72))
-
-### Documentation
-* **changelog:** Update multiple changelogs ([`d4683b3`](https://github.com/taskforcesh/bullmq/commit/d4683b324ce56a2209553e28a3d52ad08ee19695))
 
 ### Performance
 * **events:** Trim events when removing jobs (#2235) (python) ([`889815c`](https://github.com/taskforcesh/bullmq/commit/889815c412666e5fad8f32d2e3a2d41cf650f001))
