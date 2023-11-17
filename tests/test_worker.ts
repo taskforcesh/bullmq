@@ -1771,8 +1771,8 @@ describe('workers', function () {
 
               await delay(wait);
 
-              //We should not have 4 more in parallel.
-              //At the end, due to empty list, no new job will process, so nbProcessing will decrease.
+              // We should not have 4 more in parallel.
+              // At the end, due to empty list, no new job will process, so nbProcessing will decrease.
               expect(nbProcessing).to.be.eql(
                 Math.min(pendingMessageToProcess, 4),
               );
@@ -1788,6 +1788,7 @@ describe('workers', function () {
           },
           {
             connection,
+            prefix,
             concurrency: 4,
           },
         );
