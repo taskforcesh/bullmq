@@ -255,7 +255,7 @@ describe('Delayed jobs', function () {
           reject(err);
         }
 
-        await delay(500);
+        await delay(100);
       };
 
     const processing = new Promise<void>((resolve, reject) => {
