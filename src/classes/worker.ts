@@ -560,13 +560,15 @@ export class Worker<
 
       // Remove marker from active list.
       await client.lrem(this.keys.active, 1, jobId);
-    } else {
-      const [jobData, id, limitUntil, delayUntil] =
-        await this.scripts.moveToActive(client, token, jobId);
-      this.updateDelays(limitUntil, delayUntil);
-
-      return this.nextJobFromJobData(jobData, id, token);
+      if (this.blockUntil > 0) {
+        return;
+      }
     }
+    const [jobData, id, limitUntil, delayUntil] =
+      await this.scripts.moveToActive(client, token, jobId);
+    this.updateDelays(limitUntil, delayUntil);
+
+    return this.nextJobFromJobData(jobData, id, token);
   }
 
   private async waitForJob(bclient: RedisClient): Promise<string> {
