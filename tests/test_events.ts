@@ -309,7 +309,9 @@ describe('events', function () {
     });
 
     // Trigger error inside event handler (bar is undefined)
-    worker.once('completed', (job: any) => {});
+    worker.once('completed', (job: any) => {
+      console.log(job.bar.id);
+    });
 
     const error = new Promise<void>(resolve => {
       worker.once('error', () => {
