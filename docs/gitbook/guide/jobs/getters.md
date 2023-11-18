@@ -38,7 +38,16 @@ counts = await myQueue.getJobCounts('wait', 'completed', 'failed')
 {% endtab %}
 {% endtabs %}
 
-The available status are: _completed, failed, delayed, active, wait, waiting-children, prioritized, _paused_ and _repeat._
+The available status are:
+- _completed_,
+- _failed_,
+- _delayed_,
+- _active_,
+- _wait_,
+- _waiting-children_,
+- _prioritized_,
+- _paused_, and
+- _repeat_.
 
 #### Get Jobs
 

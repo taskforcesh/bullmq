@@ -1,6 +1,6 @@
 # Groups
 
-Groups allows you to use only one queue yet distribute the jobs among groups so that the jobs are processed one by one relative to the group they belong to.
+Groups allows you to use a single queue while distributing the jobs among groups so that the jobs are processed one by one relative to the group they belong to.
 
 For example, imagine that you have 1 queue for processing video transcoding for all your users, you may have thousands of users in your application. You need to offload the transcoding operation since it is lengthy and CPU consuming. If you have many users that want to transcode many files, then in a non-grouped queue one user could fill the queue with jobs and the rest of the users will need to wait for that user to complete all its jobs before their jobs get processed.
 
@@ -18,9 +18,9 @@ If you only use grouped jobs in a queue, the waiting jobs list will not grow, in
 There is no hard limit on the amount of groups that you can have, nor do they have any impact on performance. When a group is empty, the group itself does not consume any resources in Redis.
 {% endhint %}
 
-Another way to see groups is like "virtual" queues. So instead of having one queue per "user" you have a "virtual" queue per user so that all users get their jobs processed in a more predictable way.
+Another way to see groups is like "virtual" queues. So instead of having one queue per "user", you have a "virtual" queue per user so that all users get their jobs processed in a more predictable way.
 
-In order to use the group functionality just use the group property in the job options when adding a job:
+In order to use the group functionality, use the group property in the job options when adding a job:
 
 ```typescript
 import { QueuePro } from '@taskforcesh/bullmq-pro';
@@ -48,7 +48,7 @@ const job2 = await queue.add(
 );
 ```
 
-In order to process the jobs, just use a pro worker as you normally do with standard workers:
+In order to process the jobs, use a pro worker as you normally do with standard workers:
 
 ```typescript
 import { WorkerPro } from '@taskforcesh/bullmq-pro';

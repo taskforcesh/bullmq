@@ -14,7 +14,7 @@ export class AudioService {
 ```
 
 {% hint style="info" %}
-The **@InjectQueue()** decorator identifies the queue by its name, as provided in the **registerQueue()**.
+The **`@InjectQueue()`** decorator identifies the queue by its name, as provided in the **`registerQueue()`**.
 {% endhint %}
 
 Now, add a job by calling the queue's add() method.
@@ -43,10 +43,10 @@ export class FlowService {
 ```
 
 {% hint style="info" %}
-The **@InjectFlowProducer()** decorator identifies the flow producer by its name, as provided in the **registerFlowProducer()**.
+The **`@InjectFlowProducer()`** decorator identifies the flow producer by its `name`, as provided in the **`registerFlowProducer()`**.
 {% endhint %}
 
-Now, add a flow by calling the flow producer's add() method.
+Now, add a flow by calling the flow producer's `add()`` method.
 
 ```typescript
 const job = await this.fooFlowProducer.add({
