@@ -422,7 +422,7 @@ export class Worker<
           numTotal = asyncFifoQueue.numTotal();
 
           if (this.waiting && numTotal > 1) {
-            // We have a job waiting but we have some we could start processing already
+            // We have a job waiting but we have others that we could start processing already
             break;
           }
 
@@ -430,7 +430,7 @@ export class Worker<
           // to Redis in high concurrency scenarios.
           const job = await fetchedJob;
 
-          // No more jobs waiting but we have some that could start processing already
+          // No more jobs waiting but we have others that could start processing already
           if (!job && numTotal > 1) {
             break;
           }
@@ -572,8 +572,6 @@ export class Worker<
   }
 
   private async waitForJob(bclient: RedisClient): Promise<string> {
-    // I am not sure returning here this quick is a good idea, the main
-    // loop could stay looping at a very high speed and consume all CPU time.
     if (this.paused) {
       return;
     }
