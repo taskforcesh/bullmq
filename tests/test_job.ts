@@ -336,9 +336,12 @@ describe('Job', function () {
       );
       const delayedJobs = await queue.addBulk(jobsDataWithDelay);
 
+      const startTime = Date.now();
       // Remove all jobs
       await Promise.all(delayedJobs.map(job => job.remove()));
       await Promise.all(waitingJobs.map(job => job.remove()));
+
+      expect(Date.now() - startTime).to.be.lessThan(4000);
 
       const countJobs = await queue.getJobCountByTypes('waiting', 'delayed');
       expect(countJobs).to.be.equal(0);

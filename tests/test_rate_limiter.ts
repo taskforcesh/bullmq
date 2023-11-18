@@ -659,6 +659,7 @@ describe('Rate Limiter', function () {
 
   describe('when there are more added jobs than max limiter', () => {
     it('processes jobs as max limiter from the beginning', async function () {
+      const numJobs = 400;
       this.timeout(5000);
       let parallelJobs = 0;
 
@@ -685,10 +686,10 @@ describe('Rate Limiter', function () {
       });
 
       const allCompleted = new Promise(resolve => {
-        worker.on('completed', after(400, resolve));
+        worker.on('completed', after(numJobs, resolve));
       });
 
-      const jobs = Array(400)
+      const jobs = Array(numJobs)
         .fill('')
         .map((_, index) => {
           return {
@@ -707,6 +708,7 @@ describe('Rate Limiter', function () {
 
     describe('when rate limit is max 1', () => {
       it('processes jobs as max limiter from the beginning', async function () {
+        const numJobs = 5;
         this.timeout(5000);
         let parallelJobs = 0;
 
@@ -733,10 +735,10 @@ describe('Rate Limiter', function () {
         });
 
         const allCompleted = new Promise(resolve => {
-          worker.on('completed', after(5, resolve));
+          worker.on('completed', after(numJobs, resolve));
         });
 
-        const jobs = Array(5)
+        const jobs = Array(numJobs)
           .fill('')
           .map((_, index) => {
             return {
@@ -784,9 +786,9 @@ describe('Rate Limiter', function () {
       async job => {
         const { priority } = job.opts;
 
-        priorityBuckets[priority] = priorityBuckets[priority] - 1;
+        priorityBuckets[priority!] = priorityBuckets[priority!] - 1;
 
-        for (let p = 1; p < priority; p++) {
+        for (let p = 1; p < priority!; p++) {
           if (priorityBuckets[p] > 0) {
             const before = JSON.stringify(priorityBucketsBefore);
             const after = JSON.stringify(priorityBuckets);

@@ -499,7 +499,7 @@ describe('Cleaner', () => {
             async (job, token) => {
               if (job.name === 'child') {
                 await delay(100);
-                throw new Error('error');
+                throw new Error('forced child error');
               }
               let step = job.data.step;
               while (step !== Step.Finish) {
@@ -513,6 +513,7 @@ describe('Cleaner', () => {
                           id: job.id!,
                           queue: job.queueQualifiedName,
                         },
+                        removeDependencyOnFailure: true,
                       },
                     );
                     await delay(1000);
@@ -562,7 +563,7 @@ describe('Cleaner', () => {
           );
 
           await new Promise<void>(resolve => {
-            worker.on('failed', async () => {
+            worker.on('failed', async job => {
               await queue.clean(0, 0, 'failed');
               resolve();
             });
