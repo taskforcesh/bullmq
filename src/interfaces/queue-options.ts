@@ -17,11 +17,6 @@ export interface QueueBaseOptions {
   connection?: ConnectionOptions;
 
   /**
-   * Specify if the connection is shared.
-   */
-  sharedConnection?: boolean;
-
-  /**
    * Denotes commands should retry indefinitely.
    */
   blockingConnection?: boolean;
@@ -30,6 +25,12 @@ export interface QueueBaseOptions {
    * Prefix for all queue keys.
    */
   prefix?: string;
+
+  /**
+   * Avoid version validation to be greater or equal than v5.0.0.
+   * @defaultValue false
+   */
+  skipVersionCheck?: boolean;
 }
 
 /**

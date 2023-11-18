@@ -83,7 +83,7 @@ class Job:
         removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
         
         if not removed:
-            raise Exception(f"Could not remove job {self.id}")
+            raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
@@ -91,6 +91,7 @@ class Job:
 
         move_to_failed = False
         finished_on = 0
+        delay = 0
         command = 'moveToFailed'
 
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
@@ -106,7 +107,8 @@ class Job:
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
                         round(time.time() * 1000) + delay,
-                        token
+                        token,
+                        delay
                     )
 
                     await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
@@ -135,6 +137,9 @@ class Job:
 
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
+
+        if delay and type(delay) == int:
+            self.delay = delay
 
     async def saveStacktrace(self, pipe, err:str):
         stacktrace = traceback.format_exc()

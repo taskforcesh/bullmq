@@ -16,6 +16,10 @@ await myQueue.add(
 );
 ```
 
+{% hint style="warning" %}
+Jobs will be deleted regardless of their names.
+{% endhint %}
+
 ### Keep a certain number of jobs
 
 It is also possible to specify a maximum number of jobs to keep. A good practice is to keep a handful of completed jobs and a much larger value of failed jobs:

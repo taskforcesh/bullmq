@@ -52,6 +52,60 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close(force=True)
         await queue.close()
 
+    async def test_process_job_with_array_as_return_value(self):
+        queue = Queue(queueName)
+        data = {"foo": "bar"}
+        job = await queue.add("test-job", data, {"removeOnComplete": False})
+
+        async def process(job: Job, token: str):
+            print("Processing job", job)
+            return ['foo']
+
+        worker = Worker(queueName, process)
+
+        processing = Future()
+        worker.on("completed", lambda job, result: processing.set_result(None))
+
+        await processing
+
+        completedJob = await Job.fromId(queue, job.id)
+
+        self.assertEqual(completedJob.id, job.id)
+        self.assertEqual(completedJob.attemptsMade, 1)
+        self.assertEqual(completedJob.data, data)
+        self.assertEqual(completedJob.returnvalue, ['foo'])
+        self.assertNotEqual(completedJob.finishedOn, None)
+
+        await worker.close(force=True)
+        await queue.close()
+
+    async def test_process_job_with_boolean_as_return_value(self):
+        queue = Queue(queueName)
+        data = {"foo": "bar"}
+        job = await queue.add("test-job", data, {"removeOnComplete": False})
+
+        async def process(job: Job, token: str):
+            print("Processing job", job)
+            return True
+
+        worker = Worker(queueName, process)
+
+        processing = Future()
+        worker.on("completed", lambda job, result: processing.set_result(None))
+
+        await processing
+
+        completedJob = await Job.fromId(queue, job.id)
+
+        self.assertEqual(completedJob.id, job.id)
+        self.assertEqual(completedJob.attemptsMade, 1)
+        self.assertEqual(completedJob.data, data)
+        self.assertEqual(completedJob.returnvalue, True)
+        self.assertNotEqual(completedJob.finishedOn, None)
+
+        await worker.close(force=True)
+        await queue.close()
+
     async def test_process_jobs_fail(self):
         queue = Queue(queueName)
         data = {"foo": "bar"}
@@ -75,7 +129,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(failedJob.id, job.id)
         self.assertEqual(failedJob.attemptsMade, 1)
         self.assertEqual(failedJob.data, data)
-        self.assertEqual(failedJob.failedReason, failedReason)
+        self.assertEqual(failedJob.failedReason, f'"{failedReason}"')
         self.assertEqual(len(failedJob.stacktrace), 1)
         self.assertEqual(failedJob.returnvalue, None)
         self.assertNotEqual(failedJob.finishedOn, None)
@@ -155,6 +209,34 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker2.close(force=True)
         await queue.close()
 
+    async def test_retry_job_after_delay_with_fixed_backoff(self):
+        queue = Queue(queueName)
+
+        async def process1(job: Job, token: str):
+            if job.attemptsMade < 3:
+                raise Exception("Not yet!")
+            return None
+
+        worker = Worker(queueName, process1)
+
+        start = round(time.time() * 1000)
+        await queue.add("test", { "foo": "bar" },
+                {"attempts": 3, "backoff": {"type": "fixed", "delay": 1000}})
+
+        completed_events = Future()
+
+        def completing(job: Job, result):
+            elapse = round(time.time() * 1000) - start
+            self.assertGreater(elapse, 2000)
+            completed_events.set_result(None)
+
+        worker.on("completed", completing)
+
+        await completed_events
+
+        await queue.close()
+        await worker.close()
+        
     async def test_retry_job_after_delay_with_custom_backoff(self):
         queue = Queue(queueName)
 

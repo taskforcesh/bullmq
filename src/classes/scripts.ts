@@ -224,23 +224,21 @@ export class Scripts {
   }
 
   async updateProgress<T = any, R = any, N extends string = string>(
-    job: MinimalJob<T, R, N>,
+    jobId: string,
     progress: number | object,
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const keys = [this.queue.toKey(job.id), this.queue.keys.events];
+    const keys = [this.queue.toKey(jobId), this.queue.keys.events];
     const progressJson = JSON.stringify(progress);
 
     const result = await (<any>client).updateProgress(
-      keys.concat([job.id, progressJson]),
+      keys.concat([jobId, progressJson]),
     );
 
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'updateProgress');
+      throw this.finishedErrors(result, jobId, 'updateProgress');
     }
-
-    this.queue.emit('progress', job, progress);
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
@@ -574,6 +572,7 @@ export class Scripts {
     jobId: string,
     timestamp: number,
     token: string,
+    delay: number,
   ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
@@ -609,6 +608,7 @@ export class Scripts {
       JSON.stringify(timestamp),
       jobId,
       token,
+      delay,
     ]);
   }
 
@@ -648,11 +648,12 @@ export class Scripts {
   async moveToDelayed(
     jobId: string,
     timestamp: number,
+    delay: number,
     token = '0',
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.moveToDelayedArgs(jobId, timestamp, token);
+    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
@@ -834,8 +835,7 @@ export class Scripts {
     }
   }
 
-  async moveToActive(token: string, jobId?: string) {
-    const client = await this.queue.client;
+  async moveToActive(client: RedisClient, token: string, jobId?: string) {
     const opts = this.queue.opts as WorkerOptions;
 
     const queueKeys = this.queue.keys;

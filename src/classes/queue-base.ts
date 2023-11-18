@@ -1,7 +1,12 @@
 import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
 import { MinimalQueue } from '../types';
-import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
+import {
+  delay,
+  DELAY_TIME_5,
+  isNotConnectionError,
+  isRedisInstance,
+} from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
@@ -20,6 +25,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   keys: KeysMap;
   closing: Promise<void> | undefined;
 
+  protected closed: boolean = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
   public readonly qualifiedName: string;
@@ -59,8 +65,9 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
     this.connection = new Connection(
       opts.connection,
-      opts.sharedConnection,
+      isRedisInstance(opts?.connection),
       opts.blockingConnection,
+      opts.skipVersionCheck,
     );
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
@@ -136,11 +143,12 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    *
    * @returns Closes the connection and returns a promise that resolves when the connection is closed.
    */
-  close(): Promise<void> {
+  async close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
     }
-    return this.closing;
+    await this.closing;
+    this.closed = true;
   }
 
   /**

@@ -106,7 +106,6 @@ export class Queue<
     super(
       name,
       {
-        sharedConnection: isRedisInstance(opts?.connection),
         blockingConnection: false,
         ...opts,
       },
@@ -314,7 +313,7 @@ export class Queue<
    *
    * @see removeRepeatableByKey
    *
-   * @param name -
+   * @param name - job name
    * @param repeatOpts -
    * @param jobId -
    * @returns
@@ -337,7 +336,7 @@ export class Queue<
    *
    * @see getRepeatableJobs
    *
-   * @param key - to the repeatable job.
+   * @param repeatJobKey - to the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
@@ -358,6 +357,36 @@ export class Queue<
    */
   remove(jobId: string, { removeChildren = true } = {}): Promise<number> {
     return this.scripts.remove(jobId, removeChildren);
+  }
+
+  /**
+   * Updates the given job's progress.
+   *
+   * @param jobId - The id of the job to update
+   * @param progress - number or object to be saved as progress.
+   */
+  async updateJobProgress(
+    jobId: string,
+    progress: number | object,
+  ): Promise<void> {
+    return this.scripts.updateProgress(jobId, progress);
+  }
+
+  /**
+   * Logs one row of job's log data.
+   *
+   * @param jobId - The job id to log against.
+   * @param logRow - string with log data to be logged.
+   * @param keepLogs - max number of log entries to keep (0 for unlimited).
+   *
+   * @returns The total number of log entries for this job so far.
+   */
+  async addJobLog(
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    return Job.addJobLog(this, jobId, logRow, keepLogs);
   }
 
   /**
@@ -393,14 +422,28 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    const jobs = await this.scripts.cleanJobsInSet(
-      type,
-      Date.now() - grace,
-      limit,
-    );
+    const maxCount = limit || Infinity;
+    const maxCountPerCall = Math.min(10000, maxCount);
+    const timestamp = Date.now() - grace;
+    let deletedCount = 0;
+    const deletedJobsIds: string[] = [];
 
-    this.emit('cleaned', jobs, type);
-    return jobs;
+    while (deletedCount < maxCount) {
+      const jobsIds = await this.scripts.cleanJobsInSet(
+        type,
+        timestamp,
+        maxCountPerCall,
+      );
+
+      this.emit('cleaned', jobsIds, type);
+      deletedCount += jobsIds.length;
+      deletedJobsIds.push(...jobsIds);
+
+      if (jobsIds.length < maxCountPerCall) {
+        break;
+      }
+    }
+    return deletedJobsIds;
   }
 
   /**

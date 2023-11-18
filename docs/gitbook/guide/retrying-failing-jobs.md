@@ -19,6 +19,10 @@ Often it is desirable to automatically retry failed jobs so that we do not give 
 
 BullMQ supports retries of failed jobs using back-off functions. It is possible to use the **built-in** backoff functions or provide **custom** ones. If you do not specify a back-off function, the jobs will be retried without delay as soon as they fail.
 
+{% hint style="info" %}
+Retried jobs will respect their priority when they are moved back to waiting state.
+{% endhint %}
+
 #### Built-in backoff strategies
 
 The current built-in backoff functions are "exponential" and "fixed".
@@ -81,6 +85,12 @@ const worker = new Worker('foo', async job => doSomeProcessing(), {
 });
 ```
 
+{% hint style="info" %}
+If your backoffStrategy returns 0, jobs will be moved at the end of our waiting list (priority 0) or moved back to prioritized state (priority > 0).
+
+If your backoffStrategy returns -1, jobs won't be retried, instead they will be moved to failed state.
+{% endhint %}
+
 You can then use your custom strategy when adding jobs:
 
 ```typescript
@@ -128,3 +138,7 @@ const worker = new Worker('foo', async job => doSomeProcessing(), {
   },
 });
 ```
+
+## Read more:
+
+- 💡 [Stop Retrying Jobs](../patterns/stop-retrying-jobs.md)

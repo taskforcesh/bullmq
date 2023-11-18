@@ -40,6 +40,8 @@
 * [Returning job data](guide/returning-job-data.md)
 * [Events](guide/events.md)
 * [QueueScheduler](guide/queuescheduler.md)
+* [Redis™ Compatibility](guide/redis-tm-compatibility/README.md)
+  * [Dragonfly](guide/redis-tm-compatibility/dragonfly.md)
 * [Architecture](guide/architecture.md)
 * [NestJs](guide/nestjs/README.md)
   * [Producers](guide/nestjs/producers.md)

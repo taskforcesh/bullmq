@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, times } from 'lodash';
-import { describe, beforeEach, it } from 'mocha';
+import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import {
@@ -15,20 +15,31 @@ import {
 } from '../src/classes';
 import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
-import { delay, removeAllQueueData } from '../src/utils';
+import {
+  delay,
+  isRedisVersionLowerThan,
+  removeAllQueueData,
+} from '../src/utils';
 
 describe('workers', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   const sandbox = sinon.createSandbox();
 
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
@@ -36,7 +47,11 @@ describe('workers', function () {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('when closing a worker', () => {
@@ -50,7 +65,7 @@ describe('workers', function () {
           await delay(3000);
           throw jobError;
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -84,7 +99,7 @@ describe('workers', function () {
           expect(job.data.foo).to.be.equal('bar');
           await delay(3000);
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -117,10 +132,11 @@ describe('workers', function () {
       const queueName2 = `test-${v4()}`;
 
       const connection = new IORedis({
-        host: 'localhost',
+        host: redisHost,
+        maxRetriesPerRequest: null,
       });
 
-      const queue1 = new Queue(queueName2, { connection });
+      const queue1 = new Queue(queueName2, { connection, prefix });
 
       let counter = 1;
       const maxJobs = 35;
@@ -141,7 +157,7 @@ describe('workers', function () {
         };
       });
 
-      const worker = new Worker(queueName2, processor, { connection });
+      const worker = new Worker(queueName2, processor, { connection, prefix });
       await worker.waitUntilReady();
 
       for (let i = 1; i <= maxJobs; i++) {
@@ -153,7 +169,7 @@ describe('workers', function () {
 
       await worker.close();
       await queue1.close();
-      await removeAllQueueData(new IORedis(), queueName2);
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
   });
 
@@ -174,7 +190,7 @@ describe('workers', function () {
             throw new Error('job failed');
           }
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -251,6 +267,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           ...(fail ? { removeOnFail: opts } : { removeOnComplete: opts }),
         },
       );
@@ -309,7 +326,7 @@ describe('workers', function () {
           expect(token).to.be.string;
           expect(job.data.foo).to.be.equal('bar');
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -344,6 +361,7 @@ describe('workers', function () {
     it('should remove a job after completed if the default job options specify removeOnComplete', async () => {
       const newQueue = new Queue(queueName, {
         connection,
+        prefix,
         defaultJobOptions: {
           removeOnComplete: true,
         },
@@ -354,7 +372,7 @@ describe('workers', function () {
         async job => {
           expect(job.data.foo).to.be.equal('bar');
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -407,6 +425,7 @@ describe('workers', function () {
 
       const newQueue = new Queue(queueName, {
         connection,
+        prefix,
         defaultJobOptions: {
           removeOnComplete: keepJobs,
         },
@@ -417,7 +436,7 @@ describe('workers', function () {
         async job => {
           await job.log('test log');
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -467,12 +486,13 @@ describe('workers', function () {
           expect(job.data.foo).to.be.equal('bar');
           throw Error('error');
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
       const newQueue = new Queue(queueName, {
         connection,
+        prefix,
         defaultJobOptions: {
           removeOnFail: true,
         },
@@ -510,12 +530,13 @@ describe('workers', function () {
           expect(job.data.foo).to.be.equal('bar');
           throw Error('error');
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
       const newQueue = new Queue(queueName, {
         connection,
+        prefix,
         defaultJobOptions: {
           removeOnFail: keepJobs,
         },
@@ -597,7 +618,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     await queue.pause();
@@ -620,10 +641,10 @@ describe('workers', function () {
     await worker.close();
   });
 
-  it('should processes jobs by priority', async () => {
-    const normalPriority = [];
-    const mediumPriority = [];
-    const highPriority = [];
+  it('should process jobs by priority', async () => {
+    const normalPriority: Promise<Job>[] = [];
+    const mediumPriority: Promise<Job>[] = [];
+    const highPriority: Promise<Job>[] = [];
 
     let processor;
 
@@ -662,7 +683,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     // wait for all jobs to enter the queue and then start processing
@@ -671,6 +692,40 @@ describe('workers', function () {
     await processing;
 
     await worker.close();
+  });
+
+  describe('when prioritized job is added while processing last active job', () => {
+    it('should process prioritized job whithout delay', async function () {
+      this.timeout(1000);
+      await queue.add('test1', { p: 2 }, { priority: 2 });
+      let counter = 0;
+      let processor;
+      const processing = new Promise<void>((resolve, reject) => {
+        processor = async (job: Job) => {
+          try {
+            if (job.name == 'test1') {
+              await queue.add('test', { p: 2 }, { priority: 2 });
+            }
+
+            expect(job.id).to.be.ok;
+            expect(job.data.p).to.be.eql(2);
+          } catch (err) {
+            reject(err);
+          }
+
+          if (++counter === 2) {
+            resolve();
+          }
+        };
+      });
+
+      const worker = new Worker(queueName, processor, { connection, prefix });
+      await worker.waitUntilReady();
+
+      await processing;
+
+      await worker.close();
+    });
   });
 
   it('process several jobs serially', async () => {
@@ -693,7 +748,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     for (let i = 1; i <= maxJobs; i++) {
@@ -708,12 +763,18 @@ describe('workers', function () {
 
   describe('when sharing a redis connection between workers', function () {
     it('should not close the connection', async () => {
-      const connection = new IORedis();
+      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
 
       return new Promise((resolve, reject) => {
         connection.on('ready', async () => {
-          const worker1 = new Worker('test-shared', null, { connection });
-          const worker2 = new Worker('test-shared', null, { connection });
+          const worker1 = new Worker('test-shared', null, {
+            connection,
+            prefix,
+          });
+          const worker2 = new Worker('test-shared', null, {
+            connection,
+            prefix,
+          });
 
           try {
             // There is no point into checking the ready status after closing
@@ -735,18 +796,19 @@ describe('workers', function () {
     });
 
     it('should not close the connection', async () => {
-      const connection = new IORedis();
+      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
       const queueName2 = `test-shared-${v4()}`;
 
       const queue2 = new Queue(queueName2, {
         defaultJobOptions: { removeOnComplete: true },
         connection,
+        prefix,
       });
 
       await new Promise<void>((resolve, reject) => {
         connection.on('ready', async () => {
-          const worker1 = new Worker(queueName2, null, { connection });
-          const worker2 = new Worker(queueName2, null, { connection });
+          const worker1 = new Worker(queueName2, null, { connection, prefix });
+          const worker2 = new Worker(queueName2, null, { connection, prefix });
 
           try {
             // There is no point into checking the ready status after closing
@@ -767,7 +829,7 @@ describe('workers', function () {
       });
 
       await queue2.close();
-      await removeAllQueueData(new IORedis(), queueName2);
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
   });
 
@@ -795,6 +857,7 @@ describe('workers', function () {
       const worker = new Worker(queueName, processor, {
         autorun: false,
         connection,
+        prefix,
       });
       await worker.waitUntilReady();
 
@@ -813,6 +876,7 @@ describe('workers', function () {
         const worker = new Worker(queueName, undefined, {
           autorun: false,
           connection,
+          prefix,
         });
         await worker.waitUntilReady();
 
@@ -830,6 +894,7 @@ describe('workers', function () {
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection,
+          prefix,
         });
         await worker.waitUntilReady();
         worker.run();
@@ -871,7 +936,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     await processing;
@@ -903,7 +968,7 @@ describe('workers', function () {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     await processing;
@@ -921,7 +986,10 @@ describe('workers', function () {
 
     await Promise.all(jobs);
 
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
     await worker.waitUntilReady();
 
     await new Promise(resolve => {
@@ -939,7 +1007,7 @@ describe('workers', function () {
         expect(job.data.foo).to.be.equal('bar');
         return 37;
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -973,7 +1041,7 @@ describe('workers', function () {
       async () => {
         return testString;
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1006,7 +1074,7 @@ describe('workers', function () {
         expect(job.data.foo).to.be.equal('bar');
         return 37;
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1044,7 +1112,7 @@ describe('workers', function () {
         await delay(250);
         return 'my data';
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1069,7 +1137,7 @@ describe('workers', function () {
       async job => {
         expect(job.data.foo).to.be.equal('bar');
       },
-      { connection },
+      { connection, prefix },
     );
 
     await worker.waitUntilReady();
@@ -1102,7 +1170,7 @@ describe('workers', function () {
         }
         await delay(500);
       },
-      { connection },
+      { connection, prefix },
     );
 
     await worker.waitUntilReady();
@@ -1116,7 +1184,7 @@ describe('workers', function () {
           'The second queue should not have received a job to process',
         );
       },
-      { connection },
+      { connection, prefix },
     );
 
     worker.on('completed', async () => {
@@ -1140,7 +1208,7 @@ describe('workers', function () {
         expect(job.data.foo).to.be.equal('bar');
         throw jobError;
       },
-      { autorun: false, connection },
+      { autorun: false, connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1173,7 +1241,7 @@ describe('workers', function () {
         circular.x = circular;
         return circular;
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1201,7 +1269,7 @@ describe('workers', function () {
         expect(job.data.foo).to.be.equal('bar');
         return Promise.reject(jobError);
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1236,7 +1304,7 @@ describe('workers', function () {
           throw notEvenErr;
         }
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1287,7 +1355,7 @@ describe('workers', function () {
         }
         return 2;
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1324,7 +1392,7 @@ describe('workers', function () {
         async () => {
           await delay(100);
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -1368,7 +1436,7 @@ describe('workers', function () {
           throw notEvenErr;
         }
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -1415,7 +1483,7 @@ describe('workers', function () {
 
     const concurrency = 57;
 
-    const lockKey = (jobId: string) => `bull:${queueName}:${jobId}:lock`;
+    const lockKey = (jobId: string) => `${prefix}:${queueName}:${jobId}:lock`;
     const client = await queue.client;
 
     let worker;
@@ -1447,6 +1515,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           lockDuration: 250,
           concurrency,
         },
@@ -1476,6 +1545,7 @@ describe('workers', function () {
       },
       {
         connection,
+        prefix,
         lockDuration: 1000,
         lockRenewTime: 3000, // The lock will not be updated in time
       },
@@ -1505,18 +1575,19 @@ describe('workers', function () {
     this.timeout(10000);
 
     const connection = new IORedis({
-      host: 'localhost',
+      host: redisHost,
       maxRetriesPerRequest: null,
     });
 
     const worker = new Worker(
       queueName,
       async job => {
-        connection.set(`bull:${queueName}:${job.id}:lock`, 'foo');
+        connection.set(`${prefix}:${queueName}:${job.id}:lock`, 'foo');
         return delay(2000);
       },
       {
         connection,
+        prefix,
       },
     );
     await worker.waitUntilReady();
@@ -1554,6 +1625,7 @@ describe('workers', function () {
       },
       {
         connection,
+        prefix,
         lockDuration: 1000,
         lockRenewTime: 3000, // The lock will not be updated
         stalledInterval: 100,
@@ -1573,14 +1645,49 @@ describe('workers', function () {
   });
 
   it('stalled interval cannot be zero', function () {
-    this.timeout(10000);
+    this.timeout(8000);
     expect(
       () =>
         new Worker(queueName, async () => {}, {
           connection,
+          prefix,
           stalledInterval: 0,
         }),
     ).to.throw('stalledInterval must be greater than 0');
+  });
+
+  it('lock extender continues to run until all active jobs are completed when closing a worker', async function () {
+    this.timeout(4000);
+    let worker;
+
+    const startProcessing = new Promise<void>(resolve => {
+      worker = new Worker(
+        queueName,
+        async () => {
+          resolve();
+          return delay(2000);
+        },
+        {
+          connection,
+          lockDuration: 1000,
+          lockRenewTime: 500,
+          stalledInterval: 1000,
+          prefix,
+        },
+      );
+    });
+
+    await queue.add('test', { bar: 'baz' });
+
+    const completed = new Promise((resolve, reject) => {
+      worker.on('completed', resolve);
+      worker.on('failed', reject);
+    });
+
+    await startProcessing;
+    await worker.close();
+
+    await completed;
   });
 
   describe('Concurrency process', () => {
@@ -1588,12 +1695,28 @@ describe('workers', function () {
       try {
         const worker = new Worker(queueName, async () => {}, {
           connection,
+          prefix,
           concurrency: 0,
         });
         throw new Error('Should have thrown an exception');
       } catch (err) {
         expect(err.message).to.be.equal(
-          'concurrency must be a number greater than 0',
+          'concurrency must be a finite number greater than 0',
+        );
+      }
+    });
+
+    it('should thrown an exception if I specify a NaN concurrency', () => {
+      try {
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+          concurrency: NaN,
+        });
+        throw new Error('Should have thrown an exception');
+      } catch (err) {
+        expect(err.message).to.be.equal(
+          'concurrency must be a finite number greater than 0',
         );
       }
     });
@@ -1611,6 +1734,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           concurrency: 1,
         },
       );
@@ -1633,43 +1757,47 @@ describe('workers', function () {
       let nbProcessing = 0;
       let pendingMessageToProcess = 8;
       let wait = 10;
+      let worker;
 
-      const worker = new Worker(
-        queueName,
-        async () => {
-          try {
-            nbProcessing++;
-            expect(nbProcessing).to.be.lessThan(5);
+      const processing = new Promise<void>((resolve, reject) => {
+        worker = new Worker(
+          queueName,
+          async () => {
+            try {
+              nbProcessing++;
+              expect(nbProcessing).to.be.lessThan(5);
 
-            wait += 100;
+              wait += 100;
 
-            await delay(wait);
-            //We should not have 4 more in parallel.
-            //At the end, due to empty list, no new job will process, so nbProcessing will decrease.
-            expect(nbProcessing).to.be.eql(
-              Math.min(pendingMessageToProcess, 4),
-            );
-            pendingMessageToProcess--;
-            nbProcessing--;
-          } catch (err) {
-            console.error(err);
-          }
-        },
-        {
-          connection,
-          concurrency: 4,
-        },
-      );
-      await worker.waitUntilReady();
+              await delay(wait);
 
-      const waiting = new Promise((resolve, reject) => {
-        worker.on('completed', after(8, resolve));
-        worker.on('failed', reject);
+              // We should not have 4 more in parallel.
+              // At the end, due to empty list, no new job will process, so nbProcessing will decrease.
+              expect(nbProcessing).to.be.eql(
+                Math.min(pendingMessageToProcess, 4),
+              );
+              pendingMessageToProcess--;
+              nbProcessing--;
+
+              if (pendingMessageToProcess == 0) {
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          },
+          {
+            connection,
+            prefix,
+            concurrency: 4,
+          },
+        );
       });
+      await worker.waitUntilReady();
 
       await Promise.all(times(8, () => queue.add('test', {})));
 
-      await waiting;
+      await processing;
       await worker.close();
     });
 
@@ -1712,6 +1840,7 @@ describe('workers', function () {
             },
             {
               connection,
+              prefix,
               concurrency: 4,
             },
           );
@@ -1779,6 +1908,7 @@ describe('workers', function () {
             },
             {
               connection,
+              prefix,
               concurrency: 4,
             },
           );
@@ -1846,6 +1976,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           concurrency: 4,
         },
       );
@@ -1866,6 +1997,36 @@ describe('workers', function () {
   });
 
   describe('Retries and backoffs', () => {
+    it("updates job's delay property if it fails and backoff is set", async () => {
+      const worker = new Worker(
+        queueName,
+        async () => {
+          throw new Error('error');
+        },
+        { connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      await queue.add('test', { bar: 'baz' }, { attempts: 3, backoff: 300 });
+
+      const failed = new Promise<void>((resolve, reject) => {
+        worker.once('failed', async job => {
+          try {
+            expect(job?.delay).to.be.eql(300);
+            const gotJob = await queue.getJob(job.id!);
+            expect(gotJob!.delay).to.be.eql(300);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await failed;
+
+      await worker.close();
+    });
+
     it('deletes token after moving jobs to delayed', async function () {
       const worker = new Worker(
         queueName,
@@ -1877,6 +2038,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           lockDuration: 10000,
           lockRenewTime: 3000, // The lock will not be updated
         },
@@ -1892,7 +2054,7 @@ describe('workers', function () {
       );
 
       worker.on('failed', async () => {
-        const token = await client.get(`bull:${queueName}:${job.id}:lock`);
+        const token = await client.get(`${prefix}:${queueName}:${job.id}:lock`);
         expect(token).to.be.null;
       });
 
@@ -1904,11 +2066,57 @@ describe('workers', function () {
 
       await workerCompleted;
 
-      const token = await client.get(`bull:${queueName}:${job.id}:lock`);
+      const token = await client.get(`${prefix}:${queueName}:${job.id}:lock`);
 
       expect(token).to.be.null;
 
       await worker.close();
+    });
+
+    describe('when backoff type is exponential', () => {
+      it("updates job's delay property if it fails and backoff is set", async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(100);
+            throw new Error('error');
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        await queue.add(
+          'test',
+          { bar: 'baz' },
+          {
+            attempts: 3,
+            backoff: {
+              type: 'exponential',
+              delay: 200,
+            },
+          },
+        );
+
+        const failed = new Promise<void>((resolve, reject) => {
+          worker.on('failed', async job => {
+            try {
+              const attemptsMade = job?.attemptsMade;
+              if (attemptsMade! > 2) {
+                expect(job!.delay).to.be.eql(0);
+                const gotJob = await queue.getJob(job.id!);
+                expect(gotJob!.delay).to.be.eql(0);
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        await failed;
+
+        await worker.close();
+      });
     });
 
     describe('when attempts is 1 and job fails', () => {
@@ -1918,7 +2126,7 @@ describe('workers', function () {
           async () => {
             throw new Error('failed');
           },
-          { connection },
+          { connection, prefix },
         );
 
         await worker.waitUntilReady();
@@ -1952,7 +2160,10 @@ describe('workers', function () {
 
     describe('when jobs do not fail and get the maximum attempts limit', () => {
       it('does not emit retries-exhausted event', async () => {
-        const worker = new Worker(queueName, async () => {}, { connection });
+        const worker = new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+        });
 
         await worker.waitUntilReady();
 
@@ -1996,7 +2207,7 @@ describe('workers', function () {
             job.discard();
             throw new Error('unrecoverable error');
           },
-          { connection },
+          { connection, prefix },
         );
 
         await worker.waitUntilReady();
@@ -2033,7 +2244,7 @@ describe('workers', function () {
             throw new Error('Not yet!');
           }
         },
-        { connection },
+        { connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -2070,7 +2281,7 @@ describe('workers', function () {
                 throw new Error('Not yet!');
               }
             },
-            { connection },
+            { connection, prefix },
           );
 
           await worker.waitUntilReady();
@@ -2119,7 +2330,7 @@ describe('workers', function () {
                 throw new Error('Not yet!');
               }
             },
-            { connection },
+            { connection, prefix },
           );
 
           await worker.waitUntilReady();
@@ -2167,7 +2378,7 @@ describe('workers', function () {
           }
           expect(job.attemptsMade).to.be.eql(tries);
         },
-        { connection },
+        { connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -2208,7 +2419,7 @@ describe('workers', function () {
             throw new Error('Not yet!');
           }
         },
-        { connection },
+        { connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -2248,7 +2459,7 @@ describe('workers', function () {
               throw new UnrecoverableError('Unrecoverable');
             }
           },
-          { connection },
+          { connection, prefix },
         );
 
         await worker.waitUntilReady();
@@ -2324,7 +2535,7 @@ describe('workers', function () {
               }
             }
           },
-          { connection },
+          { connection, prefix },
         );
 
         await worker.waitUntilReady();
@@ -2350,6 +2561,86 @@ describe('workers', function () {
         });
 
         await worker.close();
+      });
+
+      describe('when timeout is provided', () => {
+        it('should check if timeout is reached in each step', async function () {
+          enum Step {
+            Initial,
+            Second,
+            Finish,
+          }
+
+          const worker = new Worker(
+            queueName,
+            async job => {
+              let { step, timeout } = job.data;
+              let timeoutReached = false;
+
+              setTimeout(() => {
+                timeoutReached = true;
+              }, timeout);
+              while (step !== Step.Finish) {
+                switch (step) {
+                  case Step.Initial: {
+                    await delay(1000);
+                    if (timeoutReached) {
+                      throw new Error('Timeout');
+                    }
+                    await job.updateData({
+                      step: Step.Second,
+                      timeout,
+                    });
+                    step = Step.Second;
+                    break;
+                  }
+                  case Step.Second: {
+                    await delay(1000);
+                    if (timeoutReached) {
+                      throw new Error('Timeout');
+                    }
+                    await job.updateData({
+                      step: Step.Finish,
+                      timeout,
+                    });
+                    step = Step.Finish;
+                    return Step.Finish;
+                  }
+                  default: {
+                    throw new Error('invalid step');
+                  }
+                }
+              }
+            },
+            { connection, prefix },
+          );
+
+          await worker.waitUntilReady();
+
+          const start = Date.now();
+          await queue.add(
+            'test',
+            { step: Step.Initial, timeout: 1500 },
+            {
+              attempts: 3,
+              backoff: 500,
+            },
+          );
+
+          await new Promise<void>(resolve => {
+            worker.on('completed', job => {
+              const elapse = Date.now() - start;
+              expect(elapse).to.be.greaterThan(3000);
+              expect(elapse).to.be.lessThan(4000);
+              expect(job.failedReason).to.be.eql('Timeout');
+              expect(job.returnvalue).to.be.eql(Step.Finish);
+              expect(job.attemptsMade).to.be.eql(2);
+              resolve();
+            });
+          });
+
+          await worker.close();
+        });
       });
 
       describe('when moving job to delayed in one step', () => {
@@ -2388,7 +2679,7 @@ describe('workers', function () {
                 }
               }
             },
-            { connection },
+            { connection, prefix },
           );
 
           await worker.waitUntilReady();
@@ -2418,7 +2709,10 @@ describe('workers', function () {
         it('should wait children as one step of the parent job', async function () {
           this.timeout(8000);
           const parentQueueName = `parent-queue-${v4()}`;
-          const parentQueue = new Queue(parentQueueName, { connection });
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
 
           enum Step {
             Initial,
@@ -2459,7 +2753,7 @@ describe('workers', function () {
                       {
                         parent: {
                           id: job.id,
-                          queue: `bull:${parentQueueName}`,
+                          queue: `${prefix}:${parentQueueName}`,
                         },
                       },
                     );
@@ -2488,7 +2782,7 @@ describe('workers', function () {
                 }
               }
             },
-            { connection },
+            { connection, prefix },
           );
           const childrenWorker = new Worker(
             queueName,
@@ -2497,6 +2791,7 @@ describe('workers', function () {
             },
             {
               connection,
+              prefix,
             },
           );
           await childrenWorker.waitUntilReady();
@@ -2540,7 +2835,7 @@ describe('workers', function () {
             throw new Error('Not yet!');
           }
         },
-        { connection },
+        { connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -2582,6 +2877,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           settings: {
             backoffStrategy: (attemptsMade: number) => {
               return attemptsMade * 1000;
@@ -2628,6 +2924,7 @@ describe('workers', function () {
           },
           {
             connection,
+            prefix,
             settings: {
               backoffStrategy: (
                 attemptsMade: number,
@@ -2709,6 +3006,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           settings: {
             backoffStrategy: () => {
               return -1;
@@ -2756,6 +3054,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           settings: {
             backoffStrategy: (
               attemptsMade: number,
@@ -2813,6 +3112,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           settings: {
             backoffStrategy: async (
               attemptsMade: number,
@@ -2867,6 +3167,7 @@ describe('workers', function () {
         },
         {
           connection,
+          prefix,
           settings: {
             backoffStrategy: async () => {
               await delay(500);
@@ -2910,7 +3211,7 @@ describe('workers', function () {
             throw failedError;
           }
         },
-        { connection },
+        { connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -2965,7 +3266,7 @@ describe('workers', function () {
             throw failedError;
           }
         },
-        { connection },
+        { connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -3017,7 +3318,7 @@ describe('workers', function () {
             throw failedError;
           }
         },
-        { connection },
+        { connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -3069,7 +3370,7 @@ describe('workers', function () {
         async () => {
           await delay(500);
         },
-        { connection },
+        { connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -3121,7 +3422,7 @@ describe('workers', function () {
 
   describe('Manually process jobs', () => {
     it('should allow to complete jobs manually', async () => {
-      const worker = new Worker(queueName, void 0, { connection });
+      const worker = new Worker(queueName, void 0, { connection, prefix });
       const token = 'my-token';
 
       await queue.add('test', { foo: 'bar' });
@@ -3154,9 +3455,15 @@ describe('workers', function () {
 
         const parentQueueName = `parent-queue-${v4()}`;
 
-        const parentQueue = new Queue(parentQueueName, { connection });
-        const parentWorker = new Worker(parentQueueName, null, { connection });
-        const childrenWorker = new Worker(queueName, null, { connection });
+        const parentQueue = new Queue(parentQueueName, { connection, prefix });
+        const parentWorker = new Worker(parentQueueName, null, {
+          connection,
+          prefix,
+        });
+        const childrenWorker = new Worker(queueName, null, {
+          connection,
+          prefix,
+        });
 
         const data = { foo: 'bar' };
         await Job.create(parentQueue, 'testDepend', data);
@@ -3168,19 +3475,19 @@ describe('workers', function () {
         await Job.create(queue, 'testJob1', values[0], {
           parent: {
             id: parent.id,
-            queue: 'bull:' + parentQueueName,
+            queue: `${prefix}:${parentQueueName}`,
           },
         });
         await Job.create(queue, 'testJob2', values[1], {
           parent: {
             id: parent.id,
-            queue: 'bull:' + parentQueueName,
+            queue: `${prefix}:${parentQueueName}`,
           },
         });
         await Job.create(queue, 'testJob3', values[2], {
           parent: {
             id: parent.id,
-            queue: 'bull:' + parentQueueName,
+            queue: `${prefix}:${parentQueueName}`,
           },
         });
         const { unprocessed: unprocessed1 } = await parent.getDependencies();
@@ -3202,15 +3509,17 @@ describe('workers', function () {
           {
             child: {
               id: child3.id,
-              queue: 'bull:' + queueName,
+              queue: `${prefix}:${queueName}`,
             },
           },
         );
 
-        const token = await client.get(`bull:${queueName}:${parent.id}:lock`);
+        const token = await client.get(
+          `${prefix}:${queueName}:${parent.id}:lock`,
+        );
         expect(token).to.be.null;
         expect(processed2).to.deep.equal({
-          [`bull:${queueName}:${child1.id}`]: 'return value1',
+          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
         });
         expect(unprocessed2).to.have.length(2);
         expect(movedToWaitingChildren).to.be.true;
@@ -3227,8 +3536,8 @@ describe('workers', function () {
           await parent.getDependenciesCount();
 
         expect(processed3).to.deep.equal({
-          [`bull:${queueName}:${child1.id}`]: 'return value1',
-          [`bull:${queueName}:${child2.id}`]: 'return value2',
+          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
+          [`${prefix}:${queueName}:${child2.id}`]: 'return value2',
         });
         expect(processedCount).to.be.equal(2);
         expect(unprocessed3).to.have.length(1);
@@ -3252,9 +3561,9 @@ describe('workers', function () {
           await updatedParent.moveToWaitingChildren(parentToken2);
 
         expect(processed4).to.deep.equal({
-          [`bull:${queueName}:${child1.id}`]: 'return value1',
-          [`bull:${queueName}:${child2.id}`]: 'return value2',
-          [`bull:${queueName}:${child3.id}`]: 'return value3',
+          [`${prefix}:${queueName}:${child1.id}`]: 'return value1',
+          [`${prefix}:${queueName}:${child2.id}`]: 'return value2',
+          [`${prefix}:${queueName}:${child3.id}`]: 'return value3',
         });
         expect(unprocessed4).to.have.length(0);
         expect(movedToWaitingChildren2).to.be.false;
@@ -3263,7 +3572,7 @@ describe('workers', function () {
         await parentWorker.close();
 
         await parentQueue.close();
-        await removeAllQueueData(new IORedis(), parentQueueName);
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       });
 
       describe('when job is not in active state', () => {
@@ -3274,11 +3583,18 @@ describe('workers', function () {
 
           const parentQueueName = `parent-queue-${v4()}`;
 
-          const parentQueue = new Queue(parentQueueName, { connection });
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
           const parentWorker = new Worker(parentQueueName, null, {
             connection,
+            prefix,
           });
-          const childrenWorker = new Worker(queueName, null, { connection });
+          const childrenWorker = new Worker(queueName, null, {
+            connection,
+            prefix,
+          });
 
           const data = { foo: 'bar' };
           await Job.create(parentQueue, 'testDepend', data);
@@ -3291,7 +3607,7 @@ describe('workers', function () {
           await Job.create(queue, 'testJob1', values[0], {
             parent: {
               id: parent.id,
-              queue: 'bull:' + parentQueueName,
+              queue: `${prefix}:${parentQueueName}`,
             },
           });
           const { unprocessed: unprocessed1 } = await parent.getDependencies();
@@ -3306,7 +3622,7 @@ describe('workers', function () {
           await parent.moveToWaitingChildren(parentToken, {
             child: {
               id: child1.id,
-              queue: 'bull:' + queueName,
+              queue: `${prefix}:${queueName}`,
             },
           });
           const waitingChildren = await parentQueue.getWaitingChildren();
@@ -3319,7 +3635,7 @@ describe('workers', function () {
             parent.moveToWaitingChildren(parentToken, {
               child: {
                 id: child1.id,
-                queue: 'bull:' + queueName,
+                queue: `${prefix}:${queueName}`,
               },
             }),
           ).to.be.rejectedWith(
@@ -3330,7 +3646,7 @@ describe('workers', function () {
             parent.moveToWaitingChildren('0', {
               child: {
                 id: child1.id,
-                queue: 'bull:' + queueName,
+                queue: `${prefix}:${queueName}`,
               },
             }),
           ).to.be.rejectedWith(
@@ -3341,7 +3657,7 @@ describe('workers', function () {
           await parentWorker.close();
 
           await parentQueue.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
     });
@@ -3352,9 +3668,15 @@ describe('workers', function () {
 
       const parentQueueName = `parent-queue-${v4()}`;
 
-      const parentQueue = new Queue(parentQueueName, { connection });
-      const parentWorker = new Worker(parentQueueName, null, { connection });
-      const childrenWorker = new Worker(queueName, null, { connection });
+      const parentQueue = new Queue(parentQueueName, { connection, prefix });
+      const parentWorker = new Worker(parentQueueName, null, {
+        connection,
+        prefix,
+      });
+      const childrenWorker = new Worker(queueName, null, {
+        connection,
+        prefix,
+      });
 
       const data = { foo: 'bar' };
       await Job.create(parentQueue, 'parent', data);
@@ -3371,8 +3693,8 @@ describe('workers', function () {
             { idx: index, ...value },
             {
               parent: {
-                id: parent.id,
-                queue: 'bull:' + parentQueueName,
+                id: parent.id!,
+                queue: `${prefix}:${parentQueueName}`,
               },
             },
           );
@@ -3387,7 +3709,13 @@ describe('workers', function () {
           },
         });
 
-      expect(unprocessed1.length).to.be.greaterThanOrEqual(50);
+      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+        expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
+        expect(nextCursor1).to.not.be.equal(0);
+      } else {
+        expect(unprocessed1!.length).to.be.equal(65);
+        expect(nextCursor1).to.be.equal(0);
+      }
 
       const { nextUnprocessedCursor: nextCursor2, unprocessed: unprocessed2 } =
         await parent.getDependencies({
@@ -3397,18 +3725,52 @@ describe('workers', function () {
           },
         });
 
-      expect(unprocessed2.length).to.be.lessThanOrEqual(15);
+      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+        expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
+        expect(nextCursor2).to.be.equal(0);
+      } else {
+        expect(unprocessed2!.length).to.be.equal(65);
+        expect(nextCursor2).to.be.equal(0);
+      }
+
       expect(nextCursor2).to.be.equal(0);
+
+      await Promise.all(
+        Array.from(Array(64).keys()).map((index: number) => {
+          return Job.create(
+            queue,
+            `child${index}`,
+            { idx: index, ...value },
+            {
+              parent: {
+                id: parent.id!,
+                queue: `${prefix}:${parentQueueName}`,
+              },
+            },
+          );
+        }),
+      );
+
+      const { nextUnprocessedCursor: nextCursor3, unprocessed: unprocessed3 } =
+        await parent.getDependencies({
+          unprocessed: {
+            cursor: 0,
+            count: 50,
+          },
+        });
+
+      expect(unprocessed3!.length).to.be.greaterThanOrEqual(50);
+      expect(nextCursor3).to.not.be.equal(0);
 
       await childrenWorker.close();
       await parentWorker.close();
 
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(), parentQueueName);
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('should allow to fail jobs manually', async () => {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
 
       await queue.add('test', { foo: 'bar' });
@@ -3432,7 +3794,7 @@ describe('workers', function () {
 
   describe('non-blocking', async () => {
     it('should block by default', async () => {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
 
       // make sure worker is in drained state
@@ -3450,7 +3812,7 @@ describe('workers', function () {
     });
 
     it("shouldn't block when disabled", async () => {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
 
       // make sure worker is in drained state
@@ -3470,7 +3832,7 @@ describe('workers', function () {
     });
 
     it("shouldn't block when disabled and paused", async () => {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
 
       // make sure worker is in drained state
@@ -3499,7 +3861,7 @@ describe('workers', function () {
       async () => {
         return delay(100);
       },
-      { connection, stalledInterval: 10 },
+      { connection, prefix, stalledInterval: 10 },
     );
     await worker.waitUntilReady();
 
@@ -3507,7 +3869,7 @@ describe('workers', function () {
 
     const allStalled = new Promise<void>(resolve => {
       worker.once('completed', async () => {
-        const stalled = await client.scard(`bull:${queueName}:stalled`);
+        const stalled = await client.scard(`${prefix}:${queueName}:stalled`);
         expect(stalled).to.be.equal(0);
         resolve();
       });

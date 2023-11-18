@@ -1,23 +1,34 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
+import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
 import { Queue, Worker, Job } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 
 describe('bulk jobs', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   let queue: Queue;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  after(async function () {
+    await connection.quit();
   });
 
   it('should process jobs', async () => {
@@ -35,7 +46,7 @@ describe('bulk jobs', () => {
           }
         }),
     );
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     const jobs = await queue.addBulk([
@@ -56,10 +67,13 @@ describe('bulk jobs', () => {
   it('should allow to pass parent option', async () => {
     const name = 'test';
     const parentQueueName = `parent-queue-${v4()}`;
-    const parentQueue = new Queue(parentQueueName, { connection });
+    const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
-    const parentWorker = new Worker(parentQueueName, null, { connection });
-    const childrenWorker = new Worker(queueName, null, { connection });
+    const parentWorker = new Worker(parentQueueName, null, {
+      connection,
+      prefix,
+    });
+    const childrenWorker = new Worker(queueName, null, { connection, prefix });
     await parentWorker.waitUntilReady();
     await childrenWorker.waitUntilReady();
 
@@ -71,7 +85,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`,
+            queue: `${prefix}:${parentQueueName}`,
           },
         },
       },
@@ -81,7 +95,7 @@ describe('bulk jobs', () => {
         opts: {
           parent: {
             id: parent.id,
-            queue: `bull:${parentQueueName}`,
+            queue: `${prefix}:${parentQueueName}`,
           },
         },
       },
@@ -102,7 +116,7 @@ describe('bulk jobs', () => {
     await childrenWorker.close();
     await parentWorker.close();
     await parentQueue.close();
-    await removeAllQueueData(new IORedis(), parentQueueName);
+    await removeAllQueueData(new IORedis(redisHost), parentQueueName);
   });
 
   it('should process jobs with custom ids', async () => {
@@ -120,7 +134,7 @@ describe('bulk jobs', () => {
           }
         }),
     );
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
     await worker.waitUntilReady();
 
     const jobs = await queue.addBulk([

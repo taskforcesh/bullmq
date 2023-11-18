@@ -24,6 +24,6 @@ module.exports = function (job) {
       job.updateProgress(100);
     })
     .then(() => {
-      return 37;
+      return job.progress;
     });
 };

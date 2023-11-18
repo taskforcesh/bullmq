@@ -33,6 +33,7 @@ class Scripts:
         self.commands = {
             "addJob": self.redisClient.register_script(self.getScript("addJob-9.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-5.lua")),
+            "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
             "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")),
@@ -115,6 +116,17 @@ class Scripts:
         keys, args = self.addJobArgs(job, waiting_children_key)
 
         return self.commands["addJob"](keys=keys, args=args, client=pipe)
+
+    def cleanJobsInSetArgs(self, set: str, grace: int, limit:int = 0):
+        keys = [self.toKey(set),
+                self.keys['events']]
+        args = [self.keys[''], round(time.time() * 1000) - grace, limit, set]
+
+        return (keys, args)
+
+    def cleanJobsInSet(self, set: str, grace: int = 0, limit:int = 0):
+        keys, args = self.cleanJobsInSetArgs(set, grace, limit)
+        return self.commands["cleanJobsInSet"](keys=keys, args=args)
 
     def moveToWaitingChildrenArgs(self, job_id, token, opts):
         keys = [self.toKey(job_id) + ":lock",
@@ -206,7 +218,7 @@ class Scripts:
 
         return (keys, args)
 
-    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str):
+    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0):
         max_timestamp = max(0, timestamp or 0)
 
         if timestamp > 0:
@@ -219,12 +231,12 @@ class Scripts:
         keys.append(self.keys['meta'])
 
         args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
-            job_id, token]
+            job_id, token, delay]
 
         return (keys, args)
 
-    async def moveToDelayed(self, job_id: str, timestamp: int, token: str = "0"):
-        keys, args = self.moveToDelayedArgs(job_id, timestamp, token)
+    async def moveToDelayed(self, job_id: str, timestamp: int, delay: int, token: str = "0"):
+        keys, args = self.moveToDelayedArgs(job_id, timestamp, token, delay)
 
         result = await self.commands["moveToDelayed"](keys=keys, args=args)
 
@@ -379,7 +391,7 @@ class Scripts:
         return None
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
-        transformed_value = json.dumps(val, separators=(',', ':')) if type(val) == dict else val
+        transformed_value = json.dumps(val, separators=(',', ':'))
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 

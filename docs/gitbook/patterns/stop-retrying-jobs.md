@@ -44,6 +44,10 @@ const worker = new Worker(
   },
   {
     connection,
+    limiter: {
+      max: 1,
+      duration: 500,
+    },
   },
 );
 ```

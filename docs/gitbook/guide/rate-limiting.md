@@ -81,9 +81,17 @@ const worker = new Worker(
   },
   {
     connection,
+    limiter: {
+      max: 1,
+      duration: 500,
+    },
   },
 );
 ```
+
+{% hint style="warning" %}
+Don't forget to pass limiter options into your worker's options as _limiter.max_ is used to determine if we need to execute the rate limit validation.
+{% endhint %}
 
 ### Get Queue Rate Limit Ttl
 

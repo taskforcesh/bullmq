@@ -1,4 +1,5 @@
-import { JobJson, ParentCommand, SandboxedJob } from '../interfaces';
+import { ParentCommand } from '../enums';
+import { JobJson, SandboxedJob } from '../interfaces';
 import { errorToJSON } from '../utils';
 
 enum ChildStatus {
@@ -69,12 +70,11 @@ export class ChildProcessor {
     this.status = ChildStatus.Started;
     this.currentJobPromise = (async () => {
       try {
-        const job = wrapJob(jobJson, this.send);
-        //console.log('el token', token, job.id)
-        const result = (await this.processor(job, token)) || {};
+        const job = this.wrapJob(jobJson, this.send);
+        const result = await this.processor(job, token);
         await this.send({
           cmd: ParentCommand.Completed,
-          value: result,
+          value: typeof result === 'undefined' ? null : result,
         });
       } catch (err) {
         await this.send({
@@ -98,69 +98,65 @@ export class ChildProcessor {
       process.exit(process.exitCode || 0);
     }
   }
-}
 
-/**
- * Enhance the given job argument with some functions
- * that can be called from the sandboxed job processor.
- *
- * Note, the `job` argument is a JSON deserialized message
- * from the main node process to this forked child process,
- * the functions on the original job object are not in tact.
- * The wrapped job adds back some of those original functions.
- */
-function wrapJob(
-  job: JobJson,
-  send: (msg: any) => Promise<void>,
-): SandboxedJob {
-  let progressValue = job.progress;
-
-  const updateProgress = async (progress: number | object) => {
-    // Locally store reference to new progress value
-    // so that we can return it from this process synchronously.
-    progressValue = progress;
-    // Send message to update job progress.
-    await send({
-      cmd: ParentCommand.Progress,
-      value: progress,
-    });
-  };
-
-  return {
-    ...job,
-    data: JSON.parse(job.data || '{}'),
-    opts: job.opts,
-    returnValue: JSON.parse(job.returnvalue || '{}'),
-    /*
-     * Emulate the real job `updateProgress` function, should works as `progress` function.
-     */
-    updateProgress,
-    /*
-     * Emulate the real job `log` function.
-     */
-    log: async (row: any) => {
-      send({
-        cmd: ParentCommand.Log,
-        value: row,
-      });
-    },
-    /*
-     * Emulate the real job `moveToDelayed` function.
-     */
-    moveToDelayed: async (timestamp: number, token?: string) => {
-      send({
-        cmd: ParentCommand.MoveToDelayed,
-        value: { timestamp, token },
-      });
-    },
-    /*
-     * Emulate the real job `updateData` function.
-     */
-    updateData: async (data: any) => {
-      send({
-        cmd: ParentCommand.Update,
-        value: data,
-      });
-    },
-  };
+  /**
+   * Enhance the given job argument with some functions
+   * that can be called from the sandboxed job processor.
+   *
+   * Note, the `job` argument is a JSON deserialized message
+   * from the main node process to this forked child process,
+   * the functions on the original job object are not in tact.
+   * The wrapped job adds back some of those original functions.
+   */
+  protected wrapJob(
+    job: JobJson,
+    send: (msg: any) => Promise<void>,
+  ): SandboxedJob {
+    return {
+      ...job,
+      data: JSON.parse(job.data || '{}'),
+      opts: job.opts,
+      returnValue: JSON.parse(job.returnvalue || '{}'),
+      /*
+       * Emulate the real job `updateProgress` function, should works as `progress` function.
+       */
+      async updateProgress(progress: number | object) {
+        // Locally store reference to new progress value
+        // so that we can return it from this process synchronously.
+        this.progress = progress;
+        // Send message to update job progress.
+        await send({
+          cmd: ParentCommand.Progress,
+          value: progress,
+        });
+      },
+      /*
+       * Emulate the real job `log` function.
+       */
+      log: async (row: any) => {
+        send({
+          cmd: ParentCommand.Log,
+          value: row,
+        });
+      },
+      /*
+       * Emulate the real job `moveToDelayed` function.
+       */
+      moveToDelayed: async (timestamp: number, token?: string) => {
+        send({
+          cmd: ParentCommand.MoveToDelayed,
+          value: { timestamp, token },
+        });
+      },
+      /*
+       * Emulate the real job `updateData` function.
+       */
+      updateData: async (data: any) => {
+        send({
+          cmd: ParentCommand.Update,
+          value: data,
+        });
+      },
+    };
+  }
 }
