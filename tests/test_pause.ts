@@ -179,7 +179,7 @@ describe('Pause', function () {
     await worker.resume();
 
     await processPromise;
-    worker.close();
+    await worker.close();
   });
 
   it('should wait until active jobs are finished before resolving pause', async () => {

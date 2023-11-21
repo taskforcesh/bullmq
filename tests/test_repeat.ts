@@ -1289,7 +1289,7 @@ describe('repeat', function () {
         };
       });
 
-      const worker = new Worker(queueName, processor, { connection });
+      const worker = new Worker(queueName, processor, { connection, prefix });
       const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
       await worker.waitUntilReady();
 
