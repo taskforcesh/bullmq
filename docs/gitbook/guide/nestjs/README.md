@@ -4,7 +4,7 @@ There is a compatible module to be used in [NestJs](https://github.com/nestjs/ne
 npm i @nestjs/bullmq
 ```
 
-Once the installation process is complete, we can import the **BullModule** into the root **AppModule**.
+Once the installation process is complete, we can import the **`BullModule`** into the root **`AppModule`**.
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -23,7 +23,7 @@ import { BullModule } from '@nestjs/bullmq';
 export class AppModule {}
 ```
 
-To register a queue, import the **BullModule.registerQueue()** dynamic module, as follows:
+To register a queue, import the **`BullModule.registerQueue()`** dynamic module, as follows:
 
 ```typescript
 BullModule.registerQueue({
@@ -31,7 +31,7 @@ BullModule.registerQueue({
 });
 ```
 
-To register a flow producer, import the **BullModule.registerFlowProducer()** dynamic module, as follows:
+To register a flow producer, import the **`BullModule.registerFlowProducer()`** dynamic module, as follows:
 
 ```typescript
 BullModule.registerFlowProducer({
@@ -41,7 +41,7 @@ BullModule.registerFlowProducer({
 
 # Processor
 
-To register a processor, you may need to use **Processor** decorator:
+To register a processor, you may need to use the **`Processor`** decorator:
 
 ```typescript
 import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';

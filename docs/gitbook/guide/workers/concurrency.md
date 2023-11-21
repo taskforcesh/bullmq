@@ -34,7 +34,7 @@ worker.concurrency = 5;
 The other way to achieve concurrency is to provide multiple workers. This is the recommended way to setup bull anyway since besides providing concurrency it also provides higher availability for your workers. You can easily launch a fleet of workers running in many different machines in order to execute the jobs in parallel in a predictable and robust way.
 
 {% hint style="info" %}
-It is not possible to achieve a global concurrency of 1 job at once if you use more than one worker.
+It is not possible to achieve a global concurrency of at most 1 job at a time if you use more than one worker.
 {% endhint %}
 
-You still can \(and it is a perfectly good practice\), choose a high concurrency factor for every worker, so that the resources of every machine where the worker is running are used more efficiently.
+You can still \(and it is a perfectly good practice to\) choose a high concurrency factor for every worker, so that the resources of every machine where the worker is running are used more efficiently.

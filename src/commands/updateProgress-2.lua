@@ -4,10 +4,14 @@
   Input:
     KEYS[1] Job id key
     KEYS[2] event stream key
-  
+
     ARGV[1] id
     ARGV[2] progress
-    
+
+  Output:
+     0 - OK
+    -1 - Missing job.
+
   Event:
     progress(jobId, progress)
 ]]

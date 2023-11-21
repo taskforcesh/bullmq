@@ -12,16 +12,16 @@ have been ported so far:
 - [ ] Add jobs to queues.
 
   - [x] Regular jobs.
-  - [ ] Delayed jobs.
+  - [x] Delayed jobs.
   - [ ] Job priority.
   - [ ] Repeatable.
 
-- [ ] Workers
+- [x] Workers
 - [ ] Job events.
-- [ ] Job progress.
+- [x] Job progress.
 - [ ] Job retries.
-- [ ] Job backoff.
-- [ ] Getters.
+- [x] Job backoff.
+- [x] Getters.
 
 ## Installation
 

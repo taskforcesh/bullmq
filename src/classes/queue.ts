@@ -106,7 +106,6 @@ export class Queue<
     super(
       name,
       {
-        sharedConnection: isRedisInstance(opts?.connection),
         blockingConnection: false,
         ...opts,
       },
@@ -314,7 +313,7 @@ export class Queue<
    *
    * @see removeRepeatableByKey
    *
-   * @param name -
+   * @param name - job name
    * @param repeatOpts -
    * @param jobId -
    * @returns
@@ -337,7 +336,7 @@ export class Queue<
    *
    * @see getRepeatableJobs
    *
-   * @param key - to the repeatable job.
+   * @param repeatJobKey - to the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
@@ -352,11 +351,42 @@ export class Queue<
    * dependencies.
    *
    * @param jobId - The id of the job to remove
+   * @param opts - Options to remove a job
    * @returns 1 if it managed to remove the job or 0 if the job or
    * any of its dependencies were locked.
    */
-  remove(jobId: string): Promise<number> {
-    return this.scripts.remove(jobId);
+  remove(jobId: string, { removeChildren = true } = {}): Promise<number> {
+    return this.scripts.remove(jobId, removeChildren);
+  }
+
+  /**
+   * Updates the given job's progress.
+   *
+   * @param jobId - The id of the job to update
+   * @param progress - number or object to be saved as progress.
+   */
+  async updateJobProgress(
+    jobId: string,
+    progress: number | object,
+  ): Promise<void> {
+    return this.scripts.updateProgress(jobId, progress);
+  }
+
+  /**
+   * Logs one row of job's log data.
+   *
+   * @param jobId - The job id to log against.
+   * @param logRow - string with log data to be logged.
+   * @param keepLogs - max number of log entries to keep (0 for unlimited).
+   *
+   * @returns The total number of log entries for this job so far.
+   */
+  async addJobLog(
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    return Job.addJobLog(this, jobId, logRow, keepLogs);
   }
 
   /**
@@ -388,17 +418,32 @@ export class Queue<
       | 'wait'
       | 'active'
       | 'paused'
+      | 'prioritized'
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    const jobs = await this.scripts.cleanJobsInSet(
-      type,
-      Date.now() - grace,
-      limit,
-    );
+    const maxCount = limit || Infinity;
+    const maxCountPerCall = Math.min(10000, maxCount);
+    const timestamp = Date.now() - grace;
+    let deletedCount = 0;
+    const deletedJobsIds: string[] = [];
 
-    this.emit('cleaned', jobs, type);
-    return jobs;
+    while (deletedCount < maxCount) {
+      const jobsIds = await this.scripts.cleanJobsInSet(
+        type,
+        timestamp,
+        maxCountPerCall,
+      );
+
+      this.emit('cleaned', jobsIds, type);
+      deletedCount += jobsIds.length;
+      deletedJobsIds.push(...jobsIds);
+
+      if (jobsIds.length < maxCountPerCall) {
+        break;
+      }
+    }
+    return deletedJobsIds;
   }
 
   /**
@@ -428,8 +473,11 @@ export class Queue<
   /**
    * Retry all the failed jobs.
    *
-   * @param opts - contains number to limit how many jobs will be moved to wait status per iteration,
-   * state (failed, completed) failed by default or from which timestamp.
+   * @param opts: { count: number; state: FinishedStatus; timestamp: number}
+   *   - count  number to limit how many jobs will be moved to wait status per iteration,
+   *   - state  failed by default or completed.
+   *   - timestamp from which timestamp to start moving jobs to wait status, default Date.now().
+   *
    * @returns
    */
   async retryJobs(
@@ -446,6 +494,21 @@ export class Queue<
   }
 
   /**
+   * Promote all the delayed jobs.
+   *
+   * @param opts: { count: number }
+   *   - count  number to limit how many jobs will be moved to wait status per iteration
+   *
+   * @returns
+   */
+  async promoteJobs(opts: { count?: number } = {}): Promise<void> {
+    let cursor = 0;
+    do {
+      cursor = await this.scripts.promoteJobs(opts.count);
+    } while (cursor);
+  }
+
+  /**
    * Trim the event stream to an approximately maxLength.
    *
    * @param maxLength -
@@ -453,5 +516,13 @@ export class Queue<
   async trimEvents(maxLength: number): Promise<number> {
     const client = await this.client;
     return client.xtrim(this.keys.events, 'MAXLEN', '~', maxLength);
+  }
+
+  /**
+   * Delete old priority helper key.
+   */
+  async removeDeprecatedPriorityKey(): Promise<number> {
+    const client = await this.client;
+    return client.del(this.toKey('priority'));
   }
 }

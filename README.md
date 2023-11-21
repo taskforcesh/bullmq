@@ -38,7 +38,7 @@ You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
 # Official FrontEnd
 
-[<img src="http://taskforce.sh/assets/logo_square.png" width="200" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
+[<img src="http://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
 
 Supercharge your queues with a professional front end:
 
@@ -48,6 +48,32 @@ Supercharge your queues with a professional front end:
 - and many more features.
 
 Sign up at [Taskforce.sh](https://taskforce.sh)
+
+# 🚀 Sponsors 🚀
+
+<table cellspacing="0" cellpadding="0" border="0">
+  <tr>
+    <td>
+      <a href="https://www.dragonflydb.io/">
+        <img src="https://raw.githubusercontent.com/dragonflydb/dragonfly/main/.github/images/logo-full.svg" width=550 alt="Dragonfly" />
+      </a>
+    </td>
+    <td>
+      Dragonfly is a new Redis™ drop-in replacement that is fully compatible with BullMQ and brings some important advantages over Redis™ such as massive
+      better performance by utilizing all CPU cores available and faster and more memory efficient data structures. Read more <a href="https://www.dragonflydb.io/docs/integrations/bullmq">here</a> on how to use it with BullMQ.
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">
+        <img src="https://www.memetria.com/images/logo/memetria-logo.svg" width=350 alt="Memetria for Redis" />
+      </a>
+    </td>
+    <td>
+    If you need high quality production Redis instances for your BullMQ project, please consider subscribing to <a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">Memetria for Redis</a>, leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us sponsor the development of BullMQ!    
+    </td>
+  </tr>
+</table>
 
 # Used by
 
@@ -105,9 +131,9 @@ Some notable organizations using BullMQ:
       <td valign="center">
        <a href="https://novu.co">
         <img
-          src="https://super-static-assets.s3.amazonaws.com/1e9f5a51-c4c6-4fca-b6e8-25fa0186f139/images/4052d2f1-dc73-4421-984c-cdd02e989fdb.png"
+          src="https://assets.super.so/1e9f5a51-c4c6-4fca-b6e8-25fa0186f139/images/0f550019-16db-4a65-90d1-1bdb7d3c5f20/novu-logo-gradient-light-background2x.png"
           width="150"
-          alt="Curri"
+          alt="Novu"
         />
       </a>
     </td>
@@ -115,8 +141,8 @@ Some notable organizations using BullMQ:
       <td valign="center">
        <a href="https://www.nocodb.com">
         <img
-          src="https://www.nocodb.com/brand/logo-text.png"
-          width="150"
+          src="https://github.com/nocodb/nocodb/raw/develop/packages/nc-gui/assets/img/icons/512x512.png"
+          width="50"
           alt="NoCodeDB"
         />
       </a>
@@ -179,12 +205,13 @@ This is just scratching the surface, check all the features and more in the offi
 
 Since there are a few job queue solutions, here is a table comparing them:
 
-| Feature                   |   BullMQ-Pro    |     BullMQ      |      Bull       |  Kue  | Bee      | Agenda |
+| Feature                   |   [BullMQ-Pro](https://bullmq.io/#bullmq-pro)    |     [BullMQ](https://bullmq.io)      |      Bull       |  Kue  | Bee      | Agenda |
 | :------------------------ | :-------------: | :-------------: | :-------------: | :---: | -------- | ------ |
 | Backend                   |      redis      |      redis      |      redis      | redis | redis    | mongo  |
 | Observables               |        ✓        |                 |                 |       |          |        |
 | Group Rate Limit          |        ✓        |                 |                 |       |          |        |
 | Group Support             |        ✓        |                 |                 |       |          |        |
+| Batches Support           |        ✓        |                 |                 |       |          |        |
 | Parent/Child Dependencies |        ✓        |        ✓        |                 |       |          |        |
 | Priorities                |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
 | Concurrency               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
@@ -198,14 +225,6 @@ Since there are a few job queue solutions, here is a table comparing them:
 | Persistence               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
 | UI                        |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
 | Optimized for             | Jobs / Messages | Jobs / Messages | Jobs / Messages | Jobs  | Messages | Jobs   |
-
-# 🚀 Sponsor 🚀
-
-<a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">
-  <img src="https://www.memetria.com/images/logo/memetria-logo.svg" width=300 alt="Memetria for Redis" />
-</a>
-
-If you need high quality production Redis instances for your BullMQ project, please consider subscribing to [Memetria for Redis](https://dashboard.memetria.com/new?utm_campaign=BULLMQ), leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us sponsor the development of BullMQ!
 
 ## Contributing
 

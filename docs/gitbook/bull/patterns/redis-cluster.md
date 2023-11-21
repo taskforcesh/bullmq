@@ -12,6 +12,3 @@ const queue = new Queue('cluster', {
 
 If you use several queues in the same cluster, you should use different prefixes so that the queues are evenly placed in the cluster nodes.
 
-###
-
-\

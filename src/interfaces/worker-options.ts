@@ -128,6 +128,15 @@ export interface WorkerOptions extends QueueBaseOptions {
    * More advanced options.
    */
   settings?: AdvancedOptions;
+
+  /**
+   * Use Worker Threads instead of Child Processes.
+   * Note: This option can only be used when specifying
+   * a file for the processor argument.
+   *
+   * @default false
+   */
+  useWorkerThreads?: boolean;
 }
 
 export interface GetNextJobOptions {

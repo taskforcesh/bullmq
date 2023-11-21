@@ -2,6 +2,36 @@ import { expect } from 'chai';
 import { AsyncFifoQueue } from '../src/classes/async-fifo-queue';
 
 describe('AsyncFIFOQueue', () => {
+  it('empty queue', async () => {
+    const asyncFifoQueue = new AsyncFifoQueue<number>();
+
+    expect(asyncFifoQueue.numPending()).to.be.eql(0);
+    expect(asyncFifoQueue.numQueued()).to.be.eql(0);
+    expect(asyncFifoQueue.numTotal()).to.be.eql(0);
+
+    const result = await asyncFifoQueue.fetch();
+    expect(result).to.be.eql(undefined);
+  });
+
+  it('handles a promise that rejects', async () => {
+    const asyncFifoQueue = new AsyncFifoQueue<number>();
+
+    asyncFifoQueue.add(
+      new Promise<number>((resolve, reject) => {
+        setTimeout(() => reject(new Error('test')), 10);
+      }),
+    );
+
+    asyncFifoQueue.add(
+      new Promise<number>((resolve, reject) => {
+        setTimeout(() => resolve(42), 100);
+      }),
+    );
+
+    const result = await asyncFifoQueue.fetch();
+    expect(result).to.be.eql(42);
+  });
+
   it('add several promises and wait for them to complete', async () => {
     const asyncFifoQueue = new AsyncFifoQueue<number>();
     const promises = [1, 2, 3, 4, 5].map(

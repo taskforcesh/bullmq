@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import {
   FlowProducer,
@@ -13,15 +13,21 @@ import {
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Cleaner', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async () => {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
     await queue.waitUntilReady();
   });
@@ -29,7 +35,11 @@ describe('Cleaner', () => {
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should clean an empty queue', async () => {
@@ -49,7 +59,13 @@ describe('Cleaner', () => {
   });
 
   it('should clean two jobs from the queue', async () => {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await delay(10);
+      },
+      { connection, prefix },
+    );
     await worker.waitUntilReady();
 
     const completing = new Promise<void>(resolve => {
@@ -67,7 +83,7 @@ describe('Cleaner', () => {
     ]);
 
     await completing;
-    await delay(1);
+    await delay(10);
 
     const jobs = await queue.clean(0, 0);
     expect(jobs.length).to.be.eql(2);
@@ -86,7 +102,10 @@ describe('Cleaner', () => {
   });
 
   it('should only remove a job outside of the grace period', async () => {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
     await worker.waitUntilReady();
 
     await queue.add('test', { some: 'data' });
@@ -127,7 +146,7 @@ describe('Cleaner', () => {
         await delay(100);
         throw new Error('It failed');
       },
-      { connection, autorun: false },
+      { connection, prefix, autorun: false },
     );
     await worker.waitUntilReady();
 
@@ -169,6 +188,39 @@ describe('Cleaner', () => {
     expect(count).to.be.eql(0);
   });
 
+  it('should clean all delayed jobs when limit is given', async () => {
+    await queue.add('test', { some: 'data' }, { delay: 5000 });
+    await queue.add('test', { some: 'data' }, { delay: 5000 });
+    await delay(100);
+    const jobs = await queue.clean(0, 1000, 'delayed');
+    expect(jobs.length).to.be.eql(2);
+    const count = await queue.count();
+    expect(count).to.be.eql(0);
+  });
+
+  it('should clean all prioritized jobs when limit is given', async () => {
+    await queue.add('test', { some: 'data' }, { priority: 5000 });
+    await queue.add('test', { some: 'data' }, { priority: 5001 });
+    await delay(100);
+    const jobs = await queue.clean(0, 1000, 'prioritized');
+    expect(jobs.length).to.be.eql(2);
+    const count = await queue.count();
+    expect(count).to.be.eql(0);
+  });
+
+  describe('when prioritized state is provided', async () => {
+    it('should clean the number of jobs requested', async () => {
+      await queue.add('test', { some: 'data' }, { priority: 1 }); // as queue is empty, this job will be added to wait
+      await queue.add('test', { some: 'data' }, { priority: 2 });
+      await queue.add('test', { some: 'data' }, { priority: 3 });
+      await delay(100);
+      const jobs = await queue.clean(0, 1, 'prioritized');
+      expect(jobs.length).to.be.eql(1);
+      const count = await queue.getJobCounts('prioritized');
+      expect(count.prioritized).to.be.eql(2);
+    });
+  });
+
   describe('when delayed state is provided', async () => {
     it('cleans all delayed jobs', async () => {
       await queue.add('test', { some: 'data' }, { delay: 5000 });
@@ -197,7 +249,7 @@ describe('Cleaner', () => {
         it('removes parent record', async () => {
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName,
@@ -215,7 +267,7 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(3);
 
@@ -238,7 +290,7 @@ describe('Cleaner', () => {
               async () => {
                 return delay(20);
               },
-              { connection },
+              { connection, prefix },
             );
             await worker.waitUntilReady();
 
@@ -246,7 +298,7 @@ describe('Cleaner', () => {
               queueEvents.on('completed', after(4, resolve));
             });
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             await flow.add({
               name: 'parent-job',
               queueName,
@@ -263,7 +315,7 @@ describe('Cleaner', () => {
             await queue.clean(0, 0, 'completed');
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             // Expected keys: meta, id, stalled-check and events
             expect(keys.length).to.be.eql(4);
@@ -288,7 +340,7 @@ describe('Cleaner', () => {
                 }
                 return delay(10);
               },
-              { connection },
+              { connection, prefix },
             );
             await worker.waitUntilReady();
 
@@ -296,7 +348,7 @@ describe('Cleaner', () => {
               worker.on('failed', resolve);
             });
 
-            const flow = new FlowProducer({ connection });
+            const flow = new FlowProducer({ connection, prefix });
             const tree = await flow.add({
               name: 'parent-job',
               queueName,
@@ -312,7 +364,7 @@ describe('Cleaner', () => {
             await queue.clean(0, 0, 'completed');
 
             const client = await queue.client;
-            const keys = await client.keys(`bull:${queue.name}:*`);
+            const keys = await client.keys(`${prefix}:${queue.name}:*`);
             // Expected keys: meta, id, stalled-check, events, failed and job
             expect(keys.length).to.be.eql(7);
 
@@ -345,7 +397,7 @@ describe('Cleaner', () => {
               }
               return delay(10);
             },
-            { connection },
+            { connection, prefix },
           );
           await worker.waitUntilReady();
 
@@ -357,7 +409,7 @@ describe('Cleaner', () => {
             worker.on('failed', resolve);
           });
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           const tree = await flow.add({
             name: 'parent-job',
             queueName,
@@ -374,7 +426,7 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'failed');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           // Expected keys: meta, id, stalled-check, events, failed and 2 jobs
           expect(keys.length).to.be.eql(7);
@@ -393,11 +445,14 @@ describe('Cleaner', () => {
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
           const childrenQueueName = `test-${v4()}`;
-          const childrenQueue = new Queue(childrenQueueName, { connection });
+          const childrenQueue = new Queue(childrenQueueName, {
+            connection,
+            prefix,
+          });
           await childrenQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName,
@@ -417,7 +472,7 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(6);
 
@@ -444,7 +499,7 @@ describe('Cleaner', () => {
             async (job, token) => {
               if (job.name === 'child') {
                 await delay(100);
-                throw new Error('error');
+                throw new Error('forced child error');
               }
               let step = job.data.step;
               while (step !== Step.Finish) {
@@ -458,10 +513,11 @@ describe('Cleaner', () => {
                           id: job.id!,
                           queue: job.queueQualifiedName,
                         },
+                        removeDependencyOnFailure: true,
                       },
                     );
                     await delay(1000);
-                    await job.update({
+                    await job.updateData({
                       step: Step.Second,
                     });
                     step = Step.Second;
@@ -469,7 +525,7 @@ describe('Cleaner', () => {
                   }
                   case Step.Second: {
                     await delay(100);
-                    await job.update({
+                    await job.updateData({
                       step: Step.Third,
                     });
                     step = Step.Third;
@@ -478,7 +534,7 @@ describe('Cleaner', () => {
                   case Step.Third: {
                     const shouldWait = await job.moveToWaitingChildren(token!);
                     if (!shouldWait) {
-                      await job.update({
+                      await job.updateData({
                         step: Step.Finish,
                       });
                       step = Step.Finish;
@@ -493,7 +549,7 @@ describe('Cleaner', () => {
                 }
               }
             },
-            { connection, concurrency: 2 },
+            { connection, prefix, concurrency: 2 },
           );
           await worker.waitUntilReady();
 
@@ -507,7 +563,7 @@ describe('Cleaner', () => {
           );
 
           await new Promise<void>(resolve => {
-            worker.on('failed', async () => {
+            worker.on('failed', async job => {
               await queue.clean(0, 0, 'failed');
               resolve();
             });
@@ -532,11 +588,14 @@ describe('Cleaner', () => {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
           const parentQueueName = `test-${v4()}`;
-          const parentQueue = new Queue(parentQueueName, { connection });
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
           await parentQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName: parentQueueName,
@@ -554,12 +613,12 @@ describe('Cleaner', () => {
           await queue.clean(0, 0, 'wait');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queueName}:*`);
+          const keys = await client.keys(`${prefix}:${queueName}:*`);
 
           expect(keys.length).to.be.eql(3);
 
           const eventsCount = await client.xlen(
-            `bull:${parentQueueName}:events`,
+            `${prefix}:${parentQueueName}:events`,
           );
 
           expect(eventsCount).to.be.eql(2); // added and waiting-children events
@@ -574,18 +633,21 @@ describe('Cleaner', () => {
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
 
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
           const parentQueueName = `test-${v4()}`;
-          const parentQueue = new Queue(parentQueueName, { connection });
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
           await parentQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName: parentQueueName,
@@ -603,12 +665,15 @@ describe('Cleaner', () => {
           const count = await queue.count();
           expect(count).to.be.eql(1);
 
-          await queue.clean(0, 0, 'wait');
+          const priorityCount = await queue.getJobCounts('prioritized');
+          expect(priorityCount.prioritized).to.be.eql(1);
+
+          await queue.clean(0, 0, 'prioritized');
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queueName}:*`);
+          const keys = await client.keys(`${prefix}:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(3);
+          expect(keys.length).to.be.eql(5);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);
@@ -620,21 +685,10 @@ describe('Cleaner', () => {
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
     });
-  });
-
-  it('should clean the number of jobs requested', async () => {
-    await queue.add('test', { some: 'data' }, { priority: 1 });
-    await queue.add('test', { some: 'data' }, { priority: 2 });
-    await queue.add('test', { some: 'data' }, { priority: 3 });
-    await delay(100);
-    const jobs = await queue.clean(0, 1, 'wait');
-    expect(jobs.length).to.be.eql(1);
-    const count = await queue.count();
-    expect(count).to.be.eql(2);
   });
 
   it('should clean a job without a timestamp', async () => {
@@ -643,17 +697,17 @@ describe('Cleaner', () => {
       async () => {
         throw new Error('It failed');
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
-    const client = new IORedis();
+    const client = new IORedis(redisHost);
 
     await queue.add('test', { some: 'data' });
     await queue.add('test', { some: 'data' });
 
     await delay(100);
-    await client.hdel(`bull:${queueName}:1`, 'timestamp');
+    await client.hdel(`${prefix}:${queueName}:1`, 'timestamp');
     const jobs = await queue.clean(0, 0, 'failed');
     expect(jobs.length).to.be.eql(2);
     const failed = await queue.getFailed();

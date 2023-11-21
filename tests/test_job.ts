@@ -4,25 +4,42 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { afterEach, beforeEach, describe, it } from 'mocha';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  it,
+  before,
+  after as afterAll,
+} from 'mocha';
 import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
 
 describe('Job', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   let queue: Queue;
   let queueName: string;
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('.create', function () {
@@ -103,9 +120,11 @@ describe('Job', function () {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
         const parentId = v4();
-        const opts = { parent: { id: parentId, queue: queueName } };
+        const opts: JobsOptions = {
+          parent: { id: parentId, queue: `${prefix}:${queueName}` },
+        };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
-          `Missing key for parent job ${queueName}:${parentId}. addJob`,
+          `Missing key for parent job ${prefix}:${queueName}:${parentId}. addJob`,
         );
       });
     });
@@ -116,6 +135,39 @@ describe('Job', function () {
         const opts = { repeat: { every: 200 }, delay: 1000 };
         await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
           'Delay and repeat options could not be used together',
+        );
+      });
+    });
+
+    describe('when removeDependencyOnFailure and failParentOnFailure options are provided', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = {
+          removeDependencyOnFailure: true,
+          failParentOnFailure: true,
+        };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'RemoveDependencyOnFailure and failParentOnFailure options can not be used together',
+        );
+      });
+    });
+
+    describe('when priority option is provided as float', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { priority: 1.1 };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Priority should not be float',
+        );
+      });
+    });
+
+    describe('when priority option is provided with a value greater than 2097152', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = { priority: 2097153 };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'Priority should be between 0 and 2097152',
         );
       });
     });
@@ -150,7 +202,7 @@ describe('Job', function () {
       const parsed = JSON.parse(json);
       expect(parsed).to.have.deep.property('data', data);
 
-      const newQueue = new Queue(queueName, { connection });
+      const newQueue = new Queue(queueName, { connection, prefix });
       let worker: Worker;
       const promise = new Promise<void>(async (resolve, reject) => {
         worker = new Worker(
@@ -163,7 +215,7 @@ describe('Job', function () {
             }
             resolve();
           },
-          { connection },
+          { connection, prefix },
         );
         const testJob = await newQueue.add('test', 0);
       });
@@ -184,7 +236,7 @@ describe('Job', function () {
         'test',
         { foo: 'bar' },
       );
-      await job.update({ baz: 'qux' });
+      await job.updateData({ baz: 'qux' });
 
       const updatedJob = await Job.fromId(queue, job.id);
       expect(updatedJob.data).to.be.eql({ baz: 'qux' });
@@ -194,7 +246,7 @@ describe('Job', function () {
       it('throws error', async function () {
         const job = await Job.create(queue, 'test', { foo: 'bar' });
         await job.remove();
-        await expect(job.update({ foo: 'baz' })).to.be.rejectedWith(
+        await expect(job.updateData({ foo: 'baz' })).to.be.rejectedWith(
           `Missing key for job ${job.id}. updateData`,
         );
       });
@@ -216,16 +268,22 @@ describe('Job', function () {
       const token2 = 'my-token2';
       const parentQueueName = `parent-queue-${v4()}`;
 
-      const parentQueue = new Queue(parentQueueName, { connection });
-      const parentWorker = new Worker(parentQueueName, null, { connection });
-      const childrenWorker = new Worker(queueName, null, { connection });
+      const parentQueue = new Queue(parentQueueName, { connection, prefix });
+      const parentWorker = new Worker(parentQueueName, null, {
+        connection,
+        prefix,
+      });
+      const childrenWorker = new Worker(queueName, null, {
+        connection,
+        prefix,
+      });
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
       const data = { foo: 'bar' };
       const parent = await Job.create(parentQueue, 'testParent', data);
       await Job.create(queue, 'testJob1', values[0], {
-        parent: { id: parent.id, queue: `bull:${parentQueueName}` },
+        parent: { id: parent.id, queue: `${prefix}:${parentQueueName}` },
       });
 
       const job = (await parentWorker.getNextJob(token)) as Job;
@@ -244,7 +302,7 @@ describe('Job', function () {
       expect(storedJob).to.be.equal(undefined);
 
       const processed = await client.hgetall(
-        `bull:${parentQueueName}:${parentId}:processed`,
+        `${prefix}:${parentQueueName}:${parentId}:processed`,
       );
 
       expect(processed).to.deep.equal({});
@@ -252,11 +310,11 @@ describe('Job', function () {
       await childrenWorker.close();
       await parentWorker.close();
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(), parentQueueName);
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
 
     it('removes 4000 jobs in time rage of 4000ms', async function () {
-      this.timeout(4000);
+      this.timeout(8000);
       const numJobs = 4000;
 
       // Create waiting jobs
@@ -278,9 +336,12 @@ describe('Job', function () {
       );
       const delayedJobs = await queue.addBulk(jobsDataWithDelay);
 
+      const startTime = Date.now();
       // Remove all jobs
       await Promise.all(delayedJobs.map(job => job.remove()));
       await Promise.all(waitingJobs.map(job => job.remove()));
+
+      expect(Date.now() - startTime).to.be.lessThan(4000);
 
       const countJobs = await queue.getJobCountByTypes('waiting', 'delayed');
       expect(countJobs).to.be.equal(0);
@@ -293,15 +354,31 @@ describe('Job', function () {
     it('can set and get progress as number', async function () {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress(42);
-      const storedJob = await Job.fromId(queue, job.id);
-      expect(storedJob.progress).to.be.equal(42);
+      const storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.be.equal(42);
     });
 
     it('can set and get progress as object', async function () {
       const job = await Job.create(queue, 'test', { foo: 'bar' });
       await job.updateProgress({ total: 120, completed: 40 });
-      const storedJob = await Job.fromId(queue, job.id);
-      expect(storedJob.progress).to.eql({ total: 120, completed: 40 });
+      const storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.eql({ total: 120, completed: 40 });
+    });
+
+    it('cat set progress as number using the Queue instance', async () => {
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await queue.updateJobProgress(job.id!, 42);
+
+      const storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.be.equal(42);
+    });
+
+    it('cat set progress as object using the Queue instance', async () => {
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+      await queue.updateJobProgress(job.id!, { total: 120, completed: 40 });
+      const storedJob = await Job.fromId(queue, job.id!);
+      expect(storedJob!.progress).to.eql({ total: 120, completed: 40 });
     });
 
     describe('when job is removed', () => {
@@ -371,20 +448,34 @@ describe('Job', function () {
       const count1 = await job.log(firstLog);
       expect(count1).to.be.equal(1);
 
-      const logs1 = await queue.getJobLogs(job.id);
+      const logs1 = await queue.getJobLogs(job.id!);
       expect(logs1).to.be.eql({ logs: [firstLog], count: 1 });
 
       const count2 = await job.log(secondLog);
       expect(count2).to.be.equal(2);
 
-      const logs2 = await queue.getJobLogs(job.id);
+      const logs2 = await queue.getJobLogs(job.id!);
       expect(logs2).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
 
       const count3 = await job.log(thirdLog);
       expect(count3).to.be.equal(2);
 
-      const logs3 = await queue.getJobLogs(job.id);
+      const logs3 = await queue.getJobLogs(job.id!);
       expect(logs3).to.be.eql({ logs: [secondLog, thirdLog], count: 2 });
+    });
+
+    it('should allow to add job logs from Queue instance', async () => {
+      const firstLog = 'some log text 1';
+      const secondLog = 'some log text 2';
+
+      const job = await Job.create(queue, 'test', { foo: 'bar' });
+
+      await queue.addJobLog(job.id!, firstLog);
+      await queue.addJobLog(job.id!, secondLog);
+
+      const logs = await queue.getJobLogs(job.id!);
+
+      expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
     });
   });
 
@@ -453,7 +544,7 @@ describe('Job', function () {
 
   describe('.moveToCompleted', function () {
     it('marks the job as completed and returns new job', async function () {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job2 = await Job.create(queue, 'test', { baz: 'qux' });
@@ -475,7 +566,7 @@ describe('Job', function () {
      * if it does not exist in meta key (or entire meta key is missing).
      */
     it('should not fail if queue meta key is missing', async function () {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { color: 'red' });
       const job = (await worker.getNextJob(token)) as Job;
@@ -496,10 +587,16 @@ describe('Job', function () {
 
       const parentQueueName = `parent-queue-${v4()}`;
 
-      const parentQueue = new Queue(parentQueueName, { connection });
+      const parentQueue = new Queue(parentQueueName, { connection, prefix });
 
-      const parentWorker = new Worker(parentQueueName, null, { connection });
-      const childrenWorker = new Worker(queueName, null, { connection });
+      const parentWorker = new Worker(parentQueueName, null, {
+        connection,
+        prefix,
+      });
+      const childrenWorker = new Worker(queueName, null, {
+        connection,
+        prefix,
+      });
       await parentWorker.waitUntilReady();
       await childrenWorker.waitUntilReady();
 
@@ -507,7 +604,7 @@ describe('Job', function () {
       const parent = await Job.create(parentQueue, 'testParent', data);
       const parentKey = getParentKey({
         id: parent.id,
-        queue: 'bull:' + parentQueueName,
+        queue: `${prefix}:${parentQueueName}`,
       });
       const client = await queue.client;
       const child1 = new Job(queue, 'testJob1', values[0]);
@@ -518,7 +615,7 @@ describe('Job', function () {
       await Job.create(queue, 'testJob2', values[1], {
         parent: {
           id: parent.id,
-          queue: 'bull:' + parentQueueName,
+          queue: `${prefix}:${parentQueueName}`,
         },
       });
 
@@ -532,9 +629,13 @@ describe('Job', function () {
 
       await expect(
         job.moveToCompleted('return value', token),
-      ).to.be.rejectedWith(`Job ${job.id} has pending dependencies. finished`);
+      ).to.be.rejectedWith(
+        `Job ${job.id} has pending dependencies. moveToFinished`,
+      );
 
-      const lock = await client.get(`bull:${parentQueueName}:${job.id}:lock`);
+      const lock = await client.get(
+        `${prefix}:${parentQueueName}:${job.id}:lock`,
+      );
 
       expect(lock).to.be.null;
 
@@ -545,13 +646,13 @@ describe('Job', function () {
       await childrenWorker.close();
       await parentWorker.close();
       await parentQueue.close();
-      await removeAllQueueData(new IORedis(), parentQueueName);
+      await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     });
   });
 
   describe('.moveToFailed', function () {
     it('marks the job as failed', async function () {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job = (await worker.getNextJob(token)) as Job;
@@ -566,7 +667,7 @@ describe('Job', function () {
     });
 
     it('moves the job to wait for retry if attempts are given', async function () {
-      const queueEvents = new QueueEvents(queueName, { connection });
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
 
       const job = await Job.create(
@@ -596,9 +697,38 @@ describe('Job', function () {
       await queueEvents.close();
     });
 
+    describe('when job is removed', function () {
+      it('should not save stacktrace', async function () {
+        const client = await queue.client;
+        const worker = new Worker(queueName, null, {
+          connection,
+          prefix,
+          lockDuration: 100,
+          skipLockRenewal: true,
+        });
+        const token = 'my-token';
+        await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
+        const job = (await worker.getNextJob(token)) as Job;
+        await delay(105);
+        await job.remove();
+
+        await expect(
+          job.moveToFailed(new Error('test error'), '0'),
+        ).to.be.rejectedWith(`Missing key for job ${job.id}. failed`);
+
+        const processed = await client.hgetall(
+          `${prefix}:${queueName}:${job.id}`,
+        );
+
+        expect(processed).to.deep.equal({});
+
+        await worker.close();
+      });
+    });
+
     describe('when attempts made equal to attempts given', function () {
       it('marks the job as failed', async function () {
-        const worker = new Worker(queueName, null, { connection });
+        const worker = new Worker(queueName, null, { connection, prefix });
         const token = 'my-token';
         await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 1 });
         const job = (await worker.getNextJob(token)) as Job;
@@ -620,7 +750,7 @@ describe('Job', function () {
 
     describe('when attempts are given and backoff is non zero', function () {
       it('moves the job to delayed for retry', async function () {
-        const worker = new Worker(queueName, null, { connection });
+        const worker = new Worker(queueName, null, { connection, prefix });
         const token = 'my-token';
         await Job.create(
           queue,
@@ -648,7 +778,7 @@ describe('Job', function () {
     });
 
     it('applies stacktrace limit on failure', async function () {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       const stackTraceLimit = 1;
       await Job.create(
@@ -669,7 +799,7 @@ describe('Job', function () {
     });
 
     it('saves error stacktrace', async function () {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       await Job.create(queue, 'test', { foo: 'bar' });
       const job = (await worker.getNextJob(token)) as Job;
@@ -686,7 +816,10 @@ describe('Job', function () {
     it('can change delay of a delayed job', async function () {
       this.timeout(8000);
 
-      const worker = new Worker(queueName, async () => {}, { connection });
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
       await worker.waitUntilReady();
 
       const startTime = new Date().getTime();
@@ -731,6 +864,207 @@ describe('Job', function () {
     });
   });
 
+  describe('.changePriority', () => {
+    it('can change priority of a job', async function () {
+      await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
+      const job = await Job.create(
+        queue,
+        'test2',
+        { foo: 'bar' },
+        { priority: 16 },
+      );
+
+      await job.changePriority({
+        priority: 1,
+      });
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(20);
+        },
+        { connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const completing = new Promise<void>(resolve => {
+        worker.on(
+          'completed',
+          after(2, job => {
+            expect(job.name).to.be.eql('test1');
+            resolve();
+          }),
+        );
+      });
+
+      await completing;
+
+      await worker.close();
+    });
+
+    describe('when queue is paused', () => {
+      it('respects new priority', async () => {
+        await queue.pause();
+        await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
+        const job = await Job.create(
+          queue,
+          'test2',
+          { foo: 'bar' },
+          { priority: 16 },
+        );
+
+        await job.changePriority({
+          priority: 1,
+        });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(20);
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const completing = new Promise<void>(resolve => {
+          worker.on(
+            'completed',
+            after(2, job => {
+              expect(job.name).to.be.eql('test1');
+              resolve();
+            }),
+          );
+        });
+
+        await queue.resume();
+
+        await completing;
+
+        await worker.close();
+      });
+    });
+
+    describe('when lifo option is provided as true', () => {
+      it('moves job to the head of wait list', async () => {
+        await queue.pause();
+        await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
+        const job = await Job.create(
+          queue,
+          'test2',
+          { foo: 'bar' },
+          { priority: 16 },
+        );
+
+        await job.changePriority({
+          lifo: true,
+        });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(20);
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const completing = new Promise<void>(resolve => {
+          worker.on(
+            'completed',
+            after(2, job => {
+              expect(job.name).to.be.eql('test1');
+              resolve();
+            }),
+          );
+        });
+
+        await queue.resume();
+
+        await completing;
+
+        await worker.close();
+      });
+    });
+
+    describe('when lifo option is provided as false', () => {
+      it('moves job to the tail of wait list and has more priority', async () => {
+        await queue.pause();
+        const job = await Job.create(
+          queue,
+          'test1',
+          { foo: 'bar' },
+          { priority: 8 },
+        );
+        await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });
+
+        await job.changePriority({
+          lifo: false,
+        });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(20);
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const completing = new Promise<void>(resolve => {
+          worker.on(
+            'completed',
+            after(2, job => {
+              expect(job.name).to.be.eql('test2');
+              resolve();
+            }),
+          );
+        });
+
+        await queue.resume();
+
+        await completing;
+
+        await worker.close();
+      });
+    });
+
+    describe('when job is not in wait state', () => {
+      it('does not add a record in priority zset', async () => {
+        const job = await Job.create(
+          queue,
+          'test1',
+          { foo: 'bar' },
+          { delay: 500 },
+        );
+
+        await job.changePriority({
+          priority: 10,
+        });
+
+        const client = await queue.client;
+        const count = await client.zcard(`${prefix}:${queueName}:priority`);
+        const priority = await client.hget(
+          `${prefix}:${queueName}:${job.id}`,
+          'priority',
+        );
+
+        expect(count).to.be.eql(0);
+        expect(priority).to.be.eql('10');
+      });
+    });
+
+    describe('when job does not exist', () => {
+      it('throws an error', async () => {
+        const job = await Job.create(queue, 'test', { foo: 'bar' });
+        await job.remove();
+
+        await expect(job.changePriority({ priority: 2 })).to.be.rejectedWith(
+          `Missing key for job ${job.id}. changePriority`,
+        );
+      });
+    });
+  });
+
   describe('.promote', () => {
     it('can promote a delayed job to be executed immediately', async () => {
       const job = await Job.create(
@@ -750,44 +1084,42 @@ describe('Job', function () {
     });
 
     it('should process a promoted job according to its priority', async function () {
-      this.timeout(10000);
+      this.timeout(5000);
+      const completed: string[] = [];
       const worker = new Worker(
         queueName,
-        () => {
-          return delay(100);
+        job => {
+          completed.push(job.id!);
+          return delay(200);
         },
-        { connection },
+        { connection, prefix, autorun: false },
       );
       await worker.waitUntilReady();
 
-      const completed: string[] = [];
-
-      const done = new Promise<void>(resolve => {
-        worker.on('completed', job => {
-          completed.push(job.id);
-          if (completed.length > 3) {
+      const completing = new Promise<void>(resolve => {
+        worker.on(
+          'completed',
+          after(4, () => {
             expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
             resolve();
-          }
-        });
+          }),
+        );
       });
 
-      const processStarted = new Promise(resolve =>
-        worker.on('active', after(2, resolve)),
+      await queue.add('test', {}, { jobId: 'a', priority: 1 });
+      await queue.add('test', {}, { jobId: 'b', priority: 2 });
+      await queue.add('test', {}, { jobId: 'd', priority: 4 });
+      const job = await queue.add(
+        'test',
+        {},
+        { jobId: 'c', delay: 2000, priority: 3 },
       );
-
-      const add = (jobId: string, ms = 0) =>
-        queue.add('test', {}, { jobId, delay: ms, priority: 1 });
-
-      await add('a');
-      await add('b', 1);
-      await processStarted;
-      const job = await add('c', 2000);
-
       await job.promote();
-      await add('d', 1);
 
-      await done;
+      worker.run();
+
+      await completing;
+      await worker.close();
     });
 
     it('should not promote a job that is not delayed', async () => {
@@ -848,7 +1180,7 @@ describe('Job', function () {
 
   describe('.getState', () => {
     it('should get job actual state', async () => {
-      const worker = new Worker(queueName, null, { connection });
+      const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
       const job = await queue.add('job1', { foo: 'bar' }, { delay: 1000 });
       const delayedState = await job.getState();
@@ -988,7 +1320,7 @@ describe('Job', function () {
     let queueEvents: QueueEvents;
 
     beforeEach(async function () {
-      queueEvents = new QueueEvents(queueName, { connection });
+      queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
     });
 
@@ -997,7 +1329,10 @@ describe('Job', function () {
     });
 
     it('should resolve when the job has been completed', async function () {
-      const worker = new Worker(queueName, async () => 'qux', { connection });
+      const worker = new Worker(queueName, async () => 'qux', {
+        connection,
+        prefix,
+      });
 
       const job = await queue.add('test', { foo: 'bar' });
 
@@ -1018,6 +1353,7 @@ describe('Job', function () {
           },
           {
             connection,
+            prefix,
           },
         );
         await worker.waitUntilReady();
@@ -1055,6 +1391,7 @@ describe('Job', function () {
     it('should resolve when the job has been completed and return object', async function () {
       const worker = new Worker(queueName, async () => ({ resultFoo: 'bar' }), {
         connection,
+        prefix,
       });
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -1074,7 +1411,7 @@ describe('Job', function () {
           await delay(300);
           return { resultFoo: 'bar' };
         },
-        { connection },
+        { connection, prefix },
       );
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -1090,6 +1427,7 @@ describe('Job', function () {
     it('should resolve when the job has been completed and return string', async function () {
       const worker = new Worker(queueName, async () => 'a string', {
         connection,
+        prefix,
       });
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -1109,7 +1447,7 @@ describe('Job', function () {
           await delay(500);
           throw new Error('test error');
         },
-        { connection },
+        { connection, prefix },
       );
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -1124,6 +1462,7 @@ describe('Job', function () {
     it('should resolve directly if already processed', async function () {
       const worker = new Worker(queueName, async () => ({ resultFoo: 'bar' }), {
         connection,
+        prefix,
       });
 
       const job = await queue.add('test', { foo: 'bar' });
@@ -1143,7 +1482,7 @@ describe('Job', function () {
         async () => {
           throw new Error('test error');
         },
-        { connection },
+        { connection, prefix },
       );
 
       const job = await queue.add('test', { foo: 'bar' });

@@ -1,6 +1,9 @@
 # Process Step jobs
 
-Sometimes, it is useful to break processor function into small pieces that will be processed depending on the previous executed step, we could handle this kind of logic by using switch blocks:
+Sometimes, it is useful to break processor functions into small pieces that will be processed depending on the previous executed step. One way to handle this kind of logic is by using switch statements:
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 enum Step {
@@ -17,7 +20,7 @@ const worker = new Worker(
       switch (step) {
         case Step.Initial: {
           await doInitialStepStuff();
-          await job.update({
+          await job.updateData({
             step: Step.Second,
           });
           step = Step.Second;
@@ -25,7 +28,7 @@ const worker = new Worker(
         }
         case Step.Second: {
           await doSecondStepStuff();
-          await job.update({
+          await job.updateData({
             step: Step.Finish,
           });
           step = Step.Finish;
@@ -41,13 +44,47 @@ const worker = new Worker(
 );
 ```
 
-As you can see, we should save the step value; in this case, we are saving it into the job's data. So even in the case of an error, it would be retried in the last step that was saved (in case we use a backoff strategy).
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+class Step(int, Enum):
+  Initial = 1
+  Second = 2
+  Finish = 3
+
+async def process(job: Job, token: str):
+  step = job.data.get("step")
+  while step != Step.Finish:
+    if step == Step.Initial:
+      await doInitialStepStuff()
+      await job.updateData({
+          "step": Step.Second
+      })
+      step = Step.Second
+    elif step == Step.Second:
+      await doSecondStepStuff()
+      await job.updateData({
+          "step": Step.Finish
+      })
+      step = Step.Finish
+    else:
+      raise Exception("invalid step")
+
+worker = Worker("queueName", process, {"connection": connection})
+```
+
+{% endtab %}
+{% endtabs %}
+
+By saving the next step value every time we complete the previous step (here, saving it in the job's data), we can ensure that if the job errors and retries, it does so starting from the correct step.
 
 ## Delaying
 
-There are situations when it is valuable to delay a job when it is being processed.
+There are situations when it is useful to delay a job when it is being processed.
 
-This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error `DelayedError` that will signal the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
+This can be handled using the `moveToDelayed` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the `moveToDelayed` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error (`DelayedError`) that will signal to the worker that the job has been delayed so that it does not try to complete (or fail the job) instead.
 
 ```typescript
 import { DelayedError, Worker } from 'bullmq';
@@ -67,7 +104,7 @@ const worker = new Worker(
         case Step.Initial: {
           await doInitialStepStuff();
           await job.moveToDelayed(Date.now() + 200, token);
-          await job.update({
+          await job.updateData({
             step: Step.Second,
           });
           step = Step.Second;
@@ -75,7 +112,7 @@ const worker = new Worker(
         }
         case Step.Second: {
           await doSecondStepStuff();
-          await job.update({
+          await job.updateData({
             step: Step.Finish,
           });
           throw new DelayedError();
@@ -94,7 +131,10 @@ const worker = new Worker(
 
 A common use case is to add children at runtime and then wait for the children to complete.
 
-This can be handled using the `moveToWaitingChildren` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the `moveToWaitingChildren` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error `WaitingChildrenError` that will signal the worker that the job has been moved to waiting-children so that it does not try to complete (or fail the job) instead.
+This can be handled using the `moveToWaitingChildren` method. However, it is important to note that when a job is being processed by a worker, the worker keeps a lock on this job with a certain token value. For the `moveToWaitingChildren` method to work, we need to pass said token so that it can unlock without error. Finally, we need to exit from the processor by throwing a special error (`WaitingChildrenError`) that will signal to the worker that the job has been moved to _waiting-children_, so that it does not try to complete (or fail) the job instead.
+
+{% tabs %}
+{% tab title="TypeScript" %}
 
 ```typescript
 import { WaitingChildrenError, Worker } from 'bullmq';
@@ -124,7 +164,7 @@ const worker = new Worker(
               },
             },
           );
-          await job.update({
+          await job.updateData({
             step: Step.Second,
           });
           step = Step.Second;
@@ -142,7 +182,7 @@ const worker = new Worker(
               },
             },
           );
-          await job.update({
+          await job.updateData({
             step: Step.Third,
           });
           step = Step.Third;
@@ -151,7 +191,7 @@ const worker = new Worker(
         case Step.Third: {
           const shouldWait = await job.moveToWaitingChildren(token);
           if (!shouldWait) {
-            await job.update({
+            await job.updateData({
               step: Step.Finish,
             });
             step = Step.Finish;
@@ -170,6 +210,66 @@ const worker = new Worker(
 );
 ```
 
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+from bullmq import Worker, WaitingChildrenError
+from enum import Enum
+
+class Step(int, Enum):
+  Initial = 1
+  Second = 2
+  Third = 3
+  Finish = 4
+
+async def process(job: Job, token: str):
+  step = job.data.get("step")
+  while step != Step.Finish:
+    if step == Step.Initial:
+      await doInitialStepStuff()
+      await children_queue.add('child-1', {"foo": "bar" },{
+        "parent": {
+            "id": job.id,
+            "queue": job.queueQualifiedName
+        }
+      })
+      await job.updateData({
+          "step": Step.Second
+      })
+      step = Step.Second
+    elif step == Step.Second:
+      await doSecondStepStuff()
+      await children_queue.add('child-2', {"foo": "bar" },{
+        "parent": {
+          "id": job.id,
+          "queue": job.queueQualifiedName
+        }
+      })
+      await job.updateData({
+          "step": Step.Third
+      })
+      step = Step.Third
+    elif step == Step.Third:
+      should_wait = await job.moveToWaitingChildren(token, {})
+      if not should_wait:
+        await job.updateData({
+            "step": Step.Finish
+        })
+        step = Step.Finish
+        return Step.Finish
+      else:
+        raise WaitingChildrenError
+    else:
+      raise Exception("invalid step")
+
+worker = Worker("parentQueueName", process, {"connection": connection})
+```
+
+{% endtab %}
+{% endtabs %}
+
 {% hint style="info" %}
 Bullmq-Pro: this pattern could be handled by using observables; in that case, we do not need to save next step.
 {% endhint %}
@@ -178,7 +278,7 @@ Bullmq-Pro: this pattern could be handled by using observables; in that case, we
 
 Another use case is to add flows at runtime and then wait for the children to complete.
 
-For example, we can add children dynamically in the processor function of a worker. This can be handled in this way:
+For example, we can add children dynamically in the worker's processor function:
 
 ```typescript
 import { FlowProducer, WaitingChildrenError, Worker } from 'bullmq';
@@ -223,7 +323,7 @@ const worker = new Worker(
             },
           });
 
-          await job.update({
+          await job.updateData({
             step: Step.Second,
           });
           step = Step.Second;
@@ -231,7 +331,7 @@ const worker = new Worker(
         }
         case Step.Second: {
           await doSecondStepStuff();
-          await job.update({
+          await job.updateData({
             step: Step.Third,
           });
           step = Step.Third;
@@ -240,7 +340,7 @@ const worker = new Worker(
         case Step.Third: {
           const shouldWait = await job.moveToWaitingChildren(token);
           if (!shouldWait) {
-            await job.update({
+            await job.updateData({
               step: Step.Finish,
             });
             step = Step.Finish;

@@ -37,19 +37,27 @@ await queue.close()
 
 ```
 
-In order to consume the jobs from the queue you need to use the Worker class, providing a "processor" function that will consume the jobs. As soon as the worker is instantiated it will start consuming jobs:
+In order to consume the jobs from the queue you need to use the `Worker` class, providing a "processor" function that will consume the jobs. As soon as the worker is instantiated it will start consuming jobs:
 
 ```python
 from bullmq import Worker
 
-async def process(job):
+async def process(job, job_token):
     # job.data will include the data added to the queue
     return doSomethingAsync(job)
 
-worker = Worker("myQueue", process)
+async def main():
+    # Feel free to remove the connection parameter, if your redis runs on localhost
+    worker = Worker("myQueue", process, {"connection": "rediss://<user>:<password>@<host>:<port>"})
 
-# When no need to process more jobs we should close the worker
-await worker.close()
+    # This while loop is just for the sake of this example
+    # you won't need it in practice.
+    while True: # Add some breaking conditions here
+        await asyncio.sleep(1)
 
+    # When no need to process more jobs we should close the worker
+    await worker.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
-

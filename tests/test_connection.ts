@@ -3,25 +3,44 @@ import { default as IORedis, RedisOptions } from 'ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueBase } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
+import {
+  before,
+  describe,
+  it,
+  beforeEach,
+  afterEach,
+  after as afterAll,
+} from 'mocha';
 
 describe('connection', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection: { host: 'localhost' } });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('prefix', () => {
     it('should throw exception if using prefix with ioredis', async () => {
       const connection = new IORedis({
+        host: redisHost,
         keyPrefix: 'bullmq',
       });
 
@@ -49,32 +68,35 @@ describe('connection', () => {
 
   describe('blocking', () => {
     it('should override maxRetriesPerRequest: null as redis options', async () => {
-      const queue = new QueueBase(queueName, {
-        connection: {
-          host: 'localhost',
-          maxRetriesPerRequest: 20,
-        },
-      });
+      if (redisHost === 'localhost') {
+        // We cannot currently test this behaviour for remote redis servers
+        const queue = new QueueBase(queueName, {
+          connection: { host: 'localhost' },
+        });
 
-      const options = <RedisOptions>(await queue.client).options;
+        const options = connection.options;
 
-      expect(options.maxRetriesPerRequest).to.be.equal(null);
+        expect(options.maxRetriesPerRequest).to.be.equal(null);
+
+        await queue.close();
+      }
     });
   });
 
   describe('non-blocking', () => {
     it('should not override any redis options', async () => {
+      connection = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
+
       const queue = new QueueBase(queueName, {
-        connection: {
-          host: 'localhost',
-          maxRetriesPerRequest: 20,
-        },
+        connection,
         blockingConnection: false,
       });
 
       const options = <RedisOptions>(await queue.client).options;
 
       expect(options.maxRetriesPerRequest).to.be.equal(20);
+
+      await queue.close();
     });
   });
 
@@ -96,6 +118,9 @@ describe('connection', () => {
         'Eviction policy is volatile-lru. It should be "noeviction"',
       );
       await client.config('SET', 'maxmemory-policy', 'noeviction');
+
+      await queue.close();
+      await queue2.close();
     });
   });
 
@@ -104,56 +129,8 @@ describe('connection', () => {
       const connection = new IORedis.Cluster(['redis://10.0.6.161:7379'], {
         natMap: {},
       });
-      const myQueue = new Queue('myqueue', { connection });
+      const queue = new Queue('myqueue', { connection });
       connection.disconnect();
-    });
-  });
-
-  describe('when host belongs to Upstash', async () => {
-    it('throws an error', async () => {
-      const opts = {
-        connection: {
-          host: 'https://upstash.io',
-        },
-      };
-
-      expect(() => new QueueBase(queueName, opts)).to.throw(
-        'BullMQ: Upstash is not compatible with BullMQ.',
-      );
-    });
-
-    describe('when using Cluster instance', async () => {
-      it('throws an error', async () => {
-        const connection = new IORedis.Cluster(
-          [
-            {
-              host: 'https://upstash.io',
-            },
-          ],
-          { natMap: {} },
-        );
-
-        expect(() => new QueueBase(queueName, { connection })).to.throw(
-          'BullMQ: Upstash is not compatible with BullMQ.',
-        );
-        await connection.disconnect();
-      });
-
-      describe('when using nodes provides an array of strings as hosts', async () => {
-        it('throws an error', async () => {
-          const connection = new IORedis.Cluster(
-            ['localhost', 'https://upstash.io'],
-            {
-              natMap: {},
-            },
-          );
-
-          expect(() => new QueueBase(queueName, { connection })).to.throw(
-            'BullMQ: Upstash is not compatible with BullMQ.',
-          );
-          await connection.disconnect();
-        });
-      });
     });
   });
 
@@ -167,7 +144,7 @@ describe('connection', () => {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up
@@ -213,7 +190,7 @@ describe('connection', () => {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up

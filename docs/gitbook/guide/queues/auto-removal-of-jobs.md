@@ -2,11 +2,11 @@
 
 By default, when your queue jobs are completed (or failed), they are stored in two special sets, the "completed" and the "failed" set. This is useful so that you can examine the results of your jobs, particularly in the early stages of development. However, as the solution reaches a production-grade level, we usually need to restrict the number of finished jobs to be kept, so that we do not fill Redis with data that is not particularly useful.
 
-BullMQ supports different strategies for auto-removing finalized jobs. These strategies are configured on the Job's options "[removeOnComplete](https://api.docs.bullmq.io/interfaces/BaseJobOptions.html#removeOnComplete)" and "[removeOnFail](https://api.docs.bullmq.io/interfaces/BaseJobOptions.html#removeOnFail)".
+BullMQ supports different strategies for auto-removing finalized jobs. These strategies are configured on the Job's options [`removeOnComplete`](https://api.docs.bullmq.io/interfaces/BaseJobOptions.html#removeOnComplete) and [`removeOnFail`](https://api.docs.bullmq.io/interfaces/BaseJobOptions.html#removeOnFail).
 
 ### Remove all finalized jobs
 
-The simplest option is to set removeOnComplete/Fail to "true", in this case, all jobs will be removed automatically as soon as they are finalized:
+The simplest option is to set `removeOnComplete`/`removeOnFail` to `true`, in this case, all jobs will be removed automatically as soon as they are finalized:
 
 ```typescript
 await myQueue.add(
@@ -15,6 +15,10 @@ await myQueue.add(
   { removeOnComplete: true, removeOnFail: true },
 );
 ```
+
+{% hint style="warning" %}
+Jobs will be deleted regardless of their names.
+{% endhint %}
 
 ### Keep a certain number of jobs
 
@@ -28,7 +32,7 @@ await myQueue.add(
 );
 ```
 
-Or if you want to set it for all your jobs for an specific worker:
+Or if you want to set it for all your jobs for a specific worker:
 
 ```typescript
 new Worker('test', async job => {}, {
@@ -40,7 +44,7 @@ new Worker('test', async job => {}, {
 
 ### Keep jobs based on their age
 
-Another possibility is to keep jobs up to a certain age. The "removeOn" option accepts a "[KeepJobs](https://api.docs.bullmq.io/interfaces/KeepJobs.html)" object, that includes an "age" and a "count" fields. The age is used to specify how old jobs to keep (in seconds), and the count can be used to limit the total amount to keep. The count option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
+Another possibility is to keep jobs up to a certain age. The `removeOn` option accepts a [`KeepJobs`](https://api.docs.bullmq.io/interfaces/v4.KeepJobs.html) object, that includes an `age` and a `count` fields. The `age` is used to specify how old jobs to keep (in seconds), and the `count` can be used to limit the total amount to keep. The `count` option is useful in cases we get an unexpected amount of jobs in a very short time, in this case we may just want to limit to a certain amount to avoid running out of memory.
 
 ```typescript
 await myQueue.add(
@@ -62,7 +66,7 @@ await myQueue.add(
 The auto removal of jobs works lazily. This means that jobs are not removed unless a new job completes or fails, since that is when the auto-removal takes place.
 {% endhint %}
 
-Or if you want to set it for all your jobs for an specific worker:
+Or if you want to set it for all your jobs for a specific worker:
 
 ```typescript
 new Worker('test', async job => {}, {
@@ -83,4 +87,4 @@ One of the strategies to implement idempotence with BullMQ is to use unique job 
 
 ## Read more:
 
-- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/QueueEventsListener.html#duplicated)
+- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/v4.QueueEventsListener.html#duplicated)

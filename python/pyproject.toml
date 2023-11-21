@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bullmq"
+version = "1.16.1"
+description='BullMQ for Python'
+readme="README.md"
+authors = [
+    {name = "Taskforce.sh Inc.", email = "manast@taskforce.sh"},
+]
+requires-python = ">=3.10.0"
+classifiers=[
+    'Development Status :: 3 - Alpha',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: MIT License',
+    'Operating System :: POSIX :: Linux',
+    'Programming Language :: Python :: 3.10',
+]
+keywords = ["python", "bullmq", "queues"]
+dependencies = [
+    "redis >= 4.5.0, < 5",
+    "msgpack >= 1.0.0, < 2",
+    "semver >= 2.13.0, < 3"
+]
+
+[project.optional-dependencies]
+dev = [
+    "setuptools==68.0.0",
+    "pre-commit==3.3.3",
+    "build==0.8.0",
+    "python-semantic-release==7.28.1",
+    "types-redis==4.6.0.2"
+]
+
+[project.urls]
+"Homepage" = "https://bullmq.io"
+"Bug Tracker" = "https://github.com/taskforcesh/bullmq/issues"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+bullmq = ["commands/*.lua", "types/*"]
+
+[tool.semantic_release]
+branch = "master"
+version_variable = "bullmq/__init__.py:__version__"
+version_toml = "pyproject.toml:project.version"
+build_command = "python3 setup.py sdist"
+tag_format = "vpy{version}"
+version_source = "commit"
+changelog_file = "../docs/gitbook/python/changelog.md"
+upload_to_pypi = true

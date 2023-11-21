@@ -1,5 +1,9 @@
+# Removing jobs
+
 Sometimes it is necessary to remove a job. For example, there could be a job that has bad data.
 
+{% tabs %}
+{% tab title="TypeScript" %}
 ```typescript
 import { Queue } from 'bullmq';
 
@@ -9,12 +13,26 @@ const job = await queue.add('wall', { color: 1 });
 
 await job.remove();
 ```
+{% endtab %}
 
-{% hint style="info" %}
+{% tab title="Python" %}
+```python
+from bullmq import Queue
+
+queue = Queue('paint')
+
+job = await queue.add('wall', {'color': 1})
+
+await job.remove()
+```
+{% endtab %}
+{% endtabs %}
+
+{% hint style="warning" %}
 Locked jobs (in active state) can not be removed. An error will be thrown.
 {% endhint %}
 
-# Having a parent job
+## Having a parent job
 
 There are 2 possible cases:
 
@@ -22,17 +40,17 @@ There are 2 possible cases:
 2. There are pending dependencies; in this case the parent is kept in waiting-children status.
 
 {% hint style="info" %}
-Take in consideration that processed values will be kept in processed hset from the parent if this child is in **completed** state at the time when it's removed.
+Take into consideration that processed values will be kept in processed `hset` from the parent if this child is in **completed** state at the time when it's removed.
 {% endhint %}
 
-# Having pending dependencies
+## Having pending dependencies
 
-We may try to remove all its pending descendents first.
+We may try to remove all its pending descendants first.
 
 {% hint style="warning" %}
-In case one of the children is locked, it will stop the deletion process.
+If any of the children are locked, the deletion process will be stopped.
 {% endhint %}
 
-## Read more:
+### Read more:
 
-- 💡 [Remove API Reference](https://api.docs.bullmq.io/classes/Job.html#remove)
+* 💡 [Remove API Reference](https://api.docs.bullmq.io/classes/v4.Job.html#remove)

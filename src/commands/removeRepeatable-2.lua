@@ -12,6 +12,9 @@
   Output:
     0 - OK
     1 - Missing repeat job
+
+  Events:
+    'removed'
 ]]
 local rcall = redis.call
 local millis = rcall("ZSCORE", KEYS[1], ARGV[2])

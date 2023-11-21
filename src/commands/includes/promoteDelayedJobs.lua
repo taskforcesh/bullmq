@@ -5,38 +5,35 @@
      Events:
       'waiting'
 ]]
-local rcall = redis.call
 
 -- Includes
 --- @include "addJobWithPriority"
---- @include "getTargetQueueList"
 
 -- Try to get as much as 1000 jobs at once
-local function promoteDelayedJobs(delayedKey, waitKey, priorityKey, pausedKey,
-                                  metaKey, eventStreamKey, prefix, timestamp)
+local function promoteDelayedJobs(delayedKey, waitKey, targetKey, prioritizedKey,
+                                  eventStreamKey, prefix, timestamp, paused, priorityCounterKey)
     local jobs = rcall("ZRANGEBYSCORE", delayedKey, 0, (timestamp + 1) * 0x1000, "LIMIT", 0, 1000)
 
     if (#jobs > 0) then
         rcall("ZREM", delayedKey, unpack(jobs))
 
-        -- check if we need to use push in paused instead of waiting
-        local target = getTargetQueueList(metaKey, waitKey, pausedKey)
-
         for _, jobId in ipairs(jobs) do
+            local jobKey = prefix .. jobId
             local priority =
-                tonumber(rcall("HGET", prefix .. jobId, "priority")) or 0
+                tonumber(rcall("HGET", jobKey, "priority")) or 0
 
             if priority == 0 then
                 -- LIFO or FIFO
-                rcall("LPUSH", target, jobId)
+                rcall("LPUSH", targetKey, jobId)
             else
-                addJobWithPriority(priorityKey, priority, target, jobId)
+                addJobWithPriority(waitKey, prioritizedKey, priority, paused,
+                  jobId, priorityCounterKey)
             end
 
             -- Emit waiting event
             rcall("XADD", eventStreamKey, "*", "event", "waiting", "jobId",
                   jobId, "prev", "delayed")
-            rcall("HSET", prefix .. jobId, "delay", 0)
+            rcall("HSET", jobKey, "delay", 0)
         end
     end
 end

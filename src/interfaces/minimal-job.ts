@@ -111,7 +111,7 @@ export interface MinimalJob<
    *
    * @param data - the data that will replace the current jobs data.
    */
-  update(data: DataType): Promise<void>;
+  updateData(data: DataType): Promise<void>;
   /**
    * Updates a job's progress
    *

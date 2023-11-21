@@ -1,33 +1,41 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Pause', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should not process delayed jobs', async function () {
-    this.timeout(5000);
-
     let processed = false;
 
     const worker = new Worker(
@@ -35,12 +43,12 @@ describe('Pause', function () {
       async () => {
         processed = true;
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
     await queue.pause();
-    await queue.add('test', {}, { delay: 200 });
+    await queue.add('test', {}, { delay: 300 });
     const counts = await queue.getJobCounts('waiting', 'delayed');
 
     expect(counts).to.have.property('waiting', 0);
@@ -73,7 +81,7 @@ describe('Pause', function () {
       };
     });
 
-    const worker = new Worker(queueName, process, { connection });
+    const worker = new Worker(queueName, process, { connection, prefix });
     await worker.waitUntilReady();
 
     await queue.pause();
@@ -115,7 +123,7 @@ describe('Pause', function () {
       };
     });
 
-    new Worker(queueName, process, { connection });
+    const worker = new Worker(queueName, process, { connection, prefix });
 
     queueEvents.on('paused', async (args, eventId) => {
       isPaused = false;
@@ -133,7 +141,9 @@ describe('Pause', function () {
     await queue.add('test', { foo: 'paused' });
     await queue.add('test', { foo: 'paused' });
 
-    return processPromise;
+    await processPromise;
+
+    await worker.close();
   });
 
   it('should pause the queue locally', async () => {
@@ -151,7 +161,7 @@ describe('Pause', function () {
       };
     });
 
-    worker = new Worker(queueName, process, { connection });
+    worker = new Worker(queueName, process, { connection, prefix });
     await worker.waitUntilReady();
 
     await worker.pause();
@@ -168,7 +178,8 @@ describe('Pause', function () {
 
     await worker.resume();
 
-    return processPromise;
+    await processPromise;
+    worker.close();
   });
 
   it('should wait until active jobs are finished before resolving pause', async () => {
@@ -181,7 +192,7 @@ describe('Pause', function () {
       };
     });
 
-    const worker = new Worker(queueName, process, { connection });
+    const worker = new Worker(queueName, process, { connection, prefix });
     await worker.waitUntilReady();
 
     const jobs: Promise<Job | void>[] = [];
@@ -232,10 +243,10 @@ describe('Pause', function () {
       };
     });
 
-    const worker1 = new Worker(queueName, process1, { connection });
+    const worker1 = new Worker(queueName, process1, { connection, prefix });
     await worker1.waitUntilReady();
 
-    const worker2 = new Worker(queueName, process2, { connection });
+    const worker2 = new Worker(queueName, process2, { connection, prefix });
     await worker2.waitUntilReady();
 
     await Promise.all([
@@ -266,7 +277,7 @@ describe('Pause', function () {
       };
     });
 
-    const worker = new Worker(queueName, process, { connection });
+    const worker = new Worker(queueName, process, { connection, prefix });
     await worker.waitUntilReady();
 
     await queue.add('test', 1);
@@ -290,6 +301,7 @@ describe('Pause', function () {
       },
       {
         connection,
+        prefix,
       },
     );
     await worker.waitUntilReady();
@@ -327,7 +339,7 @@ describe('Pause', function () {
       async () => {
         await delay(100);
       },
-      { connection },
+      { connection, prefix },
     );
 
     await worker.waitUntilReady();
@@ -340,7 +352,7 @@ describe('Pause', function () {
     await delay(10);
 
     return worker.close();
-  });
+  }).timeout(8000);
 
   describe('when backoff is 0', () => {
     it('moves job into paused queue', async () => {
@@ -361,6 +373,7 @@ describe('Pause', function () {
           },
           {
             connection,
+            prefix,
           },
         );
       });
@@ -379,7 +392,7 @@ describe('Pause', function () {
       await waitingEvent;
       await processing;
 
-      await worker.close();
+      await worker!.close();
     });
   });
 });

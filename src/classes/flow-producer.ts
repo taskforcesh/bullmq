@@ -10,7 +10,7 @@ import {
   QueueBaseOptions,
   RedisClient,
 } from '../interfaces';
-import { getParentKey } from '../utils';
+import { getParentKey, isRedisInstance } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
@@ -108,7 +108,17 @@ export class FlowProducer extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new Connection(opts.connection);
+    this.connection = new Connection(
+      opts.connection,
+      opts.blockingConnection,
+      opts.skipVersionCheck,
+    );
+    this.connection = new Connection(
+      opts.connection,
+      isRedisInstance(opts?.connection),
+      false,
+      opts.skipVersionCheck,
+    );
     this.connection.on('error', error => this.emit('error', error));
     this.connection.on('close', this.emit.bind(this, 'ioredis:close'));
 
@@ -305,7 +315,7 @@ export class FlowProducer extends EventEmitter {
         parent: {
           parentOpts: {
             id: parentId,
-            queue: queueKeysParent.getPrefixedQueueName(node.queueName),
+            queue: queueKeysParent.getQueueQualifiedName(node.queueName),
           },
           parentDependenciesKey,
         },
@@ -400,10 +410,10 @@ export class FlowProducer extends EventEmitter {
     maxChildren: number,
   ) {
     const getChild = (key: string) => {
-      const [prefix, queueName, id, groupId] = key.split(':');
+      const [prefix, queueName, id] = key.split(':');
 
       return this.getNode(client, {
-        id: groupId ? `${id}:${groupId}` : id,
+        id,
         queueName,
         prefix,
         depth,
@@ -433,6 +443,7 @@ export class FlowProducer extends EventEmitter {
       keys: queueKeys.getKeys(node.queueName),
       toKey: (type: string) => queueKeys.toKey(node.queueName, type),
       opts: { prefix },
+      qualifiedName: queueKeys.getQueueQualifiedName(node.queueName),
       closing: this.closing,
       waitUntilReady: async () => this.connection.client,
       removeListener: this.removeListener.bind(this) as any,

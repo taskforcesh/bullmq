@@ -45,6 +45,7 @@ export class QueueGetters<
         case 'completed':
         case 'failed':
         case 'delayed':
+        case 'prioritized':
         case 'repeat':
         case 'waiting-children':
           return callback(key, count ? 'zcard' : 'zrange');
@@ -82,23 +83,37 @@ export class QueueGetters<
       'delayed',
       'failed',
       'paused',
+      'prioritized',
       'waiting',
       'waiting-children',
     ];
   }
 
   /**
-    Returns the number of jobs waiting to be processed. This includes jobs that are "waiting" or "delayed".
+    Returns the number of jobs waiting to be processed. This includes jobs that are
+    "waiting" or "delayed" or "prioritized" or "waiting-children".
   */
   async count(): Promise<number> {
     const count = await this.getJobCountByTypes(
       'waiting',
       'paused',
       'delayed',
+      'prioritized',
       'waiting-children',
     );
 
     return count;
+  }
+
+  /**
+   * Returns the time to live for a rate limited key in milliseconds.
+   * @returns -2 if the key does not exist.
+   * -1 if the key exists but has no associated expire.
+   * @see {@link https://redis.io/commands/pttl/}
+   */
+  async getRateLimitTtl(): Promise<number> {
+    const client = await this.client;
+    return client.pttl(this.keys.limiter);
   }
 
   /**
@@ -173,6 +188,13 @@ export class QueueGetters<
   }
 
   /**
+   * Returns the number of jobs in prioritized status.
+   */
+  getPrioritizedCount(): Promise<number> {
+    return this.getJobCountByTypes('prioritized');
+  }
+
+  /**
    * Returns the number of jobs in waiting or paused statuses.
    */
   getWaitingCount(): Promise<number> {
@@ -199,7 +221,8 @@ export class QueueGetters<
   }
 
   /**
-   * Returns the jobs that are in the "waiting" status.
+   * Returns the jobs that are in the "waiting-children" status.
+   * I.E. parent jobs that have at least one child that has not completed yet.
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
@@ -232,6 +255,18 @@ export class QueueGetters<
     end = -1,
   ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['delayed'], start, end, true);
+  }
+
+  /**
+   * Returns the jobs that are in the "prioritized" status.
+   * @param start - zero based index from where to start returning jobs.
+   * @param end - zero based index where to stop returning jobs.
+   */
+  getPrioritized(
+    start = 0,
+    end = -1,
+  ): Promise<Job<DataType, ResultType, NameType>[]> {
+    return this.getJobs(['prioritized'], start, end, true);
   }
 
   /**
@@ -307,9 +342,9 @@ export class QueueGetters<
     end = -1,
     asc = false,
   ): Promise<Job<DataType, ResultType, NameType>[]> {
-    types = this.sanitizeJobTypes(types);
+    const currentTypes = this.sanitizeJobTypes(types);
 
-    const jobIds = await this.getRanges(types, start, end, asc);
+    const jobIds = await this.getRanges(currentTypes, start, end, asc);
 
     return Promise.all(
       jobIds.map(

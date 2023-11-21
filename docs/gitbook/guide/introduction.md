@@ -1,6 +1,6 @@
 # Introduction
 
-BullMQ is based in 4 classes that together can be used to resolve many different problems. These classes are [_**Queue**_](https://api.docs.bullmq.io/classes/Queue.html), [_**Worker**_](https://api.docs.bullmq.io/classes/Worker.html), [_**QueueEvents**_](https://api.docs.bullmq.io/classes/QueueEvents.html) and [_**FlowProducer**_](https://api.docs.bullmq.io/classes/FlowProducer.html).
+BullMQ is based in 4 classes that together can be used to resolve many different problems. These classes are [_**Queue**_](https://api.docs.bullmq.io/classes/v4.Queue.html), [_**Worker**_](https://api.docs.bullmq.io/classes/v4.Worker.html), [_**QueueEvents**_](https://api.docs.bullmq.io/classes/v4.QueueEvents.html) and [_**FlowProducer**_](https://api.docs.bullmq.io/classes/v4.FlowProducer.html).
 
 The first class you should know about is the _Queue_ class. This class represents a queue and can be used for adding _**jobs**_ to the queue as well as some other basic manipulation such as pausing, cleaning or getting data from the queue.
 

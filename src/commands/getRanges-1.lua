@@ -9,7 +9,7 @@
       ARGV[3]    asc
       ARGV[4...] types
 ]]
-local rcall = redis.call;
+local rcall = redis.call
 local prefix = KEYS[1]
 local rangeStart = tonumber(ARGV[1])
 local rangeEnd = tonumber(ARGV[2])

@@ -1,10 +1,14 @@
 import { Cluster, Redis } from 'ioredis';
+
+// Note: this Polyfill is only needed for Node versions < 15.4.0
+import { AbortController } from 'node-abort-controller';
+
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import * as semver from 'semver';
-import { ChildMessage, ParentMessage, RedisClient } from './interfaces';
-import { ChildProcess } from 'child_process';
+import { ChildMessage, RedisClient } from './interfaces';
+import { EventEmitter } from 'events';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -47,9 +51,19 @@ export function array2obj(arr: string[]): Record<string, string> {
   return obj;
 }
 
-export function delay(ms: number): Promise<void> {
+export function delay(
+  ms: number,
+  abortController?: AbortController,
+): Promise<void> {
   return new Promise(resolve => {
-    setTimeout(() => resolve(), ms);
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const callback = () => {
+      abortController?.signal.removeEventListener('abort', callback);
+      clearTimeout(timeout);
+      resolve();
+    };
+    timeout = setTimeout(callback, ms);
+    abortController?.signal.addEventListener('abort', callback);
   });
 }
 
@@ -65,10 +79,25 @@ export function isRedisCluster(obj: unknown): obj is Cluster {
   return isRedisInstance(obj) && (<Cluster>obj).isCluster;
 }
 
+export function increaseMaxListeners(
+  emitter: EventEmitter,
+  count: number,
+): void {
+  const maxListeners = emitter.getMaxListeners();
+  emitter.setMaxListeners(maxListeners + count);
+}
+
+export function decreaseMaxListeners(
+  emitter: EventEmitter,
+  count: number,
+): void {
+  increaseMaxListeners(emitter, -count);
+}
+
 export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
-  prefix = 'bull',
+  prefix = process.env.BULLMQ_TEST_PREFIX || 'bull',
 ): Promise<void | boolean> {
   if (client instanceof Cluster) {
     // todo compat with cluster ?
@@ -76,7 +105,7 @@ export async function removeAllQueueData(
     return Promise.resolve(false);
   }
   const pattern = `${prefix}:${queueName}:*`;
-  return new Promise<void>((resolve, reject) => {
+  const removing = await new Promise<void>((resolve, reject) => {
     const stream = client.scanStream({
       match: pattern,
     });
@@ -94,6 +123,8 @@ export async function removeAllQueueData(
     stream.on('end', () => resolve());
     stream.on('error', error => reject(error));
   });
+  await removing;
+  await client.quit();
 }
 
 export function getParentKey(opts: {
@@ -122,6 +153,7 @@ export function isNotConnectionError(error: Error): boolean {
 
 interface procSendLike {
   send?(message: any, callback?: (error: Error | null) => void): boolean;
+  postMessage?(message: any): void;
 }
 
 export const asyncSend = <T extends procSendLike>(
@@ -137,6 +169,8 @@ export const asyncSend = <T extends procSendLike>(
           resolve();
         }
       });
+    } else if (typeof proc.postMessage === 'function') {
+      resolve(proc.postMessage(msg));
     } else {
       resolve();
     }
@@ -156,11 +190,6 @@ export const isRedisVersionLowerThan = (
 
   return semver.lt(version, minimumVersion);
 };
-
-export const parentSend = (
-  child: ChildProcess,
-  msg: ParentMessage,
-): Promise<void> => asyncSend<ChildProcess>(child, msg);
 
 export const parseObjectValues = (obj: {
   [key: string]: string;

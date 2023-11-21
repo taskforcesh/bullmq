@@ -23,6 +23,7 @@
   * [FIFO](guide/jobs/fifo.md)
   * [LIFO](guide/jobs/lifo.md)
   * [Job Ids](guide/jobs/job-ids.md)
+  * [Job Data](guide/jobs/job-data.md)
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
   * [Prioritized](guide/jobs/prioritized.md)
@@ -39,10 +40,14 @@
 * [Returning job data](guide/returning-job-data.md)
 * [Events](guide/events.md)
 * [QueueScheduler](guide/queuescheduler.md)
+* [Redis™ Compatibility](guide/redis-tm-compatibility/README.md)
+  * [Dragonfly](guide/redis-tm-compatibility/dragonfly.md)
 * [Architecture](guide/architecture.md)
 * [NestJs](guide/nestjs/README.md)
   * [Producers](guide/nestjs/producers.md)
+  * [Queue Events Listeners](guide/nestjs/queue-events-listeners.md)
 * [Going to production](guide/going-to-production.md)
+* [Migration to newer versions](guide/migration-to-newer-versions.md)
 
 ## Patterns
 
@@ -54,6 +59,7 @@
 * [Throttle jobs](patterns/throttle-jobs.md)
 * [Process Step Jobs](patterns/process-step-jobs.md)
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
+* [Stop retrying jobs](patterns/stop-retrying-jobs.md)
 
 ## BullMQ Pro
 
@@ -64,13 +70,18 @@
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
+  * [Max group size](bullmq-pro/groups/max-group-size.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
+  * [Prioritized intra-groups](bullmq-pro/groups/prioritized.md)
+* [Batches](bullmq-pro/batches.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
   * [Producers](bullmq-pro/nestjs/producers.md)
+  * [Queue Events Listeners](bullmq-pro/nestjs/queue-events-listeners.md)
   * [API Reference](https://nestjs.bullmq.pro/)
   * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)
 * [Changelog](bullmq-pro/changelog.md)
+* [Support](bullmq-pro/support.md)
 
 ## Bull
 
@@ -97,3 +108,4 @@
 ## Python
 
 * [Introduction](python/introduction.md)
+* [Changelog](python/changelog.md)

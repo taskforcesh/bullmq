@@ -1,6 +1,6 @@
 # Cancellation
 
-As mentioned, Observables allows for clean cancellation. Currently we support a TTL value that defines the maximum processing time before the job is finally cancelled:
+As mentioned, `Observables` allow for clean cancellation. Currently we support a TTL value that defines the maximum processing time before the job is finally cancelled:
 
 ```typescript
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
@@ -11,7 +11,7 @@ const worker = new WorkerPro(queueName, processor, {
 });
 ```
 
-This parameter allows to provide ttl values per job name too:
+This parameter allows to provide `ttl` values per job name too:
 
 ```typescript
 const worker = new WorkerPro(queueName, processor, {

@@ -1,93 +1,51 @@
-from typing import Callable, TypedDict, Any, List
+from typing import Callable
 from uuid import uuid4
+from bullmq.custom_errors import WaitingChildrenError
 from bullmq.scripts import Scripts
 from bullmq.redis_connection import RedisConnection
 from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
+from bullmq.types import WorkerOptions
+from bullmq.utils import isRedisVersionLowerThan, extract_result
 
 import asyncio
 import traceback
 import time
-
-
-class WorkerOptions(TypedDict, total=False):
-    autorun: bool
-    """
-    Condition to start processor at instance creation
-
-    @default true
-    """
-
-    concurrency: int
-    """
-    Amount of jobs that a single worker is allowed to work on
-    in parallel.
-
-    @default 1
-    @see https://docs.bullmq.io/guide/workers/concurrency
-    """
-
-    maxStalledCount: int
-    """
-    Amount of times a job can be recovered from a stalled state
-    to the `wait` state. If this is exceeded, the job is moved
-    to `failed`.
-
-    @default 1
-    """
-
-    stalledInterval: int
-    """
-    Number of milliseconds between stallness checks.
-
-    @default 30000
-    """
-
-    lockDuration: int
-    """
-    Duration of the lock for the job in milliseconds. The lock represents that
-    a worker is processing the job. If the lock is lost, the job will be eventually
-    be picked up by the stalled checker and move back to wait so that another worker
-    can process it again.
-
-    @default 30000
-    """
-
-    prefix: str
-    """
-    Prefix for all queue keys.
-    """
-
-    connection: dict[str, Any]
-    """
-    Options for connecting to a Redis instance.
-    """
-
+import math
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
         super().__init__()
         self.name = name
         self.processor = processor
-        self.opts = {
-            "concurrency": opts.get("concurrency", 1),
-            "lockDuration": opts.get("lockDuration", 30000),
-            "maxStalledCount": opts.get("maxStalledCount", 1),
-            "stalledInterval": opts.get("stalledInterval", 30000),
+        final_opts = {
+            "concurrency": 1,
+            "lockDuration": 30000,
+            "maxStalledCount": 1,
+            "stalledInterval": 30000,
         }
+        final_opts.update(opts or {})
+        self.opts = final_opts
         redis_opts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redis_opts)
         self.blockingRedisConnection = RedisConnection(redis_opts)
         self.client = self.redisConnection.conn
         self.bclient = self.blockingRedisConnection.conn
-        self.scripts = Scripts(opts.get("prefix", "bull"), name, self.client)
+        self.prefix = opts.get("prefix", "bull")
+        self.scripts = Scripts(opts.get("prefix", "bull"), name, self.redisConnection)
         self.closing = False
         self.forceClosing = False
         self.closed = False
         self.running = False
         self.processing = set()
         self.jobs = set()
+        self.id = uuid4().hex
+        self.waiting = None
+        self.blockUntil = 0
+        self.limitUntil = 0
+        self.drained = False
+        self.qualifiedName = self.scripts.queue_keys.getQueueQualifiedName(name)
 
         if opts.get("autorun", True):
             asyncio.ensure_future(self.run())
@@ -103,22 +61,22 @@ class Worker(EventEmitter):
         self.running = True
         jobs = []
 
-        token = uuid4().hex
+        token_postfix = 0
 
         while not self.closed:
-            if len(jobs) == 0 and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+            while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+                token_postfix+=1
+                token = f'{self.id}:{token_postfix}'
                 waiting_job = asyncio.ensure_future(self.getNextJob(token))
                 self.processing.add(waiting_job)
-
-            if len(jobs) > 0:
-                jobs_to_process = [self.processJob(job, token) for job in jobs]
-                processing_jobs = [asyncio.ensure_future(
-                    j) for j in jobs_to_process]
-                self.processing.update(processing_jobs)
 
             try:
                 jobs, pending = await getCompleted(self.processing)
 
+                jobs_to_process = [self.processJob(job, job.token) for job in jobs]
+                processing_jobs = [asyncio.ensure_future(
+                    j) for j in jobs_to_process]
+                pending.update(processing_jobs)
                 self.processing = pending
 
                 if (len(jobs) == 0 or len(self.processing) == 0) and self.closing:
@@ -141,24 +99,64 @@ class Worker(EventEmitter):
         @param token: worker token to be assigned to retrieved job
         @returns a Job or undefined if no job was available in the queue.
         """
-        # First try to move a job from the waiting list to the active list
-        result = await self.scripts.moveToActive(token, self.opts)
-        job = None
-        job_id = None
+
+        if not self.waiting:
+            self.waiting = self.waitForJob()
+
+            try:
+                job_id = await self.waiting
+                job_instance = await self.moveToActive(token, job_id)
+                return job_instance
+            finally:
+                self.waiting = None
+        else:
+            job_instance = await self.moveToActive(token)
+            return job_instance
+
+    async def moveToActive(self, token: str, job_id: str = None):
+        if job_id and job_id.startswith('0:'):
+            self.blockUntil = int(job_id.split(':')[1]) or 0
+
+        result = await self.scripts.moveToActive(token, self.opts, job_id)
+        job_data = None
+        id = None
+        limit_until = None
         delay_until = None
+
         if result:
-            job, job_id = result
+            job_data, id, limit_until, delay_until = result
 
-        # If there are no jobs in the waiting list we keep waiting with BRPOPLPUSH
-        if job is None:
-            timeout = min(delay_until - int(time.time() * 1000)
-                          if delay_until else 5000, 5000) / 1000
-            job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
-            if job_id:
-                job, job_id = await self.scripts.moveToActive(token, self.opts, job_id)
+        return self.nextJobFromJobData(job_data, id, limit_until, delay_until, token)
 
-        if job and job_id:
-            return Job.fromJSON(self.client, job, job_id)
+    def nextJobFromJobData(self, job_data = None, job_id: str = None, limit_until: int = 0,
+        delay_until: int = 0, token: str = None):
+        self.limitUntil = max(limit_until, 0) or 0
+
+        if not job_data:
+            if not self.drained:
+                self.drained = True
+                self.blockUntil = 0
+
+        if delay_until:
+            self.blockUntil = max(delay_until, 0) or 0
+
+        if job_data:
+            self.drained = False
+            job_instance = Job.fromJSON(self, job_data, job_id)
+            job_instance.token = token
+            return job_instance
+
+    async def waitForJob(self):
+        timeout = max(min(self.blockUntil - int(time.time() * 1000)
+                        if self.blockUntil else 5000, 5000) / 1000, 0.00001)
+
+        redis_version = await self.blockingRedisConnection.getRedisVersion()
+        # Only Redis v6.0.0 and above supports doubles as block time
+        timeout = int(math.ceil(timeout)) if isRedisVersionLowerThan(redis_version, '6.0.0') else timeout
+
+        job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
+
+        return job_id
 
     async def processJob(self, job: Job, token: str):
         try:
@@ -166,16 +164,15 @@ class Worker(EventEmitter):
             result = await self.processor(job, token)
             if not self.forceClosing:
                 await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
+                job.returnvalue = result
             self.emit("completed", job, result)
+        except WaitingChildrenError:
+            return
         except Exception as err:
             try:
                 print("Error processing job", err)
-                stacktrace = traceback.format_exc()
-
                 if not self.forceClosing:
-                    await self.scripts.moveToFailed(job, str(err), job.opts.get("removeOnFail", False), token, self.opts, fetchNext=not self.closing)
-
-                # TODO: Store the stacktrace in the job
+                    await job.moveToFailed(err, token)
 
                 self.emit("failed", job, err)
             except Exception as err:
@@ -218,16 +215,21 @@ class Worker(EventEmitter):
         """
         Close the worker
         """
+        self.closing = True
         if force:
             self.forceClosing = True
-
-        self.closing = True
+            self.cancelProcessing()
 
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
 
+    def cancelProcessing(self):
+        for job in self.processing:
+            if not job.done():
+                job.cancel()
 
-async def getCompleted(task_set: set) -> tuple[list[Job], list]:
+
+async def getCompleted(task_set: set) -> tuple[list[Job], set]:
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
     jobs = [extract_result(job_task) for job_task in job_set]
     # we filter `None` out to remove:
@@ -235,13 +237,3 @@ async def getCompleted(task_set: set) -> tuple[list[Job], list]:
     # b) a failed extract_result
     jobs = list(filter(lambda j: j is not None, jobs))
     return jobs, pending
-
-
-def extract_result(job_task):
-    try:
-        return job_task.result()
-    except Exception as e:
-        # lets use a simple-but-effective error handling:
-        # print error message and ignore the job
-        print("ERROR:", e)
-        traceback.print_exc()

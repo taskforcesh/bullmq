@@ -1,7 +1,8 @@
 {
   "name": "bullmq",
-  "version": "3.10.4",
+  "version": "4.14.0",
   "description": "Queue for messages and jobs based on Redis",
+  "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
@@ -19,14 +20,14 @@
     "dist"
   ],
   "scripts": {
-    "build": "npm-run-all pretest tsc:all copy:master:type clean:temp:files copy:lua copy:includes:lua",
+    "build": "npm-run-all pretest tsc:all copy:main:type clean:temp:files copy:lua copy:includes:lua",
     "circular:references": "madge --circular --extensions ts ./src",
     "clean:scripts": "rimraf rawScripts src/scripts",
     "clean:temp:files": "rimraf dist/cjs/bullmq.d.ts dist/esm/bullmq.d.ts dist/tsdoc-metadata.json",
     "copy:includes:lua": "copyfiles -f ./src/commands/includes/*.lua ./dist/cjs/commands/includes && copyfiles -f ./src/commands/includes/*.lua ./dist/esm/commands/includes",
     "copy:lua": "copyfiles -f ./src/commands/*.lua ./dist/cjs/commands && copyfiles -f ./src/commands/*.lua ./dist/esm/commands",
     "copy:lua:python": "copyfiles -f ./rawScripts/*.lua ./python/bullmq/commands",
-    "copy:master:type": "copyfiles -f ./dist/esm/classes/master.d.ts ./dist/cjs/classes",
+    "copy:main:type": "copyfiles -f ./dist/esm/classes/main.d.ts ./dist/esm/classes/main-worker.d.ts ./dist/cjs/classes",
     "coverage": "nyc --reporter=text --reporter=lcovonly yarn test",
     "cm": "git cz",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
@@ -53,10 +54,11 @@
   "dependencies": {
     "cron-parser": "^4.6.0",
     "glob": "^8.0.3",
-    "ioredis": "^5.3.0",
+    "ioredis": "^5.3.2",
     "lodash": "^4.17.21",
     "msgpackr": "^1.6.2",
-    "semver": "^7.3.7",
+    "node-abort-controller": "^3.1.1",
+    "semver": "^7.5.4",
     "tslib": "^2.0.0",
     "uuid": "^9.0.0"
   },
@@ -108,11 +110,11 @@
     "rimraf": "^3.0.2",
     "rrule": "^2.6.9",
     "semantic-release": "^19.0.3",
-    "sinon": "^14.0.0",
+    "sinon": "^15.1.0",
     "test-console": "^2.0.0",
     "ts-mocha": "^10.0.0",
     "ts-node": "^10.7.0",
-    "typedoc": "^0.23.0",
+    "typedoc": "^0.25.0",
     "typescript": "^4.7.4"
   },
   "nyc": {
@@ -172,7 +174,7 @@
         {
           "releaseRules": [
             {
-              "scope": "python*",
+              "message": "*\\[python\\]*",
               "release": false
             }
           ]

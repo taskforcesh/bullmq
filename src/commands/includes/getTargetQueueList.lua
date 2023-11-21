@@ -5,8 +5,8 @@
 
 local function getTargetQueueList(queueMetaKey, waitKey, pausedKey)
   if rcall("HEXISTS", queueMetaKey, "paused") ~= 1 then
-    return waitKey
+    return waitKey, false
   else
-    return pausedKey
+    return pausedKey, true
   end
 end
