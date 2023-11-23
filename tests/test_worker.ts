@@ -54,6 +54,600 @@ describe('workers', function () {
     await connection.quit();
   });
 
+  it('process a lifo queue', async function () {
+    this.timeout(3000);
+    let currentValue = 0;
+    let first = true;
+
+    let processor;
+    const processing = new Promise<void>((resolve, reject) => {
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.count).to.be.equal(currentValue--);
+        } catch (err) {
+          reject(err);
+        }
+
+        if (first) {
+          first = false;
+        } else if (currentValue === 0) {
+          resolve();
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor, { connection, prefix });
+    await worker.waitUntilReady();
+
+    await queue.pause();
+    // Add a series of jobs in a predictable order
+    const jobs = [
+      { count: ++currentValue },
+      { count: ++currentValue },
+      { count: ++currentValue },
+      { count: ++currentValue },
+    ];
+    await Promise.all(
+      jobs.map(jobData => {
+        return queue.add('test', jobData, { lifo: true });
+      }),
+    );
+    await queue.resume();
+
+    await processing;
+
+    await worker.close();
+  });
+
+  it('process several jobs serially', async () => {
+    let counter = 1;
+    const maxJobs = 35;
+
+    let processor;
+    const processing = new Promise<void>((resolve, reject) => {
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.num).to.be.equal(counter);
+          expect(job.data.foo).to.be.equal('bar');
+          if (counter === maxJobs) {
+            resolve();
+          }
+          counter++;
+        } catch (err) {
+          reject(err);
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor, { connection, prefix });
+    await worker.waitUntilReady();
+
+    for (let i = 1; i <= maxJobs; i++) {
+      await queue.add('test', { foo: 'bar', num: i });
+    }
+
+    await processing;
+    expect(worker.isRunning()).to.be.equal(true);
+
+    await worker.close();
+  });
+
+  it('process a job that updates progress as number', async () => {
+    let processor;
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    const processing = new Promise<void>((resolve, reject) => {
+      queueEvents.on('progress', ({ jobId, data }) => {
+        expect(jobId).to.be.ok;
+        expect(data).to.be.eql(42);
+        resolve();
+      });
+
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.foo).to.be.equal('bar');
+          await job.updateProgress(42);
+        } catch (err) {
+          reject(err);
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor, { connection, prefix });
+    await worker.waitUntilReady();
+
+    await processing;
+
+    await worker.close();
+  });
+
+  it('process a job that updates progress as object', async () => {
+    let processor;
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    const processing = new Promise<void>((resolve, reject) => {
+      queueEvents.on('progress', ({ jobId, data }) => {
+        expect(jobId).to.be.ok;
+        expect(data).to.be.eql({ percentage: 42 });
+        resolve();
+      });
+
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.foo).to.be.equal('bar');
+          await job.updateProgress({ percentage: 42 });
+        } catch (err) {
+          reject(err);
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor, { connection, prefix });
+    await worker.waitUntilReady();
+
+    await processing;
+
+    await worker.close();
+  });
+
+  it('processes jobs that were added before the worker started', async () => {
+    const jobs = [
+      queue.add('test', { bar: 'baz' }),
+      queue.add('test', { bar1: 'baz1' }),
+      queue.add('test', { bar2: 'baz2' }),
+      queue.add('test', { bar3: 'baz3' }),
+    ];
+
+    await Promise.all(jobs);
+
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
+    await worker.waitUntilReady();
+
+    await new Promise(resolve => {
+      const resolveAfterAllJobs = after(jobs.length, resolve);
+      worker.on('completed', resolveAfterAllJobs);
+    });
+
+    await worker.close();
+  });
+
+  it('process a job that returns data in the process handler', async () => {
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        return 37;
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, data: any) => {
+        try {
+          expect(job).to.be.ok;
+          expect(data).to.be.eql(37);
+
+          const gotJob = await queue.getJob(job.id);
+          expect(gotJob.returnvalue).to.be.eql(37);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await worker.close();
+  });
+
+  it('process a job that returns a string in the process handler', async () => {
+    const testString = 'a very dignified string';
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        return testString;
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const waiting = new Promise<void>((resolve, reject) => {
+      queueEvents.on('completed', async data => {
+        try {
+          expect(data).to.be.ok;
+          expect(data.returnvalue).to.be.equal(testString);
+          await delay(100);
+          const gotJob = await queue.getJob(data.jobId);
+
+          expect(gotJob).to.be.ok;
+          expect(gotJob.returnvalue).to.be.equal(testString);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await queue.add('test', { testing: true });
+    await waiting;
+    await worker.close();
+  });
+
+  it('process a job that returning data returnvalue gets stored in the database', async () => {
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        return 37;
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', async (job: Job, data: any) => {
+        try {
+          expect(job).to.be.ok;
+          expect(data).to.be.eql(37);
+          const gotJob = await queue.getJob(job.id);
+          expect(gotJob.returnvalue).to.be.eql(37);
+
+          const retval = await (
+            await queue.client
+          ).hget(queue.toKey(gotJob.id), 'returnvalue');
+          expect(JSON.parse(retval)).to.be.eql(37);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await worker.close();
+  });
+
+  it('process a job that does some asynchronous operation', async () => {
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(250);
+        return 'my data';
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await new Promise<void>(resolve => {
+      worker.on('completed', (job: Job, data: any) => {
+        expect(job).to.be.ok;
+        expect(data).to.be.eql('my data');
+        resolve();
+      });
+    });
+
+    await worker.close();
+  });
+
+  it('process a synchronous job', async () => {
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+      },
+      { connection, prefix },
+    );
+
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await new Promise<void>(resolve => {
+      worker.on('completed', job => {
+        expect(job).to.be.ok;
+        resolve();
+      });
+    });
+
+    await worker.close();
+  });
+
+  it('process a slow job without waiting previous job to finish', async () => {
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        if (job.data.index == 1) {
+          const job = await queue.add('test', { foo: 'bar', index: 2 });
+          await delay(1000);
+        }
+        return 'my data';
+      },
+      { connection, prefix, concurrency: 2 },
+    );
+    await worker.waitUntilReady();
+
+    const job1 = await queue.add('test', { foo: 'bar', index: 1 });
+    expect(job1.id).to.be.ok;
+    expect(job1.data.foo).to.be.eql('bar');
+
+    let completedIndex;
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', (job: Job, result: any) => {
+        try {
+          expect(job).to.be.ok;
+          expect(result).to.be.eql('my data');
+
+          if (!completedIndex) {
+            expect(job.data.index).to.be.eql(2);
+            completedIndex = 2;
+          }
+
+          if (job.data.index == 1) {
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await worker.close();
+  }).timeout(8000);
+
+  it('does not process a job that is being processed when a new queue starts', async () => {
+    this.timeout(12000);
+    let err;
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+
+        if (addedJob.id !== job.id) {
+          err = new Error('Processed job id does not match that of added job');
+        }
+        await delay(500);
+      },
+      { connection, prefix },
+    );
+
+    await worker.waitUntilReady();
+
+    const addedJob = await queue.add('test', { foo: 'bar' });
+
+    const anotherWorker = new Worker(
+      queueName,
+      async () => {
+        err = new Error(
+          'The second queue should not have received a job to process',
+        );
+      },
+      { connection, prefix },
+    );
+
+    worker.on('completed', async () => {
+      await anotherWorker.close();
+    });
+
+    await worker.close();
+    await anotherWorker.close();
+
+    if (err) {
+      throw err;
+    }
+  });
+
+  it('process a job that throws an exception', async () => {
+    const jobError = new Error('Job Failed');
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        throw jobError;
+      },
+      { autorun: false, connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    const failing = new Promise<void>(resolve => {
+      worker.once('failed', async (job, err) => {
+        expect(job).to.be.ok;
+        expect(job.finishedOn).to.be.a('number');
+        expect(job.data.foo).to.be.eql('bar');
+        expect(err).to.be.eql(jobError);
+        resolve();
+      });
+    });
+
+    worker.run();
+
+    await failing;
+
+    await worker.close();
+  });
+
+  it('process a job that returns data with a circular dependency', async () => {
+    const worker = new Worker(
+      queueName,
+      async () => {
+        const circular = { x: {} };
+        circular.x = circular;
+        return circular;
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const waiting = new Promise<void>((resolve, reject) => {
+      worker.on('failed', () => {
+        resolve();
+      });
+      worker.on('completed', () => {
+        reject(Error('Should not complete'));
+      });
+    });
+
+    await queue.add('test', { foo: 'bar' });
+
+    await waiting;
+    await worker.close();
+  });
+
+  it('process a job that returns a rejected promise', async () => {
+    const jobError = new Error('Job Failed');
+
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        return Promise.reject(jobError);
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await new Promise<void>((resolve, reject) => {
+      worker.once('failed', (job, err) => {
+        try {
+          expect(job.id).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          expect(err).to.be.eql(jobError);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    await worker.close();
+  });
+
+  it('retry a job that fails', async () => {
+    let failedOnce = false;
+    const notEvenErr = new Error('Not even!');
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        if (!failedOnce) {
+          throw notEvenErr;
+        }
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    const failing = new Promise<void>((resolve, reject) => {
+      worker.once('failed', async (job, err) => {
+        try {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          expect(err).to.be.eql(notEvenErr);
+          failedOnce = true;
+        } catch (err) {
+          reject(err);
+        }
+        resolve();
+      });
+    });
+
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.once('completed', () => {
+        try {
+          expect(failedOnce).to.be.eql(true);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await failing;
+    await job.retry();
+    await completing;
+
+    await worker.close();
+  });
+
+  it('retry a job that completes', async () => {
+    let completedOnce = false;
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        if (!completedOnce) {
+          return 1;
+        }
+        return 2;
+      },
+      { connection, prefix },
+    );
+    await worker.waitUntilReady();
+
+    let count = 1;
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.once('completed', async (job, result) => {
+        try {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+          expect(result).to.be.eql(count++);
+          completedOnce = true;
+        } catch (err) {
+          reject(err);
+        }
+        resolve();
+      });
+    });
+
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await completing;
+    await job.retry('completed');
+    await completing;
+
+    await worker.close();
+  });
+
   describe('when closing a worker', () => {
     it('process a job that throws an exception after worker close', async () => {
       const jobError = new Error('Job Failed');
@@ -596,51 +1190,6 @@ describe('workers', function () {
     });
   });
 
-  it('process a lifo queue', async function () {
-    this.timeout(3000);
-    let currentValue = 0;
-    let first = true;
-
-    let processor;
-    const processing = new Promise<void>((resolve, reject) => {
-      processor = async (job: Job) => {
-        try {
-          expect(job.data.count).to.be.equal(currentValue--);
-        } catch (err) {
-          reject(err);
-        }
-
-        if (first) {
-          first = false;
-        } else if (currentValue === 0) {
-          resolve();
-        }
-      };
-    });
-
-    const worker = new Worker(queueName, processor, { connection, prefix });
-    await worker.waitUntilReady();
-
-    await queue.pause();
-    // Add a series of jobs in a predictable order
-    const jobs = [
-      { count: ++currentValue },
-      { count: ++currentValue },
-      { count: ++currentValue },
-      { count: ++currentValue },
-    ];
-    await Promise.all(
-      jobs.map(jobData => {
-        return queue.add('test', jobData, { lifo: true });
-      }),
-    );
-    await queue.resume();
-
-    await processing;
-
-    await worker.close();
-  });
-
   it('should process jobs by priority', async () => {
     const normalPriority: Promise<Job>[] = [];
     const mediumPriority: Promise<Job>[] = [];
@@ -726,39 +1275,6 @@ describe('workers', function () {
 
       await worker.close();
     });
-  });
-
-  it('process several jobs serially', async () => {
-    let counter = 1;
-    const maxJobs = 35;
-
-    let processor;
-    const processing = new Promise<void>((resolve, reject) => {
-      processor = async (job: Job) => {
-        try {
-          expect(job.data.num).to.be.equal(counter);
-          expect(job.data.foo).to.be.equal('bar');
-          if (counter === maxJobs) {
-            resolve();
-          }
-          counter++;
-        } catch (err) {
-          reject(err);
-        }
-      };
-    });
-
-    const worker = new Worker(queueName, processor, { connection, prefix });
-    await worker.waitUntilReady();
-
-    for (let i = 1; i <= maxJobs; i++) {
-      await queue.add('test', { foo: 'bar', num: i });
-    }
-
-    await processing;
-    expect(worker.isRunning()).to.be.equal(true);
-
-    await worker.close();
   });
 
   describe('when sharing a redis connection between workers', function () {
@@ -910,479 +1426,6 @@ describe('workers', function () {
         await worker.close();
       });
     });
-  });
-
-  it('process a job that updates progress as number', async () => {
-    let processor;
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    const processing = new Promise<void>((resolve, reject) => {
-      queueEvents.on('progress', ({ jobId, data }) => {
-        expect(jobId).to.be.ok;
-        expect(data).to.be.eql(42);
-        resolve();
-      });
-
-      processor = async (job: Job) => {
-        try {
-          expect(job.data.foo).to.be.equal('bar');
-          await job.updateProgress(42);
-        } catch (err) {
-          reject(err);
-        }
-      };
-    });
-
-    const worker = new Worker(queueName, processor, { connection, prefix });
-    await worker.waitUntilReady();
-
-    await processing;
-
-    await worker.close();
-  });
-
-  it('process a job that updates progress as object', async () => {
-    let processor;
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    const processing = new Promise<void>((resolve, reject) => {
-      queueEvents.on('progress', ({ jobId, data }) => {
-        expect(jobId).to.be.ok;
-        expect(data).to.be.eql({ percentage: 42 });
-        resolve();
-      });
-
-      processor = async (job: Job) => {
-        try {
-          expect(job.data.foo).to.be.equal('bar');
-          await job.updateProgress({ percentage: 42 });
-        } catch (err) {
-          reject(err);
-        }
-      };
-    });
-
-    const worker = new Worker(queueName, processor, { connection, prefix });
-    await worker.waitUntilReady();
-
-    await processing;
-
-    await worker.close();
-  });
-
-  it('processes jobs that were added before the worker started', async () => {
-    const jobs = [
-      queue.add('test', { bar: 'baz' }),
-      queue.add('test', { bar1: 'baz1' }),
-      queue.add('test', { bar2: 'baz2' }),
-      queue.add('test', { bar3: 'baz3' }),
-    ];
-
-    await Promise.all(jobs);
-
-    const worker = new Worker(queueName, async () => {}, {
-      connection,
-      prefix,
-    });
-    await worker.waitUntilReady();
-
-    await new Promise(resolve => {
-      const resolveAfterAllJobs = after(jobs.length, resolve);
-      worker.on('completed', resolveAfterAllJobs);
-    });
-
-    await worker.close();
-  });
-
-  it('process a job that returns data in the process handler', async () => {
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).to.be.equal('bar');
-        return 37;
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    await new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job: Job, data: any) => {
-        try {
-          expect(job).to.be.ok;
-          expect(data).to.be.eql(37);
-
-          const gotJob = await queue.getJob(job.id);
-          expect(gotJob.returnvalue).to.be.eql(37);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-
-    await worker.close();
-  });
-
-  it('process a job that returns a string in the process handler', async () => {
-    const testString = 'a very dignified string';
-
-    const worker = new Worker(
-      queueName,
-      async () => {
-        return testString;
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const waiting = new Promise<void>((resolve, reject) => {
-      queueEvents.on('completed', async data => {
-        try {
-          expect(data).to.be.ok;
-          expect(data.returnvalue).to.be.equal(testString);
-          await delay(100);
-          const gotJob = await queue.getJob(data.jobId);
-
-          expect(gotJob).to.be.ok;
-          expect(gotJob.returnvalue).to.be.equal(testString);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-
-    await queue.add('test', { testing: true });
-    await waiting;
-    await worker.close();
-  });
-
-  it('process a job that returning data returnvalue gets stored in the database', async () => {
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).to.be.equal('bar');
-        return 37;
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    await new Promise<void>((resolve, reject) => {
-      worker.on('completed', async (job: Job, data: any) => {
-        try {
-          expect(job).to.be.ok;
-          expect(data).to.be.eql(37);
-          const gotJob = await queue.getJob(job.id);
-          expect(gotJob.returnvalue).to.be.eql(37);
-
-          const retval = await (
-            await queue.client
-          ).hget(queue.toKey(gotJob.id), 'returnvalue');
-          expect(JSON.parse(retval)).to.be.eql(37);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-
-    await worker.close();
-  });
-
-  it('process a job that does some asynchronous operation', async () => {
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).to.be.equal('bar');
-        await delay(250);
-        return 'my data';
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    await new Promise<void>(resolve => {
-      worker.on('completed', (job: Job, data: any) => {
-        expect(job).to.be.ok;
-        expect(data).to.be.eql('my data');
-        resolve();
-      });
-    });
-
-    await worker.close();
-  });
-
-  it('process a synchronous job', async () => {
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).to.be.equal('bar');
-      },
-      { connection, prefix },
-    );
-
-    await worker.waitUntilReady();
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    await new Promise<void>(resolve => {
-      worker.on('completed', job => {
-        expect(job).to.be.ok;
-        resolve();
-      });
-    });
-
-    await worker.close();
-  });
-
-  it('does not process a job that is being processed when a new queue starts', async () => {
-    this.timeout(12000);
-    let err;
-
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).to.be.equal('bar');
-
-        if (addedJob.id !== job.id) {
-          err = new Error('Processed job id does not match that of added job');
-        }
-        await delay(500);
-      },
-      { connection, prefix },
-    );
-
-    await worker.waitUntilReady();
-
-    const addedJob = await queue.add('test', { foo: 'bar' });
-
-    const anotherWorker = new Worker(
-      queueName,
-      async () => {
-        err = new Error(
-          'The second queue should not have received a job to process',
-        );
-      },
-      { connection, prefix },
-    );
-
-    worker.on('completed', async () => {
-      await anotherWorker.close();
-    });
-
-    await worker.close();
-    await anotherWorker.close();
-
-    if (err) {
-      throw err;
-    }
-  });
-
-  it('process a job that throws an exception', async () => {
-    const jobError = new Error('Job Failed');
-
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).to.be.equal('bar');
-        throw jobError;
-      },
-      { autorun: false, connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    const failing = new Promise<void>(resolve => {
-      worker.once('failed', async (job, err) => {
-        expect(job).to.be.ok;
-        expect(job.finishedOn).to.be.a('number');
-        expect(job.data.foo).to.be.eql('bar');
-        expect(err).to.be.eql(jobError);
-        resolve();
-      });
-    });
-
-    worker.run();
-
-    await failing;
-
-    await worker.close();
-  });
-
-  it('process a job that returns data with a circular dependency', async () => {
-    const worker = new Worker(
-      queueName,
-      async () => {
-        const circular = { x: {} };
-        circular.x = circular;
-        return circular;
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const waiting = new Promise<void>((resolve, reject) => {
-      worker.on('failed', () => {
-        resolve();
-      });
-      worker.on('completed', () => {
-        reject(Error('Should not complete'));
-      });
-    });
-
-    await queue.add('test', { foo: 'bar' });
-
-    await waiting;
-    await worker.close();
-  });
-
-  it('process a job that returns a rejected promise', async () => {
-    const jobError = new Error('Job Failed');
-
-    const worker = new Worker(
-      queueName,
-      async job => {
-        expect(job.data.foo).to.be.equal('bar');
-        return Promise.reject(jobError);
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    await new Promise<void>((resolve, reject) => {
-      worker.once('failed', (job, err) => {
-        try {
-          expect(job.id).to.be.ok;
-          expect(job.data.foo).to.be.eql('bar');
-          expect(err).to.be.eql(jobError);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-
-    await worker.close();
-  });
-
-  it('retry a job that fails', async () => {
-    let failedOnce = false;
-    const notEvenErr = new Error('Not even!');
-
-    const worker = new Worker(
-      queueName,
-      async () => {
-        if (!failedOnce) {
-          throw notEvenErr;
-        }
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    const failing = new Promise<void>((resolve, reject) => {
-      worker.once('failed', async (job, err) => {
-        try {
-          expect(job).to.be.ok;
-          expect(job.data.foo).to.be.eql('bar');
-          expect(err).to.be.eql(notEvenErr);
-          failedOnce = true;
-        } catch (err) {
-          reject(err);
-        }
-        resolve();
-      });
-    });
-
-    const completing = new Promise<void>((resolve, reject) => {
-      worker.once('completed', () => {
-        try {
-          expect(failedOnce).to.be.eql(true);
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      });
-    });
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    await failing;
-    await job.retry();
-    await completing;
-
-    await worker.close();
-  });
-
-  it('retry a job that completes', async () => {
-    let completedOnce = false;
-
-    const worker = new Worker(
-      queueName,
-      async () => {
-        if (!completedOnce) {
-          return 1;
-        }
-        return 2;
-      },
-      { connection, prefix },
-    );
-    await worker.waitUntilReady();
-
-    let count = 1;
-    const completing = new Promise<void>((resolve, reject) => {
-      worker.once('completed', async (job, result) => {
-        try {
-          expect(job).to.be.ok;
-          expect(job.data.foo).to.be.eql('bar');
-          expect(result).to.be.eql(count++);
-          completedOnce = true;
-        } catch (err) {
-          reject(err);
-        }
-        resolve();
-      });
-    });
-
-    const job = await queue.add('test', { foo: 'bar' });
-    expect(job.id).to.be.ok;
-    expect(job.data.foo).to.be.eql('bar');
-
-    await completing;
-    await job.retry('completed');
-    await completing;
-
-    await worker.close();
   });
 
   describe('when queue is paused and retry a job', () => {

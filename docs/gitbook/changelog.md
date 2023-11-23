@@ -1,3 +1,10 @@
+## [4.14.1](https://github.com/taskforcesh/bullmq/compare/v4.14.0...v4.14.1) (2023-11-23)
+
+
+### Bug Fixes
+
+* **worker:** do not wait for slow jobs fixes [#2290](https://github.com/taskforcesh/bullmq/issues/2290) ([568d758](https://github.com/taskforcesh/bullmq/commit/568d7585edb1f2ef15991d4ae4a2425e6834046a))
+
 # [4.14.0](https://github.com/taskforcesh/bullmq/compare/v4.13.3...v4.14.0) (2023-11-18)
 
 
@@ -17,7 +24,6 @@
 
 ### Bug Fixes
 
-* **backoff:** fix builtin backoff type ([#2265](https://github.com/taskforcesh/bullmq/issues/2265)) [python] ([76959eb](https://github.com/taskforcesh/bullmq/commit/76959eb9d9495eb1b6d2d31fab93c8951b5d3b93))
 * **job:** set delay value on current job instance when it is retried ([#2266](https://github.com/taskforcesh/bullmq/issues/2266)) (python) ([76e075f](https://github.com/taskforcesh/bullmq/commit/76e075f54d5745b6cec3cb11305bf3110d963eae))
 
 ## [4.13.1](https://github.com/taskforcesh/bullmq/compare/v4.13.0...v4.13.1) (2023-11-08)
@@ -514,9 +520,9 @@ ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 # [3.7.0](https://github.com/taskforcesh/bullmq/compare/v3.6.6...v3.7.0) (2023-02-16)
 
 
-### Features
+### Performance Improvements
 
-* initial python package ([#1673](https://github.com/taskforcesh/bullmq/issues/1673)) ([a97b22f](https://github.com/taskforcesh/bullmq/commit/a97b22f518a9f6c5d9c30a77bfd03cafdcbc57ff))
+* **move-to-active:** remove deprecated limiter reference ([#1673](https://github.com/taskforcesh/bullmq/issues/1673)) ([a97b22f](https://github.com/taskforcesh/bullmq/commit/a97b22f518a9f6c5d9c30a77bfd03cafdcbc57ff))
 
 ## [3.6.6](https://github.com/taskforcesh/bullmq/compare/v3.6.5...v3.6.6) (2023-02-15)
 
