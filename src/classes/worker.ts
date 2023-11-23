@@ -20,7 +20,6 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
-  isRedisVersionLowerThan,
   WORKER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
@@ -442,12 +441,16 @@ export class Worker<
           }
         }
 
-        let job: Job<DataType, ResultType, NameType> | void;
         // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
         // we iterate until we find a job.
-        while (!job && asyncFifoQueue.numTotal() > 0) {
+        let job: Job<DataType, ResultType, NameType> | void;
+        do {
           job = await asyncFifoQueue.fetch();
-        }
+        } while (
+          !job &&
+          asyncFifoQueue.numTotal() > 0 &&
+          asyncFifoQueue.numQueued() > 0
+        );
 
         if (job) {
           const token = job.token;
