@@ -31,7 +31,10 @@ class Scripts:
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
         self.commands = {
-            "addJob": self.redisClient.register_script(self.getScript("addJob-9.lua")),
+            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-6.lua")),
+            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-7.lua")),
+            "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-4.lua")),
+            "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-8.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-5.lua")),
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
@@ -87,8 +90,6 @@ class Scripts:
         jsonData = json.dumps(job.data, separators=(',', ':'))
         packedOpts = msgpack.packb(job.opts)
 
-        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
-                            'delayed', 'prioritized', 'completed', 'events', 'pc'])
         parent = job.parent
         parentKey = job.parentKey
 
@@ -97,25 +98,82 @@ class Scripts:
                 waiting_children_key,
                 f"{parentKey}:dependencies" if parentKey else None, parent],use_bin_type=True)
         
-        args = [packedArgs, jsonData, packedOpts]
-
-        return (keys,args)
+        return [packedArgs, jsonData, packedOpts]
 
     def addJob(self, job: Job, pipe = None):
         """
         Add an item to the queue
         """
-        keys, args = self.addJobArgs(job, None)
+        # if (parentOpts.waitChildrenKey) {
+        #   result = await this.addParentJob(client, job, encodedOpts, args);
+        # } else if (opts.delay) {
+        #   result = await this.addDelayedJob(client, job, encodedOpts, args);
+        # } else if (opts.priority) {
+        #   result = await this.addPrioritizedJob(client, job, encodedOpts, args);
+        # } else {
+        #   const keys: (string | Buffer)[] = [
+        #     queueKeys.wait,
+        #     queueKeys.paused,
+        #     queueKeys.meta,
+        #     queueKeys.id,
+        #     queueKeys.completed,
+        #     queueKeys.events,
+        #   ];
+        #   keys.push(pack(args), job.data, encodedOpts);
+        #   result = await (<any>client).addStandardJob(keys);
+        # }
+        
+        # keys, args = self.addJobArgs(job, None)
+        # return self.commands["addJob"](keys=keys, args=args, client = pipe)
+        if job.opts.get("delay"):
+            return self.addDelayedJob(job, job.opts.get("delay"), pipe)
+        elif job.opts.get("priority"):
+            return self.addPrioritizedJob(job, job.opts.get("priority"), pipe)
+        else:
+            return self.addStandardJob(job, job.timestamp, pipe)
 
-        return self.commands["addJob"](keys=keys, args=args, client = pipe)
+    def addStandardJob(self, job: Job, timestamp: int, pipe = None):
+        """
+        Add a standard job to the queue
+        """
+        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
+                             'completed', 'events'])
+        args = self.addJobArgs(job, None)
+        args.append(timestamp)
+
+        return self.commands["addStandardJob"](keys=keys, args=args, client=pipe)
+    
+    def addDelayedJob(self, job: Job, timestamp: int, pipe = None):
+        """
+        Add a delayed job to the queue
+        """
+        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
+                            'delayed', 'completed', 'events'])
+        args = self.addJobArgs(job, None)
+        args.append(timestamp)
+
+        return self.commands["addDelayedJob"](keys=keys, args=args, client=pipe)
+    
+    def addPrioritizedJob(self, job: Job, timestamp: int, pipe = None):
+        """
+        Add a prioritized job to the queue
+        """
+        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
+                            'prioritized', 'completed', 'events', 'pc'])
+        args = self.addJobArgs(job, None)
+        args.append(timestamp)
+
+        return self.commands["addPrioritizedJob"](keys=keys, args=args, client=pipe)
 
     def addParentJob(self, job: Job, waiting_children_key: str, pipe = None):
         """
-        Add an item to the queue that is a parent
+        Add a job to the queue that is a parent
         """
-        keys, args = self.addJobArgs(job, waiting_children_key)
+        keys = self.getKeys(['meta', 'id', 'completed', 'events'])
+        
+        args = self.addJobArgs(job, waiting_children_key)
 
-        return self.commands["addJob"](keys=keys, args=args, client=pipe)
+        return self.commands["addParentJob"](keys=keys, args=args, client=pipe)
 
     def cleanJobsInSetArgs(self, set: str, grace: int, limit:int = 0):
         keys = [self.toKey(set),
