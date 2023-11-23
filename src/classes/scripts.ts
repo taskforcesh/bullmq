@@ -71,12 +71,11 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  async addJob(
+  private async addDelayedJob(
     client: RedisClient,
     job: JobJson,
-    opts: RedisJobOptions,
-    jobId: string,
-    parentOpts: ParentOpts = {},
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
   ): Promise<string> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
@@ -85,11 +84,65 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
+      queueKeys.completed,
+      queueKeys.events,
+    ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return (<any>client).addDelayedJob(keys);
+  }
+
+  private async addPrioritizedJob(
+    client: RedisClient,
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): Promise<string> {
+    const queueKeys = this.queue.keys;
+    const keys: (string | Buffer)[] = [
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.id,
       queueKeys.prioritized,
       queueKeys.completed,
       queueKeys.events,
       queueKeys.pc,
     ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return (<any>client).addPrioritizedJob(keys);
+  }
+
+  private async addParentJob(
+    client: RedisClient,
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): Promise<string> {
+    const queueKeys = this.queue.keys;
+    const keys: (string | Buffer)[] = [
+      queueKeys.meta,
+      queueKeys.id,
+      queueKeys.completed,
+      queueKeys.events,
+    ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return (<any>client).addParentJob(keys);
+  }
+
+  async addJob(
+    client: RedisClient,
+    job: JobJson,
+    opts: RedisJobOptions,
+    jobId: string,
+    parentOpts: ParentOpts = {},
+  ): Promise<string> {
+    const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
       ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof }
@@ -128,9 +181,26 @@ export class Scripts {
       encodedOpts = pack(opts);
     }
 
-    keys.push(pack(args), job.data, encodedOpts);
+    let result;
 
-    const result = await (<any>client).addJob(keys);
+    if (parentOpts.waitChildrenKey) {
+      result = await this.addParentJob(client, job, encodedOpts, args);
+    } else if (opts.delay) {
+      result = await this.addDelayedJob(client, job, encodedOpts, args);
+    } else if (opts.priority) {
+      result = await this.addPrioritizedJob(client, job, encodedOpts, args);
+    } else {
+      const keys: (string | Buffer)[] = [
+        queueKeys.wait,
+        queueKeys.paused,
+        queueKeys.meta,
+        queueKeys.id,
+        queueKeys.completed,
+        queueKeys.events,
+      ];
+      keys.push(pack(args), job.data, encodedOpts);
+      result = await (<any>client).addStandardJob(keys);
+    }
 
     if (result < 0) {
       throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
