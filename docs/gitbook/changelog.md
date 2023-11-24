@@ -1,3 +1,10 @@
+## [4.14.2](https://github.com/taskforcesh/bullmq/compare/v4.14.1...v4.14.2) (2023-11-24)
+
+
+### Bug Fixes
+
+* **worker:** should cap update progress events ([2cab9e9](https://github.com/taskforcesh/bullmq/commit/2cab9e94f65c7bdd053e3fb5944bcda6e3ebaa39))
+
 ## [4.14.1](https://github.com/taskforcesh/bullmq/compare/v4.14.0...v4.14.1) (2023-11-23)
 
 
