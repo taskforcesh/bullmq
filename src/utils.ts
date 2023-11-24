@@ -6,11 +6,18 @@ import { AbortController } from 'node-abort-controller';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import * as semver from 'semver';
 import { ChildMessage, RedisClient } from './interfaces';
 import { EventEmitter } from 'events';
+import * as path from 'path';
+import * as semver from 'semver';
+import { fileURLToPath } from 'url';
 
 export const errorObject: { [index: string]: any } = { value: null };
+
+export const getDirName = function (moduleUrl: string) {
+  const filename = fileURLToPath(moduleUrl);
+  return path.dirname(filename);
+};
 
 export function tryCatch(
   fn: (...args: any) => any,

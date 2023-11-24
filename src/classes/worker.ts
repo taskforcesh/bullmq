@@ -18,6 +18,7 @@ import { MinimalQueue } from '../types';
 import {
   delay,
   DELAY_TIME_1,
+  getDirName,
   isNotConnectionError,
   isRedisInstance,
   WORKER_SUFFIX,
@@ -243,7 +244,10 @@ export class Worker<
         const mainFile = this.opts.useWorkerThreads
           ? 'main-worker.js'
           : 'main.js';
-        let mainFilePath = path.join(__dirname, `${mainFile}`);
+        let mainFilePath = path.join(
+          getDirName(import.meta.url),
+          `${mainFile}`,
+        );
         try {
           fs.statSync(mainFilePath); // would throw if file not exists
         } catch (_) {
