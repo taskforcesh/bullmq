@@ -2,6 +2,24 @@
 
 <!--next-version-placeholder-->
 
+## v1.17.0 (2023-11-24)
+### Feature
+* **worker:** Better handling of concurrency when fetching jobs ([#2242](https://github.com/taskforcesh/bullmq/issues/2242)) ([`d2e2035`](https://github.com/taskforcesh/bullmq/commit/d2e203588878ee64cb21e67141f73b32867dfb40))
+
+### Fix
+* **worker:** Do not wait for slow jobs fixes #2290 ([`568d758`](https://github.com/taskforcesh/bullmq/commit/568d7585edb1f2ef15991d4ae4a2425e6834046a))
+* **utils:** Use EventEmitter as a type instead of a namespace ([#2283](https://github.com/taskforcesh/bullmq/issues/2283)) ([`41c9d1d`](https://github.com/taskforcesh/bullmq/commit/41c9d1d05eedc7351272708e667e8d65eb6773fc))
+
+### Documentation
+* **bullmq-pro:** Update changelog to v6.7.0 ([#2292](https://github.com/taskforcesh/bullmq/issues/2292)) ([`f3f8491`](https://github.com/taskforcesh/bullmq/commit/f3f84918f4ff91c5d6958ce07180685ae3b02c1e))
+* Improve documentation grammar, format, etc. ([#2158](https://github.com/taskforcesh/bullmq/issues/2158)) ([`25090ab`](https://github.com/taskforcesh/bullmq/commit/25090abe188d8dfe407283d52bace1483d80b010))
+* **bullmq-pro:** Update changelog with v6.6.2 ([#2284](https://github.com/taskforcesh/bullmq/issues/2284)) ([`edc31a6`](https://github.com/taskforcesh/bullmq/commit/edc31a6146f7e45ef09c75a2006cb49134586b40))
+* **python:** Update changelog ([#2280](https://github.com/taskforcesh/bullmq/issues/2280)) ([`517d011`](https://github.com/taskforcesh/bullmq/commit/517d011cdde47be6cc8e64cccd107f52dc1a6e4f))
+* Update NoCodeDB logo ([`526f6e8`](https://github.com/taskforcesh/bullmq/commit/526f6e84d5b18ef266391bc85bd7bc3fe63be786))
+* Update README.md ([`da3720a`](https://github.com/taskforcesh/bullmq/commit/da3720a5f44a01f5c08cf649acd861113d33f16b))
+* **readme:** Add dragonfly sponsorship ([`4e76620`](https://github.com/taskforcesh/bullmq/commit/4e76620dd724153458f2dc45893be9f3ced95553))
+* Fix minor typos ([#2270](https://github.com/taskforcesh/bullmq/issues/2270)) ([`9a469da`](https://github.com/taskforcesh/bullmq/commit/9a469daaf7f885df328a61dc5c1f6457b89f78fe))
+
 ## v1.16.1 (2023-11-09)
 ### Fix
 * **job:** Set delay value on current job instance when it is retried (#2266) (python) ([`76e075f`](https://github.com/taskforcesh/bullmq/commit/76e075f54d5745b6cec3cb11305bf3110d963eae))
