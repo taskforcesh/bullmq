@@ -164,6 +164,52 @@ describe('workers', function () {
     await worker.close();
   });
 
+  it('should cap progress events', async () => {
+    let processor;
+
+    const maxEvents = 10;
+    const numUpdateProgress = 500;
+
+    const trimmedEventsQueue = new Queue(queueName, {
+      connection,
+      prefix,
+      streams: { events: { maxLen: maxEvents } },
+    });
+
+    const job = await trimmedEventsQueue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    const processing = new Promise<void>((resolve, reject) => {
+      processor = async (job: Job) => {
+        try {
+          expect(job.data.foo).to.be.equal('bar');
+
+          for (let i = 0; i < numUpdateProgress; i++) {
+            await job.updateProgress(42);
+          }
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      };
+    });
+
+    const worker = new Worker(queueName, processor, { connection, prefix });
+    await worker.waitUntilReady();
+
+    await processing;
+
+    const eventsLength = await (
+      await trimmedEventsQueue.client
+    ).xlen(trimmedEventsQueue.keys.events);
+
+    expect(eventsLength).to.be.lt(numUpdateProgress);
+    expect(eventsLength).to.be.gte(maxEvents);
+
+    await worker.close();
+  });
+
   it('process a job that updates progress as object', async () => {
     let processor;
 

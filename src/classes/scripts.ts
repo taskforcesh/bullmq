@@ -299,7 +299,11 @@ export class Scripts {
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const keys = [this.queue.toKey(jobId), this.queue.keys.events];
+    const keys = [
+      this.queue.toKey(jobId),
+      this.queue.keys.events,
+      this.queue.keys.meta,
+    ];
     const progressJson = JSON.stringify(progress);
 
     const result = await (<any>client).updateProgress(
