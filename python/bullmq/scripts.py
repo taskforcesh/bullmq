@@ -104,27 +104,6 @@ class Scripts:
         """
         Add an item to the queue
         """
-        # if (parentOpts.waitChildrenKey) {
-        #   result = await this.addParentJob(client, job, encodedOpts, args);
-        # } else if (opts.delay) {
-        #   result = await this.addDelayedJob(client, job, encodedOpts, args);
-        # } else if (opts.priority) {
-        #   result = await this.addPrioritizedJob(client, job, encodedOpts, args);
-        # } else {
-        #   const keys: (string | Buffer)[] = [
-        #     queueKeys.wait,
-        #     queueKeys.paused,
-        #     queueKeys.meta,
-        #     queueKeys.id,
-        #     queueKeys.completed,
-        #     queueKeys.events,
-        #   ];
-        #   keys.push(pack(args), job.data, encodedOpts);
-        #   result = await (<any>client).addStandardJob(keys);
-        # }
-        
-        # keys, args = self.addJobArgs(job, None)
-        # return self.commands["addJob"](keys=keys, args=args, client = pipe)
         if job.opts.get("delay"):
             return self.addDelayedJob(job, job.opts.get("delay"), pipe)
         elif job.opts.get("priority"):
