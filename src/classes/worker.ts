@@ -18,7 +18,6 @@ import { MinimalQueue } from '../types';
 import {
   delay,
   DELAY_TIME_1,
-  getDirName,
   isNotConnectionError,
   isRedisInstance,
   WORKER_SUFFIX,
@@ -245,7 +244,7 @@ export class Worker<
           ? 'main-worker.js'
           : 'main.js';
         let mainFilePath = path.join(
-          getDirName(import.meta.url),
+          path.dirname(module.filename),
           `${mainFile}`,
         );
         try {
