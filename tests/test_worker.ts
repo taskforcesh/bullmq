@@ -465,6 +465,82 @@ describe('workers', function () {
     await worker.close();
   }).timeout(8000);
 
+  it('do not call moveToActive more than concurrency factor', async () => {
+    const numJobs = 50;
+    const concurrency = 10;
+    let completedJobs = 0;
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(250);
+      },
+      { connection, prefix, concurrency },
+    );
+    await worker.waitUntilReady();
+
+    // Add spy to worker.moveToActive
+    const spy = sinon.spy(worker, 'moveToActive');
+
+    for (let i = 0; i < numJobs; i++) {
+      const job = await queue.add('test', { foo: 'bar' });
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', (job: Job, result: any) => {
+        completedJobs++;
+        if (completedJobs == numJobs) {
+          resolve();
+        }
+      });
+    });
+
+    // Check moveToActive was called only concurrency times
+    expect(spy.callCount).to.be.equal(concurrency);
+
+    await worker.close();
+  });
+
+  it('do not call moveToActive more than number of jobs + 1', async () => {
+    const numJobs = 50;
+    let completedJobs = 0;
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(250);
+      },
+      { connection, prefix, concurrency: 100 },
+    );
+    await worker.waitUntilReady();
+
+    // Add spy to worker.moveToActive
+    const spy = sinon.spy(worker, 'moveToActive');
+
+    for (let i = 0; i < numJobs; i++) {
+      const job = await queue.add('test', { foo: 'bar' });
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', (job: Job, result: any) => {
+        completedJobs++;
+        console.log(completedJobs);
+        if (completedJobs == numJobs) {
+          resolve();
+        }
+      });
+    });
+
+    // Check moveToActive was called numJobs + 1 times
+    expect(spy.callCount).to.be.equal(numJobs + 1);
+
+    await worker.close();
+  });
+
   it('does not process a job that is being processed when a new queue starts', async () => {
     this.timeout(12000);
     let err;

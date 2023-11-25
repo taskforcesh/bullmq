@@ -453,7 +453,6 @@ export class Worker<
           job = await asyncFifoQueue.fetch();
         } while (
           !job &&
-          asyncFifoQueue.numTotal() > 0 &&
           asyncFifoQueue.numQueued() > 0
         );
 
