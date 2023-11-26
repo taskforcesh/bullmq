@@ -243,7 +243,10 @@ export class Worker<
         const mainFile = this.opts.useWorkerThreads
           ? 'main-worker.js'
           : 'main.js';
-        let mainFilePath = path.join(__dirname, `${mainFile}`);
+        let mainFilePath = path.join(
+          path.dirname(module.filename),
+          `${mainFile}`,
+        );
         try {
           fs.statSync(mainFilePath); // would throw if file not exists
         } catch (_) {
