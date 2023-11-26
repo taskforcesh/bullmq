@@ -55,7 +55,7 @@ class Scripts:
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-6.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
-            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-2.lua")),
+            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")),
         }
 
         self.queue_keys = QueueKeys(prefix)
@@ -417,7 +417,7 @@ class Scripts:
         return self.moveToFinished(job, failedReason, "failedReason", removeOnFailed, "failed", token, opts, fetchNext)
 
     async def updateProgress(self, job_id: str, progress):
-        keys = [self.toKey(job_id), self.keys['events']]
+        keys = [self.toKey(job_id), self.keys['events'], self.keys['meta']]
         progress_json = json.dumps(progress, separators=(',', ':'))
         args = [job_id, progress_json]
         result = await self.commands["updateProgress"](keys=keys, args=args)
