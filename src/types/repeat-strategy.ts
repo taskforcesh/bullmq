@@ -4,4 +4,4 @@ export type RepeatStrategy = (
   millis: number,
   opts: RepeatOptions,
   name?: string,
-) => number;
+) => number | Promise<number>;

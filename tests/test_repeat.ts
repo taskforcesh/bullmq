@@ -87,7 +87,7 @@ describe('repeat', function () {
           this.clock.tick(delay + 10);
           delay = delay * 2;
 
-          if (job.attemptsMade === 10) {
+          if (job!.attemptsMade === 10) {
             resolve();
           }
         });
@@ -498,7 +498,7 @@ describe('repeat', function () {
           }
 
           const next_occurrence = rrule.after(currentDate, false);
-          return next_occurrence?.getTime();
+          return next_occurrence!.getTime();
         },
       };
       const currentQueue = new Queue(queueName, {
@@ -574,7 +574,7 @@ describe('repeat', function () {
               }
 
               const next_occurrence = rrule.after(currentDate, false);
-              return next_occurrence?.getTime();
+              return next_occurrence!.getTime()!;
             } else {
               return getNextMillis(millis, opts);
             }
@@ -593,7 +593,7 @@ describe('repeat', function () {
           async job => {
             this.clock.tick(nextTick);
 
-            if (job.opts.repeat.count == 5) {
+            if (job.opts.repeat!.count == 5) {
               const removed = await queue.removeRepeatable('rrule', repeat);
               expect(removed).to.be.true;
             }
@@ -1178,7 +1178,7 @@ describe('repeat', function () {
     const removed = await queue.removeRepeatableByKey(createdJob.repeatJobKey);
     const delayedCount = await queue.getJobCountByTypes('delayed');
     expect(delayedCount).to.be.equal(0);
-    expect(job.repeatJobKey).to.not.be.undefined;
+    expect(job!.repeatJobKey).to.not.be.undefined;
     expect(removed).to.be.true;
     const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
     expect(repeatableJobsAfterRemove).to.have.length(0);
@@ -1518,7 +1518,7 @@ describe('repeat', function () {
     let processor;
     const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
-        if (job.opts.repeat.count === 1) {
+        if (job.opts.repeat!.count === 1) {
           resolve();
         } else {
           reject(new Error('repeatable job got the wrong repeat count'));
