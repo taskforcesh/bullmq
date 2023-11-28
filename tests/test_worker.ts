@@ -33,7 +33,10 @@ describe('workers', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async function () {
@@ -1325,7 +1328,10 @@ describe('workers', function () {
 
   describe('when sharing a redis connection between workers', function () {
     it('should not close the connection', async () => {
-      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+      const connection = new IORedis(redisHost, {
+        maxRetriesPerRequest: null,
+        disconnectTimeout: 0,
+      });
 
       return new Promise((resolve, reject) => {
         connection.on('ready', async () => {
@@ -1358,7 +1364,10 @@ describe('workers', function () {
     });
 
     it('should not close the connection', async () => {
-      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+      const connection = new IORedis(redisHost, {
+        maxRetriesPerRequest: null,
+        disconnectTimeout: 0,
+      });
       const queueName2 = `test-shared-${v4()}`;
 
       const queue2 = new Queue(queueName2, {

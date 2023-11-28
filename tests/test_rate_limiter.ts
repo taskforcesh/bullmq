@@ -21,7 +21,10 @@ describe('Rate Limiter', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async function () {
@@ -660,7 +663,8 @@ describe('Rate Limiter', function () {
   describe('when there are more added jobs than max limiter', () => {
     it('processes jobs as max limiter from the beginning', async function () {
       const numJobs = 400;
-      this.timeout(5000);
+      // UPSTASH tooks 7 seconds. Redis took 4 seconds. Timeout is moved from 5 to 10 seconds
+      this.timeout(10000);
       let parallelJobs = 0;
 
       const processor = async () => {
