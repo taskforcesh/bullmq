@@ -235,7 +235,10 @@ function getRepeatKey(name: string, repeat: RepeatOptions) {
   return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
 
-export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
+export const getNextMillis = (
+  millis: number,
+  opts: RepeatOptions,
+): number | undefined => {
   const pattern = opts.pattern;
   if (pattern && opts.every) {
     throw new Error(

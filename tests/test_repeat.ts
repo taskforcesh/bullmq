@@ -498,7 +498,7 @@ describe('repeat', function () {
           }
 
           const next_occurrence = rrule.after(currentDate, false);
-          return next_occurrence!.getTime();
+          return next_occurrence?.getTime();
         },
       };
       const currentQueue = new Queue(queueName, {
@@ -574,7 +574,7 @@ describe('repeat', function () {
               }
 
               const next_occurrence = rrule.after(currentDate, false);
-              return next_occurrence!.getTime()!;
+              return next_occurrence?.getTime();
             } else {
               return getNextMillis(millis, opts);
             }
