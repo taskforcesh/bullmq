@@ -8,6 +8,7 @@ import {
   JobJson,
   JobJsonRaw,
   MinimalJob,
+  MoveToDelayedOpts,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
@@ -103,6 +104,12 @@ export class Job<
    * @defaultValue 0
    */
   attemptsMade = 0;
+
+  /**
+   * Number of attempts after the job has failed with our custom Errors and decrement option as true.
+   * @defaultValue 0
+   */
+  softAttemptsMade = 0;
 
   /**
    * Reason for failing.
@@ -308,6 +315,10 @@ export class Job<
 
     if (json.rjk) {
       job.repeatJobKey = json.rjk;
+    }
+
+    if (json.sam) {
+      job.softAttemptsMade = parseInt(json.sam);
     }
 
     job.failedReason = json.failedReason;
@@ -1025,14 +1036,18 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(timestamp: number, token?: string, decrementAttempt: boolean = false): Promise<void> {
+  moveToDelayed(
+    timestamp: number,
+    token?: string,
+    opts: MoveToDelayedOpts = {},
+  ): Promise<void> {
     const delay = timestamp - Date.now();
     return this.scripts.moveToDelayed(
       this.id,
       timestamp,
       delay > 0 ? delay : 0,
       token,
-      decrementAttempt
+      opts,
     );
   }
 

@@ -22,6 +22,7 @@ import {
   RedisClient,
   WorkerOptions,
   KeepJobs,
+  MoveToDelayedOpts,
 } from '../interfaces';
 import {
   JobState,
@@ -647,7 +648,7 @@ export class Scripts {
     timestamp: number,
     token: string,
     delay: number,
-    decrementAttempts: boolean,
+    opts: MoveToDelayedOpts = {},
   ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
@@ -684,7 +685,7 @@ export class Scripts {
       jobId,
       token,
       delay,
-      decrementAttempts ? '1' : '0',
+      opts.decrementAttempt ? '1' : '0',
     ]);
   }
 
@@ -718,6 +719,7 @@ export class Scripts {
       childKey ?? '',
       JSON.stringify(timestamp),
       jobId,
+      opts.decrementAttempt ? '1' : '0',
     ]);
   }
 
@@ -726,11 +728,11 @@ export class Scripts {
     timestamp: number,
     delay: number,
     token = '0',
-    decrementAttempts = false,
+    opts: MoveToDelayedOpts = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, decrementAttempts);
+    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');

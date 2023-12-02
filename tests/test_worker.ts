@@ -2793,8 +2793,8 @@ describe('workers', function () {
           await worker.close();
         });
 
-        describe('when skip attempt option is provided', () => {
-          it('should retry job after a delay time, whithout incrementing attemptMade', async function () {
+        describe('when decrement attempts option is provided as true', () => {
+          it('should retry job after a delay time whithout incrementing attemptMade', async function () {
             this.timeout(8000);
 
             enum Step {
@@ -2810,7 +2810,9 @@ describe('workers', function () {
                 while (step !== Step.Finish) {
                   switch (step) {
                     case Step.Initial: {
-                      await job.moveToDelayed(Date.now() + 200, token, true);
+                      await job.moveToDelayed(Date.now() + 200, token, {
+                        decrementAttempt: true,
+                      });
                       await job.updateData({
                         step: Step.Second,
                       });
@@ -2829,7 +2831,7 @@ describe('workers', function () {
                   }
                 }
               },
-              { connection },
+              { connection, prefix },
             );
 
             await worker.waitUntilReady();
@@ -2843,6 +2845,7 @@ describe('workers', function () {
                 expect(elapse).to.be.greaterThan(200);
                 expect(job.returnvalue).to.be.eql(Step.Finish);
                 expect(job.attemptsMade).to.be.eql(1);
+                expect(job.softAttemptsMade).to.be.eql(1);
                 resolve();
               });
 
@@ -2886,7 +2889,7 @@ describe('workers', function () {
                       { foo: 'bar' },
                       {
                         parent: {
-                          id: job.id,
+                          id: job.id!,
                           queue: job.queueQualifiedName,
                         },
                       },
@@ -2972,6 +2975,130 @@ describe('workers', function () {
           await worker.close();
           await childrenWorker.close();
           await parentQueue.close();
+        });
+
+        describe('when decrement attempts option is provided as true', () => {
+          it('should wait children as one step of the parent job whithout incrementing attemptMade', async function () {
+            this.timeout(8000);
+            const parentQueueName = `parent-queue-${v4()}`;
+            const parentQueue = new Queue(parentQueueName, {
+              connection,
+              prefix,
+            });
+
+            enum Step {
+              Initial,
+              Second,
+              Third,
+              Finish,
+            }
+
+            let waitingChildrenStepExecutions = 0;
+
+            const worker = new Worker(
+              parentQueueName,
+              async (job, token) => {
+                let step = job.data.step;
+                while (step !== Step.Finish) {
+                  switch (step) {
+                    case Step.Initial: {
+                      await queue.add(
+                        'child-1',
+                        { foo: 'bar' },
+                        {
+                          parent: {
+                            id: job.id!,
+                            queue: job.queueQualifiedName,
+                          },
+                        },
+                      );
+                      await job.updateData({
+                        step: Step.Second,
+                      });
+                      step = Step.Second;
+                      break;
+                    }
+                    case Step.Second: {
+                      await queue.add(
+                        'child-2',
+                        { foo: 'bar' },
+                        {
+                          parent: {
+                            id: job.id!,
+                            queue: `${prefix}:${parentQueueName}`,
+                          },
+                        },
+                      );
+                      await job.updateData({
+                        step: Step.Third,
+                      });
+                      step = Step.Third;
+                      break;
+                    }
+                    case Step.Third: {
+                      waitingChildrenStepExecutions++;
+                      const shouldWait = await job.moveToWaitingChildren(
+                        token!,
+                        { decrementAttempt: true },
+                      );
+                      if (!shouldWait) {
+                        await job.updateData({
+                          step: Step.Finish,
+                        });
+                        step = Step.Finish;
+                        return Step.Finish;
+                      } else {
+                        throw new WaitingChildrenError();
+                      }
+                    }
+                    default: {
+                      throw new Error('invalid step');
+                    }
+                  }
+                }
+              },
+              { connection, prefix },
+            );
+            const childrenWorker = new Worker(
+              queueName,
+              async () => {
+                await delay(200);
+              },
+              {
+                connection,
+                prefix,
+              },
+            );
+            await childrenWorker.waitUntilReady();
+            await worker.waitUntilReady();
+
+            await parentQueue.add(
+              'test',
+              { step: Step.Initial },
+              {
+                attempts: 3,
+                backoff: 1000,
+              },
+            );
+
+            await new Promise<void>((resolve, reject) => {
+              worker.on('completed', job => {
+                expect(job.returnvalue).to.equal(Step.Finish);
+                expect(job.attemptsMade).to.be.eql(1);
+                expect(job.softAttemptsMade).to.be.eql(1);
+                resolve();
+              });
+
+              worker.on('error', () => {
+                reject();
+              });
+            });
+
+            expect(waitingChildrenStepExecutions).to.be.equal(2);
+            await worker.close();
+            await childrenWorker.close();
+            await parentQueue.close();
+          });
         });
       });
     });

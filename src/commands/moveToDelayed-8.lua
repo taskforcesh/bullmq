@@ -17,7 +17,7 @@
     ARGV[4] the id of the job
     ARGV[5] queue token
     ARGV[6] delay value
-    ARGV[7] decrement attempt
+    ARGV[7] decrement attemptsMade
 
   Output:
     0 - OK
@@ -31,6 +31,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/decrementAttemptsMade"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 
@@ -56,7 +57,7 @@ if rcall("EXISTS", jobKey) == 1 then
   end
 
   if ARGV[7] == "1" then
-    rcall("HINCRBY", jobKey, "attemptsMade", -1)
+    decrementAttemptsMade(jobKey)
   end
 
   rcall("HSET", jobKey, "delay", ARGV[6])
