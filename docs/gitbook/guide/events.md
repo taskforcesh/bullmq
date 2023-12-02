@@ -1,6 +1,6 @@
 # Events
 
-All classes in BullMQ emit useful events that inform on the lifecycles of the jobs that are running in the queue. Every class is an EventEmitter and emits different events.
+All classes in BullMQ emit useful events that inform on the lifecycles of the jobs that are running in the queue. Every class is an `EventEmitter` and emits different events.
 
 Some examples:
 
@@ -32,7 +32,7 @@ myWorker.on('failed', (job: Job) => {
 });
 ```
 
-The events above are local for the workers that actually completed the jobs, however, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [QueueEvents](../api/bullmq.queueevents.md) class:
+The events above are local for the workers that actually completed the jobs. However, in many situations you want to listen to all the events emitted by all the workers in one single place. For this you can use the [`QueueEvents`](../api/bullmq.queueevents.md) class:
 
 ```typescript
 import { QueueEvents } from 'bullmq';
@@ -51,7 +51,7 @@ queueEvents.on(
 );
 ```
 
-The QueueEvents class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
+The `QueueEvents` class is implemented using [Redis streams](https://redis.io/topics/streams-intro). This has some nice properties, for example, it provides guarantees that the events are delivered and not lost during disconnections such as it would be the case with standard pub-sub.
 
 {% hint style="danger" %}
 The event stream is auto-trimmed so that its size does not grow too much, by default it is \~10.000 events, but this can be configured with the `streams.events.maxLen` option.
@@ -59,7 +59,7 @@ The event stream is auto-trimmed so that its size does not grow too much, by def
 
 ### Manual trim events
 
-In case you need to trim your events manually, you can use **trimEvents** method:
+In case you need to trim your events manually, you can use **`trimEvents`** method:
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -69,7 +69,7 @@ import { Queue } from 'bullmq';
 
 const queue = new Queue('paint');
 
-await queue.trimEvents(10); // left 10 events
+await queue.trimEvents(10); // leaves 10 events
 ```
 
 {% endtab %}
@@ -81,7 +81,7 @@ from bullmq import Queue
 
 queue = Queue('paint')
 
-await queue.trimEvents(10) # left 10 events
+await queue.trimEvents(10) # leaves 10 events
 ```
 
 {% endtab %}

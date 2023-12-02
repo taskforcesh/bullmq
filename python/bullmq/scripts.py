@@ -31,7 +31,10 @@ class Scripts:
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
         self.commands = {
-            "addJob": self.redisClient.register_script(self.getScript("addJob-9.lua")),
+            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-6.lua")),
+            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-7.lua")),
+            "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-4.lua")),
+            "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-8.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-5.lua")),
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
@@ -52,7 +55,7 @@ class Scripts:
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-6.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
-            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-2.lua")),
+            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")),
         }
 
         self.queue_keys = QueueKeys(prefix)
@@ -87,8 +90,6 @@ class Scripts:
         jsonData = json.dumps(job.data, separators=(',', ':'))
         packedOpts = msgpack.packb(job.opts)
 
-        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
-                            'delayed', 'prioritized', 'completed', 'events', 'pc'])
         parent = job.parent
         parentKey = job.parentKey
 
@@ -97,25 +98,61 @@ class Scripts:
                 waiting_children_key,
                 f"{parentKey}:dependencies" if parentKey else None, parent],use_bin_type=True)
         
-        args = [packedArgs, jsonData, packedOpts]
-
-        return (keys,args)
+        return [packedArgs, jsonData, packedOpts]
 
     def addJob(self, job: Job, pipe = None):
         """
         Add an item to the queue
         """
-        keys, args = self.addJobArgs(job, None)
+        if job.opts.get("delay"):
+            return self.addDelayedJob(job, job.opts.get("delay"), pipe)
+        elif job.opts.get("priority"):
+            return self.addPrioritizedJob(job, job.opts.get("priority"), pipe)
+        else:
+            return self.addStandardJob(job, job.timestamp, pipe)
 
-        return self.commands["addJob"](keys=keys, args=args, client = pipe)
+    def addStandardJob(self, job: Job, timestamp: int, pipe = None):
+        """
+        Add a standard job to the queue
+        """
+        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
+                             'completed', 'events'])
+        args = self.addJobArgs(job, None)
+        args.append(timestamp)
+
+        return self.commands["addStandardJob"](keys=keys, args=args, client=pipe)
+    
+    def addDelayedJob(self, job: Job, timestamp: int, pipe = None):
+        """
+        Add a delayed job to the queue
+        """
+        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
+                            'delayed', 'completed', 'events'])
+        args = self.addJobArgs(job, None)
+        args.append(timestamp)
+
+        return self.commands["addDelayedJob"](keys=keys, args=args, client=pipe)
+    
+    def addPrioritizedJob(self, job: Job, timestamp: int, pipe = None):
+        """
+        Add a prioritized job to the queue
+        """
+        keys = self.getKeys(['wait', 'paused', 'meta', 'id',
+                            'prioritized', 'completed', 'events', 'pc'])
+        args = self.addJobArgs(job, None)
+        args.append(timestamp)
+
+        return self.commands["addPrioritizedJob"](keys=keys, args=args, client=pipe)
 
     def addParentJob(self, job: Job, waiting_children_key: str, pipe = None):
         """
-        Add an item to the queue that is a parent
+        Add a job to the queue that is a parent
         """
-        keys, args = self.addJobArgs(job, waiting_children_key)
+        keys = self.getKeys(['meta', 'id', 'completed', 'events'])
+        
+        args = self.addJobArgs(job, waiting_children_key)
 
-        return self.commands["addJob"](keys=keys, args=args, client=pipe)
+        return self.commands["addParentJob"](keys=keys, args=args, client=pipe)
 
     def cleanJobsInSetArgs(self, set: str, grace: int, limit:int = 0):
         keys = [self.toKey(set),
@@ -218,7 +255,7 @@ class Scripts:
 
         return (keys, args)
 
-    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str):
+    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0):
         max_timestamp = max(0, timestamp or 0)
 
         if timestamp > 0:
@@ -231,12 +268,12 @@ class Scripts:
         keys.append(self.keys['meta'])
 
         args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
-            job_id, token]
+            job_id, token, delay]
 
         return (keys, args)
 
-    async def moveToDelayed(self, job_id: str, timestamp: int, token: str = "0"):
-        keys, args = self.moveToDelayedArgs(job_id, timestamp, token)
+    async def moveToDelayed(self, job_id: str, timestamp: int, delay: int, token: str = "0"):
+        keys, args = self.moveToDelayedArgs(job_id, timestamp, token, delay)
 
         result = await self.commands["moveToDelayed"](keys=keys, args=args)
 
@@ -380,7 +417,7 @@ class Scripts:
         return self.moveToFinished(job, failedReason, "failedReason", removeOnFailed, "failed", token, opts, fetchNext)
 
     async def updateProgress(self, job_id: str, progress):
-        keys = [self.toKey(job_id), self.keys['events']]
+        keys = [self.toKey(job_id), self.keys['events'], self.keys['meta']]
         progress_json = json.dumps(progress, separators=(',', ':'))
         args = [job_id, progress_json]
         result = await self.commands["updateProgress"](keys=keys, args=args)

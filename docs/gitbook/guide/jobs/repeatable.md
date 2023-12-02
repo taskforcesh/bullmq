@@ -7,14 +7,12 @@ The Repeatable Job configuration is not a job, so it will not show up in methods
 Every time a repeatable job is picked up for processing, the next repeatable job is added to the queue with a proper delay. Repeatable jobs are thus nothing more than delayed jobs that are added to the queue according to some settings.
 
 {% hint style="info" %}
-Repeatable jobs are just delayed jobs, therefore you also need a QueueScheduler instance to schedule the jobs accordingly.
+As Repeatable jobs are just delayed jobs, prior to BullMQ 2.0 you also need a `QueueScheduler` instance to schedule the jobs accordingly.
+
+However, from BullMQ 2.0 onwards, the `QueueScheduler` is not needed anymore.
 {% endhint %}
 
-{% hint style="danger" %}
-From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore.
-{% endhint %}
-
-There are two ways to specify a repeatable's job repetition pattern, either with a cron expression (using [cron-parser](https://www.npmjs.com/package/cron-parser)'s "unix cron w/ optional seconds" format), or specifying a fix amount of milliseconds between repetitions.
+There are two ways to specify a repeatable's job repetition pattern, either with a cron expression (using [cron-parser](https://www.npmjs.com/package/cron-parser)'s "unix cron w/ optional seconds" format), or specifying a fixed amount of milliseconds between repetitions.
 
 ```typescript
 import { Queue, QueueScheduler } from 'bullmq';
@@ -50,9 +48,23 @@ There are some important considerations regarding repeatable jobs:
 
 - Bull is smart enough not to add the same repeatable job if the repeat options are the same.
 - If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
-- repeatable jobs can be removed using the [removeRepeatable](https://api.docs.bullmq.io/classes/v4.Queue.html#removeRepeatable) method or [removeRepeatableByKey](https://api.docs.bullmq.io/classes/v4.Queue.html#removeRepeatableByKey).
+- Repeatable jobs can be removed using the [`removeRepeatable`](https://api.docs.bullmq.io/classes/v4.Queue.html#removeRepeatable) or [`removeRepeatableByKey`](https://api.docs.bullmq.io/classes/v4.Queue.html#removeRepeatableByKey) methods.
 
-All repeatable jobs have a repeatable job key that holds some metadata of the repeatable job itself. It is possible to retrieve all the current repeatable jobs in the queue calling [getRepeatableJobs](https://api.docs.bullmq.io/classes/v4.Queue.html#getRepeatableJobs):
+```typescript
+import { Queue } from 'bullmq';
+
+const repeat = { pattern: '*/1 * * * * *' };
+
+const myQueue = new Queue('Paint');
+
+const job1 = await myQueue.add('red', { foo: 'bar' }, { repeat });
+const job2 = await myQueue.add('blue', { foo: 'baz' }, { repeat });
+    
+const isRemoved1 = await myQueue.removeRepeatableByKey(job1.repeatJobKey);
+const isRemoved2 = await queue.removeRepeatable('blue', repeat);
+```
+
+All repeatable jobs have a repeatable job key that holds some metadata of the repeatable job itself. It is possible to retrieve all the current repeatable jobs in the queue calling [`getRepeatableJobs`](https://api.docs.bullmq.io/classes/v4.Queue.html#getRepeatableJobs):
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -62,7 +74,7 @@ const myQueue = new Queue('Paint');
 const repeatableJobs = await myQueue.getRepeatableJobs();
 ```
 
-Since repeatable jobs are delayed jobs, and the repetition is achieved by generating a new delayed job precisely before the current job starts processing. The jobs require unique ids which avoid duplicates, which implies that the standard jobId option does not work the same as with regular jobs. With repeatable jobs the jobId is used to generate the unique ids, for instance if you have 2 repeatable jobs with the same name and options you could use the jobId to have 2 different repeatable jobs:
+The standard `jobId` option does not work the same as with regular jobs. Because repeatable jobs are _delayed_ jobs, and the repetition is achieved by generating a new delayed job precisely before the current job starts processing, the jobs require unique ids to avoid being considered duplicates. Therefore, with repeatable jobs, the `jobId` option is used to _generate_ the unique ids (rather than itself being the unique id). For instance, if you have two repeatable jobs with the same name and options, you could use distinct `jobId`s to differentiate them:
 
 ```typescript
 import { Queue, QueueScheduler } from 'bullmq';
@@ -98,7 +110,7 @@ await myQueue.add(
 
 ## Slow repeatable jobs
 
-It is worth to mention the case where the repeatable frequency is greater than the time it takes to process a job.
+It is worth mentioning the case where the repeatable frequency is greater than the time it takes to process a job.
 
 For instance, let's say that you have a job that is repeated every second, but the process of the job itself takes 5 seconds. As explained above, repeatable jobs are just delayed jobs, so this means that the next repeatable job will be added as soon as the next job is starting to be processed.
 
@@ -168,11 +180,11 @@ const worker = new Worker(
 ```
 
 {% hint style="warning" %}
-As you may notice, repeat strategy setting should be provided in Queue and Worker classes. The reason we need in both places is because the first time we add the job to the Queue we need to calculate when is the next iteration, but after that the Worker takes over and we use the worker settings.
+As you may notice, the repeat strategy setting should be provided in `Queue` and `Worker` classes. The reason we need in **both** places is because the first time we add the job to the `Queue` we need to calculate when is the next iteration, but after that the `Worker` takes over and we use the worker settings.
 {% endhint %}
 
 {% hint style="info" %}
-Repeat strategy function receives an optional jobName parameter as the 3rd one.
+The repeat strategy function receives an optional `jobName` third parameter.
 {% endhint %}
 
 ## Read more:

@@ -71,10 +71,10 @@ export class ChildProcessor {
     this.currentJobPromise = (async () => {
       try {
         const job = this.wrapJob(jobJson, this.send);
-        const result = (await this.processor(job, token)) || {};
+        const result = await this.processor(job, token);
         await this.send({
           cmd: ParentCommand.Completed,
-          value: result,
+          value: typeof result === 'undefined' ? null : result,
         });
       } catch (err) {
         await this.send({
@@ -112,19 +112,6 @@ export class ChildProcessor {
     job: JobJson,
     send: (msg: any) => Promise<void>,
   ): SandboxedJob {
-    let progressValue = job.progress;
-
-    const updateProgress = async (progress: number | object) => {
-      // Locally store reference to new progress value
-      // so that we can return it from this process synchronously.
-      progressValue = progress;
-      // Send message to update job progress.
-      await send({
-        cmd: ParentCommand.Progress,
-        value: progress,
-      });
-    };
-
     return {
       ...job,
       data: JSON.parse(job.data || '{}'),
@@ -133,7 +120,16 @@ export class ChildProcessor {
       /*
        * Emulate the real job `updateProgress` function, should works as `progress` function.
        */
-      updateProgress,
+      async updateProgress(progress: number | object) {
+        // Locally store reference to new progress value
+        // so that we can return it from this process synchronously.
+        this.progress = progress;
+        // Send message to update job progress.
+        await send({
+          cmd: ParentCommand.Progress,
+          value: progress,
+        });
+      },
       /*
        * Emulate the real job `log` function.
        */

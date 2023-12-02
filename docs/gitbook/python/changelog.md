@@ -2,23 +2,64 @@
 
 <!--next-version-placeholder-->
 
+## v1.17.0 (2023-11-24)
+### Feature
+* **worker:** Better handling of concurrency when fetching jobs ([#2242](https://github.com/taskforcesh/bullmq/issues/2242)) ([`d2e2035`](https://github.com/taskforcesh/bullmq/commit/d2e203588878ee64cb21e67141f73b32867dfb40))
+
+### Fix
+* **worker:** Do not wait for slow jobs fixes #2290 ([`568d758`](https://github.com/taskforcesh/bullmq/commit/568d7585edb1f2ef15991d4ae4a2425e6834046a))
+* **utils:** Use EventEmitter as a type instead of a namespace ([#2283](https://github.com/taskforcesh/bullmq/issues/2283)) ([`41c9d1d`](https://github.com/taskforcesh/bullmq/commit/41c9d1d05eedc7351272708e667e8d65eb6773fc))
+
+### Documentation
+* **bullmq-pro:** Update changelog to v6.7.0 ([#2292](https://github.com/taskforcesh/bullmq/issues/2292)) ([`f3f8491`](https://github.com/taskforcesh/bullmq/commit/f3f84918f4ff91c5d6958ce07180685ae3b02c1e))
+* Improve documentation grammar, format, etc. ([#2158](https://github.com/taskforcesh/bullmq/issues/2158)) ([`25090ab`](https://github.com/taskforcesh/bullmq/commit/25090abe188d8dfe407283d52bace1483d80b010))
+* **bullmq-pro:** Update changelog with v6.6.2 ([#2284](https://github.com/taskforcesh/bullmq/issues/2284)) ([`edc31a6`](https://github.com/taskforcesh/bullmq/commit/edc31a6146f7e45ef09c75a2006cb49134586b40))
+* **python:** Update changelog ([#2280](https://github.com/taskforcesh/bullmq/issues/2280)) ([`517d011`](https://github.com/taskforcesh/bullmq/commit/517d011cdde47be6cc8e64cccd107f52dc1a6e4f))
+* Update NoCodeDB logo ([`526f6e8`](https://github.com/taskforcesh/bullmq/commit/526f6e84d5b18ef266391bc85bd7bc3fe63be786))
+* Update README.md ([`da3720a`](https://github.com/taskforcesh/bullmq/commit/da3720a5f44a01f5c08cf649acd861113d33f16b))
+* **readme:** Add dragonfly sponsorship ([`4e76620`](https://github.com/taskforcesh/bullmq/commit/4e76620dd724153458f2dc45893be9f3ced95553))
+* Fix minor typos ([#2270](https://github.com/taskforcesh/bullmq/issues/2270)) ([`9a469da`](https://github.com/taskforcesh/bullmq/commit/9a469daaf7f885df328a61dc5c1f6457b89f78fe))
+
+## v1.16.1 (2023-11-09)
+### Fix
+* **job:** Set delay value on current job instance when it is retried (#2266) (python) ([`76e075f`](https://github.com/taskforcesh/bullmq/commit/76e075f54d5745b6cec3cb11305bf3110d963eae))
+
+## v1.16.0 (2023-11-08)
+### Fix
+* **backoff:** Fix builtin backoff type (#2265) [python] ([`76959eb`](https://github.com/taskforcesh/bullmq/commit/76959eb9d9495eb1b6d2d31fab93c8951b5d3b93))
+
+## v1.15.4 (2023-11-05)
+### Fix
+* Update delay job property when moving to delayed set ([#2261](https://github.com/taskforcesh/bullmq/issues/2261)) ([`69ece08`](https://github.com/taskforcesh/bullmq/commit/69ece08babd7716c14c38c3dd50630b44c7c1897))
+
+## v1.15.3 (2023-11-05)
+### Fix
+* **add-job:** Trim events when waiting-children event is published (#2262) (python) ([`198bf05`](https://github.com/taskforcesh/bullmq/commit/198bf05fa5a4e1ce50081296033a2e0f26ece498))
+
+## v1.15.2 (2023-10-18)
+### Fix
+* **events:** Do not publish removed event on non-existent jobs ([#2227](https://github.com/taskforcesh/bullmq/issues/2227)) ([`c134606`](https://github.com/taskforcesh/bullmq/commit/c1346064c6cd9f93c59b184f150eac11d51c91b4))
+* **events:** Trim events when retrying a job ([#2224](https://github.com/taskforcesh/bullmq/issues/2224)) ([`1986b05`](https://github.com/taskforcesh/bullmq/commit/1986b05ac03fe4ee48861aa60caadcc9df8170a6))
+
+### Performance
+* **events:** Trim events when removing jobs (#2235) (python) ([`889815c`](https://github.com/taskforcesh/bullmq/commit/889815c412666e5fad8f32d2e3a2d41cf650f001))
+
+## v1.15.1 (2023-10-04)
+### Fix
+* **delayed:** Trim events when moving jobs to delayed (python) ([#2211](https://github.com/taskforcesh/bullmq/issues/2211)) ([`eca8c2d`](https://github.com/taskforcesh/bullmq/commit/eca8c2d4dfeafbd8ac36a49764dbd4897303628c))
+
+## v1.15.0 (2023-09-30)
+### Feature
+* Nothing change
+
 ## v1.14.0 (2023-09-26)
 ### Feature
 * **queue:** Add clean method [python] ([#2194](https://github.com/taskforcesh/bullmq/issues/2194)) ([`3b67193`](https://github.com/taskforcesh/bullmq/commit/3b6719379cbec5beb1b7dfb5f06d46cbbf74010f))
-* **sandbox:** Convert wrapJob method as protected for extension ([#2182](https://github.com/taskforcesh/bullmq/issues/2182)) ([`1494b55`](https://github.com/taskforcesh/bullmq/commit/1494b5566573356e0248b4a5cab48ae21d82f1da))
 
 ### Fix
 * **move-to-finished:** Stringify any return value [python] (#2198) fixes #2196 ([`07f1335`](https://github.com/taskforcesh/bullmq/commit/07f13356eb1c0136f03dfdf946d163f0ef3c4d62))
 * **queue:** Batched unpack now uses range ([#2188](https://github.com/taskforcesh/bullmq/issues/2188)) ([`b5e97f4`](https://github.com/taskforcesh/bullmq/commit/b5e97f420bc0c4bc82772f3e87883ee522be43d9))
-* **worker:** Forward skipVersionCheck to blockingConnection (#2189) ref #2149 ([`c8aa9a3`](https://github.com/taskforcesh/bullmq/commit/c8aa9a36224cba8ecb19af1bf652f4f1c4c20d40))
-* **worker:** Throw exception with NaN as concurrency ([#2184](https://github.com/taskforcesh/bullmq/issues/2184)) ([`f36ac8b`](https://github.com/taskforcesh/bullmq/commit/f36ac8b61dcd4bb3d9e283278310cd50cfc83fae))
 * **queue:** Differentiate score purpose per state in clean method (#2133) fixes #2124 ([`862f10b`](https://github.com/taskforcesh/bullmq/commit/862f10b586276314d9bffff2a5e6caf939399f7e))
-
-### Documentation
-* **rate-limit:** Add missing limiter options in examples ref #2193 ([`c948c8a`](https://github.com/taskforcesh/bullmq/commit/c948c8aa2861f0352a915b1279d40a5de518230d))
-* **bullmq-pro:** Update changelog to v6.4.0 ([#2192](https://github.com/taskforcesh/bullmq/issues/2192)) ([`21e51e8`](https://github.com/taskforcesh/bullmq/commit/21e51e8bb706a1545776d92a4c2a63b5061de97e))
-* **prioritized:** Fix doc regarding jobs without a priority assigned ([#2191](https://github.com/taskforcesh/bullmq/issues/2191)) ([`743fc82`](https://github.com/taskforcesh/bullmq/commit/743fc82381650b76990f6a492e592b085cf51300))
-* **bulmq-pro:** Fix batch option usage ([#2180](https://github.com/taskforcesh/bullmq/issues/2180)) ([`40c69fb`](https://github.com/taskforcesh/bullmq/commit/40c69fb7605e79eb66ba6d1c98a55c9944b086cf))
 
 ## v1.13.2 (2023-09-12)
 ### Fix

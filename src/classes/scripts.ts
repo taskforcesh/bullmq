@@ -71,12 +71,11 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  async addJob(
+  private async addDelayedJob(
     client: RedisClient,
     job: JobJson,
-    opts: RedisJobOptions,
-    jobId: string,
-    parentOpts: ParentOpts = {},
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
   ): Promise<string> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
@@ -85,11 +84,65 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
+      queueKeys.completed,
+      queueKeys.events,
+    ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return (<any>client).addDelayedJob(keys);
+  }
+
+  private async addPrioritizedJob(
+    client: RedisClient,
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): Promise<string> {
+    const queueKeys = this.queue.keys;
+    const keys: (string | Buffer)[] = [
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.id,
       queueKeys.prioritized,
       queueKeys.completed,
       queueKeys.events,
       queueKeys.pc,
     ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return (<any>client).addPrioritizedJob(keys);
+  }
+
+  private async addParentJob(
+    client: RedisClient,
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): Promise<string> {
+    const queueKeys = this.queue.keys;
+    const keys: (string | Buffer)[] = [
+      queueKeys.meta,
+      queueKeys.id,
+      queueKeys.completed,
+      queueKeys.events,
+    ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return (<any>client).addParentJob(keys);
+  }
+
+  async addJob(
+    client: RedisClient,
+    job: JobJson,
+    opts: RedisJobOptions,
+    jobId: string,
+    parentOpts: ParentOpts = {},
+  ): Promise<string> {
+    const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
       ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof }
@@ -128,9 +181,26 @@ export class Scripts {
       encodedOpts = pack(opts);
     }
 
-    keys.push(pack(args), job.data, encodedOpts);
+    let result;
 
-    const result = await (<any>client).addJob(keys);
+    if (parentOpts.waitChildrenKey) {
+      result = await this.addParentJob(client, job, encodedOpts, args);
+    } else if (opts.delay) {
+      result = await this.addDelayedJob(client, job, encodedOpts, args);
+    } else if (opts.priority) {
+      result = await this.addPrioritizedJob(client, job, encodedOpts, args);
+    } else {
+      const keys: (string | Buffer)[] = [
+        queueKeys.wait,
+        queueKeys.paused,
+        queueKeys.meta,
+        queueKeys.id,
+        queueKeys.completed,
+        queueKeys.events,
+      ];
+      keys.push(pack(args), job.data, encodedOpts);
+      result = await (<any>client).addStandardJob(keys);
+    }
 
     if (result < 0) {
       throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
@@ -224,23 +294,25 @@ export class Scripts {
   }
 
   async updateProgress<T = any, R = any, N extends string = string>(
-    job: MinimalJob<T, R, N>,
+    jobId: string,
     progress: number | object,
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const keys = [this.queue.toKey(job.id), this.queue.keys.events];
+    const keys = [
+      this.queue.toKey(jobId),
+      this.queue.keys.events,
+      this.queue.keys.meta,
+    ];
     const progressJson = JSON.stringify(progress);
 
     const result = await (<any>client).updateProgress(
-      keys.concat([job.id, progressJson]),
+      keys.concat([jobId, progressJson]),
     );
 
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'updateProgress');
+      throw this.finishedErrors(result, jobId, 'updateProgress');
     }
-
-    this.queue.emit('progress', job, progress);
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
@@ -574,7 +646,8 @@ export class Scripts {
     jobId: string,
     timestamp: number,
     token: string,
-    skipAttempt?: boolean,
+    delay: number,
+    decrementAttempts: boolean,
   ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
@@ -610,7 +683,8 @@ export class Scripts {
       JSON.stringify(timestamp),
       jobId,
       token,
-      skipAttempt ? '1' : '0',
+      delay,
+      decrementAttempts ? '1' : '0',
     ]);
   }
 
@@ -650,12 +724,13 @@ export class Scripts {
   async moveToDelayed(
     jobId: string,
     timestamp: number,
+    delay: number,
     token = '0',
-    skipAttempt = false,
+    decrementAttempts = false,
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.moveToDelayedArgs(jobId, timestamp, token, skipAttempt);
+    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, decrementAttempts);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
@@ -837,8 +912,7 @@ export class Scripts {
     }
   }
 
-  async moveToActive(token: string, jobId?: string) {
-    const client = await this.queue.client;
+  async moveToActive(client: RedisClient, token: string, jobId?: string) {
     const opts = this.queue.opts as WorkerOptions;
 
     const queueKeys = this.queue.keys;

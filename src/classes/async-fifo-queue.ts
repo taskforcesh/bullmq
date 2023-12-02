@@ -11,12 +11,25 @@
  *  of the worker, so the nodes of the list could be pre-allocated.
  */
 export class AsyncFifoQueue<T> {
+  /**
+   * A queue of completed promises. As the pending
+   * promises are resolved, they are added to this queue.
+   */
   private queue: (T | undefined)[] = [];
 
+  /**
+   * A set of pending promises.
+   */
+  private pending = new Set<Promise<T>>();
+
+  /**
+   * The next promise to be resolved. As soon as a pending promise
+   * is resolved, this promise is resolved with the result of the
+   * pending promise.
+   */
   private nextPromise: Promise<T | undefined> | undefined;
   private resolve: ((value: T | undefined) => void) | undefined;
   private reject: ((reason?: any) => void) | undefined;
-  private pending = new Set<Promise<T>>();
 
   constructor(private ignoreErrors = false) {
     this.newPromise();
@@ -26,13 +39,13 @@ export class AsyncFifoQueue<T> {
     this.pending.add(promise);
 
     promise
-      .then(job => {
+      .then(data => {
         this.pending.delete(promise);
 
         if (this.queue.length === 0) {
-          this.resolvePromise(job);
+          this.resolvePromise(data);
         }
-        this.queue.push(job);
+        this.queue.push(data);
       })
       .catch(err => {
         // Ignore errors
@@ -60,8 +73,8 @@ export class AsyncFifoQueue<T> {
     return this.queue.length;
   }
 
-  private resolvePromise(job: T) {
-    this.resolve!(job);
+  private resolvePromise(data: T) {
+    this.resolve!(data);
     this.newPromise();
   }
 

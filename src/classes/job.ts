@@ -376,6 +376,41 @@ export class Job<
     }
   }
 
+  /**
+   * addJobLog
+   *
+   * @param queue Queue instance
+   * @param jobId Job id
+   * @param logRow Log row
+   * @param keepLogs optional maximum number of logs to keep
+   *
+   * @returns The total number of log entries for this job so far.
+   */
+  static async addJobLog(
+    queue: MinimalQueue,
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    const client = await queue.client;
+    const logsKey = queue.toKey(jobId) + ':logs';
+
+    const multi = client.multi();
+
+    multi.rpush(logsKey, logRow);
+
+    if (keepLogs) {
+      multi.ltrim(logsKey, -keepLogs, -1);
+    }
+
+    const result = (await multi.exec()) as [
+      [Error, number],
+      [Error, string] | undefined,
+    ];
+
+    return keepLogs ? Math.min(keepLogs, result[0][1]) : result[0][1];
+  }
+
   toJSON() {
     const { queue, scripts, ...withoutQueueAndScripts } = this;
     return withoutQueueAndScripts;
@@ -451,36 +486,20 @@ export class Job<
    *
    * @param progress - number or object to be saved as progress.
    */
-  updateProgress(progress: number | object): Promise<void> {
+  async updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
-    return this.scripts.updateProgress(this, progress);
+    await this.scripts.updateProgress(this.id, progress);
+    this.queue.emit('progress', this, progress);
   }
 
   /**
    * Logs one row of log data.
    *
    * @param logRow - string with log data to be logged.
+   * @returns The total number of log entries for this job so far.
    */
   async log(logRow: string): Promise<number> {
-    const client = await this.queue.client;
-    const logsKey = this.toKey(this.id) + ':logs';
-
-    const multi = client.multi();
-
-    multi.rpush(logsKey, logRow);
-
-    if (this.opts.keepLogs) {
-      multi.ltrim(logsKey, -this.opts.keepLogs, -1);
-    }
-
-    const result = (await multi.exec()) as [
-      [Error, number],
-      [Error, string] | undefined,
-    ];
-
-    return this.opts.keepLogs
-      ? Math.min(this.opts.keepLogs, result[0][1])
-      : result[0][1];
+    return Job.addJobLog(this.queue, this.id, logRow, this.opts.keepLogs);
   }
 
   /**
@@ -599,7 +618,7 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
-    let finishedOn;
+    let finishedOn, delay;
     if (
       this.attemptsMade < this.opts.attempts &&
       !this.discarded &&
@@ -608,7 +627,7 @@ export class Job<
       const opts = queue.opts as WorkerOptions;
 
       // Check if backoff is needed
-      const delay = await Backoffs.calculate(
+      delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
         this.attemptsMade,
         err,
@@ -623,6 +642,7 @@ export class Job<
           this.id,
           Date.now() + delay,
           token,
+          delay,
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
@@ -666,6 +686,10 @@ export class Job<
 
     if (finishedOn && typeof finishedOn === 'number') {
       this.finishedOn = finishedOn;
+    }
+
+    if (delay && typeof delay === 'number') {
+      this.delay = delay;
     }
   }
 
@@ -1001,12 +1025,15 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(
-    timestamp: number,
-    token?: string,
-    skipAttempt?: boolean,
-  ): Promise<void> {
-    return this.scripts.moveToDelayed(this.id, timestamp, token, skipAttempt);
+  moveToDelayed(timestamp: number, token?: string, decrementAttempt: boolean = false): Promise<void> {
+    const delay = timestamp - Date.now();
+    return this.scripts.moveToDelayed(
+      this.id,
+      timestamp,
+      delay > 0 ? delay : 0,
+      token,
+      decrementAttempt
+    );
   }
 
   /**

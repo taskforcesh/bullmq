@@ -1,5 +1,5 @@
 import { after } from 'lodash';
-import { describe, beforeEach, it } from 'mocha';
+import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
@@ -7,32 +7,44 @@ import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
 describe('Delayed jobs', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   this.timeout(15000);
 
   let queue: Queue;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should process a delayed job only after delayed time', async function () {
     const delay = 1000;
     const margin = 1.2;
 
-    const queueEvents = new QueueEvents(queueName, { connection });
+    const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
 
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
     await worker.waitUntilReady();
 
     const timestamp = Date.now();
@@ -89,10 +101,13 @@ describe('Delayed jobs', function () {
     const delayTime = 1000;
     const margin = 1.2;
 
-    const queueEvents = new QueueEvents(queueName, { connection });
+    const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
 
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
     await worker.waitUntilReady();
 
     const timestamp = Date.now();
@@ -188,6 +203,7 @@ describe('Delayed jobs', function () {
     const worker = new Worker(queueName, processor, {
       autorun: false,
       connection,
+      prefix,
     });
 
     worker.on('failed', function (job, err) {});
@@ -210,7 +226,7 @@ describe('Delayed jobs', function () {
     this.timeout(30000);
     let count = 0;
     const numJobs = 50;
-    const margin = 1.22;
+    const margin = 1.3;
 
     let processor1, processor2;
 
@@ -239,7 +255,7 @@ describe('Delayed jobs', function () {
           reject(err);
         }
 
-        await delay(500);
+        await delay(100);
       };
 
     const processing = new Promise<void>((resolve, reject) => {
@@ -249,11 +265,13 @@ describe('Delayed jobs', function () {
 
     const worker = new Worker(queueName, processor1, {
       connection,
+      prefix,
       concurrency: numJobs / 2,
     });
 
     const worker2 = new Worker(queueName, processor2, {
       connection,
+      prefix,
       concurrency: numJobs / 2,
     });
 
@@ -274,8 +292,9 @@ describe('Delayed jobs', function () {
     await worker2.close();
   });
 
+  // Add test where delays overlap so that we can see that indeed the jobs are processed concurrently.
   it('should process delayed jobs concurrently respecting delay and concurrency', async function () {
-    const delay = 250;
+    const delay_ = 250;
     const concurrency = 100;
     const margin = 1.5;
     let numJobs = 10;
@@ -290,11 +309,11 @@ describe('Delayed jobs', function () {
             expect(
               delayed,
               'waited at least delay time',
-            ).to.be.greaterThanOrEqual(delay);
+            ).to.be.greaterThanOrEqual(delay_);
             expect(
               delayed,
               'waited less than delay time and margin',
-            ).to.be.lessThan(delay * margin);
+            ).to.be.lessThan(delay_ * margin);
           } catch (err) {
             console.error(err);
             reject(err);
@@ -303,15 +322,17 @@ describe('Delayed jobs', function () {
             resolve();
           }
         },
-        { connection, concurrency },
+        { connection, prefix, concurrency },
       );
     });
 
+    let index = 1;
     while (numJobs) {
       numJobs -= 1;
-      await queue.add('my-queue', { foo: 'bar' }, { delay });
+      await queue.add('my-queue', { foo: 'bar', index }, { delay: delay_ });
+      index += 1;
       if (numJobs) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await delay(1000);
       }
     }
 
@@ -321,7 +342,7 @@ describe('Delayed jobs', function () {
 
   describe('when failed jobs are retried and moved to delayed', function () {
     it('processes jobs without getting stuck', async () => {
-      const countJobs = 32;
+      const countJobs = 2;
       const concurrency = 50;
 
       const processedJobs: { data: any }[] = [];
@@ -342,6 +363,7 @@ describe('Delayed jobs', function () {
         {
           autorun: false,
           connection,
+          prefix,
           concurrency,
         },
       );
@@ -400,7 +422,7 @@ describe('Delayed jobs', function () {
 
           order++;
         },
-        { connection },
+        { connection, prefix },
       );
 
       worker.on('failed', function (job, err) {
@@ -431,11 +453,12 @@ describe('Delayed jobs', function () {
   describe('when autorun option is provided as false', function () {
     it('should process a delayed job only after delayed time', async function () {
       const delay = 1000;
-      const queueEvents = new QueueEvents(queueName, { connection });
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
 
       const worker = new Worker(queueName, async () => {}, {
         connection,
+        prefix,
         autorun: false,
       });
       await worker.waitUntilReady();

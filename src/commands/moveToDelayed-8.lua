@@ -16,7 +16,8 @@
     ARGV[3] delayedTimestamp
     ARGV[4] the id of the job
     ARGV[5] queue token
-    ARGV[6] skip attempt
+    ARGV[6] delay value
+    ARGV[7] decrement attempt
 
   Output:
     0 - OK
@@ -54,12 +55,17 @@ if rcall("EXISTS", jobKey) == 1 then
     return -3
   end
 
-  if ARGV[6] == "1" then
+  if ARGV[7] == "1" then
     rcall("HINCRBY", jobKey, "attemptsMade", -1)
   end
 
+  rcall("HSET", jobKey, "delay", ARGV[6])
+
+  local maxEvents = rcall("HGET", KEYS[8], "opts.maxLenEvents") or 10000
+
   rcall("ZADD", delayedKey, score, jobId)
-  rcall("XADD", KEYS[6], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
+  rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
+    "jobId", jobId, "delay", delayedTimestamp)
 
   -- Check if we need to push a marker job to wake up sleeping workers.
   local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])

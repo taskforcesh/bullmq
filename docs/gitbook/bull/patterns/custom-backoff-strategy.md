@@ -112,5 +112,3 @@ myQueue.add({ msg: 'Specific Error' }, {
   }
 });
 ```
-
-\

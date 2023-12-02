@@ -17,11 +17,6 @@ export interface QueueBaseOptions {
   connection?: ConnectionOptions;
 
   /**
-   * Specify if the connection is shared.
-   */
-  sharedConnection?: boolean;
-
-  /**
    * Denotes commands should retry indefinitely.
    */
   blockingConnection?: boolean;

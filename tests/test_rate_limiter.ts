@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import {
   FlowProducer,
@@ -13,23 +13,32 @@ import {
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Rate Limiter', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
   let queueEvents: QueueEvents;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should not put a job into the delayed queue when limit is hit', async function () {
@@ -42,6 +51,7 @@ describe('Rate Limiter', function () {
       },
       {
         connection,
+        prefix,
         concurrency: 5,
         limiter: {
           max: 1,
@@ -73,6 +83,7 @@ describe('Rate Limiter', function () {
 
     const worker = new Worker(queueName, async () => {}, {
       connection,
+      prefix,
       limiter: {
         max: 1,
         duration: 1000,
@@ -116,7 +127,8 @@ describe('Rate Limiter', function () {
   it('should quickly close a worker even with slow rate-limit', async function () {
     const limiter = { max: 1, duration: 60 * 1000 };
     const worker = new Worker(queueName, async () => {}, {
-      connection: { host: 'localhost' },
+      connection,
+      prefix,
       limiter,
     });
     await queue.add('test', 1);
@@ -132,6 +144,7 @@ describe('Rate Limiter', function () {
 
       const commontOpts = {
         connection,
+        prefix,
         limiter: {
           max: 1,
           duration: 2000,
@@ -185,6 +198,7 @@ describe('Rate Limiter', function () {
       const parentQueueName = `parent-queue-${v4()}`;
       const parentQueueEvents = new QueueEvents(parentQueueName, {
         connection,
+        prefix,
       });
       const numJobs = 10;
 
@@ -195,6 +209,7 @@ describe('Rate Limiter', function () {
         },
         {
           connection,
+          prefix,
           concurrency: 2,
           limiter: {
             max: 1,
@@ -210,6 +225,7 @@ describe('Rate Limiter', function () {
         },
         {
           connection,
+          prefix,
           concurrency: 2,
           limiter: {
             max: 1,
@@ -218,7 +234,7 @@ describe('Rate Limiter', function () {
         },
       );
 
-      const flow = new FlowProducer({ connection });
+      const flow = new FlowProducer({ connection, prefix });
       const result = new Promise<void>((resolve, reject) => {
         queueEvents.on(
           'completed',
@@ -292,6 +308,7 @@ describe('Rate Limiter', function () {
 
     const worker = new Worker(queueName, async () => {}, {
       connection,
+      prefix,
       limiter: {
         max: 2,
         duration: 1000,
@@ -357,6 +374,7 @@ describe('Rate Limiter', function () {
         },
         {
           connection,
+          prefix,
           limiter: {
             max: 1,
             duration,
@@ -416,6 +434,7 @@ describe('Rate Limiter', function () {
           },
           {
             connection,
+            prefix,
             limiter: {
               max: 1,
               duration,
@@ -475,6 +494,7 @@ describe('Rate Limiter', function () {
           },
           {
             connection,
+            prefix,
             limiter: {
               max: 1,
               duration,
@@ -526,6 +546,7 @@ describe('Rate Limiter', function () {
             },
             {
               connection,
+              prefix,
               limiter: {
                 max: 1,
                 duration,
@@ -563,6 +584,7 @@ describe('Rate Limiter', function () {
             },
             {
               connection,
+              prefix,
               limiter: {
                 max: 1,
                 duration,
@@ -601,6 +623,7 @@ describe('Rate Limiter', function () {
           },
           {
             connection,
+            prefix,
             autorun: false,
             limiter: {
               max: 1,
@@ -636,6 +659,7 @@ describe('Rate Limiter', function () {
 
   describe('when there are more added jobs than max limiter', () => {
     it('processes jobs as max limiter from the beginning', async function () {
+      const numJobs = 400;
       this.timeout(5000);
       let parallelJobs = 0;
 
@@ -658,13 +682,14 @@ describe('Rate Limiter', function () {
           duration: 1000,
         },
         connection,
+        prefix,
       });
 
       const allCompleted = new Promise(resolve => {
-        worker.on('completed', after(400, resolve));
+        worker.on('completed', after(numJobs, resolve));
       });
 
-      const jobs = Array(400)
+      const jobs = Array(numJobs)
         .fill('')
         .map((_, index) => {
           return {
@@ -683,6 +708,7 @@ describe('Rate Limiter', function () {
 
     describe('when rate limit is max 1', () => {
       it('processes jobs as max limiter from the beginning', async function () {
+        const numJobs = 5;
         this.timeout(5000);
         let parallelJobs = 0;
 
@@ -705,13 +731,14 @@ describe('Rate Limiter', function () {
             duration: 1000,
           },
           connection,
+          prefix,
         });
 
         const allCompleted = new Promise(resolve => {
-          worker.on('completed', after(5, resolve));
+          worker.on('completed', after(numJobs, resolve));
         });
 
-        const jobs = Array(5)
+        const jobs = Array(numJobs)
           .fill('')
           .map((_, index) => {
             return {
@@ -759,9 +786,9 @@ describe('Rate Limiter', function () {
       async job => {
         const { priority } = job.opts;
 
-        priorityBuckets[priority] = priorityBuckets[priority] - 1;
+        priorityBuckets[priority!] = priorityBuckets[priority!] - 1;
 
-        for (let p = 1; p < priority; p++) {
+        for (let p = 1; p < priority!; p++) {
           if (priorityBuckets[p] > 0) {
             const before = JSON.stringify(priorityBucketsBefore);
             const after = JSON.stringify(priorityBuckets);
@@ -776,6 +803,7 @@ describe('Rate Limiter', function () {
       },
       {
         connection,
+        prefix,
         limiter: {
           max: 1,
           duration: 10,

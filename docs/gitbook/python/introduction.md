@@ -37,12 +37,12 @@ await queue.close()
 
 ```
 
-In order to consume the jobs from the queue you need to use the Worker class, providing a "processor" function that will consume the jobs. As soon as the worker is instantiated it will start consuming jobs:
+In order to consume the jobs from the queue you need to use the `Worker` class, providing a "processor" function that will consume the jobs. As soon as the worker is instantiated it will start consuming jobs:
 
 ```python
 from bullmq import Worker
 
-async def process(job):
+async def process(job, job_token):
     # job.data will include the data added to the queue
     return doSomethingAsync(job)
 
@@ -60,6 +60,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
 ```
-
