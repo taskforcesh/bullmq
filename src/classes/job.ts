@@ -585,7 +585,9 @@ export class Job<
     );
 
     const result = await this.scripts.moveToFinished(this.id, args);
-    this.finishedOn = args[14] as number;
+    this.finishedOn = args[
+      this.scripts.moveToFinishedKeys.length + 1
+    ] as number;
 
     return result;
   }
@@ -667,7 +669,7 @@ export class Job<
         fetchNext,
       );
       (<any>multi).moveToFinished(args);
-      finishedOn = args[14];
+      finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
       command = 'failed';
     }
 
