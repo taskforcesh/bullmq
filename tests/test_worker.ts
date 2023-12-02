@@ -465,9 +465,9 @@ describe('workers', function () {
     await worker.close();
   }).timeout(8000);
 
-  it('do not call moveToActive more than concurrency factor', async () => {
-    const numJobs = 50;
-    const concurrency = 10;
+  it('do not call moveToActive more than concurrency factor + 1', async () => {
+    const numJobs = 57;
+    const concurrency = 13;
     let completedJobs = 0;
     const worker = new Worker(
       queueName,
@@ -481,6 +481,10 @@ describe('workers', function () {
 
     // Add spy to worker.moveToActive
     const spy = sinon.spy(worker, 'moveToActive');
+    const bclientSpy = sinon.spy(
+      await worker.blockingConnection.client,
+      'bzpopmin',
+    );
 
     for (let i = 0; i < numJobs; i++) {
       const job = await queue.add('test', { foo: 'bar' });
@@ -488,8 +492,10 @@ describe('workers', function () {
       expect(job.data.foo).to.be.eql('bar');
     }
 
+    expect(bclientSpy.callCount).to.be.equal(1);
+
     await new Promise<void>((resolve, reject) => {
-      worker.on('completed', (job: Job, result: any) => {
+      worker.on('completed', (_job: Job, _result: any) => {
         completedJobs++;
         if (completedJobs == numJobs) {
           resolve();
@@ -498,7 +504,8 @@ describe('workers', function () {
     });
 
     // Check moveToActive was called only concurrency times
-    expect(spy.callCount).to.be.equal(concurrency);
+    expect(spy.callCount).to.be.equal(concurrency + 1);
+    expect(bclientSpy.callCount).to.be.equal(3);
 
     await worker.close();
   });
@@ -518,6 +525,10 @@ describe('workers', function () {
 
     // Add spy to worker.moveToActive
     const spy = sinon.spy(worker, 'moveToActive');
+    const bclientSpy = sinon.spy(
+      await worker.blockingConnection.client,
+      'bzpopmin',
+    );
 
     for (let i = 0; i < numJobs; i++) {
       const job = await queue.add('test', { foo: 'bar' });
@@ -525,18 +536,20 @@ describe('workers', function () {
       expect(job.data.foo).to.be.eql('bar');
     }
 
+    expect(bclientSpy.callCount).to.be.equal(1);
+
     await new Promise<void>((resolve, reject) => {
       worker.on('completed', (job: Job, result: any) => {
         completedJobs++;
-        console.log(completedJobs);
         if (completedJobs == numJobs) {
           resolve();
         }
       });
     });
 
-    // Check moveToActive was called numJobs + 1 times
-    expect(spy.callCount).to.be.equal(numJobs + 1);
+    // Check moveToActive was called numJobs + 2 times
+    expect(spy.callCount).to.be.equal(numJobs + 2);
+    expect(bclientSpy.callCount).to.be.equal(3);
 
     await worker.close();
   });
@@ -601,13 +614,17 @@ describe('workers', function () {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    const failing = new Promise<void>(resolve => {
+    const failing = new Promise<void>((resolve, reject) => {
       worker.once('failed', async (job, err) => {
-        expect(job).to.be.ok;
-        expect(job.finishedOn).to.be.a('number');
-        expect(job.data.foo).to.be.eql('bar');
-        expect(err).to.be.eql(jobError);
-        resolve();
+        try {
+          expect(job).to.be.ok;
+          expect(job!.finishedOn).to.be.a('number');
+          expect(job!.data.foo).to.be.eql('bar');
+          expect(err).to.be.eql(jobError);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
     });
 
@@ -828,12 +845,16 @@ describe('workers', function () {
       /* Try to gracefully close while having a job that will be completed running */
       worker.close();
 
-      await new Promise<void>(resolve => {
+      await new Promise<void>((resolve, reject) => {
         worker.once('completed', async job => {
-          expect(job).to.be.ok;
-          expect(job.finishedOn).to.be.a('number');
-          expect(job.data.foo).to.be.eql('bar');
-          resolve();
+          try {
+            expect(job).to.be.ok;
+            expect(job.finishedOn).to.be.a('number');
+            expect(job.data.foo).to.be.eql('bar');
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
         });
       });
 

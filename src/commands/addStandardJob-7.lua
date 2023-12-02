@@ -21,6 +21,7 @@
       KEYS[4] 'id'
       KEYS[5] 'completed'
       KEYS[6] events stream key
+      KEYS[7] marker key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -96,6 +97,11 @@ storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
          parentKey, parentData, repeatJobKey)
 
 local target, paused = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
+
+if not paused then
+    -- mark that a job is available
+    rcall("ZADD", KEYS[7], 0, "0")
+end
 
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
