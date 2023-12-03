@@ -99,25 +99,24 @@ class Worker(EventEmitter):
         @param token: worker token to be assigned to retrieved job
         @returns a Job or undefined if no job was available in the queue.
         """
-
-        if not self.waiting:
+        if not self.waiting and self.drained:
             self.waiting = self.waitForJob()
 
             try:
-                job_id = await self.waiting
-                job_instance = await self.moveToActive(token, job_id)
-                return job_instance
+                self.blockUntil = await self.waiting
+                timestamp = int(time.time() * 1000)
+
+                if self.blockUntil <= 0 or self.blockUntil <= timestamp:
+                    job_instance = await self.moveToActive(token)
+                    return job_instance
             finally:
                 self.waiting = None
         else:
             job_instance = await self.moveToActive(token)
             return job_instance
 
-    async def moveToActive(self, token: str, job_id: str = None):
-        if job_id and job_id.startswith('0:'):
-            self.blockUntil = int(job_id.split(':')[1]) or 0
-
-        result = await self.scripts.moveToActive(token, self.opts, job_id)
+    async def moveToActive(self, token: str):
+        result = await self.scripts.moveToActive(token, self.opts)
         job_data = None
         id = None
         limit_until = None
@@ -154,16 +153,24 @@ class Worker(EventEmitter):
         # Only Redis v6.0.0 and above supports doubles as block time
         timeout = int(math.ceil(timeout)) if isRedisVersionLowerThan(redis_version, '6.0.0') else timeout
 
-        job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
+        result = await self.bclient.bzpopmin(self.scripts.keys["marker"], timeout)
+        if result:
+            [_key, member, score] = result
 
-        return job_id
+            if member:
+                return int(score)
+            else:
+                return 0
+        return 0
 
     async def processJob(self, job: Job, token: str):
         try:
             self.jobs.add((job, token))
             result = await self.processor(job, token)
             if not self.forceClosing:
-                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
+                # Currently we do not support pre-fetching jobs as in NodeJS version.
+                # nextJob = await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
+                await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=False)
                 job.returnvalue = result
             self.emit("completed", job, result)
         except WaitingChildrenError:

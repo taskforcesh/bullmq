@@ -121,8 +121,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     if (numRemovedElements < 1) then return -3 end
 
+    local metaKey = KEYS[9]
     -- Trim events before emiting them to avoid trimming events emitted in this script
-    trimEvents(KEYS[9], KEYS[4])
+    trimEvents(metaKey, KEYS[4])
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -201,7 +202,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- and not rate limited.
     if (ARGV[7] == "1") then
 
-        local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
+        local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[8])
 
         -- Check if there are delayed jobs that can be promoted
         promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], KEYS[4], ARGV[8],
