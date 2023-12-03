@@ -510,7 +510,7 @@ export class Worker<
       try {
         this.blockUntil = await this.waiting;
 
-        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 0.1) {
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 10) {
           return this.moveToActive(client, token);
         }
       } catch (err) {
