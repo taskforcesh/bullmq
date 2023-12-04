@@ -12,7 +12,7 @@ const queue = new Queue('cluster', {
 });
 ```
 
-or prefix the queue name itself:
+or wrap the queue name itself:
 
 ```typescript
 const queue = new Queue('{cluster}');
