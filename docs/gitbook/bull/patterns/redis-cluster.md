@@ -4,11 +4,18 @@ Bull internals require atomic operations that span different keys. This behavior
 
 In summary, to make bull compatible with Redis cluster, use a queue prefix inside brackets. For example:
 
+You can use two approaches in order to make the Queues compatible with Cluster. Either define a queue prefix:
+
 ```typescript
 const queue = new Queue('cluster', {
   prefix: '{myprefix}'
 });
 ```
 
-If you use several queues in the same cluster, you should use different prefixes so that the queues are evenly placed in the cluster nodes.
+or prefix the queue name itself:
 
+```typescript
+const queue = new Queue('{cluster}');
+```
+
+Note that If you use several queues in the same cluster, you should use different prefixes so that the queues are evenly placed in the cluster nodes, potentially increasing performance and memory usage.
