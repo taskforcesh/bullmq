@@ -55,7 +55,7 @@ class Scripts:
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-6.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
-            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")), #
+            "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")),
         }
 
         self.queue_keys = QueueKeys(prefix)

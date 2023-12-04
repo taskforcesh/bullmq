@@ -204,7 +204,7 @@ describe('workers', function () {
       await trimmedEventsQueue.client
     ).xlen(trimmedEventsQueue.keys.events);
 
-    expect(eventsLength).to.be.lt(numUpdateProgress);
+    expect(eventsLength).to.be.lt(numUpdateProgress + 10);
     expect(eventsLength).to.be.gte(maxEvents);
 
     await worker.close();

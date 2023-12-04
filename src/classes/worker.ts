@@ -29,8 +29,12 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { AsyncFifoQueue } from './async-fifo-queue';
-import { DelayedError } from './delayed-error';
-import { WaitingChildrenError } from './waiting-children-error';
+import {
+  DelayedError,
+  RateLimitError,
+  RATE_LIMIT_ERROR,
+  WaitingChildrenError,
+} from './errors';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -147,8 +151,6 @@ export interface WorkerListener<
   stalled: (jobId: string, prev: string) => void;
 }
 
-const RATE_LIMIT_ERROR = 'bullmq:rateLimitExceeded';
-
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
@@ -186,7 +188,7 @@ export class Worker<
   protected running = false;
 
   static RateLimitError(): Error {
-    return new Error(RATE_LIMIT_ERROR);
+    return new RateLimitError();
   }
 
   constructor(
@@ -243,7 +245,10 @@ export class Worker<
         const mainFile = this.opts.useWorkerThreads
           ? 'main-worker.js'
           : 'main.js';
-        let mainFilePath = path.join(__dirname, `${mainFile}`);
+        let mainFilePath = path.join(
+          path.dirname(module.filename),
+          `${mainFile}`,
+        );
         try {
           fs.statSync(mainFilePath); // would throw if file not exists
         } catch (_) {
