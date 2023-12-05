@@ -350,7 +350,6 @@ export class Scripts {
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      JSON.stringify({ jobId: job.id, val: val }), // TODO: verify if it is used
       !fetchNext || this.queue.closing ? 0 : 1,
       queueKeys[''],
       pack({

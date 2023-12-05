@@ -476,7 +476,7 @@ class Scripts:
             "fpof": getFailParentOnFailure(job),
         }, use_bin_type=True)
 
-        args = [job.id, timestamp, propVal, transformed_value or "", target, "",
+        args = [job.id, timestamp, propVal, transformed_value or "", target,
                 fetchNext and "1" or "", self.keys[''], packedOpts]
         return (keys, args)
 
