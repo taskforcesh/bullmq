@@ -103,8 +103,6 @@ rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
       "jobId", jobId)
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
--- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
--- fail in this case.
 if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end
