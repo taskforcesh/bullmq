@@ -1,3 +1,10 @@
+# [4.15.0](https://github.com/taskforcesh/bullmq/compare/v4.14.4...v4.15.0) (2023-12-05)
+
+
+### Features
+
+* **sandboxes:** use the more compatible dynamic import instead of require ([6d2fe6e](https://github.com/taskforcesh/bullmq/commit/6d2fe6e7c0473b75aeb9a6d3080b0676f9521065))
+
 ## [4.14.4](https://github.com/taskforcesh/bullmq/compare/v4.14.3...v4.14.4) (2023-11-28)
 
 
