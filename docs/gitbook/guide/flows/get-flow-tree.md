@@ -66,4 +66,4 @@ const { children, job } = limitedTree;
 
 ## Read more:
 
-- 💡 [Get Flow API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html#getFlow)
+- 💡 [Get Flow API Reference](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#getFlow)
