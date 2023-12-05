@@ -36,8 +36,7 @@ describe('queues', function () {
     await connection.quit();
   });
 
-  //TODO: restore this tests in next breaking change
-  describe.skip('.add', () => {
+  describe('.add', () => {
     describe('when jobId is provided as integer', () => {
       it('throws error', async function () {
         await expect(
