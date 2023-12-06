@@ -60,6 +60,7 @@ local parentData
 --- @include "includes/storeJob"
 --- @include "includes/updateExistingJobsParent"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/getOrSetMaxEvents"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -69,7 +70,8 @@ end
 
 local jobCounter = rcall("INCR", KEYS[4])
 
-local maxEvents = rcall("HGET", KEYS[3], "opts.maxLenEvents") or 10000
+local metaKey = KEYS[3]
+local maxEvents = getOrSetMaxEvents(metaKey)
 
 local parentDependenciesKey = args[7]
 local timestamp = args[4]
@@ -95,7 +97,7 @@ end
 storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
          parentKey, parentData, repeatJobKey)
 
-local target, paused = getTargetQueueList(KEYS[3], KEYS[1], KEYS[2])
+local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[2])
 
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'

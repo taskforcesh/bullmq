@@ -2467,6 +2467,52 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(redisHost), topQueueName);
   });
 
+  it('should add meta key to both parents and children', async () => {
+    const name = 'child-job';
+    const values = [
+      { idx: 0, bar: 'something' },
+      { idx: 1, baz: 'something' },
+      { idx: 2, qux: 'something' },
+    ];
+
+    const topQueueName = `top-queue-${v4()}`;
+
+    const flow = new FlowProducer({ connection, prefix });
+    const tree = await flow.add({
+      name: 'root-job',
+      queueName: topQueueName,
+      data: {},
+      children: [
+        {
+          name,
+          data: { idx: 0, foo: 'bar' },
+          queueName,
+          children: [
+            {
+              name,
+              data: { idx: 1, foo: 'baz' },
+              queueName,
+              children: [{ name, data: { idx: 2, foo: 'qux' }, queueName }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const client = await flow.client;
+    const metaTop = await client.hgetall(`${prefix}:${topQueueName}:meta`);
+    expect(metaTop).to.have.be.deep.equal({ 'opts.maxLenEvents': '10000' });
+
+    const metaChildren = await client.hgetall(`${prefix}:${queueName}:meta`);
+    expect(metaChildren).to.have.be.deep.equal({
+      'opts.maxLenEvents': '10000',
+    });
+
+    await flow.close();
+
+    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+  });
+
   describe('when parent has delay', () => {
     it('moves process to delayed after children are processed', async () => {
       const name = 'child-job';
