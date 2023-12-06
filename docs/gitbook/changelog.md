@@ -1,3 +1,10 @@
+## [4.15.1](https://github.com/taskforcesh/bullmq/compare/v4.15.0...v4.15.1) (2023-12-06)
+
+
+### Bug Fixes
+
+* **flows:** add meta key to queues created with flows ([272ec69](https://github.com/taskforcesh/bullmq/commit/272ec69557f601a138e1aaba739f7e7878d5344b))
+
 # [4.15.0](https://github.com/taskforcesh/bullmq/compare/v4.14.4...v4.15.0) (2023-12-05)
 
 
