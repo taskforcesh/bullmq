@@ -26,7 +26,7 @@ export interface JobJsonRaw {
   delay: string;
   opts: string;
   progress: string;
-  attemptsMade: string;
+  attemptsMade?: string;
   finishedOn?: string;
   processedOn?: string;
   timestamp: string;
@@ -36,5 +36,6 @@ export interface JobJsonRaw {
   parentKey?: string;
   parent?: string;
   rjk?: string;
-  sam?: string;
+  atm?: string;
+  ats?: string;
 }

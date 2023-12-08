@@ -2793,8 +2793,8 @@ describe('workers', function () {
           await worker.close();
         });
 
-        describe('when decrement attempts option is provided as true', () => {
-          it('should retry job after a delay time whithout incrementing attemptMade', async function () {
+        describe('when complete attempts option is provided as false', () => {
+          it('should retry job after a delay time whithout incrementing attemptsMade', async function () {
             this.timeout(8000);
 
             enum Step {
@@ -2811,7 +2811,7 @@ describe('workers', function () {
                   switch (step) {
                     case Step.Initial: {
                       await job.moveToDelayed(Date.now() + 200, token, {
-                        decrementAttempt: true,
+                        completeAttempt: false,
                       });
                       await job.updateData({
                         step: Step.Second,
@@ -2977,7 +2977,7 @@ describe('workers', function () {
           await parentQueue.close();
         });
 
-        describe('when decrement attempts option is provided as true', () => {
+        describe('when complete attempts option is provided as true', () => {
           it('should wait children as one step of the parent job whithout incrementing attemptMade', async function () {
             this.timeout(8000);
             const parentQueueName = `parent-queue-${v4()}`;
@@ -3039,7 +3039,7 @@ describe('workers', function () {
                       waitingChildrenStepExecutions++;
                       const shouldWait = await job.moveToWaitingChildren(
                         token!,
-                        { decrementAttempt: true },
+                        { completeAttempt: false },
                       );
                       if (!shouldWait) {
                         await job.updateData({

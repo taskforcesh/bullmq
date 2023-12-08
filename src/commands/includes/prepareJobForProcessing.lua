@@ -67,7 +67,7 @@ local function prepareJobForProcessing(keys, keyPrefix, targetKey, jobId, proces
 
   rcall("XADD", keys[4], "*", "event", "active", "jobId", jobId, "prev", "waiting")
   rcall("HSET", jobKey, "processedOn", processedOn)
-  rcall("HINCRBY", jobKey, "attemptsMade", 1)
+  rcall("HINCRBY", jobKey, "atm", 1)
 
   return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data
 end

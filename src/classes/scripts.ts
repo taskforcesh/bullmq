@@ -355,7 +355,6 @@ export class Scripts {
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
         attempts: job.opts.attempts,
-        attemptsMade: job.attemptsMade,
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
@@ -685,7 +684,7 @@ export class Scripts {
       jobId,
       token,
       delay,
-      opts.decrementAttempt ? '1' : '0',
+      opts.completeAttempt ? '1' : '0',
     ]);
   }
 
@@ -719,7 +718,7 @@ export class Scripts {
       childKey ?? '',
       JSON.stringify(timestamp),
       jobId,
-      opts.decrementAttempt ? '1' : '0',
+      opts.completeAttempt ? '1' : '0',
     ]);
   }
 

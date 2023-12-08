@@ -100,6 +100,12 @@ export class Job<
   timestamp: number;
 
   /**
+   * Number of attempts when job is moved to active.
+   * @defaultValue 0
+   */
+  attemptsStarted = 0;
+
+  /**
    * Number of attempts after the job has failed.
    * @defaultValue 0
    */
@@ -317,12 +323,11 @@ export class Job<
       job.repeatJobKey = json.rjk;
     }
 
-    if (json.sam) {
-      job.softAttemptsMade = parseInt(json.sam);
-    }
-
     job.failedReason = json.failedReason;
-    job.attemptsMade = parseInt(json.attemptsMade || '0');
+
+    job.attemptsStarted = parseInt(json.ats || '0');
+
+    job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
 
     job.stacktrace = getTraces(json.stacktrace);
 

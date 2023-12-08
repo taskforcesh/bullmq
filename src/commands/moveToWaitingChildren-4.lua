@@ -11,7 +11,7 @@
     ARGV[2] child key
     ARGV[3] timestamp
     ARGV[4] the id of the job
-    ARGV[5] decrement attemptsMade
+    ARGV[5] completes attempt
 
   Output:
     0 - OK
@@ -23,7 +23,6 @@
 local rcall = redis.call
 
 -- Includes
---- @include "includes/decrementAttemptsMade"
 
 local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId, timestamp, lockKey, jobKey, token)
   if token ~= "0" then
@@ -45,7 +44,7 @@ local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId, time
   rcall("ZADD", waitingChildrenKey, score, jobId)
 
   if ARGV[5] == "1" then
-    decrementAttemptsMade(jobKey)
+    rcall("HINCRBY", jobKey, "atm", 1)
   end
 
   return 0
