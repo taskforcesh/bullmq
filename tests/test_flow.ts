@@ -685,7 +685,7 @@ describe('flows', () => {
         (parentProcessor = async (job: Job) => {
           switch (job.name) {
             case 'task3': {
-              if (job.attemptsMade != job.opts.attempts) {
+              if (job.attemptsMade + 1 != job.opts.attempts) {
                 throw {};
               }
               counter++;
@@ -695,7 +695,7 @@ describe('flows', () => {
               break;
             }
             case 'task2': {
-              if (job.attemptsMade != job.opts.attempts) {
+              if (job.attemptsMade + 1 != job.opts.attempts) {
                 throw {};
               }
               counter++;
@@ -1081,7 +1081,7 @@ describe('flows', () => {
       const processingChildren = new Promise<void>(
         resolve =>
           (childrenProcessor = async (job: Job) => {
-            if (job.attemptsMade < 2) {
+            if (job.attemptsMade < 1) {
               throw new Error('Not yet!');
             }
             processedChildren++;

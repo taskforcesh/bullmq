@@ -16,6 +16,7 @@
     ARGV[4] the id of the job
     ARGV[5] queue token
     ARGV[6] delay value
+    ARGV[7] skip attempt
 
   Output:
     0 - OK
@@ -51,6 +52,10 @@ if rcall("EXISTS", jobKey) == 1 then
     local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
     if numRemovedElements < 1 then return -3 end
 
+    if ARGV[7] == "0" then
+        rcall("HINCRBY", jobKey, "atm", 1)
+    end
+    
     rcall("HSET", jobKey, "delay", ARGV[6])
 
     local maxEvents = rcall("HGET", metaKey, "opts.maxLenEvents") or 10000

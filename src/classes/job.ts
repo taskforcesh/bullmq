@@ -8,6 +8,7 @@ import {
   JobJson,
   JobJsonRaw,
   MinimalJob,
+  MoveToDelayedOpts,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
@@ -97,6 +98,12 @@ export class Job<
    * Timestamp when the job was created (unless overridden with job options).
    */
   timestamp: number;
+
+  /**
+   * Number of attempts when job is moved to active.
+   * @defaultValue 0
+   */
+  attemptsStarted = 0;
 
   /**
    * Number of attempts after the job has failed.
@@ -311,7 +318,10 @@ export class Job<
     }
 
     job.failedReason = json.failedReason;
-    job.attemptsMade = parseInt(json.attemptsMade || '0');
+
+    job.attemptsStarted = parseInt(json.ats || '0');
+
+    job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
 
     job.stacktrace = getTraces(json.stacktrace);
 
@@ -588,6 +598,7 @@ export class Job<
     this.finishedOn = args[
       this.scripts.moveToFinishedKeys.length + 1
     ] as number;
+    this.attemptsMade += 1;
 
     return result;
   }
@@ -622,7 +633,7 @@ export class Job<
     let moveToFailed = false;
     let finishedOn, delay;
     if (
-      this.attemptsMade < this.opts.attempts &&
+      this.attemptsMade + 1 < this.opts.attempts &&
       !this.discarded &&
       !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
@@ -631,7 +642,7 @@ export class Job<
       // Check if backoff is needed
       delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
-        this.attemptsMade,
+        this.attemptsMade + 1,
         err,
         this,
         opts.settings && opts.settings.backoffStrategy,
@@ -693,6 +704,8 @@ export class Job<
     if (delay && typeof delay === 'number') {
       this.delay = delay;
     }
+
+    this.attemptsMade += 1;
   }
 
   /**
@@ -1027,14 +1040,25 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(timestamp: number, token?: string): Promise<void> {
+  async moveToDelayed(
+    timestamp: number,
+    token?: string,
+    opts: MoveToDelayedOpts = {},
+  ): Promise<void> {
     const delay = timestamp - Date.now();
-    return this.scripts.moveToDelayed(
+    const movedToDelayed = await this.scripts.moveToDelayed(
       this.id,
       timestamp,
       delay > 0 ? delay : 0,
       token,
+      opts,
     );
+
+    if (!opts.skipAttempt) {
+      this.attemptsMade += 1;
+    }
+
+    return movedToDelayed;
   }
 
   /**
@@ -1044,11 +1068,20 @@ export class Job<
    * @param opts - The options bag for moving a job to waiting-children.
    * @returns true if the job was moved
    */
-  moveToWaitingChildren(
+  async moveToWaitingChildren(
     token: string,
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
-    return this.scripts.moveToWaitingChildren(this.id, token, opts);
+    const movedToWaitingChildren = await this.scripts.moveToWaitingChildren(
+      this.id,
+      token,
+      opts,
+    );
+    if (!opts.skipAttempt) {
+      this.attemptsMade += 1;
+    }
+
+    return movedToWaitingChildren;
   }
 
   /**

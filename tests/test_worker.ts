@@ -2217,7 +2217,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade !== 3) {
+          if (job.attemptsMade !== 2) {
             throw new Error('error');
           }
           return delay(100);
@@ -2389,7 +2389,7 @@ describe('workers', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            expect(job.attemptsMade).to.equal(1);
+            expect(job.attemptsMade).to.equal(0);
             job.discard();
             throw new Error('unrecoverable error');
           },
@@ -2424,9 +2424,9 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          tries++;
           expect(job.attemptsMade).to.be.eql(tries);
-          if (job.attemptsMade < 2) {
+          tries++;
+          if (job.attemptsMade < 1) {
             throw new Error('Not yet!');
           }
         },
@@ -2460,10 +2460,10 @@ describe('workers', function () {
             async job => {
               id++;
               await delay(200);
-              if (job.attemptsMade === 1) {
+              if (job.attemptsMade === 0) {
                 expect(job.id).to.be.eql(`${id}`);
               }
-              if (job.id == '1' && job.attemptsMade < 2) {
+              if (job.id == '1' && job.attemptsMade < 1) {
                 throw new Error('Not yet!');
               }
             },
@@ -2508,11 +2508,11 @@ describe('workers', function () {
             queueName,
             async job => {
               await delay(200);
-              if (job.attemptsMade === 1) {
+              if (job.attemptsMade === 0) {
                 id++;
                 expect(job.id).to.be.eql(`${id}`);
               }
-              if (job.id == '1' && job.attemptsMade < 2) {
+              if (job.id == '1' && job.attemptsMade < 1) {
                 throw new Error('Not yet!');
               }
             },
@@ -2559,7 +2559,7 @@ describe('workers', function () {
         queueName,
         async job => {
           tries++;
-          if (job.attemptsMade < 4) {
+          if (job.attemptsMade < 3) {
             throw new Error('Not yet!');
           }
           expect(job.attemptsMade).to.be.eql(tries);
@@ -2601,7 +2601,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
         },
@@ -2638,10 +2638,10 @@ describe('workers', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade < 2) {
+            if (job.attemptsMade < 1) {
               throw new Error('Not yet!');
             }
-            if (job.attemptsMade < 3) {
+            if (job.attemptsMade < 2) {
               throw new UnrecoverableError('Unrecoverable');
             }
           },
@@ -2706,7 +2706,7 @@ describe('workers', function () {
                   break;
                 }
                 case Step.Second: {
-                  if (job.attemptsMade < 3) {
+                  if (job.attemptsMade < 2) {
                     throw new Error('Not yet!');
                   }
                   await job.updateData({
@@ -2889,6 +2889,71 @@ describe('workers', function () {
 
           await worker.close();
         });
+
+        describe('when skip attempt option is provided as true', () => {
+          it('should retry job after a delay time whithout incrementing attemptsMade', async function () {
+            this.timeout(8000);
+
+            enum Step {
+              Initial,
+              Second,
+              Finish,
+            }
+
+            const worker = new Worker(
+              queueName,
+              async (job, token) => {
+                let step = job.data.step;
+                while (step !== Step.Finish) {
+                  switch (step) {
+                    case Step.Initial: {
+                      await job.moveToDelayed(Date.now() + 200, token, {
+                        skipAttempt: true,
+                      });
+                      await job.updateData({
+                        step: Step.Second,
+                      });
+                      throw new DelayedError();
+                    }
+                    case Step.Second: {
+                      await job.updateData({
+                        step: Step.Finish,
+                      });
+                      step = Step.Finish;
+                      return Step.Finish;
+                    }
+                    default: {
+                      throw new Error('invalid step');
+                    }
+                  }
+                }
+              },
+              { connection, prefix },
+            );
+
+            await worker.waitUntilReady();
+
+            const start = Date.now();
+            await queue.add('test', { step: Step.Initial });
+
+            await new Promise<void>((resolve, reject) => {
+              worker.on('completed', job => {
+                const elapse = Date.now() - start;
+                expect(elapse).to.be.greaterThan(200);
+                expect(job.returnvalue).to.be.eql(Step.Finish);
+                expect(job.attemptsMade).to.be.eql(1);
+                expect(job.attemptsStarted).to.be.eql(2);
+                resolve();
+              });
+
+              worker.on('error', () => {
+                reject();
+              });
+            });
+
+            await worker.close();
+          });
+        });
       });
 
       describe('when creating children at runtime', () => {
@@ -2921,7 +2986,7 @@ describe('workers', function () {
                       { foo: 'bar' },
                       {
                         parent: {
-                          id: job.id,
+                          id: job.id!,
                           queue: job.queueQualifiedName,
                         },
                       },
@@ -3008,6 +3073,130 @@ describe('workers', function () {
           await childrenWorker.close();
           await parentQueue.close();
         });
+
+        describe('when skip attempt option is provided as true', () => {
+          it('should wait children as one step of the parent job whithout incrementing attemptMade', async function () {
+            this.timeout(8000);
+            const parentQueueName = `parent-queue-${v4()}`;
+            const parentQueue = new Queue(parentQueueName, {
+              connection,
+              prefix,
+            });
+
+            enum Step {
+              Initial,
+              Second,
+              Third,
+              Finish,
+            }
+
+            let waitingChildrenStepExecutions = 0;
+
+            const worker = new Worker(
+              parentQueueName,
+              async (job, token) => {
+                let step = job.data.step;
+                while (step !== Step.Finish) {
+                  switch (step) {
+                    case Step.Initial: {
+                      await queue.add(
+                        'child-1',
+                        { foo: 'bar' },
+                        {
+                          parent: {
+                            id: job.id!,
+                            queue: job.queueQualifiedName,
+                          },
+                        },
+                      );
+                      await job.updateData({
+                        step: Step.Second,
+                      });
+                      step = Step.Second;
+                      break;
+                    }
+                    case Step.Second: {
+                      await queue.add(
+                        'child-2',
+                        { foo: 'bar' },
+                        {
+                          parent: {
+                            id: job.id!,
+                            queue: `${prefix}:${parentQueueName}`,
+                          },
+                        },
+                      );
+                      await job.updateData({
+                        step: Step.Third,
+                      });
+                      step = Step.Third;
+                      break;
+                    }
+                    case Step.Third: {
+                      waitingChildrenStepExecutions++;
+                      const shouldWait = await job.moveToWaitingChildren(
+                        token!,
+                        { skipAttempt: true },
+                      );
+                      if (!shouldWait) {
+                        await job.updateData({
+                          step: Step.Finish,
+                        });
+                        step = Step.Finish;
+                        return Step.Finish;
+                      } else {
+                        throw new WaitingChildrenError();
+                      }
+                    }
+                    default: {
+                      throw new Error('invalid step');
+                    }
+                  }
+                }
+              },
+              { connection, prefix },
+            );
+            const childrenWorker = new Worker(
+              queueName,
+              async () => {
+                await delay(200);
+              },
+              {
+                connection,
+                prefix,
+              },
+            );
+            await childrenWorker.waitUntilReady();
+            await worker.waitUntilReady();
+
+            await parentQueue.add(
+              'test',
+              { step: Step.Initial },
+              {
+                attempts: 3,
+                backoff: 1000,
+              },
+            );
+
+            await new Promise<void>((resolve, reject) => {
+              worker.on('completed', job => {
+                expect(job.returnvalue).to.equal(Step.Finish);
+                expect(job.attemptsMade).to.be.eql(1);
+                expect(job.attemptsStarted).to.be.eql(2);
+                resolve();
+              });
+
+              worker.on('error', () => {
+                reject();
+              });
+            });
+
+            expect(waitingChildrenStepExecutions).to.be.equal(2);
+            await worker.close();
+            await childrenWorker.close();
+            await parentQueue.close();
+          });
+        });
       });
     });
 
@@ -3017,7 +3206,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
         },
@@ -3057,7 +3246,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
         },
@@ -3104,7 +3293,7 @@ describe('workers', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade < 3) {
+            if (job.attemptsMade < 2) {
               throw new Error('Not yet!');
             }
           },
@@ -3186,7 +3375,7 @@ describe('workers', function () {
         queueName,
         async job => {
           tries++;
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
         },
@@ -3234,7 +3423,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new CustomError('Hey, custom error!');
           }
         },
@@ -3347,7 +3536,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async (job: Job) => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('some error');
           }
         },

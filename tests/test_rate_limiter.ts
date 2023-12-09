@@ -369,7 +369,7 @@ describe('Rate Limiter', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade === 1) {
+          if (job.attemptsStarted === 1) {
             await worker.rateLimit(dynamicLimit);
             const currentTtl = await queue.getRateLimitTtl();
             expect(currentTtl).to.be.lessThanOrEqual(250);
@@ -432,7 +432,7 @@ describe('Rate Limiter', function () {
           queueName,
           async job => {
             await worker.rateLimit(dynamicLimit);
-            if (job.attemptsMade >= job.opts.attempts!) {
+            if (job.attemptsStarted >= job.opts.attempts!) {
               throw new UnrecoverableError('Unrecoverable');
             }
             throw Worker.RateLimitError();
@@ -487,7 +487,7 @@ describe('Rate Limiter', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade === 1) {
+            if (job.attemptsStarted === 1) {
               if (extraCount > 0) {
                 await queue.add('rate test', {}, { priority });
                 priority -= 1;
@@ -619,7 +619,7 @@ describe('Rate Limiter', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade === 1) {
+            if (job.attemptsMade === 0) {
               await queue.pause();
               await delay(150);
               await worker.rateLimit(dynamicLimit);

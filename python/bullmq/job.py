@@ -42,6 +42,7 @@ class Job:
         self.delay = opts.get("delay", 0)
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
+        self.attemptsStarted = 0
         self.data = data
         self.removeOnComplete = opts.get("removeOnComplete", True)
         self.removeOnFail = opts.get("removeOnFail", False)
@@ -96,9 +97,9 @@ class Job:
 
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
             await self.saveStacktrace(pipe, error_message)
-            if self.attemptsMade < self.opts['attempts'] and not self.discarded:
+            if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded:
                 delay = await Backoffs.calculate(
-                    self.opts.get('backoff'), self.attemptsMade,
+                    self.opts.get('backoff'), self.attemptsMade + 1,
                     err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
                     )
                 if delay == -1:
@@ -140,6 +141,8 @@ class Job:
 
         if delay and type(delay) == int:
             self.delay = delay
+
+        self.attemptsMade = self.attemptsMade + 1
 
     async def saveStacktrace(self, pipe, err:str):
         stacktrace = traceback.format_exc()
@@ -186,8 +189,11 @@ class Job:
         if rawData.get("rjk"):
             job.repeatJobKey = rawData.get("rjk")
 
+        if rawData.get("ats"):
+            job.attemptsStarted = int(rawData.get("ats"))
+
         job.failedReason = rawData.get("failedReason")
-        job.attemptsMade = int(rawData.get("attemptsMade", "0"))
+        job.attemptsMade = int(rawData.get("attemptsMade") or rawData.get("atm") or "0")
 
         returnvalue = rawData.get("returnvalue")
         if type(returnvalue) == str:

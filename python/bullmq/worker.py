@@ -172,6 +172,7 @@ class Worker(EventEmitter):
                 # nextJob = await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
                 await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=False)
                 job.returnvalue = result
+                job.attemptsMade = job.attemptsMade + 1
             self.emit("completed", job, result)
         except WaitingChildrenError:
             return

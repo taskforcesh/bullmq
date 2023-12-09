@@ -22,6 +22,8 @@ import {
   RedisClient,
   WorkerOptions,
   KeepJobs,
+  MoveToDelayedOpts,
+  RetryOpts,
 } from '../interfaces';
 import {
   JobState,
@@ -358,7 +360,6 @@ export class Scripts {
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
         attempts: job.opts.attempts,
-        attemptsMade: job.attemptsMade,
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
@@ -652,6 +653,7 @@ export class Scripts {
     timestamp: number,
     token: string,
     delay: number,
+    opts: MoveToDelayedOpts = {},
   ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
@@ -684,6 +686,7 @@ export class Scripts {
       jobId,
       token,
       delay,
+      opts.skipAttempt ? '1' : '0',
     ]);
   }
 
@@ -717,6 +720,7 @@ export class Scripts {
       childKey ?? '',
       JSON.stringify(timestamp),
       jobId,
+      opts.skipAttempt ? '1' : '0',
     ]);
   }
 
@@ -725,10 +729,11 @@ export class Scripts {
     timestamp: number,
     delay: number,
     token = '0',
+    opts: MoveToDelayedOpts = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay);
+    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
@@ -797,6 +802,7 @@ export class Scripts {
     jobId: string,
     lifo: boolean,
     token: string,
+    opts: RetryOpts = {},
   ): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.active,
@@ -819,6 +825,7 @@ export class Scripts {
       pushCmd,
       jobId,
       token,
+      opts.skipAttempt ? '1' : '0',
     ]);
   }
 

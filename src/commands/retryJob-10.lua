@@ -18,6 +18,7 @@
       ARGV[3]  pushCmd
       ARGV[4]  jobId
       ARGV[5]  token
+      ARGV[6]  skip attempt
 
     Events:
       'waiting'
@@ -61,6 +62,10 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     rcall(ARGV[3], target, ARGV[4])
   else
     addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], paused)
+  end
+
+  if ARGV[6] == "0" then
+    rcall("HINCRBY", KEYS[4], "atm", 1)
   end
 
   local maxEvents = rcall("HGET", KEYS[5], "opts.maxLenEvents") or 10000

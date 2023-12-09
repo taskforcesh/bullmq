@@ -37,7 +37,6 @@
       opts - keepJobs
       opts - lockDuration - lock duration in milliseconds
       opts - attempts max attempts
-      opts - attemptsMade
       opts - maxMetricsSize
       opts - fpof - fail parent on fail
       opts - rdof - remove dependency on fail
@@ -76,7 +75,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     local token = opts['token']
     local attempts = opts['attempts']
-    local attemptsMade = opts['attemptsMade']
     local maxMetricsSize = opts['maxMetricsSize']
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
@@ -156,6 +154,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             end
         end
     end
+
+    local attemptsMade = rcall("HINCRBY", jobIdKey, "atm", 1)
 
     -- Remove job?
     if maxCount ~= 0 then
