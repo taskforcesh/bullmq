@@ -17,7 +17,7 @@
       ARGV[3]  pushCmd
       ARGV[4]  jobId
       ARGV[5]  token
-      ARGV[6]  complete attempt
+      ARGV[6]  skip attempt
 
     Events:
       'waiting'
@@ -61,7 +61,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     addJobWithPriority(KEYS[2], KEYS[8], priority, paused, ARGV[4], KEYS[9])
   end
 
-  if ARGV[6] == "1" then
+  if ARGV[6] == "0" then
     rcall("HINCRBY", KEYS[4], "atm", 1)
   end
 

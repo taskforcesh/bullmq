@@ -181,7 +181,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     rcall("XADD", KEYS[4], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
           ARGV[4])
 
-    local attemptsMade = rcall("HINCRBY", jobKey, "atm", 1)
+    local attemptsMade = rcall("HINCRBY", jobIdKey, "atm", 1)
 
     if ARGV[5] == "failed" then
         if tonumber(attemptsMade) >= tonumber(attempts) then

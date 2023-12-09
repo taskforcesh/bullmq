@@ -17,7 +17,7 @@
     ARGV[4] the id of the job
     ARGV[5] queue token
     ARGV[6] delay value
-    ARGV[7] complete attempt
+    ARGV[7] skip attempt
 
   Output:
     0 - OK
@@ -55,7 +55,7 @@ if rcall("EXISTS", jobKey) == 1 then
     return -3
   end
 
-  if ARGV[7] == "1" then
+  if ARGV[7] == "0" then
     rcall("HINCRBY", jobKey, "atm", 1)
   end
 

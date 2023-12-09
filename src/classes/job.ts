@@ -112,12 +112,6 @@ export class Job<
   attemptsMade = 0;
 
   /**
-   * Number of attempts after the job has failed with our custom Errors and decrement option as true.
-   * @defaultValue 0
-   */
-  softAttemptsMade = 0;
-
-  /**
    * Reason for failing.
    */
   failedReason: string;

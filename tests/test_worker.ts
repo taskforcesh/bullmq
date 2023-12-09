@@ -2793,7 +2793,7 @@ describe('workers', function () {
           await worker.close();
         });
 
-        describe('when complete attempts option is provided as false', () => {
+        describe('when skip attempt option is provided as true', () => {
           it('should retry job after a delay time whithout incrementing attemptsMade', async function () {
             this.timeout(8000);
 
@@ -2811,7 +2811,7 @@ describe('workers', function () {
                   switch (step) {
                     case Step.Initial: {
                       await job.moveToDelayed(Date.now() + 200, token, {
-                        completeAttempt: false,
+                        skipAttempt: true,
                       });
                       await job.updateData({
                         step: Step.Second,
@@ -2977,7 +2977,7 @@ describe('workers', function () {
           await parentQueue.close();
         });
 
-        describe('when complete attempts option is provided as true', () => {
+        describe('when skip attempt option is provided as true', () => {
           it('should wait children as one step of the parent job whithout incrementing attemptMade', async function () {
             this.timeout(8000);
             const parentQueueName = `parent-queue-${v4()}`;
@@ -3039,7 +3039,7 @@ describe('workers', function () {
                       waitingChildrenStepExecutions++;
                       const shouldWait = await job.moveToWaitingChildren(
                         token!,
-                        { completeAttempt: false },
+                        { skipAttempt: true },
                       );
                       if (!shouldWait) {
                         await job.updateData({

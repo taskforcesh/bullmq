@@ -5,7 +5,7 @@ import { ParentKeys } from './parent';
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
 export interface MoveToDelayedOpts {
-  completeAttempt?: boolean;
+  skipAttempt?: boolean;
 }
 
 export interface MoveToWaitingChildrenOpts {
@@ -13,7 +13,7 @@ export interface MoveToWaitingChildrenOpts {
     id: string;
     queue: string;
   };
-  completeAttempt?: boolean;
+  skipAttempt?: boolean;
 }
 
 export interface DependenciesOpts {

@@ -684,7 +684,7 @@ export class Scripts {
       jobId,
       token,
       delay,
-      opts.completeAttempt ? '1' : '0',
+      opts.skipAttempt ? '1' : '0',
     ]);
   }
 
@@ -718,7 +718,7 @@ export class Scripts {
       childKey ?? '',
       JSON.stringify(timestamp),
       jobId,
-      opts.completeAttempt ? '1' : '0',
+      opts.skipAttempt ? '1' : '0',
     ]);
   }
 
