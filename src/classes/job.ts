@@ -1038,19 +1038,25 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(
+  async moveToDelayed(
     timestamp: number,
     token?: string,
     opts: MoveToDelayedOpts = {},
   ): Promise<void> {
     const delay = timestamp - Date.now();
-    return this.scripts.moveToDelayed(
+    const movedToDelayed = await this.scripts.moveToDelayed(
       this.id,
       timestamp,
       delay > 0 ? delay : 0,
       token,
       opts,
     );
+
+    if (!opts.skipAttempt) {
+      this.attemptsMade += 1;
+    }
+
+    return movedToDelayed;
   }
 
   /**
@@ -1060,11 +1066,20 @@ export class Job<
    * @param opts - The options bag for moving a job to waiting-children.
    * @returns true if the job was moved
    */
-  moveToWaitingChildren(
+  async moveToWaitingChildren(
     token: string,
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
-    return this.scripts.moveToWaitingChildren(this.id, token, opts);
+    const movedToWaitingChildren = await this.scripts.moveToWaitingChildren(
+      this.id,
+      token,
+      opts,
+    );
+    if (!opts.skipAttempt) {
+      this.attemptsMade += 1;
+    }
+
+    return movedToWaitingChildren;
   }
 
   /**
