@@ -42,7 +42,7 @@ class Job:
         self.delay = opts.get("delay", 0)
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
-        self.softAttemptsMade = 0
+        self.attemptsStarted = 0
         self.data = data
         self.removeOnComplete = opts.get("removeOnComplete", True)
         self.removeOnFail = opts.get("removeOnFail", False)
@@ -187,11 +187,11 @@ class Job:
         if rawData.get("rjk"):
             job.repeatJobKey = rawData.get("rjk")
 
-        if rawData.get("sam"):
-            job.softAttemptsMade = int(rawData.get("sam"))
+        if rawData.get("ats"):
+            job.attemptsStarted = int(rawData.get("ats"))
 
         job.failedReason = rawData.get("failedReason")
-        job.attemptsMade = int(rawData.get("attemptsMade", "0"))
+        job.attemptsMade = int(rawData.get("attemptsMade", "0") or rawData.get("atm", "0"))
 
         returnvalue = rawData.get("returnvalue")
         if type(returnvalue) == str:

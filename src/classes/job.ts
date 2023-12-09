@@ -596,6 +596,7 @@ export class Job<
 
     const result = await this.scripts.moveToFinished(this.id, args);
     this.finishedOn = args[14] as number;
+    this.attemptsMade += 1;
 
     return result;
   }
@@ -701,6 +702,8 @@ export class Job<
     if (delay && typeof delay === 'number') {
       this.delay = delay;
     }
+
+    this.attemptsMade += 1;
   }
 
   /**

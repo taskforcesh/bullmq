@@ -2845,7 +2845,7 @@ describe('workers', function () {
                 expect(elapse).to.be.greaterThan(200);
                 expect(job.returnvalue).to.be.eql(Step.Finish);
                 expect(job.attemptsMade).to.be.eql(1);
-                expect(job.softAttemptsMade).to.be.eql(1);
+                expect(job.attemptsStarted).to.be.eql(2);
                 resolve();
               });
 
@@ -3085,7 +3085,7 @@ describe('workers', function () {
               worker.on('completed', job => {
                 expect(job.returnvalue).to.equal(Step.Finish);
                 expect(job.attemptsMade).to.be.eql(1);
-                expect(job.softAttemptsMade).to.be.eql(1);
+                expect(job.attemptsStarted).to.be.eql(2);
                 resolve();
               });
 

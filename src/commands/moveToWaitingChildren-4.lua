@@ -23,7 +23,7 @@
 local rcall = redis.call
 
 local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId, timestamp,
-    lockKey, jobKey, token, skipAttempt)
+    lockKey, jobKey, skipAttempt, token)
   if token ~= "0" then
     if rcall("GET", lockKey) == token then
       rcall("DEL", lockKey)
@@ -52,15 +52,15 @@ end
 if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
     if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1],
-        ARGV[1], ARGV[5])
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], KEYS[4],
+        ARGV[5], ARGV[1])
     end
 
     return 1
   else
     if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1],
-        ARGV[1], ARGV[5])
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], KEYS[4],
+        ARGV[5], ARGV[1])
     end
 
     return 1
