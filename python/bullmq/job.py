@@ -97,9 +97,9 @@ class Job:
 
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
             await self.saveStacktrace(pipe, error_message)
-            if (self.attemptsMade + 1) < self.opts['attempts'] and not self.discarded:
+            if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded:
                 delay = await Backoffs.calculate(
-                    self.opts.get('backoff'), self.attemptsMade,
+                    self.opts.get('backoff'), self.attemptsMade + 1,
                     err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
                     )
                 if delay == -1:
@@ -193,7 +193,7 @@ class Job:
             job.attemptsStarted = int(rawData.get("ats"))
 
         job.failedReason = rawData.get("failedReason")
-        job.attemptsMade = int(rawData.get("attemptsMade", "0") or rawData.get("atm", "0"))
+        job.attemptsMade = int(rawData.get("attemptsMade") or rawData.get("atm") or "0")
 
         returnvalue = rawData.get("returnvalue")
         if type(returnvalue) == str:

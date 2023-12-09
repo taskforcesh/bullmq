@@ -165,13 +165,14 @@ class Scripts:
         keys, args = self.cleanJobsInSetArgs(set, grace, limit)
         return self.commands["cleanJobsInSet"](keys=keys, args=args)
 
-    def moveToWaitingChildrenArgs(self, job_id, token, opts):
+    def moveToWaitingChildrenArgs(self, job_id, token, opts: dict = {}):
         keys = [self.toKey(job_id) + ":lock",
                 self.keys['active'],
                 self.keys['waiting-children'],
                 self.toKey(job_id)]
         child_key = opts.get("child") if opts else None
-        args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id]
+        args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id,
+                "1" if opts.get("skipAttempt") else "0"]
 
         return (keys, args)
 
@@ -239,7 +240,7 @@ class Scripts:
 
         return (keys, args)
 
-    def retryJobArgs(self, job_id: str, lifo: bool, token: str):
+    def retryJobArgs(self, job_id: str, lifo: bool, token: str, opts: dict = {}):
         keys = self.getKeys(['active', 'wait', 'paused'])
         keys.append(self.toKey(job_id))
         keys.append(self.keys['meta'])
@@ -248,14 +249,14 @@ class Scripts:
         keys.append(self.keys['prioritized'])
         keys.append(self.keys['pc'])
 
-        push_cmd = "R" if lifo else "L"
+        push_cmd = "RPUSH" if lifo else "LPUSH"
 
         args = [self.keys[''], round(time.time() * 1000), push_cmd,
-            job_id, token]
+            job_id, token, "1" if opts.get("skipAttempt") else "0"]
 
         return (keys, args)
 
-    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0):
+    def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0, opts: dict = {}):
         max_timestamp = max(0, timestamp or 0)
 
         if timestamp > 0:
@@ -268,7 +269,7 @@ class Scripts:
         keys.append(self.keys['meta'])
 
         args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
-            job_id, token, delay]
+            job_id, token, delay, "1" if opts.get("skipAttempt") else "0" ]
 
         return (keys, args)
 
@@ -316,7 +317,7 @@ class Scripts:
             self.keys['meta'],
             self.keys['prioritized'],
             self.keys['pc']]
-        
+
         args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0]
 
         result = await self.commands["changePriority"](keys=keys, args=args)
