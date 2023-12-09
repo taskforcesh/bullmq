@@ -42,6 +42,9 @@
 * [QueueScheduler](guide/queuescheduler.md)
 * [Redis™ Compatibility](guide/redis-tm-compatibility/README.md)
   * [Dragonfly](guide/redis-tm-compatibility/dragonfly.md)
+* [Redis™ hosting](guide/redis-tm-hosting/README.md)
+  * [AWS MemoryDB](guide/redis-tm-hosting/aws-memorydb.md)
+  * [AWS Elasticache](guide/redis-tm-hosting/aws-elasticache.md)
 * [Architecture](guide/architecture.md)
 * [NestJs](guide/nestjs/README.md)
   * [Producers](guide/nestjs/producers.md)
@@ -60,6 +63,7 @@
 * [Process Step Jobs](patterns/process-step-jobs.md)
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
 * [Stop retrying jobs](patterns/stop-retrying-jobs.md)
+* [Redis Cluster](patterns/redis-cluster.md)
 
 ## BullMQ Pro
 
