@@ -142,6 +142,8 @@ class Job:
         if delay and type(delay) == int:
             self.delay = delay
 
+        self.attemptsMade = self.attemptsMade + 1
+
     async def saveStacktrace(self, pipe, err:str):
         stacktrace = traceback.format_exc()
         stackTraceLimit = self.opts.get("stackTraceLimit")
