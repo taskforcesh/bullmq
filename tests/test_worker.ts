@@ -2120,7 +2120,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade !== 3) {
+          if (job.attemptsMade !== 2) {
             throw new Error('error');
           }
           return delay(100);
@@ -2292,7 +2292,7 @@ describe('workers', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            expect(job.attemptsMade).to.equal(1);
+            expect(job.attemptsMade).to.equal(0);
             job.discard();
             throw new Error('unrecoverable error');
           },
@@ -2327,9 +2327,9 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          tries++;
           expect(job.attemptsMade).to.be.eql(tries);
-          if (job.attemptsMade < 2) {
+          tries++;
+          if (job.attemptsMade < 1) {
             throw new Error('Not yet!');
           }
         },
@@ -2363,10 +2363,10 @@ describe('workers', function () {
             async job => {
               id++;
               await delay(200);
-              if (job.attemptsMade === 1) {
+              if (job.attemptsMade === 0) {
                 expect(job.id).to.be.eql(`${id}`);
               }
-              if (job.id == '1' && job.attemptsMade < 2) {
+              if (job.id == '1' && job.attemptsMade < 1) {
                 throw new Error('Not yet!');
               }
             },
@@ -2411,11 +2411,11 @@ describe('workers', function () {
             queueName,
             async job => {
               await delay(200);
-              if (job.attemptsMade === 1) {
+              if (job.attemptsMade === 0) {
                 id++;
                 expect(job.id).to.be.eql(`${id}`);
               }
-              if (job.id == '1' && job.attemptsMade < 2) {
+              if (job.id == '1' && job.attemptsMade < 1) {
                 throw new Error('Not yet!');
               }
             },
@@ -2462,7 +2462,7 @@ describe('workers', function () {
         queueName,
         async job => {
           tries++;
-          if (job.attemptsMade < 4) {
+          if (job.attemptsMade < 3) {
             throw new Error('Not yet!');
           }
           expect(job.attemptsMade).to.be.eql(tries);
@@ -2504,7 +2504,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
         },
@@ -2541,10 +2541,10 @@ describe('workers', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade < 2) {
+            if (job.attemptsMade < 1) {
               throw new Error('Not yet!');
             }
-            if (job.attemptsMade < 3) {
+            if (job.attemptsMade < 2) {
               throw new UnrecoverableError('Unrecoverable');
             }
           },
@@ -2609,7 +2609,7 @@ describe('workers', function () {
                   break;
                 }
                 case Step.Second: {
-                  if (job.attemptsMade < 3) {
+                  if (job.attemptsMade < 2) {
                     throw new Error('Not yet!');
                   }
                   await job.updateData({
@@ -3109,7 +3109,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
         },
@@ -3149,7 +3149,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
         },
@@ -3196,7 +3196,7 @@ describe('workers', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade < 3) {
+            if (job.attemptsMade < 2) {
               throw new Error('Not yet!');
             }
           },
@@ -3278,7 +3278,7 @@ describe('workers', function () {
         queueName,
         async job => {
           tries++;
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('Not yet!');
           }
         },
@@ -3326,7 +3326,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new CustomError('Hey, custom error!');
           }
         },
@@ -3439,7 +3439,7 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async (job: Job) => {
-          if (job.attemptsMade < 3) {
+          if (job.attemptsMade < 2) {
             throw new Error('some error');
           }
         },

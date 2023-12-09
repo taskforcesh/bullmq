@@ -16,6 +16,10 @@ export interface MoveToWaitingChildrenOpts {
   skipAttempt?: boolean;
 }
 
+export interface RetryOpts {
+  skipAttempt?: boolean;
+}
+
 export interface DependenciesOpts {
   processed?: {
     cursor?: number;

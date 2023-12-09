@@ -23,6 +23,7 @@ import {
   WorkerOptions,
   KeepJobs,
   MoveToDelayedOpts,
+  RetryOpts,
 } from '../interfaces';
 import {
   JobState,
@@ -800,6 +801,7 @@ export class Scripts {
     jobId: string,
     lifo: boolean,
     token: string,
+    opts: RetryOpts = {},
   ): (string | number)[] {
     const keys: (string | number)[] = [
       'active',
@@ -826,6 +828,7 @@ export class Scripts {
       pushCmd,
       jobId,
       token,
+      opts.skipAttempt ? '1' : '0',
     ]);
   }
 

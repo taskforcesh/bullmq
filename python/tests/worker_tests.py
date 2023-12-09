@@ -213,7 +213,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         queue = Queue(queueName)
 
         async def process1(job: Job, token: str):
-            if job.attemptsMade < 3:
+            if job.attemptsMade < 2:
                 raise Exception("Not yet!")
             return None
 
@@ -241,7 +241,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         queue = Queue(queueName)
 
         async def process1(job: Job, token: str):
-            if job.attemptsMade < 3:
+            if job.attemptsMade < 2:
                 raise Exception("Not yet!")
             return None
 

@@ -631,7 +631,7 @@ export class Job<
     let moveToFailed = false;
     let finishedOn, delay;
     if (
-      this.attemptsMade < this.opts.attempts &&
+      this.attemptsMade + 1 < this.opts.attempts &&
       !this.discarded &&
       !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
@@ -640,7 +640,7 @@ export class Job<
       // Check if backoff is needed
       delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
-        this.attemptsMade,
+        this.attemptsMade + 1,
         err,
         this,
         opts.settings && opts.settings.backoffStrategy,
