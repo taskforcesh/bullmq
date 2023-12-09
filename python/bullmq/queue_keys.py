@@ -8,7 +8,7 @@ class QueueKeys:
 
     def getKeys(self, name: str):
         names = ["", "active", "wait", "waiting-children", "paused", "completed", "failed", "delayed",
-                 "stalled", "limiter", "prioritized", "id", "stalled-check", "meta", "pc", "events"]
+                 "stalled", "limiter", "prioritized", "id", "stalled-check", "meta", "pc", "events", "marker"]
         keys = {}
         for name_type in names:
             keys[name_type] = self.toKey(name, name_type)

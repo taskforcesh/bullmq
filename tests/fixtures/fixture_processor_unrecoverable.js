@@ -4,9 +4,7 @@
  */
 'use strict';
 
-const {
-  UnrecoverableError,
-} = require('../../dist/cjs/classes/unrecoverable-error');
+const { UnrecoverableError } = require('../../dist/cjs/classes');
 const delay = require('./delay');
 
 module.exports = function (job) {

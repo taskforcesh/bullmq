@@ -22,16 +22,16 @@
       KEYS[11] completed/failed key
       KEYS[12] jobId key
       KEYS[13] metrics key
+      KEYS[14] marker key
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
       ARGV[3]  msg property returnvalue / failedReason
       ARGV[4]  return value / failed reason
       ARGV[5]  target (completed/failed)
-      ARGV[6]  event data (? maybe just send jobid).
-      ARGV[7]  fetch next?
-      ARGV[8]  keys prefix
-      ARGV[9]  opts
+      ARGV[6]  fetch next?
+      ARGV[7]  keys prefix
+      ARGV[8]  opts
 
       opts - token - lock token
       opts - keepJobs
@@ -71,7 +71,7 @@ local rcall = redis.call
 
 local jobIdKey = KEYS[12]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
-    local opts = cmsgpack.unpack(ARGV[9])
+    local opts = cmsgpack.unpack(ARGV[8])
 
     local token = opts['token']
     local attempts = opts['attempts']
@@ -118,8 +118,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     if (numRemovedElements < 1) then return -3 end
 
+    local metaKey = KEYS[9]
     -- Trim events before emiting them to avoid trimming events emitted in this script
-    trimEvents(KEYS[9], KEYS[4])
+    trimEvents(metaKey, KEYS[4])
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -142,12 +143,13 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         else
             if opts['fpof'] then
                 moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
-                                            parentId, jobIdKey, timestamp)
+                                                      parentId, jobIdKey,
+                                                      timestamp)
             elseif opts['rdof'] then
                 local dependenciesSet = parentKey .. ":dependencies"
                 if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
                     moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
-                        parentKey, parentId, timestamp)
+                                             parentKey, parentId, timestamp)
                 end
             end
         end
@@ -164,7 +166,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         -- "returnvalue" / "failedReason" and "finishedOn"
 
         -- Remove old jobs?
-        local prefix = ARGV[8]
+        local prefix = ARGV[7]
 
         if maxAge ~= nil then
             removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix)
@@ -197,13 +199,13 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
-    if (ARGV[7] == "1") then
+    if (ARGV[6] == "1") then
 
-        local target, paused = getTargetQueueList(KEYS[9], KEYS[1], KEYS[8])
+        local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[8])
 
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], KEYS[1], target, KEYS[3],
-                           KEYS[4], ARGV[8], timestamp, paused, KEYS[10])
+        promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], KEYS[4], ARGV[7],
+                           timestamp, KEYS[10], paused)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.
@@ -217,25 +219,30 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
         if jobId then
+            -- Markers in waitlist DEPRECATED in v5: Remove in v6.
             if string.sub(jobId, 1, 2) == "0:" then
                 rcall("LREM", KEYS[2], 1, jobId)
 
                 -- If jobId is special ID 0:delay (delay greater than 0), then there is no job to process
                 -- but if ID is 0:0, then there is at least 1 prioritized job to process
                 if jobId == "0:0" then
-                    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
-                    return prepareJobForProcessing(KEYS, ARGV[8], target, jobId, timestamp,
-                        maxJobs, expireTime, opts)
+                    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2],
+                                                        KEYS[10])
+                    return prepareJobForProcessing(KEYS, ARGV[7], target, jobId,
+                                                   timestamp, maxJobs,
+                                                   expireTime, opts)
                 end
             else
-                return prepareJobForProcessing(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
-                    expireTime, opts)
+                return prepareJobForProcessing(KEYS, ARGV[7], target, jobId,
+                                               timestamp, maxJobs, expireTime,
+                                               opts)
             end
         else
             jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
-                return prepareJobForProcessing(KEYS, ARGV[8], target, jobId, timestamp, maxJobs,
-                    expireTime, opts)
+                return prepareJobForProcessing(KEYS, ARGV[7], target, jobId,
+                                               timestamp, maxJobs, expireTime,
+                                               opts)
             end
         end
 

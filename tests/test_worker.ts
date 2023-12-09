@@ -465,6 +465,95 @@ describe('workers', function () {
     await worker.close();
   }).timeout(8000);
 
+  it('do not call moveToActive more than concurrency factor + 1', async () => {
+    const numJobs = 57;
+    const concurrency = 13;
+    let completedJobs = 0;
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(250);
+      },
+      { connection, prefix, concurrency },
+    );
+    await worker.waitUntilReady();
+
+    // Add spy to worker.moveToActive
+    const spy = sinon.spy(worker, 'moveToActive');
+    const bclientSpy = sinon.spy(
+      await worker.blockingConnection.client,
+      'bzpopmin',
+    );
+
+    for (let i = 0; i < numJobs; i++) {
+      const job = await queue.add('test', { foo: 'bar' });
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+    }
+
+    expect(bclientSpy.callCount).to.be.equal(1);
+
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', (_job: Job, _result: any) => {
+        completedJobs++;
+        if (completedJobs == numJobs) {
+          resolve();
+        }
+      });
+    });
+
+    // Check moveToActive was called only concurrency times
+    expect(spy.callCount).to.be.equal(concurrency + 1);
+    expect(bclientSpy.callCount).to.be.equal(3);
+
+    await worker.close();
+  });
+
+  it('do not call moveToActive more than number of jobs + 1', async () => {
+    const numJobs = 50;
+    let completedJobs = 0;
+    const worker = new Worker(
+      queueName,
+      async job => {
+        expect(job.data.foo).to.be.equal('bar');
+        await delay(250);
+      },
+      { connection, prefix, concurrency: 100 },
+    );
+    await worker.waitUntilReady();
+
+    // Add spy to worker.moveToActive
+    const spy = sinon.spy(worker, 'moveToActive');
+    const bclientSpy = sinon.spy(
+      await worker.blockingConnection.client,
+      'bzpopmin',
+    );
+
+    for (let i = 0; i < numJobs; i++) {
+      const job = await queue.add('test', { foo: 'bar' });
+      expect(job.id).to.be.ok;
+      expect(job.data.foo).to.be.eql('bar');
+    }
+
+    expect(bclientSpy.callCount).to.be.equal(1);
+
+    await new Promise<void>((resolve, reject) => {
+      worker.on('completed', (job: Job, result: any) => {
+        completedJobs++;
+        if (completedJobs == numJobs) {
+          resolve();
+        }
+      });
+    });
+
+    // Check moveToActive was called numJobs + 2 times
+    expect(spy.callCount).to.be.equal(numJobs + 2);
+    expect(bclientSpy.callCount).to.be.equal(3);
+
+    await worker.close();
+  });
+
   it('does not process a job that is being processed when a new queue starts', async () => {
     this.timeout(12000);
     let err;
@@ -525,13 +614,17 @@ describe('workers', function () {
     expect(job.id).to.be.ok;
     expect(job.data.foo).to.be.eql('bar');
 
-    const failing = new Promise<void>(resolve => {
+    const failing = new Promise<void>((resolve, reject) => {
       worker.once('failed', async (job, err) => {
-        expect(job).to.be.ok;
-        expect(job.finishedOn).to.be.a('number');
-        expect(job.data.foo).to.be.eql('bar');
-        expect(err).to.be.eql(jobError);
-        resolve();
+        try {
+          expect(job).to.be.ok;
+          expect(job!.finishedOn).to.be.a('number');
+          expect(job!.data.foo).to.be.eql('bar');
+          expect(err).to.be.eql(jobError);
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
       });
     });
 
@@ -752,12 +845,16 @@ describe('workers', function () {
       /* Try to gracefully close while having a job that will be completed running */
       worker.close();
 
-      await new Promise<void>(resolve => {
+      await new Promise<void>((resolve, reject) => {
         worker.once('completed', async job => {
-          expect(job).to.be.ok;
-          expect(job.finishedOn).to.be.a('number');
-          expect(job.data.foo).to.be.eql('bar');
-          resolve();
+          try {
+            expect(job).to.be.ok;
+            expect(job.finishedOn).to.be.a('number');
+            expect(job.data.foo).to.be.eql('bar');
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
         });
       });
 

@@ -33,7 +33,7 @@ import {
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
-import { UnrecoverableError } from './unrecoverable-error';
+import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
 
 const logger = debuglog('bull');
@@ -595,7 +595,9 @@ export class Job<
     );
 
     const result = await this.scripts.moveToFinished(this.id, args);
-    this.finishedOn = args[14] as number;
+    this.finishedOn = args[
+      this.scripts.moveToFinishedKeys.length + 1
+    ] as number;
     this.attemptsMade += 1;
 
     return result;
@@ -678,7 +680,7 @@ export class Job<
         fetchNext,
       );
       (<any>multi).moveToFinished(args);
-      finishedOn = args[14];
+      finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
       command = 'failed';
     }
 
@@ -1172,10 +1174,7 @@ export class Job<
     }
 
     if (`${parseInt(this.id, 10)}` === this.id) {
-      //TODO: throw an error in next breaking change
-      console.warn(
-        'Custom Ids should not be integers: https://github.com/taskforcesh/bullmq/pull/1569',
-      );
+      throw new Error('Custom Ids cannot be integers');
     }
 
     if (this.opts.priority) {

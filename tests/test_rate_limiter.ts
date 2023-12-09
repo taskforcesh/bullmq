@@ -150,10 +150,13 @@ describe('Rate Limiter', function () {
           duration: 2000,
         },
       };
-      const worker1 = new Worker(queueName, async () => {}, commontOpts);
-      const worker2 = new Worker(queueName, async () => {}, commontOpts);
-      const worker3 = new Worker(queueName, async () => {}, commontOpts);
-      const worker4 = new Worker(queueName, async () => {}, commontOpts);
+
+      const processor = async () => {};
+
+      const worker1 = new Worker(queueName, processor, commontOpts);
+      const worker2 = new Worker(queueName, processor, commontOpts);
+      const worker3 = new Worker(queueName, processor, commontOpts);
+      const worker4 = new Worker(queueName, processor, commontOpts);
 
       const result = new Promise<void>((resolve, reject) => {
         queueEvents.once('completed', async () => {
@@ -165,13 +168,15 @@ describe('Rate Limiter', function () {
         });
       });
 
-      await delay(500);
+      await delay(100);
 
       const jobs = Array.from(Array(numJobs).keys()).map(() => ({
         name: 'rate test',
         data: {},
       }));
       await queue.addBulk(jobs);
+
+      await delay(100);
 
       await queue.pause();
 
