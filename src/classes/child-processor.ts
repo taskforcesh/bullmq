@@ -26,7 +26,7 @@ export class ChildProcessor {
   public async init(processorFile: string): Promise<void> {
     let processor;
     try {
-      processor = require(processorFile);
+      processor = await import(processorFile);
 
       if (processor.default) {
         // support es2015 module.

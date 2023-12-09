@@ -58,6 +58,7 @@ local parentData
 --- @include "includes/isQueuePaused"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/updateExistingJobsParent"
+--- @include "includes/getOrSetMaxEvents"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -67,7 +68,7 @@ end
 
 local jobCounter = rcall("INCR", idKey)
 
-local maxEvents = rcall("HGET", metaKey, "opts.maxLenEvents") or 10000
+local maxEvents = getOrSetMaxEvents(metaKey)
 
 local parentDependenciesKey = args[7]
 local timestamp = args[4]
