@@ -248,7 +248,7 @@ class Scripts:
         keys.append(self.keys['prioritized'])
         keys.append(self.keys['pc'])
 
-        push_cmd = "R" if lifo else "L"
+        push_cmd = "RPUSH" if lifo else "LPUSH"
 
         args = [self.keys[''], round(time.time() * 1000), push_cmd,
             job_id, token]
