@@ -5,4 +5,3 @@ description: >-
 ---
 
 # Redis™ hosting
-
