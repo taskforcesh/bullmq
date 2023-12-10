@@ -2,6 +2,23 @@
 
 <!--next-version-placeholder-->
 
+## v1.18.0 (2023-12-10)
+### Feature
+* **sandboxes:** Use the more compatible dynamic import instead of require ([`6d2fe6e`](https://github.com/taskforcesh/bullmq/commit/6d2fe6e7c0473b75aeb9a6d3080b0676f9521065))
+
+### Fix
+* **retry:** Pass right redis command name into retryJob script (#2321) [python] ([`6bb21a0`](https://github.com/taskforcesh/bullmq/commit/6bb21a07c9754659fa5aa1734df1046a6da5d16a))
+* **child-processor:** Preserve dynamic imports in commonjs ([`d97a5e0`](https://github.com/taskforcesh/bullmq/commit/d97a5e06816cff04d86facdb8d32b512f29c6fb9))
+* **flows:** Add meta key to queues created with flows ([`272ec69`](https://github.com/taskforcesh/bullmq/commit/272ec69557f601a138e1aaba739f7e7878d5344b))
+* **repeat-strategy:** Add missing Promise return type ([#2301](https://github.com/taskforcesh/bullmq/issues/2301)) ([`6f8f534`](https://github.com/taskforcesh/bullmq/commit/6f8f5342cc8aa03f596d9ed5b8831f96a1d4c736))
+* **worker:** Get dirname by using module.filename (#2296) fixes #2288 ([`6e4db5a`](https://github.com/taskforcesh/bullmq/commit/6e4db5a3f3648c6a7e10991f2e18f3dab96fb1d7))
+* **update-progress:** Remove old updateProgress script to prevent conflict (#2298) (python) ([`e65b819`](https://github.com/taskforcesh/bullmq/commit/e65b819101f8e0e8fdef8c51cfdf9a52f5e73f13))
+* **worker:** Should cap update progress events ([`2cab9e9`](https://github.com/taskforcesh/bullmq/commit/2cab9e94f65c7bdd053e3fb5944bcda6e3ebaa39))
+
+### Documentation
+* **guide:** Use v4 api references ([#2314](https://github.com/taskforcesh/bullmq/issues/2314)) ([`fcf98f4`](https://github.com/taskforcesh/bullmq/commit/fcf98f4218c35de5888934fee80ca7832dac2267))
+* **bullmq-pro:** Update changelog to v6.8.0 ([#2307](https://github.com/taskforcesh/bullmq/issues/2307)) ([`9896b8a`](https://github.com/taskforcesh/bullmq/commit/9896b8a70d7136932955cb67edd31a4ed03c15f1))
+
 ## v1.17.0 (2023-11-24)
 ### Feature
 * **worker:** Better handling of concurrency when fetching jobs ([#2242](https://github.com/taskforcesh/bullmq/issues/2242)) ([`d2e2035`](https://github.com/taskforcesh/bullmq/commit/d2e203588878ee64cb21e67141f73b32867dfb40))
