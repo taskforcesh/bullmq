@@ -56,7 +56,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     if (!opts.connection) {
       console.warn(
         [
-          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker and QueueEvents',
+          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker, QueueEvents and FlowProducer',
           'without providing explicitly a connection or connection options is deprecated. This behaviour will',
           'be removed in the next major release',
         ].join(' '),
