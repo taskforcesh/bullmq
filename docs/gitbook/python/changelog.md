@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.19.0 (2023-12-12)
+### Feature
+* **job:** Add promote method [python] ([#2323](https://github.com/taskforcesh/bullmq/issues/2323)) ([`61f4ba3`](https://github.com/taskforcesh/bullmq/commit/61f4ba3e99486aa36e5cc3d9b448b8080c567eb1))
+
 ## v1.18.0 (2023-12-10)
 ### Feature
 * **sandboxes:** Use the more compatible dynamic import instead of require ([`6d2fe6e`](https://github.com/taskforcesh/bullmq/commit/6d2fe6e7c0473b75aeb9a6d3080b0676f9521065))
