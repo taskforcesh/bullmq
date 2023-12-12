@@ -62,6 +62,10 @@ class Job:
         self.data = data
         return self.scripts.updateData(self.id, data)
 
+    async def promote(self):
+        await self.scripts.promote(self.id)
+        self.delay = 0
+
     def retry(self, state: str = "failed"):
         self.failedReason = None
         self.finishedOn = None
@@ -81,9 +85,22 @@ class Job:
 
     async def remove(self, opts: dict = {}):
         removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
-        
+
         if not removed:
             raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
+
+    def isDelayed(self):
+        return self.isInZSet('delayed')
+
+    async def isInZSet(self, set: str):
+        score = await self.queue.client.zscore(self.scripts.toKey(set), self.id)
+
+        return score is not None
+
+    async def isInZSet(self, set: str):
+        score = await self.queue.client.zscore(self.scripts.toKey(set), self.id)
+
+        return score is not None
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)

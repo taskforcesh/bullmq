@@ -49,6 +49,7 @@ class Scripts:
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-4.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-5.lua")),
+            "promote": self.redisClient.register_script(self.getScript("promote-7.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-9.lua")),
@@ -280,6 +281,27 @@ class Scripts:
         if result is not None:
             if result < 0:
                 raise self.finishedErrors(result, job_id, 'moveToDelayed', 'active')
+        return None
+
+    def promoteArgs(self, job_id: str):
+        keys = self.getKeys(['delayed', 'wait', 'paused', 'meta', 'prioritized', 'pc', 'events'])
+        keys.append(self.toKey(job_id))
+        keys.append(self.keys['events'])
+        keys.append(self.keys['paused'])
+        keys.append(self.keys['meta'])
+
+        args = [self.keys[''], job_id]
+
+        return (keys, args)
+
+    async def promote(self, job_id: str):
+        keys, args = self.promoteArgs(job_id)
+
+        result = await self.commands["promote"](keys=keys, args=args)
+
+        if result is not None:
+            if result < 0:
+                raise self.finishedErrors(result, job_id, 'promote', 'delayed')
         return None
 
     def remove(self, job_id: str, remove_children: bool):

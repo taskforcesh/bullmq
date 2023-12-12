@@ -1055,10 +1055,9 @@ export class Job<
   async promote(): Promise<void> {
     const jobId = this.id;
 
-    const code = await this.scripts.promote(jobId);
-    if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, 'promote', 'delayed');
-    }
+    await this.scripts.promote(jobId);
+
+    this.delay = 0;
   }
 
   /**
