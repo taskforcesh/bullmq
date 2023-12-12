@@ -92,9 +92,10 @@ export interface FlowProducerListener extends IoredisListener {
 export class FlowProducer extends EventEmitter {
   toKey: (name: string, type: string) => string;
   keys: KeysMap;
-  closing: Promise<void>;
+  closing: Promise<void> | undefined;
   queueKeys: QueueKeys;
 
+  protected closed: boolean = false;
   protected connection: RedisConnection;
 
   constructor(
@@ -108,19 +109,29 @@ export class FlowProducer extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new Connection(
-      opts.connection,
-      opts.blockingConnection,
-      opts.skipVersionCheck,
-    );
+    if (!opts.connection) {
+      console.warn(
+        [
+          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker, QueueEvents and FlowProducer',
+          'without providing explicitly a connection or connection options is deprecated. This behaviour will',
+          'be removed in the next major release',
+        ].join(' '),
+      );
+    }
+
     this.connection = new Connection(
       opts.connection,
       isRedisInstance(opts?.connection),
       false,
       opts.skipVersionCheck,
     );
-    this.connection.on('error', error => this.emit('error', error));
-    this.connection.on('close', this.emit.bind(this, 'ioredis:close'));
+
+    this.connection.on('error', (error: Error) => this.emit('error', error));
+    this.connection.on('close', () => {
+      if (!this.closing) {
+        this.emit('ioredis:close');
+      }
+    });
 
     this.queueKeys = new QueueKeys(opts.prefix);
   }
@@ -154,6 +165,31 @@ export class FlowProducer extends EventEmitter {
   ): this {
     super.once(event, listener);
     return this;
+  }
+
+  /**
+   * Returns a promise that resolves to a redis client. Normally used only by subclasses.
+   */
+  get client(): Promise<RedisClient> {
+    return this.connection.client;
+  }
+
+  /**
+   * Returns the version of the Redis instance the client is connected to,
+   */
+  get redisVersion(): string {
+    return this.connection.redisVersion;
+  }
+
+  /**
+   * Helper to easily extend Job class calls.
+   */
+  protected get Job(): typeof Job {
+    return Job;
+  }
+
+  waitUntilReady(): Promise<RedisClient> {
+    return this.client;
   }
 
   /**
@@ -215,17 +251,6 @@ export class FlowProducer extends EventEmitter {
     const jobsTree = this.getNode(client, updatedOpts);
 
     return jobsTree;
-  }
-
-  get client(): Promise<RedisClient> {
-    return this.connection.client;
-  }
-
-  /**
-   * Helper to easily extend Job class calls.
-   */
-  protected get Job(): typeof Job {
-    return Job;
   }
 
   /**
@@ -453,13 +478,22 @@ export class FlowProducer extends EventEmitter {
     };
   }
 
-  close(): Promise<void> {
+  /**
+   *
+   * Closes the connection and returns a promise that resolves when the connection is closed.
+   */
+  async close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
     }
-    return this.closing;
+    await this.closing;
+    this.closed = true;
   }
 
+  /**
+   *
+   * Force disconnects a connection.
+   */
   disconnect(): Promise<void> {
     return this.connection.disconnect();
   }
