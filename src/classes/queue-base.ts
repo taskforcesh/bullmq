@@ -141,7 +141,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   /**
    *
-   * @returns Closes the connection and returns a promise that resolves when the connection is closed.
+   * Closes the connection and returns a promise that resolves when the connection is closed.
    */
   async close(): Promise<void> {
     if (!this.closing) {
