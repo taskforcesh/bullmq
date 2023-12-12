@@ -1057,7 +1057,6 @@ export class Scripts {
     opts: { start: number; end: number },
   ): Promise<{
     cursor: string;
-    offset: number;
     items: any[];
     total: number;
   }> {
@@ -1102,7 +1101,6 @@ export class Scripts {
       }
       return {
         cursor,
-        offset,
         items: result,
         total,
       };
@@ -1110,7 +1108,6 @@ export class Scripts {
 
     return {
       cursor,
-      offset,
       items: page,
       total,
     };

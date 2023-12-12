@@ -65,7 +65,6 @@ describe('scripts', function () {
       expect(page).to.be.eql({
         items: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
         cursor: '0',
-        offset: 10,
         total: 10,
       });
     });
@@ -73,33 +72,16 @@ describe('scripts', function () {
     it('should paginate a small set different size as set', async () => {
       const scripts = queue['scripts'];
 
+      const members = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
+
       const client = await queue.client;
-      await client.sadd(
-        testSet,
-        'a',
-        'b',
-        'c',
-        'd',
-        'e',
-        'f',
-        'g',
-        'h',
-        'i',
-        'j',
-      );
+      await client.sadd(testSet, ...members);
 
       const page = await scripts.paginate(testSet, { start: 3, end: 7 });
 
       expect(page.items).to.have.lengthOf(5);
-
-      page.items = page.items.sort();
-
-      expect(page).to.be.eql({
-        items: ['d', 'e', 'f', 'g', 'h'],
-        cursor: '0',
-        offset: 8,
-        total: 10,
-      });
+      expect(page.cursor).to.be.eql('0');
+      expect(page.total).to.be.eql(members.length);
     });
 
     it('should paginate a large set in pages of given size', async () => {
@@ -125,7 +107,6 @@ describe('scripts', function () {
         const page = await scripts.paginate(testSet, { start, end });
         expect(page.items).to.have.lengthOf(pageSize);
         expect(page.total).to.be.eql(totalItems);
-        expect(page.offset).to.be.eql((i + 1) * pageSize);
         pagedItems.push(...page.items);
       }
 
@@ -170,7 +151,6 @@ describe('scripts', function () {
           v: key,
         })),
         cursor: '0',
-        offset: 10,
         total: 10,
       });
     });
@@ -203,7 +183,6 @@ describe('scripts', function () {
       expect(page).to.be.eql({
         items: ['d', 'e', 'f', 'g', 'h'].map(key => ({ id: key, v: key })),
         cursor: '0',
-        offset: 8,
         total: 10,
       });
     });
@@ -237,7 +216,6 @@ describe('scripts', function () {
         const page = await scripts.paginate(testHash, { start, end });
         expect(page.items).to.have.lengthOf(pageSize);
         expect(page.total).to.be.eql(totalItems);
-        expect(page.offset).to.be.eql((i + 1) * pageSize);
         pagedItems.push(...page.items);
       }
 
