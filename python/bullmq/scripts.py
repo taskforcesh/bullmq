@@ -49,7 +49,7 @@ class Scripts:
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-4.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
-            "promote": self.redisClient.register_script(self.getScript("promote-7.lua")),
+            "promote": self.redisClient.register_script(self.getScript("promote-8.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-10.lua")),
@@ -285,7 +285,7 @@ class Scripts:
         return None
 
     def promoteArgs(self, job_id: str):
-        keys = self.getKeys(['delayed', 'wait', 'paused', 'meta', 'prioritized', 'pc', 'events'])
+        keys = self.getKeys(['delayed', 'wait', 'paused', 'meta', 'prioritized', 'pc', 'events', 'marker'])
         keys.append(self.toKey(job_id))
         keys.append(self.keys['events'])
         keys.append(self.keys['paused'])
