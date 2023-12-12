@@ -62,6 +62,10 @@ class Job:
         self.data = data
         return self.scripts.updateData(self.id, data)
 
+    async def promote(self):
+        await self.scripts.promote(self, self.id)
+        self.delay = 0
+
     def retry(self, state: str = "failed"):
         self.failedReason = None
         self.finishedOn = None
