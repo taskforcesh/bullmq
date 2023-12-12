@@ -784,4 +784,99 @@ describe('Jobs getters', function () {
       await flow.close();
     });
   });
+
+  describe('.getDependencies', () => {
+    it('return unprocessed jobs that are dependencies of a given parent job', async () => {
+      const flowProducer = new FlowProducer({ connection, prefix });
+      const flow = await flowProducer.add({
+        name: 'parent-job',
+        queueName,
+        data: {},
+        children: [
+          { name: 'child-1', data: { idx: 0, foo: 'bar' }, queueName },
+          { name: 'child-2', data: { idx: 1, foo: 'baz' }, queueName },
+          { name: 'child-3', data: { idx: 2, foo: 'bac' }, queueName },
+          { name: 'child-4', data: { idx: 3, foo: 'bad' }, queueName },
+        ],
+      });
+
+      const result = await queue.getDependencies(
+        flow.job.id!,
+        'unprocessed',
+        0,
+        -1,
+      );
+
+      expect(result.items).to.be.an('array').that.has.length(4);
+      expect(result.total).to.be.equal(4);
+
+      const result2 = await queue.getDependencies(
+        flow.job.id!,
+        'unprocessed',
+        0,
+        2,
+      );
+
+      expect(result2.items).to.be.an('array').that.has.length(3);
+      expect(result2.total).to.be.equal(4);
+
+      await flowProducer.close();
+    });
+
+    it('return processed jobs that are dependencies of a given parent job', async () => {
+      const flowProducer = new FlowProducer({ connection, prefix });
+
+      const flow = await flowProducer.add({
+        name: 'parent-job',
+        queueName,
+        data: {},
+        children: [
+          { name: 'child-1', data: { idx: 0, foo: 'bar' }, queueName },
+          { name: 'child-2', data: { idx: 1, foo: 'baz' }, queueName },
+          { name: 'child-3', data: { idx: 2, foo: 'bac' }, queueName },
+          { name: 'child-4', data: { idx: 3, foo: 'bad' }, queueName },
+        ],
+      });
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+
+      let completedChildren = 0;
+      const complettingChildren = new Promise<void>(resolve => {
+        worker.on('completed', async () => {
+          completedChildren++;
+          if (completedChildren === 4) {
+            resolve();
+          }
+        });
+      });
+
+      await complettingChildren;
+
+      const result = await queue.getDependencies(
+        flow.job.id!,
+        'unprocessed',
+        0,
+        -1,
+      );
+
+      expect(result.items).to.be.an('array').that.has.length(0);
+      expect(result.total).to.be.equal(0);
+
+      const result2 = await queue.getDependencies(
+        flow.job.id!,
+        'processed',
+        0,
+        -1,
+      );
+
+      expect(result2.items).to.be.an('array').that.has.length(4);
+      expect(result2.total).to.be.equal(4);
+
+      await worker.close();
+      await flowProducer.close();
+    });
+  });
 });

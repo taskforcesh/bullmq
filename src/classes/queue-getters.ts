@@ -293,6 +293,39 @@ export class QueueGetters<
     return this.getJobs(['failed'], start, end, false);
   }
 
+  /**
+   * Returns the jobIds of the children jobs of the given parent job.
+   * It is possible to get either the already processed children, in this case
+   * an array of qualified job ids and their result values will be returned,
+   * o the unprocessed children, in this case an array of qualified job ids will
+   * be returned.
+   * A qualified job id is a string representing the job id in a given queue,
+   * for example: "bull:myqueue:jobid".
+   *
+   * @param parentId The id of the parent job
+   * @param type "processed" | "unprocessed"
+   * @param opts
+   *
+   * @returns  { items: (string | { id: string, v: any }) [], total: number}
+   */
+  async getDependencies(
+    parentId: string,
+    type: 'processed' | 'unprocessed',
+    start: number,
+    end: number,
+  ): Promise<{ items: any[]; total: number }> {
+    const key = this.toKey(
+      type == 'processed'
+        ? `${parentId}:processed`
+        : `${parentId}:dependencies`,
+    );
+    const { items, total } = await this.scripts.paginate(key, { start, end });
+    return {
+      items,
+      total,
+    };
+  }
+
   async getRanges(
     types: JobType[],
     start = 0,
