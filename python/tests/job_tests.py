@@ -67,5 +67,17 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+    async def test_promote_delayed_job(self):
+        queue = Queue(queueName)
+        job = await queue.add("test", {"foo": "bar"}, {"delay": 1500})
+        isDelayed = await job.isDelayed()
+        self.assertEqual(isDelayed, True)
+        await job.promote()
+        self.assertEqual(job.delay, 0)
+        isDelayedAfterPromote = await job.isDelayed()
+        self.assertEqual(isDelayedAfterPromote, False)
+
+        await queue.close()
+
 if __name__ == '__main__':
     unittest.main()
