@@ -948,7 +948,7 @@ export class Scripts {
     return raw2NextJobData(result);
   }
 
-  async promote(jobId: string): Promise<number> {
+  async promote(jobId: string): Promise<void> {
     const client = await this.queue.client;
 
     const keys = [
@@ -964,7 +964,10 @@ export class Scripts {
 
     const args = [this.queue.toKey(''), jobId];
 
-    return (<any>client).promote(keys.concat(args));
+    const code = await (<any>client).promote(keys.concat(args));
+    if (code < 0) {
+      throw this.finishedErrors(code, jobId, 'promote', 'delayed');
+    }
   }
 
   /**
