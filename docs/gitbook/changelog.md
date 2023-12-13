@@ -1,3 +1,17 @@
+## [4.15.3](https://github.com/taskforcesh/bullmq/compare/v4.15.2...v4.15.3) (2023-12-13)
+
+
+### Bug Fixes
+
+* **retry:** pass right redis command name into retryJob script ([#2321](https://github.com/taskforcesh/bullmq/issues/2321)) [python] ([6bb21a0](https://github.com/taskforcesh/bullmq/commit/6bb21a07c9754659fa5aa1734df1046a6da5d16a))
+* **sandboxed:** better compatibility with esbuild ([8eaf955](https://github.com/taskforcesh/bullmq/commit/8eaf9550fe8b322df624893c507c55d2cce34b11))
+
+
+### Features
+
+* **job:** add isWaiting method [python] ([#2328](https://github.com/taskforcesh/bullmq/issues/2328)) ([5db9f95](https://github.com/taskforcesh/bullmq/commit/5db9f957939cd873eea0224d34569189e5520e84))
+* **job:** add promote method [python] ([#2323](https://github.com/taskforcesh/bullmq/issues/2323)) ([61f4ba3](https://github.com/taskforcesh/bullmq/commit/61f4ba3e99486aa36e5cc3d9b448b8080c567eb1))
+
 ## [4.15.2](https://github.com/taskforcesh/bullmq/compare/v4.15.1...v4.15.2) (2023-12-07)
 
 
