@@ -1096,7 +1096,7 @@ export class Scripts {
         try {
           result.push({ id, v: JSON.parse(value) });
         } catch (err) {
-          result.push({ id, v: (<Error>err).message });
+          result.push({ id, err: (<Error>err).message });
         }
       }
       return {
