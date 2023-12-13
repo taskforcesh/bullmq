@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v1.20.0 (2023-12-13)
+### Feature
+* **job:** Add isWaiting method [python] ([#2328](https://github.com/taskforcesh/bullmq/issues/2328)) ([`5db9f95`](https://github.com/taskforcesh/bullmq/commit/5db9f957939cd873eea0224d34569189e5520e84))
+
 ## v1.19.0 (2023-12-12)
 ### Feature
 * **job:** Add promote method [python] ([#2323](https://github.com/taskforcesh/bullmq/issues/2323)) ([`61f4ba3`](https://github.com/taskforcesh/bullmq/commit/61f4ba3e99486aa36e5cc3d9b448b8080c567eb1))
