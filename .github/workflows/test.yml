@@ -135,10 +135,10 @@ jobs:
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
       - name: Run tests using upstash
-        run: REDIS_HOST=${{ secrets.UPSTASH_HOST }} UPSTASH_HOST=true yarn test
+        run: REDIS_HOST=${{ secrets.UPSTASH_HOST }} yarn test
         env:
           REDIS_HOST: ${{ secrets.UPSTASH_HOST }}
-          UPSTASH_HOST: true
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   python:
     runs-on: ubuntu-latest
