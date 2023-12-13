@@ -96,7 +96,7 @@ describe('stalled jobs', function () {
     const allCompleted = new Promise(resolve => {
       worker2.on('completed', after(concurrency, resolve));
     });
-    // Upstash fix for race on the test. Moved two awaits from before await allCompleted to here
+
     await allStalled;
     await allStalledGlobalEvent;
     await allCompleted;
@@ -429,19 +429,22 @@ describe('stalled jobs', function () {
         });
 
         const errorMessage = 'job stalled more than allowable limit';
-        const allFailed = new Promise<void>(resolve => {
-          worker2.on(
-            'failed',
-            after(concurrency, async (job, failedReason, prev) => {
+        let failedJobs = 0;
+        const allFailed = new Promise<void>((resolve, reject) => {
+          worker2.on('failed', async (job, failedReason, prev) => {
+            try {
+              failedJobs++;
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(3);
-              // Upstash fix. job sometimes get undefined. The reason is not clear yet!
-              // expect(job.data.index).to.be.equal(3);
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
-              resolve();
-            }),
-          );
+              if (failedJobs == 4) {
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
         });
 
         await allFailed;
@@ -499,18 +502,20 @@ describe('stalled jobs', function () {
         });
 
         const errorMessage = 'job stalled more than allowable limit';
-        const allFailed = new Promise<void>(resolve => {
+        const allFailed = new Promise<void>((resolve, reject) => {
           worker2.on(
             'failed',
-            after(concurrency, async (job, failedReason, prev) => {
-              // Upstash fix job is not undefined. The reason is not clear yet!
-              //expect(job).to.be.undefined;
-              const failedCount = await queue.getFailedCount();
-              expect(failedCount).to.equal(2);
+            after(concurrency, async (_job, failedReason, prev) => {
+              try {
+                const failedCount = await queue.getFailedCount();
+                expect(failedCount).to.equal(2);
 
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
-              resolve();
+                expect(prev).to.be.equal('active');
+                expect(failedReason.message).to.be.equal(errorMessage);
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
             }),
           );
         });

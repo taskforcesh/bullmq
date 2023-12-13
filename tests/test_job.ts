@@ -317,8 +317,11 @@ describe('Job', function () {
     });
 
     it('removes 4000 jobs in time rage of 4000ms', async function () {
-      // UPSTASH: We made an optimization stream xtrim ~. Still tooks 21 seconds
-      this.timeout(400000);
+      if (process.env.UPSTASH_HOST) {
+        this.timeout(400000);
+      } else {
+        this.timeout(8000);
+      }
       const numJobs = 4000;
 
       // Create waiting jobs
