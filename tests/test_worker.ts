@@ -774,8 +774,7 @@ describe('workers', function () {
     it('should not fail', async () => {
       const queueName2 = `test-${v4()}`;
 
-      const connection = new IORedis({
-        host: redisHost,
+      const connection = new IORedis(redisHost, {
         maxRetriesPerRequest: null,
       });
 
@@ -1672,8 +1671,7 @@ describe('workers', function () {
   it('emits error if lock is "stolen"', async function () {
     this.timeout(10000);
 
-    const connection = new IORedis({
-      host: redisHost,
+    const connection = new IORedis(redisHost, {
       maxRetriesPerRequest: null,
     });
 

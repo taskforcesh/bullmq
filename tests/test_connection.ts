@@ -42,8 +42,7 @@ describe('connection', () => {
 
   describe('prefix', () => {
     it('should throw exception if using prefix with ioredis', async () => {
-      const connection = new IORedis({
-        host: redisHost,
+      const connection = new IORedis(redisHost, {
         keyPrefix: 'bullmq',
       });
 

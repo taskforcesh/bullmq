@@ -131,8 +131,7 @@ describe('Jobs getters', function () {
     describe('when sharing connection', () => {
       // Test is very flaky on CI, so we skip it for now.
       it('gets all workers for a given queue', async function () {
-        const ioredisConnection = new IORedis({
-          host: redisHost,
+        const ioredisConnection = new IORedis(redisHost, {
           maxRetriesPerRequest: null,
         });
 

@@ -122,8 +122,6 @@ jobs:
 
     env:
       node-version: lts/*
-      REDIS_HOST: ${{ secrets.REDIS_HOST }}
-      UPSTASH_HOST: true
 
     name: testing node@lts/*, upstash@latest
     steps:
@@ -136,7 +134,11 @@ jobs:
           cache: 'yarn'
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
-      - run: yarn test
+      - name: Run tests using upstash
+        run: yarn test
+        env:
+          REDIS_HOST: ${{ secrets.REDIS_HOST }}
+          UPSTASH_HOST: true
 
   python:
     runs-on: ubuntu-latest
