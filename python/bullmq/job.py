@@ -92,15 +92,16 @@ class Job:
     def isDelayed(self):
         return self.isInZSet('delayed')
 
-    async def isInZSet(self, set: str):
-        score = await self.queue.client.zscore(self.scripts.toKey(set), self.id)
-
-        return score is not None
+    async def isWaiting(self):
+        return ( await self.isInList('wait') or await self.isInList('paused'))
 
     async def isInZSet(self, set: str):
         score = await self.queue.client.zscore(self.scripts.toKey(set), self.id)
 
         return score is not None
+
+    def isInList(self, list_name: str):
+        return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
