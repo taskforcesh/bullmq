@@ -76,6 +76,8 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.delay, 0)
         isDelayedAfterPromote = await job.isDelayed()
         self.assertEqual(isDelayedAfterPromote, False)
+        isWaiting = await job.isWaiting()
+        self.assertEqual(isWaiting, True)
 
         await queue.close()
 
