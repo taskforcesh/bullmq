@@ -95,7 +95,6 @@ export class FlowProducer extends EventEmitter {
   closing: Promise<void> | undefined;
   queueKeys: QueueKeys;
 
-  protected closed: boolean = false;
   protected connection: RedisConnection;
 
   constructor(
@@ -172,13 +171,6 @@ export class FlowProducer extends EventEmitter {
    */
   get client(): Promise<RedisClient> {
     return this.connection.client;
-  }
-
-  /**
-   * Returns the version of the Redis instance the client is connected to,
-   */
-  get redisVersion(): string {
-    return this.connection.redisVersion;
   }
 
   /**
@@ -487,7 +479,6 @@ export class FlowProducer extends EventEmitter {
       this.closing = this.connection.close();
     }
     await this.closing;
-    this.closed = true;
   }
 
   /**
