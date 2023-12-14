@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v1.21.0 (2023-12-14)
+### Feature
+* **job:** Add isCompleted method [python] ([#2331](https://github.com/taskforcesh/bullmq/issues/2331)) ([`364f0c1`](https://github.com/taskforcesh/bullmq/commit/364f0c1f2d4247d2b24041ab9ece0e429110d454))
+
+### Fix
+* **sandboxed:** Better compatibility with esbuild ([`8eaf955`](https://github.com/taskforcesh/bullmq/commit/8eaf9550fe8b322df624893c507c55d2cce34b11))
+
 ## v1.20.0 (2023-12-13)
 ### Feature
 * **job:** Add isWaiting method [python] ([#2328](https://github.com/taskforcesh/bullmq/issues/2328)) ([`5db9f95`](https://github.com/taskforcesh/bullmq/commit/5db9f957939cd873eea0224d34569189e5520e84))
