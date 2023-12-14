@@ -11,21 +11,11 @@
 * **job:** Add promote method [python] ([#2323](https://github.com/taskforcesh/bullmq/issues/2323)) ([`61f4ba3`](https://github.com/taskforcesh/bullmq/commit/61f4ba3e99486aa36e5cc3d9b448b8080c567eb1))
 
 ## v1.18.0 (2023-12-10)
-### Feature
-* **sandboxes:** Use the more compatible dynamic import instead of require ([`6d2fe6e`](https://github.com/taskforcesh/bullmq/commit/6d2fe6e7c0473b75aeb9a6d3080b0676f9521065))
-
 ### Fix
 * **retry:** Pass right redis command name into retryJob script (#2321) [python] ([`6bb21a0`](https://github.com/taskforcesh/bullmq/commit/6bb21a07c9754659fa5aa1734df1046a6da5d16a))
-* **child-processor:** Preserve dynamic imports in commonjs ([`d97a5e0`](https://github.com/taskforcesh/bullmq/commit/d97a5e06816cff04d86facdb8d32b512f29c6fb9))
 * **flows:** Add meta key to queues created with flows ([`272ec69`](https://github.com/taskforcesh/bullmq/commit/272ec69557f601a138e1aaba739f7e7878d5344b))
-* **repeat-strategy:** Add missing Promise return type ([#2301](https://github.com/taskforcesh/bullmq/issues/2301)) ([`6f8f534`](https://github.com/taskforcesh/bullmq/commit/6f8f5342cc8aa03f596d9ed5b8831f96a1d4c736))
-* **worker:** Get dirname by using module.filename (#2296) fixes #2288 ([`6e4db5a`](https://github.com/taskforcesh/bullmq/commit/6e4db5a3f3648c6a7e10991f2e18f3dab96fb1d7))
 * **update-progress:** Remove old updateProgress script to prevent conflict (#2298) (python) ([`e65b819`](https://github.com/taskforcesh/bullmq/commit/e65b819101f8e0e8fdef8c51cfdf9a52f5e73f13))
 * **worker:** Should cap update progress events ([`2cab9e9`](https://github.com/taskforcesh/bullmq/commit/2cab9e94f65c7bdd053e3fb5944bcda6e3ebaa39))
-
-### Documentation
-* **guide:** Use v4 api references ([#2314](https://github.com/taskforcesh/bullmq/issues/2314)) ([`fcf98f4`](https://github.com/taskforcesh/bullmq/commit/fcf98f4218c35de5888934fee80ca7832dac2267))
-* **bullmq-pro:** Update changelog to v6.8.0 ([#2307](https://github.com/taskforcesh/bullmq/issues/2307)) ([`9896b8a`](https://github.com/taskforcesh/bullmq/commit/9896b8a70d7136932955cb67edd31a4ed03c15f1))
 
 ## v1.17.0 (2023-11-24)
 ### Feature
@@ -33,17 +23,6 @@
 
 ### Fix
 * **worker:** Do not wait for slow jobs fixes #2290 ([`568d758`](https://github.com/taskforcesh/bullmq/commit/568d7585edb1f2ef15991d4ae4a2425e6834046a))
-* **utils:** Use EventEmitter as a type instead of a namespace ([#2283](https://github.com/taskforcesh/bullmq/issues/2283)) ([`41c9d1d`](https://github.com/taskforcesh/bullmq/commit/41c9d1d05eedc7351272708e667e8d65eb6773fc))
-
-### Documentation
-* **bullmq-pro:** Update changelog to v6.7.0 ([#2292](https://github.com/taskforcesh/bullmq/issues/2292)) ([`f3f8491`](https://github.com/taskforcesh/bullmq/commit/f3f84918f4ff91c5d6958ce07180685ae3b02c1e))
-* Improve documentation grammar, format, etc. ([#2158](https://github.com/taskforcesh/bullmq/issues/2158)) ([`25090ab`](https://github.com/taskforcesh/bullmq/commit/25090abe188d8dfe407283d52bace1483d80b010))
-* **bullmq-pro:** Update changelog with v6.6.2 ([#2284](https://github.com/taskforcesh/bullmq/issues/2284)) ([`edc31a6`](https://github.com/taskforcesh/bullmq/commit/edc31a6146f7e45ef09c75a2006cb49134586b40))
-* **python:** Update changelog ([#2280](https://github.com/taskforcesh/bullmq/issues/2280)) ([`517d011`](https://github.com/taskforcesh/bullmq/commit/517d011cdde47be6cc8e64cccd107f52dc1a6e4f))
-* Update NoCodeDB logo ([`526f6e8`](https://github.com/taskforcesh/bullmq/commit/526f6e84d5b18ef266391bc85bd7bc3fe63be786))
-* Update README.md ([`da3720a`](https://github.com/taskforcesh/bullmq/commit/da3720a5f44a01f5c08cf649acd861113d33f16b))
-* **readme:** Add dragonfly sponsorship ([`4e76620`](https://github.com/taskforcesh/bullmq/commit/4e76620dd724153458f2dc45893be9f3ced95553))
-* Fix minor typos ([#2270](https://github.com/taskforcesh/bullmq/issues/2270)) ([`9a469da`](https://github.com/taskforcesh/bullmq/commit/9a469daaf7f885df328a61dc5c1f6457b89f78fe))
 
 ## v1.16.1 (2023-11-09)
 ### Fix
