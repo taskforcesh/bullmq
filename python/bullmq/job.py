@@ -89,6 +89,12 @@ class Job:
         if not removed:
             raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
 
+    def isCompleted(self):
+        """
+        Returns true if the job has completed.
+        """
+        return self.isInZSet('completed')
+
     def isDelayed(self):
         return self.isInZSet('delayed')
 
