@@ -1,3 +1,15 @@
+## [4.15.4](https://github.com/taskforcesh/bullmq/compare/v4.15.3...v4.15.4) (2023-12-14)
+
+
+### Bug Fixes
+
+* **flows:** update constructor and methods to match queue base ([#2324](https://github.com/taskforcesh/bullmq/issues/2324)) ([d6c2064](https://github.com/taskforcesh/bullmq/commit/d6c2064b1fdd88bd4cc61e049ce055ff620b0062))
+
+
+### Features
+
+* **job:** add isCompleted method [python] ([#2331](https://github.com/taskforcesh/bullmq/issues/2331)) ([364f0c1](https://github.com/taskforcesh/bullmq/commit/364f0c1f2d4247d2b24041ab9ece0e429110d454))
+
 ## [4.15.3](https://github.com/taskforcesh/bullmq/compare/v4.15.2...v4.15.3) (2023-12-13)
 
 
