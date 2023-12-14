@@ -95,7 +95,16 @@ class Job:
         """
         return self.isInZSet('completed')
 
+    def isFailed(self):
+        """
+        Returns true if the job has failed.
+        """
+        return self.isInZSet('failed')
+
     def isDelayed(self):
+        """
+        Returns true if the job is delayed.
+        """
         return self.isInZSet('delayed')
 
     async def isWaiting(self):
