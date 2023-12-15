@@ -42,6 +42,7 @@ class Scripts:
             "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")), #
             "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
+            "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-7.lua")),
@@ -318,7 +319,7 @@ class Scripts:
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
 
-    async def getState(self, job_id):
+    async def getState(self, job_id: str):
         keys = self.getKeys(['completed', 'failed', 'delayed', 'active', 'wait',
                 'paused', 'waiting-children', 'prioritized'])
 
@@ -332,6 +333,16 @@ class Scripts:
 
         result = await self.commands["getStateV2"](keys=keys, args=args)
         return result
+
+    async def isJobInList(self, list_key: str, job_id: str):
+        redis_version = await self.redisConnection.getRedisVersion()
+
+        result = None
+        if isRedisVersionLowerThan(redis_version, '6.0.6'):
+            result = await self.commands["getState"](keys=[list_key], args=[job_id])
+        else:
+            result = await self.redisClient.lpos(list_key, job_id)
+        return isinstance(result, int)
 
     async def changePriority(self, job_id: str, priority:int = 0, lifo:bool = False):
         keys = [self.keys['wait'],
