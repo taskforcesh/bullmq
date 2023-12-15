@@ -19,10 +19,8 @@ const overrideMessage = [
   'and will be overridden by BullMQ.',
 ].join(' ');
 
-const deprecationMessage = [
-  'BullMQ: DEPRECATION WARNING! Your redis options maxRetriesPerRequest must be null.',
-  'On the next versions having this settings will throw an exception',
-].join(' ');
+const deprecationMessage =
+  'BullMQ: Your redis options maxRetriesPerRequest must be null.';
 
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
@@ -94,7 +92,7 @@ export class RedisConnection extends EventEmitter {
         this.opts = this._client.options;
       }
 
-      this.checkBlockingOptions(deprecationMessage, this.opts);
+      this.checkBlockingOptions(deprecationMessage, this.opts, true);
     }
 
     this.skipVersionCheck =
@@ -115,9 +113,17 @@ export class RedisConnection extends EventEmitter {
     this.initializing.catch(err => this.emit('error', err));
   }
 
-  private checkBlockingOptions(msg: string, options?: RedisOptions) {
+  private checkBlockingOptions(
+    msg: string,
+    options?: RedisOptions,
+    throwError = false,
+  ) {
     if (this.blocking && options && options.maxRetriesPerRequest) {
-      console.error(msg);
+      if (throwError) {
+        throw new Error(msg);
+      } else {
+        console.error(msg);
+      }
     }
   }
 
