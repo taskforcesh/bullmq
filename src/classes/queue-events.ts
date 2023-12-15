@@ -166,7 +166,9 @@ export class QueueEvents extends QueueBase {
 
   constructor(
     name: string,
-    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+    { connection, autorun = true, ...opts }: QueueEventsOptions = {
+      connection: {},
+    },
     Connection?: typeof RedisConnection,
   ) {
     super(
