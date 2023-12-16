@@ -9,7 +9,7 @@ import {
   WORKER_SUFFIX,
 } from '../utils';
 import { JobState, JobType } from '../types';
-import { Metrics } from '../interfaces';
+import { FilteredJobsResult, Metrics } from '../interfaces';
 
 /**
  *
@@ -354,6 +354,15 @@ export class QueueGetters<
           >,
       ),
     );
+  }
+
+  async getJobsByFilter(
+    type: JobType,
+    filter: Record<string, any>,
+    cursor: number,
+    count = 20,
+  ): Promise<FilteredJobsResult> {
+    return this.scripts.getJobsByFilter(type, filter, cursor, count);
   }
 
   /**
