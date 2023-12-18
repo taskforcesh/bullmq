@@ -1054,11 +1054,12 @@ export class Scripts {
    */
   async paginate(
     key: string,
-    opts: { start: number; end: number },
+    opts: { start: number; end: number; fetchJobs?: boolean },
   ): Promise<{
     cursor: string;
-    items: any[];
+    items: { id: string; v?: any; err?: string }[];
     total: number;
+    jobs?: JobJsonRaw[];
   }> {
     const client = await this.queue.client;
 
@@ -1072,7 +1073,9 @@ export class Scripts {
       offset = 0,
       items,
       total,
-      page: string[] = [];
+      rawJobs,
+      page: string[] = [],
+      jobs: JobJsonRaw[] = [];
     do {
       const args = [
         opts.start + page.length,
@@ -1081,10 +1084,20 @@ export class Scripts {
         offset,
         maxIterations,
       ];
-      [cursor, offset, items, total] = await (<any>client).paginate(
+
+      if (opts.fetchJobs) {
+        args.push(1);
+      }
+
+      [cursor, offset, items, total, rawJobs] = await (<any>client).paginate(
         keys.concat(args),
       );
       page = page.concat(items);
+
+      if (rawJobs && rawJobs.length) {
+        jobs = jobs.concat(rawJobs.map(array2obj));
+      }
+
       // Important to keep this coercive inequality (!=) instead of strict inequality (!==)
     } while (cursor != '0' && page.length < pageSize);
 
@@ -1099,18 +1112,21 @@ export class Scripts {
           result.push({ id, err: (<Error>err).message });
         }
       }
+
       return {
         cursor,
         items: result,
         total,
+        jobs,
+      };
+    } else {
+      return {
+        cursor,
+        items: page.map(item => ({ id: item })),
+        total,
+        jobs,
       };
     }
-
-    return {
-      cursor,
-      items: page,
-      total,
-    };
   }
 }
 

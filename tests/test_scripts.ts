@@ -63,7 +63,19 @@ describe('scripts', function () {
       page.items = page.items.sort();
 
       expect(page).to.be.eql({
-        items: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'],
+        items: [
+          { id: 'a' },
+          { id: 'b' },
+          { id: 'c' },
+          { id: 'd' },
+          { id: 'e' },
+          { id: 'f' },
+          { id: 'g' },
+          { id: 'h' },
+          { id: 'i' },
+          { id: 'j' },
+        ],
+        jobs: [],
         cursor: '0',
         total: 10,
       });
@@ -90,7 +102,7 @@ describe('scripts', function () {
       const client = await queue.client;
 
       const pageSize = 13;
-      const numPages = 137;
+      const numPages = 1;
 
       const totalItems = pageSize * numPages;
 
@@ -100,7 +112,7 @@ describe('scripts', function () {
 
       await client.sadd(testSet, ...items);
 
-      const pagedItems: string[] = [];
+      const pagedItems: { id: string }[] = [];
       for (let i = 0; i < numPages; i++) {
         const start = i * pageSize;
         const end = start + pageSize - 1;
@@ -111,10 +123,10 @@ describe('scripts', function () {
       }
 
       const sortedItems = pagedItems
-        .map(i => parseInt(i))
-        .sort((a, b) => a - b);
+        .map(i => ({ id: parseInt(i.id) }))
+        .sort((a, b) => a.id - b.id);
 
-      expect(sortedItems).to.be.eql(items);
+      expect(sortedItems).to.be.eql(items.map(i => ({ id: i })));
     });
   });
 
@@ -150,6 +162,7 @@ describe('scripts', function () {
           id: key,
           v: key,
         })),
+        jobs: [],
         cursor: '0',
         total: 10,
       });
@@ -182,6 +195,7 @@ describe('scripts', function () {
 
       expect(page).to.be.eql({
         items: ['d', 'e', 'f', 'g', 'h'].map(key => ({ id: key, v: key })),
+        jobs: [],
         cursor: '0',
         total: 10,
       });

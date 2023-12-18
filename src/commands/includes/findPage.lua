@@ -11,8 +11,9 @@ local maxCount = 100
 
 -- Finds the cursor, and returns the first elements available for the requested page.
 local function findPage(key, command, pageStart, pageSize, cursor, offset,
-                        maxIterations)
+                        maxIterations, fetchJobs)
     local items = {}
+    local jobs = {}
     local iterations = 0
 
     repeat
@@ -28,7 +29,7 @@ local function findPage(key, command, pageStart, pageSize, cursor, offset,
         
         if #members == 0 then
             -- If the result is empty, we can return the result.
-            return cursor, offset, items
+            return cursor, offset, items, jobs
         end
 
         local chunkStart = offset
@@ -41,15 +42,18 @@ local function findPage(key, command, pageStart, pageSize, cursor, offset,
             offset = chunkEnd
         elseif chunkStart > pageEnd then
             -- If the chunk is after the page, we can return the result.
-            return cursor, offset, items
+            return cursor, offset, items, jobs
         else
             -- If the chunk is overlapping the page, we need to add the elements to the result.
             for i = 1, #members, step do
                 if offset >= pageEnd then
-                    return cursor, offset, items
+                    return cursor, offset, items, jobs
                 end
                 if offset >= pageStart then
                     local index = #items + 1
+                    if fetchJobs ~= nil then
+                        jobs[#jobs+1] = rcall("HGETALL", members[i])
+                    end
                     if step == 2 then
                         items[index] = {members[i], members[i + 1]}
                     else
@@ -62,5 +66,5 @@ local function findPage(key, command, pageStart, pageSize, cursor, offset,
         iterations = iterations + 1
     until cursor == "0" or iterations >= maxIterations
 
-    return cursor, offset, items
+    return cursor, offset, items, jobs
 end

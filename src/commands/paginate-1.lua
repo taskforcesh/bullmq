@@ -9,6 +9,7 @@
       ARGV[3]  cursor
       ARGV[4]  offset
       ARGV[5]  max iterations
+      ARGV[6]  fetch jobs?
       
     Output:
       [cursor, offset, items, numItems]
@@ -41,8 +42,8 @@ if endOffset == -1 then
 end
 local pageSize = (endOffset - startOffset) + 1
 
-local cursor, offset, items = findPage(key, scanCommand, startOffset,
+local cursor, offset, items, jobs = findPage(key, scanCommand, startOffset,
                                        pageSize, ARGV[3], tonumber(ARGV[4]),
-                                       tonumber(ARGV[5]))
+                                       tonumber(ARGV[5]), ARGV[6])
 
-return {cursor, offset, items, numItems}
+return {cursor, offset, items, numItems, jobs}

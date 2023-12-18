@@ -802,17 +802,29 @@ describe('Jobs getters', function () {
 
       const result = await queue.getDependencies(
         flow.job.id!,
-        'unprocessed',
+        'pending',
         0,
         -1,
       );
 
       expect(result.items).to.be.an('array').that.has.length(4);
+      expect(result.jobs).to.be.an('array').that.has.length(4);
       expect(result.total).to.be.equal(4);
+
+      for (const job of result.jobs) {
+        expect(job).to.have.property('opts');
+        expect(job).to.have.property('data');
+        expect(job).to.have.property('delay');
+        expect(job).to.have.property('priority');
+        expect(job).to.have.property('parent');
+        expect(job).to.have.property('parentKey');
+        expect(job).to.have.property('name');
+        expect(job).to.have.property('timestamp');
+      }
 
       const result2 = await queue.getDependencies(
         flow.job.id!,
-        'unprocessed',
+        'pending',
         0,
         2,
       );
@@ -857,7 +869,7 @@ describe('Jobs getters', function () {
 
       const result = await queue.getDependencies(
         flow.job.id!,
-        'unprocessed',
+        'pending',
         0,
         -1,
       );
@@ -873,7 +885,19 @@ describe('Jobs getters', function () {
       );
 
       expect(result2.items).to.be.an('array').that.has.length(4);
+      expect(result2.jobs).to.be.an('array').that.has.length(4);
       expect(result2.total).to.be.equal(4);
+
+      for (const job of result2.jobs) {
+        expect(job).to.have.property('opts');
+        expect(job).to.have.property('data');
+        expect(job).to.have.property('delay');
+        expect(job).to.have.property('priority');
+        expect(job).to.have.property('parent');
+        expect(job).to.have.property('parentKey');
+        expect(job).to.have.property('name');
+        expect(job).to.have.property('timestamp');
+      }
 
       await worker.close();
       await flowProducer.close();

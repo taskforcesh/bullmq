@@ -3563,19 +3563,19 @@ describe('workers', function () {
 
         await Job.create(queue, 'testJob1', values[0], {
           parent: {
-            id: parent.id,
+            id: parent.id!,
             queue: `${prefix}:${parentQueueName}`,
           },
         });
         await Job.create(queue, 'testJob2', values[1], {
           parent: {
-            id: parent.id,
+            id: parent.id!,
             queue: `${prefix}:${parentQueueName}`,
           },
         });
         await Job.create(queue, 'testJob3', values[2], {
           parent: {
-            id: parent.id,
+            id: parent.id!,
             queue: `${prefix}:${parentQueueName}`,
           },
         });
@@ -3597,7 +3597,7 @@ describe('workers', function () {
           parentToken,
           {
             child: {
-              id: child3.id,
+              id: child3.id!,
               queue: `${prefix}:${queueName}`,
             },
           },
