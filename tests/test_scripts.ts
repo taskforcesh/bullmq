@@ -60,7 +60,7 @@ describe('scripts', function () {
 
       const page = await scripts.paginate(testSet, { start: 0, end: 9 });
 
-      page.items = page.items.sort();
+      page.items = page.items.sort((a, b) => a.id.localeCompare(b.id));
 
       expect(page).to.be.eql({
         items: [
