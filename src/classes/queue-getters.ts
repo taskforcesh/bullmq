@@ -294,7 +294,8 @@ export class QueueGetters<
   }
 
   /**
-   * Returns the jobIds of the children jobs of the given parent job.
+   * Returns the qualified job ids and the raw job data (if available) of the
+   * children jobs of the given parent job.
    * It is possible to get either the already processed children, in this case
    * an array of qualified job ids and their result values will be returned,
    * or the pending children, in this case an array of qualified job ids will
