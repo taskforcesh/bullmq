@@ -31,7 +31,7 @@ import {
   tryCatch,
 } from '../utils';
 import { Backoffs } from './backoffs';
-import { Scripts } from './scripts';
+import { Scripts, raw2NextJobData } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
 
@@ -601,8 +601,8 @@ export class Job<
   async moveToFailed<E extends Error>(
     err: E,
     token: string,
-    fetchNext = false,
-  ): Promise<void> {
+    fetchNext = true,
+  ): Promise<void | any[]> {
     const client = await this.queue.client;
     const message = err?.message;
 
@@ -679,9 +679,9 @@ export class Job<
       );
     }
 
-    const code = results[results.length - 1][1] as number;
-    if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, command, 'active');
+    const result = results[results.length - 1][1] as number;
+    if (result < 0) {
+      throw this.scripts.finishedErrors(result, this.id, command, 'active');
     }
 
     if (finishedOn && typeof finishedOn === 'number') {
@@ -690,6 +690,10 @@ export class Job<
 
     if (delay && typeof delay === 'number') {
       this.delay = delay;
+    }
+
+    if (Array.isArray(result)) {
+      return raw2NextJobData(result);
     }
   }
 
