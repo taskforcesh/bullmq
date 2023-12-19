@@ -193,11 +193,11 @@ describe('scriptLoader', () => {
       const info = cache.get(path.basename(path.resolve(fixture), '.lua'));
 
       expect(info).to.not.eql(undefined);
-      expect(info.includes.length).to.eql(1);
+      expect(info?.includes.length).to.eql(1);
 
-      const include = info.includes[0];
-      expect(include.name).to.eql('math');
-      expect(include.path.startsWith(includePath)).to.be.true;
+      const include = info?.includes[0];
+      expect(include?.name).to.eql('math');
+      expect(include?.path.startsWith(includePath)).to.be.true;
     });
 
     it('supports path mapping and globs simultaneously', async () => {

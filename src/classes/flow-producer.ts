@@ -98,7 +98,7 @@ export class FlowProducer extends EventEmitter {
   protected connection: RedisConnection;
 
   constructor(
-    public opts: QueueBaseOptions = {},
+    public opts: QueueBaseOptions = { connection: {} },
     Connection: typeof RedisConnection = RedisConnection,
   ) {
     super();
@@ -108,19 +108,9 @@ export class FlowProducer extends EventEmitter {
       ...opts,
     };
 
-    if (!opts.connection) {
-      console.warn(
-        [
-          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker, QueueEvents and FlowProducer',
-          'without providing explicitly a connection or connection options is deprecated. This behaviour will',
-          'be removed in the next major release',
-        ].join(' '),
-      );
-    }
-
     this.connection = new Connection(
       opts.connection,
-      isRedisInstance(opts?.connection),
+      isRedisInstance(opts.connection),
       false,
       opts.skipVersionCheck,
     );
@@ -459,7 +449,7 @@ export class FlowProducer extends EventEmitter {
       name: node.queueName,
       keys: queueKeys.getKeys(node.queueName),
       toKey: (type: string) => queueKeys.toKey(node.queueName, type),
-      opts: { prefix },
+      opts: { prefix, connection: {} },
       qualifiedName: queueKeys.getQueueQualifiedName(node.queueName),
       closing: this.closing,
       waitUntilReady: async () => this.connection.client,

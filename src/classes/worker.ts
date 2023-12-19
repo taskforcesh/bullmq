@@ -194,7 +194,7 @@ export class Worker<
   constructor(
     name: string,
     processor?: string | null | Processor<DataType, ResultType, NameType>,
-    opts: WorkerOptions = {},
+    opts: WorkerOptions = { connection: {} },
     Connection?: typeof RedisConnection,
   ) {
     super(
