@@ -601,7 +601,7 @@ export class Job<
   async moveToFailed<E extends Error>(
     err: E,
     token: string,
-    fetchNext = true,
+    fetchNext = false,
   ): Promise<void | any[]> {
     const client = await this.queue.client;
     const message = err?.message;

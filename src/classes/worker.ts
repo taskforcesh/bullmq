@@ -711,7 +711,7 @@ export class Worker<
             return;
           }
 
-          const failed = await job.moveToFailed(err, token);
+          const failed = await job.moveToFailed(err, token, true);
           this.emit('failed', job, err, 'active');
 
           const [jobData, jobId, limitUntil, delayUntil] = failed || [];
