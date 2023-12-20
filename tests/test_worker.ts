@@ -2907,9 +2907,7 @@ describe('workers', function () {
                 while (step !== Step.Finish) {
                   switch (step) {
                     case Step.Initial: {
-                      await job.moveToDelayed(Date.now() + 200, token, {
-                        skipAttempt: true,
-                      });
+                      await job.moveToDelayed(Date.now() + 200, token);
                       await job.updateData({
                         step: Step.Second,
                       });
@@ -3136,7 +3134,6 @@ describe('workers', function () {
                       waitingChildrenStepExecutions++;
                       const shouldWait = await job.moveToWaitingChildren(
                         token!,
-                        { skipAttempt: true },
                       );
                       if (!shouldWait) {
                         await job.updateData({

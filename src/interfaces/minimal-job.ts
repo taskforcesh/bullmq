@@ -13,11 +13,6 @@ export interface MoveToWaitingChildrenOpts {
     id: string;
     queue: string;
   };
-  skipAttempt?: boolean;
-}
-
-export interface RetryOpts {
-  skipAttempt?: boolean;
 }
 
 export interface DependenciesOpts {
