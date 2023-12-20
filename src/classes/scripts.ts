@@ -1050,6 +1050,88 @@ export class Scripts {
     }
     return result;
   }
+
+  /**
+   * Paginate a set or hash keys.
+   * @param opts
+   *
+   */
+  async paginate(
+    key: string,
+    opts: { start: number; end: number; fetchJobs?: boolean },
+  ): Promise<{
+    cursor: string;
+    items: { id: string; v?: any; err?: string }[];
+    total: number;
+    jobs?: JobJsonRaw[];
+  }> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [key];
+
+    const maxIterations = 5;
+
+    const pageSize = opts.end >= 0 ? opts.end - opts.start + 1 : Infinity;
+
+    let cursor = '0',
+      offset = 0,
+      items,
+      total,
+      rawJobs,
+      page: string[] = [],
+      jobs: JobJsonRaw[] = [];
+    do {
+      const args = [
+        opts.start + page.length,
+        opts.end,
+        cursor,
+        offset,
+        maxIterations,
+      ];
+
+      if (opts.fetchJobs) {
+        args.push(1);
+      }
+
+      [cursor, offset, items, total, rawJobs] = await (<any>client).paginate(
+        keys.concat(args),
+      );
+      page = page.concat(items);
+
+      if (rawJobs && rawJobs.length) {
+        jobs = jobs.concat(rawJobs.map(array2obj));
+      }
+
+      // Important to keep this coercive inequality (!=) instead of strict inequality (!==)
+    } while (cursor != '0' && page.length < pageSize);
+
+    // If we get an array of arrays, it means we are paginating a hash
+    if (page.length && Array.isArray(page[0])) {
+      const result = [];
+      for (let index = 0; index < page.length; index++) {
+        const [id, value] = page[index];
+        try {
+          result.push({ id, v: JSON.parse(value) });
+        } catch (err) {
+          result.push({ id, err: (<Error>err).message });
+        }
+      }
+
+      return {
+        cursor,
+        items: result,
+        total,
+        jobs,
+      };
+    } else {
+      return {
+        cursor,
+        items: page.map(item => ({ id: item })),
+        total,
+        jobs,
+      };
+    }
+  }
 }
 
 export function raw2NextJobData(raw: any[]) {

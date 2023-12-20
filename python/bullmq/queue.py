@@ -110,6 +110,12 @@ class Queue:
         paused_key_exists = await self.client.hexists(self.keys["meta"], "paused")
         return paused_key_exists == 1
 
+    def getRateLimitTtl(self):
+        """
+        Returns the time to live for a rate limited key in milliseconds.
+        """
+        return self.client.pttl(self.keys["limiter"])
+
     async def obliterate(self, force: bool = False):
         """
         Completely destroys the queue and all of its contents irreversibly.
