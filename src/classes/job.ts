@@ -440,6 +440,7 @@ export class Job<
       parentKey: this.parentKey,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
+      attemptsStarted: this.attemptsStarted,
       finishedOn: this.finishedOn,
       processedOn: this.processedOn,
       timestamp: this.timestamp,

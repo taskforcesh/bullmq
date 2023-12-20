@@ -8,6 +8,7 @@ export interface JobJson {
   opts: RedisJobOptions;
   progress: number | object;
   attemptsMade: number;
+  attemptsStarted: number;
   finishedOn?: number;
   processedOn?: number;
   timestamp: number;

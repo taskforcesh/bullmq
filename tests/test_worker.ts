@@ -2878,7 +2878,8 @@ describe('workers', function () {
               const elapse = Date.now() - start;
               expect(elapse).to.be.greaterThan(200);
               expect(job.returnvalue).to.be.eql(Step.Finish);
-              expect(job.attemptsMade).to.be.eql(2);
+              expect(job.attemptsMade).to.be.eql(1);
+              expect(job.attemptsStarted).to.be.eql(2);
               resolve();
             });
 
@@ -2888,69 +2889,6 @@ describe('workers', function () {
           });
 
           await worker.close();
-        });
-
-        describe('when skip attempt option is provided as true', () => {
-          it('should retry job after a delay time whithout incrementing attemptsMade', async function () {
-            this.timeout(8000);
-
-            enum Step {
-              Initial,
-              Second,
-              Finish,
-            }
-
-            const worker = new Worker(
-              queueName,
-              async (job, token) => {
-                let step = job.data.step;
-                while (step !== Step.Finish) {
-                  switch (step) {
-                    case Step.Initial: {
-                      await job.moveToDelayed(Date.now() + 200, token);
-                      await job.updateData({
-                        step: Step.Second,
-                      });
-                      throw new DelayedError();
-                    }
-                    case Step.Second: {
-                      await job.updateData({
-                        step: Step.Finish,
-                      });
-                      step = Step.Finish;
-                      return Step.Finish;
-                    }
-                    default: {
-                      throw new Error('invalid step');
-                    }
-                  }
-                }
-              },
-              { connection, prefix },
-            );
-
-            await worker.waitUntilReady();
-
-            const start = Date.now();
-            await queue.add('test', { step: Step.Initial });
-
-            await new Promise<void>((resolve, reject) => {
-              worker.on('completed', job => {
-                const elapse = Date.now() - start;
-                expect(elapse).to.be.greaterThan(200);
-                expect(job.returnvalue).to.be.eql(Step.Finish);
-                expect(job.attemptsMade).to.be.eql(1);
-                expect(job.attemptsStarted).to.be.eql(2);
-                resolve();
-              });
-
-              worker.on('error', () => {
-                reject();
-              });
-            });
-
-            await worker.close();
-          });
         });
       });
 
