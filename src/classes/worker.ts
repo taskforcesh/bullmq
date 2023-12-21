@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { URL } from 'url';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
@@ -193,7 +194,7 @@ export class Worker<
 
   constructor(
     name: string,
-    processor?: string | null | Processor<DataType, ResultType, NameType>,
+    processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
     opts: WorkerOptions = {},
     Connection?: typeof RedisConnection,
   ) {
@@ -233,13 +234,22 @@ export class Worker<
         this.processFn = processor;
       } else {
         // SANDBOXED
-        const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs'];
-        const processorFile =
-          processor +
-          (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
+        if (processor instanceof URL) {
+          if (!fs.existsSync(processor)) {
+            throw new Error(
+              `URL ${processor} does not exist in the local file system`,
+            );
+          }
+          processor = processor.href;
+        } else {
+          const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs'];
+          const processorFile =
+            processor +
+            (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
 
-        if (!fs.existsSync(processorFile)) {
-          throw new Error(`File ${processorFile} does not exist`);
+          if (!fs.existsSync(processorFile)) {
+            throw new Error(`File ${processorFile} does not exist`);
+          }
         }
 
         const mainFile = this.opts.useWorkerThreads
