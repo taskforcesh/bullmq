@@ -1,26 +1,27 @@
 --[[
-  Adds a priotitized job to the queue by doing the following:
+  Adds a delayed job to the queue by doing the following:
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
-    - Adds the job to the "added" list so that workers gets notified.
 
+    - computes timestamp.
+    - adds to delayed zset.
+    - Emits a global event 'delayed' if the job is delayed.
+    
     Input:
-      KEYS[1] 'wait',
-      KEYS[2] 'paused'
-      KEYS[3] 'meta'
-      KEYS[4] 'id'
-      KEYS[5] 'prioritized'
-      KEYS[6] 'completed'
-      KEYS[7] events stream key
-      KEYS[8] 'pc' priority counter
+      KEYS[1] 'marker',
+      KEYS[2] 'meta'
+      KEYS[3] 'id'
+      KEYS[4] 'delayed'
+      KEYS[5] 'completed'
+      KEYS[6] events stream key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
-            [2]  custom id (will not generate one automatically)
+            [2]  custom id (use custom instead of one generated automatically)
             [3]  name
             [4]  timestamp
             [5]  parentKey?
-            [6]  waitChildrenKey key.
+          x [6]  waitChildrenKey key.
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9]  repeat job key
@@ -32,16 +33,12 @@
         jobId  - OK
         -5     - Missing parent key
 ]]
-local waitKey = KEYS[1]
-local pausedKey = KEYS[2]
+local metaKey = KEYS[2]
+local idKey = KEYS[3]
+local delayedKey = KEYS[4]
 
-local metaKey = KEYS[3]
-local idKey = KEYS[4]
-local priorityKey = KEYS[5]
-
-local completedKey = KEYS[6]
-local eventsKey = KEYS[7]
-local priorityCounterKey = KEYS[8]
+local completedKey = KEYS[5]
+local eventsKey = KEYS[6]
 
 local jobId
 local jobIdKey
@@ -59,8 +56,9 @@ local parentData
 
 -- Includes
 --- @include "includes/storeJob"
---- @include "includes/addJobWithPriority"
---- @include "includes/getTargetQueueList"
+--- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/isQueuePaused"
+--- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/updateExistingJobsParent"
 --- @include "includes/getOrSetMaxEvents"
 
@@ -80,13 +78,13 @@ if args[2] == "" then
     jobId = jobCounter
     jobIdKey = args[1] .. jobId
 else
+    -- Refactor to: handleDuplicateJob.lua
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
         updateExistingJobsParent(parentKey, parent, parentData,
                                  parentDependenciesKey, completedKey, jobIdKey,
                                  jobId, timestamp)
-
         rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
               "duplicated", "jobId", jobId)
 
@@ -99,17 +97,22 @@ local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
                                  opts, timestamp, parentKey, parentData,
                                  repeatJobKey)
 
-local target, paused = getTargetQueueList(metaKey, waitKey, pausedKey)
+-- Compute delayed timestamp and the score.
+local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
+local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
 
-addJobWithPriority(waitKey, priorityKey, priority, paused, jobId,
-                   priorityCounterKey)
--- Emit waiting event
-rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
-      "jobId", jobId)
+rcall("ZADD", delayedKey, score, jobId)
+rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "delayed",
+      "jobId", jobId, "delay", delayedTimestamp)
+
+-- mark that a delayed job is available
+local isPaused = isQueuePaused(metaKey)
+if not isPaused then
+    local markerKey = KEYS[1]
+    addDelayMarkerIfNeeded(markerKey, delayedKey)
+end
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
--- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
--- fail in this case.
 if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end

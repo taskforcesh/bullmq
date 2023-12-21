@@ -349,7 +349,7 @@ describe('Delayed jobs', function () {
       const worker = new Worker(
         queueName,
         async (job: Job) => {
-          if (job.attemptsMade == 1) {
+          if (job.attemptsMade == 0) {
             await delay(250);
             throw new Error('forced error in test');
           }

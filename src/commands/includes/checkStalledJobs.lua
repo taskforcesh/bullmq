@@ -53,7 +53,7 @@ local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey,
 
         -- Remove from active list
         for i, jobId in ipairs(stalling) do
-
+            -- Markers in waitlist DEPRECATED in v5: Remove in v6.
             if string.sub(jobId, 1, 2) == "0:" then
                 -- If the jobId is a delay marker ID we just remove it.
                 rcall("LREM", activeKey, 1, jobId)

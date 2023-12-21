@@ -11,11 +11,12 @@ class Queue:
     Instantiate a Queue object
     """
 
-    def __init__(self, name: str, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
+    def __init__(self, name: str, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
         self.name = name
+        redisOpts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redisOpts)
         self.client = self.redisConnection.conn
         self.opts = opts

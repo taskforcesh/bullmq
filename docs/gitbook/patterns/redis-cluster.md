@@ -12,7 +12,7 @@ You can use two approaches in order to make the Queues compatible with Cluster. 
 
 ```typescript
 const queue = new Queue('cluster', {
-  prefix: '{myprefix}'
+  prefix: '{myprefix}',
 });
 ```
 

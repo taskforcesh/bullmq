@@ -201,7 +201,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         completedJob = await Job.fromId(queue, job.id)
 
         self.assertEqual(completedJob.id, job.id)
-        self.assertEqual(completedJob.attemptsMade, 2)
+        self.assertEqual(completedJob.attemptsMade, 1)
         self.assertEqual(completedJob.data, data)
         self.assertEqual(completedJob.returnvalue, "done2")
         self.assertNotEqual(completedJob.finishedOn, None)
@@ -213,7 +213,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         queue = Queue(queueName)
 
         async def process1(job: Job, token: str):
-            if job.attemptsMade < 3:
+            if job.attemptsMade < 2:
                 raise Exception("Not yet!")
             return None
 
@@ -236,12 +236,12 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
         await worker.close()
-        
+
     async def test_retry_job_after_delay_with_custom_backoff(self):
         queue = Queue(queueName)
 
         async def process1(job: Job, token: str):
-            if job.attemptsMade < 3:
+            if job.attemptsMade < 2:
                 raise Exception("Not yet!")
             return None
 

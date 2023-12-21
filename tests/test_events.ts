@@ -440,22 +440,30 @@ describe('events', function () {
           prefix,
         },
       );
-      const waitingChildren = new Promise<void>(resolve => {
+      const waitingChildren = new Promise<void>((resolve, reject) => {
         queueEvents.once('waiting-children', async ({ jobId }) => {
-          const job = await queue.getJob(jobId);
-          const state = await job.getState();
-          expect(state).to.be.equal('waiting-children');
-          expect(job.name).to.be.equal(name);
-          resolve();
+          try {
+            const job = await queue.getJob(jobId);
+            const state = await job.getState();
+            expect(state).to.be.equal('waiting-children');
+            expect(job.name).to.be.equal(name);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
         });
       });
 
-      const waiting = new Promise<void>(resolve => {
+      const waiting = new Promise<void>((resolve, reject) => {
         queueEvents.on('waiting', async ({ jobId, prev }) => {
-          const job = await queue.getJob(jobId);
-          expect(prev).to.be.equal('waiting-children');
-          if (job.name === name) {
-            resolve();
+          try {
+            const job = await queue.getJob(jobId);
+            expect(prev).to.be.equal('waiting-children');
+            if (job.name === name) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
           }
         });
       });

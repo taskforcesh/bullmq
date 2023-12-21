@@ -181,7 +181,7 @@ export class Worker<
   private limitUntil = 0;
   private resumeWorker: () => void;
   private stalledCheckTimer: NodeJS.Timeout;
-  private waiting: Promise<string> | null = null;
+  private waiting: Promise<number> | null = null;
   private _repeat: Repeat;
 
   protected paused: Promise<void>;
@@ -195,7 +195,7 @@ export class Worker<
   constructor(
     name: string,
     processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
-    opts: WorkerOptions = {},
+    opts?: WorkerOptions,
     Connection?: typeof RedisConnection,
   ) {
     super(
@@ -206,6 +206,10 @@ export class Worker<
       },
       Connection,
     );
+
+    if (!opts || !opts.connection) {
+      throw new Error('Worker requires a connection');
+    }
 
     this.opts = {
       drainDelay: 5,
@@ -436,7 +440,7 @@ export class Worker<
           numTotal = asyncFifoQueue.numTotal();
 
           if (this.waiting && numTotal > 1) {
-            // We have a job waiting but we have others that we could start processing already
+            // We are waiting for jobs but we have others that we could start processing already
             break;
           }
 
@@ -461,11 +465,7 @@ export class Worker<
         let job: Job<DataType, ResultType, NameType> | void;
         do {
           job = await asyncFifoQueue.fetch();
-        } while (
-          !job &&
-          asyncFifoQueue.numTotal() > 0 &&
-          asyncFifoQueue.numQueued() > 0
-        );
+        } while (!job && asyncFifoQueue.numQueued() > 0);
 
         if (job) {
           const token = job.token;
@@ -525,10 +525,13 @@ export class Worker<
     }
 
     if (this.drained && block && !this.limitUntil && !this.waiting) {
-      this.waiting = this.waitForJob(bclient);
+      this.waiting = this.waitForJob(bclient, this.blockUntil);
       try {
-        const jobId = await this.waiting;
-        return this.moveToActive(client, token, jobId);
+        this.blockUntil = await this.waiting;
+
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 10) {
+          return this.moveToActive(client, token);
+        }
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
         if (
@@ -569,29 +572,20 @@ export class Worker<
   protected async moveToActive(
     client: RedisClient,
     token: string,
-    jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    // If we get the special delayed job ID, we pick the delay as the next
-    // block timeout.
-    if (jobId && jobId.startsWith('0:')) {
-      this.blockUntil = parseInt(jobId.split(':')[1]) || 0;
-
-      // Remove marker from active list.
-      await client.lrem(this.keys.active, 1, jobId);
-      if (this.blockUntil > 0) {
-        return;
-      }
-    }
     const [jobData, id, limitUntil, delayUntil] =
-      await this.scripts.moveToActive(client, token, jobId);
+      await this.scripts.moveToActive(client, token);
     this.updateDelays(limitUntil, delayUntil);
 
     return this.nextJobFromJobData(jobData, id, token);
   }
 
-  private async waitForJob(bclient: RedisClient): Promise<string> {
+  private async waitForJob(
+    bclient: RedisClient,
+    blockUntil: number,
+  ): Promise<number> {
     if (this.paused) {
-      return;
+      return Infinity;
     }
 
     try {
@@ -599,13 +593,9 @@ export class Worker<
 
       if (!this.closing) {
         let blockTimeout = Math.max(
-          this.blockUntil
-            ? (this.blockUntil - Date.now()) / 1000
-            : opts.drainDelay,
+          blockUntil ? (blockUntil - Date.now()) / 1000 : opts.drainDelay,
           0,
         );
-
-        let jobId;
 
         // Blocking for less than 50ms is useless.
         if (blockTimeout > 0.05) {
@@ -618,16 +608,19 @@ export class Worker<
           // reference: https://github.com/taskforcesh/bullmq/issues/1658
           blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
 
-          jobId = await bclient.brpoplpush(
-            this.keys.wait,
-            this.keys.active,
-            blockTimeout,
-          );
-        } else {
-          jobId = await bclient.rpoplpush(this.keys.wait, this.keys.active);
+          // Markers should only be used for un-blocking, so we will handle them in this
+          // function only.
+          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+
+          if (result) {
+            const [_key, member, score] = result;
+
+            if (member) {
+              return parseInt(score);
+            }
+          }
         }
-        this.blockUntil = 0;
-        return jobId;
+        return 0;
       }
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
@@ -639,6 +632,7 @@ export class Worker<
     } finally {
       this.waiting = null;
     }
+    return Infinity;
   }
 
   /**

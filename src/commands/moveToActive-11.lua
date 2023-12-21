@@ -17,16 +17,18 @@
     KEYS[6] rate limiter key
     KEYS[7] delayed key
 
-    -- Promote delayed jobs
+    -- Delayed jobs
     KEYS[8] paused key
     KEYS[9] meta key
     KEYS[10] pc priority counter
 
+    -- Marker
+    KEYS[11] marker key
+
     -- Arguments
     ARGV[1] key prefix
     ARGV[2] timestamp
-    ARGV[3] optional job ID
-    ARGV[4] opts
+    ARGV[3] opts
 
     opts - token - lock token
     opts - lockDuration
@@ -37,7 +39,7 @@ local waitKey = KEYS[1]
 local activeKey = KEYS[2]
 local rateLimiterKey = KEYS[6]
 local delayedKey = KEYS[7]
-local opts = cmsgpack.unpack(ARGV[4])
+local opts = cmsgpack.unpack(ARGV[3])
 
 -- Includes
 --- @include "includes/getNextDelayedTimestamp"
@@ -50,39 +52,26 @@ local opts = cmsgpack.unpack(ARGV[4])
 local target, paused = getTargetQueueList(KEYS[9], waitKey, KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
-promoteDelayedJobs(delayedKey, waitKey, target, KEYS[3], KEYS[4], ARGV[1],
-                   ARGV[2], paused, KEYS[10])
+local markerKey = KEYS[11]
+promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], KEYS[4], ARGV[1],
+                   ARGV[2], KEYS[10], paused)
 
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
 local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
 
-local jobId = nil
-if ARGV[3] ~= "" then
-    jobId = ARGV[3]
+-- Check if we are rate limited first.
+if expireTime > 0 then return {0, 0, expireTime, 0} end
 
-    -- clean stalled key
-    rcall("SREM", KEYS[5], jobId)
-end
+-- paused queue
+if paused then return {0, 0, 0, 0} end
 
-if not jobId or (jobId and string.sub(jobId, 1, 2) == "0:") then
-    -- If jobId is special ID 0:delay, then there is no job to process
-    if jobId then rcall("LREM", activeKey, 1, jobId) end
+-- no job ID, try non-blocking move from wait to active
+local jobId = rcall("RPOPLPUSH", waitKey, activeKey)
 
-    -- Check if we are rate limited first.
-    if expireTime > 0 then return {0, 0, expireTime, 0} end
-
-    -- paused queue
-    if paused then return {0, 0, 0, 0} end
-
-    -- no job ID, try non-blocking move from wait to active
+-- Markers in waitlist DEPRECATED in v5: Will be completely removed in v6.
+if jobId and string.sub(jobId, 1, 2) == "0:" then
+    rcall("LREM", activeKey, 1, jobId)
     jobId = rcall("RPOPLPUSH", waitKey, activeKey)
-
-    -- Since it is possible that between a call to BRPOPLPUSH and moveToActive
-    -- another script puts a new maker in wait, we need to check again.
-    if jobId and string.sub(jobId, 1, 2) == "0:" then
-        rcall("LREM", activeKey, 1, jobId)
-        jobId = rcall("RPOPLPUSH", waitKey, activeKey)
-    end
 end
 
 if jobId then
