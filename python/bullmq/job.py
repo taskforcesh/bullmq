@@ -108,6 +108,12 @@ class Job:
         """
         return self.isInZSet('delayed')
 
+    def isWaitingChildren(self):
+        """
+        Returns true if the job is waiting for children.
+        """
+        return self.isInZSet('waiting-children')
+
     async def isWaiting(self):
         return ( await self.isInList('wait') or await self.isInList('paused'))
 
