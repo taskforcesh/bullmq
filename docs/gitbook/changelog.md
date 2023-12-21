@@ -1,3 +1,27 @@
+# [5.0.0](https://github.com/taskforcesh/bullmq/compare/v4.17.0...v5.0.0) (2023-12-21)
+
+
+### Bug Fixes
+
+* **connection:** require connection to be passed ([#2335](https://github.com/taskforcesh/bullmq/issues/2335)) ([1867dd1](https://github.com/taskforcesh/bullmq/commit/1867dd107d7edbd417bf6918354ae4656480a544))
+* **job:** revert console warn custom job ids when they represent integers ([#2312](https://github.com/taskforcesh/bullmq/issues/2312)) ([84015ff](https://github.com/taskforcesh/bullmq/commit/84015ffa04216c45d8f3181a7f859b8c0792c80d))
+* **python:** unify redis connection args for Queue and Worker ([#2282](https://github.com/taskforcesh/bullmq/issues/2282)) ([8eee20f](https://github.com/taskforcesh/bullmq/commit/8eee20f1210a49024eeee6647817f0659b8c3893))
+* **worker:** throw error if connection is missing ([6491a18](https://github.com/taskforcesh/bullmq/commit/6491a185268ae546baa9b95a20b95d63c0e27915))
+
+
+### Features
+
+* **job:** provide skipAttempt option when manually moving a job ([#2203](https://github.com/taskforcesh/bullmq/issues/2203)) ([0e88e4f](https://github.com/taskforcesh/bullmq/commit/0e88e4fe4ed940487dfc79d1345d0686de22d0c6))
+* **python:** use new queue markers ([b0a13e8](https://github.com/taskforcesh/bullmq/commit/b0a13e86285998ce0524eb443d732bce91e9b6c5))
+* **python:** use new queue markers ([4276eb7](https://github.com/taskforcesh/bullmq/commit/4276eb725ca294ddbfc00c4edc627bb2cb5d403a))
+* **worker:** improved markers handling ([73cf5fc](https://github.com/taskforcesh/bullmq/commit/73cf5fc1e6e13d8329e1e4e700a8db92173e0624))
+* **worker:** improved markers handling ([0bac0fb](https://github.com/taskforcesh/bullmq/commit/0bac0fbb97afa968aa7644f1438b86d7bc18bbc5))
+
+
+### BREAKING CHANGES
+
+* **worker:** Markers use now a dedicated key in redis instead of using a special Job ID.
+* **worker:** Markers use now a dedicated key in redis instead of using a special Job ID.
 
 # [4.17.0](https://github.com/taskforcesh/bullmq/compare/v4.16.0...v4.17.0) (2023-12-21)
 
