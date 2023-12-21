@@ -2,15 +2,15 @@
   Retries a failed job by moving it back to the wait queue.
 
     Input:
-      KEYS[1] 'active',
-      KEYS[2] 'wait'
-      KEYS[3] 'paused'
-      KEYS[4] job key
-      KEYS[5] 'meta'
-      KEYS[6] events stream
-      KEYS[7] delayed key
-      KEYS[8] prioritized key
-      KEYS[9] 'pc' priority counter
+      KEYS[1]  'active',
+      KEYS[2]  'wait'
+      KEYS[3]  'paused'
+      KEYS[4]  job key
+      KEYS[5]  'meta'
+      KEYS[6]  events stream
+      KEYS[7]  delayed key
+      KEYS[8]  prioritized key
+      KEYS[9]  'pc' priority counter
       KEYS[10] 'marker'
 
       ARGV[1]  key prefix
@@ -18,7 +18,6 @@
       ARGV[3]  pushCmd
       ARGV[4]  jobId
       ARGV[5]  token
-      ARGV[6]  skip attempt
 
     Events:
       'waiting'
@@ -64,9 +63,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], paused)
   end
 
-  if ARGV[6] == "0" then
-    rcall("HINCRBY", KEYS[4], "atm", 1)
-  end
+  rcall("HINCRBY", KEYS[4], "atm", 1)
 
   local maxEvents = rcall("HGET", KEYS[5], "opts.maxLenEvents") or 10000
 
