@@ -1,4 +1,4 @@
-<!DOCTYPE html><html class="default" lang="en"><head><meta charSet="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>ParentMessage | bullmq - v4.17.0</title><meta name="description" content="Documentation for bullmq"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os"</script><header class="tsd-page-toolbar">
+<!DOCTYPE html><html class="default" lang="en"><head><meta charSet="utf-8"/><meta http-equiv="x-ua-compatible" content="IE=edge"/><title>MoveToDelayedOpts | bullmq - v4.17.0</title><meta name="description" content="Documentation for bullmq"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="../assets/style.css"/><link rel="stylesheet" href="../assets/highlight.css"/><script defer src="../assets/main.js"></script><script async src="../assets/search.js" id="tsd-search-script"></script><script async src="../assets/navigation.js" id="tsd-nav-script"></script></head><body><script>document.documentElement.dataset.theme = localStorage.getItem("tsd-theme") || "os"</script><header class="tsd-page-toolbar">
 <div class="tsd-toolbar-contents container">
 <div class="table-cell" id="tsd-search" data-base="..">
 <div class="field"><label for="tsd-search-field" class="tsd-widget tsd-toolbar-icon search no-caption"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><use href="#icon-search"></use></svg></label><input type="text" id="tsd-search-field" aria-label="Search"/></div>
@@ -13,15 +13,15 @@
 <div class="tsd-page-title">
 <ul class="tsd-breadcrumb">
 <li><a href="../index.html">bullmq</a></li>
-<li><a href="../modules/v2.html">v2</a></li>
-<li><a href="v2.ParentMessage.html">ParentMessage</a></li></ul>
-<h1>Interface ParentMessage</h1></div>
+<li><a href="../modules/v4.html">v4</a></li>
+<li><a href="v4.MoveToDelayedOpts.html">MoveToDelayedOpts</a></li></ul>
+<h1>Interface MoveToDelayedOpts</h1></div>
 <section class="tsd-panel tsd-hierarchy">
 <h4>Hierarchy</h4>
 <ul class="tsd-hierarchy">
-<li><span class="target">ParentMessage</span></li></ul></section><aside class="tsd-sources">
+<li><span class="target">MoveToDelayedOpts</span></li></ul></section><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/65ce37ac1/src/interfaces/parent-message.ts#L4">interfaces/parent-message.ts:4</a></li></ul></aside>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/7cfbfa529/src/interfaces/minimal-job.ts#L7">interfaces/minimal-job.ts:7</a></li></ul></aside>
 <section class="tsd-panel-group tsd-index-group">
 <section class="tsd-panel tsd-index-panel">
 <details class="tsd-index-content tsd-index-accordion" open><summary class="tsd-accordion-summary tsd-index-summary">
@@ -29,33 +29,15 @@
 <div class="tsd-accordion-details">
 <section class="tsd-index-section">
 <h3 class="tsd-index-heading">Properties</h3>
-<div class="tsd-index-list"><a href="v2.ParentMessage.html#cmd" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>cmd</span></a>
-<a href="v2.ParentMessage.html#err" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>err?</span></a>
-<a href="v2.ParentMessage.html#job" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>job?</span></a>
-<a href="v2.ParentMessage.html#value" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>value?</span></a>
+<div class="tsd-index-list"><a href="v4.MoveToDelayedOpts.html#skipAttempt" class="tsd-index-link"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>skip<wbr/>Attempt?</span></a>
 </div></section></div></details></section></section>
 <section class="tsd-panel-group tsd-member-group">
 <h2>Properties</h2>
-<section class="tsd-panel tsd-member"><a id="cmd" class="tsd-anchor"></a>
-<h3 class="tsd-anchor-link"><span>cmd</span><a href="#cmd" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
-<div class="tsd-signature"><span class="tsd-kind-property">cmd</span><span class="tsd-signature-symbol">:</span> <a href="../enums/v2.ChildCommand.html" class="tsd-signature-type tsd-kind-enum">ChildCommand</a></div><aside class="tsd-sources">
+<section class="tsd-panel tsd-member"><a id="skipAttempt" class="tsd-anchor"></a>
+<h3 class="tsd-anchor-link"><code class="tsd-tag ts-flagOptional">Optional</code> <span>skip<wbr/>Attempt</span><a href="#skipAttempt" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
+<div class="tsd-signature"><span class="tsd-kind-property">skip<wbr/>Attempt</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">boolean</span></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/65ce37ac1/src/interfaces/parent-message.ts#L5">interfaces/parent-message.ts:5</a></li></ul></aside></section>
-<section class="tsd-panel tsd-member"><a id="err" class="tsd-anchor"></a>
-<h3 class="tsd-anchor-link"><code class="tsd-tag ts-flagOptional">Optional</code> <span>err</span><a href="#err" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
-<div class="tsd-signature"><span class="tsd-kind-property">err</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type ">Error</span></div><aside class="tsd-sources">
-<ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/65ce37ac1/src/interfaces/parent-message.ts#L7">interfaces/parent-message.ts:7</a></li></ul></aside></section>
-<section class="tsd-panel tsd-member"><a id="job" class="tsd-anchor"></a>
-<h3 class="tsd-anchor-link"><code class="tsd-tag ts-flagOptional">Optional</code> <span>job</span><a href="#job" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
-<div class="tsd-signature"><span class="tsd-kind-property">job</span><span class="tsd-signature-symbol">?:</span> <a href="v2.JobJson.html" class="tsd-signature-type tsd-kind-interface">JobJson</a></div><aside class="tsd-sources">
-<ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/65ce37ac1/src/interfaces/parent-message.ts#L8">interfaces/parent-message.ts:8</a></li></ul></aside></section>
-<section class="tsd-panel tsd-member"><a id="value" class="tsd-anchor"></a>
-<h3 class="tsd-anchor-link"><code class="tsd-tag ts-flagOptional">Optional</code> <span>value</span><a href="#value" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24"><use href="#icon-anchor"></use></svg></a></h3>
-<div class="tsd-signature"><span class="tsd-kind-property">value</span><span class="tsd-signature-symbol">?:</span> <span class="tsd-signature-type">any</span></div><aside class="tsd-sources">
-<ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/65ce37ac1/src/interfaces/parent-message.ts#L6">interfaces/parent-message.ts:6</a></li></ul></aside></section></section></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/7cfbfa529/src/interfaces/minimal-job.ts#L8">interfaces/minimal-job.ts:8</a></li></ul></aside></section></section></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
@@ -72,10 +54,7 @@
 <h3><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><use href="#icon-chevronDown"></use></svg>On This Page</h3></summary>
 <div class="tsd-accordion-details">
 <ul>
-<li><a href="#cmd" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>cmd</span></a></li>
-<li><a href="#err" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>err</span></a></li>
-<li><a href="#job" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>job</span></a></li>
-<li><a href="#value" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>value</span></a></li></ul></div></details></div>
+<li><a href="#skipAttempt" class=""><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1024"></use></svg><span>skip<wbr/>Attempt</span></a></li></ul></div></details></div>
 <div class="site-menu">
 <nav class="tsd-navigation"><a href="../index.html"><svg class="tsd-kind-icon" viewBox="0 0 24 24"><use href="#icon-1"></use></svg><span>bullmq - v4.17.0</span></a>
 <ul class="tsd-small-nested-navigation" id="tsd-nav-container" data-base="..">
