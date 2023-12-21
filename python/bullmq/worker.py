@@ -64,30 +64,46 @@ class Worker(EventEmitter):
         token_postfix = 0
 
         while not self.closed:
-            while not self.waiting and len(self.processing) < self.opts.get("concurrency") and not self.closing:
+            num_total = len(self.processing)
+            while not self.waiting and num_total < self.opts.get("concurrency") and not self.closing and (not self.limitUntil or num_total == 0):
                 token_postfix+=1
                 token = f'{self.id}:{token_postfix}'
                 waiting_job = asyncio.ensure_future(self.getNextJob(token))
                 self.processing.add(waiting_job)
 
-            try:
-                jobs, pending = await getCompleted(self.processing)
+                num_total = len(self.processing)
 
-                jobs_to_process = [self.processJob(job, job.token) for job in jobs]
-                processing_jobs = [asyncio.ensure_future(
-                    j) for j in jobs_to_process]
-                pending.update(processing_jobs)
-                self.processing = pending
-
-                if (len(jobs) == 0 or len(self.processing) == 0) and self.closing:
-                    # We are done processing so we can close the queue
+                if self.waiting and num_total > 1:
+                    # we have a job waiting but we have others that we could start processing already
                     break
 
-            except Exception as e:
-                # This should never happen or we will have an endless loop
-                print("ERROR:", e)
-                traceback.print_exc()
-                return
+                try:
+                    jobs, pending = await getCompleted(self.processing)
+
+                    jobs_to_process = [self.processJob(job, job.token) for job in jobs]
+                    processing_jobs = [asyncio.ensure_future(
+                        j) for j in jobs_to_process]
+                    pending.update(processing_jobs)
+                    self.processing = pending
+
+                    # no more jobs waiting but we have others that could start processing already
+                    if (len(jobs)==0 and num_total>1):
+                        break
+
+                    # if there are potential jobs to be processed and blockUntil is set, we should exit to avoid waiting
+                    # for processing this job.
+                    if self.blockUntil:
+                        break
+
+                except Exception as e:
+                    # This should never happen or we will have an endless loop
+                    print("ERROR:", e)
+                    traceback.print_exc()
+                    return
+            
+            if (len(jobs) == 0 or len(self.processing) == 0) and self.closing:
+                # We are done processing so we can close the queue
+                break
 
         self.running = False
         self.timer.stop()
@@ -100,7 +116,7 @@ class Worker(EventEmitter):
         @returns a Job or undefined if no job was available in the queue.
         """
 
-        if not self.waiting:
+        if not self.waiting and not self.limitUntil:
             self.waiting = self.waitForJob()
 
             try:
@@ -110,12 +126,19 @@ class Worker(EventEmitter):
             finally:
                 self.waiting = None
         else:
+            if self.limitUntil:
+                await asyncio.sleep(self.limitUntil / 1000)
             job_instance = await self.moveToActive(token)
             return job_instance
 
     async def moveToActive(self, token: str, job_id: str = None):
         if job_id and job_id.startswith('0:'):
             self.blockUntil = int(job_id.split(':')[1]) or 0
+
+            # remove marker from active list
+            await self.client.lrem(self.scripts.toKey('active'), 1, job_id)
+            if self.blockUntil > 0:
+                return
 
         result = await self.scripts.moveToActive(token, self.opts, job_id)
         job_data = None
@@ -125,20 +148,14 @@ class Worker(EventEmitter):
 
         if result:
             job_data, id, limit_until, delay_until = result
+        self.updateDelays(limit_until, delay_until)
+        return self.nextJobFromJobData(job_data, id, token)
 
-        return self.nextJobFromJobData(job_data, id, limit_until, delay_until, token)
-
-    def nextJobFromJobData(self, job_data = None, job_id: str = None, limit_until: int = 0,
-        delay_until: int = 0, token: str = None):
-        self.limitUntil = max(limit_until, 0) or 0
-
+    def nextJobFromJobData(self, job_data = None, job_id: str = None, token: str = None):
         if not job_data:
             if not self.drained:
                 self.drained = True
                 self.blockUntil = 0
-
-        if delay_until:
-            self.blockUntil = max(delay_until, 0) or 0
 
         if job_data:
             self.drained = False
@@ -157,12 +174,17 @@ class Worker(EventEmitter):
         job_id = await self.bclient.brpoplpush(self.scripts.keys["wait"], self.scripts.keys["active"], timeout)
 
         return job_id
+    
+    def updateDelays(self, limit_until = 0, delay_until = 0):
+        self.limitUntil = max(limit_until, 0) or 0
+        self.blockUntil = max(delay_until, 0) or 0
 
     async def processJob(self, job: Job, token: str):
         try:
             self.jobs.add((job, token))
             result = await self.processor(job, token)
             if not self.forceClosing:
+                # TODO get next job from this script
                 await self.scripts.moveToCompleted(job, result, job.opts.get("removeOnComplete", False), token, self.opts, fetchNext=not self.closing)
                 job.returnvalue = result
             self.emit("completed", job, result)
