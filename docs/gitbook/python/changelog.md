@@ -2,6 +2,11 @@
 
 <!--next-version-placeholder-->
 
+## v1.24.0 (2023-12-21)
+### Feature
+* **job:** Add isWaitingChildren method [python] ([#2345](https://github.com/taskforcesh/bullmq/issues/2345)) ([`e9c1fa1`](https://github.com/taskforcesh/bullmq/commit/e9c1fa10b258ebe171a0396c29b6ccb05aef2608))
+* **queue:** Add a paginated getDependencies ([#2327](https://github.com/taskforcesh/bullmq/issues/2327)) ([`c5b8ba3`](https://github.com/taskforcesh/bullmq/commit/c5b8ba318b12a84a3a6a928345377fa0eaa08ee3))
+
 ## v1.23.0 (2023-12-18)
 ### Feature
 * **queue:** Add getRateLimitTtl method [python] ([#2340](https://github.com/taskforcesh/bullmq/issues/2340)) ([`f0a1f70`](https://github.com/taskforcesh/bullmq/commit/f0a1f7084478f7899233021fbb4d4307c94dfead))
