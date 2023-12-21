@@ -195,7 +195,7 @@ export class Worker<
   constructor(
     name: string,
     processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
-    opts: WorkerOptions = {},
+    opts?: WorkerOptions,
     Connection?: typeof RedisConnection,
   ) {
     super(
@@ -206,6 +206,10 @@ export class Worker<
       },
       Connection,
     );
+
+    if (!opts || !opts.connection) {
+      throw new Error('Worker requires a connection');
+    }
 
     this.opts = {
       drainDelay: 5,
