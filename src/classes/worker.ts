@@ -810,7 +810,10 @@ export class Worker<
 
       this.abortDelayController?.abort();
 
-      const client = await this.blockingConnection.client;
+      const client =
+        this.blockingConnection.status == 'ready'
+          ? await this.blockingConnection.client
+          : null;
 
       this.resume();
       await Promise.resolve()
@@ -832,7 +835,7 @@ export class Worker<
         })
         .finally(() => clearTimeout(this.extendLocksTimer))
         .finally(() => clearTimeout(this.stalledCheckTimer))
-        .finally(() => client.disconnect())
+        .finally(() => client && client.disconnect())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
       this.closed = true;

@@ -134,6 +134,16 @@ describe('connection', () => {
     });
   });
 
+  it('should close worker even if redis is down', async () => {
+    const connection = new IORedis('badhost', { maxRetriesPerRequest: null });
+    connection.on('error', () => {});
+
+    const worker = new Worker('test', async () => {}, { connection, prefix });
+
+    worker.on('error', err => {});
+    await worker.close();
+  });
+
   it('should recover from a connection loss', async () => {
     let processor;
 

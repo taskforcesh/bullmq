@@ -41,6 +41,8 @@ export class RedisConnection extends EventEmitter {
     canDoubleTimeout: false,
   };
 
+  status: 'initializing' | 'ready' | 'closing' | 'closed' = 'initializing';
+
   protected _client: RedisClient;
 
   private readonly opts: RedisOptions;
@@ -210,6 +212,7 @@ export class RedisConnection extends EventEmitter {
     this._client.on('ready', this.handleClientReady);
 
     await RedisConnection.waitUntilReady(this._client);
+
     this.loadCommands();
 
     this.version = await this.getRedisVersion();
@@ -238,6 +241,8 @@ export class RedisConnection extends EventEmitter {
     this.capabilities = {
       canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
     };
+
+    this.status = 'ready';
 
     return this._client;
   }
@@ -280,11 +285,16 @@ export class RedisConnection extends EventEmitter {
 
   async close(): Promise<void> {
     if (!this.closing) {
+      const status = this.status;
+      this.status = 'closing';
       this.closing = true;
       try {
-        await this.initializing;
-        if (!this.shared) {
-          await this._client.quit();
+        if (status === 'ready') {
+          // Not sure if we need to wait for this
+          await this.initializing;
+          if (!this.shared) {
+            await this._client.quit();
+          }
         }
       } catch (error) {
         if (isNotConnectionError(error as Error)) {
@@ -298,6 +308,7 @@ export class RedisConnection extends EventEmitter {
         decreaseMaxListeners(this._client, 3);
 
         this.removeAllListeners();
+        this.status = 'closed';
       }
     }
   }
