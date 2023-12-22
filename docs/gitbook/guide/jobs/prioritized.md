@@ -60,5 +60,5 @@ const jobs2 = await queue.getPrioritized();
 ## Read more:
 
 - 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
-- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v4.Job.html#changePriority)
-- 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#getPrioritized)
+- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changePriority)
+- 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getPrioritized)

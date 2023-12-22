@@ -28,4 +28,4 @@ Custom job ids must not contains **:** separator as it will be translated in 2 d
 
 ## Read more:
 
-- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/v4.QueueEventsListener.html#duplicated)
+- 💡 [Duplicated Event Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html#duplicated)
