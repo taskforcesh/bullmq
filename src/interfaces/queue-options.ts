@@ -14,12 +14,7 @@ export interface QueueBaseOptions {
   /**
    * Options for connecting to a Redis instance.
    */
-  connection?: ConnectionOptions;
-
-  /**
-   * Specify if the connection is shared.
-   */
-  sharedConnection?: boolean;
+  connection: ConnectionOptions;
 
   /**
    * Denotes commands should retry indefinitely.
@@ -30,6 +25,12 @@ export interface QueueBaseOptions {
    * Prefix for all queue keys.
    */
   prefix?: string;
+
+  /**
+   * Avoid version validation to be greater or equal than v5.0.0.
+   * @defaultValue false
+   */
+  skipVersionCheck?: boolean;
 }
 
 /**

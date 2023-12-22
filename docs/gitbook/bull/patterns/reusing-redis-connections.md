@@ -35,5 +35,4 @@ const opts = {
 
 const queueFoo = new Queue("foobar", opts);
 const queueQux = new Queue("quxbaz", opts);
-
 ```

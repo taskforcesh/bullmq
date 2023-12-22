@@ -5,10 +5,10 @@ yarn add @taskforcesh/nestjs-bullmq-pro
 ```
 
 {% hint style="info" %}
-BullMQ-Pro needs a token, please review [install](https://docs.bullmq.io/bullmq-pro/install) section.
+BullMQ-Pro needs a token, as explained in the [install](https://docs.bullmq.io/bullmq-pro/install) section.
 {% endhint %}
 
-Once the installation process is complete, we can import the **BullModule** into the root **AppModule**.
+Once the installation process is complete, we can import the `BullModule` into the root `AppModule`.
 
 ```typescript
 import { Module } from '@nestjs/common';
@@ -27,7 +27,7 @@ import { BullModule } from '@taskforcesh/nestjs-bullmq-pro';
 export class AppModule {}
 ```
 
-To register a queue, import the **BullModule.registerQueue()** dynamic module, as follows:
+To register a queue, import the `BullModule.registerQueue()` dynamic module, as follows:
 
 ```typescript
 BullModule.registerQueue({
@@ -35,7 +35,7 @@ BullModule.registerQueue({
 });
 ```
 
-To register a flow producer, import the **BullModule.registerFlowProducer()** dynamic module, as follows:
+To register a flow producer, import the `BullModule.registerFlowProducer()` dynamic module, as follows:
 
 ```typescript
 BullModule.registerFlowProducer({
@@ -45,7 +45,7 @@ BullModule.registerFlowProducer({
 
 # Processor
 
-To register a processor, you may need to use **Processor** decorator:
+To register a processor, you may need to use `Processor` decorator:
 
 ```typescript
 import {
@@ -102,3 +102,4 @@ A working example is available [here](https://github.com/taskforcesh/nestjs-bull
 - 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)
 - 💡 [Register Queue API Reference](https://nestjs.bullmq.pro/classes/BullModule.html#registerQueue)
 - 💡 [Register Flow Producer API Reference](https://nestjs.bullmq.pro/classes/BullModule.html#registerFlowProducer)
+- 💡 [Worker Listener API Reference](https://api.docs.bullmq.io/interfaces/v4.WorkerListener.html)

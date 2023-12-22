@@ -28,9 +28,9 @@ class Job:
     A Job instance is also passed to the Worker's process function.
     """
 
-    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}):
+    def __init__(self, queue: Queue, name: str, data: Any, opts: JobOptions = {}, job_id: str = None):
         self.name = name
-        self.id = opts.get("jobId", None)
+        self.id = opts.get("jobId", None) or job_id
         self.progress = 0
         self.timestamp = opts.get("timestamp", round(time.time() * 1000))
         final_opts = {"attempts": 0, "delay": 0}
@@ -42,6 +42,7 @@ class Job:
         self.delay = opts.get("delay", 0)
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
+        self.attemptsStarted = 0
         self.data = data
         self.removeOnComplete = opts.get("removeOnComplete", True)
         self.removeOnFail = opts.get("removeOnFail", False)
@@ -56,10 +57,15 @@ class Job:
         self.parent = {"id": parent.get("id"), "queueKey": parent.get("queue")} if parent else None
         self.stacktrace: List[str] = []
         self.scripts = Scripts(queue.prefix, queue.name, queue.redisConnection)
+        self.queueQualifiedName = queue.qualifiedName
 
     def updateData(self, data):
         self.data = data
         return self.scripts.updateData(self.id, data)
+
+    async def promote(self):
+        await self.scripts.promote(self.id)
+        self.delay = 0
 
     def retry(self, state: str = "failed"):
         self.failedReason = None
@@ -80,9 +86,44 @@ class Job:
 
     async def remove(self, opts: dict = {}):
         removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
-        
+
         if not removed:
-            raise Exception(f"Could not remove job {self.id}")
+            raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
+
+    def isCompleted(self):
+        """
+        Returns true if the job has completed.
+        """
+        return self.isInZSet('completed')
+
+    def isFailed(self):
+        """
+        Returns true if the job has failed.
+        """
+        return self.isInZSet('failed')
+
+    def isDelayed(self):
+        """
+        Returns true if the job is delayed.
+        """
+        return self.isInZSet('delayed')
+
+    def isWaitingChildren(self):
+        """
+        Returns true if the job is waiting for children.
+        """
+        return self.isInZSet('waiting-children')
+
+    async def isWaiting(self):
+        return ( await self.isInList('wait') or await self.isInList('paused'))
+
+    async def isInZSet(self, set: str):
+        score = await self.queue.client.zscore(self.scripts.toKey(set), self.id)
+
+        return score is not None
+
+    def isInList(self, list_name: str):
+        return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
@@ -90,13 +131,14 @@ class Job:
 
         move_to_failed = False
         finished_on = 0
+        delay = 0
         command = 'moveToFailed'
 
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
             await self.saveStacktrace(pipe, error_message)
-            if self.attemptsMade < self.opts['attempts'] and not self.discarded:
+            if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded:
                 delay = await Backoffs.calculate(
-                    self.opts.get('backoff'), self.attemptsMade,
+                    self.opts.get('backoff'), self.attemptsMade + 1,
                     err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
                     )
                 if delay == -1:
@@ -105,7 +147,8 @@ class Job:
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
                         round(time.time() * 1000) + delay,
-                        token
+                        token,
+                        delay
                     )
 
                     await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
@@ -135,6 +178,11 @@ class Job:
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
 
+        if delay and type(delay) == int:
+            self.delay = delay
+
+        self.attemptsMade = self.attemptsMade + 1
+
     async def saveStacktrace(self, pipe, err:str):
         stacktrace = traceback.format_exc()
         stackTraceLimit = self.opts.get("stackTraceLimit")
@@ -151,10 +199,6 @@ class Job:
 
     def moveToWaitingChildren(self, token, opts:dict):
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
-
-    @property
-    def queueQualifiedName(self):
-        return f"{self.queue.prefix}:{self.queue.name}"
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
@@ -184,8 +228,11 @@ class Job:
         if rawData.get("rjk"):
             job.repeatJobKey = rawData.get("rjk")
 
+        if rawData.get("ats"):
+            job.attemptsStarted = int(rawData.get("ats"))
+
         job.failedReason = rawData.get("failedReason")
-        job.attemptsMade = int(rawData.get("attemptsMade", "0"))
+        job.attemptsMade = int(rawData.get("attemptsMade") or rawData.get("atm") or "0")
 
         returnvalue = rawData.get("returnvalue")
         if type(returnvalue) == str:
@@ -229,6 +276,6 @@ def optsFromJSON(rawOpts: dict) -> dict:
 
 def getReturnValue(value: Any):
     try:
-        json.loads(value)
+        return json.loads(value)
     except Exception as err:
         return value

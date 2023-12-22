@@ -8,6 +8,7 @@ import {
   JobJson,
   JobJsonRaw,
   MinimalJob,
+  MoveToDelayedOpts,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
@@ -32,7 +33,7 @@ import {
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
-import { UnrecoverableError } from './unrecoverable-error';
+import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
 
 const logger = debuglog('bull');
@@ -64,6 +65,12 @@ export class Job<
 > implements MinimalJob<DataType, ReturnType, NameType>
 {
   /**
+   * It includes the prefix, the namespace separator :, and queue name.
+   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
+   */
+  public readonly queueQualifiedName: string;
+
+  /**
    * The progress a job has performed so far.
    * @defaultValue 0
    */
@@ -91,6 +98,12 @@ export class Job<
    * Timestamp when the job was created (unless overridden with job options).
    */
   timestamp: number;
+
+  /**
+   * Number of attempts when job is moved to active.
+   * @defaultValue 0
+   */
+  attemptsStarted = 0;
 
   /**
    * Number of attempts after the job has failed.
@@ -183,6 +196,8 @@ export class Job<
 
     this.toKey = queue.toKey.bind(queue);
     this.scripts = new Scripts(queue);
+
+    this.queueQualifiedName = queue.qualifiedName;
   }
 
   /**
@@ -303,7 +318,10 @@ export class Job<
     }
 
     job.failedReason = json.failedReason;
-    job.attemptsMade = parseInt(json.attemptsMade || '0');
+
+    job.attemptsStarted = parseInt(json.ats || '0');
+
+    job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
 
     job.stacktrace = getTraces(json.stacktrace);
 
@@ -368,6 +386,41 @@ export class Job<
     }
   }
 
+  /**
+   * addJobLog
+   *
+   * @param queue Queue instance
+   * @param jobId Job id
+   * @param logRow Log row
+   * @param keepLogs optional maximum number of logs to keep
+   *
+   * @returns The total number of log entries for this job so far.
+   */
+  static async addJobLog(
+    queue: MinimalQueue,
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    const client = await queue.client;
+    const logsKey = queue.toKey(jobId) + ':logs';
+
+    const multi = client.multi();
+
+    multi.rpush(logsKey, logRow);
+
+    if (keepLogs) {
+      multi.ltrim(logsKey, -keepLogs, -1);
+    }
+
+    const result = (await multi.exec()) as [
+      [Error, number],
+      [Error, string] | undefined,
+    ];
+
+    return keepLogs ? Math.min(keepLogs, result[0][1]) : result[0][1];
+  }
+
   toJSON() {
     const { queue, scripts, ...withoutQueueAndScripts } = this;
     return withoutQueueAndScripts;
@@ -387,6 +440,7 @@ export class Job<
       parentKey: this.parentKey,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
+      attemptsStarted: this.attemptsStarted,
       finishedOn: this.finishedOn,
       processedOn: this.processedOn,
       timestamp: this.timestamp,
@@ -443,36 +497,20 @@ export class Job<
    *
    * @param progress - number or object to be saved as progress.
    */
-  updateProgress(progress: number | object): Promise<void> {
+  async updateProgress(progress: number | object): Promise<void> {
     this.progress = progress;
-    return this.scripts.updateProgress(this, progress);
+    await this.scripts.updateProgress(this.id, progress);
+    this.queue.emit('progress', this, progress);
   }
 
   /**
    * Logs one row of log data.
    *
    * @param logRow - string with log data to be logged.
+   * @returns The total number of log entries for this job so far.
    */
   async log(logRow: string): Promise<number> {
-    const client = await this.queue.client;
-    const logsKey = this.toKey(this.id) + ':logs';
-
-    const multi = client.multi();
-
-    multi.rpush(logsKey, logRow);
-
-    if (this.opts.keepLogs) {
-      multi.ltrim(logsKey, -this.opts.keepLogs, -1);
-    }
-
-    const result = (await multi.exec()) as [
-      [Error, number],
-      [Error, string] | undefined,
-    ];
-
-    return this.opts.keepLogs
-      ? Math.min(this.opts.keepLogs, result[0][1])
-      : result[0][1];
+    return Job.addJobLog(this.queue, this.id, logRow, this.opts.keepLogs);
   }
 
   /**
@@ -508,7 +546,9 @@ export class Job<
     if (removed) {
       queue.emit('removed', job);
     } else {
-      throw new Error('Could not remove job ' + job.id);
+      throw new Error(
+        `Job ${this.id} could not be removed because it is locked by another worker`,
+      );
     }
   }
 
@@ -556,7 +596,10 @@ export class Job<
     );
 
     const result = await this.scripts.moveToFinished(this.id, args);
-    this.finishedOn = args[14] as number;
+    this.finishedOn = args[
+      this.scripts.moveToFinishedKeys.length + 1
+    ] as number;
+    this.attemptsMade += 1;
 
     return result;
   }
@@ -589,18 +632,18 @@ export class Job<
     // Check if an automatic retry should be performed
     //
     let moveToFailed = false;
-    let finishedOn;
+    let finishedOn, delay;
     if (
-      this.attemptsMade < this.opts.attempts &&
+      this.attemptsMade + 1 < this.opts.attempts &&
       !this.discarded &&
       !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
       const opts = queue.opts as WorkerOptions;
 
       // Check if backoff is needed
-      const delay = await Backoffs.calculate(
+      delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
-        this.attemptsMade,
+        this.attemptsMade + 1,
         err,
         this,
         opts.settings && opts.settings.backoffStrategy,
@@ -613,6 +656,7 @@ export class Job<
           this.id,
           Date.now() + delay,
           token,
+          delay,
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
@@ -637,7 +681,7 @@ export class Job<
         fetchNext,
       );
       (<any>multi).moveToFinished(args);
-      finishedOn = args[14];
+      finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
       command = 'failed';
     }
 
@@ -657,6 +701,12 @@ export class Job<
     if (finishedOn && typeof finishedOn === 'number') {
       this.finishedOn = finishedOn;
     }
+
+    if (delay && typeof delay === 'number') {
+      this.delay = delay;
+    }
+
+    this.attemptsMade += 1;
   }
 
   /**
@@ -716,14 +766,6 @@ export class Job<
   }
 
   /**
-   * @returns it includes the prefix, the namespace separator :, and queue name.
-   * @see https://www.gnu.org/software/gawk/manual/html_node/Qualified-Names.html
-   */
-  get queueQualifiedName(): string {
-    return `${this.prefix}:${this.queueName}`;
-  }
-
-  /**
    * Get current state.
    *
    * @returns Returns one of these values:
@@ -775,7 +817,12 @@ export class Job<
 
   /**
    * Get children job keys if this job is a parent and has children.
-   *
+   * @remarks
+   * Count options before Redis v7.2 works as expected with any quantity of entries
+   * on processed/unprocessed dependencies, since v7.2 you must consider that count
+   * won't have any effect until processed/unprocessed dependencies have a length
+   * greater than 127
+   * @see https://redis.io/docs/management/optimization/memory-optimization/#redis--72
    * @returns dependencies separated by processed and unprocessed.
    */
   async getDependencies(opts: DependenciesOpts = {}): Promise<{
@@ -994,8 +1041,17 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    return this.scripts.moveToDelayed(this.id, timestamp, token);
+  async moveToDelayed(timestamp: number, token?: string): Promise<void> {
+    const delay = timestamp - Date.now();
+    const movedToDelayed = await this.scripts.moveToDelayed(
+      this.id,
+      timestamp,
+      delay > 0 ? delay : 0,
+      token,
+      { skipAttempt: true },
+    );
+
+    return movedToDelayed;
   }
 
   /**
@@ -1005,11 +1061,17 @@ export class Job<
    * @param opts - The options bag for moving a job to waiting-children.
    * @returns true if the job was moved
    */
-  moveToWaitingChildren(
+  async moveToWaitingChildren(
     token: string,
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
-    return this.scripts.moveToWaitingChildren(this.id, token, opts);
+    const movedToWaitingChildren = await this.scripts.moveToWaitingChildren(
+      this.id,
+      token,
+      opts,
+    );
+
+    return movedToWaitingChildren;
   }
 
   /**
@@ -1018,10 +1080,9 @@ export class Job<
   async promote(): Promise<void> {
     const jobId = this.id;
 
-    const code = await this.scripts.promote(jobId);
-    if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, 'promote', 'delayed');
-    }
+    await this.scripts.promote(jobId);
+
+    this.delay = 0;
   }
 
   /**
@@ -1102,10 +1163,7 @@ export class Job<
     }
 
     if (`${parseInt(this.id, 10)}` === this.id) {
-      //TODO: throw an error in next breaking change
-      console.warn(
-        'Custom Ids should not be integers: https://github.com/taskforcesh/bullmq/pull/1569',
-      );
+      throw new Error('Custom Ids cannot be integers');
     }
 
     if (this.opts.priority) {

@@ -1,7 +1,12 @@
 import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient } from '../interfaces';
 import { MinimalQueue } from '../types';
-import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
+import {
+  delay,
+  DELAY_TIME_5,
+  isNotConnectionError,
+  isRedisInstance,
+} from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
@@ -20,8 +25,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   keys: KeysMap;
   closing: Promise<void> | undefined;
 
+  protected closed: boolean = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
+  public readonly qualifiedName: string;
 
   /**
    *
@@ -32,7 +39,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   constructor(
     public readonly name: string,
-    public opts: QueueBaseOptions = {},
+    public opts: QueueBaseOptions = { connection: {} },
     Connection: typeof RedisConnection = RedisConnection,
   ) {
     super();
@@ -42,20 +49,15 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       ...opts,
     };
 
-    if (!opts.connection) {
-      console.warn(
-        [
-          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker and QueueEvents',
-          'without providing explicitly a connection or connection options is deprecated. This behaviour will',
-          'be removed in the next major release',
-        ].join(' '),
-      );
+    if (!name) {
+      throw new Error('Queue name must be provided');
     }
 
     this.connection = new Connection(
       opts.connection,
-      opts.sharedConnection,
+      isRedisInstance(opts.connection),
       opts.blockingConnection,
+      opts.skipVersionCheck,
     );
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
@@ -66,6 +68,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     });
 
     const queueKeys = new QueueKeys(opts.prefix);
+    this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
     this.scripts = new Scripts(this);
@@ -128,13 +131,14 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   /**
    *
-   * @returns Closes the connection and returns a promise that resolves when the connection is closed.
+   * Closes the connection and returns a promise that resolves when the connection is closed.
    */
-  close(): Promise<void> {
+  async close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
     }
-    return this.closing;
+    await this.closing;
+    this.closed = true;
   }
 
   /**

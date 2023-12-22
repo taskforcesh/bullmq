@@ -1,7 +1,12 @@
 import * as fs from 'fs';
+import { URL } from 'url';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
+
+// Note: this Polyfill is only needed for Node versions < 15.4.0
+import { AbortController } from 'node-abort-controller';
+
 import {
   GetNextJobOptions,
   IoredisListener,
@@ -16,7 +21,6 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
-  isRedisVersionLowerThan,
   WORKER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
@@ -26,8 +30,12 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { AsyncFifoQueue } from './async-fifo-queue';
-import { DelayedError } from './delayed-error';
-import { WaitingChildrenError } from './waiting-children-error';
+import {
+  DelayedError,
+  RateLimitError,
+  RATE_LIMIT_ERROR,
+  WaitingChildrenError,
+} from './errors';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -144,8 +152,6 @@ export interface WorkerListener<
   stalled: (jobId: string, prev: string) => void;
 }
 
-const RATE_LIMIT_ERROR = 'bullmq:rateLimitExceeded';
-
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
@@ -161,53 +167,48 @@ export class Worker<
   readonly opts: WorkerOptions;
   readonly id: string;
 
-  private drained: boolean = false;
-  private waiting: Promise<string> | null = null;
-  private running = false;
-  private blockUntil = 0;
-  private limitUntil = 0;
-
-  protected processFn: Processor<DataType, ResultType, NameType>;
-
-  private resumeWorker: () => void;
-  protected paused: Promise<void>;
-  private _repeat: Repeat;
-  private childPool: ChildPool;
-
-  private extendLocksTimer: NodeJS.Timeout | null = null;
-
-  private blockingConnection: RedisConnection;
-
-  private stalledCheckTimer: NodeJS.Timeout;
-
+  private abortDelayController: AbortController | null = null;
   private asyncFifoQueue: AsyncFifoQueue<void | Job<
     DataType,
     ResultType,
     NameType
   >>;
+  private blockingConnection: RedisConnection;
+  private blockUntil = 0;
+  private childPool: ChildPool;
+  private drained: boolean = false;
+  private extendLocksTimer: NodeJS.Timeout | null = null;
+  private limitUntil = 0;
+  private resumeWorker: () => void;
+  private stalledCheckTimer: NodeJS.Timeout;
+  private waiting: Promise<number> | null = null;
+  private _repeat: Repeat;
+
+  protected paused: Promise<void>;
+  protected processFn: Processor<DataType, ResultType, NameType>;
+  protected running = false;
 
   static RateLimitError(): Error {
-    return new Error(RATE_LIMIT_ERROR);
+    return new RateLimitError();
   }
 
   constructor(
     name: string,
-    processor?: string | null | Processor<DataType, ResultType, NameType>,
-    opts: WorkerOptions = {},
+    processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
+    opts?: WorkerOptions,
     Connection?: typeof RedisConnection,
   ) {
     super(
       name,
       {
         ...opts,
-        sharedConnection: isRedisInstance(opts.connection),
         blockingConnection: true,
       },
       Connection,
     );
 
-    if (this.opts.stalledInterval <= 0) {
-      throw new Error('stalledInterval must be greater than 0');
+    if (!opts || !opts.connection) {
+      throw new Error('Worker requires a connection');
     }
 
     this.opts = {
@@ -221,6 +222,10 @@ export class Worker<
       ...this.opts,
     };
 
+    if (this.opts.stalledInterval <= 0) {
+      throw new Error('stalledInterval must be greater than 0');
+    }
+
     this.concurrency = this.opts.concurrency;
 
     this.opts.lockRenewTime =
@@ -233,19 +238,31 @@ export class Worker<
         this.processFn = processor;
       } else {
         // SANDBOXED
-        const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs'];
-        const processorFile =
-          processor +
-          (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
+        if (processor instanceof URL) {
+          if (!fs.existsSync(processor)) {
+            throw new Error(
+              `URL ${processor} does not exist in the local file system`,
+            );
+          }
+          processor = processor.href;
+        } else {
+          const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs'];
+          const processorFile =
+            processor +
+            (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
 
-        if (!fs.existsSync(processorFile)) {
-          throw new Error(`File ${processorFile} does not exist`);
+          if (!fs.existsSync(processorFile)) {
+            throw new Error(`File ${processorFile} does not exist`);
+          }
         }
 
         const mainFile = this.opts.useWorkerThreads
           ? 'main-worker.js'
           : 'main.js';
-        let mainFilePath = path.join(__dirname, `${mainFile}`);
+        let mainFilePath = path.join(
+          path.dirname(module.filename),
+          `${mainFile}`,
+        );
         try {
           fs.statSync(mainFilePath); // would throw if file not exists
         } catch (_) {
@@ -277,6 +294,9 @@ export class Worker<
       isRedisInstance(opts.connection)
         ? (<Redis>opts.connection).duplicate({ connectionName })
         : { ...opts.connection, connectionName },
+      false,
+      true,
+      opts.skipVersionCheck,
     );
     this.blockingConnection.on('error', error => this.emit('error', error));
     this.blockingConnection.on('ready', () =>
@@ -345,8 +365,12 @@ export class Worker<
   }
 
   set concurrency(concurrency: number) {
-    if (typeof concurrency !== 'number' || concurrency < 1) {
-      throw new Error('concurrency must be a number greater than 0');
+    if (
+      typeof concurrency !== 'number' ||
+      concurrency < 1 ||
+      !isFinite(concurrency)
+    ) {
+      throw new Error('concurrency must be a finite number greater than 0');
     }
     this.opts.concurrency = concurrency;
   }
@@ -391,22 +415,57 @@ export class Worker<
 
       let tokenPostfix = 0;
 
+      const client = await this.client;
+      const bclient = await this.blockingConnection.client;
+
       while (!this.closing) {
+        let numTotal = asyncFifoQueue.numTotal();
         while (
           !this.waiting &&
-          asyncFifoQueue.numTotal() < this.opts.concurrency &&
-          (!this.limitUntil || asyncFifoQueue.numTotal() == 0)
+          numTotal < this.opts.concurrency &&
+          (!this.limitUntil || numTotal == 0)
         ) {
           const token = `${this.id}:${tokenPostfix++}`;
-          asyncFifoQueue.add(
-            this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-              () => this.getNextJob(token),
-              this.opts.runRetryDelay,
-            ),
+
+          const fetchedJob = this.retryIfFailed<void | Job<
+            DataType,
+            ResultType,
+            NameType
+          >>(
+            () => this._getNextJob(client, bclient, token, { block: true }),
+            this.opts.runRetryDelay,
           );
+          asyncFifoQueue.add(fetchedJob);
+
+          numTotal = asyncFifoQueue.numTotal();
+
+          if (this.waiting && numTotal > 1) {
+            // We are waiting for jobs but we have others that we could start processing already
+            break;
+          }
+
+          // We await here so that we fetch jobs in sequence, this is important to avoid unnecessary calls
+          // to Redis in high concurrency scenarios.
+          const job = await fetchedJob;
+
+          // No more jobs waiting but we have others that could start processing already
+          if (!job && numTotal > 1) {
+            break;
+          }
+
+          // If there are potential jobs to be processed and blockUntil is set, we should exit to avoid waiting
+          // for processing this job.
+          if (this.blockUntil) {
+            break;
+          }
         }
 
-        const job = await asyncFifoQueue.fetch();
+        // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
+        // we iterate until we find a job.
+        let job: Job<DataType, ResultType, NameType> | void;
+        do {
+          job = await asyncFifoQueue.fetch();
+        } while (!job && asyncFifoQueue.numQueued() > 0);
 
         if (job) {
           const token = job.token;
@@ -414,7 +473,7 @@ export class Worker<
             this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
               () =>
                 this.processJob(
-                  job,
+                  <Job<DataType, ResultType, NameType>>job,
                   token,
                   () => asyncFifoQueue.numTotal() <= this.opts.concurrency,
                   jobsInProgress,
@@ -438,7 +497,18 @@ export class Worker<
    * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(
+  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
+    return this._getNextJob(
+      await this.client,
+      await this.blockingConnection.client,
+      token,
+      { block },
+    );
+  }
+
+  private async _getNextJob(
+    client: RedisClient,
+    bclient: RedisClient,
     token: string,
     { block = true }: GetNextJobOptions = {},
   ): Promise<Job<DataType, ResultType, NameType> | undefined> {
@@ -455,13 +525,12 @@ export class Worker<
     }
 
     if (this.drained && block && !this.limitUntil && !this.waiting) {
+      this.waiting = this.waitForJob(bclient, this.blockUntil);
       try {
-        this.waiting = this.waitForJob();
-        try {
-          const jobId = await this.waiting;
-          return this.moveToActive(token, jobId);
-        } finally {
-          this.waiting = null;
+        this.blockUntil = await this.waiting;
+
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 10) {
+          return this.moveToActive(client, token);
         }
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
@@ -471,13 +540,16 @@ export class Worker<
         ) {
           throw err;
         }
+      } finally {
+        this.waiting = null;
       }
     } else {
       if (this.limitUntil) {
-        // TODO: We need to be able to break this delay when we are closing the worker.
-        await this.delay(this.limitUntil);
+        this.abortDelayController?.abort();
+        this.abortDelayController = new AbortController();
+        await this.delay(this.limitUntil, this.abortDelayController);
       }
-      return this.moveToActive(token);
+      return this.moveToActive(client, token);
     }
   }
 
@@ -498,58 +570,57 @@ export class Worker<
   }
 
   protected async moveToActive(
+    client: RedisClient,
     token: string,
-    jobId?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    // If we get the special delayed job ID, we pick the delay as the next
-    // block timeout.
-    if (jobId && jobId.startsWith('0:')) {
-      this.blockUntil = parseInt(jobId.split(':')[1]) || 0;
-    }
     const [jobData, id, limitUntil, delayUntil] =
-      await this.scripts.moveToActive(token, jobId);
-    return this.nextJobFromJobData(jobData, id, limitUntil, delayUntil, token);
+      await this.scripts.moveToActive(client, token);
+    this.updateDelays(limitUntil, delayUntil);
+
+    return this.nextJobFromJobData(jobData, id, token);
   }
 
-  private async waitForJob() {
-    // I am not sure returning here this quick is a good idea, the main
-    // loop could stay looping at a very high speed and consume all CPU time.
+  private async waitForJob(
+    bclient: RedisClient,
+    blockUntil: number,
+  ): Promise<number> {
     if (this.paused) {
-      return;
+      return Infinity;
     }
 
     try {
       const opts: WorkerOptions = <WorkerOptions>this.opts;
 
       if (!this.closing) {
-        const client = await this.blockingConnection.client;
-
         let blockTimeout = Math.max(
-          this.blockUntil
-            ? (this.blockUntil - Date.now()) / 1000
-            : opts.drainDelay,
-          0.01,
+          blockUntil ? (blockUntil - Date.now()) / 1000 : opts.drainDelay,
+          0,
         );
 
-        // Only Redis v6.0.0 and above supports doubles as block time
-        blockTimeout = isRedisVersionLowerThan(
-          this.blockingConnection.redisVersion,
-          '6.0.0',
-        )
-          ? Math.ceil(blockTimeout)
-          : blockTimeout;
+        // Blocking for less than 50ms is useless.
+        if (blockTimeout > 0.05) {
+          blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+            ? blockTimeout
+            : Math.ceil(blockTimeout);
 
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+          // We restrict the maximum block timeout to 10 second to avoid
+          // blocking the connection for too long in the case of reconnections
+          // reference: https://github.com/taskforcesh/bullmq/issues/1658
+          blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
 
-        const jobId = await client.brpoplpush(
-          this.keys.wait,
-          this.keys.active,
-          blockTimeout,
-        );
-        return jobId;
+          // Markers should only be used for un-blocking, so we will handle them in this
+          // function only.
+          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+
+          if (result) {
+            const [_key, member, score] = result;
+
+            if (member) {
+              return parseInt(score);
+            }
+          }
+        }
+        return 0;
       }
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
@@ -561,37 +632,36 @@ export class Worker<
     } finally {
       this.waiting = null;
     }
+    return Infinity;
   }
 
   /**
    *
    * This function is exposed only for testing purposes.
    */
-  async delay(milliseconds?: number): Promise<void> {
-    await delay(milliseconds || DELAY_TIME_1);
+  async delay(
+    milliseconds?: number,
+    abortController?: AbortController,
+  ): Promise<void> {
+    await delay(milliseconds || DELAY_TIME_1, abortController);
+  }
+
+  private updateDelays(limitUntil = 0, delayUntil = 0) {
+    this.limitUntil = Math.max(limitUntil, 0) || 0;
+    this.blockUntil = Math.max(delayUntil, 0) || 0;
   }
 
   protected async nextJobFromJobData(
     jobData?: JobJsonRaw,
     jobId?: string,
-    limitUntil?: number,
-    delayUntil?: number,
     token?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
     if (!jobData) {
       if (!this.drained) {
         this.emit('drained');
         this.drained = true;
-        this.blockUntil = 0;
       }
-    }
-
-    this.limitUntil = Math.max(limitUntil, 0) || 0;
-    if (delayUntil) {
-      this.blockUntil = Math.max(delayUntil, 0) || 0;
-    }
-
-    if (jobData) {
+    } else {
       this.drained = false;
       const job = this.createJob(jobData, jobId);
       job.token = token;
@@ -622,13 +692,9 @@ export class Worker<
         );
         this.emit('completed', job, result, 'active');
         const [jobData, jobId, limitUntil, delayUntil] = completed || [];
-        return this.nextJobFromJobData(
-          jobData,
-          jobId,
-          limitUntil,
-          delayUntil,
-          token,
-        );
+        this.updateDelays(limitUntil, delayUntil);
+
+        return this.nextJobFromJobData(jobData, jobId, token);
       }
     };
 
@@ -642,7 +708,7 @@ export class Worker<
 
           if (
             err instanceof DelayedError ||
-            err.name == 'DelayedError' ||
+            err.message == 'DelayedError' ||
             err instanceof WaitingChildrenError ||
             err.name == 'WaitingChildrenError'
           ) {
@@ -742,6 +808,8 @@ export class Worker<
     this.closing = (async () => {
       this.emit('closing', 'closing queue');
 
+      this.abortDelayController?.abort();
+
       const client = await this.blockingConnection.client;
 
       this.resume();
@@ -767,6 +835,7 @@ export class Worker<
         .finally(() => client.disconnect())
         .finally(() => this.connection.close())
         .finally(() => this.emit('closed'));
+      this.closed = true;
     })();
     return this.closing;
   }
@@ -806,7 +875,7 @@ export class Worker<
     if (!this.opts.skipLockRenewal) {
       clearTimeout(this.extendLocksTimer);
 
-      if (!this.closing) {
+      if (!this.closed) {
         this.extendLocksTimer = setTimeout(async () => {
           // Get all the jobs whose locks expire in less than 1/2 of the lockRenewTime
           const now = Date.now();
@@ -849,7 +918,8 @@ export class Worker<
     // Force reconnection of blocking connection to abort blocking redis call immediately.
     //
     if (this.waiting) {
-      await this.blockingConnection.disconnect();
+      // If we are not going to reconnect, we will not wait for the disconnection.
+      await this.blockingConnection.disconnect(reconnect);
     } else {
       reconnect = false;
     }

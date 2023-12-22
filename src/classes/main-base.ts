@@ -4,7 +4,7 @@
  */
 import { toString } from 'lodash';
 import { ChildProcessor } from './child-processor';
-import { ParentCommand, ChildCommand } from '../interfaces';
+import { ParentCommand, ChildCommand } from '../enums';
 import { errorToJSON } from '../utils';
 
 export default (
@@ -20,7 +20,7 @@ export default (
           await childProcessor.init(msg.value);
           break;
         case ChildCommand.Start:
-          await childProcessor.start(msg.job);
+          await childProcessor.start(msg.job, msg?.token);
           break;
         case ChildCommand.Stop:
           break;
@@ -44,6 +44,6 @@ export default (
 
     // An uncaughException leaves this process in a potentially undetermined state so
     // we must exit
-    process.exit(-1);
+    process.exit();
   });
 };

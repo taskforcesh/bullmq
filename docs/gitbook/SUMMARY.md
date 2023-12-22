@@ -40,9 +40,15 @@
 * [Returning job data](guide/returning-job-data.md)
 * [Events](guide/events.md)
 * [QueueScheduler](guide/queuescheduler.md)
+* [Redis™ Compatibility](guide/redis-tm-compatibility/README.md)
+  * [Dragonfly](guide/redis-tm-compatibility/dragonfly.md)
+* [Redis™ hosting](guide/redis-tm-hosting/README.md)
+  * [AWS MemoryDB](guide/redis-tm-hosting/aws-memorydb.md)
+  * [AWS Elasticache](guide/redis-tm-hosting/aws-elasticache.md)
 * [Architecture](guide/architecture.md)
 * [NestJs](guide/nestjs/README.md)
   * [Producers](guide/nestjs/producers.md)
+  * [Queue Events Listeners](guide/nestjs/queue-events-listeners.md)
 * [Going to production](guide/going-to-production.md)
 * [Migration to newer versions](guide/migration-to-newer-versions.md)
 
@@ -57,6 +63,7 @@
 * [Process Step Jobs](patterns/process-step-jobs.md)
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
 * [Stop retrying jobs](patterns/stop-retrying-jobs.md)
+* [Redis Cluster](patterns/redis-cluster.md)
 
 ## BullMQ Pro
 
@@ -73,6 +80,7 @@
 * [Batches](bullmq-pro/batches.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
   * [Producers](bullmq-pro/nestjs/producers.md)
+  * [Queue Events Listeners](bullmq-pro/nestjs/queue-events-listeners.md)
   * [API Reference](https://nestjs.bullmq.pro/)
   * [Changelog](bullmq-pro/nestjs/changelog.md)
 * [API Reference](https://api.bullmq.pro)

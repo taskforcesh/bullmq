@@ -1,4 +1,4 @@
-import { ParentCommand } from './parent-command';
+import { ParentCommand } from '../enums/parent-command';
 
 export interface ChildMessage {
   cmd: ParentCommand;
