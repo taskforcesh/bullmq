@@ -119,5 +119,5 @@ const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {});
 
 ## Read more:
 
-* 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v4.Worker.html)
-* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v4.QueueEvents.html)
+* 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
+* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)

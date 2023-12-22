@@ -51,13 +51,13 @@ A token represents ownership by given worker currently working on a given job. I
 
 ## Checking for stalled jobs
 
-When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move stalled jobs (whose lock has expired) back to the _wait_ status (or _failed_ if they have exhausted the maximum number of [stalled attempts](https://api.docs.bullmq.io/interfaces/v4.WorkerOptions.html#maxStalledCount), which is 1 by default).
+When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move stalled jobs (whose lock has expired) back to the _wait_ status (or _failed_ if they have exhausted the maximum number of [stalled attempts](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#maxStalledCount), which is 1 by default).
 
 ```typescript
 await worker.startStalledCheckTimer()
 ```
 
-The checker will run periodically (based on the [`stalledInterval`](https://api.docs.bullmq.io/interfaces/v4.WorkerOptions.html#stalledInterval) option) until the worker is closed.
+The checker will run periodically (based on the [`stalledInterval`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#stalledInterval) option) until the worker is closed.
 
 ## Looping through jobs
 
