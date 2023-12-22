@@ -31,6 +31,7 @@
     "coverage": "nyc --reporter=text --reporter=lcovonly yarn test",
     "cm": "git cz",
     "docs": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts",
+    "docs:json": "typedoc --excludeExternals --excludeProtected --excludePrivate --readme none src/index.ts --json ./apiVersions/v5.json --name v5",
     "dc:up": "docker-compose -f docker-compose.yml up -d",
     "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
