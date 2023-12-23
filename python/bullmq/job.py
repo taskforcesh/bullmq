@@ -114,6 +114,12 @@ class Job:
         """
         return self.isInZSet('waiting-children')
 
+    def isActive(self):
+        """
+        Returns true if the job is active.
+        """
+        return self.isInList('active')
+
     async def isWaiting(self):
         return ( await self.isInList('wait') or await self.isInList('paused'))
 
