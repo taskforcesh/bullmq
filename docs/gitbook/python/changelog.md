@@ -2,6 +2,31 @@
 
 <!--next-version-placeholder-->
 
+## v2.0.0 (2023-12-23)
+### Feature
+* **job:** Add isActive method [python] ([#2352](https://github.com/taskforcesh/bullmq/issues/2352)) ([`afb5e31`](https://github.com/taskforcesh/bullmq/commit/afb5e31484ed2e5a1c381c732321225c0a8b78ff))
+* **sandbox:** Support URL (local files) as processor file ([`7eea670`](https://github.com/taskforcesh/bullmq/commit/7eea6700b33bfd7f36b030b647b819a4c5fd9606))
+* **job:** Provide skipAttempt option when manually moving a job ([#2203](https://github.com/taskforcesh/bullmq/issues/2203)) ([`0e88e4f`](https://github.com/taskforcesh/bullmq/commit/0e88e4fe4ed940487dfc79d1345d0686de22d0c6))
+* **worker:** Improved markers handling ([`73cf5fc`](https://github.com/taskforcesh/bullmq/commit/73cf5fc1e6e13d8329e1e4e700a8db92173e0624))
+* **python:** Use new queue markers ([`b0a13e8`](https://github.com/taskforcesh/bullmq/commit/b0a13e86285998ce0524eb443d732bce91e9b6c5))
+* **python:** Use new queue markers ([`4276eb7`](https://github.com/taskforcesh/bullmq/commit/4276eb725ca294ddbfc00c4edc627bb2cb5d403a))
+* **worker:** Improved markers handling ([`0bac0fb`](https://github.com/taskforcesh/bullmq/commit/0bac0fbb97afa968aa7644f1438b86d7bc18bbc5))
+
+### Fix
+* **worker:** Throw error if connection is missing ([`6491a18`](https://github.com/taskforcesh/bullmq/commit/6491a185268ae546baa9b95a20b95d63c0e27915))
+* **connection:** Require connection to be passed ([#2335](https://github.com/taskforcesh/bullmq/issues/2335)) ([`1867dd1`](https://github.com/taskforcesh/bullmq/commit/1867dd107d7edbd417bf6918354ae4656480a544))
+* **job:** Revert console warn custom job ids when they represent integers ([#2312](https://github.com/taskforcesh/bullmq/issues/2312)) ([`84015ff`](https://github.com/taskforcesh/bullmq/commit/84015ffa04216c45d8f3181a7f859b8c0792c80d))
+* **python:** Unify redis connection args for Queue and Worker ([#2282](https://github.com/taskforcesh/bullmq/issues/2282)) ([`8eee20f`](https://github.com/taskforcesh/bullmq/commit/8eee20f1210a49024eeee6647817f0659b8c3893))
+
+### Breaking
+* Markers use now a dedicated key in redis instead of using a special Job ID.  ([`73cf5fc`](https://github.com/taskforcesh/bullmq/commit/73cf5fc1e6e13d8329e1e4e700a8db92173e0624))
+* Markers use now a dedicated key in redis instead of using a special Job ID.  ([`0bac0fb`](https://github.com/taskforcesh/bullmq/commit/0bac0fbb97afa968aa7644f1438b86d7bc18bbc5))
+
+### Documentation
+* **guide:** Update api references with v5 ([#2349](https://github.com/taskforcesh/bullmq/issues/2349)) ([`fb0d8a7`](https://github.com/taskforcesh/bullmq/commit/fb0d8a7acba12d86dc2caa1a775248f397a769e1))
+* **queue:** Fix typo using other word ([#2348](https://github.com/taskforcesh/bullmq/issues/2348)) ([`60c9b91`](https://github.com/taskforcesh/bullmq/commit/60c9b914224c9857ebbbaa23b3288b5d5761c3ca))
+* **api:** Add script to generate json file ([`8f1b050`](https://github.com/taskforcesh/bullmq/commit/8f1b05064200e2da013a61f8f782abc45df0c63c))
+
 ## v1.24.0 (2023-12-21)
 ### Feature
 * **job:** Add isWaitingChildren method [python] ([#2345](https://github.com/taskforcesh/bullmq/issues/2345)) ([`e9c1fa1`](https://github.com/taskforcesh/bullmq/commit/e9c1fa10b258ebe171a0396c29b6ccb05aef2608))
