@@ -1076,6 +1076,7 @@ describe('Job', function () {
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
       await job.promote();
+      expect(job.delay).to.be.equal(0);
 
       const isDelayedAfterPromote = await job.isDelayed();
       expect(isDelayedAfterPromote).to.be.equal(false);
@@ -1096,12 +1097,16 @@ describe('Job', function () {
       );
       await worker.waitUntilReady();
 
-      const completing = new Promise<void>(resolve => {
+      const completing = new Promise<void>((resolve, reject) => {
         worker.on(
           'completed',
           after(4, () => {
-            expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
-            resolve();
+            try {
+              expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
           }),
         );
       });

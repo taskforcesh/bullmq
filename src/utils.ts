@@ -6,9 +6,9 @@ import { AbortController } from 'node-abort-controller';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import * as semver from 'semver';
 import { ChildMessage, RedisClient } from './interfaces';
 import { EventEmitter } from 'events';
+import * as semver from 'semver';
 
 export const errorObject: { [index: string]: any } = { value: null };
 

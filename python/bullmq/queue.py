@@ -11,11 +11,12 @@ class Queue:
     Instantiate a Queue object
     """
 
-    def __init__(self, name: str, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
+    def __init__(self, name: str, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
         self.name = name
+        redisOpts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redisOpts)
         self.client = self.redisConnection.conn
         self.opts = opts
@@ -108,6 +109,12 @@ class Queue:
         """
         paused_key_exists = await self.client.hexists(self.keys["meta"], "paused")
         return paused_key_exists == 1
+
+    def getRateLimitTtl(self):
+        """
+        Returns the time to live for a rate limited key in milliseconds.
+        """
+        return self.client.pttl(self.keys["limiter"])
 
     async def obliterate(self, force: bool = False):
         """

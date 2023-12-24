@@ -150,10 +150,13 @@ describe('Rate Limiter', function () {
           duration: 2000,
         },
       };
-      const worker1 = new Worker(queueName, async () => {}, commontOpts);
-      const worker2 = new Worker(queueName, async () => {}, commontOpts);
-      const worker3 = new Worker(queueName, async () => {}, commontOpts);
-      const worker4 = new Worker(queueName, async () => {}, commontOpts);
+
+      const processor = async () => {};
+
+      const worker1 = new Worker(queueName, processor, commontOpts);
+      const worker2 = new Worker(queueName, processor, commontOpts);
+      const worker3 = new Worker(queueName, processor, commontOpts);
+      const worker4 = new Worker(queueName, processor, commontOpts);
 
       const result = new Promise<void>((resolve, reject) => {
         queueEvents.once('completed', async () => {
@@ -165,13 +168,15 @@ describe('Rate Limiter', function () {
         });
       });
 
-      await delay(500);
+      await delay(100);
 
       const jobs = Array.from(Array(numJobs).keys()).map(() => ({
         name: 'rate test',
         data: {},
       }));
       await queue.addBulk(jobs);
+
+      await delay(100);
 
       await queue.pause();
 
@@ -364,7 +369,7 @@ describe('Rate Limiter', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade === 1) {
+          if (job.attemptsStarted === 1) {
             await worker.rateLimit(dynamicLimit);
             const currentTtl = await queue.getRateLimitTtl();
             expect(currentTtl).to.be.lessThanOrEqual(250);
@@ -427,7 +432,7 @@ describe('Rate Limiter', function () {
           queueName,
           async job => {
             await worker.rateLimit(dynamicLimit);
-            if (job.attemptsMade >= job.opts.attempts!) {
+            if (job.attemptsStarted >= job.opts.attempts!) {
               throw new UnrecoverableError('Unrecoverable');
             }
             throw Worker.RateLimitError();
@@ -482,7 +487,7 @@ describe('Rate Limiter', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade === 1) {
+            if (job.attemptsStarted === 1) {
               if (extraCount > 0) {
                 await queue.add('rate test', {}, { priority });
                 priority -= 1;
@@ -614,7 +619,7 @@ describe('Rate Limiter', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade === 1) {
+            if (job.attemptsMade === 0) {
               await queue.pause();
               await delay(150);
               await worker.rateLimit(dynamicLimit);

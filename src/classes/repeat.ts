@@ -1,6 +1,6 @@
 import { parseExpression } from 'cron-parser';
 import { createHash } from 'crypto';
-import { RepeatBaseOptions, RepeatOptions } from '../interfaces';
+import { RepeatBaseOptions, RepeatableJob, RepeatOptions } from '../interfaces';
 import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
@@ -171,7 +171,7 @@ export class Repeat extends QueueBase {
     return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
-  private keyToData(key: string, next?: number) {
+  private keyToData(key: string, next?: number): RepeatableJob {
     const data = key.split(':');
     const pattern = data.slice(4).join(':') || null;
 
@@ -186,7 +186,11 @@ export class Repeat extends QueueBase {
     };
   }
 
-  async getRepeatableJobs(start = 0, end = -1, asc = false) {
+  async getRepeatableJobs(
+    start = 0,
+    end = -1,
+    asc = false,
+  ): Promise<RepeatableJob[]> {
     const client = await this.client;
 
     const key = this.keys.repeat;
@@ -240,7 +244,10 @@ function getRepeatKey(name: string, repeat: RepeatOptions) {
   return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
 
-export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
+export const getNextMillis = (
+  millis: number,
+  opts: RepeatOptions,
+): number | undefined => {
   const pattern = opts.pattern;
   if (pattern && opts.every) {
     throw new Error(

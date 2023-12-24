@@ -685,7 +685,7 @@ describe('flows', () => {
         (parentProcessor = async (job: Job) => {
           switch (job.name) {
             case 'task3': {
-              if (job.attemptsMade != job.opts.attempts) {
+              if (job.attemptsMade + 1 != job.opts.attempts) {
                 throw {};
               }
               counter++;
@@ -695,7 +695,7 @@ describe('flows', () => {
               break;
             }
             case 'task2': {
-              if (job.attemptsMade != job.opts.attempts) {
+              if (job.attemptsMade + 1 != job.opts.attempts) {
                 throw {};
               }
               counter++;
@@ -1081,7 +1081,7 @@ describe('flows', () => {
       const processingChildren = new Promise<void>(
         resolve =>
           (childrenProcessor = async (job: Job) => {
-            if (job.attemptsMade < 2) {
+            if (job.attemptsMade < 1) {
               throw new Error('Not yet!');
             }
             processedChildren++;
@@ -2461,6 +2461,52 @@ describe('flows', () => {
 
     await processingTop;
     await parentWorker.close();
+
+    await flow.close();
+
+    await removeAllQueueData(new IORedis(redisHost), topQueueName);
+  });
+
+  it('should add meta key to both parents and children', async () => {
+    const name = 'child-job';
+    const values = [
+      { idx: 0, bar: 'something' },
+      { idx: 1, baz: 'something' },
+      { idx: 2, qux: 'something' },
+    ];
+
+    const topQueueName = `top-queue-${v4()}`;
+
+    const flow = new FlowProducer({ connection, prefix });
+    const tree = await flow.add({
+      name: 'root-job',
+      queueName: topQueueName,
+      data: {},
+      children: [
+        {
+          name,
+          data: { idx: 0, foo: 'bar' },
+          queueName,
+          children: [
+            {
+              name,
+              data: { idx: 1, foo: 'baz' },
+              queueName,
+              children: [{ name, data: { idx: 2, foo: 'qux' }, queueName }],
+            },
+          ],
+        },
+      ],
+    });
+
+    const client = await flow.client;
+    const metaTop = await client.hgetall(`${prefix}:${topQueueName}:meta`);
+    expect(metaTop).to.have.be.deep.equal({ 'opts.maxLenEvents': '10000' });
+
+    const metaChildren = await client.hgetall(`${prefix}:${queueName}:meta`);
+    expect(metaChildren).to.have.be.deep.equal({
+      'opts.maxLenEvents': '10000',
+    });
 
     await flow.close();
 

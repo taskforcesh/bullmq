@@ -77,7 +77,7 @@ describe('Cleaner', () => {
       );
     });
 
-    await queue.addBulk([
+    const addedJobs = await queue.addBulk([
       { name: 'test', data: { some: 'data' } },
       { name: 'test', data: { some: 'data' } },
     ]);
@@ -269,7 +269,11 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(3);
+          expect(keys.length).to.be.eql(4);
+          for (const key of keys) {
+            const type = key.split(':')[2];
+            expect(['meta', 'events', 'marker', 'id']).to.include(type);
+          }
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);
@@ -309,7 +313,6 @@ describe('Cleaner', () => {
                 { name, data: { idx: 2, foo: 'qux' }, queueName },
               ],
             });
-
             await completing;
             await delay(100);
             await queue.clean(0, 0, 'completed');
@@ -319,6 +322,12 @@ describe('Cleaner', () => {
 
             // Expected keys: meta, id, stalled-check and events
             expect(keys.length).to.be.eql(4);
+            for (const key of keys) {
+              const type = key.split(':')[2];
+              expect(['meta', 'id', 'stalled-check', 'events']).to.include(
+                type,
+              );
+            }
 
             const jobs = await queue.getJobCountByTypes('completed');
             expect(jobs).to.be.equal(0);
@@ -365,8 +374,21 @@ describe('Cleaner', () => {
 
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
+
             // Expected keys: meta, id, stalled-check, events, failed and job
-            expect(keys.length).to.be.eql(7);
+            expect(keys.length).to.be.eql(8);
+            for (const key of keys) {
+              const type = key.split(':')[2];
+              expect([
+                'meta',
+                'id',
+                'stalled-check',
+                'events',
+                'failed',
+                'marker',
+                tree.job.id!,
+              ]).to.include(type);
+            }
 
             const parentState = await tree.job.getState();
             expect(parentState).to.be.equal('failed');
@@ -615,7 +637,11 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(3);
+          expect(keys.length).to.be.eql(4);
+          for (const key of keys) {
+            const type = key.split(':')[2];
+            expect(['meta', 'events', 'marker', 'id']).to.include(type);
+          }
 
           const eventsCount = await client.xlen(
             `${prefix}:${parentQueueName}:events`,

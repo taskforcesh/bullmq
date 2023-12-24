@@ -5,10 +5,10 @@ import {
   BulkJobOptions,
   IoredisListener,
   QueueOptions,
+  RepeatableJob,
   RepeatOptions,
 } from '../interfaces';
 import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
-import { isRedisInstance } from '../utils';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
@@ -85,7 +85,7 @@ export interface QueueListener<DataType, ResultType, NameType extends string>
 /**
  * Queue
  *
- * This class provides methods to add jobs to a queue and some othe high-level
+ * This class provides methods to add jobs to a queue and some other high-level
  * administration such as pausing or deleting queues.
  *
  */
@@ -301,7 +301,11 @@ export class Queue<
    * @param asc - Determine the order in which jobs are returned based on their
    * next execution time.
    */
-  async getRepeatableJobs(start?: number, end?: number, asc?: boolean) {
+  async getRepeatableJobs(
+    start?: number,
+    end?: number,
+    asc?: boolean,
+  ): Promise<RepeatableJob[]> {
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
 

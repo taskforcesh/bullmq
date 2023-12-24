@@ -73,7 +73,7 @@ worker.on('failed', (job, err) => {
 There are many other events available, check the [Guide](guide/events.md) or the [API reference](https://api.docs.bullmq.io/) for more information.
 {% endhint %}
 
-Sometimes you need to listen to all the workers events in a given place, for this you need to use a special class [`QueueEvents`](https://api.docs.bullmq.io/classes/v4.QueueEvents.html):
+Sometimes you need to listen to all the workers events in a given place, for this you need to use a special class [`QueueEvents`](https://api.docs.bullmq.io/classes/v5.QueueEvents.html):
 
 ```typescript
 import { QueueEvents } from 'bullmq';

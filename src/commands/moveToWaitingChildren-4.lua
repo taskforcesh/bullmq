@@ -11,7 +11,7 @@
     ARGV[2] child key
     ARGV[3] timestamp
     ARGV[4] the id of the job
-    
+
   Output:
     0 - OK
     1 - There are not pending dependencies.
@@ -21,7 +21,8 @@
 ]]
 local rcall = redis.call
 
-local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId, timestamp, lockKey, token)
+local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId, timestamp,
+    lockKey, jobKey, token)
   if token ~= "0" then
     if rcall("GET", lockKey) == token then
       rcall("DEL", lockKey)
@@ -46,13 +47,15 @@ end
 if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
     if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], ARGV[1])
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], KEYS[4],
+        ARGV[1])
     end
 
     return 1
   else
     if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], ARGV[1])
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], KEYS[4],
+        ARGV[1])
     end
 
     return 1
