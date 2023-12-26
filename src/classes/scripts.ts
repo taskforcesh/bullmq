@@ -22,6 +22,7 @@ import {
   RedisClient,
   WorkerOptions,
   KeepJobs,
+  MoveToDelayedOpts,
 } from '../interfaces';
 import {
   JobState,
@@ -57,6 +58,7 @@ export class Scripts {
       undefined,
       undefined,
       undefined,
+      undefined,
     ];
   }
 
@@ -79,8 +81,7 @@ export class Scripts {
   ): Promise<string> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
-      queueKeys.wait,
-      queueKeys.paused,
+      queueKeys.marker,
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
@@ -101,8 +102,7 @@ export class Scripts {
   ): Promise<string> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
-      queueKeys.wait,
-      queueKeys.paused,
+      queueKeys.marker,
       queueKeys.meta,
       queueKeys.id,
       queueKeys.prioritized,
@@ -197,6 +197,7 @@ export class Scripts {
         queueKeys.id,
         queueKeys.completed,
         queueKeys.events,
+        queueKeys.marker,
       ];
       keys.push(pack(args), job.data, encodedOpts);
       result = await (<any>client).addStandardJob(keys);
@@ -223,7 +224,11 @@ export class Scripts {
       this.queue.toKey(name),
     );
 
-    keys.push(this.queue.keys.events);
+    keys.push(
+      this.queue.keys.events,
+      this.queue.keys.delayed,
+      this.queue.keys.marker,
+    );
 
     return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
   }
@@ -336,6 +341,7 @@ export class Scripts {
     keys[10] = queueKeys[target];
     keys[11] = this.queue.toKey(job.id ?? '');
     keys[12] = metricsKey;
+    keys[13] = this.queue.keys.marker;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
@@ -345,7 +351,6 @@ export class Scripts {
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      JSON.stringify({ jobId: job.id, val: val }), // TODO: verify if it is used
       !fetchNext || this.queue.closing ? 0 : 1,
       queueKeys[''],
       pack({
@@ -354,7 +359,6 @@ export class Scripts {
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
         attempts: job.opts.attempts,
-        attemptsMade: job.attemptsMade,
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
@@ -631,6 +635,7 @@ export class Scripts {
       this.queue.keys.meta,
       this.queue.keys.prioritized,
       this.queue.keys.pc,
+      this.queue.keys.marker,
     ];
 
     return keys.concat([
@@ -647,6 +652,7 @@ export class Scripts {
     timestamp: number,
     token: string,
     delay: number,
+    opts: MoveToDelayedOpts = {},
   ): (string | number)[] {
     //
     // Bake in the job id first 12 bits into the timestamp
@@ -661,20 +667,16 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
+    const queueKeys = this.queue.keys;
     const keys: (string | number)[] = [
-      'wait',
-      'active',
-      'prioritized',
-      'delayed',
-      jobId,
-    ].map(name => {
-      return this.queue.toKey(name);
-    });
-    keys.push.apply(keys, [
-      this.queue.keys.events,
-      this.queue.keys.paused,
-      this.queue.keys.meta,
-    ]);
+      queueKeys.marker,
+      queueKeys.active,
+      queueKeys.prioritized,
+      queueKeys.delayed,
+      this.queue.toKey(jobId),
+      queueKeys.events,
+      queueKeys.meta,
+    ];
 
     return keys.concat([
       this.queue.keys[''],
@@ -683,6 +685,7 @@ export class Scripts {
       jobId,
       token,
       delay,
+      opts.skipAttempt ? '1' : '0',
     ]);
   }
 
@@ -724,10 +727,11 @@ export class Scripts {
     timestamp: number,
     delay: number,
     token = '0',
+    opts: MoveToDelayedOpts = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay);
+    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
@@ -798,21 +802,17 @@ export class Scripts {
     token: string,
   ): (string | number)[] {
     const keys: (string | number)[] = [
-      'active',
-      'wait',
-      'paused',
-      jobId,
-      'meta',
-    ].map(name => {
-      return this.queue.toKey(name);
-    });
-
-    keys.push(
+      this.queue.keys.active,
+      this.queue.keys.wait,
+      this.queue.keys.paused,
+      this.queue.toKey(jobId),
+      this.queue.keys.meta,
       this.queue.keys.events,
       this.queue.keys.delayed,
       this.queue.keys.prioritized,
       this.queue.keys.pc,
-    );
+      this.queue.keys.marker,
+    ];
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
 
@@ -909,7 +909,7 @@ export class Scripts {
     }
   }
 
-  async moveToActive(client: RedisClient, token: string, jobId?: string) {
+  async moveToActive(client: RedisClient, token: string) {
     const opts = this.queue.opts as WorkerOptions;
 
     const queueKeys = this.queue.keys;
@@ -924,12 +924,12 @@ export class Scripts {
       queueKeys.paused,
       queueKeys.meta,
       queueKeys.pc,
+      queueKeys.marker,
     ];
 
     const args: (string | number | boolean | Buffer)[] = [
       queueKeys[''],
       Date.now(),
-      jobId || '',
       pack({
         token,
         lockDuration: opts.lockDuration,
@@ -955,6 +955,7 @@ export class Scripts {
       this.queue.keys.prioritized,
       this.queue.keys.pc,
       this.queue.keys.events,
+      this.queue.keys.marker,
     ];
 
     const args = [this.queue.toKey(''), jobId];
@@ -1048,6 +1049,88 @@ export class Scripts {
       }
     }
     return result;
+  }
+
+  /**
+   * Paginate a set or hash keys.
+   * @param opts
+   *
+   */
+  async paginate(
+    key: string,
+    opts: { start: number; end: number; fetchJobs?: boolean },
+  ): Promise<{
+    cursor: string;
+    items: { id: string; v?: any; err?: string }[];
+    total: number;
+    jobs?: JobJsonRaw[];
+  }> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [key];
+
+    const maxIterations = 5;
+
+    const pageSize = opts.end >= 0 ? opts.end - opts.start + 1 : Infinity;
+
+    let cursor = '0',
+      offset = 0,
+      items,
+      total,
+      rawJobs,
+      page: string[] = [],
+      jobs: JobJsonRaw[] = [];
+    do {
+      const args = [
+        opts.start + page.length,
+        opts.end,
+        cursor,
+        offset,
+        maxIterations,
+      ];
+
+      if (opts.fetchJobs) {
+        args.push(1);
+      }
+
+      [cursor, offset, items, total, rawJobs] = await (<any>client).paginate(
+        keys.concat(args),
+      );
+      page = page.concat(items);
+
+      if (rawJobs && rawJobs.length) {
+        jobs = jobs.concat(rawJobs.map(array2obj));
+      }
+
+      // Important to keep this coercive inequality (!=) instead of strict inequality (!==)
+    } while (cursor != '0' && page.length < pageSize);
+
+    // If we get an array of arrays, it means we are paginating a hash
+    if (page.length && Array.isArray(page[0])) {
+      const result = [];
+      for (let index = 0; index < page.length; index++) {
+        const [id, value] = page[index];
+        try {
+          result.push({ id, v: JSON.parse(value) });
+        } catch (err) {
+          result.push({ id, err: (<Error>err).message });
+        }
+      }
+
+      return {
+        cursor,
+        items: result,
+        total,
+        jobs,
+      };
+    } else {
+      return {
+        cursor,
+        items: page.map(item => ({ id: item })),
+        total,
+        jobs,
+      };
+    }
   }
 }
 

@@ -9,7 +9,7 @@ import {
   WORKER_SUFFIX,
 } from '../utils';
 import { JobState, JobType } from '../types';
-import { Metrics } from '../interfaces';
+import { JobJsonRaw, Metrics } from '../interfaces';
 
 /**
  *
@@ -291,6 +291,49 @@ export class QueueGetters<
     end = -1,
   ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.getJobs(['failed'], start, end, false);
+  }
+
+  /**
+   * Returns the qualified job ids and the raw job data (if available) of the
+   * children jobs of the given parent job.
+   * It is possible to get either the already processed children, in this case
+   * an array of qualified job ids and their result values will be returned,
+   * or the pending children, in this case an array of qualified job ids will
+   * be returned.
+   * A qualified job id is a string representing the job id in a given queue,
+   * for example: "bull:myqueue:jobid".
+   *
+   * @param parentId The id of the parent job
+   * @param type "processed" | "pending"
+   * @param opts
+   *
+   * @returns  { items: { id: string, v?: any, err?: string } [], jobs: JobJsonRaw[], total: number}
+   */
+  async getDependencies(
+    parentId: string,
+    type: 'processed' | 'pending',
+    start: number,
+    end: number,
+  ): Promise<{
+    items: { id: string; v?: any; err?: string }[];
+    jobs: JobJsonRaw[];
+    total: number;
+  }> {
+    const key = this.toKey(
+      type == 'processed'
+        ? `${parentId}:processed`
+        : `${parentId}:dependencies`,
+    );
+    const { items, total, jobs } = await this.scripts.paginate(key, {
+      start,
+      end,
+      fetchJobs: true,
+    });
+    return {
+      items,
+      jobs,
+      total,
+    };
   }
 
   async getRanges(

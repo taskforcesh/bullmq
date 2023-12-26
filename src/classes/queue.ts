@@ -85,7 +85,7 @@ export interface QueueListener<DataType, ResultType, NameType extends string>
 /**
  * Queue
  *
- * This class provides methods to add jobs to a queue and some othe high-level
+ * This class provides methods to add jobs to a queue and some other high-level
  * administration such as pausing or deleting queues.
  *
  */

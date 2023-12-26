@@ -113,5 +113,5 @@ if (ttl > 0) {
 
 ## Read more:
 
-- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v4.Worker.html#rateLimit)
-- 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#getRateLimitTtl)
+- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#rateLimit)
+- 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getRateLimitTtl)
