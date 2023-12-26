@@ -711,9 +711,6 @@ export class Job<
     if (Array.isArray(result)) {
       return raw2NextJobData(result);
     }
-
-
-
   }
 
   /**
