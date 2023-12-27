@@ -1330,6 +1330,11 @@ describe('workers', function () {
         const count = 5;
         await testWorkerRemoveOnFinish({ age, count }, count, true);
       });
+
+      it('should remove all jobs when count is 0 with removeOnFail', async () => {
+        const count = 0;
+        await testWorkerRemoveOnFinish({ count }, count, true);
+      });
     });
   });
 

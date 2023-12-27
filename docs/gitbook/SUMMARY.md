@@ -14,6 +14,7 @@
   * [Adding jobs in bulk](guide/queues/adding-bulks.md)
   * [Removing Jobs](guide/queues/removing-jobs.md)
 * [Workers](guide/workers/README.md)
+  * [Auto-removal of jobs](guide/workers/auto-removal-of-jobs.md)
   * [Concurrency](guide/workers/concurrency.md)
   * [Graceful shutdown](guide/workers/graceful-shutdown.md)
   * [Stalled Jobs](guide/workers/stalled-jobs.md)
