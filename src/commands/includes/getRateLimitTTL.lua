@@ -1,5 +1,5 @@
 --[[
-  Function to get max events value or set by default 10000.
+  Function to get current rate limit ttl.
 ]]
 local function getRateLimitTTL(maxJobs, rateLimiterKey)
   if maxJobs and maxJobs <= tonumber(rcall("GET", rateLimiterKey) or 0) then
