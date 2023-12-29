@@ -1,3 +1,6 @@
+--[[
+  Function to get max events value or set by default 10000.
+]]
 local function getRateLimitTTL(maxJobs, rateLimiterKey)
   if maxJobs and maxJobs <= tonumber(rcall("GET", rateLimiterKey) or 0) then
     local pttl = rcall("PTTL", rateLimiterKey)

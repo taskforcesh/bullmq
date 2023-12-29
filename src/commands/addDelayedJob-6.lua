@@ -55,12 +55,11 @@ local parent = args[8]
 local parentData
 
 -- Includes
---- @include "includes/storeJob"
 --- @include "includes/addDelayMarkerIfNeeded"
---- @include "includes/isQueuePaused"
---- @include "includes/getNextDelayedTimestamp"
---- @include "includes/updateExistingJobsParent"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/isQueuePaused"
+--- @include "includes/storeJob"
+--- @include "includes/updateExistingJobsParent"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end

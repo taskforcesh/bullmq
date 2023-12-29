@@ -31,6 +31,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addJobWithPriority"
+--- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 
@@ -65,7 +66,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
 
   rcall("HINCRBY", KEYS[4], "atm", 1)
 
-  local maxEvents = rcall("HGET", KEYS[5], "opts.maxLenEvents") or 10000
+  local maxEvents = getOrSetMaxEvents(KEYS[5])
 
   -- Emit waiting event
   rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
