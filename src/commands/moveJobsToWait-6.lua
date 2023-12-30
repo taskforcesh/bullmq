@@ -26,6 +26,7 @@ local rcall = redis.call;
 
 -- Includes
 --- @include "includes/batches"
+--- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 
 local metaKey = KEYS[6]
@@ -46,7 +47,7 @@ if (#jobs > 0) then
         end
     end
 
-    local maxEvents = rcall("HGET", metaKey, "opts.maxLenEvents") or 10000
+    local maxEvents = getOrSetMaxEvents(metaKey)
 
     for i, key in ipairs(jobs) do
         -- Emit waiting event

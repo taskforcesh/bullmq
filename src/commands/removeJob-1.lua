@@ -16,6 +16,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/destructureJobKey"
+--- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isLocked"
 --- @include "includes/removeJobFromAnyState"
 --- @include "includes/removeParentDependencyKey"
@@ -54,7 +55,7 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
     local prev = removeJobFromAnyState(prefix, jobId)
 
     if rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed") > 0 then
-        local maxEvents = rcall("HGET", prefix .. "meta", "opts.maxLenEvents") or 10000
+        local maxEvents = getOrSetMaxEvents(prefix .. "meta")
         rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",
             "jobId", jobId, "prev", prev)
     end

@@ -30,6 +30,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePaused"
 
 local jobKey = KEYS[5]
@@ -58,7 +59,7 @@ if rcall("EXISTS", jobKey) == 1 then
     
     rcall("HSET", jobKey, "delay", ARGV[6])
 
-    local maxEvents = rcall("HGET", metaKey, "opts.maxLenEvents") or 10000
+    local maxEvents = getOrSetMaxEvents(metaKey)
 
     rcall("ZADD", delayedKey, score, jobId)
     rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
