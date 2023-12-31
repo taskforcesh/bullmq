@@ -1,3 +1,5 @@
+# Repeatable
+
 There is a special type of _meta_ job called **repeatable**. These jobs are special in the sense that even though you only add one job to the queue, they will keep repeating according to a predefined schedule.
 
 Adding a job with the `repeat` option set will actually do two things immediately: create a Repeatable Job configuration, and schedule a regular delayed job for the job's first run. This first run will be scheduled "on the hour", that is if you create a job that repeats every 15 minutes at 4:07, the job will first run at 4:15, then 4:30, and so on.
@@ -46,9 +48,9 @@ await myQueue.add(
 
 There are some important considerations regarding repeatable jobs:
 
-- Bull is smart enough not to add the same repeatable job if the repeat options are the same.
-- If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
-- Repeatable jobs can be removed using the [`removeRepeatable`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable) or [`removeRepeatableByKey`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey) methods.
+* Bull is smart enough not to add the same repeatable job if the repeat options are the same.
+* If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
+* Repeatable jobs can be removed using the [`removeRepeatable`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable) or [`removeRepeatableByKey`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey) methods.
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -108,7 +110,7 @@ await myQueue.add(
 );
 ```
 
-## Slow repeatable jobs
+### Slow repeatable jobs
 
 It is worth mentioning the case where the repeatable frequency is greater than the time it takes to process a job.
 
@@ -118,7 +120,7 @@ In this particular example, the worker will pick up the next job and also add th
 
 On the other hand, if there were 5 workers available, then they will most likely be able to process all the repeatable jobs with the desired frequency of one job per second.
 
-## Repeat Strategy
+### Repeat Strategy
 
 By default, we are using [cron-parser](https://www.npmjs.com/package/cron-parser) in the default repeat strategy for cron expressions.
 
@@ -187,6 +189,8 @@ As you may notice, the repeat strategy setting should be provided in `Queue` and
 The repeat strategy function receives an optional `jobName` third parameter.
 {% endhint %}
 
-## Read more:
+### Read more:
 
-- 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/v5.RepeatStrategy.html)
+* 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/v5.RepeatStrategy.html)
+* 💡 [Remove Repeatable Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable)
+* 💡 [Remove Repeatable Job by Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey)
