@@ -4,21 +4,6 @@ By default, when your queue jobs are completed (or failed), they are stored in t
 
 BullMQ supports different strategies for auto-removing finalized jobs. These strategies are configured on the Job's options [`removeOnComplete`](https://api.docs.bullmq.io/interfaces/v5.BaseJobOptions.html#removeOnComplete) and [`removeOnFail`](https://api.docs.bullmq.io/interfaces/v5.BaseJobOptions.html#removeOnFail).
 
-### Remove all finalized jobs
-
-The simplest option is to set `removeOnComplete`/`removeOnFail` to `true`, in this case, all jobs will be removed automatically as soon as they are finalized:
-
-```typescript
-await myQueue.add(
-  'test',
-  { foo: 'bar' },
-  { removeOnComplete: true, removeOnFail: true },
-);
-```
-
-{% hint style="warning" %}
-Jobs will be deleted regardless of their names.
-{% endhint %}
 
 ### Keep a certain number of jobs
 
@@ -28,7 +13,15 @@ It is also possible to specify a maximum number of jobs to keep. A good practice
 await myQueue.add(
   'test',
   { foo: 'bar' },
-  { removeOnComplete: 1000, removeOnFail: 5000 },
+  {
+    removeOnComplete: {
+      age: 3600, // keep up to 1 hour
+      count: 1000, // keep up to 1000 jobs
+    },
+    removeOnFail: {
+      count: 5000 // keep up to 1000 jo
+    },
+  },
 );
 ```
 
