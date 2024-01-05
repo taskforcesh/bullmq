@@ -663,7 +663,27 @@ describe('Job', function () {
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(1);
+      expect(job.stacktrace[0]).to.include('test_job.ts');
       await worker.close();
+    });
+
+    describe('when using a custom error', function () {
+      it('marks the job as failed', async function () {
+        class CustomError extends Error {}
+        const worker = new Worker(queueName, null, { connection, prefix });
+        const token = 'my-token';
+        await Job.create(queue, 'test', { foo: 'bar' });
+        const job = (await worker.getNextJob(token)) as Job;
+        const isFailed = await job.isFailed();
+        expect(isFailed).to.be.equal(false);
+        await job.moveToFailed(new CustomError('test error'), '0', true);
+        const isFailed2 = await job.isFailed();
+        expect(isFailed2).to.be.equal(true);
+        expect(job.stacktrace).not.be.equal(null);
+        expect(job.stacktrace.length).to.be.equal(1);
+        expect(job.stacktrace[0]).to.include('test_job.ts');
+        await worker.close();
+      });
     });
 
     it('moves the job to wait for retry if attempts are given', async function () {
