@@ -212,7 +212,7 @@ export class Scripts {
     } else if (opts.priority) {
       result = await this.addPrioritizedJob(client, job, encodedOpts, args);
     } else {
-      result = await this.addPrioritizedJob(client, job, encodedOpts, args);
+      result = await this.addStandardJob(client, job, encodedOpts, args);
     }
 
     if (<number>result < 0) {
