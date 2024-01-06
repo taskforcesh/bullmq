@@ -73,12 +73,12 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  private async addDelayedJob(
+  protected addDelayedJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
-  ): Promise<string> {
+  ): Promise<string | number> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.marker,
@@ -94,12 +94,12 @@ export class Scripts {
     return (<any>client).addDelayedJob(keys);
   }
 
-  private async addPrioritizedJob(
+  protected addPrioritizedJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
-  ): Promise<string> {
+  ): Promise<string | number> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.marker,
@@ -116,12 +116,12 @@ export class Scripts {
     return (<any>client).addPrioritizedJob(keys);
   }
 
-  private async addParentJob(
+  protected addParentJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
-  ): Promise<string> {
+  ): Promise<string | number> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.meta,
@@ -133,6 +133,28 @@ export class Scripts {
     keys.push(pack(args), job.data, encodedOpts);
 
     return (<any>client).addParentJob(keys);
+  }
+
+  protected addStandardJob(
+    client: RedisClient,
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): Promise<string | number> {
+    const queueKeys = this.queue.keys;
+    const keys: (string | Buffer)[] = [
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.id,
+      queueKeys.completed,
+      queueKeys.events,
+      queueKeys.marker,
+    ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return (<any>client).addStandardJob(keys);
   }
 
   async addJob(
@@ -181,7 +203,7 @@ export class Scripts {
       encodedOpts = pack(opts);
     }
 
-    let result;
+    let result: string | number;
 
     if (parentOpts.waitChildrenKey) {
       result = await this.addParentJob(client, job, encodedOpts, args);
@@ -190,24 +212,14 @@ export class Scripts {
     } else if (opts.priority) {
       result = await this.addPrioritizedJob(client, job, encodedOpts, args);
     } else {
-      const keys: (string | Buffer)[] = [
-        queueKeys.wait,
-        queueKeys.paused,
-        queueKeys.meta,
-        queueKeys.id,
-        queueKeys.completed,
-        queueKeys.events,
-        queueKeys.marker,
-      ];
-      keys.push(pack(args), job.data, encodedOpts);
-      result = await (<any>client).addStandardJob(keys);
+      result = await this.addPrioritizedJob(client, job, encodedOpts, args);
     }
 
-    if (result < 0) {
-      throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
+    if (<number>result < 0) {
+      throw this.finishedErrors(<number>result, parentOpts.parentKey, 'addJob');
     }
 
-    return result;
+    return <string>result;
   }
 
   async pause(pause: boolean): Promise<void> {
