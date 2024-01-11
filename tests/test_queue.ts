@@ -468,7 +468,7 @@ describe('queues', function () {
     });
 
     describe('when completed state is provided', () => {
-      it('retries all completed jobs', async () => {
+      it('retries all completed jobs', async function () {
         await queue.waitUntilReady();
         const jobCount = 8;
 
@@ -485,9 +485,11 @@ describe('queues', function () {
           worker.on('completed', after(jobCount, resolve));
         });
 
-        for (const index of Array.from(Array(jobCount).keys())) {
-          await queue.add('test', { idx: index });
-        }
+        const jobs = Array.from(Array(jobCount).keys()).map(index => ({
+          name: 'test',
+          data: { idx: index },
+        }));
+        await queue.addBulk(jobs);
 
         await completing1;
 

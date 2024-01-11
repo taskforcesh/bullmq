@@ -10,6 +10,7 @@
     KEYS[4] 'wait'
     KEYS[5] 'paused'
     KEYS[6] 'meta'
+    KEYS[7] 'marker'
 
     ARGV[1] count
     ARGV[2] timestamp
@@ -30,7 +31,7 @@ local rcall = redis.call;
 --- @include "includes/getTargetQueueList"
 
 local metaKey = KEYS[6]
-local target = getTargetQueueList(metaKey, KEYS[4], KEYS[5])
+local target, paused = getTargetQueueList(metaKey, KEYS[4], KEYS[5])
 
 local jobs = rcall('ZRANGEBYSCORE', KEYS[3], 0, timestamp, 'LIMIT', 0, maxCount)
 if (#jobs > 0) then
@@ -59,6 +60,10 @@ if (#jobs > 0) then
         rcall("ZREM", KEYS[3], unpack(jobs, from, to))
         rcall("LPUSH", target, unpack(jobs, from, to))
     end
+
+    if not paused then
+        rcall("ZADD", KEYS[7], 0, "0")
+    end    
 end
 
 maxCount = maxCount - #jobs

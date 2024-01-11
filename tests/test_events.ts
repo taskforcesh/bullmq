@@ -264,7 +264,7 @@ describe('events', function () {
       { name: 'test', data: { foo: 'baz' } },
     ]);
 
-    await delay(1000);
+    await delay(2000);
 
     const jobs = await queue.getJobCountByTypes('completed');
     expect(jobs).to.be.equal(4);

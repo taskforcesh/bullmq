@@ -836,7 +836,8 @@ export class Scripts {
       this.queue.toKey(state),
       this.queue.toKey('wait'),
       this.queue.toKey('paused'),
-      this.queue.toKey('meta'),
+      this.queue.keys.meta,
+      this.queue.keys.marker,
     ];
 
     const args = [count, timestamp, state];
