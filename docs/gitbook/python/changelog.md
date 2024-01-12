@@ -2,6 +2,20 @@
 
 <!--next-version-placeholder-->
 
+## v2.1.0 (2024-01-12)
+### Feature
+* **repeatable:** Allow saving custom key ([#1824](https://github.com/taskforcesh/bullmq/issues/1824)) ([`8ea0e1f`](https://github.com/taskforcesh/bullmq/commit/8ea0e1f76baf36dab94a66657c0f432492cb9999))
+
+### Fix
+* **redis:** Upgrade to v5 [python] ([#2364](https://github.com/taskforcesh/bullmq/issues/2364)) ([`d5113c8`](https://github.com/taskforcesh/bullmq/commit/d5113c88ad108b281b292e2890e0eef3be41c8fb))
+* **worker:** Worker can be closed if Redis is down ([#2350](https://github.com/taskforcesh/bullmq/issues/2350)) ([`888dcc2`](https://github.com/taskforcesh/bullmq/commit/888dcc2dd40571e05fe1f4a5c81161ed062f4542))
+
+### Documentation
+* **sandbox:** Add URL support section (#2373) ref #2326 #2372 ([`3a38a47`](https://github.com/taskforcesh/bullmq/commit/3a38a471cbeda70ac9d4d9744b199090dc6f0a12))
+* **bullmq-pro:** Update changelog to v6.9.0 ([#2359](https://github.com/taskforcesh/bullmq/issues/2359)) ([`66d9469`](https://github.com/taskforcesh/bullmq/commit/66d9469b3b40b0b5b43601308fa063707cb41b91))
+* **workers:** Add auto removal jobs section ([#2355](https://github.com/taskforcesh/bullmq/issues/2355)) ([`dddd2c8`](https://github.com/taskforcesh/bullmq/commit/dddd2c89132c0b3216a8788e1672e4433b98a436))
+* **changelog:** Format v2 changes docs [python] ([#2353](https://github.com/taskforcesh/bullmq/issues/2353)) ([`97837f2`](https://github.com/taskforcesh/bullmq/commit/97837f22ec4abbe20c4026221801f51156f4861b))
+
 ## v2.0.0 (2023-12-23)
 ### Feature
 * **job:** Add isActive method [python] ([#2352](https://github.com/taskforcesh/bullmq/issues/2352)) ([`afb5e31`](https://github.com/taskforcesh/bullmq/commit/afb5e31484ed2e5a1c381c732321225c0a8b78ff))
