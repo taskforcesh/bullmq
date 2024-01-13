@@ -429,11 +429,6 @@ class Scripts:
         Retry jobs that are in failed or completed state
         """
         current_state = state or 'failed'
-<<<<<<< Updated upstream
-        keys = self.getKeys(
-            ['', 'events', current_state, 'wait', 'paused', 'meta'])
-        result = await self.commands["moveJobsToWait"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
-=======
         keys, args = self.moveJobsToWaitArgs(current_state, count, timestamp)
 
         result = await self.commands["moveJobsToWait"](keys=keys, args=args)
@@ -446,7 +441,6 @@ class Scripts:
         keys, args = self.moveJobsToWaitArgs('delayed', count, 1.7976931348623157e+308)
 
         result = await self.commands["moveJobsToWait"](keys=keys, args=args)
->>>>>>> Stashed changes
         return result
 
     async def moveToActive(self, token: str, opts: dict) -> list[Any]:
