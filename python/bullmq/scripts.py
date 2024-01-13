@@ -417,14 +417,36 @@ class Scripts:
                 raise Exception("Cannot obliterate queue with active jobs")
         return result
 
+    def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
+        keys = self.getKeys(
+            ['', 'events', state, 'wait', 'paused', 'meta', 'marker'])
+        
+        args = [count or 1000, timestamp or round(time.time()*1000), state]
+        return (keys, args)
+
     async def retryJobs(self, state: str, count: int, timestamp: int):
         """
-        Remove a queue completely
+        Retry jobs that are in failed or completed state
         """
         current_state = state or 'failed'
+<<<<<<< Updated upstream
         keys = self.getKeys(
             ['', 'events', current_state, 'wait', 'paused', 'meta'])
         result = await self.commands["moveJobsToWait"](keys=keys, args=[count or 1000, timestamp or round(time.time()*1000), current_state])
+=======
+        keys, args = self.moveJobsToWaitArgs(current_state, count, timestamp)
+
+        result = await self.commands["moveJobsToWait"](keys=keys, args=args)
+        return result
+
+    async def promoteJobs(self, count: int):
+        """
+        Promote jobs in delayed state
+        """
+        keys, args = self.moveJobsToWaitArgs('delayed', count, 1.7976931348623157e+308)
+
+        result = await self.commands["moveJobsToWait"](keys=keys, args=args)
+>>>>>>> Stashed changes
         return result
 
     async def moveToActive(self, token: str, opts: dict) -> list[Any]:
