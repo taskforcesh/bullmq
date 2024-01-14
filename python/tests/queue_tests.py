@@ -80,7 +80,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_is_paused_with_custom_prefix(self):
-        queue = Queue(queueName, {}, {"prefix": "test"})
+        queue = Queue(queueName, {"prefix": "test"})
         await queue.pause()
         isPaused = await queue.isPaused()
 
@@ -114,7 +114,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_trim_events_manually_with_custom_prefix(self):
-        queue = Queue(queueName, {}, {"prefix": "test"})
+        queue = Queue(queueName, {"prefix": "test"})
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
@@ -364,6 +364,50 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         paused_count = await queue.getJobCounts('paused')
         self.assertEqual(paused_count['paused'], job_count)
+
+        await queue.close()
+        await worker.close()
+
+    async def test_promote_all_delayed_jobs(self):
+        queue = Queue(queueName)
+        job_count = 8
+
+        for index in range(job_count):
+            data = {"idx": index}
+            await queue.add("test", data=data, opts={ "delay": 5000 })
+
+        delayed_count = await queue.getJobCounts('delayed')
+        self.assertEqual(delayed_count['delayed'], job_count)
+
+        await queue.promoteJobs();
+
+        waiting_count = await queue.getJobCounts('waiting')
+        self.assertEqual(waiting_count['waiting'], job_count)
+
+        async def process(job: Job, token: str):
+            await asyncio.sleep(0.1)
+            return
+        order = 0
+
+        worker = Worker(queueName, process)
+
+        completed_events = Future()
+
+        def completing(job: Job, result):
+            nonlocal order
+            if order == (job_count - 1):
+                completed_events.set_result(None)
+            order += 1
+
+        worker.on("completed", completing)
+
+        await completed_events
+
+        worker.off('completed', completing)
+
+        delayed_count = await queue.getJobCounts('delayed')
+
+        self.assertEqual(delayed_count['delayed'], 0)
 
         await queue.close()
         await worker.close()

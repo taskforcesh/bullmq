@@ -1,6 +1,6 @@
 import asyncio
 from bullmq.redis_connection import RedisConnection
-from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions
+from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
 from bullmq.utils import extract_result
 from bullmq.scripts import Scripts
 from bullmq.job import Job
@@ -136,13 +136,24 @@ class Queue:
 
     async def retryJobs(self, opts: RetryJobsOptions = {}):
         """
-        Retry all the failed jobs.
+        Retry all the failed or completed jobs.
         """
         while True:
             cursor = await self.scripts.retryJobs(
                 opts.get("state"),
                 opts.get("count"),
                 opts.get("timestamp")
+            )
+            if cursor is None or cursor == 0 or cursor == "0":
+                break
+
+    async def promoteJobs(self, opts: PromoteJobsOptions = {}):
+        """
+        Retry all the delayed jobs.
+        """
+        while True:
+            cursor = await self.scripts.promoteJobs(
+                opts.get("count")
             )
             if cursor is None or cursor == 0 or cursor == "0":
                 break

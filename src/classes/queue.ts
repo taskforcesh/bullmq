@@ -475,7 +475,7 @@ export class Queue<
   }
 
   /**
-   * Retry all the failed jobs.
+   * Retry all the failed or completed jobs.
    *
    * @param opts: { count: number; state: FinishedStatus; timestamp: number}
    *   - count  number to limit how many jobs will be moved to wait status per iteration,
