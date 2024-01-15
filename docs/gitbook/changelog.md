@@ -1,3 +1,16 @@
+## [5.1.2](https://github.com/taskforcesh/bullmq/compare/v5.1.1...v5.1.2) (2024-01-15)
+
+
+### Bug Fixes
+
+* **redis:** upgrade to v5 [python] ([#2364](https://github.com/taskforcesh/bullmq/issues/2364)) ([d5113c8](https://github.com/taskforcesh/bullmq/commit/d5113c88ad108b281b292e2890e0eef3be41c8fb))
+* **security:** upgrade msgpackr https://github.com/advisories/GHSA-7hpj-7hhx-2fgx ([7ae0953](https://github.com/taskforcesh/bullmq/commit/7ae095357fddbdaacc286cbe5782946b95160d55))
+
+
+### Features
+
+* **queue:** add promoteJobs method [python] ([#2377](https://github.com/taskforcesh/bullmq/issues/2377)) ([3b9de96](https://github.com/taskforcesh/bullmq/commit/3b9de967efa34ea22cdab1fbc7ff65d49927d787))
+
 ## [5.1.1](https://github.com/taskforcesh/bullmq/compare/v5.1.0...v5.1.1) (2024-01-02)
 
 
