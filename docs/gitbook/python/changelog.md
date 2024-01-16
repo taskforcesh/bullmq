@@ -2,6 +2,15 @@
 
 <!--next-version-placeholder-->
 
+## v2.2.1 (2024-01-16)
+### Fix
+* **retry-jobs:** Add marker when needed ([#2374](https://github.com/taskforcesh/bullmq/issues/2374)) ([`1813d5f`](https://github.com/taskforcesh/bullmq/commit/1813d5fa12b7db69ee6c8c09273729cda8e3e3b5))
+* **security:** Upgrade msgpackr https://github.com/advisories/GHSA-7hpj-7hhx-2fgx ([`7ae0953`](https://github.com/taskforcesh/bullmq/commit/7ae095357fddbdaacc286cbe5782946b95160d55))
+
+### Documentation
+* **changelog:** Split changelog ([#2381](https://github.com/taskforcesh/bullmq/issues/2381)) ([`368b5a1`](https://github.com/taskforcesh/bullmq/commit/368b5a104b632fa181b2c19cc5e3530387f38ae4))
+* **summary:** Add remove dependency section ([#2378](https://github.com/taskforcesh/bullmq/issues/2378)) ([`03e1451`](https://github.com/taskforcesh/bullmq/commit/03e1451f54edf56f11f9e74f9b4095efe522bb97))
+
 ## v2.2.0 (2024-01-14)
 ### Feature
 * **queue:** Add promoteJobs method [python] ([#2377](https://github.com/taskforcesh/bullmq/issues/2377)) ([`3b9de96`](https://github.com/taskforcesh/bullmq/commit/3b9de967efa34ea22cdab1fbc7ff65d49927d787))
