@@ -54,7 +54,7 @@ class Scripts:
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-6.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-10.lua")),
-            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-6.lua")),
+            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-7.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
             "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")),
@@ -419,7 +419,7 @@ class Scripts:
 
     def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
         keys = self.getKeys(
-            ['', 'events', state, 'wait', 'paused', 'meta'])
+            ['', 'events', state, 'wait', 'paused', 'meta', 'marker'])
         
         args = [count or 1000, timestamp or round(time.time()*1000), state]
         return (keys, args)
