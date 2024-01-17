@@ -32,7 +32,7 @@ describe('stalled jobs', function () {
   });
 
   it('process stalled jobs when starting a queue', async function () {
-    this.timeout(10000);
+    this.timeout(5000);
 
     const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -298,7 +298,7 @@ describe('stalled jobs', function () {
     });
 
     it('moves jobs to failed with maxStalledCount > 1', async function () {
-      this.timeout(60000);
+      this.timeout(8000);
 
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
