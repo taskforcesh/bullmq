@@ -26,6 +26,7 @@ local timestamp = tonumber(ARGV[2])
 local rcall = redis.call;
 
 -- Includes
+--- @include "includes/addBaseMarkerIfNeeded"
 --- @include "includes/batches"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
@@ -61,9 +62,7 @@ if (#jobs > 0) then
         rcall("LPUSH", target, unpack(jobs, from, to))
     end
 
-    if not paused then
-        rcall("ZADD", KEYS[7], 0, "0")
-    end    
+    addBaseMarkerIfNeeded(KEYS[7], paused)
 end
 
 maxCount = maxCount - #jobs

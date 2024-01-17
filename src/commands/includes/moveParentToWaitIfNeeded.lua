@@ -32,11 +32,11 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
             addDelayMarkerIfNeeded(parentMarkerKey, parentDelayedKey)
         else
             if priority == 0 then
-                local parentTarget, _paused =
+                local parentTarget, isParentPaused =
                     getTargetQueueList(parentMetaKey, parentWaitKey,
                                        parentPausedKey)
                 rcall("RPUSH", parentTarget, parentId)
-                rcall("ZADD", parentMarkerKey, 0, "0")
+                addBaseMarkerIfNeeded(parentMarkerKey, isParentPaused)
             else
                 local isPaused = isQueuePaused(parentMetaKey)
                 addJobWithPriority(parentMarkerKey,

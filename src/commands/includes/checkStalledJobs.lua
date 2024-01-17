@@ -22,6 +22,7 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "addBaseMarkerIfNeeded"
 --- @include "batches"
 --- @include "getTargetQueueList"
 --- @include "removeJob"
@@ -34,7 +35,7 @@ local rcall = redis.call
 local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey,
                                 stalledCheckKey, metaKey, pausedKey,
                                 eventStreamKey, maxStalledJobCount,
-                                queueKeyPrefix, timestamp, maxCheckTime)
+                                queueKeyPrefix, timestamp, maxCheckTime, markerKey)
     if rcall("EXISTS", stalledCheckKey) == 1 then return {{}, {}} end
 
     rcall("SET", stalledCheckKey, timestamp, "PX", maxCheckTime)
@@ -107,11 +108,13 @@ local function checkStalledJobs(stalledKey, waitKey, activeKey, failedKey,
 
                             table.insert(failed, jobId)
                         else
-                            local target =
+                            local target, isPaused=
                                 getTargetQueueList(metaKey, waitKey, pausedKey)
 
                             -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
                             rcall("RPUSH", target, jobId)
+                            addBaseMarkerIfNeeded(markerKey, isPaused)
+
                             rcall("XADD", eventStreamKey, "*", "event",
                                   "waiting", "jobId", jobId, 'prev', 'active')
 

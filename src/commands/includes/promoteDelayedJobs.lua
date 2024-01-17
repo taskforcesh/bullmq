@@ -8,6 +8,7 @@
 
 -- Includes
 --- @include "addJobWithPriority"
+--- @include "addBaseMarkerIfNeeded"
 
 -- Try to get as much as 1000 jobs at once
 local function promoteDelayedJobs(delayedKey, markerKey, targetKey, prioritizedKey,
@@ -25,9 +26,7 @@ local function promoteDelayedJobs(delayedKey, markerKey, targetKey, prioritizedK
             if priority == 0 then
                 -- LIFO or FIFO
                 rcall("LPUSH", targetKey, jobId)
-                if not isPaused then
-                    rcall("ZADD", markerKey, 0, "0")
-                end
+                addBaseMarkerIfNeeded(markerKey, isPaused)
             else
                 addJobWithPriority(markerKey, prioritizedKey, priority,
                   jobId, priorityCounterKey, isPaused)

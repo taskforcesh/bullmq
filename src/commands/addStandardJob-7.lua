@@ -58,10 +58,11 @@ local parent = args[8]
 local parentData
 
 -- Includes
---- @include "includes/storeJob"
---- @include "includes/updateExistingJobsParent"
+--- @include "includes/addBaseMarkerIfNeeded"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/storeJob"
+--- @include "includes/updateExistingJobsParent"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -100,10 +101,7 @@ storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
 
 local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[2])
 
-if not paused then
-    -- mark that a job is available
-    rcall("ZADD", KEYS[7], 0, "0")
-end
+addBaseMarkerIfNeeded(KEYS[7], paused)
 
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'

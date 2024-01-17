@@ -1,6 +1,6 @@
 --[[
   Add delay marker if needed.
-]] 
+]]
 -- Includes
 --- @include "getNextDelayedTimestamp"
 local function addDelayMarkerIfNeeded(markerKey, delayedKey)
