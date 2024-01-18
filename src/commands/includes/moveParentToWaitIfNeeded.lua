@@ -3,8 +3,9 @@
 ]]
 -- Includes
 --- @include "addDelayMarkerIfNeeded"
---- @include "isQueuePaused"
+--- @include "addJobInTargetList"
 --- @include "addJobWithPriority"
+--- @include "isQueuePaused"
 --- @include "getTargetQueueList"
 local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
                                         parentKey, parentId, timestamp)
@@ -35,8 +36,7 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
                 local parentTarget, isParentPaused =
                     getTargetQueueList(parentMetaKey, parentWaitKey,
                                        parentPausedKey)
-                rcall("RPUSH", parentTarget, parentId)
-                addBaseMarkerIfNeeded(parentMarkerKey, isParentPaused)
+                addJobInTargetList(target, parentMarkerKey, "RPUSH", isParentPaused, parentId)
             else
                 local isPaused = isQueuePaused(parentMetaKey)
                 addJobWithPriority(parentMarkerKey,

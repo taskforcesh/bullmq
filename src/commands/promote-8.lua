@@ -25,7 +25,7 @@ local rcall = redis.call
 local jobId = ARGV[2]
 
 -- Includes
---- @include "includes/addBaseMarkerIfNeeded"
+--- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getTargetQueueList"
 
@@ -43,8 +43,7 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
 
     if priority == 0 then
         -- LIFO or FIFO
-        rcall("LPUSH", target, jobId)
-        addBaseMarkerIfNeeded(KEYS[8], paused)
+        addJobInTargetList(target, KEYS[8], "LPUSH", paused, jobId)
     else
         addJobWithPriority(KEYS[8], KEYS[5], priority, jobId, KEYS[6], paused)
     end

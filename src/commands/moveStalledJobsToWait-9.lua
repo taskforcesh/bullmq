@@ -24,7 +24,7 @@
 local rcall = redis.call
 
 -- Includes
---- @include "includes/addBaseMarkerIfNeeded"
+--- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/removeJob"
@@ -122,8 +122,7 @@ if (#stalling > 0) then
                             getTargetQueueList(metaKey, waitKey, pausedKey)
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                        rcall("RPUSH", target, jobId)
-                        addBaseMarkerIfNeeded(markerKey, isPaused)
+                        addJobInTargetList(target, markerKey, "RPUSH", isPaused, jobId)
 
                         rcall("XADD", eventStreamKey, "*", "event",
                               "waiting", "jobId", jobId, 'prev', 'active')
