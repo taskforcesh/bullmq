@@ -57,6 +57,7 @@ local rcall = redis.call
 --- Includes
 --- @include "includes/collectMetrics"
 --- @include "includes/getNextDelayedTimestamp"
+--- @include "includes/getTargetQueueList"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
