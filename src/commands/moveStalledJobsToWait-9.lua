@@ -24,13 +24,13 @@
 local rcall = redis.call
 
 -- Includes
---- @include "addBaseMarkerIfNeeded"
---- @include "batches"
---- @include "getTargetQueueList"
---- @include "removeJob"
---- @include "removeJobsByMaxAge"
---- @include "removeJobsByMaxCount"
---- @include "trimEvents"
+--- @include "includes/addBaseMarkerIfNeeded"
+--- @include "includes/batches"
+--- @include "includes/getTargetQueueList"
+--- @include "includes/removeJob"
+--- @include "includes/removeJobsByMaxAge"
+--- @include "includes/removeJobsByMaxCount"
+--- @include "includes/trimEvents"
 
 local stalledKey = KEYS[1]
 local waitKey = KEYS[2]
