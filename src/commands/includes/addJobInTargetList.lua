@@ -9,4 +9,3 @@ local function addJobInTargetList(targetKey, markerKey, pushCmd, isPaused, jobId
   rcall(pushCmd, targetKey, jobId)
   addBaseMarkerIfNeeded(markerKey, isPaused)
 end
-  

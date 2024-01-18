@@ -36,7 +36,7 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
                 local parentTarget, isParentPaused =
                     getTargetQueueList(parentMetaKey, parentWaitKey,
                                        parentPausedKey)
-                addJobInTargetList(target, parentMarkerKey, "RPUSH", isParentPaused, parentId)
+                addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPaused, parentId)
             else
                 local isPaused = isQueuePaused(parentMetaKey)
                 addJobWithPriority(parentMarkerKey,
