@@ -1,12 +1,14 @@
 --[[
   Validate and move parent to active if needed.
 ]]
+
 -- Includes
 --- @include "addDelayMarkerIfNeeded"
 --- @include "addJobInTargetList"
 --- @include "addJobWithPriority"
 --- @include "isQueuePaused"
 --- @include "getTargetQueueList"
+
 local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
                                         parentKey, parentId, timestamp)
     local isParentActive = rcall("ZSCORE",
