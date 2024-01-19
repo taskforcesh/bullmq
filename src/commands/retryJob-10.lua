@@ -60,6 +60,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   -- Standard or priority add
   if priority == 0 then
     rcall(ARGV[3], target, ARGV[4])
+    -- TODO: check if we need to add marker in this case too
   else
     addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], paused)
   end

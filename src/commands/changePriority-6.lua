@@ -25,7 +25,6 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/isQueuePaused"
 --- @include "includes/addJobWithPriority"
---- @include "includes/getTargetQueueList"
 
 if rcall("EXISTS", jobKey) == 1 then
     local metaKey = KEYS[3]

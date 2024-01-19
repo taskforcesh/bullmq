@@ -1,8 +1,10 @@
 --[[
   Add delay marker if needed.
-]] 
+]]
+
 -- Includes
 --- @include "getNextDelayedTimestamp"
+
 local function addDelayMarkerIfNeeded(markerKey, delayedKey)
     local nextTimestamp = getNextDelayedTimestamp(delayedKey)
     if nextTimestamp ~= nil then
