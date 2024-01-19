@@ -31,6 +31,7 @@ if rcall("EXISTS", KEYS[2]) == 1 then
 
   rcall("HSET", KEYS[2], "delay", tonumber(ARGV[1]))
   rcall("ZADD", KEYS[1], score, jobId)
+  -- TODO: check if we need to evaluate a new marker
 
   rcall("XADD", KEYS[3], "*", "event", "delayed", "jobId", jobId, "delay", delayedTimestamp)
 
