@@ -16,7 +16,6 @@ import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
-import { SSL_OP_NO_TLSv1_2 } from 'constants';
 
 describe('Job', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
