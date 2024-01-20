@@ -2337,6 +2337,55 @@ describe('workers', function () {
       });
     });
 
+    describe('when backoff type is fixed', () => {
+      it("updates job's delay property and respects fixed delay value", async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('error');
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        await queue.add(
+          'test',
+          { bar: 'baz' },
+          {
+            attempts: 4,
+            backoff: {
+              type: 'fixed',
+              delay: 750,
+            },
+          },
+        );
+
+        const now = Date.now();
+        const failed = new Promise<void>((resolve, reject) => {
+          worker.on('failed', async job => {
+            try {
+              const attemptsMade = job?.attemptsMade;
+              if (attemptsMade! > 3) {
+                expect(job!.delay).to.be.eql(0);
+                const gotJob = await queue.getJob(job.id!);
+                expect(gotJob!.delay).to.be.eql(0);
+                const timeDiff = Date.now() - now;
+                expect(timeDiff).to.be.greaterThanOrEqual(2250);
+                expect(timeDiff).to.be.lessThanOrEqual(2750);
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        await failed;
+
+        await worker.close();
+      });
+    });
+
     describe('when attempts is 1 and job fails', () => {
       it('should execute job only once and emits retries-exhausted event', async () => {
         const worker = new Worker(
