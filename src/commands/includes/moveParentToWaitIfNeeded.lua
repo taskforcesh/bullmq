@@ -4,9 +4,11 @@
 
 -- Includes
 --- @include "addDelayMarkerIfNeeded"
+--- @include "addJobInTargetList"
 --- @include "addJobWithPriority"
 --- @include "isQueuePaused"
 --- @include "getTargetQueueList"
+
 local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
                                         parentKey, parentId, timestamp)
     local isParentActive = rcall("ZSCORE",
@@ -33,11 +35,10 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
             addDelayMarkerIfNeeded(parentMarkerKey, parentDelayedKey)
         else
             if priority == 0 then
-                local parentTarget, _paused =
+                local parentTarget, isParentPaused =
                     getTargetQueueList(parentMetaKey, parentWaitKey,
                                        parentPausedKey)
-                rcall("RPUSH", parentTarget, parentId)
-                rcall("ZADD", parentMarkerKey, 0, "0")
+                addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPaused, parentId)
             else
                 local isPaused = isQueuePaused(parentMetaKey)
                 addJobWithPriority(parentMarkerKey,

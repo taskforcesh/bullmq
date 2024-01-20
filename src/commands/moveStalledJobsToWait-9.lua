@@ -1,5 +1,6 @@
 --[[
   Move stalled jobs to wait.
+
     Input:
       KEYS[1] 'stalled' (SET)
       KEYS[2] 'wait',   (LIST)
@@ -8,12 +9,14 @@
       KEYS[5] 'stalled-check', (KEY)
       KEYS[6] 'meta', (KEY)
       KEYS[7] 'paused', (LIST)
-      KEYS[8] 'event stream' (STREAM)
+      KEYS[8] 'marker'
+      KEYS[9] 'event stream' (STREAM)
 
       ARGV[1]  Max stalled job count
       ARGV[2]  queue.toKey('')
       ARGV[3]  timestamp
       ARGV[4]  max check time
+
     Events:
       'stalled' with stalled job id.
 ]]
@@ -21,6 +24,7 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/removeJob"
@@ -35,7 +39,8 @@ local failedKey = KEYS[4]
 local stalledCheckKey = KEYS[5]
 local metaKey = KEYS[6]
 local pausedKey = KEYS[7]
-local eventStreamKey = KEYS[8]
+local markerKey = KEYS[8]
+local eventStreamKey = KEYS[9]
 local maxStalledJobCount = ARGV[1]
 local queueKeyPrefix = ARGV[2]
 local timestamp = ARGV[3]
@@ -113,11 +118,12 @@ if (#stalling > 0) then
 
                         table.insert(failed, jobId)
                     else
-                        local target =
+                        local target, isPaused=
                             getTargetQueueList(metaKey, waitKey, pausedKey)
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                        rcall("RPUSH", target, jobId)
+                        addJobInTargetList(target, markerKey, "RPUSH", isPaused, jobId)
+
                         rcall("XADD", eventStreamKey, "*", "event",
                               "waiting", "jobId", jobId, 'prev', 'active')
 

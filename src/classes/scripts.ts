@@ -1000,6 +1000,7 @@ export class Scripts {
       this.queue.keys['stalled-check'],
       this.queue.keys.meta,
       this.queue.keys.paused,
+      this.queue.keys.marker,
       this.queue.keys.events,
     ];
     const args = [

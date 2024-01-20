@@ -58,6 +58,7 @@ local parent = args[8]
 local parentData
 
 -- Includes
+--- @include "includes/addJobInTargetList"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/storeJob"
@@ -100,14 +101,9 @@ storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
 
 local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[2])
 
-if not paused then
-    -- mark that a job is available
-    rcall("ZADD", KEYS[7], 0, "0")
-end
-
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-rcall(pushCmd, target, jobId)
+addJobInTargetList(target, KEYS[7], pushCmd, paused, jobId)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
