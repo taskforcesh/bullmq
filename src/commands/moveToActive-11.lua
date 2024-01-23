@@ -37,6 +37,7 @@
 local rcall = redis.call
 local waitKey = KEYS[1]
 local activeKey = KEYS[2]
+local eventStreamKey = KEYS[4]
 local rateLimiterKey = KEYS[6]
 local delayedKey = KEYS[7]
 local opts = cmsgpack.unpack(ARGV[3])
@@ -53,7 +54,7 @@ local target, paused = getTargetQueueList(KEYS[9], waitKey, KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
 local markerKey = KEYS[11]
-promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], KEYS[4], ARGV[1],
+promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], eventStreamKey, ARGV[1],
                    ARGV[2], KEYS[10], paused)
 
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
@@ -75,13 +76,13 @@ if jobId and string.sub(jobId, 1, 2) == "0:" then
 end
 
 if jobId then
-    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2],
-                                   maxJobs, expireTime, opts)
+    return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
+                                   maxJobs, opts)
 else
     jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
     if jobId then
-        return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2],
-                                       maxJobs, expireTime, opts)
+        return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
+                                       maxJobs, opts)
     end
 end
 

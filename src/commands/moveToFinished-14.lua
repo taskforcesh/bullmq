@@ -119,9 +119,10 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     if (numRemovedElements < 1) then return -3 end
 
+    local eventStreamKey = KEYS[4]
     local metaKey = KEYS[9]
     -- Trim events before emiting them to avoid trimming events emitted in this script
-    trimEvents(metaKey, KEYS[4])
+    trimEvents(metaKey, eventStreamKey)
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -183,12 +184,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         end
     end
 
-    rcall("XADD", KEYS[4], "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
+    rcall("XADD", eventStreamKey, "*", "event", ARGV[5], "jobId", jobId, ARGV[3],
           ARGV[4])
 
     if ARGV[5] == "failed" then
         if tonumber(attemptsMade) >= tonumber(attempts) then
-            rcall("XADD", KEYS[4], "*", "event", "retries-exhausted", "jobId",
+            rcall("XADD", eventStreamKey, "*", "event", "retries-exhausted", "jobId",
                   jobId, "attemptsMade", attemptsMade)
         end
     end
@@ -205,7 +206,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[8])
 
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], KEYS[4], ARGV[7],
+        promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], eventStreamKey, ARGV[7],
                            timestamp, KEYS[10], paused)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
@@ -229,20 +230,20 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 if jobId == "0:0" then
                     jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2],
                                                         KEYS[10])
-                    return prepareJobForProcessing(KEYS, ARGV[7], target, jobId,
+                    return prepareJobForProcessing(ARGV[7], KEYS[6], eventStreamKey, jobId,
                                                    timestamp, maxJobs,
-                                                   expireTime, opts)
+                                                   opts)
                 end
             else
-                return prepareJobForProcessing(KEYS, ARGV[7], target, jobId,
-                                               timestamp, maxJobs, expireTime,
+                return prepareJobForProcessing(ARGV[7], KEYS[6], eventStreamKey, jobId,
+                                               timestamp, maxJobs,
                                                opts)
             end
         else
             jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
-                return prepareJobForProcessing(KEYS, ARGV[7], target, jobId,
-                                               timestamp, maxJobs, expireTime,
+                return prepareJobForProcessing(ARGV[7], KEYS[6], eventStreamKey, jobId,
+                                               timestamp, maxJobs,
                                                opts)
             end
         end
@@ -264,7 +265,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             local prioritizedLen = rcall("ZCARD", KEYS[3])
 
             if prioritizedLen == 0 then
-                rcall("XADD", KEYS[4], "*", "event", "drained")
+                rcall("XADD", eventStreamKey, "*", "event", "drained")
             end
         end
     end
