@@ -2,26 +2,12 @@
 --[[
   Function to move job from wait state to active.
   Input:
-    keys[1] wait key
-    keys[2] active key
-    keys[3] prioritized key
-    keys[4] stream events key
-    keys[5] stalled key
-
-    -- Rate limiting
-    keys[6] rate limiter key
-    keys[7] delayed key
-
-    keys[8] paused key
-    keys[9] meta key
-    keys[10] pc priority counter
-
     opts - token - lock token
     opts - lockDuration
     opts - limiter
 ]]
 
-local function prepareJobForProcessing(keys, keyPrefix, rateLimiterKey, eventStreamKey,
+local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey,
     jobId, processedOn, maxJobs, opts)
   local jobKey = keyPrefix .. jobId
 
