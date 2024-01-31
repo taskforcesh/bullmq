@@ -423,6 +423,69 @@ describe('Rate Limiter', function () {
       await worker.close();
     });
 
+    describe('when rate limit is too low', () => {
+      it('should move job to wait anyway', async function () {
+        this.timeout(4000);
+
+        const numJobs = 10;
+        const dynamicLimit = 1;
+        const duration = 100;
+
+        const ttl = await queue.getRateLimitTtl();
+        expect(ttl).to.be.equal(-2);
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            if (job.attemptsStarted === 1) {
+              delay(50);
+              await worker.rateLimit(dynamicLimit);
+              const currentTtl = await queue.getRateLimitTtl();
+              expect(currentTtl).to.be.lessThanOrEqual(dynamicLimit);
+              throw Worker.RateLimitError();
+            }
+          },
+          {
+            connection,
+            prefix,
+            maxStalledCount: 0,
+            limiter: {
+              max: 1,
+              duration,
+            },
+          },
+        );
+
+        const result = new Promise<void>((resolve, reject) => {
+          queueEvents.on(
+            'completed',
+            // after every job has been completed
+            after(numJobs, async () => {
+              try {
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            }),
+          );
+
+          queueEvents.on('failed', async err => {
+            await worker.close();
+            reject(err);
+          });
+        });
+
+        const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+          name: 'rate test',
+          data: {},
+        }));
+        await queue.addBulk(jobs);
+
+        await result;
+        await worker.close();
+      });
+    });
+
     describe('when reaching max attempts and we want to move the job to failed', () => {
       it('should throw Unrecoverable error', async function () {
         const dynamicLimit = 550;

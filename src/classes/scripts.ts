@@ -222,9 +222,7 @@ export class Scripts {
     return <string>result;
   }
 
-  async pause(pause: boolean): Promise<void> {
-    const client = await this.queue.client;
-
+  protected pauseArgs(pause: boolean): (string | number)[] {
     let src = 'wait',
       dst = 'paused';
     if (!pause) {
@@ -242,7 +240,17 @@ export class Scripts {
       this.queue.keys.marker,
     );
 
-    return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
+    const args = [pause ? 'paused' : 'resumed'];
+
+    return keys.concat(args);
+  }
+
+  async pause(pause: boolean): Promise<void> {
+    const client = await this.queue.client;
+
+    const args = this.pauseArgs(pause);
+
+    return (<any>client).pause(args);
   }
 
   private removeRepeatableArgs(
@@ -1034,6 +1042,7 @@ export class Scripts {
       this.queue.keys.meta,
       this.queue.keys.limiter,
       this.queue.keys.prioritized,
+      this.queue.keys.marker,
       this.queue.keys.events,
     ];
 
