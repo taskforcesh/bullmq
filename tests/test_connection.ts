@@ -326,10 +326,10 @@ describe('connection', () => {
       },
     });
 
-    await expect(queueFail.close()).to.be.eventually.equal(undefined);
-
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
       'connect ECONNREFUSED 127.0.0.1:1234',
     );
+
+    await expect(queueFail.close()).to.be.eventually.equal(undefined);
   });
 });
