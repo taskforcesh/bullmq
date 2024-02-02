@@ -33,7 +33,10 @@ describe('workers', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async function () {
@@ -868,8 +871,7 @@ describe('workers', function () {
     it('should not fail', async () => {
       const queueName2 = `test-${v4()}`;
 
-      const connection = new IORedis({
-        host: redisHost,
+      const connection = new IORedis(redisHost, {
         maxRetriesPerRequest: null,
       });
 
@@ -1454,7 +1456,10 @@ describe('workers', function () {
 
   describe('when sharing a redis connection between workers', function () {
     it('should not close the connection', async () => {
-      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+      const connection = new IORedis(redisHost, {
+        maxRetriesPerRequest: null,
+        disconnectTimeout: 0,
+      });
 
       return new Promise((resolve, reject) => {
         connection.on('ready', async () => {
@@ -1487,7 +1492,10 @@ describe('workers', function () {
     });
 
     it('should not close the connection', async () => {
-      const connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+      const connection = new IORedis(redisHost, {
+        maxRetriesPerRequest: null,
+        disconnectTimeout: 0,
+      });
       const queueName2 = `test-shared-${v4()}`;
 
       const queue2 = new Queue(queueName2, {
@@ -1792,8 +1800,7 @@ describe('workers', function () {
   it('emits error if lock is "stolen"', async function () {
     this.timeout(10000);
 
-    const connection = new IORedis({
-      host: redisHost,
+    const connection = new IORedis(redisHost, {
       maxRetriesPerRequest: null,
     });
 
