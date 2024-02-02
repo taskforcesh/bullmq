@@ -1,3 +1,31 @@
+## [6.9.6](https://github.com/taskforcesh/bullmq-pro/compare/v6.9.5...v6.9.6) (2024-01-31)
+
+
+### Bug Fixes
+
+* **groups:** remove group when removing last job ([#199](https://github.com/taskforcesh/bullmq-pro/issues/199)) ([3066686](https://github.com/taskforcesh/bullmq-pro/commit/3066686df4851334efadd7024cc8566407eabd7f))
+
+## [6.9.5](https://github.com/taskforcesh/bullmq-pro/compare/v6.9.4...v6.9.5) (2024-01-27)
+
+
+### Bug Fixes
+
+* **batches:** differentiate movetoBatchFinished responses ([#198](https://github.com/taskforcesh/bullmq-pro/issues/198)) ([bb74c50](https://github.com/taskforcesh/bullmq-pro/commit/bb74c501f19fabbb61c4cb637598591f508bd59d))
+
+## [6.9.4](https://github.com/taskforcesh/bullmq-pro/compare/v6.9.3...v6.9.4) (2024-01-20)
+
+
+### Bug Fixes
+
+* **backoff:** set marker after adding delayed job ([#197](https://github.com/taskforcesh/bullmq-pro/issues/197)) ([50a012e](https://github.com/taskforcesh/bullmq-pro/commit/50a012e352b9608a2a7f36db0cd7643078e183ee))
+
+## [6.9.3](https://github.com/taskforcesh/bullmq-pro/compare/v6.9.2...v6.9.3) (2024-01-18)
+
+
+### Performance Improvements
+
+* **prioritized:** get target list once in addPrioritizedJob ([#195](https://github.com/taskforcesh/bullmq-pro/issues/195)) ([51cf4a3](https://github.com/taskforcesh/bullmq-pro/commit/51cf4a34d645013a49c01b740cf280666ebc4c97))
+
 ## [6.9.2](https://github.com/taskforcesh/bullmq-pro/compare/v6.9.1...v6.9.2) (2024-01-17)
 
 

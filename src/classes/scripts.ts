@@ -911,6 +911,7 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.meta,
       this.queue.keys.paused,
+      this.queue.keys.marker,
     ];
 
     const args = [
