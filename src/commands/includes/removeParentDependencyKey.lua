@@ -4,12 +4,14 @@
   which requires code from "moveToFinished"
 ]]
 
+-- Includes
+--- @include "addJobInTargetList"
 --- @include "destructureJobKey"
 --- @include "getTargetQueueList"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
-  local parentTarget = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait", parentPrefix .. "paused")
-  rcall("RPUSH", parentTarget, parentId)
+  local parentTarget, isPaused = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait", parentPrefix .. "paused")
+  addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPaused, parentId)
 
   if emitEvent then
     local parentEventStream = parentPrefix .. "events"
