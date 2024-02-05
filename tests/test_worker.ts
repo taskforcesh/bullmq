@@ -1505,10 +1505,12 @@ describe('workers', function () {
               connection,
               prefix,
             });
+            await worker1.waitUntilReady();
             const worker2 = new Worker(queueName2, null, {
               connection,
               prefix,
             });
+            await worker2.waitUntilReady();
 
             try {
               // There is no point into checking the ready status after closing

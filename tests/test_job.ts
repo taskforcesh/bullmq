@@ -847,7 +847,7 @@ describe('Job', function () {
       const completing = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           const timeDiff = new Date().getTime() - startTime;
-          expect(timeDiff).to.be.gte(4000);
+          expect(timeDiff).to.be.gte(2000);
           resolve();
         });
       });
@@ -856,17 +856,17 @@ describe('Job', function () {
         queue,
         'test',
         { foo: 'bar' },
-        { delay: 2000 },
+        { delay: 8000 },
       );
 
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
 
-      await job.changeDelay(4000);
+      await job.changeDelay(2000);
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
-      expect(job.delay).to.be.equal(4000);
+      expect(job.delay).to.be.equal(2000);
 
       await completing;
 

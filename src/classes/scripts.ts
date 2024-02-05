@@ -622,12 +622,19 @@ export class Scripts {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
     }
 
-    const keys: (string | number)[] = ['delayed', jobId].map(name => {
-      return this.queue.toKey(name);
-    });
-    keys.push.apply(keys, [this.queue.keys.events]);
+    const keys: (string | number)[] = [
+      this.queue.keys.delayed,
+      this.queue.keys.meta,
+      this.queue.keys.marker,
+      this.queue.keys.events,
+    ];
 
-    return keys.concat([delay, JSON.stringify(timestamp), jobId]);
+    return keys.concat([
+      delay,
+      JSON.stringify(timestamp),
+      jobId,
+      this.queue.toKey(jobId),
+    ]);
   }
 
   async changePriority(
