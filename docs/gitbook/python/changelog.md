@@ -15,11 +15,6 @@
 ## v2.2.1 (2024-01-16)
 ### Fix
 * **retry-jobs:** Add marker when needed ([#2374](https://github.com/taskforcesh/bullmq/issues/2374)) ([`1813d5f`](https://github.com/taskforcesh/bullmq/commit/1813d5fa12b7db69ee6c8c09273729cda8e3e3b5))
-* **security:** Upgrade msgpackr https://github.com/advisories/GHSA-7hpj-7hhx-2fgx ([`7ae0953`](https://github.com/taskforcesh/bullmq/commit/7ae095357fddbdaacc286cbe5782946b95160d55))
-
-### Documentation
-* **changelog:** Split changelog ([#2381](https://github.com/taskforcesh/bullmq/issues/2381)) ([`368b5a1`](https://github.com/taskforcesh/bullmq/commit/368b5a104b632fa181b2c19cc5e3530387f38ae4))
-* **summary:** Add remove dependency section ([#2378](https://github.com/taskforcesh/bullmq/issues/2378)) ([`03e1451`](https://github.com/taskforcesh/bullmq/commit/03e1451f54edf56f11f9e74f9b4095efe522bb97))
 
 ## v2.2.0 (2024-01-14)
 ### Feature
@@ -32,12 +27,6 @@
 ### Fix
 * **redis:** Upgrade to v5 [python] ([#2364](https://github.com/taskforcesh/bullmq/issues/2364)) ([`d5113c8`](https://github.com/taskforcesh/bullmq/commit/d5113c88ad108b281b292e2890e0eef3be41c8fb))
 * **worker:** Worker can be closed if Redis is down ([#2350](https://github.com/taskforcesh/bullmq/issues/2350)) ([`888dcc2`](https://github.com/taskforcesh/bullmq/commit/888dcc2dd40571e05fe1f4a5c81161ed062f4542))
-
-### Documentation
-* **sandbox:** Add URL support section (#2373) ref #2326 #2372 ([`3a38a47`](https://github.com/taskforcesh/bullmq/commit/3a38a471cbeda70ac9d4d9744b199090dc6f0a12))
-* **bullmq-pro:** Update changelog to v6.9.0 ([#2359](https://github.com/taskforcesh/bullmq/issues/2359)) ([`66d9469`](https://github.com/taskforcesh/bullmq/commit/66d9469b3b40b0b5b43601308fa063707cb41b91))
-* **workers:** Add auto removal jobs section ([#2355](https://github.com/taskforcesh/bullmq/issues/2355)) ([`dddd2c8`](https://github.com/taskforcesh/bullmq/commit/dddd2c89132c0b3216a8788e1672e4433b98a436))
-* **changelog:** Format v2 changes docs [python] ([#2353](https://github.com/taskforcesh/bullmq/issues/2353)) ([`97837f2`](https://github.com/taskforcesh/bullmq/commit/97837f22ec4abbe20c4026221801f51156f4861b))
 
 ## v2.0.0 (2023-12-23)
 ### Feature
