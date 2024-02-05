@@ -10,7 +10,8 @@
 --- @include "getTargetQueueList"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
-  local parentTarget, isPaused = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait", parentPrefix .. "paused")
+  local parentTarget, isPaused = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait",
+    parentPrefix .. "paused")
   addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPaused, parentId)
 
   if emitEvent then
@@ -48,7 +49,8 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
     end
   else
     local missedParentKey = rcall("HGET", jobKey, "parentKey")
-    if( (type(missedParentKey) == "string") and missedParentKey ~= "" and (rcall("EXISTS", missedParentKey) == 1)) then
+    if( (type(missedParentKey) == "string") and missedParentKey ~= ""
+      and (rcall("EXISTS", missedParentKey) == 1)) then
       local parentDependenciesKey = missedParentKey .. ":dependencies"
       local result = rcall("SREM", parentDependenciesKey, jobKey)
       if result > 0 then
