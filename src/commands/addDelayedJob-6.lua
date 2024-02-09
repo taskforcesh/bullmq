@@ -81,9 +81,17 @@ else
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
-        updateExistingJobsParent(parentKey, parent, parentData,
-                                 parentDependenciesKey, completedKey, jobIdKey,
-                                 jobId, timestamp)
+        local existedParentKey = rcall("HGET", jobIdKey, "parentKey")
+        if( (type(existedParentKey) == "string") and existedParentKey ~= "" then
+            if parentKey ~= nil and parentKey ~= existedParentKey
+                and (rcall("EXISTS", existedParentKey) == 1)) then
+                return -7
+            else
+                updateExistingJobsParent(parentKey, parent, parentData,
+                    parentDependenciesKey, completedKey, jobIdKey,
+                    jobId, timestamp)
+            end
+        end
         rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
               "duplicated", "jobId", jobId)
 
