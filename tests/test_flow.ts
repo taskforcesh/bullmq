@@ -1318,6 +1318,54 @@ describe('flows', () => {
       await worker.close();
       await flow.close();
     });
+
+    describe('when job already have a parent', async () => {
+      it('throws an error', async () => {
+        const flow = new FlowProducer({ connection, prefix });
+        await flow.add({
+          queueName,
+          name: 'tue',
+          opts: {
+            jobId: 'tue',
+          },
+          children: [
+            {
+              name: 'mon',
+              queueName,
+              opts: {
+                jobId: 'mon',
+              },
+            },
+          ],
+        });
+
+        await queue.add(
+          'wed',
+          {},
+          {
+            jobId: 'wed',
+          },
+        );
+
+        await expect(
+          queue.add(
+            'mon',
+            {},
+            {
+              jobId: 'mon',
+              parent: {
+                id: 'wed',
+                queue: `${prefix}:${queueName}`,
+              },
+            },
+          ),
+        ).to.be.rejectedWith(
+          `Parent job from job ${prefix}:${queueName}:wed cannot be replaced. addJob`,
+        );
+
+        await flow.close();
+      });
+    });
   });
 
   describe('when custom prefix is set in flow producer', async () => {

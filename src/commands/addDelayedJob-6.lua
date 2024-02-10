@@ -57,6 +57,7 @@ local parentData
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/handleDuplicatedJob"
 --- @include "includes/isQueuePaused"
 --- @include "includes/storeJob"
 --- @include "includes/updateExistingJobsParent"
@@ -77,25 +78,12 @@ if args[2] == "" then
     jobId = jobCounter
     jobIdKey = args[1] .. jobId
 else
-    -- Refactor to: handleDuplicateJob.lua
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
-        local existedParentKey = rcall("HGET", jobIdKey, "parentKey")
-        if( (type(existedParentKey) == "string") and existedParentKey ~= "" then
-            if parentKey ~= nil and parentKey ~= existedParentKey
-                and (rcall("EXISTS", existedParentKey) == 1)) then
-                return -7
-            else
-                updateExistingJobsParent(parentKey, parent, parentData,
-                    parentDependenciesKey, completedKey, jobIdKey,
-                    jobId, timestamp)
-            end
-        end
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-              "duplicated", "jobId", jobId)
-
-        return jobId .. "" -- convert to string
+        return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
+            parentData, parentDependenciesKey, completedKey, eventsKey,
+            maxEvents, timestamp)
     end
 end
 
