@@ -10,6 +10,6 @@ local function addDelayMarkerIfNeeded(markerKey, delayedKey)
     if nextTimestamp ~= nil then
         -- Replace the score of the marker with the newest known
         -- next timestamp.
-        rcall("ZADD", markerKey, nextTimestamp, "0")
+        rcall("ZADD", markerKey, nextTimestamp, "1")
     end
 end
