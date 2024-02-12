@@ -1360,7 +1360,7 @@ describe('flows', () => {
             },
           ),
         ).to.be.rejectedWith(
-          `Parent job from job ${prefix}:${queueName}:wed cannot be replaced. addJob`,
+          `The parent job of job ${prefix}:${queueName}:wed cannot be replaced. addJob`,
         );
 
         await flow.close();
