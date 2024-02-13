@@ -88,7 +88,7 @@ queueEvents.on('completed', ({ jobId: string, returnvalue: any }) => {
 });
 
 queueEvents.on('failed', ({ jobId: string, failedReason: string }) => {
-  // jobId received a progress event
+  // Called every time a job is failed in any worker.
 });
 
 queueEvents.on('progress', ({jobId: string, data: number | object}) => {
