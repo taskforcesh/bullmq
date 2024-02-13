@@ -3,12 +3,12 @@
 Jobs can also include a `priority` option. Using priorities, job processing order will be affected by the specified `priority` instead of following a FIFO or LIFO pattern.
 
 {% hint style="warning" %}
-Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity `O(log(n))`` relative to the number of jobs in the prioritized set in the queue.
+Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity `O(log(n))` relative to the number of jobs in the prioritized set in the queue.
 {% endhint %}
 
 Note that the priorities go from `1` to `2 097 152`, where a lower number is always a **higher** priority than higher numbers.
 
-Jobs without a `priority`` assigned will get the most priority.
+Jobs without a `priority` assigned will get the most priority.
 
 ```typescript
 import { Queue } from 'bullmq';
