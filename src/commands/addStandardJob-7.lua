@@ -61,6 +61,7 @@ local parentData
 --- @include "includes/addJobInTargetList"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/handleDuplicatedJob"
 --- @include "includes/storeJob"
 --- @include "includes/updateExistingJobsParent"
 
@@ -84,14 +85,9 @@ else
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
-        updateExistingJobsParent(parentKey, parent, parentData,
-                                 parentDependenciesKey, KEYS[5], jobIdKey,
-                                 jobId, timestamp)
-
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-              "duplicated", "jobId", jobId)
-
-        return jobId .. "" -- convert to string
+        return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
+            parentData, parentDependenciesKey, KEYS[5], eventsKey,
+            maxEvents, timestamp)
     end
 end
 
