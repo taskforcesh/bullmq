@@ -144,6 +144,20 @@ describe('connection', () => {
     await worker.close();
   });
 
+  it('should close underlying redis connection when closing fast', async () => {
+    const queue = new Queue('CALLS_JOB_QUEUE_NAME', {
+      connection: {
+        host: 'localhost',
+        port: 6379,
+      },
+    });
+
+    const client = queue['connection']['_client'];
+    await queue.close();
+
+    expect(client.status).to.be.eql('end');
+  });
+
   it('should recover from a connection loss', async () => {
     let processor;
 
