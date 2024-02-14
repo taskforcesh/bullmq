@@ -84,11 +84,11 @@ import { QueueEvents } from 'bullmq';
 const queueEvents = new QueueEvents('Paint');
 
 queueEvents.on('completed', ({ jobId: string, returnvalue: any }) => {
-  // Called every time a job is completed in any worker.
+  // Called every time a job is completed by any worker.
 });
 
 queueEvents.on('failed', ({ jobId: string, failedReason: string }) => {
-  // Called every time a job is failed in any worker.
+  // Called whenever a job is moved to failed by any worker.
 });
 
 queueEvents.on('progress', ({jobId: string, data: number | object}) => {
