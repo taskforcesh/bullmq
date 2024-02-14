@@ -47,7 +47,6 @@ local rcall = redis.call
 local args = cmsgpack.unpack(ARGV[1])
 
 local data = ARGV[2]
-local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
 local repeatJobKey = args[9]
@@ -60,7 +59,6 @@ local parentData
 --- @include "includes/handleDuplicatedJob"
 --- @include "includes/isQueuePaused"
 --- @include "includes/storeJob"
---- @include "includes/updateExistingJobsParent"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -71,6 +69,7 @@ end
 local jobCounter = rcall("INCR", idKey)
 
 local maxEvents = getOrSetMaxEvents(metaKey)
+local opts = cmsgpack.unpack(ARGV[3])
 
 local parentDependenciesKey = args[7]
 local timestamp = args[4]
