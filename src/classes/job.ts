@@ -40,6 +40,7 @@ const logger = debuglog('bull');
 
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
+  idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
 };
@@ -813,6 +814,17 @@ export class Job<
     if (result) {
       return parseObjectValues(result);
     }
+  }
+
+  /**
+   * Get this jobs children failure values if any.
+   *
+   * @returns Object mapping children job keys with their failure values.
+   */
+  async getFailedChildrenValues(): Promise<{ [jobKey: string]: string }> {
+    const client = await this.queue.client;
+
+    return client.hgetall(this.toKey(`${this.id}:failed`));
   }
 
   /**

@@ -383,6 +383,7 @@ export class Scripts {
           ? opts.metrics?.maxDataPoints
           : '',
         fpof: !!job.opts?.failParentOnFailure,
+        idof: !!job.opts?.ignoreDependencyOnFailure,
         rdof: !!job.opts?.removeDependencyOnFailure,
       }),
     ];
