@@ -288,13 +288,21 @@ export class RedisConnection extends EventEmitter {
       const status = this.status;
       this.status = 'closing';
       this.closing = true;
+
       try {
         if (status === 'ready') {
           // Not sure if we need to wait for this
           await this.initializing;
-          if (!this.shared) {
+        }
+        if (!this.shared) {
+          if (status == 'initializing') {
+            // If we have not still connected to Redis, we need to disconnect.
+            this._client.disconnect();
+          } else {
             await this._client.quit();
           }
+          // As IORedis does not update this status properly, we do it ourselves.
+          this._client['status'] = 'end';
         }
       } catch (error) {
         if (isNotConnectionError(error as Error)) {
