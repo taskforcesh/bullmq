@@ -3235,6 +3235,123 @@ describe('flows', () => {
         await parentQueue.close();
         await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       });
+
+      describe('when there is a grand parent', () => {
+        it('removes all children when removing a parent, but not grandparent', async () => {
+          const parentQueueName = `parent-queue-${v4()}`;
+          const grandparentQueueName = `grandparent-queue-${v4()}`;
+          const name = 'child-job';
+
+          const flow = new FlowProducer({ connection, prefix });
+          const tree = await flow.add({
+            name: 'grandparent-job',
+            queueName: grandparentQueueName,
+            data: {},
+            children: [
+              {
+                name: 'parent-job',
+                queueName: parentQueueName,
+                data: {},
+                children: [
+                  { name, data: { idx: 0, foo: 'bar' }, queueName },
+                  {
+                    name,
+                    data: { idx: 0, foo: 'baz' },
+                    queueName,
+                    children: [
+                      { name, data: { idx: 0, foo: 'qux' }, queueName },
+                    ],
+                  },
+                ],
+              },
+            ],
+          });
+
+          expect(await tree.job.getState()).to.be.equal('waiting-children');
+          expect(await tree.children![0].job.getState()).to.be.equal(
+            'waiting-children',
+          );
+
+          expect(
+            await tree.children![0].children![0].job.getState(),
+          ).to.be.equal('waiting');
+          expect(
+            await tree.children![0].children![1].job.getState(),
+          ).to.be.equal('waiting-children');
+
+          expect(
+            await tree.children![0].children![1].children![0].job.getState(),
+          ).to.be.equal('waiting');
+
+          for (let i = 0; i < tree.children![0].children!.length; i++) {
+            const child = tree.children![0].children![i];
+            const childJob = await Job.fromId(queue, child.job.id);
+            expect(childJob.parent).to.deep.equal({
+              id: tree.children![0].job.id,
+              queueKey: `${prefix}:${parentQueueName}`,
+            });
+          }
+
+          const parentWorker = new Worker(parentQueueName, async () => {}, {
+            connection,
+            prefix,
+          });
+          const childrenWorker = new Worker(
+            queueName,
+            async () => {
+              await delay(10);
+            },
+            {
+              connection,
+              prefix,
+            },
+          );
+          await parentWorker.waitUntilReady();
+          await childrenWorker.waitUntilReady();
+
+          const completing = new Promise(resolve => {
+            parentWorker.on('completed', resolve);
+          });
+
+          await completing;
+          await tree.children![0].job.remove();
+
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
+          const parentJob = await Job.fromId(parentQueue, tree.job.id);
+          expect(parentJob).to.be.undefined;
+
+          for (let i = 0; i < tree.children![0].children!.length; i++) {
+            const child = tree.children![0].children![i];
+            const childJob = await Job.fromId(queue, child.job.id);
+            expect(childJob).to.be.undefined;
+          }
+
+          const jobs = await queue.getJobCountByTypes('completed');
+          expect(jobs).to.be.equal(0);
+
+          expect(
+            await tree.children![0].children![0].job.getState(),
+          ).to.be.equal('unknown');
+          expect(
+            await tree.children![0].children![1].job.getState(),
+          ).to.be.equal('unknown');
+          expect(await tree.children![0].job.getState()).to.be.equal('unknown');
+          expect(await tree.job.getState()).to.be.equal('waiting');
+
+          await flow.close();
+          await childrenWorker.close();
+          await parentWorker.close();
+          await parentQueue.close();
+          await removeAllQueueData(
+            new IORedis(redisHost),
+            grandparentQueueName,
+          );
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        });
+      });
     });
 
     it('should not remove anything if there is a locked job in the tree', async () => {

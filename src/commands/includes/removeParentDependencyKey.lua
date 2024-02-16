@@ -33,7 +33,7 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
         local numRemovedElements = rcall("ZREM", parentPrefix .. "waiting-children", parentId)
 
         if numRemovedElements == 1 then
-          if hard then
+          if hard then -- remove parent in same queue
             if parentPrefix == baseKey then
               removeParentDependencyKey(parentKey, hard, nil, baseKey)
               rcall("DEL", parentKey, parentKey .. ':logs',
