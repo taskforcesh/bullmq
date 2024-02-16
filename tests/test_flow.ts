@@ -460,7 +460,7 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(redisHost), parentQueueName);
   });
 
-  describe('when ignoreremoveDependencyOnFailure is provided', async () => {
+  describe('when ignoreDependencyOnFailure is provided', async () => {
     it('moves parent to wait after children fail', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
