@@ -1,8 +1,8 @@
-# Remove Dependency
+# Ignore Dependency
 
-In some situations, you may have a parent job and need to remove the relationship when one of its children fail.
+In some situations, you may have a parent job and need to ignore when one of its children fail.
 
-The pattern to solve this requirement consists on using the **removeDependencyOnFailure** option. This option will make sure that when a job fails, the dependency is removed from the parent, so the parent will complete without waiting for the failed children.
+The pattern to solve this requirement consists on using the **ignoreDependencyOnFailure** option. This option will make sure that when a job fails, the dependency is ignored from the parent, so the parent will complete without waiting for the failed children.
 
 ```typescript
 const flow = new FlowProducer({ connection });
@@ -16,7 +16,7 @@ const originalTree = await flow.add({
       name,
       data: { idx: 0, foo: 'bar' },
       queueName: 'childrenQueueName',
-      opts: { removeDependencyOnFailure: true },
+      opts: { ignoreDependencyOnFailure: true },
       children: [
         {
           name,
@@ -42,6 +42,12 @@ const originalTree = await flow.add({
 {% hint style="info" %}
 As soon as a **child** with this option fails, the parent job will be moved to a waiting state only if there are no more pending children.
 {% endhint %}
+
+Failed children using this option can be retrieved by **getFailedChildrenValues** method:
+
+```typescript
+const failedChildrenValues = await originalTree.job.getFailedChildrenValues();
+```
 
 ## Read more:
 

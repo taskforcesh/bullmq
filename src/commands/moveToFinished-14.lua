@@ -39,6 +39,7 @@
       opts - attempts max attempts
       opts - maxMetricsSize
       opts - fpof - fail parent on fail
+      opts - idof - ignore dependency on fail
       opts - rdof - remove dependency on fail
 
     Output:
@@ -147,11 +148,15 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
                                                       parentId, jobIdKey,
                                                       timestamp)
-            elseif opts['rdof'] then
+            elseif opts['idof'] or opts['rdof'] then
                 local dependenciesSet = parentKey .. ":dependencies"
                 if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
                     moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
                                              parentKey, parentId, timestamp)
+                    if opts['idof'] then
+                        local failedSet = parentKey .. ":failed"
+                        rcall("HSET", failedSet, jobIdKey, ARGV[4])
+                    end
                 end
             end
         end

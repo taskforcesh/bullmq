@@ -8,6 +8,7 @@
 --- @include "addJobInTargetList"
 --- @include "destructureJobKey"
 --- @include "getTargetQueueList"
+--- @include "removeJobKeys"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
   local parentTarget, isPaused = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait",
@@ -36,8 +37,7 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
           if hard then -- remove parent in same queue
             if parentPrefix == baseKey then
               removeParentDependencyKey(parentKey, hard, nil, baseKey)
-              rcall("DEL", parentKey, parentKey .. ':logs',
-                parentKey .. ':dependencies', parentKey .. ':processed')
+              removeJobKeys(parentKey)
             else
               moveParentToWait(parentPrefix, parentId)
             end
@@ -65,8 +65,7 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
             if hard then
               if parentPrefix == baseKey then
                 removeParentDependencyKey(missedParentKey, hard, nil, baseKey)
-                rcall("DEL", missedParentKey, missedParentKey .. ':logs',
-                  missedParentKey .. ':dependencies', missedParentKey .. ':processed')
+                removeJobKeys(missedParentKey)
               else
                 moveParentToWait(parentPrefix, parentId)
               end
