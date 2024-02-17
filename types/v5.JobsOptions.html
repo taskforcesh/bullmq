@@ -16,7 +16,7 @@
 <li><a href="../modules/v5.html">v5</a></li>
 <li><a href="v5.JobsOptions.html">JobsOptions</a></li></ul>
 <h1>Type alias JobsOptions</h1></div>
-<div class="tsd-signature"><span class="tsd-kind-type-alias">Jobs<wbr/>Options</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v5.BaseJobOptions.html" class="tsd-signature-type tsd-kind-interface">BaseJobOptions</a><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-symbol">{ </span><br/><span>    </span><span class="tsd-kind-property">failParentOnFailure</span><span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span><br/><span>    </span><span class="tsd-kind-property">removeDependencyOnFailure</span><span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span></div>
+<div class="tsd-signature"><span class="tsd-kind-type-alias">Jobs<wbr/>Options</span><span class="tsd-signature-symbol">:</span> <a href="../interfaces/v5.BaseJobOptions.html" class="tsd-signature-type tsd-kind-interface">BaseJobOptions</a><span class="tsd-signature-symbol"> &amp; </span><span class="tsd-signature-symbol">{ </span><br/><span>    </span><span class="tsd-kind-property">failParentOnFailure</span><span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span><br/><span>    </span><span class="tsd-kind-property">ignoreDependencyOnFailure</span><span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span><br/><span>    </span><span class="tsd-kind-property">removeDependencyOnFailure</span><span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span><span class="tsd-signature-symbol">; </span><br/><span class="tsd-signature-symbol">}</span></div>
 <div class="tsd-type-declaration">
 <h4>Type declaration</h4>
 <ul class="tsd-parameters">
@@ -26,12 +26,17 @@
 </div>
 <div class="tsd-comment tsd-typography"></div></li>
 <li class="tsd-parameter">
+<h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-property">ignore<wbr/>Dependency<wbr/>On<wbr/>Failure</span><span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span></h5>
+<div class="tsd-comment tsd-typography"><p>If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.</p>
+</div>
+<div class="tsd-comment tsd-typography"></div></li>
+<li class="tsd-parameter">
 <h5><code class="tsd-tag ts-flagOptional">Optional</code> <span class="tsd-kind-property">remove<wbr/>Dependency<wbr/>On<wbr/>Failure</span><span class="tsd-signature-symbol">?: </span><span class="tsd-signature-type">boolean</span></h5>
 <div class="tsd-comment tsd-typography"><p>If true, removes the job from its parent dependencies when it fails after all attempts.</p>
 </div>
 <div class="tsd-comment tsd-typography"></div></li></ul></div><aside class="tsd-sources">
 <ul>
-<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/41ad50315/src/types/job-options.ts#L3">types/job-options.ts:3</a></li></ul></aside></div>
+<li>Defined in <a href="https://github.com/taskforcesh/bullmq/blob/36605b191/src/types/job-options.ts#L3">types/job-options.ts:3</a></li></ul></aside></div>
 <div class="col-sidebar">
 <div class="page-menu">
 <div class="tsd-navigation settings">
