@@ -64,6 +64,7 @@ local rcall = redis.call
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/promoteDelayedJobs"
+--- @include "includes/removeJobKeys"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
 --- @include "includes/removeParentDependencyKey"
@@ -183,8 +184,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             removeJobsByMaxCount(maxCount, targetSet, prefix)
         end
     else
-        rcall("DEL", jobIdKey, jobIdKey .. ':logs', jobIdKey .. ':processed')
+        removeJobKeys(jobIdKey)
         if parentKey ~= "" then
+            -- TODO: when a child is removed when finished, result or failure in parent
+            -- must not be deleted, those value references should be deleted when the parent
+            -- is deleted
             removeParentDependencyKey(jobIdKey, false, parentKey)
         end
     end
