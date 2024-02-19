@@ -29,6 +29,11 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
     rcall("SET", lockKey, opts['token'], "PX", opts['lockDuration'])
   end
 
+  if opts['name'] then
+    -- Set "processedBy" field to the worker name
+    rcall("HSET", jobKey, "pb", opts['name'])
+  end
+
   rcall("XADD", eventStreamKey, "*", "event", "active", "jobId", jobId, "prev", "waiting")
   rcall("HSET", jobKey, "processedOn", processedOn)
   rcall("HINCRBY", jobKey, "ats", 1)
