@@ -15,6 +15,13 @@ export type Processor<T = any, R = any, N extends string = string> = (
 
 export interface WorkerOptions extends QueueBaseOptions {
   /**
+   * Optional worker name. The name will be stored on every job
+   * processed by this worker instance, and can be used to monitor
+   * which worker is processing or has processed a given job.
+   */
+  name?: string;
+
+  /**
    * Condition to start processor at instance creation.
    *
    * @default true

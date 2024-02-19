@@ -212,6 +212,4 @@ export const errorToJSON = (value: any): Record<string, any> => {
   return error;
 };
 
-export const WORKER_SUFFIX = '';
-
 export const QUEUE_EVENT_SUFFIX = ':qe';

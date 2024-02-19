@@ -943,7 +943,7 @@ export class Scripts {
     }
   }
 
-  async moveToActive(client: RedisClient, token: string) {
+  async moveToActive(client: RedisClient, token: string, name?: string) {
     const opts = this.queue.opts as WorkerOptions;
 
     const queueKeys = this.queue.keys;
@@ -968,6 +968,7 @@ export class Scripts {
         token,
         lockDuration: opts.lockDuration,
         limiter: opts.limiter,
+        name,
       }),
     ];
 

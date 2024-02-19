@@ -21,7 +21,6 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
-  WORKER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -256,16 +255,21 @@ export class Worker<
           }
         }
 
-        const mainFile = this.opts.useWorkerThreads
-          ? 'main-worker.js'
-          : 'main.js';
-        let mainFilePath = path.join(
-          path.dirname(module.filename),
-          `${mainFile}`,
-        );
+        // Separate paths so that bundling tools can resolve dependencies easier
+        const dirname = path.dirname(module.filename || __filename);
+        const workerThreadsMainFile = path.join(dirname, 'main-worker.js');
+        const spawnProcessMainFile = path.join(dirname, 'main.js');
+
+        let mainFilePath = this.opts.useWorkerThreads
+          ? workerThreadsMainFile
+          : spawnProcessMainFile;
+
         try {
           fs.statSync(mainFilePath); // would throw if file not exists
         } catch (_) {
+          const mainFile = this.opts.useWorkerThreads
+            ? 'main-worker.js'
+            : 'main.js';
           mainFilePath = path.join(
             process.cwd(),
             `dist/cjs/classes/${mainFile}`,
@@ -289,7 +293,8 @@ export class Worker<
       }
     }
 
-    const connectionName = this.clientName(WORKER_SUFFIX);
+    const connectionName =
+      this.clientName() + (this.opts.name ? `:w:${this.opts.name}` : '');
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
         ? (<Redis>opts.connection).duplicate({ connectionName })
@@ -530,7 +535,7 @@ export class Worker<
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 10) {
-          return this.moveToActive(client, token);
+          return this.moveToActive(client, token, this.opts.name);
         }
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
@@ -549,7 +554,7 @@ export class Worker<
         this.abortDelayController = new AbortController();
         await this.delay(this.limitUntil, this.abortDelayController);
       }
-      return this.moveToActive(client, token);
+      return this.moveToActive(client, token, this.opts.name);
     }
   }
 
@@ -572,9 +577,10 @@ export class Worker<
   protected async moveToActive(
     client: RedisClient,
     token: string,
+    name?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
     const [jobData, id, limitUntil, delayUntil] =
-      await this.scripts.moveToActive(client, token);
+      await this.scripts.moveToActive(client, token, name);
     this.updateDelays(limitUntil, delayUntil);
 
     return this.nextJobFromJobData(jobData, id, token);

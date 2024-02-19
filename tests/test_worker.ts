@@ -695,6 +695,35 @@ describe('workers', function () {
     await worker.close();
   });
 
+  it('sets the worker name on the job upon processing', async () => {
+    let worker;
+    const processing = new Promise<void>(async (resolve, reject) => {
+      worker = new Worker(
+        queueName,
+        async job => {
+          const fetchedJob = await queue.getJob(job.id!);
+
+          try {
+            expect(fetchedJob).to.be.ok;
+            expect(fetchedJob!.processedBy).to.be.equal(worker.opts.name);
+          } catch (err) {
+            reject(err);
+          }
+
+          resolve();
+        },
+        { connection, prefix, name: 'foobar' },
+      );
+      await worker.waitUntilReady();
+    });
+
+    await queue.add('test', { foo: 'bar' });
+
+    await processing;
+
+    await worker.close();
+  });
+
   it('retry a job that fails', async () => {
     let failedOnce = false;
     const notEvenErr = new Error('Not even!');

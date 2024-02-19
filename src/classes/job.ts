@@ -147,6 +147,11 @@ export class Job<
    */
   token?: string;
 
+  /**
+   * The worker name that is processing or processed this job.
+   */
+  processedBy?: string;
+
   protected toKey: (type: string) => string;
 
   protected discarded: boolean;
@@ -336,6 +341,10 @@ export class Job<
 
     if (json.parent) {
       job.parent = JSON.parse(json.parent);
+    }
+
+    if (json.pb) {
+      job.processedBy = json.pb;
     }
 
     return job;

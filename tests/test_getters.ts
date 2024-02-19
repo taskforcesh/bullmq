@@ -89,6 +89,45 @@ describe('Jobs getters', function () {
       await worker2.close();
     });
 
+    it('gets all workers including their names', async function () {
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        name: 'worker1',
+      });
+      await new Promise<void>(resolve => {
+        worker.on('ready', () => {
+          resolve();
+        });
+      });
+
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
+
+      const worker2 = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        name: 'worker2',
+      });
+      await new Promise<void>(resolve => {
+        worker2.on('ready', () => {
+          resolve();
+        });
+      });
+
+      const nextWorkers = await queue.getWorkers();
+      expect(nextWorkers).to.have.length(2);
+
+      // Check that the worker names are included in the response on the rawname property
+      expect(nextWorkers[0].rawname.endsWith('worker1')).to.be.true;
+      expect(nextWorkers[1].rawname.endsWith('worker2')).to.be.true;
+
+      await worker.close();
+      await worker2.close();
+    });
+
     it('gets only workers related only to one queue', async function () {
       const queueName2 = `${queueName}2`;
       const queue2 = new Queue(queueName2, { connection, prefix });
