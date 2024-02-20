@@ -524,6 +524,25 @@ export class Job<
   }
 
   /**
+   * Breaks parent-child relationship when child is not yet finished
+   *
+   * @returns True if the relationship existed and if it was removed.
+   */
+  async breakRelationship(): Promise<boolean> {
+    const relationshipIsBroken = await this.scripts.breakRelationship(
+      this.id,
+      this.parentKey,
+    );
+    if (relationshipIsBroken) {
+      this.parent = undefined;
+      this.parentKey = undefined;
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Clears job's logs
    *
    * @param keepLogs - the amount of log entries to preserve

@@ -460,6 +460,69 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(redisHost), parentQueueName);
   });
 
+  describe('when breakRelationship is called', () => {
+    describe('when last child call this method', () => {
+      it('moves parent to wait', async () => {
+        const flow = new FlowProducer({ connection, prefix });
+        const { job, children } = await flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {
+                removeOnFail: true,
+              },
+            },
+          ],
+        });
+
+        const relationshipIsBroken = await children![0].job.breakRelationship();
+
+        expect(relationshipIsBroken).to.be.true;
+        expect(children![0].job.parent).to.be.undefined;
+        expect(children![0].job.parentKey).to.be.undefined;
+
+        const parentState = await job.getState();
+
+        expect(parentState).to.be.equal('waiting');
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(100);
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const completed = new Promise<void>((resolve, reject) => {
+          worker.on('completed', async (job: Job) => {
+            try {
+              if (job.name === 'parent') {
+                const { unprocessed, processed } =
+                  await job.getDependenciesCount();
+                expect(unprocessed).to.equal(0);
+                expect(processed).to.equal(0);
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        await completed;
+
+        await flow.close();
+        await worker.close();
+      });
+    });
+  });
+
   describe('when ignoreDependencyOnFailure is provided', async () => {
     it('moves parent to wait after children fail', async () => {
       const parentQueueName = `parent-queue-${v4()}`;

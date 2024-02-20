@@ -476,6 +476,35 @@ export class Scripts {
     return (<any>client).drain(args);
   }
 
+  private breakRelationshipArgs(
+    jobId: string,
+    parentKey: string,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+
+    const keys: string[] = [queueKeys['']];
+
+    const args = [this.queue.toKey(jobId), parentKey];
+
+    return keys.concat(args);
+  }
+
+  async breakRelationship(jobId: string, parentKey: string): Promise<boolean> {
+    const client = await this.queue.client;
+    const args = this.breakRelationshipArgs(jobId, parentKey);
+
+    const result = await (<any>client).breakRelationship(args);
+
+    switch (result) {
+      case 0:
+        return true;
+      case 1:
+        return false;
+      default:
+        throw this.finishedErrors(result, jobId, 'breakRelationship');
+    }
+  }
+
   private getRangesArgs(
     types: JobType[],
     start: number,
