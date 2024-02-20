@@ -236,7 +236,7 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
-        // Planed for deprecation as it has no really a use case
+        // TODO: Planed for deprecation as it has no really a use case
         try {
           await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {
