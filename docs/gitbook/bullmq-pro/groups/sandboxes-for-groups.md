@@ -13,3 +13,9 @@ module.exports = function (job: SandboxedJobPro) {
   expect(job.opts.group.id).to.equal(job.gid);
 };
 ```
+
+
+
+{% hint style="danger" %}
+Groups are the only Pro features supported by Sandboxed processors for now.
+{% endhint %}
