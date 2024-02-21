@@ -524,16 +524,16 @@ export class Job<
   }
 
   /**
-   * Breaks parent-child relationship when child is not yet finished
+   * Removes child dependency from parent when child is not yet finished
    *
    * @returns True if the relationship existed and if it was removed.
    */
-  async breakRelationship(): Promise<boolean> {
-    const relationshipIsBroken = await this.scripts.breakRelationship(
+  async removeChildDependency(): Promise<boolean> {
+    const childDependencyIsRemoved = await this.scripts.removeChildDependency(
       this.id,
       this.parentKey,
     );
-    if (relationshipIsBroken) {
+    if (childDependencyIsRemoved) {
       this.parent = undefined;
       this.parentKey = undefined;
       return true;
@@ -724,7 +724,12 @@ export class Job<
 
     const code = results[results.length - 1][1] as number;
     if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, command, 'active');
+      throw this.scripts.finishedErrors({
+        code,
+        jobId: this.id,
+        command,
+        state: 'active',
+      });
     }
 
     if (finishedOn && typeof finishedOn === 'number') {

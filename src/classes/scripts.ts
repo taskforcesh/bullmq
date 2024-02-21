@@ -216,7 +216,11 @@ export class Scripts {
     }
 
     if (<number>result < 0) {
-      throw this.finishedErrors(<number>result, parentOpts.parentKey, 'addJob');
+      throw this.finishedErrors({
+        code: <number>result,
+        parentKey: parentOpts.parentKey,
+        command: 'addJob',
+      });
     }
 
     return <string>result;
@@ -314,7 +318,11 @@ export class Scripts {
     const result = await (<any>client).updateData(keys.concat([dataJson]));
 
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'updateData');
+      throw this.finishedErrors({
+        code: result,
+        jobId: job.id,
+        command: 'updateData',
+      });
     }
   }
 
@@ -336,7 +344,11 @@ export class Scripts {
     );
 
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'updateProgress');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'updateProgress',
+      });
     }
   }
 
@@ -414,7 +426,12 @@ export class Scripts {
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'moveToFinished', 'active');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'moveToFinished',
+        state: 'active',
+      });
     } else {
       if (typeof result !== 'undefined') {
         return raw2NextJobData(result);
@@ -422,12 +439,19 @@ export class Scripts {
     }
   }
 
-  finishedErrors(
-    code: number,
-    jobId: string,
-    command: string,
-    state?: string,
-  ): Error {
+  finishedErrors({
+    code,
+    jobId,
+    parentKey,
+    command,
+    state,
+  }: {
+    code: number;
+    jobId?: string;
+    parentKey?: string;
+    command: string;
+    state?: string;
+  }): Error {
     switch (code) {
       case ErrorCode.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
@@ -440,7 +464,7 @@ export class Scripts {
       case ErrorCode.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
-        return new Error(`Missing key for parent job ${jobId}. ${command}`);
+        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
       case ErrorCode.JobLockMismatch:
         return new Error(
           `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
@@ -476,7 +500,7 @@ export class Scripts {
     return (<any>client).drain(args);
   }
 
-  private breakRelationshipArgs(
+  private removeChildDependencyArgs(
     jobId: string,
     parentKey: string,
   ): (string | number)[] {
@@ -489,11 +513,14 @@ export class Scripts {
     return keys.concat(args);
   }
 
-  async breakRelationship(jobId: string, parentKey: string): Promise<boolean> {
+  async removeChildDependency(
+    jobId: string,
+    parentKey: string,
+  ): Promise<boolean> {
     const client = await this.queue.client;
-    const args = this.breakRelationshipArgs(jobId, parentKey);
+    const args = this.removeChildDependencyArgs(jobId, parentKey);
 
-    const result = await (<any>client).breakRelationship(args);
+    const result = await (<any>client).removeChildDependency(args);
 
     switch (result) {
       case 0:
@@ -501,7 +528,12 @@ export class Scripts {
       case 1:
         return false;
       default:
-        throw this.finishedErrors(result, jobId, 'breakRelationship');
+        throw this.finishedErrors({
+          code: result,
+          jobId,
+          parentKey,
+          command: 'removeChildDependency',
+        });
     }
   }
 
@@ -638,7 +670,12 @@ export class Scripts {
     const args = this.changeDelayArgs(jobId, delay);
     const result = await (<any>client).changeDelay(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'changeDelay',
+        state: 'delayed',
+      });
     }
   }
 
@@ -681,7 +718,11 @@ export class Scripts {
     const args = this.changePriorityArgs(jobId, priority, lifo);
     const result = await (<any>client).changePriority(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'changePriority');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'changePriority',
+      });
     }
   }
 
@@ -795,7 +836,12 @@ export class Scripts {
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'moveToDelayed',
+        state: 'active',
+      });
     }
   }
 
@@ -826,12 +872,12 @@ export class Scripts {
       case 1:
         return false;
       default:
-        throw this.finishedErrors(
-          result,
+        throw this.finishedErrors({
+          code: result,
           jobId,
-          'moveToWaitingChildren',
-          'active',
-        );
+          command: 'moveToWaitingChildren',
+          state: 'active',
+        });
     }
   }
 
@@ -968,7 +1014,12 @@ export class Scripts {
       case 1:
         return;
       default:
-        throw this.finishedErrors(result, job.id, 'reprocessJob', state);
+        throw this.finishedErrors({
+          code: result,
+          jobId: job.id,
+          command: 'reprocessJob',
+          state,
+        });
     }
   }
 
@@ -1026,7 +1077,12 @@ export class Scripts {
 
     const code = await (<any>client).promote(keys.concat(args));
     if (code < 0) {
-      throw this.finishedErrors(code, jobId, 'promote', 'delayed');
+      throw this.finishedErrors({
+        code,
+        jobId,
+        command: 'promote',
+        state: 'delayed',
+      });
     }
   }
 

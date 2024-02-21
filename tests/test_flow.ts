@@ -460,7 +460,7 @@ describe('flows', () => {
     await removeAllQueueData(new IORedis(redisHost), parentQueueName);
   });
 
-  describe('when breakRelationship is called', () => {
+  describe('when removeChildDependency is called', () => {
     describe('when last child call this method', () => {
       it('moves parent to wait', async () => {
         const flow = new FlowProducer({ connection, prefix });
@@ -473,14 +473,13 @@ describe('flows', () => {
               queueName,
               name: 'child0',
               data: {},
-              opts: {
-                removeOnFail: true,
-              },
+              opts: {},
             },
           ],
         });
 
-        const relationshipIsBroken = await children![0].job.breakRelationship();
+        const relationshipIsBroken =
+          await children![0].job.removeChildDependency();
 
         expect(relationshipIsBroken).to.be.true;
         expect(children![0].job.parent).to.be.undefined;
@@ -519,6 +518,144 @@ describe('flows', () => {
 
         await flow.close();
         await worker.close();
+      });
+    });
+
+    describe('when there are pending children when calling this method', () => {
+      it('keeps parent in waiting-children state', async () => {
+        const flow = new FlowProducer({ connection, prefix });
+        const { job, children } = await flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {},
+            },
+            {
+              queueName,
+              name: 'child1',
+              data: {},
+              opts: {},
+            },
+          ],
+        });
+
+        const relationshipIsBroken =
+          await children![0].job.removeChildDependency();
+
+        expect(relationshipIsBroken).to.be.true;
+        expect(children![0].job.parent).to.be.undefined;
+        expect(children![0].job.parentKey).to.be.undefined;
+
+        const parentState = await job.getState();
+
+        expect(parentState).to.be.equal('waiting-children');
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(100);
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const completed = new Promise<void>((resolve, reject) => {
+          worker.on('completed', async (job: Job) => {
+            try {
+              if (job.name === 'parent') {
+                const { unprocessed, processed } =
+                  await job.getDependenciesCount();
+                expect(unprocessed).to.equal(0);
+                expect(processed).to.equal(1);
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
+        });
+
+        await completed;
+
+        await flow.close();
+        await worker.close();
+      });
+    });
+
+    describe('when parent does not exist', () => {
+      it('throws an error', async () => {
+        const flow = new FlowProducer({ connection, prefix });
+        const { job, children } = await flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {},
+            },
+            {
+              queueName,
+              name: 'child1',
+              data: {},
+              opts: {},
+            },
+          ],
+        });
+
+        await job.remove({ removeChildren: false });
+
+        await expect(
+          children![0].job.removeChildDependency(),
+        ).to.be.rejectedWith(
+          `Missing key for parent job ${
+            children![0].job.parentKey
+          }. removeChildDependency`,
+        );
+
+        await flow.close();
+      });
+    });
+
+    describe('when child does not exist', () => {
+      it('throws an error', async () => {
+        const flow = new FlowProducer({ connection, prefix });
+        const { children } = await flow.add({
+          name: 'parent',
+          data: {},
+          queueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {},
+            },
+            {
+              queueName,
+              name: 'child1',
+              data: {},
+              opts: {},
+            },
+          ],
+        });
+
+        await children![0].job.remove();
+
+        await expect(
+          children![0].job.removeChildDependency(),
+        ).to.be.rejectedWith(
+          `Missing key for job ${children![0].job.id}. removeChildDependency`,
+        );
+
+        await flow.close();
       });
     });
   });
