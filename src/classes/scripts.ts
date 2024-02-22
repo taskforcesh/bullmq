@@ -447,7 +447,7 @@ export class Scripts {
         );
       case ErrorCode.ParentJobCannotBeReplaced:
         return new Error(
-          `The parent job of job ${jobId} cannot be replaced. ${command}`,
+          `The parent job ${jobId} cannot be replaced. ${command}`,
         );
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
