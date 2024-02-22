@@ -574,7 +574,7 @@ class Scripts:
         elif code == ErrorCode.JobLockMismatch.value:
             return TypeError(f"Lock mismatch for job {jobId}. Cmd {command} from {state}")
         elif code == ErrorCode.ParentJobCannotBeReplaced.value:
-            return TypeError(f"The parent job of job {jobId} cannot be replaced. {command}")
+            return TypeError(f"The parent job {jobId} cannot be replaced. {command}")
         else:
             return TypeError(f"Unknown code {str(code)} error for {jobId}.{command}")
 
