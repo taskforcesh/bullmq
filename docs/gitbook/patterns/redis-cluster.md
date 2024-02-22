@@ -47,7 +47,7 @@ const queue2 = new Queue('queue 2', {
   prefix: '{myprefix}',
 });
 
-const flow = new Flow({
+const flow = new FlowProducer({
   prefix: '{myprefix}',
 });
 
