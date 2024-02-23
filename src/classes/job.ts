@@ -8,7 +8,6 @@ import {
   JobJson,
   JobJsonRaw,
   MinimalJob,
-  MoveToDelayedOpts,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
