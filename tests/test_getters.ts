@@ -120,9 +120,14 @@ describe('Jobs getters', function () {
       const nextWorkers = await queue.getWorkers();
       expect(nextWorkers).to.have.length(2);
 
+      const rawnames = nextWorkers.map(nextWorker => {
+        const workerValues = nextWorker.rawname.split(':');
+        return workerValues[workerValues.length - 1];
+      });
+
       // Check that the worker names are included in the response on the rawname property
-      expect(nextWorkers[0].rawname.endsWith('worker1')).to.be.true;
-      expect(nextWorkers[1].rawname.endsWith('worker2')).to.be.true;
+      expect(rawnames).to.include('worker1');
+      expect(rawnames).to.include('worker2');
 
       await worker.close();
       await worker2.close();
