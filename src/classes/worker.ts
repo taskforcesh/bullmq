@@ -603,8 +603,8 @@ export class Worker<
           0,
         );
 
-        // Blocking for less than 50ms is useless.
-        if (blockTimeout > 0.05) {
+        // Blocking for less than 10ms is useless.
+        if (blockTimeout > this.opts.settings?.blockTimeoutThreshold ?? 0.01) {
           blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
             ? blockTimeout
             : Math.ceil(blockTimeout);
