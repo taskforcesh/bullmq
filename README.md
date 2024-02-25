@@ -155,7 +155,10 @@ Some notable organizations using BullMQ:
 Install:
 
 ```
+$ npm install bullmq
 $ yarn add bullmq
+$ pnpm add bullmq
+$ bun add bullmq
 ```
 
 Add jobs to the queue:
