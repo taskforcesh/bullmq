@@ -1,5 +1,4 @@
 import { createHash } from 'crypto';
-import { glob, hasMagic } from 'glob';
 import * as path from 'path';
 import * as fs from 'fs';
 import { RedisClient } from '../interfaces';
@@ -76,7 +75,6 @@ export class ScriptLoaderError extends Error {
 
 const isPossiblyMappedPath = (path: string) =>
   path && ['~', '<'].includes(path[0]);
-const hasFilenamePattern = (path: string) => hasMagic(path, GlobOptions);
 
 /**
  * Lua script loader with include support
@@ -190,6 +188,22 @@ export class ScriptLoader {
     function raiseError(msg: string, match: string): void {
       const pos = findPos(file.content, match);
       throw new ScriptLoaderError(msg, file.path, stack, pos.line, pos.column);
+    }
+
+    const nonOp = () => {};
+    const globPackage = await import('glob');
+    const glob = globPackage.glob || nonOp;
+    const hasMagic = globPackage.hasMagic || nonOp;
+
+    const hasFilenamePattern = (path: string) => hasMagic(path, GlobOptions);
+
+    async function getFilenamesByPattern(pattern: string): Promise<string[]> {
+      // `a` is imported and can be used here
+      return new Promise<string[]>((resolve, reject) => {
+        glob(pattern, GlobOptions, (err, files) => {
+          return err ? reject(err) : resolve(files);
+        });
+      });
     }
 
     let res;
@@ -484,14 +498,6 @@ function splitFilename(filePath: string): {
   const [name, num] = longName.split('-');
   const numberOfKeys = num ? parseInt(num, 10) : undefined;
   return { name, numberOfKeys };
-}
-
-async function getFilenamesByPattern(pattern: string): Promise<string[]> {
-  return new Promise<string[]>((resolve, reject) => {
-    glob(pattern, GlobOptions, (err, files) => {
-      return err ? reject(err) : resolve(files);
-    });
-  });
 }
 
 // Determine the project root
