@@ -11,6 +11,7 @@
     --light-color-text-aside: #6e6e6e;
     --light-color-link: #1f70c2;
 
+    --light-color-ts-keyword: #056bd6;
     --light-color-ts-project: #b111c9;
     --light-color-ts-module: var(--light-color-ts-project);
     --light-color-ts-namespace: var(--light-color-ts-project);
@@ -28,7 +29,7 @@
     --light-color-ts-constructor-signature: var(--light-color-ts-constructor);
     --light-color-ts-parameter: var(--light-color-ts-variable);
     /* type literal not included as links will never be generated to it */
-    --light-color-ts-type-parameter: var(--light-color-ts-type-alias);
+    --light-color-ts-type-parameter: #a55c0e;
     --light-color-ts-accessor: var(--light-color-ts-property);
     --light-color-ts-get-signature: var(--light-color-ts-accessor);
     --light-color-ts-set-signature: var(--light-color-ts-accessor);
@@ -50,6 +51,7 @@
     --dark-color-text-aside: #dddddd;
     --dark-color-link: #00aff4;
 
+    --dark-color-ts-keyword: #3399ff;
     --dark-color-ts-project: #e358ff;
     --dark-color-ts-module: var(--dark-color-ts-project);
     --dark-color-ts-namespace: var(--dark-color-ts-project);
@@ -67,7 +69,7 @@
     --dark-color-ts-constructor-signature: var(--dark-color-ts-constructor);
     --dark-color-ts-parameter: var(--dark-color-ts-variable);
     /* type literal not included as links will never be generated to it */
-    --dark-color-ts-type-parameter: var(--dark-color-ts-type-alias);
+    --dark-color-ts-type-parameter: #e07d13;
     --dark-color-ts-accessor: var(--dark-color-ts-property);
     --dark-color-ts-get-signature: var(--dark-color-ts-accessor);
     --dark-color-ts-set-signature: var(--dark-color-ts-accessor);
@@ -91,6 +93,7 @@
         --color-text-aside: var(--light-color-text-aside);
         --color-link: var(--light-color-link);
 
+        --color-ts-keyword: var(--light-color-ts-keyword);
         --color-ts-module: var(--light-color-ts-module);
         --color-ts-namespace: var(--light-color-ts-namespace);
         --color-ts-enum: var(--light-color-ts-enum);
@@ -132,6 +135,7 @@
         --color-text-aside: var(--dark-color-text-aside);
         --color-link: var(--dark-color-link);
 
+        --color-ts-keyword: var(--dark-color-ts-keyword);
         --color-ts-module: var(--dark-color-ts-module);
         --color-ts-namespace: var(--dark-color-ts-namespace);
         --color-ts-enum: var(--dark-color-ts-enum);
@@ -180,6 +184,7 @@ body {
     --color-text-aside: var(--light-color-text-aside);
     --color-link: var(--light-color-link);
 
+    --color-ts-keyword: var(--light-color-ts-keyword);
     --color-ts-module: var(--light-color-ts-module);
     --color-ts-namespace: var(--light-color-ts-namespace);
     --color-ts-enum: var(--light-color-ts-enum);
@@ -219,6 +224,7 @@ body {
     --color-text-aside: var(--dark-color-text-aside);
     --color-link: var(--dark-color-link);
 
+    --color-ts-keyword: var(--dark-color-ts-keyword);
     --color-ts-module: var(--dark-color-ts-module);
     --color-ts-namespace: var(--dark-color-ts-namespace);
     --color-ts-enum: var(--dark-color-ts-enum);
@@ -260,12 +266,12 @@ h6 {
     line-height: 1.2;
 }
 
-h1 > a,
-h2 > a,
-h3 > a,
-h4 > a,
-h5 > a,
-h6 > a {
+h1 > a:not(.link),
+h2 > a:not(.link),
+h3 > a:not(.link),
+h4 > a:not(.link),
+h5 > a:not(.link),
+h6 > a:not(.link) {
     text-decoration: none;
     color: var(--color-text);
 }
@@ -643,6 +649,28 @@ input[type="checkbox"]:checked ~ svg .tsd-checkbox-checkmark {
     font-weight: bold;
 }
 
+.tsd-full-hierarchy:not(:last-child) {
+    margin-bottom: 1em;
+    padding-bottom: 1em;
+    border-bottom: 1px solid var(--color-accent);
+}
+.tsd-full-hierarchy,
+.tsd-full-hierarchy ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.tsd-full-hierarchy ul {
+    padding-left: 1.5rem;
+}
+.tsd-full-hierarchy a {
+    padding: 0.25rem 0 !important;
+    font-size: 1rem;
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-text);
+}
+
 .tsd-panel-group.tsd-index-group {
     margin-bottom: 0;
 }
@@ -708,12 +736,15 @@ input[type="checkbox"]:checked ~ svg .tsd-checkbox-checkmark {
 }
 .tsd-navigation > a,
 .tsd-navigation .tsd-accordion-summary {
-    width: calc(100% - 0.5rem);
+    width: calc(100% - 0.25rem);
+    display: flex;
+    align-items: center;
 }
 .tsd-navigation a,
 .tsd-navigation summary > span,
 .tsd-page-navigation a {
-    display: inline-flex;
+    display: flex;
+    width: calc(100% - 0.25rem);
     align-items: center;
     padding: 0.25rem;
     color: var(--color-text);
@@ -751,11 +782,6 @@ input[type="checkbox"]:checked ~ svg .tsd-checkbox-checkmark {
 }
 .tsd-small-nested-navigation > li > details {
     margin-left: -1.5rem;
-}
-
-.tsd-nested-navigation > li > a,
-.tsd-nested-navigation > li > span {
-    width: calc(100% - 1.75rem - 0.5rem);
 }
 
 .tsd-page-navigation ul {
@@ -982,6 +1008,11 @@ a.tsd-index-link {
     font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
     font-size: 14px;
     overflow-x: auto;
+}
+
+.tsd-signature-keyword {
+    color: var(--color-ts-keyword);
+    font-weight: normal;
 }
 
 .tsd-signature-symbol {
