@@ -155,8 +155,8 @@ Some notable organizations using BullMQ:
 Install:
 
 ```
-$ npm install bullmq
 $ yarn add bullmq
+$ npm install bullmq
 $ pnpm add bullmq
 $ bun add bullmq
 ```
