@@ -12,6 +12,25 @@ or Yarn:
 yarn add bull
 ```
 
+or Npm
+
+```bash
+npm install bull
+```
+
+or Pnpm:
+
+```bash
+pnpm add bull
+```
+
+or Bun:
+```bash
+bun add bull
+```
+
+
+
 In order to work with Bull, you also need to have a Redis server running. For local development you can easily install it using [docker](https://hub.docker.com/\_/redis/).
 
 Bull will by default try to connect to a Redis server running on `localhost:6379`
