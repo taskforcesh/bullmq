@@ -1,5 +1,6 @@
 import { createHash } from 'crypto';
-import { glob, hasMagic } from 'glob';
+import { Minimatch } from 'minimatch';
+import * as fg from 'fast-glob';
 import * as path from 'path';
 import * as fs from 'fs';
 import { RedisClient } from '../interfaces';
@@ -74,9 +75,19 @@ export class ScriptLoaderError extends Error {
   }
 }
 
+const hasMagic = (pattern: string | string[]): boolean => {
+  if (!Array.isArray(pattern)) {
+    pattern = [pattern];
+  }
+  for (const p of pattern) {
+    if (new Minimatch(p, GlobOptions).hasMagic()) {return true;}
+  }
+  return false;
+};
+
 const isPossiblyMappedPath = (path: string) =>
   path && ['~', '<'].includes(path[0]);
-const hasFilenamePattern = (path: string) => hasMagic(path, GlobOptions);
+const hasFilenamePattern = (path: string) => hasMagic(path);
 
 /**
  * Lua script loader with include support
@@ -487,11 +498,7 @@ function splitFilename(filePath: string): {
 }
 
 async function getFilenamesByPattern(pattern: string): Promise<string[]> {
-  return new Promise<string[]>((resolve, reject) => {
-    glob(pattern, GlobOptions, (err, files) => {
-      return err ? reject(err) : resolve(files);
-    });
-  });
+  return fg.glob(pattern, { dot: true });
 }
 
 // Determine the project root
