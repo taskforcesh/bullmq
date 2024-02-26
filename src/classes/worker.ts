@@ -721,8 +721,14 @@ export class Worker<
             return;
           }
 
-          await job.moveToFailed(err, token);
+          const failed = await job.moveToFailed(err, token, true);
           this.emit('failed', job, err, 'active');
+
+          if (failed) {
+            const [jobData, jobId, limitUntil, delayUntil] = failed || [];
+            this.updateDelays(limitUntil, delayUntil);
+            return this.nextJobFromJobData(jobData, jobId, token);
+          }
         } catch (err) {
           this.emit('error', <Error>err);
           // It probably means that the job has lost the lock before completion
@@ -741,7 +747,7 @@ export class Worker<
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
-      return handleFailed(<Error>err);
+      return await handleFailed(<Error>err);
     } finally {
       jobsInProgress.delete(inProgressItem);
     }
