@@ -46,6 +46,7 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
           end
         end
       end
+      return true
     end
   else
     local missedParentKey = rcall("HGET", jobKey, "parentKey")
@@ -74,7 +75,9 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
             end
           end
         end
+        return true
       end
     end
   end
+  return false
 end

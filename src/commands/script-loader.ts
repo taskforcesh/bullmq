@@ -190,20 +190,25 @@ export class ScriptLoader {
       throw new ScriptLoaderError(msg, file.path, stack, pos.line, pos.column);
     }
 
-    const nonOp = () => {};
-    const globPackage = await import('glob');
-    const glob = globPackage.glob || nonOp;
-    const hasMagic = globPackage.hasMagic || nonOp;
+    const { Minimatch = class Empty {} } = await import('minimatch');
+    const fg = await import('fast-glob');
+    const nonOp = () => {return ['']};
+    const glob = fg.glob || nonOp;
+
+    const hasMagic = (pattern: string | string[]): boolean => {
+      if (!Array.isArray(pattern)) {
+        pattern = [pattern];
+      }
+      for (const p of pattern) {
+        if ((new Minimatch(p, GlobOptions) as any).hasMagic()) {return true;}
+      }
+      return false;
+    };
 
     const hasFilenamePattern = (path: string) => hasMagic(path, GlobOptions);
 
     async function getFilenamesByPattern(pattern: string): Promise<string[]> {
-      // `a` is imported and can be used here
-      return new Promise<string[]>((resolve, reject) => {
-        glob(pattern, GlobOptions, (err, files) => {
-          return err ? reject(err) : resolve(files);
-        });
-      });
+      return glob(pattern, { dot: true });
     }
 
     let res;
