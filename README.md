@@ -147,6 +147,19 @@ Some notable organizations using BullMQ:
         />
       </a>
     </td>
+    </td>
+      <td valign="center">
+       <a href="https://infisical.com/">
+         <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://mintlify.s3-us-west-1.amazonaws.com/infisical/logo/dark.svg">
+          <img
+          src="https://mintlify.s3-us-west-1.amazonaws.com/infisical/logo/light.svg"
+          width="150"
+          alt="Infisical"
+        />
+          </picture>
+      </a>
+    </td>
     </tr>
 </table>
 
