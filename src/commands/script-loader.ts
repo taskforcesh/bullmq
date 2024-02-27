@@ -195,7 +195,7 @@ export class ScriptLoader {
     const nonOp = () => {
       return [''];
     };
-    const glob = fg.glob || nonOp;
+    const glob = (fg as any)?.default.glob || nonOp;
 
     const hasMagic = (pattern: string | string[]): boolean => {
       if (!Array.isArray(pattern)) {
