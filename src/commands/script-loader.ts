@@ -192,7 +192,9 @@ export class ScriptLoader {
 
     const { Minimatch = class Empty {} } = await import('minimatch');
     const fg = await import('fast-glob');
-    const nonOp = () => {return ['']};
+    const nonOp = () => {
+      return [''];
+    };
     const glob = fg.glob || nonOp;
 
     const hasMagic = (pattern: string | string[]): boolean => {
@@ -200,12 +202,14 @@ export class ScriptLoader {
         pattern = [pattern];
       }
       for (const p of pattern) {
-        if ((new Minimatch(p, GlobOptions) as any).hasMagic()) {return true;}
+        if ((new Minimatch(p, GlobOptions) as any).hasMagic()) {
+          return true;
+        }
       }
       return false;
     };
 
-    const hasFilenamePattern = (path: string) => hasMagic(path, GlobOptions);
+    const hasFilenamePattern = (path: string) => hasMagic(path);
 
     async function getFilenamesByPattern(pattern: string): Promise<string[]> {
       return glob(pattern, { dot: true });
