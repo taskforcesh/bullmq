@@ -1,4 +1,3 @@
-import { get } from 'lodash';
 import { v4 } from 'uuid';
 import {
   BaseJobOptions,
@@ -112,7 +111,7 @@ export class Queue<
       Connection,
     );
 
-    this.jobsOpts = get(opts, 'defaultJobOptions') ?? {};
+    this.jobsOpts = opts?.defaultJobOptions ?? {};
 
     this.waitUntilReady()
       .then(client => {
@@ -120,7 +119,7 @@ export class Queue<
           client.hset(
             this.keys.meta,
             'opts.maxLenEvents',
-            get(opts, 'streams.events.maxLen', 10000),
+            opts?.streams?.events?.maxLen ?? 10000,
           );
         }
       })
