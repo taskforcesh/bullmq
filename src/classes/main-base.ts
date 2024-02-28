@@ -2,7 +2,6 @@
  * Wrapper for sandboxing.
  *
  */
-import { toString } from 'lodash';
 import { ChildProcessor } from './child-processor';
 import { ParentCommand, ChildCommand } from '../enums';
 import { errorToJSON } from '../utils';
@@ -35,7 +34,7 @@ export default (
 
   process.on('uncaughtException', async (err: Error) => {
     if (!err.message) {
-      err = new Error(toString(err));
+      err = new Error(`${err}`);
     }
     await send({
       cmd: ParentCommand.Failed,
