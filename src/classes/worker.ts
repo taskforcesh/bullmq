@@ -603,29 +603,27 @@ export class Worker<
           0,
         );
 
-        // Blocking for less than 50ms is useless.
-        if (blockTimeout > 0.05) {
-          blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
-            ? blockTimeout
-            : Math.ceil(blockTimeout);
+        blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+          ? blockTimeout
+          : Math.ceil(blockTimeout);
 
-          // We restrict the maximum block timeout to 10 second to avoid
-          // blocking the connection for too long in the case of reconnections
-          // reference: https://github.com/taskforcesh/bullmq/issues/1658
-          blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+        // We restrict the maximum block timeout to 10 second to avoid
+        // blocking the connection for too long in the case of reconnections
+        // reference: https://github.com/taskforcesh/bullmq/issues/1658
+        blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
 
-          // Markers should only be used for un-blocking, so we will handle them in this
-          // function only.
-          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+        // Markers should only be used for un-blocking, so we will handle them in this
+        // function only.
+        const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
 
-          if (result) {
-            const [_key, member, score] = result;
+        if (result) {
+          const [_key, member, score] = result;
 
-            if (member) {
-              return parseInt(score);
-            }
+          if (member) {
+            return parseInt(score);
           }
         }
+
         return 0;
       }
     } catch (error) {
