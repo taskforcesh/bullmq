@@ -634,7 +634,7 @@ export class Worker<
     return Infinity;
   }
 
-  getBlockTimeout(blockUntil: number) {
+  protected getBlockTimeout(blockUntil: number): number {
     const opts: WorkerOptions = <WorkerOptions>this.opts;
 
     // when there are delayed jobs
