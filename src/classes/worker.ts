@@ -595,13 +595,8 @@ export class Worker<
     }
 
     try {
-      const opts: WorkerOptions = <WorkerOptions>this.opts;
-
       if (!this.closing) {
-        let blockTimeout = Math.max(
-          blockUntil ? (blockUntil - Date.now()) / 1000 : opts.drainDelay,
-          0,
-        );
+        let blockTimeout = this.getBlockTimeout(blockUntil);
 
         blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
           ? blockTimeout
@@ -637,6 +632,23 @@ export class Worker<
       this.waiting = null;
     }
     return Infinity;
+  }
+
+  getBlockTimeout(blockUntil: number) {
+    const opts: WorkerOptions = <WorkerOptions>this.opts;
+
+    // when there are delayed jobs
+    if (blockUntil) {
+      const blockDelay = blockUntil - Date.now();
+      // when we reach the time to get new jobs
+      if (blockDelay < 1) {
+        return 0.001;
+      } else {
+        return blockDelay / 1000;
+      }
+    } else {
+      return Math.max(opts.drainDelay, 0);
+    }
   }
 
   /**
