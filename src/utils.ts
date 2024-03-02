@@ -212,4 +212,14 @@ export const errorToJSON = (value: any): Record<string, any> => {
   return error;
 };
 
+export const invertObject = (obj: Record<string, string>) => {
+  return Object.entries(obj).reduce<Record<string, string>>(
+    (encodeMap, [key, value]) => {
+      encodeMap[value] = key;
+      return encodeMap;
+    },
+    {},
+  );
+};
+
 export const QUEUE_EVENT_SUFFIX = ':qe';

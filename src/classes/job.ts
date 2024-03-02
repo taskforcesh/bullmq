@@ -23,6 +23,7 @@ import {
 } from '../types';
 import {
   errorObject,
+  invertObject,
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
@@ -43,12 +44,7 @@ const optsDecodeMap = {
   rdof: 'removeDependencyOnFailure',
 };
 
-const optsEncodeMap = Object.entries(optsDecodeMap).reduce<
-  Record<string, string>
->((encodeMap, [key, value]) => {
-  encodeMap[value] = key;
-  return encodeMap;
-}, {});
+const optsEncodeMap = invertObject(optsDecodeMap);
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
