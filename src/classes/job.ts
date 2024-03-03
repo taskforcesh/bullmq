@@ -1,5 +1,4 @@
 import { ChainableCommander } from 'ioredis';
-import { invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -24,6 +23,7 @@ import {
 } from '../types';
 import {
   errorObject,
+  invertObject,
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
@@ -44,7 +44,7 @@ const optsDecodeMap = {
   rdof: 'removeDependencyOnFailure',
 };
 
-const optsEncodeMap = invert(optsDecodeMap);
+const optsEncodeMap = invertObject(optsDecodeMap);
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
