@@ -67,6 +67,24 @@ export function delay(
   });
 }
 
+export function increaseMaxListeners(
+  emitter: EventEmitter,
+  count: number,
+): void {
+  const maxListeners = emitter.getMaxListeners();
+  emitter.setMaxListeners(maxListeners + count);
+}
+
+export const invertObject = (obj: Record<string, string>) => {
+  return Object.entries(obj).reduce<Record<string, string>>(
+    (encodeMap, [key, value]) => {
+      encodeMap[value] = key;
+      return encodeMap;
+    },
+    {},
+  );
+};
+
 export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
@@ -77,14 +95,6 @@ export function isRedisInstance(obj: any): obj is Redis | Cluster {
 
 export function isRedisCluster(obj: unknown): obj is Cluster {
   return isRedisInstance(obj) && (<Cluster>obj).isCluster;
-}
-
-export function increaseMaxListeners(
-  emitter: EventEmitter,
-  count: number,
-): void {
-  const maxListeners = emitter.getMaxListeners();
-  emitter.setMaxListeners(maxListeners + count);
 }
 
 export function decreaseMaxListeners(
