@@ -33,9 +33,6 @@ export default (
   process.on('SIGINT', () => childProcessor.waitForCurrentJobAndExit());
 
   process.on('uncaughtException', async (err: Error) => {
-    if (!err.message) {
-      err = new Error(`${err}`);
-    }
     await send({
       cmd: ParentCommand.Failed,
       value: errorToJSON(err),
