@@ -1,6 +1,4 @@
 import { createHash } from 'crypto';
-import { Minimatch } from 'minimatch';
-import * as fg from 'fast-glob';
 import * as path from 'path';
 import * as fs from 'fs';
 import { RedisClient } from '../interfaces';
@@ -75,19 +73,8 @@ export class ScriptLoaderError extends Error {
   }
 }
 
-const hasMagic = (pattern: string | string[]): boolean => {
-  if (!Array.isArray(pattern)) {
-    pattern = [pattern];
-  }
-  for (const p of pattern) {
-    if (new Minimatch(p, GlobOptions).hasMagic()) {return true;}
-  }
-  return false;
-};
-
 const isPossiblyMappedPath = (path: string) =>
   path && ['~', '<'].includes(path[0]);
-const hasFilenamePattern = (path: string) => hasMagic(path);
 
 /**
  * Lua script loader with include support
@@ -201,6 +188,43 @@ export class ScriptLoader {
     function raiseError(msg: string, match: string): void {
       const pos = findPos(file.content, match);
       throw new ScriptLoaderError(msg, file.path, stack, pos.line, pos.column);
+    }
+
+    const minimatch = await import('minimatch');
+
+    if (!minimatch) {
+      console.warn('Install minimatch as dev-dependency');
+    }
+
+    const Minimatch = minimatch.Minimatch || class Empty {};
+
+    const fg = await import('fast-glob');
+
+    if (!fg) {
+      console.warn('Install fast-glob as dev-dependency');
+    }
+
+    const nonOp = () => {
+      return [''];
+    };
+    const glob = (fg as any)?.default.glob || nonOp;
+
+    const hasMagic = (pattern: string | string[]): boolean => {
+      if (!Array.isArray(pattern)) {
+        pattern = [pattern];
+      }
+      for (const p of pattern) {
+        if ((new Minimatch(p, GlobOptions) as any).hasMagic()) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const hasFilenamePattern = (path: string) => hasMagic(path);
+
+    async function getFilenamesByPattern(pattern: string): Promise<string[]> {
+      return glob(pattern, { dot: true });
     }
 
     let res;
@@ -495,10 +519,6 @@ function splitFilename(filePath: string): {
   const [name, num] = longName.split('-');
   const numberOfKeys = num ? parseInt(num, 10) : undefined;
   return { name, numberOfKeys };
-}
-
-async function getFilenamesByPattern(pattern: string): Promise<string[]> {
-  return fg.glob(pattern, { dot: true });
 }
 
 // Determine the project root
