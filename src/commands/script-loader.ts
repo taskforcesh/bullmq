@@ -190,8 +190,20 @@ export class ScriptLoader {
       throw new ScriptLoaderError(msg, file.path, stack, pos.line, pos.column);
     }
 
-    const { Minimatch = class Empty {} } = await import('minimatch');
+    const minimatch = await import('minimatch');
+
+    if (!minimatch) {
+      console.warn('Install minimatch as dev-dependency');
+    }
+
+    const Minimatch = minimatch.Minimatch || class Empty {};
+
     const fg = await import('fast-glob');
+
+    if (!fg) {
+      console.warn('Install fast-glob as dev-dependency');
+    }
+
     const nonOp = () => {
       return [''];
     };
