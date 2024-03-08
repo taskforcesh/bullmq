@@ -5,6 +5,7 @@ import { ParentKeys } from './parent';
 export type BulkJobOptions = Omit<JobsOptions, 'repeat'>;
 
 export interface MoveToDelayedOpts {
+  exclusiveExecution?: boolean;
   skipAttempt?: boolean;
 }
 

@@ -778,6 +778,7 @@ export class Scripts {
       this.queue.toKey(jobId),
       queueKeys.events,
       queueKeys.meta,
+      queueKeys.limiter,
     ];
 
     return keys.concat([
@@ -788,6 +789,7 @@ export class Scripts {
       token,
       delay,
       opts.skipAttempt ? '1' : '0',
+      opts.exclusiveExecution ? '1' : '0',
     ]);
   }
 

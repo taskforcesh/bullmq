@@ -38,6 +38,7 @@ import type { QueueEvents } from './queue-events';
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
+  ee: 'exclusiveExecution',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
@@ -685,6 +686,7 @@ export class Job<
           Date.now() + delay,
           token,
           delay,
+          { exclusiveExecution: this.opts.exclusiveExecution },
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
