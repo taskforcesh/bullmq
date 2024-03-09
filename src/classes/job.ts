@@ -680,20 +680,22 @@ export class Job<
 
       if (delay === -1) {
         moveToFailed = true;
-      } else if (delay) {
+      } else if (delay && !this.opts.exclusiveExecution) {
         const args = this.scripts.moveToDelayedArgs(
           this.id,
           Date.now() + delay,
           token,
           delay,
-          { exclusiveExecution: this.opts.exclusiveExecution },
         );
         (<any>multi).moveToDelayed(args);
         command = 'delayed';
       } else {
         // Retry immediately
         (<any>multi).retryJob(
-          this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
+          this.scripts.retryJobArgs(this.id, this.opts.lifo, token, {
+            exclusiveExecution: this.opts.exclusiveExecution,
+            pttl: delay,
+          }),
         );
         command = 'retryJob';
       }

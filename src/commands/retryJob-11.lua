@@ -11,13 +11,16 @@
       KEYS[7]  delayed key
       KEYS[8]  prioritized key
       KEYS[9]  'pc' priority counter
-      KEYS[10] 'marker'
+      KEYS[10] limiter key
+      KEYS[11] 'marker'
 
       ARGV[1]  key prefix
       ARGV[2]  timestamp
-      ARGV[3]  pushCmd
+      ARGV[3]  pushCmd - lifo -> RPUSH - fifo -> LPUSH
       ARGV[4]  jobId
       ARGV[5]  token
+      ARGV[6]  exclusive execution
+      ARGV[7]  rate limit pttl
 
     Events:
       'waiting'
@@ -36,7 +39,7 @@ local rcall = redis.call
 --- @include "includes/promoteDelayedJobs"
 
 local target, paused = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
-local markerKey = KEYS[10]
+local markerKey = KEYS[11]
 
 -- Check if there are delayed jobs that we can move to wait.
 -- test example: when there are delayed jobs between retries
@@ -66,6 +69,13 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   end
 
   rcall("HINCRBY", KEYS[4], "atm", 1)
+
+  if ARGV[6] == "1" then
+    local pttl = tonumber(ARGV[7])
+    if pttl > 0 then
+      rcall("SET", KEYS[10], 999999, "PX", pttl)
+    end
+  end
 
   local maxEvents = getOrSetMaxEvents(KEYS[5])
 

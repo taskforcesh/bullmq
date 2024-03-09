@@ -9,7 +9,6 @@
     KEYS[5] job key
     KEYS[6] events stream
     KEYS[7] meta key
-    KEYS[8] limiter key
 
     ARGV[1] key prefix
     ARGV[2] timestamp
@@ -18,7 +17,6 @@
     ARGV[5] queue token
     ARGV[6] delay value
     ARGV[7] skip attempt
-    ARGV[8] exclusive execution
 
   Output:
     0 - OK
@@ -58,11 +56,7 @@ if rcall("EXISTS", jobKey) == 1 then
     if ARGV[7] == "0" then
         rcall("HINCRBY", jobKey, "atm", 1)
     end
-    
-    if ARGV[8] == "0" then
-        rcall("SET", KEYS[8], 999999, "PX", ARGV[6])
-    end
-    
+
     rcall("HSET", jobKey, "delay", ARGV[6])
 
     local maxEvents = getOrSetMaxEvents(metaKey)
