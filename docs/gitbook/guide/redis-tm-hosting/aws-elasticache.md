@@ -5,7 +5,7 @@ Elasticache is a managed caching service offered by Amazon Web Services (AWS), a
 Here are some points to consider when using Elasticache with BullMQ within AWS:
 
 1. Use the standard cache-nodes setup (i.e. not the serverless version, as serverless for the moment uses an incompatible maxmemory-policy)
-2. In order to access your Elasticache instance you will need to create a segurity group that allows the instance to be accessible to the services running BullMQ instances.&#x20;
+2. In order to access your Elasticache instance you will need to create a security group that allows the instance to be accessible to the services running BullMQ instances.&#x20;
 3.
 
     <figure><img src="../../.gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
