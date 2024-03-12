@@ -107,15 +107,14 @@ const worker = new Worker(
           await job.updateData({
             step: Step.Second,
           });
-          step = Step.Second;
-          break;
+          throw new DelayedError();
         }
         case Step.Second: {
           await doSecondStepStuff();
           await job.updateData({
             step: Step.Finish,
           });
-          throw new DelayedError();
+          step = Step.Finish;
         }
         default: {
           throw new Error('invalid step');
