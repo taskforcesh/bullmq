@@ -3,7 +3,11 @@
 * [What is BullMQ](README.md)
 * [Quick Start](<README (1).md>)
 * [API Reference](https://api.docs.bullmq.io)
-* [Changelog](changelog.md)
+* [Changelogs](changelog.md)
+  * [v4](changelogs/changelog-v4.md)
+  * [v3](changelogs/changelog-v3.md)
+  * [v2](changelogs/changelog-v2.md)
+  * [v1](changelogs/changelog-v1.md)
 
 ## Guide
 
@@ -14,6 +18,7 @@
   * [Adding jobs in bulk](guide/queues/adding-bulks.md)
   * [Removing Jobs](guide/queues/removing-jobs.md)
 * [Workers](guide/workers/README.md)
+  * [Auto-removal of jobs](guide/workers/auto-removal-of-jobs.md)
   * [Concurrency](guide/workers/concurrency.md)
   * [Graceful shutdown](guide/workers/graceful-shutdown.md)
   * [Stalled Jobs](guide/workers/stalled-jobs.md)
@@ -34,6 +39,9 @@
   * [Adding flows in bulk](guide/flows/adding-bulks.md)
   * [Get Flow Tree](guide/flows/get-flow-tree.md)
   * [Fail Parent](guide/flows/fail-parent.md)
+  * [Remove Dependency](guide/flows/remove-dependency.md)
+  * [Ignore Dependency](guide/flows/ignore-dependency.md)
+  * [Remove Child Dependency](guide/flows/remove-child-dependency.md)
 * [Metrics](guide/metrics/metrics.md)
 * [Rate limiting](guide/rate-limiting.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
@@ -42,6 +50,9 @@
 * [QueueScheduler](guide/queuescheduler.md)
 * [Redis™ Compatibility](guide/redis-tm-compatibility/README.md)
   * [Dragonfly](guide/redis-tm-compatibility/dragonfly.md)
+* [Redis™ hosting](guide/redis-tm-hosting/README.md)
+  * [AWS MemoryDB](guide/redis-tm-hosting/aws-memorydb.md)
+  * [AWS Elasticache](guide/redis-tm-hosting/aws-elasticache.md)
 * [Architecture](guide/architecture.md)
 * [NestJs](guide/nestjs/README.md)
   * [Producers](guide/nestjs/producers.md)
@@ -61,6 +72,7 @@
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
 * [Stop retrying jobs](patterns/stop-retrying-jobs.md)
 * [Timeout](patterns/timeout.md)
+* [Redis Cluster](patterns/redis-cluster.md)
 
 ## BullMQ Pro
 
@@ -74,6 +86,7 @@
   * [Max group size](bullmq-pro/groups/max-group-size.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
   * [Prioritized intra-groups](bullmq-pro/groups/prioritized.md)
+  * [Sandboxes for groups](bullmq-pro/groups/sandboxes-for-groups.md)
 * [Batches](bullmq-pro/batches.md)
 * [NestJs](bullmq-pro/nestjs/README.md)
   * [Producers](bullmq-pro/nestjs/producers.md)

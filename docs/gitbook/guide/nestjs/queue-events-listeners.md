@@ -1,6 +1,6 @@
 # Queue Events Listeners
 
-To register a QueueEvents instance, you need to use **QueueEventsListener** decorator:
+To register a QueueEvents instance, you need to use the **`QueueEventsListener`** decorator:
 
 ```typescript
 import {
@@ -46,4 +46,4 @@ export class AppModule {}
 
 - 💡 [Queues Technique](https://docs.nestjs.com/techniques/queues)
 - 💡 [Register Queue API Reference](https://nestjs.bullmq.pro/classes/BullModule.html#registerQueue)
-- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v4.QueueEventsListener.html)
+- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html)

@@ -1,6 +1,6 @@
 # Remove Dependency
 
-In some situations, you may have a parent job and need to ignore when one of its children fail.
+In some situations, you may have a parent job and need to remove the relationship when one of its children fail.
 
 The pattern to solve this requirement consists on using the **removeDependencyOnFailure** option. This option will make sure that when a job fails, the dependency is removed from the parent, so the parent will complete without waiting for the failed children.
 
@@ -45,4 +45,4 @@ As soon as a **child** with this option fails, the parent job will be moved to a
 
 ## Read more:
 
-- 💡 [Add Flow API Reference](https://api.docs.bullmq.io/classes/FlowProducer.html#add)
+- 💡 [Add Flow API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#add)

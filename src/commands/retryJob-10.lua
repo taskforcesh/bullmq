@@ -2,15 +2,16 @@
   Retries a failed job by moving it back to the wait queue.
 
     Input:
-      KEYS[1] 'active',
-      KEYS[2] 'wait'
-      KEYS[3] 'paused'
-      KEYS[4] job key
-      KEYS[5] 'meta'
-      KEYS[6] events stream
-      KEYS[7] delayed key
-      KEYS[8] prioritized key
-      KEYS[9] 'pc' priority counter
+      KEYS[1]  'active',
+      KEYS[2]  'wait'
+      KEYS[3]  'paused'
+      KEYS[4]  job key
+      KEYS[5]  'meta'
+      KEYS[6]  events stream
+      KEYS[7]  delayed key
+      KEYS[8]  prioritized key
+      KEYS[9]  'pc' priority counter
+      KEYS[10] 'marker'
 
       ARGV[1]  key prefix
       ARGV[2]  timestamp
@@ -30,13 +31,16 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addJobWithPriority"
+--- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 
 local target, paused = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
+local markerKey = KEYS[10]
+
 -- Check if there are delayed jobs that we can move to wait.
 -- test example: when there are delayed jobs between retries
-promoteDelayedJobs(KEYS[7], KEYS[2], target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], paused, KEYS[9])
+promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], paused)
 
 if rcall("EXISTS", KEYS[4]) == 1 then
 
@@ -56,11 +60,14 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   -- Standard or priority add
   if priority == 0 then
     rcall(ARGV[3], target, ARGV[4])
+    -- TODO: check if we need to add marker in this case too
   else
-    addJobWithPriority(KEYS[2], KEYS[8], priority, paused, ARGV[4], KEYS[9])
+    addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], paused)
   end
 
-  local maxEvents = rcall("HGET", KEYS[5], "opts.maxLenEvents") or 10000
+  rcall("HINCRBY", KEYS[4], "atm", 1)
+
+  local maxEvents = getOrSetMaxEvents(KEYS[5])
 
   -- Emit waiting event
   rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "waiting",

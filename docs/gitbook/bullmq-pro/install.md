@@ -2,7 +2,7 @@
 
 In order to install BullMQ Pro you need to use a NPM token from [taskforce.sh](https://taskforce.sh).
 
-With the token at hand just update or create a ._**npmrc**_ file in your app repository with the following contents:
+With the token at hand just update or create a `.npmrc` file in your app repository with the following contents:
 
 ```
 @taskforcesh:registry=https://npm.taskforce.sh/
@@ -10,9 +10,9 @@ With the token at hand just update or create a ._**npmrc**_ file in your app rep
 always-auth=true
 ```
 
-"NPM\_\_TASKFORCESH\_\_TOKEN" is an environment variable pointing to your token.
+where `NPM__TASKFORCESH__TOKEN` is an environment variable pointing to your token.
 
-Then just install the @taskforcesh/bullmq-pro package as you would install any other package, with npm, yarn or pnpm:
+Then just install the `@taskforcesh/bullmq-pro` package as you would install any other package, with `npm`, `yarn` or `pnpm`:
 
 ```
 yarn add @taskforcesh/bullmq-pro
@@ -32,7 +32,7 @@ const worker = new WorkerPro('myQueue', async job => {
 
 ### Using Docker
 
-If you use docker you must make sure that you also add the _**.npmrc**_ file above in your **Dockerfile**:
+If you use docker you must make sure that you also add the `.npmrc` file above in your `Dockerfile`:
 
 ```docker
 WORKDIR /app

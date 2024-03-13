@@ -3,13 +3,9 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import {
-  clientCommandMessageReg,
-  QUEUE_EVENT_SUFFIX,
-  WORKER_SUFFIX,
-} from '../utils';
+import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { Metrics } from '../interfaces';
+import { JobJsonRaw, Metrics } from '../interfaces';
 
 /**
  *
@@ -293,6 +289,49 @@ export class QueueGetters<
     return this.getJobs(['failed'], start, end, false);
   }
 
+  /**
+   * Returns the qualified job ids and the raw job data (if available) of the
+   * children jobs of the given parent job.
+   * It is possible to get either the already processed children, in this case
+   * an array of qualified job ids and their result values will be returned,
+   * or the pending children, in this case an array of qualified job ids will
+   * be returned.
+   * A qualified job id is a string representing the job id in a given queue,
+   * for example: "bull:myqueue:jobid".
+   *
+   * @param parentId The id of the parent job
+   * @param type "processed" | "pending"
+   * @param opts
+   *
+   * @returns  { items: { id: string, v?: any, err?: string } [], jobs: JobJsonRaw[], total: number}
+   */
+  async getDependencies(
+    parentId: string,
+    type: 'processed' | 'pending',
+    start: number,
+    end: number,
+  ): Promise<{
+    items: { id: string; v?: any; err?: string }[];
+    jobs: JobJsonRaw[];
+    total: number;
+  }> {
+    const key = this.toKey(
+      type == 'processed'
+        ? `${parentId}:processed`
+        : `${parentId}:dependencies`,
+    );
+    const { items, total, jobs } = await this.scripts.paginate(key, {
+      start,
+      end,
+      fetchJobs: true,
+    });
+    return {
+      items,
+      jobs,
+      total,
+    };
+  }
+
   async getRanges(
     types: JobType[],
     start = 0,
@@ -389,7 +428,7 @@ export class QueueGetters<
     };
   }
 
-  private async baseGetClients(suffix: string): Promise<
+  private async baseGetClients(matcher: (name: string) => boolean): Promise<
     {
       [index: string]: string;
     }[]
@@ -397,7 +436,7 @@ export class QueueGetters<
     const client = await this.client;
     const clients = (await client.client('LIST')) as string;
     try {
-      const list = this.parseClientList(clients, suffix);
+      const list = this.parseClientList(clients, matcher);
       return list;
     } catch (err) {
       if (!clientCommandMessageReg.test((<Error>err).message)) {
@@ -420,12 +459,22 @@ export class QueueGetters<
       [index: string]: string;
     }[]
   > {
-    return this.baseGetClients(WORKER_SUFFIX);
+    const unnamedWorkerClientName = `${this.clientName()}`;
+    const namedWorkerClientName = `${this.clientName()}:w:`;
+
+    const matcher = (name: string) =>
+      name &&
+      (name === unnamedWorkerClientName ||
+        name.startsWith(namedWorkerClientName));
+
+    return this.baseGetClients(matcher);
   }
 
   /**
    * Get queue events list related to the queue.
    * Note: GCP does not support SETNAME, so this call will not work
+   *
+   * @deprecated do not use this method, it will be removed in the future.
    *
    * @returns - Returns an array with queue events info.
    */
@@ -434,7 +483,8 @@ export class QueueGetters<
       [index: string]: string;
     }[]
   > {
-    return this.baseGetClients(QUEUE_EVENT_SUFFIX);
+    const clientName = `${this.clientName()}${QUEUE_EVENT_SUFFIX}`;
+    return this.baseGetClients((name: string) => name === clientName);
   }
 
   /**
@@ -488,7 +538,7 @@ export class QueueGetters<
     };
   }
 
-  private parseClientList(list: string, suffix = '') {
+  private parseClientList(list: string, matcher: (name: string) => boolean) {
     const lines = list.split('\n');
     const clients: { [index: string]: string }[] = [];
 
@@ -502,8 +552,9 @@ export class QueueGetters<
         client[key] = value;
       });
       const name = client['name'];
-      if (name && name === `${this.clientName()}${suffix ? `${suffix}` : ''}`) {
+      if (matcher(name)) {
         client['name'] = this.name;
+        client['rawname'] = name;
         clients.push(client);
       }
     });

@@ -4,15 +4,15 @@
 Flows are a brand new feature in BullMQ, and although is implemented on a stable foundation there could be some unknown issues.
 {% endhint %}
 
-BullMQ supports parent - child relationships between jobs. The basic idea is that a parent job will not be moved to the wait status, i.e. can be picked up by a worker, until all its children jobs have been processed successfully. Apart from that, a parent or a child job are no different from regular jobs.
+BullMQ supports parent - child relationships between jobs. The basic idea is that a parent job will not be moved to the wait status (i.e. where it could be picked up by a worker) until all its children jobs have been processed successfully. Apart from that, a parent or a child job are no different from regular jobs.
 
 This functionality enables the creation of flows where jobs are the node of trees of arbitrary depth.
 
 {% hint style="warning" %}
-Flows are added to a queue using the "_FlowProducer_" class.
+Flows are added to a queue using the `FlowProducer` class.
 {% endhint %}
 
-In order to create "flows" you must use the [FlowProducer](https://api.docs.bullmq.io/classes/v4.FlowProducer.html) class. The method [_**add**_](https://api.docs.bullmq.io/classes/v4.FlowProducer.html#add) accepts an object with the following interface:
+In order to create "flows" you must use the [`FlowProducer`](https://api.docs.bullmq.io/classes/v5.FlowProducer.html) class. The [_**`add`**_](https://api.docs.bullmq.io/classes/v5.FlowProducer.html#add) method accepts an object with the following interface:
 
 ```typescript
 interface FlowJob {
@@ -73,7 +73,7 @@ flow = await flowProducer.add({
 {% endtab %}
 {% endtabs %}
 
-The above code will add atomically 4 jobs, one to the "renovate" queue and 3 to the "steps" queue. When the 3 jobs in the "steps" queue are completed, the parent job in the "renovate" queue will be processed as a regular job.
+The above code will atomically add 4 jobs: one to the "renovate" queue, and 3 to the "steps" queue. When the 3 jobs in the "steps" queue are completed, the parent job in the "renovate" queue will be processed as a regular job.
 
 The above call will return instances for all the jobs added to the queue.
 
@@ -120,7 +120,7 @@ stepsWorker = Worker("steps", process, {"connection": connection})
 {% endtab %}
 {% endtabs %}
 
-We can implement a parent worker that sums the costs of the children's jobs using the "_getChildrenValues_" method. This method returns an object with job keys as keys and the result of that given job as a value:
+We can implement a parent worker that sums the costs of the children's jobs using the `getChildrenValues` method. This method returns an object with _job keys_ as keys and the _result of that given job_ as a value:
 
 ```typescript
 import { Worker } from 'bullmq';
@@ -137,7 +137,7 @@ const renovateWorker = new Worker('renovate', async job => {
 });
 ```
 
-It is possible to add as deep job hierarchies as needed, see the following example where jobs are depending on each other, this allows serial execution of jobs:
+It is possible to add as deep job hierarchies as needed. See the following example where jobs are depending on each other, allowing serial execution of jobs:
 
 {% tabs %}
 {% tab title="TypeScript" %}
@@ -193,28 +193,28 @@ chain = await flowProducer.add({
 In this case one job will be processed after the previous one has been completed.
 
 {% hint style="info" %}
-The order of processing would be: 'chassis', 'wheels' and finally 'engine'.
+The order of processing would be: `chassis`, `wheels` and finally `engine`.
 {% endhint %}
 
 ## Getters
 
-There are some special getters that can be used in order to get jobs related to a flow. First, we have a method in the Job class to get all the dependencies for a given job:
+There are some special getters that can be used in order to get jobs related to a flow. First, we have a method in the `Job` class to get all the dependencies for a given job:
 
 ```typescript
 const dependencies = await job.getDependencies();
 ```
 
-it will return all the **direct** **dependencies**, i.e. the children of a given job.
+it will return all the **direct** **dependencies** (i.e. the children of a given job).
 
-The Job class also provides another method that we presented above to get all the values produced by the children of a given job:
+The `Job` class also provides another method that we presented above to get all the values produced by the children of a given job:
 
 ```typescript
 const values = await job.getChildrenValues();
 ```
 
-Also, a new property is available in the Job class, _**parentKey,**_ with a fully qualified key for the job parent.
+Also, a new property is available in the `Job` class, _**`parentKey`,**_ with a fully qualified key for the job parent.
 
-Finally, there is also a new state where a job can be in, "waiting-children", for parent jobs that have not yet had their children completed:
+Finally, there is also a new state which a job can be in, "waiting-children", for parent jobs that have not yet had their children completed:
 
 ```typescript
 const state = await job.getState();
@@ -223,7 +223,7 @@ const state = await job.getState();
 
 ## Provide options
 
-When adding a flow it is also possible to provide an extra options object "**queueOptions"**, where you can add your specific options for every queue that is used in the flow. These options would affect each one of the jobs that are added to the flow using the FlowProducer.
+When adding a flow it is also possible to provide an extra object **`queueOptions`** object, in which you can add your specific options for every queue that is used in the flow. These options would affect each one of the jobs that are added to the flow using the `FlowProducer`.
 
 ```typescript
 import { FlowProducer } from 'bullmq';
@@ -270,7 +270,7 @@ When removing a job that is part of the flow there are several important conside
 3. Since a job can be both a parent and a child in a large flow, both 1 and 2 will occur if removing such a job.
 4. If any of the jobs that would be removed happen to be locked, none of the jobs will be removed, and an exception will be thrown.
 
-Apart from the considerations above, removing a job can simply be done by either using the Job or the Queue class:
+Apart from the considerations above, removing a job can simply be done by either using the `Job` or the `Queue` class:
 
 ```typescript
 await job.remove();
@@ -281,5 +281,5 @@ await queue.remove(job.id);
 ## Read more:
 
 - 📋 [Divide large jobs using flows](https://blog.taskforce.sh/splitting-heavy-jobs-using-bullmq-flows/)
-- 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/v4.FlowProducer.html)
-- 💡 [Job API Reference](https://api.docs.bullmq.io/classes/v4.Job.html)
+- 💡 [FlowProducer API Reference](https://api.docs.bullmq.io/classes/v5.FlowProducer.html)
+- 💡 [Job API Reference](https://api.docs.bullmq.io/classes/v5.Job.html)

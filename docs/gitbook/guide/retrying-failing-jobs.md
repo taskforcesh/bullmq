@@ -2,20 +2,20 @@
 
 As your queues process jobs, it is inevitable that over time some of these jobs will fail. In BullMQ, a job is considered failed in the following scenarios:
 
-- The processor function defined in your [Worker](https://docs.bullmq.io/guide/workers) has thrown an exception.
-- The job has become [stalled](https://docs.bullmq.io/guide/jobs/stalled) and it has consumed the "max stalled count" setting.
+- The processor function defined in your [`Worker`](https://docs.bullmq.io/guide/workers) has thrown an exception.
+- The job has become [_stalled_](https://docs.bullmq.io/guide/jobs/stalled) and it has consumed the "max stalled count" setting.
 
 {% hint style="danger" %}
-The exceptions thrown in a processor must be an [Error](https://nodejs.org/api/errors.html#class-error) object for BullMQ to work correctly.
+The exceptions thrown in a processor must be an [`Error`](https://nodejs.org/api/errors.html#class-error) object for BullMQ to work correctly.
 
-In general, as a best practice, it is better to always throw Error objects. There is even an eslint rule if you want to enforce it: https://eslint.org/docs/latest/rules/no-throw-literal
+In general, as a best practice, it is better to always throw `Error` objects. There is even an [ESLint rule](https://eslint.org/docs/latest/rules/no-throw-literal) if you want to enforce it.
 {% endhint %}
 
 ## Retrying failing jobs
 
-When a processor throws an exception, the worker will catch it and move the job to the failed set. Depending on your [Queue settings](https://docs.bullmq.io/guide/queues/auto-removal-of-jobs), the job may stay in the failed set forever, or it could be automatically removed.&#x20;
+When a processor throws an exception, the worker will catch it and move the job to the failed set. Depending on your [Queue settings](https://docs.bullmq.io/guide/queues/auto-removal-of-jobs), the job may stay in the failed set forever, or it could be automatically removed.
 
-Often it is desirable to automatically retry failed jobs so that we do not give up until a certain amount of retries have failed. In order to activate automatic job retries you should use the [attempts](https://api.docs.bullmq.io/interfaces/v4.BaseJobOptions.html#attempts) setting with a value larger than 1 (see the examples below).
+Often it is desirable to automatically retry failed jobs so that we do not give up until a certain amount of retries have failed. In order to activate automatic job retries you should use the [`attempts`](https://api.docs.bullmq.io/interfaces/v5.BaseJobOptions.html#attempts) setting with a value larger than 1 (see the examples below).
 
 BullMQ supports retries of failed jobs using back-off functions. It is possible to use the **built-in** backoff functions or provide **custom** ones. If you do not specify a back-off function, the jobs will be retried without delay as soon as they fail.
 
@@ -27,7 +27,7 @@ Retried jobs will respect their priority when they are moved back to waiting sta
 
 The current built-in backoff functions are "exponential" and "fixed".
 
-With exponential backoff, it will retry after `2 ^ (attempts - 1) * delay` milliseconds. For example, with a delay of 3000 milliseconds, for the 7th attempt, it will retry 2^6 \* 3000 milliseconds = 3.2 minutes after the previous attempt.&#x20;
+With exponential backoff, it will retry after `2 ^ (attempts - 1) * delay` milliseconds. For example, with a delay of 3000 milliseconds, for the 7th attempt, it will retry `2^6 \* 3000` milliseconds = 3.2 minutes after the previous attempt.
 
 With a fixed backoff, it will retry after `delay` milliseconds, so with a delay of 3000 milliseconds, it will retry _every_ attempt 3000 milliseconds after the previous attempt.
 

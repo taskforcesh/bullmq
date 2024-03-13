@@ -87,7 +87,7 @@ describe('repeat', function () {
           this.clock.tick(delay + 10);
           delay = delay * 2;
 
-          if (job.attemptsMade === 10) {
+          if (job!.attemptsMade === 10) {
             resolve();
           }
         });
@@ -593,7 +593,7 @@ describe('repeat', function () {
           async job => {
             this.clock.tick(nextTick);
 
-            if (job.opts.repeat.count == 5) {
+            if (job.opts.repeat!.count == 5) {
               const removed = await queue.removeRepeatable('rrule', repeat);
               expect(removed).to.be.true;
             }
@@ -1178,7 +1178,7 @@ describe('repeat', function () {
     const removed = await queue.removeRepeatableByKey(createdJob.repeatJobKey);
     const delayedCount = await queue.getJobCountByTypes('delayed');
     expect(delayedCount).to.be.equal(0);
-    expect(job.repeatJobKey).to.not.be.undefined;
+    expect(job!.repeatJobKey).to.not.be.undefined;
     expect(removed).to.be.true;
     const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
     expect(repeatableJobsAfterRemove).to.have.length(0);
@@ -1250,6 +1250,61 @@ describe('repeat', function () {
     await processing;
     await worker.close();
     delayStub.restore();
+  });
+
+  describe('when custom key is provided', function () {
+    it('should allow removing a repeatable job by custom key', async function () {
+      const numJobs = 4;
+      const date = new Date('2017-02-07 9:24:00');
+      let prev: Job;
+      let counter = 0;
+      let processor;
+      const key = 'xxxx';
+
+      this.clock.setSystemTime(date);
+
+      const nextTick = 2 * ONE_SECOND + 10;
+      const repeat = { pattern: '*/2 * * * * *', key };
+
+      await queue.add('test', { foo: 'bar' }, { repeat });
+
+      this.clock.tick(nextTick);
+
+      const processing = new Promise<void>((resolve, reject) => {
+        processor = async () => {
+          counter++;
+          if (counter == numJobs) {
+            try {
+              await queue.removeRepeatable('test', repeat);
+              this.clock.tick(nextTick);
+              const delayed = await queue.getDelayed();
+              expect(delayed).to.be.empty;
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
+          } else if (counter > numJobs) {
+            reject(Error(`should not repeat more than ${numJobs} times`));
+          }
+        };
+      });
+
+      const worker = new Worker(queueName, processor, { connection, prefix });
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+      await worker.waitUntilReady();
+
+      worker.on('completed', job => {
+        this.clock.tick(nextTick);
+        if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+        }
+        prev = job;
+      });
+
+      await processing;
+      delayStub.restore();
+    });
   });
 
   // This test is flaky and too complex we need something simpler that tests the same thing
@@ -1518,7 +1573,7 @@ describe('repeat', function () {
     let processor;
     const processing = new Promise<void>((resolve, reject) => {
       processor = async (job: Job) => {
-        if (job.opts.repeat.count === 1) {
+        if (job.opts.repeat!.count === 1) {
           resolve();
         } else {
           reject(new Error('repeatable job got the wrong repeat count'));

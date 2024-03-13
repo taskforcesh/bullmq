@@ -14,7 +14,7 @@ export interface QueueBaseOptions {
   /**
    * Options for connecting to a Redis instance.
    */
-  connection?: ConnectionOptions;
+  connection: ConnectionOptions;
 
   /**
    * Denotes commands should retry indefinitely.

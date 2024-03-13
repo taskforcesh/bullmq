@@ -1,14 +1,14 @@
 # Prioritized
 
-Jobs can also include a priority option. Using priorities, job's processing order will be affected by the specified priority instead of following a FIFO or LIFO pattern.
+Jobs can also include a `priority` option. Using priorities, job processing order will be affected by the specified `priority` instead of following a FIFO or LIFO pattern.
 
 {% hint style="warning" %}
-Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity O(log(n)) relative to the number of jobs in prioritized set in the Queue.
+Adding prioritized jobs is a slower operation than the other types of jobs, with a complexity `O(log(n))` relative to the number of jobs in the prioritized set in the queue.
 {% endhint %}
 
-Note that the priorities go from 1 to 2 097 152, whereas a lower number is always a higher priority than higher numbers.
+Note that the priorities go from `1` to `2 097 152`, where a lower number is always a **higher** priority than higher numbers.
 
-Jobs without a priority assigned will get the most priority.
+Jobs without a `priority` assigned will get the most priority.
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -23,11 +23,11 @@ await myQueue.add('wall', { color: 'blue' }, { priority: 7 });
 // finally pink.
 ```
 
-If several jobs are added with the same priority value, then the jobs within that priority will be processed in FIFO (First in first out) fashion.
+If several jobs are added with the same priority value, then the jobs within that priority will be processed in [FIFO (_First in, first out_)](../fifo.md) fashion.
 
 ## Change priority
 
-If you want to change the priority after inserting a job, just use the **changePriority** method. For example, let's say that you want to change the priority from 16 to 1:
+If you want to change the `priority` after inserting a job, use the **`changePriority`** method. For example, let's say that you want to change the `priority` from `16` to `1`:
 
 ```typescript
 const job = await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });
@@ -37,7 +37,7 @@ await job.changePriority({
 });
 ```
 
-or if you want to use lifo option:
+or if you want to use the [LIFO (_Last In, First Out_)](../lifo.md) option:
 
 ```typescript
 const job = await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });
@@ -49,7 +49,7 @@ await job.changePriority({
 
 ## Get Prioritized jobs
 
-As prioritized is a new state. You must use **getJobs** or **getPrioritized** method as:
+As prioritized is a new state. You must use **`getJobs`** or **`getPrioritized`** method as:
 
 ```typescript
 const jobs = await queue.getJobs(['prioritized']);
@@ -60,5 +60,5 @@ const jobs2 = await queue.getPrioritized();
 ## Read more:
 
 - 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
-- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v4.Job.html#changePriority)
-- 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html#getPrioritized)
+- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changePriority)
+- 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getPrioritized)

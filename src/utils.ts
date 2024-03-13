@@ -6,9 +6,9 @@ import { AbortController } from 'node-abort-controller';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import * as semver from 'semver';
 import { ChildMessage, RedisClient } from './interfaces';
 import { EventEmitter } from 'events';
+import * as semver from 'semver';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -67,6 +67,24 @@ export function delay(
   });
 }
 
+export function increaseMaxListeners(
+  emitter: EventEmitter,
+  count: number,
+): void {
+  const maxListeners = emitter.getMaxListeners();
+  emitter.setMaxListeners(maxListeners + count);
+}
+
+export const invertObject = (obj: Record<string, string>) => {
+  return Object.entries(obj).reduce<Record<string, string>>(
+    (encodeMap, [key, value]) => {
+      encodeMap[value] = key;
+      return encodeMap;
+    },
+    {},
+  );
+};
+
 export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
@@ -77,14 +95,6 @@ export function isRedisInstance(obj: any): obj is Redis | Cluster {
 
 export function isRedisCluster(obj: unknown): obj is Cluster {
   return isRedisInstance(obj) && (<Cluster>obj).isCluster;
-}
-
-export function increaseMaxListeners(
-  emitter: EventEmitter,
-  count: number,
-): void {
-  const maxListeners = emitter.getMaxListeners();
-  emitter.setMaxListeners(maxListeners + count);
 }
 
 export function decreaseMaxListeners(
@@ -212,6 +222,28 @@ export const errorToJSON = (value: any): Record<string, any> => {
   return error;
 };
 
-export const WORKER_SUFFIX = '';
+const INFINITY = 1 / 0;
+
+export const toString = (value: any): string => {
+  if (value == null) {
+    return '';
+  }
+  // Exit early for strings to avoid a performance hit in some environments.
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    // Recursively convert values (susceptible to call stack limits).
+    return `${value.map(other => (other == null ? other : toString(other)))}`;
+  }
+  if (
+    typeof value == 'symbol' ||
+    Object.prototype.toString.call(value) == '[object Symbol]'
+  ) {
+    return value.toString();
+  }
+  const result = `${value}`;
+  return result === '0' && 1 / value === -INFINITY ? '-0' : result;
+};
 
 export const QUEUE_EVENT_SUFFIX = ':qe';

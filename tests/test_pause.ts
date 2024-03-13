@@ -179,7 +179,7 @@ describe('Pause', function () {
     await worker.resume();
 
     await processPromise;
-    worker.close();
+    await worker.close();
   });
 
   it('should wait until active jobs are finished before resolving pause', async () => {
@@ -364,7 +364,7 @@ describe('Pause', function () {
           queueName,
           async job => {
             await delay(10);
-            if (job.attemptsMade == 1) {
+            if (job.attemptsMade == 0) {
               await queue.pause();
               throw new Error('Not yet!');
             }

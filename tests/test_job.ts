@@ -336,9 +336,12 @@ describe('Job', function () {
       );
       const delayedJobs = await queue.addBulk(jobsDataWithDelay);
 
+      const startTime = Date.now();
       // Remove all jobs
       await Promise.all(delayedJobs.map(job => job.remove()));
       await Promise.all(waitingJobs.map(job => job.remove()));
+
+      expect(Date.now() - startTime).to.be.lessThan(4000);
 
       const countJobs = await queue.getJobCountByTypes('waiting', 'delayed');
       expect(countJobs).to.be.equal(0);
@@ -660,7 +663,27 @@ describe('Job', function () {
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(1);
+      expect(job.stacktrace[0]).to.include('test_job.ts');
       await worker.close();
+    });
+
+    describe('when using a custom error', function () {
+      it('marks the job as failed', async function () {
+        class CustomError extends Error {}
+        const worker = new Worker(queueName, null, { connection, prefix });
+        const token = 'my-token';
+        await Job.create(queue, 'test', { foo: 'bar' });
+        const job = (await worker.getNextJob(token)) as Job;
+        const isFailed = await job.isFailed();
+        expect(isFailed).to.be.equal(false);
+        await job.moveToFailed(new CustomError('test error'), '0', true);
+        const isFailed2 = await job.isFailed();
+        expect(isFailed2).to.be.equal(true);
+        expect(job.stacktrace).not.be.equal(null);
+        expect(job.stacktrace.length).to.be.equal(1);
+        expect(job.stacktrace[0]).to.include('test_job.ts');
+        await worker.close();
+      });
     });
 
     it('moves the job to wait for retry if attempts are given', async function () {
@@ -824,7 +847,7 @@ describe('Job', function () {
       const completing = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           const timeDiff = new Date().getTime() - startTime;
-          expect(timeDiff).to.be.gte(4000);
+          expect(timeDiff).to.be.gte(2000);
           resolve();
         });
       });
@@ -833,17 +856,17 @@ describe('Job', function () {
         queue,
         'test',
         { foo: 'bar' },
-        { delay: 2000 },
+        { delay: 8000 },
       );
 
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
 
-      await job.changeDelay(4000);
+      await job.changeDelay(2000);
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
-      expect(job.delay).to.be.equal(4000);
+      expect(job.delay).to.be.equal(2000);
 
       await completing;
 
@@ -858,6 +881,61 @@ describe('Job', function () {
       await expect(job.changeDelay(2000)).to.be.rejectedWith(
         `Job ${job.id} is not in the delayed state. changeDelay`,
       );
+    });
+
+    describe('when adding delayed job after standard one when worker is drained', () => {
+      it('pick standard job without delay', async function () {
+        this.timeout(6000);
+
+        await Job.create(queue, 'test1', { foo: 'bar' });
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            await delay(1000);
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        await worker.waitUntilReady();
+
+        // after this event, worker should be drained
+        const completing = new Promise<void>(resolve => {
+          worker.once('completed', async () => {
+            await queue.addBulk([
+              { name: 'test1', data: { idx: 0, foo: 'bar' } },
+              {
+                name: 'test2',
+                data: { idx: 1, foo: 'baz' },
+                opts: { delay: 3000 },
+              },
+            ]);
+
+            resolve();
+          });
+        });
+
+        await completing;
+
+        const now = Date.now();
+        const completing2 = new Promise<void>(resolve => {
+          worker.on(
+            'completed',
+            after(2, job => {
+              const timeDiff = Date.now() - now;
+              expect(timeDiff).to.be.greaterThanOrEqual(4000);
+              expect(timeDiff).to.be.lessThan(4500);
+              expect(job.delay).to.be.equal(0);
+              resolve();
+            }),
+          );
+        });
+
+        await completing2;
+        await worker.close();
+      });
     });
   });
 
@@ -1073,6 +1151,7 @@ describe('Job', function () {
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
       await job.promote();
+      expect(job.delay).to.be.equal(0);
 
       const isDelayedAfterPromote = await job.isDelayed();
       expect(isDelayedAfterPromote).to.be.equal(false);
@@ -1093,12 +1172,16 @@ describe('Job', function () {
       );
       await worker.waitUntilReady();
 
-      const completing = new Promise<void>(resolve => {
+      const completing = new Promise<void>((resolve, reject) => {
         worker.on(
           'completed',
           after(4, () => {
-            expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
-            resolve();
+            try {
+              expect(completed).to.be.eql(['a', 'b', 'c', 'd']);
+              resolve();
+            } catch (err) {
+              reject(err);
+            }
           }),
         );
       });

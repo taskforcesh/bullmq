@@ -23,19 +23,20 @@ if (succeeded) {
 await worker.close();
 ```
 
-There is an important consideration regarding job "locks" when processing manually. Locks avoid other workers to fetch the same job that is being processed by a given worker. The ownership of the lock is determined by the "token" that is sent when getting the job.
+There is an important consideration regarding job "locks" when processing manually. Locks prevent workers from fetching the a job that is already being processed by  another worker. The ownership of the lock is determined by the "token" that is sent when getting the job.
 
 {% hint style="info" %}
 the lock duration setting is called "visibility window" in other queue systems.
 {% endhint %}
 
-Normally a job gets locked as soon as it is fetched from the queue with a max duration of "lockDuration" worker option. The default is 30 seconds but can be changed to any value easily, for example, to change it to 60 seconds:
+Normally a job gets locked as soon as it is fetched from the queue with a max duration of the specified `lockDuration` worker option. The default is 30 seconds but can be changed to any value easily. For example, to change it to 60 seconds:
 
 ```typescript
 const worker = new Worker('my-queue', null, { lockDuration: 60000 });
 ```
 
-When using standard worker processors the lock is renewed automatically after half lock duration time has passed, however, this mechanism does not exist when processing jobs manually, so you need to make sure to process the job faster than the lockDuration to avoid the "QueueScheduler" to move the job back to the waiting list of the queue or you can extend the lock for the job manually:
+When using standard worker processors, the lock is renewed automatically after half the lock duration time has passed. However, this mechanism does not exist when processing jobs manually, so to avoid the job being moved back to the waiting list of the queue,
+you need to make sure to process the job faster than the `lockDuration`, or manually extend the lock:
 
 ```typescript
 const job = (await worker.getNextJob(token)) as Job;
@@ -46,21 +47,21 @@ await job.extendLock(token, 30000);
 
 ### Choosing a token
 
-A token represents ownership, that a given worker is currently working on a given job. If the worker dies unexpectedly, the job could be picked up by another worker when the lock expires. A good approach for generating tokes for jobs is simply to generate a UUID for every new job, but it all depends on your specific use case.
+A token represents ownership by given worker currently working on a given job. If the worker dies unexpectedly, the job could be picked up by another worker when the lock expires. A good approach for generating tokens for jobs is simply to generate a UUID for every new job, but it all depends on your specific use case.
 
 ## Checking for stalled jobs
 
-When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move jobs that may stall (they have lost their locks) back to the wait status (or failed if they have exhausted the maximum number of [stalled attempts](https://api.docs.bullmq.io/interfaces/v4.WorkerOptions.html#maxStalledCount), which is 1 by default).
+When processing jobs manually you may also want to start the stalled jobs checker. This checker is needed to move stalled jobs (whose lock has expired) back to the _wait_ status (or _failed_ if they have exhausted the maximum number of [stalled attempts](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#maxStalledCount), which is 1 by default).
 
 ```typescript
 await worker.startStalledCheckTimer()
 ```
 
-The checker will run periodically (based on the [stalledInterval](https://api.docs.bullmq.io/interfaces/v4.WorkerOptions.html#stalledInterval) option) until the worker is closed.
+The checker will run periodically (based on the [`stalledInterval`](https://api.docs.bullmq.io/interfaces/v5.WorkerOptions.html#stalledInterval) option) until the worker is closed.
 
 ## Looping through jobs
 
-In many cases, you will have an "infinite" loop that processes jobs one by one like the following example. Note that the third parameter in "job.moveToCompleted/moveToFailed" is not used, signalling that the next job should be returned automatically.
+In many cases, you will have an "infinite" loop that processes jobs one by one like the following example. Note that the third parameter in `job.moveToCompleted`/`job.moveToFailed` is not used, signalling that the next job should be returned automatically.
 
 ```typescript
 const worker = new Worker('my-queue');

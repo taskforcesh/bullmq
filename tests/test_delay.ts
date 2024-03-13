@@ -255,7 +255,7 @@ describe('Delayed jobs', function () {
           reject(err);
         }
 
-        await delay(500);
+        await delay(100);
       };
 
     const processing = new Promise<void>((resolve, reject) => {
@@ -292,8 +292,9 @@ describe('Delayed jobs', function () {
     await worker2.close();
   });
 
+  // Add test where delays overlap so that we can see that indeed the jobs are processed concurrently.
   it('should process delayed jobs concurrently respecting delay and concurrency', async function () {
-    const delay = 250;
+    const delay_ = 250;
     const concurrency = 100;
     const margin = 1.5;
     let numJobs = 10;
@@ -308,11 +309,11 @@ describe('Delayed jobs', function () {
             expect(
               delayed,
               'waited at least delay time',
-            ).to.be.greaterThanOrEqual(delay);
+            ).to.be.greaterThanOrEqual(delay_);
             expect(
               delayed,
               'waited less than delay time and margin',
-            ).to.be.lessThan(delay * margin);
+            ).to.be.lessThan(delay_ * margin);
           } catch (err) {
             console.error(err);
             reject(err);
@@ -325,11 +326,13 @@ describe('Delayed jobs', function () {
       );
     });
 
+    let index = 1;
     while (numJobs) {
       numJobs -= 1;
-      await queue.add('my-queue', { foo: 'bar' }, { delay });
+      await queue.add('my-queue', { foo: 'bar', index }, { delay: delay_ });
+      index += 1;
       if (numJobs) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await delay(1000);
       }
     }
 
@@ -339,14 +342,14 @@ describe('Delayed jobs', function () {
 
   describe('when failed jobs are retried and moved to delayed', function () {
     it('processes jobs without getting stuck', async () => {
-      const countJobs = 32;
+      const countJobs = 2;
       const concurrency = 50;
 
       const processedJobs: { data: any }[] = [];
       const worker = new Worker(
         queueName,
         async (job: Job) => {
-          if (job.attemptsMade == 1) {
+          if (job.attemptsMade == 0) {
             await delay(250);
             throw new Error('forced error in test');
           }

@@ -5,4 +5,5 @@ export enum ErrorCode {
   JobPendingDependencies = -4,
   ParentJobNotExist = -5,
   JobLockMismatch = -6,
+  ParentJobCannotBeReplaced = -7,
 }

@@ -1,14 +1,13 @@
-import { get } from 'lodash';
 import { v4 } from 'uuid';
 import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
   QueueOptions,
+  RepeatableJob,
   RepeatOptions,
 } from '../interfaces';
 import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
-import { isRedisInstance } from '../utils';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
@@ -85,7 +84,7 @@ export interface QueueListener<DataType, ResultType, NameType extends string>
 /**
  * Queue
  *
- * This class provides methods to add jobs to a queue and some othe high-level
+ * This class provides methods to add jobs to a queue and some other high-level
  * administration such as pausing or deleting queues.
  *
  */
@@ -112,7 +111,7 @@ export class Queue<
       Connection,
     );
 
-    this.jobsOpts = get(opts, 'defaultJobOptions') ?? {};
+    this.jobsOpts = opts?.defaultJobOptions ?? {};
 
     this.waitUntilReady()
       .then(client => {
@@ -120,7 +119,7 @@ export class Queue<
           client.hset(
             this.keys.meta,
             'opts.maxLenEvents',
-            get(opts, 'streams.events.maxLen', 10000),
+            opts?.streams?.events?.maxLen ?? 10000,
           );
         }
       })
@@ -301,7 +300,11 @@ export class Queue<
    * @param asc - Determine the order in which jobs are returned based on their
    * next execution time.
    */
-  async getRepeatableJobs(start?: number, end?: number, asc?: boolean) {
+  async getRepeatableJobs(
+    start?: number,
+    end?: number,
+    asc?: boolean,
+  ): Promise<RepeatableJob[]> {
     return (await this.repeat).getRepeatableJobs(start, end, asc);
   }
 
@@ -471,7 +474,7 @@ export class Queue<
   }
 
   /**
-   * Retry all the failed jobs.
+   * Retry all the failed or completed jobs.
    *
    * @param opts: { count: number; state: FinishedStatus; timestamp: number}
    *   - count  number to limit how many jobs will be moved to wait status per iteration,

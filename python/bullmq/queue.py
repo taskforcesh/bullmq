@@ -1,6 +1,6 @@
 import asyncio
 from bullmq.redis_connection import RedisConnection
-from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions
+from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
 from bullmq.utils import extract_result
 from bullmq.scripts import Scripts
 from bullmq.job import Job
@@ -11,11 +11,12 @@ class Queue:
     Instantiate a Queue object
     """
 
-    def __init__(self, name: str, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
+    def __init__(self, name: str, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
         self.name = name
+        redisOpts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redisOpts)
         self.client = self.redisConnection.conn
         self.opts = opts
@@ -109,6 +110,12 @@ class Queue:
         paused_key_exists = await self.client.hexists(self.keys["meta"], "paused")
         return paused_key_exists == 1
 
+    def getRateLimitTtl(self):
+        """
+        Returns the time to live for a rate limited key in milliseconds.
+        """
+        return self.client.pttl(self.keys["limiter"])
+
     async def obliterate(self, force: bool = False):
         """
         Completely destroys the queue and all of its contents irreversibly.
@@ -129,13 +136,24 @@ class Queue:
 
     async def retryJobs(self, opts: RetryJobsOptions = {}):
         """
-        Retry all the failed jobs.
+        Retry all the failed or completed jobs.
         """
         while True:
             cursor = await self.scripts.retryJobs(
                 opts.get("state"),
                 opts.get("count"),
                 opts.get("timestamp")
+            )
+            if cursor is None or cursor == 0 or cursor == "0":
+                break
+
+    async def promoteJobs(self, opts: PromoteJobsOptions = {}):
+        """
+        Retry all the delayed jobs.
+        """
+        while True:
+            cursor = await self.scripts.promoteJobs(
+                opts.get("count")
             )
             if cursor is None or cursor == 0 or cursor == "0":
                 break

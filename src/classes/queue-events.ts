@@ -166,7 +166,9 @@ export class QueueEvents extends QueueBase {
 
   constructor(
     name: string,
-    { connection, autorun = true, ...opts }: QueueEventsOptions = {},
+    { connection, autorun = true, ...opts }: QueueEventsOptions = {
+      connection: {},
+    },
     Connection?: typeof RedisConnection,
   ) {
     super(
@@ -234,6 +236,7 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
+        // TODO: Planed for deprecation as it has no really a use case
         try {
           await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {

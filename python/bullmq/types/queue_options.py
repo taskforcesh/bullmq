@@ -1,5 +1,5 @@
 
-from typing import TypedDict
+from typing import TypedDict, Any
 
 
 class QueueBaseOptions(TypedDict, total=False):
@@ -8,6 +8,8 @@ class QueueBaseOptions(TypedDict, total=False):
     """
 
     prefix: str
+    connection: dict[str, Any]
     """
     Prefix for all queue keys.
     """
+

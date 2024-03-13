@@ -1,6 +1,6 @@
 import { parseExpression } from 'cron-parser';
 import { createHash } from 'crypto';
-import { RepeatBaseOptions, RepeatOptions } from '../interfaces';
+import { RepeatBaseOptions, RepeatableJob, RepeatOptions } from '../interfaces';
 import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
@@ -114,12 +114,13 @@ export class Repeat extends QueueBase {
     //
     // Generate unique job id for this iteration.
     //
-    const jobId = this.getRepeatJobId(
+    const jobId = this.getRepeatJobId({
       name,
       nextMillis,
-      this.hash(repeatJobKey),
-      opts.repeat.jobId,
-    );
+      namespace: this.hash(repeatJobKey),
+      jobId: opts.repeat.jobId,
+      key: opts.repeat.key,
+    });
     const now = Date.now();
     const delay =
       nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
@@ -146,12 +147,13 @@ export class Repeat extends QueueBase {
     jobId?: string,
   ): Promise<number> {
     const repeatJobKey = getRepeatKey(name, { ...repeat, jobId });
-    const repeatJobId = this.getRepeatJobId(
+    const repeatJobId = this.getRepeatJobId({
       name,
-      '',
-      this.hash(repeatJobKey),
-      jobId || repeat.jobId,
-    );
+      nextMillis: '',
+      namespace: this.hash(repeatJobKey),
+      jobId: jobId ?? repeat.jobId,
+      key: repeat.key,
+    });
 
     return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
@@ -159,17 +161,17 @@ export class Repeat extends QueueBase {
   async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
-    const repeatJobId = this.getRepeatJobId(
-      data.name,
-      '',
-      this.hash(repeatJobKey),
-      data.id,
-    );
+    const repeatJobId = this.getRepeatJobId({
+      name: data.name,
+      nextMillis: '',
+      namespace: this.hash(repeatJobKey),
+      jobId: data.id,
+    });
 
     return this.scripts.removeRepeatable(repeatJobId, repeatJobKey);
   }
 
-  private keyToData(key: string, next?: number) {
+  private keyToData(key: string, next?: number): RepeatableJob {
     const data = key.split(':');
     const pattern = data.slice(4).join(':') || null;
 
@@ -184,7 +186,11 @@ export class Repeat extends QueueBase {
     };
   }
 
-  async getRepeatableJobs(start = 0, end = -1, asc = false) {
+  async getRepeatableJobs(
+    start = 0,
+    end = -1,
+    asc = false,
+  ): Promise<RepeatableJob[]> {
     const client = await this.client;
 
     const key = this.keys.repeat;
@@ -208,13 +214,20 @@ export class Repeat extends QueueBase {
     return createHash(this.repeatKeyHashAlgorithm).update(str).digest('hex');
   }
 
-  private getRepeatJobId(
-    name: string,
-    nextMillis: number | string,
-    namespace: string,
-    jobId?: string,
-  ) {
-    const checksum = this.hash(`${name}${jobId || ''}${namespace}`);
+  private getRepeatJobId({
+    name,
+    nextMillis,
+    namespace,
+    jobId,
+    key,
+  }: {
+    name?: string;
+    nextMillis: number | string;
+    namespace?: string;
+    jobId?: string;
+    key?: string;
+  }) {
+    const checksum = key ?? this.hash(`${name}${jobId || ''}${namespace}`);
     return `repeat:${checksum}:${nextMillis}`;
     // return `repeat:${jobId || ''}:${name}:${namespace}:${nextMillis}`;
     //return `repeat:${name}:${namespace}:${nextMillis}`;
@@ -231,7 +244,10 @@ function getRepeatKey(name: string, repeat: RepeatOptions) {
   return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
 
-export const getNextMillis = (millis: number, opts: RepeatOptions): number => {
+export const getNextMillis = (
+  millis: number,
+  opts: RepeatOptions,
+): number | undefined => {
   const pattern = opts.pattern;
   if (pattern && opts.every) {
     throw new Error(

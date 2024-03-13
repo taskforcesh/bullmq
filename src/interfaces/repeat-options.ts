@@ -10,6 +10,15 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
    * A repeat pattern
    */
   pattern?: string;
+
+  /**
+   * Custom repeatable key. This is the key that holds the "metadata"
+   * of a given repeatable job. This key is normally auto-generated but
+   * it is sometimes useful to specify a custom key for easier retrieval
+   * of repeatable jobs.
+   */
+  key?: string;
+
   /**
    * Number of times the job should repeat at max.
    */

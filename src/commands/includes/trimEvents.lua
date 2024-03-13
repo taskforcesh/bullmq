@@ -2,8 +2,11 @@
   Function to trim events, default 10000.
 ]]
 
+-- Includes
+--- @include "getOrSetMaxEvents"
+
 local function trimEvents(metaKey, eventStreamKey)
-  local maxEvents = rcall("HGET", metaKey, "opts.maxLenEvents")
+  local maxEvents = getOrSetMaxEvents(metaKey)
   if maxEvents ~= false then
     rcall("XTRIM", eventStreamKey, "MAXLEN", "~", maxEvents)
   else
