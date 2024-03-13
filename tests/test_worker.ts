@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, times } from 'lodash';
 import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
+import { AbortController } from 'node-abort-controller';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import {
@@ -3417,6 +3418,112 @@ describe('workers', function () {
           worker.on('completed', () => {
             const elapse = Date.now() - start;
             expect(elapse).to.be.greaterThan(6000);
+            resolve();
+          });
+        });
+
+        await worker.close();
+      });
+    });
+
+    describe('when using timeout pattern', () => {
+      it('should stop processing until checking aborted signal', async function () {
+        this.timeout(8000);
+
+        enum Step {
+          Initial,
+          Second,
+          Finish,
+        }
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            let { step, timeout } = job.data;
+            const abortController = new AbortController();
+
+            const timeoutCall = setTimeout(() => {
+              abortController.abort();
+            }, timeout);
+            abortController.signal.addEventListener(
+              'abort',
+              () => clearTimeout(timeoutCall),
+              { once: true },
+            );
+            while (step !== Step.Finish) {
+              switch (step) {
+                case Step.Initial: {
+                  if (abortController.signal.aborted) {
+                    throw new Error('Timeout');
+                  }
+                  await delay(1000);
+                  await job.updateData({
+                    step: Step.Second,
+                    timeout,
+                  });
+                  step = Step.Second;
+                  break;
+                }
+                case Step.Second: {
+                  if (abortController.signal.aborted) {
+                    throw new Error('Timeout');
+                  }
+                  await delay(1000);
+                  await job.updateData({
+                    step: Step.Finish,
+                    timeout,
+                  });
+                  step = Step.Finish;
+                  return Step.Finish;
+                }
+                default: {
+                  throw new Error('invalid step');
+                }
+              }
+            }
+            abortController.abort();
+          },
+          { connection, prefix },
+        );
+
+        await worker.waitUntilReady();
+
+        let start = Date.now();
+        await queue.add('test', { step: Step.Initial, timeout: 3000 });
+
+        await new Promise<void>(resolve => {
+          worker.once('completed', job => {
+            const elapse = Date.now() - start;
+            expect(job?.data.step).to.be.equal(Step.Finish);
+            expect(elapse).to.be.greaterThan(2000);
+            expect(elapse).to.be.lessThan(2500);
+            resolve();
+          });
+        });
+
+        start = Date.now();
+        await queue.add('test', { step: Step.Initial, timeout: 1500 });
+
+        await new Promise<void>(resolve => {
+          worker.once('completed', job => {
+            const elapse = Date.now() - start;
+            expect(job?.data.step).to.be.equal(Step.Finish);
+            expect(elapse).to.be.greaterThan(2000);
+            expect(elapse).to.be.lessThan(2500);
+            resolve();
+          });
+        });
+
+        start = Date.now();
+        await queue.add('test', { step: Step.Initial, timeout: 500 });
+
+        await new Promise<void>(resolve => {
+          worker.once('failed', (job, error) => {
+            const elapse = Date.now() - start;
+            expect(job?.data.step).to.be.equal(Step.Second);
+            expect(error.message).to.be.equal('Timeout');
+            expect(elapse).to.be.greaterThan(1000);
+            expect(elapse).to.be.lessThan(1500);
             resolve();
           });
         });
