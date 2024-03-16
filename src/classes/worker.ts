@@ -225,6 +225,10 @@ export class Worker<
       throw new Error('stalledInterval must be greater than 0');
     }
 
+    if (this.opts.drainDelay <= 0) {
+      throw new Error('drainDelay must be greater than 0');
+    }
+
     this.concurrency = this.opts.concurrency;
 
     this.opts.lockRenewTime =
@@ -647,7 +651,7 @@ export class Worker<
         return blockDelay / 1000;
       }
     } else {
-      return Math.max(opts.drainDelay, 0);
+      return Math.max(opts.drainDelay, 0.001);
     }
   }
 
