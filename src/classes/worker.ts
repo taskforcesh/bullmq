@@ -38,6 +38,7 @@ import {
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
+const minimumBlockTimeout = 0.001;
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -223,6 +224,10 @@ export class Worker<
 
     if (this.opts.stalledInterval <= 0) {
       throw new Error('stalledInterval must be greater than 0');
+    }
+
+    if (this.opts.drainDelay <= 0) {
+      throw new Error('drainDelay must be greater than 0');
     }
 
     this.concurrency = this.opts.concurrency;
@@ -642,12 +647,12 @@ export class Worker<
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
       if (blockDelay < 1) {
-        return 0.001;
+        return minimumBlockTimeout;
       } else {
         return blockDelay / 1000;
       }
     } else {
-      return Math.max(opts.drainDelay, 0);
+      return Math.max(opts.drainDelay, minimumBlockTimeout);
     }
   }
 
