@@ -1,3 +1,15 @@
+## [5.4.3](https://github.com/taskforcesh/bullmq/compare/v5.4.2...v5.4.3) (2024-03-17)
+
+
+### Bug Fixes
+
+* **worker:** validate drainDelay must be greater than 0 ([#2477](https://github.com/taskforcesh/bullmq/issues/2477)) ([ab43693](https://github.com/taskforcesh/bullmq/commit/ab436938d895125635aef0393ae2fb5c77c16c1f))
+
+
+### Features
+
+* **job:** add log method [python] ([#2476](https://github.com/taskforcesh/bullmq/issues/2476)) ref [#2472](https://github.com/taskforcesh/bullmq/issues/2472) ([34946c4](https://github.com/taskforcesh/bullmq/commit/34946c4b29cc9e7d5ae81f8fd170a2e539ac6279))
+
 ## [5.4.2](https://github.com/taskforcesh/bullmq/compare/v5.4.1...v5.4.2) (2024-03-06)
 
 
