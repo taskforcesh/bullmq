@@ -7,6 +7,7 @@ from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
 from bullmq.types import WorkerOptions
+from bullmq.utils import extract_result
 
 import asyncio
 import traceback
