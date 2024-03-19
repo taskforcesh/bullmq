@@ -7,12 +7,15 @@ from bullmq.event_emitter import EventEmitter
 from bullmq.job import Job
 from bullmq.timer import Timer
 from bullmq.types import WorkerOptions
-from bullmq.utils import isRedisVersionLowerThan, extract_result
+from bullmq.utils import extract_result
 
 import asyncio
 import traceback
 import time
 import math
+
+maximum_block_timeout = 10
+minimum_block_timeout = 0.001
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
@@ -146,14 +149,11 @@ class Worker(EventEmitter):
             return job_instance
 
     async def waitForJob(self):
-        timeout = max(min(self.blockUntil - int(time.time() * 1000)
-                        if self.blockUntil else 5000, 5000) / 1000, 0.00001)
+        block_timeout = self.getBlockTimeout(self.blockUntil)
+        block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
+        block_timeout = min(block_timeout, maximum_block_timeout)
 
-        redis_version = await self.blockingRedisConnection.getRedisVersion()
-        # Only Redis v6.0.0 and above supports doubles as block time
-        timeout = int(math.ceil(timeout)) if isRedisVersionLowerThan(redis_version, '6.0.0') else timeout
-
-        result = await self.bclient.bzpopmin(self.scripts.keys["marker"], timeout)
+        result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
         if result:
             [_key, member, score] = result
 
@@ -162,6 +162,16 @@ class Worker(EventEmitter):
             else:
                 return 0
         return 0
+
+    def getBlockTimeout(self, block_until: int):
+        if block_until:
+            block_delay = block_until - int(time.time() * 1000)
+            if block_delay < 1:
+                return minimum_block_timeout
+            else:
+                return block_delay / 1000
+        else:
+            return max(self.opts.get("drainDelay", 5), minimum_block_timeout)
 
     async def processJob(self, job: Job, token: str):
         try:

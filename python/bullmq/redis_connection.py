@@ -7,6 +7,7 @@ from redis.exceptions import (
    TimeoutError
 )
 import warnings
+from bullmq.utils import isRedisVersionLowerThan
 
 class RedisConnection:
     """
@@ -15,6 +16,10 @@ class RedisConnection:
 
     minimum_version = '5.0.0'
     recommended_minimum_version = '6.2.0'
+
+    capabilities = {
+        "canDoubleTimeout": False
+    }
 
     def __init__(self, redisOpts: dict | str = {}):
         self.version = None
@@ -56,4 +61,8 @@ class RedisConnection:
             warnings.warn(f'IMPORTANT! Eviction policy is {doc.get("maxmemory_policy")}. It should be "noeviction"')
 
         self.version = doc.get("redis_version")
-        return doc.get("redis_version")
+
+        self.capabilities = {
+            "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0')
+        }
+        return self.version
