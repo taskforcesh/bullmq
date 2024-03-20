@@ -38,6 +38,9 @@ import {
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
+/* 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
+Obviously we can still process much faster than 1 job per millisecond but delays and rate limits
+will never work with more accuracy than 1ms. */
 const minimumBlockTimeout = 0.001;
 
 // note: sandboxed processors would also like to define concurrency per process
