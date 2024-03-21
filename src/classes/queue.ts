@@ -95,6 +95,7 @@ export class Queue<
 > extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
   jobsOpts: BaseJobOptions;
+  opts: QueueOptions;
   private _repeat?: Repeat;
 
   constructor(
@@ -116,11 +117,7 @@ export class Queue<
     this.waitUntilReady()
       .then(client => {
         if (!this.closing) {
-          client.hset(
-            this.keys.meta,
-            'opts.maxLenEvents',
-            opts?.streams?.events?.maxLen ?? 10000,
-          );
+          client.hmset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
@@ -165,6 +162,12 @@ export class Queue<
    */
   get defaultJobOptions(): JobsOptions {
     return { ...this.jobsOpts };
+  }
+
+  get metaValues(): Record<string, string | number> {
+    return {
+      'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
+    };
   }
 
   get repeat(): Promise<Repeat> {
