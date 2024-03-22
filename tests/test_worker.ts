@@ -1813,7 +1813,7 @@ describe('workers', function () {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Missing lock for job ${job.id}. failed`;
+    const errorMessage = `Missing lock for job ${job.id}. moveToFinished`;
     const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
         try {
@@ -1853,7 +1853,7 @@ describe('workers', function () {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Lock mismatch for job ${job.id}. Cmd failed from active`;
+    const errorMessage = `Lock mismatch for job ${job.id}. Cmd moveToFinished from active`;
     const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
         try {

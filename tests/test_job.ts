@@ -734,7 +734,7 @@ describe('Job', function () {
 
         await expect(
           job.moveToFailed(new Error('test error'), '0'),
-        ).to.be.rejectedWith(`Missing key for job ${job.id}. failed`);
+        ).to.be.rejectedWith(`Missing key for job ${job.id}. moveToFinished`);
 
         const processed = await client.hgetall(
           `${prefix}:${queueName}:${job.id}`,
