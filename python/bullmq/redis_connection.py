@@ -27,15 +27,16 @@ class RedisConnection:
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
         if isinstance(redisOpts, dict):
-            host = redisOpts.get("host") or "localhost"
-            port = redisOpts.get("port") or 6379
-            db = redisOpts.get("db") or 0
-            password = redisOpts.get("password") or None
-            username = redisOpts.get("username") or None
+            defaultOpts = {
+                "host": "localhost",
+                "port": 6379,
+                "db": 0,
+                "password": None,
+                "username": None,
+            }
+            finalOpts = {**defaultOpts, **redisOpts}
 
-            self.conn = redis.Redis(
-                host=host, port=port, db=db, password=password, decode_responses=True,
-                retry=retry, retry_on_error=retry_errors, username=username)
+            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
                 retry_on_error=retry_errors)
