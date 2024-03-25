@@ -810,11 +810,18 @@ describe('Job', function () {
       const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), '0', true);
+      // first time failed.
+      await job.moveToFailed(new Error('failed once'), '0', true);
       const isFailed2 = await job.isFailed();
+      const stackTrace1 = job.stacktrace[0];
       expect(isFailed2).to.be.equal(true);
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+      // second time failed.
+      await job.moveToFailed(new Error('failed twice'), '0', true);
+      const stackTrace2 = job.stacktrace[0];
+      expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+      expect(stackTrace1).not.be.equal(stackTrace2);
       await worker.close();
     });
 
