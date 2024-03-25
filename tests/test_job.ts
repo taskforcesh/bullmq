@@ -803,7 +803,7 @@ describe('Job', function () {
       const stackTraceLimit = 1;
       await Job.create(
         queue,
-        'stackTraceLimit',
+        'test',
         { foo: 'bar' },
         { stackTraceLimit: stackTraceLimit, attempts: 2 },
       );
@@ -811,16 +811,18 @@ describe('Job', function () {
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
       // first time failed.
-      await job.moveToFailed(new Error('failed once'), '0', false);
-      const isFailed2 = await job.isFailed();
+      await job.moveToFailed(new Error('failed once'), '0', true);
+      const isFailed1 = await job.isFailed();
       const stackTrace1 = job.stacktrace[0];
-      expect(isFailed2).to.be.equal(true);
+      expect(isFailed1).to.be.false;
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
       // second time failed.
       const again = (await worker.getNextJob(token)) as Job;
-      await again.moveToFailed(new Error('failed twice'), '0', false);
+      await again.moveToFailed(new Error('failed twice'), '0', true);
+      const isFailed2 = await again.isFailed();
       const stackTrace2 = again.stacktrace[0];
+      expect(isFailed2).to.be.true;
       expect(again.name).to.be.equal(job.name);
       expect(again.stacktrace.length).to.be.equal(stackTraceLimit);
       expect(stackTrace1).not.be.equal(stackTrace2);
