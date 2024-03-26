@@ -19,7 +19,7 @@
       ARGV[3]  pushCmd - lifo -> RPUSH - fifo -> LPUSH
       ARGV[4]  jobId
       ARGV[5]  token
-      ARGV[6]  exclusive execution
+      ARGV[6]  preserve order
       ARGV[7]  rate limit pttl
 
     Events:
