@@ -53,7 +53,7 @@ class Scripts:
             "promote": self.redisClient.register_script(self.getScript("promote-8.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-7.lua")),
-            "retryJob": self.redisClient.register_script(self.getScript("retryJob-10.lua")),
+            "retryJob": self.redisClient.register_script(self.getScript("retryJob-11.lua")),
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-7.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
