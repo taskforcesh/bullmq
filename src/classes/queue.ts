@@ -1,4 +1,3 @@
-import { get } from 'lodash';
 import { v4 } from 'uuid';
 import {
   BaseJobOptions,
@@ -96,6 +95,7 @@ export class Queue<
 > extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
   jobsOpts: BaseJobOptions;
+  opts: QueueOptions;
   private _repeat?: Repeat;
 
   constructor(
@@ -112,16 +112,12 @@ export class Queue<
       Connection,
     );
 
-    this.jobsOpts = get(opts, 'defaultJobOptions') ?? {};
+    this.jobsOpts = opts?.defaultJobOptions ?? {};
 
     this.waitUntilReady()
       .then(client => {
         if (!this.closing) {
-          client.hset(
-            this.keys.meta,
-            'opts.maxLenEvents',
-            get(opts, 'streams.events.maxLen', 10000),
-          );
+          client.hmset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
@@ -166,6 +162,12 @@ export class Queue<
    */
   get defaultJobOptions(): JobsOptions {
     return { ...this.jobsOpts };
+  }
+
+  get metaValues(): Record<string, string | number> {
+    return {
+      'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
+    };
   }
 
   get repeat(): Promise<Repeat> {

@@ -200,7 +200,7 @@ export class Job<
       : undefined;
 
     this.toKey = queue.toKey.bind(queue);
-    this.scripts = new Scripts(queue);
+    this.setScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -347,6 +347,10 @@ export class Job<
     }
 
     return job;
+  }
+
+  protected setScripts() {
+    this.scripts = new Scripts(this.queue);
   }
 
   private static optsFromJSON(rawOpts?: string): JobsOptions {
@@ -687,7 +691,7 @@ export class Job<
           delay,
         );
         (<any>multi).moveToDelayed(args);
-        command = 'delayed';
+        command = 'moveToDelayed';
       } else {
         // Retry immediately
         (<any>multi).retryJob(
@@ -713,7 +717,7 @@ export class Job<
       );
       (<any>multi).moveToFinished(args);
       finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
-      command = 'failed';
+      command = 'moveToFinished';
     }
 
     const results = await multi.exec();

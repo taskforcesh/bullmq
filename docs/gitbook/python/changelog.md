@@ -2,6 +2,28 @@
 
 <!--next-version-placeholder-->
 
+## v2.3.3 (2024-03-24)
+### Fix
+* **connection:** Accept all parameters for redis connection [python] ([#2486](https://github.com/taskforcesh/bullmq/issues/2486)) ([`ce30192`](https://github.com/taskforcesh/bullmq/commit/ce30192ad30f66fb0f39c8c9ed669ddd133346c8))
+
+## v2.3.2 (2024-03-23)
+### Fix
+* **scripts:** Use command name in error message when moving to finished ([#2483](https://github.com/taskforcesh/bullmq/issues/2483)) ([`3c335d4`](https://github.com/taskforcesh/bullmq/commit/3c335d49ba637145648c1ef0864d8e0d297dd890))
+* **queue:** Use QueueOptions type in opts attribute ([#2481](https://github.com/taskforcesh/bullmq/issues/2481)) ([`51a589f`](https://github.com/taskforcesh/bullmq/commit/51a589f7e07b5336eb35ed00a1b795501b24f254))
+
+### Documentation
+* Update README.md ([`43f26c4`](https://github.com/taskforcesh/bullmq/commit/43f26c41332da10f054d43560dd580e9ec3c3904))
+* **block-timeout:** Document decision ([#2479](https://github.com/taskforcesh/bullmq/issues/2479)) ([`bcafabc`](https://github.com/taskforcesh/bullmq/commit/bcafabc418bf559df2041350dd23d1d7b26c4fdf))
+
+## v2.3.1 (2024-03-19)
+### Fix
+* **worker:** Set blockTimeout as 0.001 when reach the time to get delayed jobs [python] ([#2478](https://github.com/taskforcesh/bullmq/issues/2478)) ([`b385034`](https://github.com/taskforcesh/bullmq/commit/b385034006ac183a26093f593269349eb78f8b54))
+* **worker:** Validate drainDelay must be greater than 0 ([#2477](https://github.com/taskforcesh/bullmq/issues/2477)) ([`ab43693`](https://github.com/taskforcesh/bullmq/commit/ab436938d895125635aef0393ae2fb5c77c16c1f))
+
+## v2.3.0 (2024-03-16)
+### Feature
+* **job:** Add log method [python] (#2476) ref #2472 ([`34946c4`](https://github.com/taskforcesh/bullmq/commit/34946c4b29cc9e7d5ae81f8fd170a2e539ac6279))
+
 ## v2.2.4 (2024-02-13)
 ### Fix
 * **flow:** Parent job cannot be replaced (python) ([#2417](https://github.com/taskforcesh/bullmq/issues/2417)) ([`2696ef8`](https://github.com/taskforcesh/bullmq/commit/2696ef8200058b7f616938c2166a3b0454663b39))

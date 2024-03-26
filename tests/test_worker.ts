@@ -1813,7 +1813,7 @@ describe('workers', function () {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Missing lock for job ${job.id}. failed`;
+    const errorMessage = `Missing lock for job ${job.id}. moveToFinished`;
     const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
         try {
@@ -1853,7 +1853,7 @@ describe('workers', function () {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Lock mismatch for job ${job.id}. Cmd failed from active`;
+    const errorMessage = `Lock mismatch for job ${job.id}. Cmd moveToFinished from active`;
     const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
         try {
@@ -1904,7 +1904,7 @@ describe('workers', function () {
   });
 
   it('stalled interval cannot be zero', function () {
-    this.timeout(8000);
+    this.timeout(4000);
     expect(
       () =>
         new Worker(queueName, async () => {}, {
@@ -1913,6 +1913,18 @@ describe('workers', function () {
           stalledInterval: 0,
         }),
     ).to.throw('stalledInterval must be greater than 0');
+  });
+
+  it('drain delay cannot be zero', function () {
+    this.timeout(4000);
+    expect(
+      () =>
+        new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+          drainDelay: 0,
+        }),
+    ).to.throw('drainDelay must be greater than 0');
   });
 
   it('lock extender continues to run until all active jobs are completed when closing a worker', async function () {

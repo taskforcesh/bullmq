@@ -1,3 +1,94 @@
+# [7.3.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.2.0...v7.3.0) (2024-03-16)
+
+
+### Bug Fixes
+
+* **deps:** move fast-glob and minimatch as dev-dependencies ([#2452](https://github.com/taskforcesh/bullmq/issues/2452)) ([cf13b31](https://github.com/taskforcesh/bullmq/commit/cf13b31ca552bcad53f40fe5668a907cf02e0a2e))
+* **worker:** set blockTimeout as 0.001 when reach the time to get delayed jobs ([#2455](https://github.com/taskforcesh/bullmq/issues/2455)) fixes [#2450](https://github.com/taskforcesh/bullmq/issues/2450) ([2de15ca](https://github.com/taskforcesh/bullmq/commit/2de15ca1019517f7ce11f3734fff316a3e4ab894))
+
+### Features
+
+* **job:** add removeChildDependency method ([#2435](https://github.com/taskforcesh/bullmq/issues/2435)) ([1151022](https://github.com/taskforcesh/bullmq/commit/1151022e4825fbb20cf1ef6ce1ff3e7fe929de5c))
+
+# [7.2.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.1.0...v7.2.0) (2024-03-15)
+
+
+### Bug Fixes
+
+* **deps:** replaced glob by fast-glob due to security advisory ([91cf9a9](https://github.com/taskforcesh/bullmq/commit/91cf9a9253370ea76df48c27a7e0fcf8d7504c81))
+* **sandbox:** extend SandboxedJob from JobJsonSandbox ([#2446](https://github.com/taskforcesh/bullmq/issues/2446)) fixes [#2439](https://github.com/taskforcesh/bullmq/issues/2439) ([7606e36](https://github.com/taskforcesh/bullmq/commit/7606e3611f1cc18b1585c08b0f7fd9cb90749c9c))
+* **add-job:** fix parent job cannot be replaced error message ([#2441](https://github.com/taskforcesh/bullmq/issues/2441)) ([1e9a13f](https://github.com/taskforcesh/bullmq/commit/1e9a13fc0dc9de810ef75a042fbfeeae5b571ffe))
+
+### Features
+
+* **worker:** add support for naming workers ([7ba2729](https://github.com/taskforcesh/bullmq/commit/7ba27293615e443903cfdf7d0ff8be0052d061c4))
+
+# [7.1.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.0.0...v7.1.0) (2024-03-14)
+
+
+### Bug Fixes
+
+* **flow:** remove failed children references on auto removal ([#2432](https://github.com/taskforcesh/bullmq/issues/2432)) ([8a85207](https://github.com/taskforcesh/bullmq/commit/8a85207cf3c552ebab37baca3c395821b9804b37))
+* **redis-connection:** close redis connection even when initializing ([#2425](https://github.com/taskforcesh/bullmq/issues/2425)) fixes [#2385](https://github.com/taskforcesh/bullmq/issues/2385) ([1bc26a6](https://github.com/taskforcesh/bullmq/commit/1bc26a64871b85a2d1f6799a9b73b60f8bf9fa90))
+
+### Features
+
+* **flow:** add ignoreDependencyOnFailure option ([#2426](https://github.com/taskforcesh/bullmq/issues/2426)) ([c7559f4](https://github.com/taskforcesh/bullmq/commit/c7559f4f0a7fa51764ad43b4f46bb9d55ac42d0d))
+
+# [7.0.0](https://github.com/taskforcesh/bullmq-pro/compare/v6.11.0...v7.0.0) (2024-03-12)
+
+
+### Bug Fixes
+
+* **worker:** update processor types ([#193](https://github.com/taskforcesh/bullmq-pro/issues/193)) ([8ebb72e](https://github.com/taskforcesh/bullmq-pro/commit/8ebb72e1d87ec819bb1efa12d0a931e8e9ead203))
+* **flow:** parent job cannot be replaced (python) ([#2417](https://github.com/taskforcesh/bullmq/issues/2417)) ([2696ef8](https://github.com/taskforcesh/bullmq/commit/2696ef8200058b7f616938c2166a3b0454663b39))
+* **reprocess-job:** add marker if needed ([#2406](https://github.com/taskforcesh/bullmq/issues/2406)) ([5923ed8](https://github.com/taskforcesh/bullmq/commit/5923ed885f5451eee2f14258767d7d5f8d80ae13))
+* **rate-limit:** move job to wait even if ttl is 0 ([#2403](https://github.com/taskforcesh/bullmq/issues/2403)) ([c1c2ccc](https://github.com/taskforcesh/bullmq/commit/c1c2cccc7c8c05591f0303e011d46f6efa0942a0))
+* **stalled:** consider adding marker when moving job back to wait ([#2384](https://github.com/taskforcesh/bullmq/issues/2384)) ([4914df8](https://github.com/taskforcesh/bullmq/commit/4914df87e416711835291e81da93b279bd758254))
+* **retry-jobs:** add marker when needed ([#2374](https://github.com/taskforcesh/bullmq/issues/2374)) ([1813d5f](https://github.com/taskforcesh/bullmq/commit/1813d5fa12b7db69ee6c8c09273729cda8e3e3b5))
+* **security:** upgrade msgpackr https://github.com/advisories/GHSA-7hpj-7hhx-2fgx ([7ae0953](https://github.com/taskforcesh/bullmq/commit/7ae095357fddbdaacc286cbe5782946b95160d55))
+* **worker:** worker can be closed if Redis is down ([#2350](https://github.com/taskforcesh/bullmq/issues/2350)) ([888dcc2](https://github.com/taskforcesh/bullmq/commit/888dcc2dd40571e05fe1f4a5c81161ed062f4542))
+* **worker:** throw error if connection is missing ([6491a18](https://github.com/taskforcesh/bullmq/commit/6491a185268ae546baa9b95a20b95d63c0e27915))
+
+### Features
+
+* **stalled:** add command to repair stalled key ([#193](https://github.com/taskforcesh/bullmq-pro/issues/193)) ([8ebb72e](https://github.com/taskforcesh/bullmq-pro/commit/8ebb72e1d87ec819bb1efa12d0a931e8e9ead203))
+* **repeatable:** allow saving custom key ([#1824](https://github.com/taskforcesh/bullmq/issues/1824)) ([8ea0e1f](https://github.com/taskforcesh/bullmq/commit/8ea0e1f76baf36dab94a66657c0f432492cb9999))
+* **job:** provide skipAttempt option when manually moving a job ([#2203](https://github.com/taskforcesh/bullmq/issues/2203)) ([0e88e4f](https://github.com/taskforcesh/bullmq/commit/0e88e4fe4ed940487dfc79d1345d0686de22d0c6))
+* **worker:** improved markers handling ([73cf5fc](https://github.com/taskforcesh/bullmq/commit/73cf5fc1e6e13d8329e1e4e700a8db92173e0624)) ([0bac0fb](https://github.com/taskforcesh/bullmq/commit/0bac0fbb97afa968aa7644f1438b86d7bc18bbc5))
+
+### Performance Improvements
+
+* **marker:** differentiate standard and delayed markers (python) ([#2389](https://github.com/taskforcesh/bullmq/issues/2389)) ([18ebee8](https://github.com/taskforcesh/bullmq/commit/18ebee8c242f66f1b5b733d68e48c574b1f1fdef))
+* **change-delay:** add delay marker when needed ([#2411](https://github.com/taskforcesh/bullmq/issues/2411)) ([8b62d28](https://github.com/taskforcesh/bullmq/commit/8b62d28a06347e9dd04757807fce1b511ace79bc))
+* **flow:** add marker when moving parent to wait (python) ([#2408](https://github.com/taskforcesh/bullmq/issues/2408)) ([6fb6896](https://github.com/taskforcesh/bullmq/commit/6fb6896701ae7595e1cb5e2cdbef44625c48d673))
+* **move-to-active:** check rate limited once ([#2391](https://github.com/taskforcesh/bullmq/issues/2391)) ([ca6c17a](https://github.com/taskforcesh/bullmq/commit/ca6c17a43e38d5339e62471ea9f59c62a169b797))
+
+
+### BREAKING CHANGES
+
+* **connection:** require connection to be passed ([#2335](https://github.com/taskforcesh/bullmq/issues/2335)) ([1867dd1](https://github.com/taskforcesh/bullmq/commit/1867dd107d7edbd417bf6918354ae4656480a544))
+* **job:** revert console warn custom job ids when they represent integers ([#2312](https://github.com/taskforcesh/bullmq/issues/2312)) ([84015ff](https://github.com/taskforcesh/bullmq/commit/84015ffa04216c45d8f3181a7f859b8c0792c80d))
+* **worker:** markers use now a dedicated key in redis instead of using a special Job ID.
+* **stalled:** remove type check in stalled key
+
+ref [better queue markers](https://bullmq.io/news/231204/better-queue-markers/)
+
+
+# [6.11.0](https://github.com/taskforcesh/bullmq-pro/compare/v6.10.0...v6.11.0) (2024-02-26)
+
+
+### Features
+
+* expose sandboxed-job-pro interface ([6652e0a](https://github.com/taskforcesh/bullmq-pro/commit/6652e0afbdd45664c1e9436f9da0161adfea8c0d))
+
+# [6.10.0](https://github.com/taskforcesh/bullmq-pro/compare/v6.9.6...v6.10.0) (2024-02-21)
+
+
+### Features
+
+* **groups:** add sandbox support for groups ([53be7a0](https://github.com/taskforcesh/bullmq-pro/commit/53be7a095fca70df7bf8e52dfec45dde8dac064a))
+
 ## [6.9.6](https://github.com/taskforcesh/bullmq-pro/compare/v6.9.5...v6.9.6) (2024-01-31)
 
 
@@ -298,7 +389,7 @@
 
 ### BREAKING CHANGES
 
-* **priority:** priority is separeted in its own zset, no duplication needed
+* **priority:** priority is separated in its own zset, no duplication needed
 
 * change job method name update to updateData
 
@@ -520,9 +611,10 @@ ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 ## [5.1.7](https://github.com/taskforcesh/bullmq-pro/compare/v5.1.6...v5.1.7) (2022-12-16)
 
 
-### Bug Fixes
+### Performance Improvements
 
-* **deps:** upgrade bullmq to 3.4.2 ([#127](https://github.com/taskforcesh/bullmq-pro/issues/127)) ([b70ac2b](https://github.com/taskforcesh/bullmq-pro/commit/b70ac2bb6bc6af096a2980ab77b7009853a3c809)), closes [taskforcesh/bullmq-pro-support#33](https://github.com/taskforcesh/bullmq-pro-support/issues/33)
+* **counts:** delete delayed marker when needed ([#1583](https://github.com/taskforcesh/bullmq/issues/1583)) ([cc26f1c](https://github.com/taskforcesh/bullmq/commit/cc26f1cd550de76c7588d3a98187b80ee78c40c4))
+* **get-children-values:** replace slow object destructuring with single object ([#1586](https://github.com/taskforcesh/bullmq/issues/1586)) ([857d403](https://github.com/taskforcesh/bullmq/commit/857d40377a6eb2c0101e6d16d9085ecd4b52b016))
 
 ## [5.1.6](https://github.com/taskforcesh/bullmq-pro/compare/v5.1.5...v5.1.6) (2022-12-15)
 
@@ -536,7 +628,12 @@ ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 
 ### Bug Fixes
 
-* **deps:** upgrade bullmq to 3.4.1 ([#125](https://github.com/taskforcesh/bullmq-pro/issues/125)) ([f451d3b](https://github.com/taskforcesh/bullmq-pro/commit/f451d3b318e0c2b9ce6f9bb8b498d959fdd1fd0f))
+* **exponential:** respect exponential backoff delay ([#1581](https://github.com/taskforcesh/bullmq/issues/1581)) ([145dd32](https://github.com/taskforcesh/bullmq/commit/145dd329bb9f8254b404f4c5fbf7a50359202d37))
+* **get-jobs:** filter marker ([#1551](https://github.com/taskforcesh/bullmq/issues/1551)) ([4add0ef](https://github.com/taskforcesh/bullmq/commit/4add0efa7857cc2f7b6d3c0c78a7f82cb7a46933))
+
+### Features
+
+* **worker:** add ready event for blockingConnection ([#1577](https://github.com/taskforcesh/bullmq/issues/1577)) ([992cc9e](https://github.com/taskforcesh/bullmq/commit/992cc9e9b3046185d3b67f2cc956f30337f458e1))
 
 ## [5.1.4](https://github.com/taskforcesh/bullmq-pro/compare/v5.1.3...v5.1.4) (2022-12-08)
 
