@@ -38,7 +38,6 @@ import type { QueueEvents } from './queue-events';
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
-  ee: 'exclusiveExecution',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
@@ -680,7 +679,7 @@ export class Job<
 
       if (delay === -1) {
         moveToFailed = true;
-      } else if (delay && !this.opts.exclusiveExecution) {
+      } else if (delay && !opts.preserveOrder) {
         const args = this.scripts.moveToDelayedArgs(
           this.id,
           Date.now() + delay,
@@ -693,7 +692,7 @@ export class Job<
         // Retry immediately
         (<any>multi).retryJob(
           this.scripts.retryJobArgs(this.id, this.opts.lifo, token, {
-            exclusiveExecution: this.opts.exclusiveExecution,
+            preserveOrder: opts.preserveOrder,
             pttl: delay,
           }),
         );

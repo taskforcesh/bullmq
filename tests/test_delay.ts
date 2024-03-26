@@ -229,6 +229,7 @@ describe('Delayed jobs', function () {
 
       const worker = new Worker(queueName, async (job: Job) => {}, {
         autorun: false,
+        preserveOrder: true,
         connection,
         prefix,
       });
@@ -242,7 +243,9 @@ describe('Delayed jobs', function () {
           try {
             count++;
             orderList.push(job.data.order as number);
-            if (count == numJobs) {resolve();}
+            if (count == numJobs) {
+              resolve();
+            }
           } catch (err) {
             reject(err);
           }
@@ -256,7 +259,6 @@ describe('Delayed jobs', function () {
           delay: (numJobs - index) * 150,
           attempts: 1,
           backoff: { type: 'fixed', delay: 200 },
-          exclusiveExecution: true,
         },
       }));
       const expectedOrder = Array.from(Array(numJobs).keys()).map(

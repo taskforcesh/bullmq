@@ -149,7 +149,7 @@ class Job:
                     )
                 if delay == -1:
                     move_to_failed = True
-                elif delay:
+                elif delay and self.queue.opts.get("preserveOrder", False):
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
                         round(time.time() * 1000) + delay,
@@ -160,7 +160,10 @@ class Job:
                     await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
                     command = 'delayed'
                 else:
-                    keys, args = self.scripts.retryJobArgs(self.id, self.opts.get("lifo", False), token)
+                    keys, args = self.scripts.retryJobArgs(self.id, self.opts.get("lifo", False), token, {
+                        "preserveOrder": self.queue.opts.get("preserveOrder", False),
+                        "pttl": delay
+                    })
 
                     await self.scripts.commands["retryJob"](keys=keys, args=args, client=pipe)
                     command = 'retryJob'

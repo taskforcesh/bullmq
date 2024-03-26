@@ -932,7 +932,7 @@ export class Scripts {
       pushCmd,
       jobId,
       token,
-      opts.exclusiveExecution ? '1' : '0',
+      opts.preserveOrder ? '1' : '0',
       opts.pttl && opts.pttl > 0 ? opts.pttl : 0,
     ]);
   }

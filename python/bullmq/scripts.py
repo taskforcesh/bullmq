@@ -250,12 +250,15 @@ class Scripts:
         keys.append(self.keys['delayed'])
         keys.append(self.keys['prioritized'])
         keys.append(self.keys['pc'])
+        keys.append(self.keys['limiter'])
         keys.append(self.keys['marker'])
 
         push_cmd = "RPUSH" if lifo else "LPUSH"
 
+        pttl = opts.get("pttl", 0)
         args = [self.keys[''], round(time.time() * 1000), push_cmd,
-            job_id, token, "1" if opts.get("skipAttempt") else "0"]
+            job_id, token, "1" if opts.get("preserveOrder") else "0",
+            pttl if pttl > 0 else 0]
 
         return (keys, args)
 

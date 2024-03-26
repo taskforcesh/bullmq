@@ -218,11 +218,16 @@ export class Worker<
       stalledInterval: 30000,
       autorun: true,
       runRetryDelay: 15000,
+      preserveOrder: false,
       ...this.opts,
     };
 
     if (this.opts.stalledInterval <= 0) {
       throw new Error('stalledInterval must be greater than 0');
+    }
+
+    if (this.opts.preserveOrder && this.opts.concurrency > 1) {
+      throw new Error('concurrency must be 1 when preserveOrder is enabled');
     }
 
     this.concurrency = this.opts.concurrency;
@@ -377,6 +382,11 @@ export class Worker<
     ) {
       throw new Error('concurrency must be a finite number greater than 0');
     }
+
+    if (this.opts.preserveOrder && concurrency > 1) {
+      throw new Error('concurrency must be 1 when preserveOrder is enabled');
+    }
+
     this.opts.concurrency = concurrency;
   }
 

@@ -9,7 +9,7 @@ export interface MoveToDelayedOpts {
 }
 
 export interface RetryOpts {
-  exclusiveExecution?: boolean;
+  preserveOrder?: boolean;
   pttl?: number;
 }
 

@@ -2,12 +2,6 @@ import { BaseJobOptions } from '../interfaces';
 
 export type JobsOptions = BaseJobOptions & {
   /**
-   * If true, it will rate limit the queue when moving this job into delayed.
-   * Will stop rate limiting the queue until this job is moved to completed or failed.
-   */
-  exclusiveExecution?: boolean;
-
-  /**
    * If true, moves parent to failed.
    */
   failParentOnFailure?: boolean;
