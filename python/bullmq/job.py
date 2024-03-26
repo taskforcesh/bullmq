@@ -149,7 +149,7 @@ class Job:
                     )
                 if delay == -1:
                     move_to_failed = True
-                elif delay and self.queue.opts.get("preserveOrder", False):
+                elif delay and not self.queue.opts.get("preserveOrder", False):
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
                         round(time.time() * 1000) + delay,
