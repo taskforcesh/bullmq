@@ -6,7 +6,6 @@ BullMQ supports preserving execution order in jobs. When _preserveOrder_ option 
 const worker = new Worker('queueName', async (job: Job) => {
     // do some work
 }, {
-    concurrency: 1
     preserveOrder: true
     });
 ```
