@@ -301,7 +301,7 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
-  describe('when exclusive execution is provided', function () {
+  describe('when preserveOrder is provided', function () {
     it('should process delayed jobs waiting to be finished in correct order ', async function () {
       this.timeout(4000);
       const numJobs = 12;

@@ -24,6 +24,7 @@
   * [Stalled Jobs](guide/workers/stalled-jobs.md)
   * [Sandboxed processors](guide/workers/sandboxed-processors.md)
   * [Pausing queues](guide/workers/pausing-queues.md)
+  * [Preserve Order](guide/workers/preserve-order.md)
 * [Jobs](guide/jobs/README.md)
   * [FIFO](guide/jobs/fifo.md)
   * [LIFO](guide/jobs/lifo.md)
