@@ -162,7 +162,8 @@ export class RedisConnection extends EventEmitter {
         };
 
         handleEnd = () => {
-          reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
+          console.error(lastError?.message || CONNECTION_CLOSED_ERROR_MSG);
+          resolve();
         };
 
         increaseMaxListeners(client, 3);
