@@ -230,10 +230,6 @@ export class Worker<
       throw new Error('stalledInterval must be greater than 0');
     }
 
-    if (this.opts.preserveOrder && this.opts.concurrency > 1) {
-      throw new Error('concurrency must be 1 when preserveOrder is enabled');
-    }
-
     if (this.opts.drainDelay <= 0) {
       throw new Error('drainDelay must be greater than 0');
     }

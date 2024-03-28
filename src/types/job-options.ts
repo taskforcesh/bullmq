@@ -22,12 +22,6 @@ export type JobsOptions = BaseJobOptions & {
  */
 export type RedisJobOptions = BaseJobOptions & {
   /**
-   * If true, it will rate limit the queue when moving this job into delayed.
-   * Will stop rate limiting the queue until this job is moved to completed or failed.
-   */
-  ee?: boolean;
-
-  /**
    * If true, moves parent to failed.
    */
   fpof?: boolean;
