@@ -88,6 +88,6 @@ end
 
 -- Return the timestamp for the next delayed job if any.
 local nextTimestamp = getNextDelayedTimestamp(delayedKey)
-if (nextTimestamp ~= nil) then return {0, 0, 0, nextTimestamp} end
+if nextTimestamp ~= nil then return {0, 0, 0, nextTimestamp} end
 
 return {0, 0, 0, 0}
