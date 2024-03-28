@@ -683,7 +683,7 @@ export class Job<
 
       if (delay === -1) {
         moveToFailed = true;
-      } else if (delay) {
+      } else if (delay && !opts.preserveOrder) {
         const args = this.scripts.moveToDelayedArgs(
           this.id,
           Date.now() + delay,
@@ -695,7 +695,10 @@ export class Job<
       } else {
         // Retry immediately
         (<any>multi).retryJob(
-          this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
+          this.scripts.retryJobArgs(this.id, this.opts.lifo, token, {
+            preserveOrder: opts.preserveOrder,
+            pttl: delay,
+          }),
         );
         command = 'retryJob';
       }

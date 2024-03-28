@@ -1927,6 +1927,21 @@ describe('workers', function () {
     ).to.throw('drainDelay must be greater than 0');
   });
 
+  describe('when preserveOrder is enabled', () => {
+    it('concurrency cannot be greater than 1', function () {
+      this.timeout(4000);
+      expect(
+        () =>
+          new Worker(queueName, async () => {}, {
+            connection,
+            concurrency: 2,
+            prefix,
+            preserveOrder: true,
+          }),
+      ).to.throw('concurrency must be 1 when preserveOrder is enabled');
+    });
+  });
+
   it('lock extender continues to run until all active jobs are completed when closing a worker', async function () {
     this.timeout(4000);
     let worker;

@@ -56,7 +56,7 @@ if rcall("EXISTS", jobKey) == 1 then
     if ARGV[7] == "0" then
         rcall("HINCRBY", jobKey, "atm", 1)
     end
-    
+
     rcall("HSET", jobKey, "delay", ARGV[6])
 
     local maxEvents = getOrSetMaxEvents(metaKey)

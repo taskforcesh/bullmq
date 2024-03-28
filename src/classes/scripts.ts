@@ -23,6 +23,7 @@ import {
   WorkerOptions,
   KeepJobs,
   MoveToDelayedOpts,
+  RetryOpts,
 } from '../interfaces';
 import {
   JobState,
@@ -907,6 +908,7 @@ export class Scripts {
     jobId: string,
     lifo: boolean,
     token: string,
+    opts: RetryOpts,
   ): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.active,
@@ -918,10 +920,11 @@ export class Scripts {
       this.queue.keys.delayed,
       this.queue.keys.prioritized,
       this.queue.keys.pc,
+      this.queue.keys.limiter,
       this.queue.keys.marker,
     ];
 
-    const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
+    const pushCmd = (lifo || opts.preserveOrder ? 'R' : 'L') + 'PUSH';
 
     return keys.concat([
       this.queue.toKey(''),
@@ -929,6 +932,8 @@ export class Scripts {
       pushCmd,
       jobId,
       token,
+      opts.preserveOrder ? '1' : '0',
+      opts.pttl && opts.pttl > 0 ? opts.pttl : 0,
     ]);
   }
 
