@@ -924,7 +924,7 @@ export class Scripts {
       this.queue.keys.marker,
     ];
 
-    const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
+    const pushCmd = (lifo || opts.preserveOrder ? 'R' : 'L') + 'PUSH';
 
     return keys.concat([
       this.queue.toKey(''),
