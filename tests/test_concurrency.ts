@@ -147,7 +147,6 @@ describe('Concurrency', () => {
       const worker = new Worker(
         queueName,
         async job => {
-          console.log(job.id);
           if (job.attemptsStarted === 1) {
             await worker.rateLimit(dynamicLimit);
             throw Worker.RateLimitError();
