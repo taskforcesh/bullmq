@@ -167,6 +167,9 @@ export class Queue<
   get metaValues(): Record<string, string | number> {
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
+      ...(this.opts?.concurrency
+        ? { concurrency: this.opts?.concurrency }
+        : {}),
     };
   }
 
@@ -293,6 +296,15 @@ export class Queue<
     const client = await this.client;
     const pausedKeyExists = await client.hexists(this.keys.meta, 'paused');
     return pausedKeyExists === 1;
+  }
+
+  /**
+   * Returns true if the queue is currently maxed.
+   */
+  async isMaxed(): Promise<boolean> {
+    const client = await this.client;
+    const maxed = await client.hexists(this.keys.meta, 'maxed');
+    return maxed === 1;
   }
 
   /**

@@ -6,6 +6,8 @@
     KEYS[2] active key
     KEYS[3] waitChildrenKey key
     KEYS[4] job key
+    KEYS[5] key prefix
+    KEYS[6] meta key
 
     ARGV[1] token
     ARGV[2] child key
@@ -20,9 +22,14 @@
    -3 - Job not in active set
 ]]
 local rcall = redis.call
+local prefix = KEYS[5]
+local metaKey = KEYS[6]
+
+--- Includes
+--- @include "includes/decreaseConcurrency"
 
 local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId, timestamp,
-    lockKey, jobKey, token)
+    lockKey, jobKey, token, prefix, metaKey)
   if token ~= "0" then
     if rcall("GET", lockKey) == token then
       rcall("DEL", lockKey)
@@ -41,6 +48,7 @@ local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId, time
 
   rcall("ZADD", waitingChildrenKey, score, jobId)
 
+  decreaseConcurrency(prefix, metaKey)
   return 0
 end
 
@@ -48,14 +56,14 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
     if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
       return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], KEYS[4],
-        ARGV[1])
+        ARGV[1], prefix, metaKey)
     end
 
     return 1
   else
     if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
       return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], KEYS[4],
-        ARGV[1])
+        ARGV[1], prefix, metaKey)
     end
 
     return 1

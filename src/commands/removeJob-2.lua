@@ -4,6 +4,7 @@
 
     Input:
       KEYS[1] queue prefix
+      KEYS[2] meta key
 
       ARGV[1] jobId
       ARGV[2] remove children
@@ -63,10 +64,10 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
         end
     end
 
-    local prev = removeJobFromAnyState(prefix, jobId)
+    local prev = removeJobFromAnyState(prefix, jobId, KEYS[2])
 
     if removeJobKeys(jobKey) > 0 then
-        local maxEvents = getOrSetMaxEvents(prefix .. "meta")
+        local maxEvents = getOrSetMaxEvents(KEYS[2])
         rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",
             "jobId", jobId, "prev", prev)
     end

@@ -5,7 +5,10 @@
     prev state
 ]]
 
-local function removeJobFromAnyState( prefix, jobId)
+-- Includes
+--- @include "decreaseConcurrency"
+
+local function removeJobFromAnyState( prefix, jobId, metaKey)
   -- We start with the ZSCORE checks, since they have O(1) complexity
   if rcall("ZSCORE", prefix .. "completed", jobId) then
     rcall("ZREM", prefix .. "completed", jobId)
@@ -28,6 +31,7 @@ local function removeJobFromAnyState( prefix, jobId)
   elseif rcall("LREM", prefix .. "paused", 1, jobId) == 1 then
     return "paused"
   elseif rcall("LREM", prefix .. "active", 1, jobId) == 1 then
+    decreaseConcurrency(prefix, metaKey)
     return "active"
   end
 

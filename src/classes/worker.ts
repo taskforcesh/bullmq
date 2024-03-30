@@ -603,7 +603,7 @@ export class Worker<
     }
 
     try {
-      if (!this.closing) {
+      if (!this.closing && !this.limitUntil) {
         let blockTimeout = this.getBlockTimeout(blockUntil);
 
         blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout

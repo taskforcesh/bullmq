@@ -283,7 +283,9 @@ export class Scripts {
   async remove(jobId: string, removeChildren: boolean): Promise<number> {
     const client = await this.queue.client;
 
-    const keys: (string | number)[] = [''].map(name => this.queue.toKey(name));
+    const keys: (string | number)[] = ['', 'meta'].map(name =>
+      this.queue.toKey(name),
+    );
     return (<any>client).removeJob(
       keys.concat([jobId, removeChildren ? 1 : 0]),
     );
@@ -810,11 +812,16 @@ export class Scripts {
 
     const childKey = getParentKey(opts.child);
 
-    const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      name => {
-        return this.queue.toKey(name);
-      },
-    );
+    const keys = [
+      `${jobId}:lock`,
+      'active',
+      'waiting-children',
+      jobId,
+      '',
+      'meta',
+    ].map(name => {
+      return this.queue.toKey(name);
+    });
 
     return keys.concat([
       token,
@@ -1132,7 +1139,7 @@ export class Scripts {
     const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
-    const keys = [
+    const keys: (string | number)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,
@@ -1143,9 +1150,10 @@ export class Scripts {
       this.queue.keys.prioritized,
       this.queue.keys.marker,
       this.queue.keys.events,
+      this.queue.toKey(''),
     ];
 
-    const args = [jobId, token, this.queue.toKey(jobId)];
+    const args = [jobId, token, this.queue.toKey(jobId), Date.now()];
 
     const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
 

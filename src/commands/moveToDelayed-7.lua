@@ -30,6 +30,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/decreaseConcurrency"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePaused"
 
@@ -52,6 +53,8 @@ if rcall("EXISTS", jobKey) == 1 then
 
     local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
     if numRemovedElements < 1 then return -3 end
+
+    decreaseConcurrency(ARGV[1], metaKey)
 
     if ARGV[7] == "0" then
         rcall("HINCRBY", jobKey, "atm", 1)

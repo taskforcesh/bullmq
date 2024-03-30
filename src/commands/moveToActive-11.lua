@@ -46,6 +46,8 @@ local opts = cmsgpack.unpack(ARGV[3])
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/increaseConcurrency"
+--- @include "includes/isQueueMaxed"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
@@ -57,14 +59,19 @@ local markerKey = KEYS[11]
 promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], eventStreamKey, ARGV[1],
                    ARGV[2], KEYS[10], paused)
 
+-- paused queue
+if paused then return {0, 0, 0, 0} end
+
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
-local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
+local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey, markerKey)
 
 -- Check if we are rate limited first.
 if expireTime > 0 then return {0, 0, expireTime, 0} end
 
--- paused queue
-if paused then return {0, 0, 0, 0} end
+local isMaxed = isQueueMaxed(KEYS[9])
+
+-- maxed queue
+if isMaxed then return {0, 0, 0, 0} end
 
 -- no job ID, try non-blocking move from wait to active
 local jobId = rcall("RPOPLPUSH", waitKey, activeKey)
@@ -76,11 +83,13 @@ if jobId and string.sub(jobId, 1, 2) == "0:" then
 end
 
 if jobId then
+    increaseConcurrency(ARGV[1], KEYS[9])
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                    maxJobs, opts)
 else
     jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
     if jobId then
+        increaseConcurrency(ARGV[1], KEYS[9])
         return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                        maxJobs, opts)
     end

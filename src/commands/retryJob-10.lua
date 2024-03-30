@@ -30,7 +30,9 @@
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
+--- @include "includes/decreaseConcurrency"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
@@ -59,11 +61,12 @@ if rcall("EXISTS", KEYS[4]) == 1 then
 
   -- Standard or priority add
   if priority == 0 then
-    rcall(ARGV[3], target, ARGV[4])
-    -- TODO: check if we need to add marker in this case too
+    addJobInTargetList(target, markerKey, ARGV[3], paused, ARGV[4])
   else
     addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], paused)
   end
+
+  decreaseConcurrency(ARGV[1], KEYS[5])
 
   rcall("HINCRBY", KEYS[4], "atm", 1)
 
