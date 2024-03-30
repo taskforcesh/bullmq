@@ -1,3 +1,10 @@
+## [7.3.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.3.0...v7.3.1) (2024-03-30)
+
+
+### Bug Fixes
+
+* **group-limit:** set rate limiting even when group is empty ([#212](https://github.com/taskforcesh/bullmq-pro/issues/212)) ([08824cf](https://github.com/taskforcesh/bullmq-pro/commit/08824cf5fea0887653acc8081abe9d25b6ea96a5))
+
 # [7.3.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.2.0...v7.3.0) (2024-03-16)
 
 

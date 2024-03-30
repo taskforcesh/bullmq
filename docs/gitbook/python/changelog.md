@@ -9,11 +9,6 @@
 ## v2.3.2 (2024-03-23)
 ### Fix
 * **scripts:** Use command name in error message when moving to finished ([#2483](https://github.com/taskforcesh/bullmq/issues/2483)) ([`3c335d4`](https://github.com/taskforcesh/bullmq/commit/3c335d49ba637145648c1ef0864d8e0d297dd890))
-* **queue:** Use QueueOptions type in opts attribute ([#2481](https://github.com/taskforcesh/bullmq/issues/2481)) ([`51a589f`](https://github.com/taskforcesh/bullmq/commit/51a589f7e07b5336eb35ed00a1b795501b24f254))
-
-### Documentation
-* Update README.md ([`43f26c4`](https://github.com/taskforcesh/bullmq/commit/43f26c41332da10f054d43560dd580e9ec3c3904))
-* **block-timeout:** Document decision ([#2479](https://github.com/taskforcesh/bullmq/issues/2479)) ([`bcafabc`](https://github.com/taskforcesh/bullmq/commit/bcafabc418bf559df2041350dd23d1d7b26c4fdf))
 
 ## v2.3.1 (2024-03-19)
 ### Fix
