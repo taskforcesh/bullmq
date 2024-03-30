@@ -63,7 +63,7 @@ promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], eventStreamKey, ARGV[
 if paused then return {0, 0, 0, 0} end
 
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
-local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey, markerKey)
+local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
 
 -- Check if we are rate limited first.
 if expireTime > 0 then return {0, 0, expireTime, 0} end

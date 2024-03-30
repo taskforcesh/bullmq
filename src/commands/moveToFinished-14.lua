@@ -224,7 +224,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.
-        local expireTime = getRateLimitTTL(maxJobs, KEYS[6], KEYS[14])
+        local expireTime = getRateLimitTTL(maxJobs, KEYS[6])
 
         if expireTime > 0 then return {0, 0, expireTime, 0} end
 
