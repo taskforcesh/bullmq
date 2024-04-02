@@ -167,9 +167,6 @@ export class Queue<
   get metaValues(): Record<string, string | number> {
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
-      ...(this.opts?.concurrency
-        ? { concurrency: this.opts?.concurrency }
-        : {}),
     };
   }
 
@@ -184,6 +181,18 @@ export class Queue<
       }
       resolve(this._repeat);
     });
+  }
+
+  /**
+   * Enable and set global concurrency value.
+   * @param concurrency - Maximum number of simultaneous jobs that the workers can handle.
+   * For instance, setting this value to 1 ensures that no more than one job
+   * is processed at any given time. If this limit is not defined, there will be no
+   * restriction on the number of concurrent jobs.
+   */
+  async setGlobalConcurrency(concurrency: number) {
+    const client = await this.client;
+    return client.hset(this.keys.meta, 'concurrency', concurrency);
   }
 
   /**

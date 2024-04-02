@@ -31,7 +31,7 @@ describe('Concurrency', () => {
   });
 
   it('should run max concurrency for jobs added', async () => {
-    const queue = new Queue(queueName, { connection, concurrency: 1, prefix });
+    const queue = new Queue(queueName, { connection, prefix });
     const numJobs = 15;
     const jobsData: { name: string; data: any }[] = [];
     for (let j = 0; j < numJobs; j++) {
@@ -42,7 +42,7 @@ describe('Concurrency', () => {
     }
 
     await queue.addBulk(jobsData);
-
+    await queue.setGlobalConcurrency(1);
     const bar = new ProgressBar(':bar', { total: numJobs });
 
     let count = 0;
@@ -93,7 +93,7 @@ describe('Concurrency', () => {
   }).timeout(16000);
 
   it('emits drained global event only once when worker is idle', async function () {
-    const queue = new Queue(queueName, { connection, concurrency: 1, prefix });
+    const queue = new Queue(queueName, { connection, prefix });
     const worker = new Worker(
       queueName,
       async () => {
@@ -119,6 +119,7 @@ describe('Concurrency', () => {
       { name: 'test', data: { foo: 'bar' } },
       { name: 'test', data: { foo: 'baz' } },
     ]);
+    await queue.setGlobalConcurrency(1);
 
     await delay(4000);
 
@@ -138,11 +139,11 @@ describe('Concurrency', () => {
 
       const queue = new Queue(queueName, {
         connection,
-        concurrency: 1,
         prefix,
       });
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
+      await queue.setGlobalConcurrency(1);
 
       const worker = new Worker(
         queueName,
@@ -222,11 +223,11 @@ describe('Concurrency', () => {
 
         const queue = new Queue(queueName, {
           connection,
-          concurrency: 1,
           prefix,
         });
         const queueEvents = new QueueEvents(queueName, { connection, prefix });
         await queueEvents.waitUntilReady();
+        await queue.setGlobalConcurrency(1);
 
         const worker = new Worker(
           queueName,
@@ -304,7 +305,6 @@ describe('Concurrency', () => {
       const flow = new FlowProducer({ connection, prefix });
       const queue = new Queue(queueName, {
         connection,
-        concurrency: 1,
         prefix,
       });
 
@@ -317,6 +317,8 @@ describe('Concurrency', () => {
       }
 
       await queue.addBulk(jobsData);
+      await queue.setGlobalConcurrency(1);
+
       const name = 'child-job';
 
       await flow.add({
@@ -394,13 +396,13 @@ describe('Concurrency', () => {
     const globalConcurrency = 2;
     const queue = new Queue(queueName, {
       connection,
-      concurrency: globalConcurrency,
       prefix,
     });
 
     for (let j = 0; j < numJobs; j++) {
       await queue.add('test-stalled', { foo: j % 2 });
     }
+    await queue.setGlobalConcurrency(globalConcurrency);
 
     const concurrency = 4;
 
@@ -486,7 +488,6 @@ describe('Concurrency', () => {
       const globalConcurrency = 1;
       const queue = new Queue(queueName, {
         connection,
-        concurrency: globalConcurrency,
         prefix,
       });
 
@@ -497,6 +498,7 @@ describe('Concurrency', () => {
           { attempts: 2, backoff: 100 },
         );
       }
+      await queue.setGlobalConcurrency(globalConcurrency);
 
       const concurrency = 10;
 
@@ -538,7 +540,6 @@ describe('Concurrency', () => {
         const globalConcurrency = 1;
         const queue = new Queue(queueName, {
           connection,
-          concurrency: globalConcurrency,
           prefix,
         });
 
@@ -549,6 +550,7 @@ describe('Concurrency', () => {
             { attempts: 2, backoff: 0 },
           );
         }
+        await queue.setGlobalConcurrency(globalConcurrency);
 
         const concurrency = 4;
 
@@ -591,9 +593,10 @@ describe('Concurrency', () => {
       const globalConcurrency = 1;
       const queue = new Queue(queueName, {
         connection,
-        concurrency: globalConcurrency,
         prefix,
       });
+      await queue.waitUntilReady();
+      await queue.setGlobalConcurrency(globalConcurrency);
       const worker = new Worker(queueName, null, {
         connection,
         lockRenewTime: 200,
