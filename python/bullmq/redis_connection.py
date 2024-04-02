@@ -21,12 +21,14 @@ class RedisConnection:
         "canDoubleTimeout": False
     }
 
-    def __init__(self, redisOpts: dict | str = {}):
+    def __init__(self, redisOpts: dict | str | redis.Redis = {}):
         self.version = None
         retry = Retry(ExponentialBackoff(), 3)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
-        if isinstance(redisOpts, dict):
+        if isinstance(redisOpts, redis.Redis):
+            self.conn = redisOpts
+        elif isinstance(redisOpts, dict):
             defaultOpts = {
                 "host": "localhost",
                 "port": 6379,
