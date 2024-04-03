@@ -162,8 +162,12 @@ export class RedisConnection extends EventEmitter {
         };
 
         handleEnd = () => {
-          console.error(lastError?.message || CONNECTION_CLOSED_ERROR_MSG);
-          resolve();
+          if (client.status !== 'end') {
+            reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
+          } else {
+            // when custon 'end' status is set we already closed
+            resolve();
+          }
         };
 
         increaseMaxListeners(client, 3);
@@ -216,34 +220,37 @@ export class RedisConnection extends EventEmitter {
 
     this.loadCommands();
 
-    this.version = await this.getRedisVersion();
-    if (this.skipVersionCheck !== true && !this.closing) {
-      if (
-        isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
-      ) {
-        throw new Error(
-          `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} Current: ${this.version}`,
-        );
+    if (this._client['status'] !== 'end') {
+      this.version = await this.getRedisVersion();
+      if (this.skipVersionCheck !== true && !this.closing) {
+        if (
+          isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
+        ) {
+          throw new Error(
+            `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} ` +
+              `Current: ${this.version}`,
+          );
+        }
+
+        if (
+          isRedisVersionLowerThan(
+            this.version,
+            RedisConnection.recommendedMinimumVersion,
+          )
+        ) {
+          console.warn(
+            `It is highly recommended to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
+             Current: ${this.version}`,
+          );
+        }
       }
 
-      if (
-        isRedisVersionLowerThan(
-          this.version,
-          RedisConnection.recommendedMinimumVersion,
-        )
-      ) {
-        console.warn(
-          `It is highly recommended to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
-           Current: ${this.version}`,
-        );
-      }
+      this.capabilities = {
+        canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
+      };
+
+      this.status = 'ready';
     }
-
-    this.capabilities = {
-      canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
-    };
-
-    this.status = 'ready';
 
     return this._client;
   }
