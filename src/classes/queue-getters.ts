@@ -471,6 +471,17 @@ export class QueueGetters<
   }
 
   /**
+   * Returns the current count of workers for the queue.
+   *
+   * getWorkersCount(): Promise<number>
+   *
+   */
+  async getWorkersCount(): Promise<number> {
+    const workers = await this.getWorkers();
+    return workers.length;
+  }
+
+  /**
    * Get queue events list related to the queue.
    * Note: GCP does not support SETNAME, so this call will not work
    *

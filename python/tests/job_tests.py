@@ -48,6 +48,18 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         
         await queue.close()
 
+    async def test_job_log(self):
+        queue = Queue(queueName)
+        firstLog = 'some log text 1'
+        secondLog = 'some log text 2'
+        job = await queue.add("test-job", {"foo": "bar"}, {})
+        await job.log(firstLog)
+        log_count = await job.log(secondLog)
+
+        self.assertEqual(log_count, 2)
+
+        await queue.close()
+
     async def test_update_job_data(self):
         queue = Queue(queueName)
         job = await queue.add("test", {"foo": "bar"}, {})

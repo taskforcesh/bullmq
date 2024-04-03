@@ -893,6 +893,67 @@ describe('workers', function () {
     });
   });
 
+  describe('when calling getBlockTimeout', () => {
+    describe('when blockUntil is 0', () => {
+      describe('when drainDelay is greater than minimumBlockTimeout', () => {
+        it('returns drainDelay', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+
+          expect(worker['getBlockTimeout'](0)).to.be.equal(5);
+          worker.close();
+        });
+      });
+
+      describe('when drainDelay is lower than minimumBlockTimeout', () => {
+        it('returns drainDelay', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            drainDelay: 0.00001,
+            prefix,
+            autorun: false,
+          });
+
+          expect(worker['getBlockTimeout'](0)).to.be.equal(0.001);
+          worker.close();
+        });
+      });
+    });
+
+    describe('when blockUntil is greater than 0', () => {
+      describe('when blockUntil is lower than date now value', () => {
+        it('returns minimumBlockTimeout', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+
+          expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(0.001);
+          worker.close();
+        });
+      });
+
+      describe('when blockUntil is greater than date now value', () => {
+        it('returns delay value greater than minimumBlockTimeout', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+
+          expect(worker['getBlockTimeout'](Date.now() + 100)).to.be.greaterThan(
+            0.001,
+          );
+          worker.close();
+        });
+      });
+    });
+  });
+
   describe('when sharing connection', () => {
     it('should not fail', async () => {
       const queueName2 = `test-${v4()}`;
@@ -1813,7 +1874,7 @@ describe('workers', function () {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Missing lock for job ${job.id}. failed`;
+    const errorMessage = `Missing lock for job ${job.id}. moveToFinished`;
     const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
         try {
@@ -1853,7 +1914,7 @@ describe('workers', function () {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Lock mismatch for job ${job.id}. Cmd failed from active`;
+    const errorMessage = `Lock mismatch for job ${job.id}. Cmd moveToFinished from active`;
     const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
         try {
@@ -1904,7 +1965,7 @@ describe('workers', function () {
   });
 
   it('stalled interval cannot be zero', function () {
-    this.timeout(8000);
+    this.timeout(4000);
     expect(
       () =>
         new Worker(queueName, async () => {}, {
@@ -1913,6 +1974,18 @@ describe('workers', function () {
           stalledInterval: 0,
         }),
     ).to.throw('stalledInterval must be greater than 0');
+  });
+
+  it('drain delay cannot be zero', function () {
+    this.timeout(4000);
+    expect(
+      () =>
+        new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+          drainDelay: 0,
+        }),
+    ).to.throw('drainDelay must be greater than 0');
   });
 
   it('lock extender continues to run until all active jobs are completed when closing a worker', async function () {

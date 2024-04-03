@@ -36,6 +36,10 @@
 
 You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
+# News 🚀
+
+Do you need to work with BullMQ on platforms other than Node.js? If so, check out the [BullMQ Proxy](https://github.com/taskforcesh/bullmq-proxy)
+
 # Official FrontEnd
 
 [<img src="http://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)

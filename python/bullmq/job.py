@@ -189,6 +189,9 @@ class Job:
 
         self.attemptsMade = self.attemptsMade + 1
 
+    def log(self, logRow: str):
+        return Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
+
     async def saveStacktrace(self, pipe, err:str):
         stacktrace = traceback.format_exc()
         stackTraceLimit = self.opts.get("stackTraceLimit")
@@ -261,6 +264,19 @@ class Job:
         if len(raw_data):
             return Job.fromJSON(queue, raw_data, jobId)
 
+    @staticmethod
+    async def addJobLog(queue: Queue, jobId: str, logRow: str, keepLogs: int = 0):
+        logs_key = f"{queue.prefix}:{queue.name}:{jobId}:logs"
+        multi = await queue.client.pipeline()
+
+        multi.rpush(logs_key, logRow)
+
+        if keepLogs:
+            multi.ltrim(logs_key, -keepLogs, -1)
+        
+        result = await multi.execute()
+
+        return min(keepLogs, result[0]) if keepLogs else result[0]
 
 def optsFromJSON(rawOpts: dict) -> dict:
     # opts = json.loads(rawOpts)

@@ -7,6 +7,7 @@ from redis.exceptions import (
    TimeoutError
 )
 import warnings
+from bullmq.utils import isRedisVersionLowerThan
 
 class RedisConnection:
     """
@@ -16,21 +17,26 @@ class RedisConnection:
     minimum_version = '5.0.0'
     recommended_minimum_version = '6.2.0'
 
+    capabilities = {
+        "canDoubleTimeout": False
+    }
+
     def __init__(self, redisOpts: dict | str = {}):
         self.version = None
         retry = Retry(ExponentialBackoff(), 3)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
         if isinstance(redisOpts, dict):
-            host = redisOpts.get("host") or "localhost"
-            port = redisOpts.get("port") or 6379
-            db = redisOpts.get("db") or 0
-            password = redisOpts.get("password") or None
-            username = redisOpts.get("username") or None
+            defaultOpts = {
+                "host": "localhost",
+                "port": 6379,
+                "db": 0,
+                "password": None,
+                "username": None,
+            }
+            finalOpts = {**defaultOpts, **redisOpts}
 
-            self.conn = redis.Redis(
-                host=host, port=port, db=db, password=password, decode_responses=True,
-                retry=retry, retry_on_error=retry_errors, username=username)
+            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
                 retry_on_error=retry_errors)
@@ -56,4 +62,8 @@ class RedisConnection:
             warnings.warn(f'IMPORTANT! Eviction policy is {doc.get("maxmemory_policy")}. It should be "noeviction"')
 
         self.version = doc.get("redis_version")
-        return doc.get("redis_version")
+
+        self.capabilities = {
+            "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0')
+        }
+        return self.version
