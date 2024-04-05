@@ -171,6 +171,7 @@ export class Worker<
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
+  private abortStalledController: AbortController | null = null;
   private asyncFifoQueue: AsyncFifoQueue<void | Job<
     DataType,
     ResultType,
@@ -418,6 +419,9 @@ export class Worker<
         return;
       }
 
+      this.abortStalledController?.abort();
+      this.abortStalledController = new AbortController();
+      clearTimeout(this.stalledCheckTimer);
       await this.startStalledCheckTimer();
 
       const jobsInProgress = new Set<{ job: Job; ts: number }>();
@@ -833,7 +837,7 @@ export class Worker<
       this.emit('closing', 'closing queue');
 
       this.abortDelayController?.abort();
-
+      this.abortStalledController?.abort();
       const client =
         this.blockingConnection.status == 'ready'
           ? await this.blockingConnection.client
@@ -881,14 +885,29 @@ export class Worker<
    */
   async startStalledCheckTimer(): Promise<void> {
     if (!this.opts.skipStalledCheck) {
-      clearTimeout(this.stalledCheckTimer);
-
       if (!this.closing) {
         try {
-          await this.checkConnectionError(() => this.moveStalledJobsToWait());
-          this.stalledCheckTimer = setTimeout(async () => {
-            await this.startStalledCheckTimer();
-          }, this.opts.stalledInterval);
+          const callback = async () => {
+            this.abortStalledController?.signal.removeEventListener(
+              'abort',
+              callback,
+            );
+            clearTimeout(this.stalledCheckTimer);
+            if (!this.abortStalledController?.signal.aborted) {
+              await this.checkConnectionError(() =>
+                this.moveStalledJobsToWait(),
+              );
+              await this.startStalledCheckTimer();
+            }
+          };
+          this.stalledCheckTimer = setTimeout(
+            callback,
+            this.opts.stalledInterval,
+          );
+          this.abortStalledController?.signal.addEventListener(
+            'abort',
+            callback,
+          );
         } catch (err) {
           this.emit('error', <Error>err);
         }
