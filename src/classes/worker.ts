@@ -431,8 +431,18 @@ export class Worker<
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
 
+      /**
+       * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
+       * as efficiently as possible, providing concurrency and minimal unnecessary calls
+       * to Redis.
+       */
       while (!this.closing) {
         let numTotal = asyncFifoQueue.numTotal();
+
+        /**
+         * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
+         * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
+         */
         while (
           !this.waiting &&
           numTotal < this.opts.concurrency &&
@@ -636,8 +646,6 @@ export class Worker<
       if (!this.closing) {
         await this.delay();
       }
-    } finally {
-      this.waiting = null;
     }
     return Infinity;
   }
