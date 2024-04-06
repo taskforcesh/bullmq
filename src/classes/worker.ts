@@ -887,6 +887,8 @@ export class Worker<
     if (!this.opts.skipStalledCheck) {
       if (!this.closing) {
         try {
+          await this.checkConnectionError(() => this.moveStalledJobsToWait());
+
           const callback = async () => {
             this.abortStalledController?.signal.removeEventListener(
               'abort',
@@ -894,9 +896,6 @@ export class Worker<
             );
             clearTimeout(this.stalledCheckTimer);
             if (!this.abortStalledController?.signal.aborted) {
-              await this.checkConnectionError(() =>
-                this.moveStalledJobsToWait(),
-              );
               await this.startStalledCheckTimer();
             }
           };
