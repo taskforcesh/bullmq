@@ -9,6 +9,7 @@
     KEYS[5] job key
     KEYS[6] events stream
     KEYS[7] meta key
+    KEYS[8] stalled key
 
     ARGV[1] key prefix
     ARGV[2] timestamp
@@ -35,14 +36,21 @@ local rcall = redis.call
 
 local jobKey = KEYS[5]
 local metaKey = KEYS[7]
+local token = ARGV[5] 
 if rcall("EXISTS", jobKey) == 1 then
     local delayedKey = KEYS[4]
-    if ARGV[5] ~= "0" then
+    if token ~= "0" then
         local lockKey = jobKey .. ':lock'
-        if rcall("GET", lockKey) == ARGV[5] then
+        local lockToken = rcall("GET", lockKey)
+        if lockToken == token then
             rcall("DEL", lockKey)
+            rcall("SREM", KEYS[8], ARGV[4])
         else
-            return -2
+            if lockToken then
+                return -6
+            else
+                return -2
+            end
         end
     end
 

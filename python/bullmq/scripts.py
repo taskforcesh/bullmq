@@ -45,7 +45,7 @@ class Scripts:
             "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-9.lua")),
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
-            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-7.lua")),
+            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-4.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
@@ -269,6 +269,7 @@ class Scripts:
         keys.append(self.toKey(job_id))
         keys.append(self.keys['events'])
         keys.append(self.keys['meta'])
+        keys.append(self.keys['stalled'])
 
         args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
             job_id, token, delay, "1" if opts.get("skipAttempt") else "0" ]

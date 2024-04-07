@@ -778,6 +778,7 @@ export class Scripts {
       this.queue.toKey(jobId),
       queueKeys.events,
       queueKeys.meta,
+      queueKeys.stalled,
     ];
 
     return keys.concat([
