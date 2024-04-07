@@ -35,7 +35,7 @@ local rcall = redis.call
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
---- @include "includes/removeLockToken"
+--- @include "includes/removeLock"
 
 local target, paused = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
 local markerKey = KEYS[10]
@@ -45,7 +45,7 @@ local markerKey = KEYS[10]
 promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], paused)
 
 if rcall("EXISTS", KEYS[4]) == 1 then
-  local errorCode = removeLockToken(KEYS[4], KEYS[11], ARGV[5], ARGV[4]) 
+  local errorCode = removeLock(KEYS[4], KEYS[11], ARGV[5], ARGV[4]) 
   if errorCode < 0 then
     return errorCode
   end

@@ -33,13 +33,13 @@ local rcall = redis.call
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePaused"
---- @include "includes/removeLockToken"
+--- @include "includes/removeLock"
 
 local jobKey = KEYS[5]
 local metaKey = KEYS[7]
 local token = ARGV[5] 
 if rcall("EXISTS", jobKey) == 1 then
-    local errorCode = removeLockToken(jobKey, KEYS[8], token, ARGV[4])
+    local errorCode = removeLock(jobKey, KEYS[8], token, ARGV[4])
     if errorCode < 0 then
         return errorCode
     end

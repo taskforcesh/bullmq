@@ -1,4 +1,4 @@
-local function removeLockToken(jobKey, stalledKey, token, jobId)
+local function removeLock(jobKey, stalledKey, token, jobId)
   if token ~= "0" then
     local lockKey = jobKey .. ':lock'
     local lockToken = rcall("GET", lockKey)
