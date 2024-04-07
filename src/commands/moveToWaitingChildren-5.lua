@@ -22,24 +22,11 @@
 ]]
 local rcall = redis.call
 
-local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
-    timestamp, stalledKey, lockKey, jobKey, token)
-  if token ~= "0" then
-    local lockToken = rcall("GET", lockKey) 
-    if lockToken == token then
-      rcall("DEL", lockKey)
-      rcall("SREM", stalledKey, jobId)
-    else
-      if lockToken then
-        -- Lock exists but token does not match
-        return -6
-      else
-        -- Lock is missing completely
-        return -2
-      end
-    end
-  end
+-- Includes
+--- @include "includes/removeLockToken"
 
+local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
+    timestamp)
   local score = tonumber(timestamp)
 
   local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
@@ -56,15 +43,21 @@ end
 if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
     if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[5], KEYS[1],
-        KEYS[4], ARGV[1])
+      local errorCode = removeLockToken(KEYS[4], KEYS[5], ARGV[1], ARGV[4])
+      if errorCode < 0 then
+        return errorCode
+      end
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3])
     end
 
     return 1
   else
     if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[5], KEYS[1],
-        KEYS[4], ARGV[1])
+      local errorCode = removeLockToken(KEYS[4], KEYS[5], ARGV[1], ARGV[4])
+      if errorCode < 0 then
+        return errorCode
+      end
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3])
     end
 
     return 1

@@ -35,6 +35,7 @@ local rcall = redis.call
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
+--- @include "includes/removeLockToken"
 
 local target, paused = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
 local markerKey = KEYS[10]
@@ -44,23 +45,9 @@ local markerKey = KEYS[10]
 promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], paused)
 
 if rcall("EXISTS", KEYS[4]) == 1 then
-  --TODO: to be refactored using an include
-  local token = ARGV[5]
-  if token ~= "0" then
-    local lockKey = KEYS[4] .. ':lock'
-    local lockToken = rcall("GET", lockKey)
-    if locakToken == token then
-      rcall("DEL", lockKey)
-      rcall("SREM", KEYS[11], ARGV[4])
-    else
-      if lockToken then
-        -- Lock exists but token does not match
-        return -6
-      else
-        -- Lock is missing completely
-        return -2
-      end
-    end
+  local errorCode = removeLockToken(KEYS[4], KEYS[11], ARGV[5], ARGV[4]) 
+  if errorCode < 0 then
+    return errorCode
   end
 
   rcall("LREM", KEYS[1], 0, ARGV[4])
