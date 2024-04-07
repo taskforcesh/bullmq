@@ -8,6 +8,11 @@ export interface MoveToDelayedOpts {
   skipAttempt?: boolean;
 }
 
+export interface RetryOpts {
+  preserveOrder?: boolean;
+  pttl?: number;
+}
+
 export interface MoveToWaitingChildrenOpts {
   child?: {
     id: string;
