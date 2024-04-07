@@ -101,6 +101,7 @@ jobs:
         env:
           DFLY_cluster_mode: emulated
           DFLY_lock_on_hashtags: true
+          HEALTHCHECK_PORT: 6379
         ports:
           - 6379:6379
 
