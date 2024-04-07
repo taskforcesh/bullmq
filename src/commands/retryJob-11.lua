@@ -12,6 +12,7 @@
       KEYS[8]  prioritized key
       KEYS[9]  'pc' priority counter
       KEYS[10] 'marker'
+      KEYS[11] 'stalled'
 
       ARGV[1]  key prefix
       ARGV[2]  timestamp
@@ -43,13 +44,22 @@ local markerKey = KEYS[10]
 promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], paused)
 
 if rcall("EXISTS", KEYS[4]) == 1 then
-
-  if ARGV[5] ~= "0" then
+  --TODO: to be refactored using an include
+  local token = ARGV[5]
+  if token ~= "0" then
     local lockKey = KEYS[4] .. ':lock'
-    if rcall("GET", lockKey) == ARGV[5] then
+    local lockToken = rcall("GET", lockKey)
+    if locakToken == token then
       rcall("DEL", lockKey)
+      rcall("SREM", KEYS[11], ARGV[4])
     else
-      return -2
+      if lockToken then
+        -- Lock exists but token does not match
+        return -6
+      else
+        -- Lock is missing completely
+        return -2
+      end
     end
   end
 

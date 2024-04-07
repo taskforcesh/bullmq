@@ -811,11 +811,15 @@ export class Scripts {
 
     const childKey = getParentKey(opts.child);
 
-    const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      name => {
-        return this.queue.toKey(name);
-      },
-    );
+    const keys = [
+      `${jobId}:lock`,
+      'active',
+      'waiting-children',
+      jobId,
+      'stalled',
+    ].map(name => {
+      return this.queue.toKey(name);
+    });
 
     return keys.concat([
       token,
@@ -920,6 +924,7 @@ export class Scripts {
       this.queue.keys.prioritized,
       this.queue.keys.pc,
       this.queue.keys.marker,
+      this.queue.keys.stalled,
     ];
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
