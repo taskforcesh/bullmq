@@ -9,6 +9,7 @@
     KEYS[5] job key
     KEYS[6] events stream
     KEYS[7] meta key
+    KEYS[8] stalled key
 
     ARGV[1] key prefix
     ARGV[2] timestamp
@@ -32,20 +33,18 @@ local rcall = redis.call
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePaused"
+--- @include "includes/removeLock"
 
 local jobKey = KEYS[5]
 local metaKey = KEYS[7]
+local token = ARGV[5] 
 if rcall("EXISTS", jobKey) == 1 then
-    local delayedKey = KEYS[4]
-    if ARGV[5] ~= "0" then
-        local lockKey = jobKey .. ':lock'
-        if rcall("GET", lockKey) == ARGV[5] then
-            rcall("DEL", lockKey)
-        else
-            return -2
-        end
+    local errorCode = removeLock(jobKey, KEYS[8], token, ARGV[4])
+    if errorCode < 0 then
+        return errorCode
     end
 
+    local delayedKey = KEYS[4]
     local jobId = ARGV[4]
     local score = tonumber(ARGV[3])
     local delayedTimestamp = (score / 0x1000)

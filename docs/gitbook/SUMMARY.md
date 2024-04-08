@@ -44,6 +44,7 @@
   * [Remove Child Dependency](guide/flows/remove-child-dependency.md)
 * [Metrics](guide/metrics/metrics.md)
 * [Rate limiting](guide/rate-limiting.md)
+* [Parallelism and Concurrency](guide/parallelism-and-concurrency.md)
 * [Retrying failing jobs](guide/retrying-failing-jobs.md)
 * [Returning job data](guide/returning-job-data.md)
 * [Events](guide/events.md)

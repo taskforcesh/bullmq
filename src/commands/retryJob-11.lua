@@ -12,6 +12,7 @@
       KEYS[8]  prioritized key
       KEYS[9]  'pc' priority counter
       KEYS[10] 'marker'
+      KEYS[11] 'stalled'
 
       ARGV[1]  key prefix
       ARGV[2]  timestamp
@@ -34,6 +35,7 @@ local rcall = redis.call
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
+--- @include "includes/removeLock"
 
 local target, paused = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
 local markerKey = KEYS[10]
@@ -43,14 +45,9 @@ local markerKey = KEYS[10]
 promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], paused)
 
 if rcall("EXISTS", KEYS[4]) == 1 then
-
-  if ARGV[5] ~= "0" then
-    local lockKey = KEYS[4] .. ':lock'
-    if rcall("GET", lockKey) == ARGV[5] then
-      rcall("DEL", lockKey)
-    else
-      return -2
-    end
+  local errorCode = removeLock(KEYS[4], KEYS[11], ARGV[5], ARGV[4]) 
+  if errorCode < 0 then
+    return errorCode
   end
 
   rcall("LREM", KEYS[1], 0, ARGV[4])
