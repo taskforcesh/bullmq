@@ -387,6 +387,15 @@ describe('queues', function () {
     });
   });
 
+  describe('when 0.002 is used as blocktimeout', () => {
+    it('should not block forever', async () => {
+      const client = await queue.client;
+      await client.bzpopmin(`key`, 0.002);
+
+      expect(true).to.be.true;
+    });
+  });
+
   describe('.removeDeprecatedPriorityKey', () => {
     it('removes old priority key', async () => {
       const client = await queue.client;

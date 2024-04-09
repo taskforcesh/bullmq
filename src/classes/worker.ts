@@ -592,6 +592,12 @@ export class Worker<
     );
   }
 
+  get minimumBlockTimeout(): number {
+    return this.blockingConnection.capabilities.canBlockFor1Ms
+      ? minimumBlockTimeout
+      : 0.002;
+  }
+
   protected async moveToActive(
     client: RedisClient,
     token: string,
@@ -657,13 +663,13 @@ export class Worker<
     if (blockUntil) {
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
-      if (blockDelay < 1) {
-        return minimumBlockTimeout;
+      if (blockDelay < this.minimumBlockTimeout * 1000) {
+        return this.minimumBlockTimeout;
       } else {
         return blockDelay / 1000;
       }
     } else {
-      return Math.max(opts.drainDelay, minimumBlockTimeout);
+      return Math.max(opts.drainDelay, this.minimumBlockTimeout);
     }
   }
 
@@ -681,6 +687,7 @@ export class Worker<
   private updateDelays(limitUntil = 0, delayUntil = 0) {
     this.limitUntil = Math.max(limitUntil, 0) || 0;
     this.blockUntil = Math.max(delayUntil, 0) || 0;
+    console.log(this.limitUntil, this.blockUntil);
   }
 
   protected async nextJobFromJobData(
