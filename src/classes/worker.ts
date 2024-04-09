@@ -419,9 +419,7 @@ export class Worker<
         return;
       }
 
-      this.abortStalledController?.abort();
-      this.abortStalledController = new AbortController();
-      clearTimeout(this.stalledCheckTimer);
+      this.handleAbortStalledController();
       await this.startStalledCheckTimer();
 
       const jobsInProgress = new Set<{ job: Job; ts: number }>();
@@ -521,6 +519,19 @@ export class Worker<
       token,
       { block },
     );
+  }
+
+  private handleAbortStalledController() {
+    this.abortStalledController?.abort();
+    this.abortStalledController = new AbortController();
+    const callback = async () => {
+      this.abortStalledController?.signal.removeEventListener(
+        'abort',
+        callback,
+      );
+      clearTimeout(this.stalledCheckTimer);
+    };
+    this.abortStalledController?.signal.addEventListener('abort', callback);
   }
 
   private async _getNextJob(
@@ -889,24 +900,9 @@ export class Worker<
         try {
           await this.checkConnectionError(() => this.moveStalledJobsToWait());
 
-          const callback = async () => {
-            this.abortStalledController?.signal.removeEventListener(
-              'abort',
-              callback,
-            );
-            clearTimeout(this.stalledCheckTimer);
-            if (!this.abortStalledController?.signal.aborted) {
-              await this.startStalledCheckTimer();
-            }
-          };
-          this.stalledCheckTimer = setTimeout(
-            callback,
-            this.opts.stalledInterval,
-          );
-          this.abortStalledController?.signal.addEventListener(
-            'abort',
-            callback,
-          );
+          this.stalledCheckTimer = setTimeout(async () => {
+            await this.startStalledCheckTimer();
+          }, this.opts.stalledInterval);
         } catch (err) {
           this.emit('error', <Error>err);
         }
