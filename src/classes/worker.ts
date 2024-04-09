@@ -687,7 +687,6 @@ export class Worker<
   private updateDelays(limitUntil = 0, delayUntil = 0) {
     this.limitUntil = Math.max(limitUntil, 0) || 0;
     this.blockUntil = Math.max(delayUntil, 0) || 0;
-    console.log(this.limitUntil, this.blockUntil);
   }
 
   protected async nextJobFromJobData(
