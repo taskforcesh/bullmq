@@ -2,6 +2,26 @@
 
 <!--next-version-placeholder-->
 
+## v2.5.0 (2024-04-08)
+### Feature
+* **python:** Support reusable redis connections ([`29ad8c8`](https://github.com/taskforcesh/bullmq/commit/29ad8c83596b14a312ad1cd375e0e34d4fdecc52))
+
+## v2.4.0 (2024-04-07)
+### Feature
+* **getters:** Add getWorkersCount ([`743c7aa`](https://github.com/taskforcesh/bullmq/commit/743c7aa8f979760bc04f7b8f55844020559038e1))
+
+### Fix
+* **deps:** Remove script loader from dist as it is used only when building package ([#2503](https://github.com/taskforcesh/bullmq/issues/2503)) ([`6f9ca23`](https://github.com/taskforcesh/bullmq/commit/6f9ca23a400e573c3ecb97246c1dda36ce1549ec))
+* **client:** Try catch list command as it's not supported in GCP ([#2506](https://github.com/taskforcesh/bullmq/issues/2506)) ([`ca68a9e`](https://github.com/taskforcesh/bullmq/commit/ca68a9eff070e8dc09c484b1fb298c7afaa18f6f))
+* **connection:** Ignore error when setting custom end status ([#2473](https://github.com/taskforcesh/bullmq/issues/2473)) ([`3e17e45`](https://github.com/taskforcesh/bullmq/commit/3e17e459a89a6ca9bccda64c5f06f91e70b372e4))
+* **job:** Stack trace limit ([#2487](https://github.com/taskforcesh/bullmq/issues/2487)) ([`cce3bc3`](https://github.com/taskforcesh/bullmq/commit/cce3bc3092eb7cf56c2a6c68e9fd8980f5f1f26a))
+
+### Documentation
+* **pro:** Update changelog with v7.3.1 ([#2498](https://github.com/taskforcesh/bullmq/issues/2498)) ([`55f19e3`](https://github.com/taskforcesh/bullmq/commit/55f19e38a689527956a846c434b772f3865a990a))
+
+### Performance
+* **stalled:** Remove jobId from stalled after removing lock when moved from active (#2512) (python) ([`64feec9`](https://github.com/taskforcesh/bullmq/commit/64feec91b0b034fe640a846166bd95b546ff6d71))
+
 ## v2.3.3 (2024-03-24)
 ### Fix
 * **connection:** Accept all parameters for redis connection [python] ([#2486](https://github.com/taskforcesh/bullmq/issues/2486)) ([`ce30192`](https://github.com/taskforcesh/bullmq/commit/ce30192ad30f66fb0f39c8c9ed669ddd133346c8))

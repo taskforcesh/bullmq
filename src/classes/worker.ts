@@ -431,8 +431,18 @@ export class Worker<
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
 
+      /**
+       * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
+       * as efficiently as possible, providing concurrency and minimal unnecessary calls
+       * to Redis.
+       */
       while (!this.closing) {
         let numTotal = asyncFifoQueue.numTotal();
+
+        /**
+         * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
+         * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
+         */
         while (
           !this.waiting &&
           numTotal < this.opts.concurrency &&
@@ -582,6 +592,12 @@ export class Worker<
     );
   }
 
+  get minimumBlockTimeout(): number {
+    return this.blockingConnection.capabilities.canBlockFor1Ms
+      ? minimumBlockTimeout
+      : 0.002;
+  }
+
   protected async moveToActive(
     client: RedisClient,
     token: string,
@@ -610,11 +626,6 @@ export class Worker<
           ? blockTimeout
           : Math.ceil(blockTimeout);
 
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
-
         // Markers should only be used for un-blocking, so we will handle them in this
         // function only.
         const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
@@ -636,27 +647,33 @@ export class Worker<
       if (!this.closing) {
         await this.delay();
       }
-    } finally {
-      this.waiting = null;
     }
     return Infinity;
   }
 
   protected getBlockTimeout(blockUntil: number): number {
     const opts: WorkerOptions = <WorkerOptions>this.opts;
+    let blockTimeout;
 
     // when there are delayed jobs
     if (blockUntil) {
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
-      if (blockDelay < 1) {
-        return minimumBlockTimeout;
+      if (blockDelay < this.minimumBlockTimeout * 1000) {
+        blockTimeout = minimumBlockTimeout;
       } else {
-        return blockDelay / 1000;
+        blockTimeout = blockDelay / 1000;
       }
+
+      // We restrict the maximum block timeout to 10 second to avoid
+      // blocking the connection for too long in the case of reconnections
+      // reference: https://github.com/taskforcesh/bullmq/issues/1658
+      blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
     } else {
-      return Math.max(opts.drainDelay, minimumBlockTimeout);
+      blockTimeout = Math.max(opts.drainDelay, this.minimumBlockTimeout);
     }
+
+    return blockTimeout;
   }
 
   /**

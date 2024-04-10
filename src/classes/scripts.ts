@@ -780,6 +780,7 @@ export class Scripts {
       this.queue.toKey(jobId),
       queueKeys.events,
       queueKeys.meta,
+      queueKeys.stalled,
     ];
 
     return keys.concat([
@@ -819,6 +820,7 @@ export class Scripts {
       jobId,
       '',
       'meta',
+      'stalled',
     ].map(name => {
       return this.queue.toKey(name);
     });
@@ -926,6 +928,7 @@ export class Scripts {
       this.queue.keys.prioritized,
       this.queue.keys.pc,
       this.queue.keys.marker,
+      this.queue.keys.stalled,
     ];
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';

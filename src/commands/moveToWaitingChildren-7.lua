@@ -8,6 +8,7 @@
     KEYS[4] job key
     KEYS[5] key prefix
     KEYS[6] meta key
+    KEYS[7] stalled key
 
     ARGV[1] token
     ARGV[2] child key
@@ -27,17 +28,10 @@ local metaKey = KEYS[6]
 
 --- Includes
 --- @include "includes/decreaseConcurrency"
+--- @include "includes/removeLock"
 
-local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId, timestamp,
-    lockKey, jobKey, token, prefix, metaKey)
-  if token ~= "0" then
-    if rcall("GET", lockKey) == token then
-      rcall("DEL", lockKey)
-    else
-      return -2
-    end
-  end
-
+local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
+    timestamp, prefix, metaKey)
   local score = tonumber(timestamp)
 
   local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
@@ -55,15 +49,21 @@ end
 if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
     if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], KEYS[4],
-        ARGV[1], prefix, metaKey)
+      local errorCode = removeLock(KEYS[4], KEYS[7], ARGV[1], ARGV[4])
+      if errorCode < 0 then
+        return errorCode
+      end
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], prefix, metaKey)
     end
 
     return 1
   else
     if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], KEYS[1], KEYS[4],
-        ARGV[1], prefix, metaKey)
+      local errorCode = removeLock(KEYS[4], KEYS[7], ARGV[1], ARGV[4])
+      if errorCode < 0 then
+        return errorCode
+      end
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], prefix, metaKey)
     end
 
     return 1
