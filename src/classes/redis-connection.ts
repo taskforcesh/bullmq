@@ -253,10 +253,7 @@ export class RedisConnection extends EventEmitter {
 
       this.capabilities = {
         canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
-<<<<<<< Updated upstream
-=======
         canBlockFor1Ms: !isRedisVersionLowerThan(this.version, '7.0.8'),
->>>>>>> Stashed changes
       };
 
       this.status = 'ready';
