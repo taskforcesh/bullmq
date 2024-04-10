@@ -592,6 +592,12 @@ export class Worker<
     );
   }
 
+  get minimumBlockTimeout(): number {
+    return this.blockingConnection.capabilities.canBlockFor1Ms
+      ? minimumBlockTimeout
+      : 0.002;
+  }
+
   protected async moveToActive(
     client: RedisClient,
     token: string,
@@ -653,7 +659,7 @@ export class Worker<
     if (blockUntil) {
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
-      if (blockDelay < 1) {
+      if (blockDelay < this.minimumBlockTimeout * 1000) {
         blockTimeout = minimumBlockTimeout;
       } else {
         blockTimeout = blockDelay / 1000;
@@ -664,7 +670,7 @@ export class Worker<
       // reference: https://github.com/taskforcesh/bullmq/issues/1658
       blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
     } else {
-      blockTimeout = Math.max(opts.drainDelay, minimumBlockTimeout);
+      blockTimeout = Math.max(opts.drainDelay, this.minimumBlockTimeout);
     }
 
     return blockTimeout;
