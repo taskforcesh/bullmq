@@ -816,6 +816,25 @@ describe('workers', function () {
     await worker.close();
   });
 
+  describe('when 0.002 is used as blocktimeout', () => {
+    it('should not block forever', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+      const client = await worker.client;
+      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+        await client.bzpopmin(`key`, 0.002);
+      } else {
+        await client.bzpopmin(`key`, 0.001);
+      }
+
+      expect(true).to.be.true;
+      await worker.close();
+    });
+  });
+
   describe('when closing a worker', () => {
     it('process a job that throws an exception after worker close', async () => {
       const jobError = new Error('Job Failed');
