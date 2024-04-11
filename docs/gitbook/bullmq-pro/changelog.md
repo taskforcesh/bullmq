@@ -1,3 +1,41 @@
+# [7.5.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.4.1...v7.5.0) (2024-04-10)
+
+
+### Bug Fixes
+
+* **worker:** use 0.002 as minimum timeout for redis version lower than 7.0.8 ([#2515](https://github.com/taskforcesh/bullmq/issues/2515)) fixes [#2466](https://github.com/taskforcesh/bullmq/issues/2466) ([44f7d21](https://github.com/taskforcesh/bullmq/commit/44f7d21850747d9c636c78e08b9e577d684fb885))
+
+### Features
+
+* allow arbitrary large drainDelay ([9693321](https://github.com/taskforcesh/bullmq/commit/96933217bf79658e5bb23fd7afe47e0b1150a40d))
+
+### Performance Improvements
+
+* **stalled:** remove jobId from stalled after removing lock when moved from active ([#2512](https://github.com/taskforcesh/bullmq/issues/2512)) (python) ([64feec9](https://github.com/taskforcesh/bullmq/commit/64feec91b0b034fe640a846166bd95b546ff6d71))
+* **add-to-group:** skip reinsertion of group ([#215](https://github.com/taskforcesh/bullmq-pro/issues/215)) ([6823251](https://github.com/taskforcesh/bullmq-pro/commit/682325108658e9b0d9ca9b45ed5bf0b29250066c))
+
+## [7.4.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.4.0...v7.4.1) (2024-04-07)
+
+
+### Bug Fixes
+
+* **deps:** remove script loader from dist ([#213](https://github.com/taskforcesh/bullmq-pro/issues/213)) ([dd28ec8](https://github.com/taskforcesh/bullmq-pro/commit/dd28ec80549c41d89d62100d5d7d857825347f5e))
+
+# [7.4.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.3.1...v7.4.0) (2024-04-04)
+
+
+### Bug Fixes
+
+* **connection:** ignore error when setting custom end status ([#2473](https://github.com/taskforcesh/bullmq/issues/2473)) ([3e17e45](https://github.com/taskforcesh/bullmq/commit/3e17e459a89a6ca9bccda64c5f06f91e70b372e4))
+* **job:** stack trace limit ([#2487](https://github.com/taskforcesh/bullmq/issues/2487)) ([cce3bc3](https://github.com/taskforcesh/bullmq/commit/cce3bc3092eb7cf56c2a6c68e9fd8980f5f1f26a))
+* **scripts:** use command name in error message when moving to finished ([#2483](https://github.com/taskforcesh/bullmq/issues/2483)) ([3c335d4](https://github.com/taskforcesh/bullmq/commit/3c335d49ba637145648c1ef0864d8e0d297dd890))
+* **queue:** use QueueOptions type in opts attribute ([#2481](https://github.com/taskforcesh/bullmq/issues/2481)) ([51a589f](https://github.com/taskforcesh/bullmq/commit/51a589f7e07b5336eb35ed00a1b795501b24f254))
+* **worker:** validate drainDelay must be greater than 0 ([#2477](https://github.com/taskforcesh/bullmq/issues/2477)) ([ab43693](https://github.com/taskforcesh/bullmq/commit/ab436938d895125635aef0393ae2fb5c77c16c1f))
+
+### Features
+
+* **getters:** add getWorkersCount ([743c7aa](https://github.com/taskforcesh/bullmq/commit/743c7aa8f979760bc04f7b8f55844020559038e1))
+
 ## [7.3.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.3.0...v7.3.1) (2024-03-30)
 
 
@@ -79,7 +117,10 @@
 * **worker:** markers use now a dedicated key in redis instead of using a special Job ID.
 * **stalled:** remove type check in stalled key
 
-ref [better queue markers](https://bullmq.io/news/231204/better-queue-markers/)
+* references:
+  - [Better Queue Markers](https://bullmq.io/news/231204/better-queue-markers/)
+  - [BullMQ v5 Migration Notes](https://bullmq.io/news/231221/bullmqv5-release/)
+  - [BullMQ Pro v7 Release](https://bullmq.io/news/240312/bullmq-prov7-release/)
 
 
 # [6.11.0](https://github.com/taskforcesh/bullmq-pro/compare/v6.10.0...v6.11.0) (2024-02-26)
@@ -654,7 +695,16 @@ ref [faster priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 
 ### Bug Fixes
 
-* **deps:** upgrade bullmq to 3.3.4 ([#120](https://github.com/taskforcesh/bullmq-pro/issues/120)) ([9e86994](https://github.com/taskforcesh/bullmq-pro/commit/9e8699412e795b020d165865543e2e3491576e17))
+* **worker:** try catch setname call ([#1576](https://github.com/taskforcesh/bullmq/issues/1576)) fixes [#1574](https://github.com/taskforcesh/bullmq/issues/1574) ([0c42fd8](https://github.com/taskforcesh/bullmq/commit/0c42fd8c07dbac7ace81e97e45440af93fc622a5))
+* do not allow move from active to wait if not owner of the job ([dc1a307](https://github.com/taskforcesh/bullmq/commit/dc1a3077d1521c5dc99824a7fc05d17da03906bc))
+* floor pexpire to integer ([1d5de42](https://github.com/taskforcesh/bullmq/commit/1d5de425a19ebf879a8f9a7e0543d87a4d358be1))
+* **get-workers:** set name when ready event in connection ([#1564](https://github.com/taskforcesh/bullmq/issues/1564)) ([de93c17](https://github.com/taskforcesh/bullmq/commit/de93c172901650e1666c48423a39076f2c7b9c7b))
+* **job:** console warn custom job ids when they represent integers ([#1569](https://github.com/taskforcesh/bullmq/issues/1569)) ([6e677d2](https://github.com/taskforcesh/bullmq/commit/6e677d2800957b368bef4247b8e4328c5758f262))
+* **add-job:** throw error when jobId represents an integer ([#1556](https://github.com/taskforcesh/bullmq/issues/1556)) ([db617d7](https://github.com/taskforcesh/bullmq/commit/db617d79e8f55b5c9e0df4b6bfd4247612016da1))
+
+### Features
+
+* **queue-events:** support duplicated event ([#1549](https://github.com/taskforcesh/bullmq/issues/1549)) ([18bc4eb](https://github.com/taskforcesh/bullmq/commit/18bc4eb50432f8aa27f2395750a7617317b66ca1))
 
 ## [5.1.2](https://github.com/taskforcesh/bullmq-pro/compare/v5.1.1...v5.1.2) (2022-12-07)
 
