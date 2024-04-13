@@ -653,10 +653,10 @@ export class Worker<
 
   protected getBlockTimeout(blockUntil: number): number {
     const opts: WorkerOptions = <WorkerOptions>this.opts;
-    let blockTimeout;
 
     // when there are delayed jobs
     if (blockUntil) {
+      let blockTimeout;
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
       if (blockDelay < this.minimumBlockTimeout * 1000) {
@@ -668,12 +668,10 @@ export class Worker<
       // We restrict the maximum block timeout to 10 second to avoid
       // blocking the connection for too long in the case of reconnections
       // reference: https://github.com/taskforcesh/bullmq/issues/1658
-      blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+      return Math.min(blockTimeout, maximumBlockTimeout);
     } else {
-      blockTimeout = Math.max(opts.drainDelay, this.minimumBlockTimeout);
+      return Math.max(opts.drainDelay, this.minimumBlockTimeout);
     }
-
-    return blockTimeout;
   }
 
   /**
