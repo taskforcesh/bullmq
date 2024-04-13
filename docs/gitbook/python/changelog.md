@@ -2,6 +2,18 @@
 
 <!--next-version-placeholder-->
 
+## v2.6.0 (2024-04-13)
+### Feature
+* **worker:** Use 0.002 as minimum timeout for redis version lower than 7.0.8 [python] ([#2521](https://github.com/taskforcesh/bullmq/issues/2521)) ([`f3862dd`](https://github.com/taskforcesh/bullmq/commit/f3862dd0c85cf2c2122fb0306c5f4b5eb8ad0bcd))
+* Allow arbitrary large drainDelay ([`9693321`](https://github.com/taskforcesh/bullmq/commit/96933217bf79658e5bb23fd7afe47e0b1150a40d))
+
+### Fix
+* **worker:** Use 0.002 as minimum timeout for redis version lower than 7.0.8 (#2515) fixes #2466 ([`44f7d21`](https://github.com/taskforcesh/bullmq/commit/44f7d21850747d9c636c78e08b9e577d684fb885))
+
+### Documentation
+* **pro:** Update changes for v7.5.0 ([#2519](https://github.com/taskforcesh/bullmq/issues/2519)) ([`2d02e11`](https://github.com/taskforcesh/bullmq/commit/2d02e11dd0a27cbb22d85875b0452ac1f0eda69d))
+* **nestjs:** Update changelog to v3 ([#2518](https://github.com/taskforcesh/bullmq/issues/2518)) ([`c52e528`](https://github.com/taskforcesh/bullmq/commit/c52e528ae1cfbcfde119d141d23fc2d8725e2e84))
+
 ## v2.5.0 (2024-04-08)
 ### Feature
 * **python:** Support reusable redis connections ([`29ad8c8`](https://github.com/taskforcesh/bullmq/commit/29ad8c83596b14a312ad1cd375e0e34d4fdecc52))
