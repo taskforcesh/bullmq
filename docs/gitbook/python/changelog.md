@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.0 (2024-04-13)
+### Feature
+* **queue:** Add getJobLogs method [python] (#2523) ref #2472 ([`a24a16e`](https://github.com/taskforcesh/bullmq/commit/a24a16ea2707541ee06ec3c4d636cd30dcdaade5))
+
 ## v2.6.0 (2024-04-13)
 ### Feature
 * **worker:** Use 0.002 as minimum timeout for redis version lower than 7.0.8 [python] ([#2521](https://github.com/taskforcesh/bullmq/issues/2521)) ([`f3862dd`](https://github.com/taskforcesh/bullmq/commit/f3862dd0c85cf2c2122fb0306c5f4b5eb8ad0bcd))
