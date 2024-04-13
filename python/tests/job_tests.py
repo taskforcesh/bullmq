@@ -58,6 +58,8 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(log_count, 2)
 
+        logs = await queue.getJobLogs(job.id)
+        self.assertEqual(logs, {"logs": ["some log text 1", "some log text 2"], "count": 2})
         await queue.close()
 
     async def test_update_job_data(self):

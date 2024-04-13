@@ -154,7 +154,6 @@ class Worker(EventEmitter):
     async def waitForJob(self):
         block_timeout = self.getBlockTimeout(self.blockUntil)
         block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
-        block_timeout = min(block_timeout, maximum_block_timeout)
 
         result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
         if result:
