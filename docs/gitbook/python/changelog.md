@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.1 (2024-04-18)
+### Fix
+* **stalled:** Consider failParentOnFailure when moving child into failed (#2526) fixes #2464 (python) ([`5e31eb0`](https://github.com/taskforcesh/bullmq/commit/5e31eb096169ea57350db591bcebfc2264a6b6dc))
+
 ## v2.7.0 (2024-04-13)
 ### Feature
 * **queue:** Add getJobLogs method [python] (#2523) ref #2472 ([`a24a16e`](https://github.com/taskforcesh/bullmq/commit/a24a16ea2707541ee06ec3c4d636cd30dcdaade5))
