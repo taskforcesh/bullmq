@@ -552,7 +552,7 @@ export class Worker<
       try {
         this.blockUntil = await this.waiting;
 
-        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 10) {
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 5) {
           return this.moveToActive(client, token, this.opts.name);
         }
       } catch (err) {
@@ -626,7 +626,7 @@ export class Worker<
           ? blockTimeout
           : Math.ceil(blockTimeout);
 
-        this.updateDelays();
+        this.updateDelays(); // reset delays to avoid reusing same values in next iteration
         // Markers should only be used for un-blocking, so we will handle them in this
         // function only.
         const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
