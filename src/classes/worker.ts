@@ -626,6 +626,7 @@ export class Worker<
           ? blockTimeout
           : Math.ceil(blockTimeout);
 
+        this.updateDelays();
         // Markers should only be used for un-blocking, so we will handle them in this
         // function only.
         const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
