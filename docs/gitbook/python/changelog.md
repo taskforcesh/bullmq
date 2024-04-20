@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.2 (2024-04-20)
+### Fix
+* **worker:** Return minimumBlockTimeout depending on redis version (python) ([#2532](https://github.com/taskforcesh/bullmq/issues/2532)) ([`83dfb63`](https://github.com/taskforcesh/bullmq/commit/83dfb63e72a1a36a4dfc40f122efb54fbb796339))
+
 ## v2.7.1 (2024-04-18)
 ### Fix
 * **stalled:** Consider failParentOnFailure when moving child into failed (#2526) fixes #2464 (python) ([`5e31eb0`](https://github.com/taskforcesh/bullmq/commit/5e31eb096169ea57350db591bcebfc2264a6b6dc))
