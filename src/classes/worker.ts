@@ -661,7 +661,7 @@ export class Worker<
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
       if (blockDelay < this.minimumBlockTimeout * 1000) {
-        blockTimeout = this.minimumBlockTimeout;
+        return this.minimumBlockTimeout;
       } else {
         blockTimeout = blockDelay / 1000;
       }
