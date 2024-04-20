@@ -170,7 +170,7 @@ class Worker(EventEmitter):
             block_timeout = None
             block_delay = block_until - int(time.time() * 1000)
             if block_delay < self.minimumBlockTimeout * 1000:
-                block_timeout = minimum_block_timeout
+                return self.minimumBlockTimeout
             else:
                 block_timeout = block_delay / 1000
             # We restrict the maximum block timeout to 10 second to avoid
