@@ -923,7 +923,7 @@ describe('workers', function () {
           });
 
           expect(worker['getBlockTimeout'](0)).to.be.equal(5);
-          worker.close();
+          await worker.close();
         });
       });
 
@@ -935,9 +935,14 @@ describe('workers', function () {
             prefix,
             autorun: false,
           });
+          await worker.waitUntilReady();
 
-          expect(worker['getBlockTimeout'](0)).to.be.equal(0.001);
-          worker.close();
+          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+            expect(worker['getBlockTimeout'](0)).to.be.equal(0.002);
+          } else {
+            expect(worker['getBlockTimeout'](0)).to.be.equal(0.001);
+          }
+          await worker.close();
         });
       });
     });
@@ -950,9 +955,18 @@ describe('workers', function () {
             prefix,
             autorun: false,
           });
+          await worker.waitUntilReady();
 
-          expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(0.001);
-          worker.close();
+          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+            expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(
+              0.002,
+            );
+          } else {
+            expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(
+              0.001,
+            );
+          }
+          await worker.close();
         });
       });
 
@@ -963,11 +977,19 @@ describe('workers', function () {
             prefix,
             autorun: false,
           });
+          await worker.waitUntilReady();
 
-          expect(worker['getBlockTimeout'](Date.now() + 100)).to.be.greaterThan(
-            0.001,
-          );
-          worker.close();
+          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+            expect(
+              worker['getBlockTimeout'](Date.now() + 100),
+            ).to.be.greaterThan(0.002);
+          } else {
+            expect(
+              worker['getBlockTimeout'](Date.now() + 100),
+            ).to.be.greaterThan(0.001);
+          }
+
+          await worker.close();
         });
       });
     });
