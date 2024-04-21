@@ -1,3 +1,6 @@
+--[[
+  Function to remove lock.
+]]
 local function removeLock(jobKey, stalledKey, token, jobId)
   if token ~= "0" then
     local lockKey = jobKey .. ':lock'
