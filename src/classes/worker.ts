@@ -38,10 +38,6 @@ import {
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
-/* 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
-Obviously we can still process much faster than 1 job per millisecond but delays and rate limits
-will never work with more accuracy than 1ms. */
-const minimumBlockTimeout = 0.001;
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -552,7 +548,7 @@ export class Worker<
       try {
         this.blockUntil = await this.waiting;
 
-        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 10) {
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
           return this.moveToActive(client, token, this.opts.name);
         }
       } catch (err) {
@@ -594,7 +590,10 @@ export class Worker<
 
   get minimumBlockTimeout(): number {
     return this.blockingConnection.capabilities.canBlockFor1Ms
-      ? minimumBlockTimeout
+      ? /* 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
+Obviously we can still process much faster than 1 job per millisecond but delays and rate limits
+will never work with more accuracy than 1ms. */
+        0.001
       : 0.002;
   }
 
@@ -626,6 +625,7 @@ export class Worker<
           ? blockTimeout
           : Math.ceil(blockTimeout);
 
+        this.updateDelays(); // reset delays to avoid reusing same values in next iteration
         // Markers should only be used for un-blocking, so we will handle them in this
         // function only.
         const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
@@ -653,27 +653,22 @@ export class Worker<
 
   protected getBlockTimeout(blockUntil: number): number {
     const opts: WorkerOptions = <WorkerOptions>this.opts;
-    let blockTimeout;
 
     // when there are delayed jobs
     if (blockUntil) {
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
       if (blockDelay < this.minimumBlockTimeout * 1000) {
-        blockTimeout = minimumBlockTimeout;
+        return this.minimumBlockTimeout;
       } else {
-        blockTimeout = blockDelay / 1000;
+        // We restrict the maximum block timeout to 10 second to avoid
+        // blocking the connection for too long in the case of reconnections
+        // reference: https://github.com/taskforcesh/bullmq/issues/1658
+        return Math.min(blockDelay / 1000, maximumBlockTimeout);
       }
-
-      // We restrict the maximum block timeout to 10 second to avoid
-      // blocking the connection for too long in the case of reconnections
-      // reference: https://github.com/taskforcesh/bullmq/issues/1658
-      blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
     } else {
-      blockTimeout = Math.max(opts.drainDelay, this.minimumBlockTimeout);
+      return Math.max(opts.drainDelay, this.minimumBlockTimeout);
     }
-
-    return blockTimeout;
   }
 
   /**
