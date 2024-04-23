@@ -68,6 +68,7 @@ local rcall = redis.call
 --- @include "includes/removeJobKeys"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
+--- @include "includes/removeLock"
 --- @include "includes/removeParentDependencyKey"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
@@ -77,27 +78,16 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local opts = cmsgpack.unpack(ARGV[8])
 
     local token = opts['token']
+
+    local errorCode = removeLock(jobIdKey, KEYS[5], token, ARGV[1])
+    if errorCode < 0 then
+        return errorCode
+    end
+
     local attempts = opts['attempts']
     local maxMetricsSize = opts['maxMetricsSize']
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
-
-    if token ~= "0" then
-        local lockKey = jobIdKey .. ':lock'
-        local lockToken = rcall("GET", lockKey)
-        if lockToken == token then
-            rcall("DEL", lockKey)
-            rcall("SREM", KEYS[5], ARGV[1])
-        else
-            if lockToken then
-                -- Lock exists but token does not match
-                return -6
-            else
-                -- Lock is missing completely
-                return -2
-            end
-        end
-    end
 
     if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
         return -4
