@@ -514,11 +514,6 @@ class Scripts:
                 return metrics.get("maxDataPoints", "")
             return ""
 
-        def getFailParentOnFailure(job: Job):
-            opts = job.opts
-            if opts is not None:
-                return opts.get("failParentOnFailure", False)
-
         keepJobs = getKeepJobs(shouldRemove)
 
         packedOpts = msgpack.packb({
@@ -529,7 +524,8 @@ class Scripts:
             "attempts": job.attempts,
             "attemptsMade": job.attemptsMade,
             "maxMetricsSize": getMetricsSize(opts),
-            "fpof": getFailParentOnFailure(job),
+            "fpof": opts.get("failParentOnFailure", False),
+            "idof": opts.get("ignoreDependencyOnFailure", False)
         }, use_bin_type=True)
 
         args = [job.id, timestamp, propVal, transformed_value or "", target,
