@@ -28,6 +28,7 @@ local rcall = redis.call
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
+--- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeJob"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
@@ -105,6 +106,16 @@ if (#stalling > 0) then
                                 jobKey,
                                 timestamp
                             )
+                        elseif opts['idof'] then
+                            local parentData = cjson.decode(rawParentData)
+                            local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
+                            local dependenciesSet = parentKey .. ":dependencies"
+                            if rcall("SREM", dependenciesSet, jobKey) == 1 then
+                                moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
+                                                         parentKey, parentData['id'], timestamp)
+                                local failedSet = parentKey .. ":failed"
+                                rcall("HSET", failedSet, jobKey, failedReason)
+                            end
                         end
                         if removeOnFailType == "number" then
                             removeJobsByMaxCount(opts["removeOnFail"],

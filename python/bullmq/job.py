@@ -14,6 +14,7 @@ import traceback
 
 optsDecodeMap = {
     'fpof': 'failParentOnFailure',
+    'idof': 'ignoreDependencyOnFailure',
     'kl': 'keepLogs',
 }
 
