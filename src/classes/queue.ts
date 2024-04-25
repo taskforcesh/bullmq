@@ -186,7 +186,7 @@ export class Queue<
   /**
    * Adds a new job to the queue.
    *
-   * @param name - Name of the job to be added to the queue,.
+   * @param name - Name of the job to be added to the queue.
    * @param data - Arbitrary data to append to the job.
    * @param opts - Job options that affects how the job is going to be processed.
    */
@@ -319,7 +319,7 @@ export class Queue<
    *
    * @see removeRepeatableByKey
    *
-   * @param name - job name
+   * @param name - Job name
    * @param repeatOpts -
    * @param jobId -
    * @returns
@@ -342,7 +342,7 @@ export class Queue<
    *
    * @see getRepeatableJobs
    *
-   * @param repeatJobKey - to the repeatable job.
+   * @param repeatJobKey - To the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
@@ -369,7 +369,7 @@ export class Queue<
    * Updates the given job's progress.
    *
    * @param jobId - The id of the job to update
-   * @param progress - number or object to be saved as progress.
+   * @param progress - Number or object to be saved as progress.
    */
   async updateJobProgress(
     jobId: string,
@@ -382,8 +382,8 @@ export class Queue<
    * Logs one row of job's log data.
    *
    * @param jobId - The job id to log against.
-   * @param logRow - string with log data to be logged.
-   * @param keepLogs - max number of log entries to keep (0 for unlimited).
+   * @param logRow - String with log data to be logged.
+   * @param keepLogs - Max number of log entries to keep (0 for unlimited).
    *
    * @returns The total number of log entries for this job so far.
    */
