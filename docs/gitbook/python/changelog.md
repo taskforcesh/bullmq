@@ -2,23 +2,42 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.3 (2024-04-24)
+### Fix
+* **stalled:** Consider ignoreDependencyOnFailure option (python) (#2540) fixes #2531 ([`0140959`](https://github.com/taskforcesh/bullmq/commit/0140959cabd2613794631e41ebe4c2ddee6f91da))
+
+### Performance
+* **worker:** Reset delays after generating blockTimeout value ([#2529](https://github.com/taskforcesh/bullmq/issues/2529)) ([`e92cea4`](https://github.com/taskforcesh/bullmq/commit/e92cea4a9d7c99f649f6626d1c0a1e1e994179d6))
+
+## v2.7.2 (2024-04-20)
+### Fix
+* **worker:** Return minimumBlockTimeout depending on redis version (python) ([#2532](https://github.com/taskforcesh/bullmq/issues/2532)) ([`83dfb63`](https://github.com/taskforcesh/bullmq/commit/83dfb63e72a1a36a4dfc40f122efb54fbb796339))
+
+## v2.7.1 (2024-04-18)
+### Fix
+* **stalled:** Consider failParentOnFailure when moving child into failed (#2526) fixes #2464 (python) ([`5e31eb0`](https://github.com/taskforcesh/bullmq/commit/5e31eb096169ea57350db591bcebfc2264a6b6dc))
+
+## v2.7.0 (2024-04-13)
+### Feature
+* **queue:** Add getJobLogs method [python] (#2523) ref #2472 ([`a24a16e`](https://github.com/taskforcesh/bullmq/commit/a24a16ea2707541ee06ec3c4d636cd30dcdaade5))
+
+## v2.6.0 (2024-04-13)
+### Feature
+* **worker:** Use 0.002 as minimum timeout for redis version lower than 7.0.8 [python] ([#2521](https://github.com/taskforcesh/bullmq/issues/2521)) ([`f3862dd`](https://github.com/taskforcesh/bullmq/commit/f3862dd0c85cf2c2122fb0306c5f4b5eb8ad0bcd))
+* Allow arbitrary large drainDelay ([`9693321`](https://github.com/taskforcesh/bullmq/commit/96933217bf79658e5bb23fd7afe47e0b1150a40d))
+
+### Fix
+* **worker:** Use 0.002 as minimum timeout for redis version lower than 7.0.8 (#2515) fixes #2466 ([`44f7d21`](https://github.com/taskforcesh/bullmq/commit/44f7d21850747d9c636c78e08b9e577d684fb885))
+
+### Documentation
+* **pro:** Update changes for v7.5.0 ([#2519](https://github.com/taskforcesh/bullmq/issues/2519)) ([`2d02e11`](https://github.com/taskforcesh/bullmq/commit/2d02e11dd0a27cbb22d85875b0452ac1f0eda69d))
+* **nestjs:** Update changelog to v3 ([#2518](https://github.com/taskforcesh/bullmq/issues/2518)) ([`c52e528`](https://github.com/taskforcesh/bullmq/commit/c52e528ae1cfbcfde119d141d23fc2d8725e2e84))
+
 ## v2.5.0 (2024-04-08)
 ### Feature
 * **python:** Support reusable redis connections ([`29ad8c8`](https://github.com/taskforcesh/bullmq/commit/29ad8c83596b14a312ad1cd375e0e34d4fdecc52))
 
 ## v2.4.0 (2024-04-07)
-### Feature
-* **getters:** Add getWorkersCount ([`743c7aa`](https://github.com/taskforcesh/bullmq/commit/743c7aa8f979760bc04f7b8f55844020559038e1))
-
-### Fix
-* **deps:** Remove script loader from dist as it is used only when building package ([#2503](https://github.com/taskforcesh/bullmq/issues/2503)) ([`6f9ca23`](https://github.com/taskforcesh/bullmq/commit/6f9ca23a400e573c3ecb97246c1dda36ce1549ec))
-* **client:** Try catch list command as it's not supported in GCP ([#2506](https://github.com/taskforcesh/bullmq/issues/2506)) ([`ca68a9e`](https://github.com/taskforcesh/bullmq/commit/ca68a9eff070e8dc09c484b1fb298c7afaa18f6f))
-* **connection:** Ignore error when setting custom end status ([#2473](https://github.com/taskforcesh/bullmq/issues/2473)) ([`3e17e45`](https://github.com/taskforcesh/bullmq/commit/3e17e459a89a6ca9bccda64c5f06f91e70b372e4))
-* **job:** Stack trace limit ([#2487](https://github.com/taskforcesh/bullmq/issues/2487)) ([`cce3bc3`](https://github.com/taskforcesh/bullmq/commit/cce3bc3092eb7cf56c2a6c68e9fd8980f5f1f26a))
-
-### Documentation
-* **pro:** Update changelog with v7.3.1 ([#2498](https://github.com/taskforcesh/bullmq/issues/2498)) ([`55f19e3`](https://github.com/taskforcesh/bullmq/commit/55f19e38a689527956a846c434b772f3865a990a))
-
 ### Performance
 * **stalled:** Remove jobId from stalled after removing lock when moved from active (#2512) (python) ([`64feec9`](https://github.com/taskforcesh/bullmq/commit/64feec91b0b034fe640a846166bd95b546ff6d71))
 
@@ -33,7 +52,6 @@
 ## v2.3.1 (2024-03-19)
 ### Fix
 * **worker:** Set blockTimeout as 0.001 when reach the time to get delayed jobs [python] ([#2478](https://github.com/taskforcesh/bullmq/issues/2478)) ([`b385034`](https://github.com/taskforcesh/bullmq/commit/b385034006ac183a26093f593269349eb78f8b54))
-* **worker:** Validate drainDelay must be greater than 0 ([#2477](https://github.com/taskforcesh/bullmq/issues/2477)) ([`ab43693`](https://github.com/taskforcesh/bullmq/commit/ab436938d895125635aef0393ae2fb5c77c16c1f))
 
 ## v2.3.0 (2024-03-16)
 ### Feature

@@ -816,6 +816,25 @@ describe('workers', function () {
     await worker.close();
   });
 
+  describe('when 0.002 is used as blocktimeout', () => {
+    it('should not block forever', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+      const client = await worker.client;
+      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+        await client.bzpopmin(`key`, 0.002);
+      } else {
+        await client.bzpopmin(`key`, 0.001);
+      }
+
+      expect(true).to.be.true;
+      await worker.close();
+    });
+  });
+
   describe('when closing a worker', () => {
     it('process a job that throws an exception after worker close', async () => {
       const jobError = new Error('Job Failed');
@@ -904,7 +923,7 @@ describe('workers', function () {
           });
 
           expect(worker['getBlockTimeout'](0)).to.be.equal(5);
-          worker.close();
+          await worker.close();
         });
       });
 
@@ -916,9 +935,14 @@ describe('workers', function () {
             prefix,
             autorun: false,
           });
+          await worker.waitUntilReady();
 
-          expect(worker['getBlockTimeout'](0)).to.be.equal(0.001);
-          worker.close();
+          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+            expect(worker['getBlockTimeout'](0)).to.be.equal(0.002);
+          } else {
+            expect(worker['getBlockTimeout'](0)).to.be.equal(0.001);
+          }
+          await worker.close();
         });
       });
     });
@@ -931,9 +955,18 @@ describe('workers', function () {
             prefix,
             autorun: false,
           });
+          await worker.waitUntilReady();
 
-          expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(0.001);
-          worker.close();
+          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+            expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(
+              0.002,
+            );
+          } else {
+            expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(
+              0.001,
+            );
+          }
+          await worker.close();
         });
       });
 
@@ -944,11 +977,19 @@ describe('workers', function () {
             prefix,
             autorun: false,
           });
+          await worker.waitUntilReady();
 
-          expect(worker['getBlockTimeout'](Date.now() + 100)).to.be.greaterThan(
-            0.001,
-          );
-          worker.close();
+          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+            expect(
+              worker['getBlockTimeout'](Date.now() + 100),
+            ).to.be.greaterThan(0.002);
+          } else {
+            expect(
+              worker['getBlockTimeout'](Date.now() + 100),
+            ).to.be.greaterThan(0.001);
+          }
+
+          await worker.close();
         });
       });
     });

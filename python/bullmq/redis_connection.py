@@ -18,6 +18,7 @@ class RedisConnection:
     recommended_minimum_version = '6.2.0'
 
     capabilities = {
+        "canBlockFor1Ms": True,
         "canDoubleTimeout": False
     }
 
@@ -66,6 +67,7 @@ class RedisConnection:
         self.version = doc.get("redis_version")
 
         self.capabilities = {
+            "canBlockFor1Ms": not isRedisVersionLowerThan(self.version, '7.0.8'),
             "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0')
         }
         return self.version

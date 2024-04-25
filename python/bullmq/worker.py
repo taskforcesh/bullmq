@@ -25,6 +25,7 @@ class Worker(EventEmitter):
         self.name = name
         self.processor = processor
         final_opts = {
+            "drainDelay": 5,
             "concurrency": 1,
             "lockDuration": 30000,
             "maxStalledCount": 1,
@@ -153,7 +154,6 @@ class Worker(EventEmitter):
     async def waitForJob(self):
         block_timeout = self.getBlockTimeout(self.blockUntil)
         block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
-        block_timeout = min(block_timeout, maximum_block_timeout)
 
         result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
         if result:
@@ -167,13 +167,23 @@ class Worker(EventEmitter):
 
     def getBlockTimeout(self, block_until: int):
         if block_until:
+            block_timeout = None
             block_delay = block_until - int(time.time() * 1000)
-            if block_delay < 1:
-                return minimum_block_timeout
+            if block_delay < self.minimumBlockTimeout * 1000:
+                return self.minimumBlockTimeout
             else:
-                return block_delay / 1000
+                block_timeout = block_delay / 1000
+            # We restrict the maximum block timeout to 10 second to avoid
+            # blocking the connection for too long in the case of reconnections
+            # reference: https://github.com/taskforcesh/bullmq/issues/1658
+            return min(block_timeout, maximum_block_timeout)
         else:
-            return max(self.opts.get("drainDelay", 5), minimum_block_timeout)
+            return max(self.opts.get("drainDelay", 5), self.minimumBlockTimeout)
+
+    @property
+    def minimumBlockTimeout(self):
+        return minimum_block_timeout if self.blockingRedisConnection.capabilities.get("canBlockFor1Ms", True) else 0.002
+        
 
     async def processJob(self, job: Job, token: str):
         try:

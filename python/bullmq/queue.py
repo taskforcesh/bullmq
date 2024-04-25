@@ -116,6 +116,31 @@ class Queue:
         """
         return self.client.pttl(self.keys["limiter"])
 
+    async def getJobLogs(self, job_id:str, start = 0, end = -1, asc = True):
+        """
+        Returns the logs for a given Job.
+
+        @param job_id: The id of the job to get the logs for.
+        @param start: Zero based index from where to start returning jobs.
+        @param end: Zero based index where to stop returning jobs.
+        @param asc: If true, the jobs will be returned in ascending order.
+        """
+
+        logs_key = self.toKey(job_id + ":logs")
+        pipe = self.redisConnection.conn.pipeline(transaction=True)
+        if asc:
+            pipe.lrange(logs_key, start, end)
+        else:
+            pipe.lrange(logs_key, -(end+1), -(start+1))
+        pipe.llen(logs_key)
+        result = await pipe.execute()
+        if not asc:
+            result[0].reverse()
+        return {
+            "logs": result[0],
+            "count": result[1]
+        }        
+   
     async def obliterate(self, force: bool = False):
         """
         Completely destroys the queue and all of its contents irreversibly.
