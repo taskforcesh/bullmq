@@ -625,9 +625,18 @@ export class Worker<
         // reference: https://github.com/taskforcesh/bullmq/issues/1658
         blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
 
+        // We cannot trust that the blocking connection stays blocking forever
+        // due to issues in Redis and IORedis, so we will reconnect if we
+        // don't get a response in the expected time.
+        const timeout = setTimeout(async () => {
+          await this.blockingConnection.disconnect();
+          await this.blockingConnection.reconnect();
+        }, blockTimeout * 1000 + 1000);
+
         // Markers should only be used for un-blocking, so we will handle them in this
         // function only.
         const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+        clearTimeout(timeout);
 
         if (result) {
           const [_key, member, score] = result;
