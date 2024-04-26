@@ -949,7 +949,7 @@ describe('workers', function () {
 
     describe('when blockUntil is greater than 0', () => {
       describe('when blockUntil is lower than date now value', () => {
-        it('returns minimumBlockTimeout', async () => {
+        it('returns blockDelay value lower or equal 0', async () => {
           const worker = new Worker(queueName, async () => {}, {
             connection,
             prefix,
@@ -957,15 +957,9 @@ describe('workers', function () {
           });
           await worker.waitUntilReady();
 
-          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
-            expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(
-              0.002,
-            );
-          } else {
-            expect(worker['getBlockTimeout'](Date.now() - 1)).to.be.equal(
-              0.001,
-            );
-          }
+          expect(
+            worker['getBlockTimeout'](Date.now() - 1),
+          ).to.be.lessThanOrEqual(0);
           await worker.close();
         });
       });
