@@ -621,6 +621,10 @@ will never work with more accuracy than 1ms. */
       if (!this.closing) {
         let blockTimeout = this.getBlockTimeout(blockUntil);
 
+        if (blockTimeout <= 0) {
+          return 0;
+        }
+
         blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
           ? blockTimeout
           : Math.ceil(blockTimeout);
@@ -658,7 +662,9 @@ will never work with more accuracy than 1ms. */
     if (blockUntil) {
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
-      if (blockDelay < this.minimumBlockTimeout * 1000) {
+      if (blockDelay <= 0) {
+        return blockDelay;
+      } else if (blockDelay < this.minimumBlockTimeout * 1000) {
         return this.minimumBlockTimeout;
       } else {
         // We restrict the maximum block timeout to 10 second to avoid
