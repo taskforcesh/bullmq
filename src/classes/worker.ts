@@ -621,24 +621,22 @@ will never work with more accuracy than 1ms. */
       if (!this.closing) {
         let blockTimeout = this.getBlockTimeout(blockUntil);
 
-        if (blockTimeout <= 0) {
-          return 0;
-        }
+        if (blockTimeout > 0) {
+          blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+            ? blockTimeout
+            : Math.ceil(blockTimeout);
 
-        blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
-          ? blockTimeout
-          : Math.ceil(blockTimeout);
+          this.updateDelays(); // reset delays to avoid reusing same values in next iteration
+          // Markers should only be used for un-blocking, so we will handle them in this
+          // function only.
+          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
 
-        this.updateDelays(); // reset delays to avoid reusing same values in next iteration
-        // Markers should only be used for un-blocking, so we will handle them in this
-        // function only.
-        const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+          if (result) {
+            const [_key, member, score] = result;
 
-        if (result) {
-          const [_key, member, score] = result;
-
-          if (member) {
-            return parseInt(score);
+            if (member) {
+              return parseInt(score);
+            }
           }
         }
 
