@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.4 (2024-04-26)
+### Fix
+* **redis-connection:** Increase redis retry strategy backoff (#2546) [python] ([`6cf7712`](https://github.com/taskforcesh/bullmq/commit/6cf77122da845e5b0afa1607348cf06602679329))
+
+### Documentation
+* **queue:** Minor styling changes for consistency ([#2541](https://github.com/taskforcesh/bullmq/issues/2541)) ([`a7a7f4f`](https://github.com/taskforcesh/bullmq/commit/a7a7f4f34b147490a713d8b4cef7c6941f3f3eed))
+
 ## v2.7.3 (2024-04-24)
 ### Fix
 * **stalled:** Consider ignoreDependencyOnFailure option (python) (#2540) fixes #2531 ([`0140959`](https://github.com/taskforcesh/bullmq/commit/0140959cabd2613794631e41ebe4c2ddee6f91da))

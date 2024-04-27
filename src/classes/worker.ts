@@ -621,35 +621,37 @@ will never work with more accuracy than 1ms. */
       if (!this.closing) {
         let blockTimeout = this.getBlockTimeout(blockUntil);
 
-        blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
-          ? blockTimeout
-          : Math.ceil(blockTimeout);
+        if (blockTimeout > 0) {
+          blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+            ? blockTimeout
+            : Math.ceil(blockTimeout);
 
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+          // We restrict the maximum block timeout to 10 second to avoid
+          // blocking the connection for too long in the case of reconnections
+          // reference: https://github.com/taskforcesh/bullmq/issues/1658
+          blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
 
-        // We cannot trust that the blocking connection stays blocking forever
-        // due to issues in Redis and IORedis, so we will reconnect if we
-        // don't get a response in the expected time.
-        const timeout = setTimeout(async () => {
-          await this.blockingConnection.disconnect();
-          await this.blockingConnection.reconnect();
-        }, blockTimeout * 1000 + 1000);
+          // We cannot trust that the blocking connection stays blocking forever
+          // due to issues in Redis and IORedis, so we will reconnect if we
+          // don't get a response in the expected time.
+          const timeout = setTimeout(async () => {
+            await this.blockingConnection.disconnect();
+            await this.blockingConnection.reconnect();
+          }, blockTimeout * 1000 + 1000);
 
-        this.updateDelays(); // reset delays to avoid reusing same values in next iteration
-        
-        // Markers should only be used for un-blocking, so we will handle them in this
-        // function only.
-        const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
-        clearTimeout(timeout);
+          this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
-        if (result) {
-          const [_key, member, score] = result;
+          // Markers should only be used for un-blocking, so we will handle them in this
+          // function only.
+          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+          clearTimeout(timeout);
 
-          if (member) {
-            return parseInt(score);
+          if (result) {
+            const [_key, member, score] = result;
+
+            if (member) {
+              return parseInt(score);
+            }
           }
         }
 
@@ -673,7 +675,9 @@ will never work with more accuracy than 1ms. */
     if (blockUntil) {
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
-      if (blockDelay < this.minimumBlockTimeout * 1000) {
+      if (blockDelay <= 0) {
+        return blockDelay;
+      } else if (blockDelay < this.minimumBlockTimeout * 1000) {
         return this.minimumBlockTimeout;
       } else {
         // We restrict the maximum block timeout to 10 second to avoid

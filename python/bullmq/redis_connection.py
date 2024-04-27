@@ -24,7 +24,7 @@ class RedisConnection:
 
     def __init__(self, redisOpts: dict | str | redis.Redis = {}):
         self.version = None
-        retry = Retry(ExponentialBackoff(), 3)
+        retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
         if isinstance(redisOpts, redis.Redis):
