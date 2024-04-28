@@ -2,6 +2,13 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.5 (2024-04-28)
+### Fix
+* **worker:** Wait for jobs to finalize on close (#2545) [python] ([`d81f210`](https://github.com/taskforcesh/bullmq/commit/d81f210a5f5968fc040e820946fb672deb24bd01))
+
+### Performance
+* **worker:** Do not call bzpopmin when blockDelay is lower or equal 0 (#2544) ref #2466 ([`9760b85`](https://github.com/taskforcesh/bullmq/commit/9760b85dfbcc9b3c744f616961ef939e8951321d))
+
 ## v2.7.4 (2024-04-26)
 ### Fix
 * **redis-connection:** Increase redis retry strategy backoff (#2546) [python] ([`6cf7712`](https://github.com/taskforcesh/bullmq/commit/6cf77122da845e5b0afa1607348cf06602679329))
