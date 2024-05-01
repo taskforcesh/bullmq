@@ -8,29 +8,17 @@
 
 - **worker:** Wait for jobs to finalize on close (#2545) [python] ([`d81f210`](https://github.com/taskforcesh/bullmq/commit/d81f210a5f5968fc040e820946fb672deb24bd01))
 
-### Performance
-
-- **worker:** Do not call bzpopmin when blockDelay is lower or equal 0 (#2544) ref #2466 ([`9760b85`](https://github.com/taskforcesh/bullmq/commit/9760b85dfbcc9b3c744f616961ef939e8951321d))
-
 ## v2.7.4 (2024-04-26)
 
 ### Fix
 
 - **redis-connection:** Increase redis retry strategy backoff (#2546) [python] ([`6cf7712`](https://github.com/taskforcesh/bullmq/commit/6cf77122da845e5b0afa1607348cf06602679329))
 
-### Documentation
-
-- **queue:** Minor styling changes for consistency ([#2541](https://github.com/taskforcesh/bullmq/issues/2541)) ([`a7a7f4f`](https://github.com/taskforcesh/bullmq/commit/a7a7f4f34b147490a713d8b4cef7c6941f3f3eed))
-
 ## v2.7.3 (2024-04-24)
 
 ### Fix
 
 - **stalled:** Consider ignoreDependencyOnFailure option (python) (#2540) fixes #2531 ([`0140959`](https://github.com/taskforcesh/bullmq/commit/0140959cabd2613794631e41ebe4c2ddee6f91da))
-
-### Performance
-
-- **worker:** Reset delays after generating blockTimeout value ([#2529](https://github.com/taskforcesh/bullmq/issues/2529)) ([`e92cea4`](https://github.com/taskforcesh/bullmq/commit/e92cea4a9d7c99f649f6626d1c0a1e1e994179d6))
 
 ## v2.7.2 (2024-04-20)
 
@@ -60,11 +48,6 @@
 ### Fix
 
 - **worker:** Use 0.002 as minimum timeout for redis version lower than 7.0.8 (#2515) fixes #2466 ([`44f7d21`](https://github.com/taskforcesh/bullmq/commit/44f7d21850747d9c636c78e08b9e577d684fb885))
-
-### Documentation
-
-- **pro:** Update changes for v7.5.0 ([#2519](https://github.com/taskforcesh/bullmq/issues/2519)) ([`2d02e11`](https://github.com/taskforcesh/bullmq/commit/2d02e11dd0a27cbb22d85875b0452ac1f0eda69d))
-- **nestjs:** Update changelog to v3 ([#2518](https://github.com/taskforcesh/bullmq/issues/2518)) ([`c52e528`](https://github.com/taskforcesh/bullmq/commit/c52e528ae1cfbcfde119d141d23fc2d8725e2e84))
 
 ## v2.5.0 (2024-04-08)
 
