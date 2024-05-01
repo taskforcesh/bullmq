@@ -4,14 +4,8 @@
 ### Bug Fixes
 
 * **worker:** force timeout on bzpopmin command ([#2543](https://github.com/taskforcesh/bullmq/issues/2543)) ([ae7cb6c](https://github.com/taskforcesh/bullmq/commit/ae7cb6caefdbfa5ca0d28589cef4b896ffcce2db))
-* **worker:** wait for jobs to finalize on close ([#2545](https://github.com/taskforcesh/bullmq/issues/2545)) [python] ([d81f210](https://github.com/taskforcesh/bullmq/commit/d81f210a5f5968fc040e820946fb672deb24bd01))
 
 ## [5.7.6](https://github.com/taskforcesh/bullmq/compare/v5.7.5...v5.7.6) (2024-04-27)
-
-
-### Bug Fixes
-
-* **redis-connection:** increase redis retry strategy backoff ([#2546](https://github.com/taskforcesh/bullmq/issues/2546)) [python] ([6cf7712](https://github.com/taskforcesh/bullmq/commit/6cf77122da845e5b0afa1607348cf06602679329))
 
 
 ### Performance Improvements
@@ -45,12 +39,6 @@
 ### Bug Fixes
 
 * **stalled:** consider failParentOnFailure when moving child into failed ([#2526](https://github.com/taskforcesh/bullmq/issues/2526)) fixes [#2464](https://github.com/taskforcesh/bullmq/issues/2464) (python) ([5e31eb0](https://github.com/taskforcesh/bullmq/commit/5e31eb096169ea57350db591bcebfc2264a6b6dc))
-
-
-### Features
-
-* **queue:** add getJobLogs method [python] ([#2523](https://github.com/taskforcesh/bullmq/issues/2523)) ref [#2472](https://github.com/taskforcesh/bullmq/issues/2472) ([a24a16e](https://github.com/taskforcesh/bullmq/commit/a24a16ea2707541ee06ec3c4d636cd30dcdaade5))
-* **worker:** use 0.002 as minimum timeout for redis version lower than 7.0.8 [python] ([#2521](https://github.com/taskforcesh/bullmq/issues/2521)) ([f3862dd](https://github.com/taskforcesh/bullmq/commit/f3862dd0c85cf2c2122fb0306c5f4b5eb8ad0bcd))
 
 ## [5.7.1](https://github.com/taskforcesh/bullmq/compare/v5.7.0...v5.7.1) (2024-04-10)
 
