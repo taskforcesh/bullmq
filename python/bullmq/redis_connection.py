@@ -1,6 +1,6 @@
 import redis.asyncio as redis
 from redis.backoff import ExponentialBackoff
-from redis.retry import Retry
+from redis.asyncio.retry import Retry
 from redis.exceptions import (
    BusyLoadingError,
    ConnectionError,
