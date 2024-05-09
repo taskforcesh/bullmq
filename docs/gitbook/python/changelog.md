@@ -2,6 +2,16 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.6 (2024-05-09)
+### Fix
+* **connection:** Use async Retry (#2555) [python] ([`d6dd21d`](https://github.com/taskforcesh/bullmq/commit/d6dd21d3ac28660bbfa7825bba0b586328769709))
+* **worker:** Make sure clearTimeout is always called after bzpopmin ([`782382e`](https://github.com/taskforcesh/bullmq/commit/782382e599218024bb9912ff0572c4aa9b1f22a3))
+* **worker:** Force timeout on bzpopmin command ([#2543](https://github.com/taskforcesh/bullmq/issues/2543)) ([`ae7cb6c`](https://github.com/taskforcesh/bullmq/commit/ae7cb6caefdbfa5ca0d28589cef4b896ffcce2db))
+
+### Documentation
+* **changelog:** Update bullmq-pro to v7.7.1 ([#2550](https://github.com/taskforcesh/bullmq/issues/2550)) ([`b37edfe`](https://github.com/taskforcesh/bullmq/commit/b37edfedb53ab8a6811dcd7d37c2e55e61ed65c3))
+* Update README.md ([`7ab5a9b`](https://github.com/taskforcesh/bullmq/commit/7ab5a9bff29af0eb6c3dc487f65f8b74f02b70f4))
+
 ## v2.7.5 (2024-04-28)
 
 ### Fix
