@@ -1,6 +1,3 @@
-import re
-
-import redis as _redis
 import redis.asyncio as redis
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
