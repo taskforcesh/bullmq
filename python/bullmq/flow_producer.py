@@ -134,8 +134,8 @@ class FlowProducer:
 
         return result
 
-    def close(self):
+    async def close(self):
         """
         Close the flow instance.
         """
-        return self.redisConnection.close()
+        return await self.redisConnection.close()

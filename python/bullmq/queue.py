@@ -308,11 +308,11 @@ class Queue:
             'waiting-children'
         ]
 
-    def close(self):
+    async def close(self):
         """
         Close the queue instance.
         """
-        return self.redisConnection.close()
+        return await self.redisConnection.close()
 
     def remove(self, job_id: str, opts: dict = {}):
         return self.scripts.remove(job_id, opts.get("removeChildren", True))

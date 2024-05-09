@@ -1,3 +1,6 @@
+import re
+
+import redis as _redis
 import redis.asyncio as redis
 from redis.backoff import ExponentialBackoff
 from redis.asyncio.retry import Retry
@@ -50,11 +53,14 @@ class RedisConnection:
         """
         return self.conn.disconnect()
 
-    def close(self):
+    async def close(self):
         """
         Close the connection
         """
-        return self.conn.close()
+        try:
+            return await self.conn.aclose()
+        except AttributeError:
+            return self.conn.close()
 
     async def getRedisVersion(self):
         if self.version is not None:
