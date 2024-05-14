@@ -477,6 +477,16 @@ describe('Job', function () {
 
       expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
     });
+
+    describe('when job is removed', () => {
+      it('throws error', async function () {
+        const job = await Job.create(queue, 'test', { foo: 'bar' });
+        await job.remove();
+        await expect(job.log('oneLog')).to.be.rejectedWith(
+          `Missing key for job ${job.id}. addLog`,
+        );
+      });
+    });
   });
 
   describe('.clearLogs', () => {

@@ -365,7 +365,7 @@ export class Scripts {
     ];
 
     const result = await (<any>client).addLog(
-      keys.concat([jobId, logRow, keepLogs]),
+      keys.concat([jobId, logRow, keepLogs ? keepLogs : '']),
     );
 
     if (result < 0) {

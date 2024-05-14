@@ -409,7 +409,7 @@ export class Job<
    *
    * @returns The total number of log entries for this job so far.
    */
-  static async addJobLog(
+  static addJobLog(
     queue: MinimalQueue,
     jobId: string,
     logRow: string,
