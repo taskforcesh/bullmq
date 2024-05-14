@@ -326,7 +326,7 @@ export class Scripts {
     }
   }
 
-  async updateProgress<T = any, R = any, N extends string = string>(
+  async updateProgress(
     jobId: string,
     progress: number | object,
   ): Promise<void> {
@@ -350,6 +350,33 @@ export class Scripts {
         command: 'updateProgress',
       });
     }
+  }
+
+  async addLog(
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.toKey(jobId),
+      this.queue.toKey(jobId) + ':logs',
+    ];
+
+    const result = await (<any>client).addLog(
+      keys.concat([jobId, logRow, keepLogs]),
+    );
+
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'addLog',
+      });
+    }
+
+    return result;
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
