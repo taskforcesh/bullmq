@@ -617,24 +617,36 @@ will never work with more accuracy than 1ms. */
       return Infinity;
     }
 
+    let timeout: NodeJS.Timeout;
     try {
       if (!this.closing && !this.limitUntil) {
         let blockTimeout = this.getBlockTimeout(blockUntil);
 
-        blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
-          ? blockTimeout
-          : Math.ceil(blockTimeout);
+        if (blockTimeout > 0) {
+          blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+            ? blockTimeout
+            : Math.ceil(blockTimeout);
 
-        this.updateDelays(); // reset delays to avoid reusing same values in next iteration
-        // Markers should only be used for un-blocking, so we will handle them in this
-        // function only.
-        const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+          // We cannot trust that the blocking connection stays blocking forever
+          // due to issues in Redis and IORedis, so we will reconnect if we
+          // don't get a response in the expected time.
+          timeout = setTimeout(async () => {
+            await this.blockingConnection.disconnect();
+            await this.blockingConnection.reconnect();
+          }, blockTimeout * 1000 + 1000);
 
-        if (result) {
-          const [_key, member, score] = result;
+          this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
-          if (member) {
-            return parseInt(score);
+          // Markers should only be used for un-blocking, so we will handle them in this
+          // function only.
+          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+
+          if (result) {
+            const [_key, member, score] = result;
+
+            if (member) {
+              return parseInt(score);
+            }
           }
         }
 
@@ -647,6 +659,8 @@ will never work with more accuracy than 1ms. */
       if (!this.closing) {
         await this.delay();
       }
+    } finally {
+      clearTimeout(timeout);
     }
     return Infinity;
   }
@@ -658,7 +672,9 @@ will never work with more accuracy than 1ms. */
     if (blockUntil) {
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
-      if (blockDelay < this.minimumBlockTimeout * 1000) {
+      if (blockDelay <= 0) {
+        return blockDelay;
+      } else if (blockDelay < this.minimumBlockTimeout * 1000) {
         return this.minimumBlockTimeout;
       } else {
         // We restrict the maximum block timeout to 10 second to avoid

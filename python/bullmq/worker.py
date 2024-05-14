@@ -243,12 +243,17 @@ class Worker(EventEmitter):
 
     async def close(self, force: bool = False):
         """
-        Close the worker
+        Closes the worker and related redis connections.
+
+        This method waits for current jobs to finalize before returning.
         """
         self.closing = True
         if force:
             self.forceClosing = True
             self.cancelProcessing()
+
+        if not force and len(self.processing) > 0:
+            await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
 
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
