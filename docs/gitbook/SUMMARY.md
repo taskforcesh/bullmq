@@ -83,6 +83,7 @@
 * [Groups](bullmq-pro/groups/README.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
+  * [Local group concurrency](bullmq-pro/groups/local-group-concurrency.md)
   * [Max group size](bullmq-pro/groups/max-group-size.md)
   * [Pausing groups](bullmq-pro/groups/pausing-groups.md)
   * [Prioritized intra-groups](bullmq-pro/groups/prioritized.md)
