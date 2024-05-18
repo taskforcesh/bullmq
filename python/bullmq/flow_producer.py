@@ -138,4 +138,4 @@ class FlowProducer:
         """
         Close the flow instance.
         """
-        return await self.redisConnection.close()
+        await self.redisConnection.close()
