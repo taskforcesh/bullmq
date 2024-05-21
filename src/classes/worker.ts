@@ -760,7 +760,7 @@ will never work with more accuracy than 1ms. */
 
           if (
             err instanceof DelayedError ||
-            err.message == 'DelayedError' ||
+            err.name == 'DelayedError' ||
             err instanceof WaitingChildrenError ||
             err.name == 'WaitingChildrenError'
           ) {
