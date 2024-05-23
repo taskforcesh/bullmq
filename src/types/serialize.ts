@@ -33,7 +33,7 @@ export type Serialize<T> =
      * JSON.stringify returns always `{}` for a `Promise`
      */
     T extends Promise<unknown>
-    ? '{}'
+    ? EmptyObject
     : /**
      * Map
      */
