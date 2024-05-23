@@ -27,10 +27,12 @@
      0  - OK
      -1 - Missing key
      -2 - Missing lock
+     -3 - Job not in active set
 ]]
 local rcall = redis.call
 
 -- Includes
+--- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
@@ -50,14 +52,14 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     return errorCode
   end
 
-  rcall("LREM", KEYS[1], 0, ARGV[4])
+  local numRemovedElements = rcall("LREM", KEYS[1], -1, ARGV[4])
+  if (numRemovedElements < 1) then return -3 end
 
   local priority = tonumber(rcall("HGET", KEYS[4], "priority")) or 0
 
   -- Standard or priority add
   if priority == 0 then
-    rcall(ARGV[3], target, ARGV[4])
-    -- TODO: check if we need to add marker in this case too
+    addJobInTargetList(target, KEYS[10], ARGV[3], paused, ARGV[4])
   else
     addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], paused)
   end
