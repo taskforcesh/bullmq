@@ -15,7 +15,7 @@ import {
   RedisClient,
   WorkerOptions,
 } from '../interfaces';
-import { MinimalQueue } from '../types';
+import { MinimalQueue, Serialize } from '../types';
 import {
   delay,
   DELAY_TIME_1,
@@ -52,7 +52,7 @@ export interface WorkerListener<
    *
    * This event is triggered when a job enters the 'active' state.
    */
-  active: (job: Job<DataType, ResultType, NameType>, prev: string) => void;
+  active: (job: Job<Serialize<DataType>, ResultType, NameType>, prev: string) => void;
 
   /**
    * Listen to 'closing' event.
@@ -74,7 +74,7 @@ export interface WorkerListener<
    * This event is triggered when a job has successfully completed.
    */
   completed: (
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<Serialize<DataType>, ResultType, NameType>,
     result: ResultType,
     prev: string,
   ) => void;
@@ -103,7 +103,7 @@ export interface WorkerListener<
    * reaches the stalled limit and it is deleted by the removeOnFail option.
    */
   failed: (
-    job: Job<DataType, ResultType, NameType> | undefined,
+    job: Job<Serialize<DataType>, ResultType, NameType> | undefined,
     error: Error,
     prev: string,
   ) => void;
@@ -124,7 +124,7 @@ export interface WorkerListener<
    * world.
    */
   progress: (
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<Serialize<DataType>, ResultType, NameType>,
     progress: number | object,
   ) => void;
 
@@ -168,7 +168,7 @@ export class Worker<
 
   private abortDelayController: AbortController | null = null;
   private asyncFifoQueue: AsyncFifoQueue<void | Job<
-    DataType,
+    Serialize<DataType>,
     ResultType,
     NameType
   >>;
@@ -184,7 +184,7 @@ export class Worker<
   private _repeat: Repeat;
 
   protected paused: Promise<void>;
-  protected processFn: Processor<DataType, ResultType, NameType>;
+  protected processFn: Processor<Serialize<DataType>, ResultType, NameType>;
   protected running = false;
 
   static RateLimitError(): Error {
@@ -193,7 +193,7 @@ export class Worker<
 
   constructor(
     name: string,
-    processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
+    processor?: string | URL | null | Processor<Serialize<DataType>, ResultType, NameType>,
     opts?: WorkerOptions,
     Connection?: typeof RedisConnection,
   ) {
@@ -286,7 +286,7 @@ export class Worker<
           useWorkerThreads: this.opts.useWorkerThreads,
         });
 
-        this.processFn = sandbox<DataType, ResultType, NameType>(
+        this.processFn = sandbox<Serialize<DataType>, ResultType, NameType>(
           processor,
           this.childPool,
         ).bind(this);
@@ -345,7 +345,7 @@ export class Worker<
   }
 
   protected callProcessJob(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<Serialize<DataType>, ResultType, NameType>,
     token: string,
   ): Promise<ResultType> {
     return this.processFn(job, token);
@@ -354,9 +354,9 @@ export class Worker<
   protected createJob(
     data: JobJsonRaw,
     jobId: string,
-  ): Job<DataType, ResultType, NameType> {
+  ): Job<Serialize<DataType>, ResultType, NameType> {
     return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
-      DataType,
+      Serialize<DataType>,
       ResultType,
       NameType
     >;
@@ -420,7 +420,7 @@ export class Worker<
       this.startLockExtenderTimer(jobsInProgress);
 
       const asyncFifoQueue = (this.asyncFifoQueue =
-        new AsyncFifoQueue<void | Job<DataType, ResultType, NameType>>());
+        new AsyncFifoQueue<void | Job<Serialize<DataType>, ResultType, NameType>>());
 
       let tokenPostfix = 0;
 
@@ -447,7 +447,7 @@ export class Worker<
           const token = `${this.id}:${tokenPostfix++}`;
 
           const fetchedJob = this.retryIfFailed<void | Job<
-            DataType,
+            Serialize<DataType>,
             ResultType,
             NameType
           >>(
@@ -481,7 +481,7 @@ export class Worker<
 
         // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
         // we iterate until we find a job.
-        let job: Job<DataType, ResultType, NameType> | void;
+        let job: Job<Serialize<DataType>, ResultType, NameType> | void;
         do {
           job = await asyncFifoQueue.fetch();
         } while (!job && asyncFifoQueue.numQueued() > 0);
@@ -489,10 +489,10 @@ export class Worker<
         if (job) {
           const token = job.token;
           asyncFifoQueue.add(
-            this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
+            this.retryIfFailed<void | Job<Serialize<DataType>, ResultType, NameType>>(
               () =>
                 this.processJob(
-                  <Job<DataType, ResultType, NameType>>job,
+                  <Job<Serialize<DataType>, ResultType, NameType>>job,
                   token,
                   () => asyncFifoQueue.numTotal() <= this.opts.concurrency,
                   jobsInProgress,
@@ -530,7 +530,7 @@ export class Worker<
     bclient: RedisClient,
     token: string,
     { block = true }: GetNextJobOptions = {},
-  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
+  ): Promise<Job<Serialize<DataType>, ResultType, NameType> | undefined> {
     if (this.paused) {
       if (block) {
         await this.paused;
@@ -601,7 +601,7 @@ will never work with more accuracy than 1ms. */
     client: RedisClient,
     token: string,
     name?: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<Serialize<DataType>, ResultType, NameType>> {
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(client, token, name);
     this.updateDelays(limitUntil, delayUntil);
@@ -707,7 +707,7 @@ will never work with more accuracy than 1ms. */
     jobData?: JobJsonRaw,
     jobId?: string,
     token?: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<Job<Serialize<DataType>, ResultType, NameType>> {
     if (!jobData) {
       if (!this.drained) {
         this.emit('drained');
@@ -726,11 +726,11 @@ will never work with more accuracy than 1ms. */
   }
 
   async processJob(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<Serialize<DataType>, ResultType, NameType>,
     token: string,
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
-  ): Promise<void | Job<DataType, ResultType, NameType>> {
+  ): Promise<void | Job<Serialize<DataType>, ResultType, NameType>> {
     if (!job || this.closing || this.paused) {
       return;
     }
@@ -1035,10 +1035,10 @@ will never work with more accuracy than 1ms. */
 
     stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
 
-    const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
+    const jobPromises: Promise<Job<Serialize<DataType>, ResultType, NameType>>[] = [];
     for (let i = 0; i < failed.length; i++) {
       jobPromises.push(
-        Job.fromId<DataType, ResultType, NameType>(
+        Job.fromId<Serialize<DataType>, ResultType, NameType>(
           this as MinimalQueue,
           failed[i],
         ),
@@ -1053,8 +1053,8 @@ will never work with more accuracy than 1ms. */
     this.notifyFailedJobs(await Promise.all(jobPromises));
   }
 
-  private notifyFailedJobs(failedJobs: Job<DataType, ResultType, NameType>[]) {
-    failedJobs.forEach((job: Job<DataType, ResultType, NameType>) =>
+  private notifyFailedJobs(failedJobs: Job<Serialize<DataType>, ResultType, NameType>[]) {
+    failedJobs.forEach((job: Job<Serialize<DataType>, ResultType, NameType>) =>
       this.emit(
         'failed',
         job,
@@ -1065,7 +1065,7 @@ will never work with more accuracy than 1ms. */
   }
 
   private moveLimitedBackToWait(
-    job: Job<DataType, ResultType, NameType>,
+    job: Job<Serialize<DataType>, ResultType, NameType>,
     token: string,
   ) {
     return this.scripts.moveJobFromActiveToWait(job.id, token);
