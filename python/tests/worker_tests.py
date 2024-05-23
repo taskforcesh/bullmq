@@ -5,6 +5,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
+import redis.asyncio as redis
 from bullmq import Queue, Worker, Job, WaitingChildrenError
 from uuid import uuid4
 from enum import Enum
@@ -394,6 +395,34 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
         await worker.close()
+
+    async def test_reusable_redis(self):
+        conn = redis.Redis(decode_responses=True, host="localhost", port="6379", db=0)
+        queue = Queue(queueName, {"connection": conn})
+        data = {"foo": "bar"}
+        job = await queue.add("test-job", data, {"removeOnComplete": False})
+
+        async def process(job: Job, token: str):
+            print("Processing job", job)
+            return "done"
+
+        worker = Worker(queueName, process, {"connection": conn})
+
+        processing = Future()
+        worker.on("completed", lambda job, result: processing.set_result(None))
+
+        await processing
+
+        completedJob = await Job.fromId(queue, job.id)
+
+        self.assertEqual(completedJob.id, job.id)
+        self.assertEqual(completedJob.attemptsMade, 1)
+        self.assertEqual(completedJob.data, data)
+        self.assertEqual(completedJob.returnvalue, "done")
+        self.assertNotEqual(completedJob.finishedOn, None)
+
+        await worker.close(force=True)
+        await queue.close()
 
 if __name__ == '__main__':
     unittest.main()

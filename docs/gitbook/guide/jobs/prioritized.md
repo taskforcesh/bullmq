@@ -8,7 +8,9 @@ Adding prioritized jobs is a slower operation than the other types of jobs, with
 
 Note that the priorities go from `1` to `2 097 152`, where a lower number is always a **higher** priority than higher numbers.
 
-Jobs without a `priority` assigned will get the most priority.
+{% hint style="danger" %}
+Jobs without a `priority` assigned will get the highest priority, being processed before jobs with priorities assigned to them.
+{% endhint %}
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -59,6 +61,6 @@ const jobs2 = await queue.getPrioritized();
 
 ## Read more:
 
-- 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
-- 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changePriority)
-- 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getPrioritized)
+* 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
+* 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changePriority)
+* 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getPrioritized)

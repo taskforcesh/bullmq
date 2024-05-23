@@ -216,7 +216,11 @@ export class Scripts {
     }
 
     if (<number>result < 0) {
-      throw this.finishedErrors(<number>result, parentOpts.parentKey, 'addJob');
+      throw this.finishedErrors({
+        code: <number>result,
+        parentKey: parentOpts.parentKey,
+        command: 'addJob',
+      });
     }
 
     return <string>result;
@@ -314,11 +318,15 @@ export class Scripts {
     const result = await (<any>client).updateData(keys.concat([dataJson]));
 
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'updateData');
+      throw this.finishedErrors({
+        code: result,
+        jobId: job.id,
+        command: 'updateData',
+      });
     }
   }
 
-  async updateProgress<T = any, R = any, N extends string = string>(
+  async updateProgress(
     jobId: string,
     progress: number | object,
   ): Promise<void> {
@@ -336,8 +344,39 @@ export class Scripts {
     );
 
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'updateProgress');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'updateProgress',
+      });
     }
+  }
+
+  async addLog(
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.toKey(jobId),
+      this.queue.toKey(jobId) + ':logs',
+    ];
+
+    const result = await (<any>client).addLog(
+      keys.concat([jobId, logRow, keepLogs ? keepLogs : '']),
+    );
+
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'addLog',
+      });
+    }
+
+    return result;
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
@@ -414,7 +453,12 @@ export class Scripts {
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'moveToFinished', 'active');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'moveToFinished',
+        state: 'active',
+      });
     } else {
       if (typeof result !== 'undefined') {
         return raw2NextJobData(result);
@@ -422,12 +466,19 @@ export class Scripts {
     }
   }
 
-  finishedErrors(
-    code: number,
-    jobId: string,
-    command: string,
-    state?: string,
-  ): Error {
+  finishedErrors({
+    code,
+    jobId,
+    parentKey,
+    command,
+    state,
+  }: {
+    code: number;
+    jobId?: string;
+    parentKey?: string;
+    command: string;
+    state?: string;
+  }): Error {
     switch (code) {
       case ErrorCode.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
@@ -440,14 +491,14 @@ export class Scripts {
       case ErrorCode.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
-        return new Error(`Missing key for parent job ${jobId}. ${command}`);
+        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
       case ErrorCode.JobLockMismatch:
         return new Error(
           `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
         );
       case ErrorCode.ParentJobCannotBeReplaced:
         return new Error(
-          `The parent job ${jobId} cannot be replaced. ${command}`,
+          `The parent job ${parentKey} cannot be replaced. ${command}`,
         );
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
@@ -474,6 +525,43 @@ export class Scripts {
     const args = this.drainArgs(delayed);
 
     return (<any>client).drain(args);
+  }
+
+  private removeChildDependencyArgs(
+    jobId: string,
+    parentKey: string,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+
+    const keys: string[] = [queueKeys['']];
+
+    const args = [this.queue.toKey(jobId), parentKey];
+
+    return keys.concat(args);
+  }
+
+  async removeChildDependency(
+    jobId: string,
+    parentKey: string,
+  ): Promise<boolean> {
+    const client = await this.queue.client;
+    const args = this.removeChildDependencyArgs(jobId, parentKey);
+
+    const result = await (<any>client).removeChildDependency(args);
+
+    switch (result) {
+      case 0:
+        return true;
+      case 1:
+        return false;
+      default:
+        throw this.finishedErrors({
+          code: result,
+          jobId,
+          parentKey,
+          command: 'removeChildDependency',
+        });
+    }
   }
 
   private getRangesArgs(
@@ -609,7 +697,12 @@ export class Scripts {
     const args = this.changeDelayArgs(jobId, delay);
     const result = await (<any>client).changeDelay(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'changeDelay',
+        state: 'delayed',
+      });
     }
   }
 
@@ -652,7 +745,11 @@ export class Scripts {
     const args = this.changePriorityArgs(jobId, priority, lifo);
     const result = await (<any>client).changePriority(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'changePriority');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'changePriority',
+      });
     }
   }
 
@@ -708,6 +805,7 @@ export class Scripts {
       this.queue.toKey(jobId),
       queueKeys.events,
       queueKeys.meta,
+      queueKeys.stalled,
     ];
 
     return keys.concat([
@@ -740,11 +838,15 @@ export class Scripts {
 
     const childKey = getParentKey(opts.child);
 
-    const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      name => {
-        return this.queue.toKey(name);
-      },
-    );
+    const keys = [
+      `${jobId}:lock`,
+      'active',
+      'waiting-children',
+      jobId,
+      'stalled',
+    ].map(name => {
+      return this.queue.toKey(name);
+    });
 
     return keys.concat([
       token,
@@ -766,7 +868,12 @@ export class Scripts {
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'moveToDelayed',
+        state: 'active',
+      });
     }
   }
 
@@ -797,12 +904,12 @@ export class Scripts {
       case 1:
         return false;
       default:
-        throw this.finishedErrors(
-          result,
+        throw this.finishedErrors({
+          code: result,
           jobId,
-          'moveToWaitingChildren',
-          'active',
-        );
+          command: 'moveToWaitingChildren',
+          state: 'active',
+        });
     }
   }
 
@@ -844,6 +951,7 @@ export class Scripts {
       this.queue.keys.prioritized,
       this.queue.keys.pc,
       this.queue.keys.marker,
+      this.queue.keys.stalled,
     ];
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
@@ -939,7 +1047,12 @@ export class Scripts {
       case 1:
         return;
       default:
-        throw this.finishedErrors(result, job.id, 'reprocessJob', state);
+        throw this.finishedErrors({
+          code: result,
+          jobId: job.id,
+          command: 'reprocessJob',
+          state,
+        });
     }
   }
 
@@ -997,22 +1110,16 @@ export class Scripts {
 
     const code = await (<any>client).promote(keys.concat(args));
     if (code < 0) {
-      throw this.finishedErrors(code, jobId, 'promote', 'delayed');
+      throw this.finishedErrors({
+        code,
+        jobId,
+        command: 'promote',
+        state: 'delayed',
+      });
     }
   }
 
-  /**
-   * Looks for unlocked jobs in the active queue.
-   *
-   * The job was being worked on, but the worker process died and it failed to renew the lock.
-   * We call these jobs 'stalled'. This is the most common case. We resolve these by moving them
-   * back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait,
-   * (e.g. if the job handler keeps crashing),
-   * we limit the number stalled job recoveries to settings.maxStalledCount.
-   */
-  async moveStalledJobsToWait(): Promise<[string[], string[]]> {
-    const client = await this.queue.client;
-
+  protected moveStalledJobsToWaitArgs(): (string | number)[] {
     const opts = this.queue.opts as WorkerOptions;
     const keys: (string | number)[] = [
       this.queue.keys.stalled,
@@ -1031,7 +1138,25 @@ export class Scripts {
       Date.now(),
       opts.stalledInterval,
     ];
-    return (<any>client).moveStalledJobsToWait(keys.concat(args));
+
+    return keys.concat(args);
+  }
+
+  /**
+   * Looks for unlocked jobs in the active queue.
+   *
+   * The job was being worked on, but the worker process died and it failed to renew the lock.
+   * We call these jobs 'stalled'. This is the most common case. We resolve these by moving them
+   * back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait,
+   * (e.g. if the job handler keeps crashing),
+   * we limit the number stalled job recoveries to settings.maxStalledCount.
+   */
+  async moveStalledJobsToWait(): Promise<[string[], string[]]> {
+    const client = await this.queue.client;
+
+    const args = this.moveStalledJobsToWaitArgs();
+
+    return (<any>client).moveStalledJobsToWait(args);
   }
 
   /**

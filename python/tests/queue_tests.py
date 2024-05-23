@@ -5,6 +5,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
+import redis.asyncio as redis
 from bullmq import Queue, Worker, Job
 from uuid import uuid4
 
@@ -419,6 +420,14 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job = await Job.fromId(queue, job.id)
         self.assertIsNone(job)
 
+        await queue.close()
+
+    async def test_reusable_redis(self):
+        conn = redis.Redis(decode_responses=True, host="localhost", port="6379", db=0)
+        queue = Queue(queueName, {"connection": conn})
+        job = await queue.add("test-job", {"foo": "bar"}, {})
+
+        self.assertEqual(job.id, "1")
         await queue.close()
 
 if __name__ == '__main__':

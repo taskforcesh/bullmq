@@ -816,6 +816,25 @@ describe('workers', function () {
     await worker.close();
   });
 
+  describe('when 0.002 is used as blocktimeout', () => {
+    it('should not block forever', async () => {
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+      const client = await worker.client;
+      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+        await client.bzpopmin(`key`, 0.002);
+      } else {
+        await client.bzpopmin(`key`, 0.001);
+      }
+
+      expect(true).to.be.true;
+      await worker.close();
+    });
+  });
+
   describe('when closing a worker', () => {
     it('process a job that throws an exception after worker close', async () => {
       const jobError = new Error('Job Failed');
@@ -890,6 +909,83 @@ describe('workers', function () {
       const count = await queue.getJobCounts('active', 'completed');
       expect(count.active).to.be.eq(0);
       expect(count.completed).to.be.eq(1);
+    });
+  });
+
+  describe('when calling getBlockTimeout', () => {
+    describe('when blockUntil is 0', () => {
+      describe('when drainDelay is greater than minimumBlockTimeout', () => {
+        it('returns drainDelay', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+
+          expect(worker['getBlockTimeout'](0)).to.be.equal(5);
+          await worker.close();
+        });
+      });
+
+      describe('when drainDelay is lower than minimumBlockTimeout', () => {
+        it('returns drainDelay', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            drainDelay: 0.00001,
+            prefix,
+            autorun: false,
+          });
+          await worker.waitUntilReady();
+
+          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+            expect(worker['getBlockTimeout'](0)).to.be.equal(0.002);
+          } else {
+            expect(worker['getBlockTimeout'](0)).to.be.equal(0.001);
+          }
+          await worker.close();
+        });
+      });
+    });
+
+    describe('when blockUntil is greater than 0', () => {
+      describe('when blockUntil is lower than date now value', () => {
+        it('returns blockDelay value lower or equal 0', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+          await worker.waitUntilReady();
+
+          expect(
+            worker['getBlockTimeout'](Date.now() - 1),
+          ).to.be.lessThanOrEqual(0);
+          await worker.close();
+        });
+      });
+
+      describe('when blockUntil is greater than date now value', () => {
+        it('returns delay value greater than minimumBlockTimeout', async () => {
+          const worker = new Worker(queueName, async () => {}, {
+            connection,
+            prefix,
+            autorun: false,
+          });
+          await worker.waitUntilReady();
+
+          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+            expect(
+              worker['getBlockTimeout'](Date.now() + 100),
+            ).to.be.greaterThan(0.002);
+          } else {
+            expect(
+              worker['getBlockTimeout'](Date.now() + 100),
+            ).to.be.greaterThan(0.001);
+          }
+
+          await worker.close();
+        });
+      });
     });
   });
 
@@ -1813,7 +1909,7 @@ describe('workers', function () {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Missing lock for job ${job.id}. failed`;
+    const errorMessage = `Missing lock for job ${job.id}. moveToFinished`;
     const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
         try {
@@ -1853,7 +1949,7 @@ describe('workers', function () {
 
     const job = await queue.add('test', { bar: 'baz' });
 
-    const errorMessage = `Lock mismatch for job ${job.id}. Cmd failed from active`;
+    const errorMessage = `Lock mismatch for job ${job.id}. Cmd moveToFinished from active`;
     const workerError = new Promise<void>((resolve, reject) => {
       worker.once('error', error => {
         try {
@@ -1904,7 +2000,7 @@ describe('workers', function () {
   });
 
   it('stalled interval cannot be zero', function () {
-    this.timeout(8000);
+    this.timeout(4000);
     expect(
       () =>
         new Worker(queueName, async () => {}, {
@@ -1913,6 +2009,18 @@ describe('workers', function () {
           stalledInterval: 0,
         }),
     ).to.throw('stalledInterval must be greater than 0');
+  });
+
+  it('drain delay cannot be zero', function () {
+    this.timeout(4000);
+    expect(
+      () =>
+        new Worker(queueName, async () => {}, {
+          connection,
+          prefix,
+          drainDelay: 0,
+        }),
+    ).to.throw('drainDelay must be greater than 0');
   });
 
   it('lock extender continues to run until all active jobs are completed when closing a worker', async function () {

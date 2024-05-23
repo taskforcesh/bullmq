@@ -434,8 +434,8 @@ export class QueueGetters<
     }[]
   > {
     const client = await this.client;
-    const clients = (await client.client('LIST')) as string;
     try {
+      const clients = (await client.client('LIST')) as string;
       const list = this.parseClientList(clients, matcher);
       return list;
     } catch (err) {
@@ -443,7 +443,7 @@ export class QueueGetters<
         throw err;
       }
 
-      return [];
+      return [{ name: 'GCP does not support client list' }];
     }
   }
 
@@ -468,6 +468,17 @@ export class QueueGetters<
         name.startsWith(namedWorkerClientName));
 
     return this.baseGetClients(matcher);
+  }
+
+  /**
+   * Returns the current count of workers for the queue.
+   *
+   * getWorkersCount(): Promise<number>
+   *
+   */
+  async getWorkersCount(): Promise<number> {
+    const workers = await this.getWorkers();
+    return workers.length;
   }
 
   /**

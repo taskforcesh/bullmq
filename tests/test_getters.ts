@@ -85,6 +85,9 @@ describe('Jobs getters', function () {
       const nextWorkers = await queue.getWorkers();
       expect(nextWorkers).to.have.length(2);
 
+      const nextWorkersCount = await queue.getWorkersCount();
+      expect(nextWorkersCount).to.be.equal(2);
+
       await worker.close();
       await worker2.close();
     });
@@ -105,6 +108,9 @@ describe('Jobs getters', function () {
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
 
+      const workersCount = await queue.getWorkersCount();
+      expect(workersCount).to.be.equal(1);
+
       const worker2 = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
@@ -120,9 +126,17 @@ describe('Jobs getters', function () {
       const nextWorkers = await queue.getWorkers();
       expect(nextWorkers).to.have.length(2);
 
+      const nextWorkersCount = await queue.getWorkersCount();
+      expect(nextWorkersCount).to.be.equal(2);
+
+      const rawnames = nextWorkers.map(nextWorker => {
+        const workerValues = nextWorker.rawname.split(':');
+        return workerValues[workerValues.length - 1];
+      });
+
       // Check that the worker names are included in the response on the rawname property
-      expect(nextWorkers[0].rawname.endsWith('worker1')).to.be.true;
-      expect(nextWorkers[1].rawname.endsWith('worker2')).to.be.true;
+      expect(rawnames).to.include('worker1');
+      expect(rawnames).to.include('worker2');
 
       await worker.close();
       await worker2.close();
@@ -155,8 +169,14 @@ describe('Jobs getters', function () {
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
 
+      const workersCount = await queue.getWorkersCount();
+      expect(workersCount).to.be.equal(1);
+
       const workers2 = await queue2.getWorkers();
       expect(workers2).to.have.length(1);
+
+      const workersCount2 = await queue2.getWorkersCount();
+      expect(workersCount2).to.be.equal(1);
 
       await queue2.close();
       await worker.close();

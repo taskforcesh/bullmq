@@ -225,6 +225,10 @@ export class Worker<
       throw new Error('stalledInterval must be greater than 0');
     }
 
+    if (this.opts.drainDelay <= 0) {
+      throw new Error('drainDelay must be greater than 0');
+    }
+
     this.concurrency = this.opts.concurrency;
 
     this.opts.lockRenewTime =
@@ -423,8 +427,18 @@ export class Worker<
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
 
+      /**
+       * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
+       * as efficiently as possible, providing concurrency and minimal unnecessary calls
+       * to Redis.
+       */
       while (!this.closing) {
         let numTotal = asyncFifoQueue.numTotal();
+
+        /**
+         * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
+         * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
+         */
         while (
           !this.waiting &&
           numTotal < this.opts.concurrency &&
@@ -534,7 +548,7 @@ export class Worker<
       try {
         this.blockUntil = await this.waiting;
 
-        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 10) {
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
           return this.moveToActive(client, token, this.opts.name);
         }
       } catch (err) {
@@ -574,6 +588,15 @@ export class Worker<
     );
   }
 
+  get minimumBlockTimeout(): number {
+    return this.blockingConnection.capabilities.canBlockFor1Ms
+      ? /* 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
+Obviously we can still process much faster than 1 job per millisecond but delays and rate limits
+will never work with more accuracy than 1ms. */
+        0.001
+      : 0.002;
+  }
+
   protected async moveToActive(
     client: RedisClient,
     token: string,
@@ -594,25 +617,25 @@ export class Worker<
       return Infinity;
     }
 
+    let timeout: NodeJS.Timeout;
     try {
-      const opts: WorkerOptions = <WorkerOptions>this.opts;
-
       if (!this.closing) {
-        let blockTimeout = Math.max(
-          blockUntil ? (blockUntil - Date.now()) / 1000 : opts.drainDelay,
-          0,
-        );
+        let blockTimeout = this.getBlockTimeout(blockUntil);
 
-        // Blocking for less than 50ms is useless.
-        if (blockTimeout > 0.05) {
+        if (blockTimeout > 0) {
           blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
             ? blockTimeout
             : Math.ceil(blockTimeout);
 
-          // We restrict the maximum block timeout to 10 second to avoid
-          // blocking the connection for too long in the case of reconnections
-          // reference: https://github.com/taskforcesh/bullmq/issues/1658
-          blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+          // We cannot trust that the blocking connection stays blocking forever
+          // due to issues in Redis and IORedis, so we will reconnect if we
+          // don't get a response in the expected time.
+          timeout = setTimeout(async () => {
+            await this.blockingConnection.disconnect();
+            await this.blockingConnection.reconnect();
+          }, blockTimeout * 1000 + 1000);
+
+          this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
           // Markers should only be used for un-blocking, so we will handle them in this
           // function only.
@@ -626,6 +649,7 @@ export class Worker<
             }
           }
         }
+
         return 0;
       }
     } catch (error) {
@@ -636,9 +660,31 @@ export class Worker<
         await this.delay();
       }
     } finally {
-      this.waiting = null;
+      clearTimeout(timeout);
     }
     return Infinity;
+  }
+
+  protected getBlockTimeout(blockUntil: number): number {
+    const opts: WorkerOptions = <WorkerOptions>this.opts;
+
+    // when there are delayed jobs
+    if (blockUntil) {
+      const blockDelay = blockUntil - Date.now();
+      // when we reach the time to get new jobs
+      if (blockDelay <= 0) {
+        return blockDelay;
+      } else if (blockDelay < this.minimumBlockTimeout * 1000) {
+        return this.minimumBlockTimeout;
+      } else {
+        // We restrict the maximum block timeout to 10 second to avoid
+        // blocking the connection for too long in the case of reconnections
+        // reference: https://github.com/taskforcesh/bullmq/issues/1658
+        return Math.min(blockDelay / 1000, maximumBlockTimeout);
+      }
+    } else {
+      return Math.max(opts.drainDelay, this.minimumBlockTimeout);
+    }
   }
 
   /**
@@ -714,7 +760,7 @@ export class Worker<
 
           if (
             err instanceof DelayedError ||
-            err.message == 'DelayedError' ||
+            err.name == 'DelayedError' ||
             err instanceof WaitingChildrenError ||
             err.name == 'WaitingChildrenError'
           ) {

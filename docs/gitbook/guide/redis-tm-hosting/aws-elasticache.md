@@ -5,10 +5,9 @@ Elasticache is a managed caching service offered by Amazon Web Services (AWS), a
 Here are some points to consider when using Elasticache with BullMQ within AWS:
 
 1. Use the standard cache-nodes setup (i.e. not the serverless version, as serverless for the moment uses an incompatible maxmemory-policy)
-2. In order to access your Elasticache instance you will need to create a segurity group that allows the instance to be accessible to the services running BullMQ instances.&#x20;
-3.
-
-    <figure><img src="../../.gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
+2. In order to access your Elasticache instance you will need to create a security group that allows the instance to be accessible to the services running BullMQ instances.&#x20;
+3. 
+<figure><img src="../../.gitbook/assets/image.png" alt=""><figcaption></figcaption></figure>
 4. You will need to specify a VPC and an Inboud rule. Most likely just a custom TCP with port range 6379 and some suitable source (anywhere works well for testing and in some simpler cases), remember that the cluster will not be accessible outside from AWS in any case.
 5. Attach the security group to your Elasticache cluster and to the services that need to access it.
 6.  Make sure that you are using maxmemory-policy: noeviction in your Redis parameters. As you cannot modify any default parameter group you will need to create a new one.

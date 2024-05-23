@@ -477,6 +477,16 @@ describe('Job', function () {
 
       expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
     });
+
+    describe('when job is removed', () => {
+      it('throws error', async function () {
+        const job = await Job.create(queue, 'test', { foo: 'bar' });
+        await job.remove();
+        await expect(job.log('oneLog')).to.be.rejectedWith(
+          `Missing key for job ${job.id}. addLog`,
+        );
+      });
+    });
   });
 
   describe('.clearLogs', () => {
@@ -689,13 +699,12 @@ describe('Job', function () {
     it('moves the job to wait for retry if attempts are given', async function () {
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
+      const worker = new Worker(queueName, null, { connection, prefix });
 
-      const job = await Job.create(
-        queue,
-        'test',
-        { foo: 'bar' },
-        { attempts: 3 },
-      );
+      await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 3 });
+      const token = 'my-token';
+      const job = (await worker.getNextJob(token)) as Job;
+
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
 
@@ -715,6 +724,31 @@ describe('Job', function () {
       expect(isWaiting).to.be.equal(true);
 
       await queueEvents.close();
+      await worker.close();
+    });
+
+    describe('when job is not in active state', function () {
+      it('throws an error', async function () {
+        const queueEvents = new QueueEvents(queueName, { connection, prefix });
+        await queueEvents.waitUntilReady();
+
+        const job = await Job.create(
+          queue,
+          'test',
+          { foo: 'bar' },
+          { attempts: 3 },
+        );
+        const isFailed = await job.isFailed();
+        expect(isFailed).to.be.equal(false);
+
+        await expect(
+          job.moveToFailed(new Error('test error'), '0', true),
+        ).to.be.rejectedWith(
+          `Job ${job.id} is not in the active state. retryJob`,
+        );
+
+        await queueEvents.close();
+      });
     });
 
     describe('when job is removed', function () {
@@ -734,7 +768,7 @@ describe('Job', function () {
 
         await expect(
           job.moveToFailed(new Error('test error'), '0'),
-        ).to.be.rejectedWith(`Missing key for job ${job.id}. failed`);
+        ).to.be.rejectedWith(`Missing key for job ${job.id}. moveToFinished`);
 
         const processed = await client.hgetall(
           `${prefix}:${queueName}:${job.id}`,
@@ -805,16 +839,27 @@ describe('Job', function () {
         queue,
         'test',
         { foo: 'bar' },
-        { stackTraceLimit: stackTraceLimit },
+        { stackTraceLimit: stackTraceLimit, attempts: 2 },
       );
       const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), '0', true);
-      const isFailed2 = await job.isFailed();
-      expect(isFailed2).to.be.equal(true);
+      // first time failed.
+      await job.moveToFailed(new Error('failed once'), '0', true);
+      const isFailed1 = await job.isFailed();
+      const stackTrace1 = job.stacktrace[0];
+      expect(isFailed1).to.be.false;
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+      // second time failed.
+      const again = (await worker.getNextJob(token)) as Job;
+      await again.moveToFailed(new Error('failed twice'), '0', true);
+      const isFailed2 = await again.isFailed();
+      const stackTrace2 = again.stacktrace[0];
+      expect(isFailed2).to.be.true;
+      expect(again.name).to.be.equal(job.name);
+      expect(again.stacktrace.length).to.be.equal(stackTraceLimit);
+      expect(stackTrace1).not.be.equal(stackTrace2);
       await worker.close();
     });
 

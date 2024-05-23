@@ -36,6 +36,18 @@
 
 You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
+# News 🚀
+
+## 🌐 Language agnostic BullMQ
+
+Do you need to work with BullMQ on platforms other than Node.js? If so, check out the [BullMQ Proxy](https://github.com/taskforcesh/bullmq-proxy)
+
+## 🌟 Rediscover Scale Conference 2024
+
+Discover the latest in in-memory and real-time data technologies at **Rediscover Scale 2024**. Ideal for engineers, architects, and technical leaders looking to push technological boundaries. Connect with experts and advance your skills at The Foundry SF, San Francisco.
+
+[Learn more and register here!](https://www.rediscoverscale.com/)
+
 # Official FrontEnd
 
 [<img src="http://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
@@ -145,6 +157,19 @@ Some notable organizations using BullMQ:
           width="50"
           alt="NoCodeDB"
         />
+      </a>
+    </td>
+    </td>
+      <td valign="center">
+       <a href="https://infisical.com/">
+         <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://mintlify.s3-us-west-1.amazonaws.com/infisical/logo/dark.svg">
+          <img
+          src="https://mintlify.s3-us-west-1.amazonaws.com/infisical/logo/light.svg"
+          width="150"
+          alt="Infisical"
+        />
+          </picture>
       </a>
     </td>
     </tr>
