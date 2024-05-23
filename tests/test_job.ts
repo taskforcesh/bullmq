@@ -699,13 +699,12 @@ describe('Job', function () {
     it('moves the job to wait for retry if attempts are given', async function () {
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
+      const worker = new Worker(queueName, null, { connection, prefix });
 
-      const job = await Job.create(
-        queue,
-        'test',
-        { foo: 'bar' },
-        { attempts: 3 },
-      );
+      await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 3 });
+      const token = 'my-token';
+      const job = (await worker.getNextJob(token)) as Job;
+
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
 
@@ -725,6 +724,31 @@ describe('Job', function () {
       expect(isWaiting).to.be.equal(true);
 
       await queueEvents.close();
+      await worker.close();
+    });
+
+    describe('when job is not in active state', function () {
+      it('throws an error', async function () {
+        const queueEvents = new QueueEvents(queueName, { connection, prefix });
+        await queueEvents.waitUntilReady();
+
+        const job = await Job.create(
+          queue,
+          'test',
+          { foo: 'bar' },
+          { attempts: 3 },
+        );
+        const isFailed = await job.isFailed();
+        expect(isFailed).to.be.equal(false);
+
+        await expect(
+          job.moveToFailed(new Error('test error'), '0', true),
+        ).to.be.rejectedWith(
+          `Job ${job.id} is not in the active state. retryJob`,
+        );
+
+        await queueEvents.close();
+      });
     });
 
     describe('when job is removed', function () {
