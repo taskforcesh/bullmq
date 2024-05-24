@@ -91,7 +91,6 @@ class Worker(EventEmitter):
 
             except Exception as e:
                 # This should never happen or we will have an endless loop
-                print("ERROR:", e)
                 traceback.print_exc()
                 return
 
@@ -200,13 +199,11 @@ class Worker(EventEmitter):
             return
         except Exception as err:
             try:
-                print("Error processing job", err)
                 if not self.forceClosing:
                     await job.moveToFailed(err, token)
 
                 self.emit("failed", job, err)
             except Exception as err:
-                print("Error moving job to failed", err)
                 self.emit("error", err, job)
         finally:
             self.jobs.remove((job, token))
@@ -225,7 +222,6 @@ class Worker(EventEmitter):
             #    self.emit("error", "could not renew lock for job " + jobId)
 
         except Exception as e:
-            print("Error renewing locks", e)
             traceback.print_exc()
 
     async def runStalledJobsCheck(self):
@@ -238,7 +234,6 @@ class Worker(EventEmitter):
                 self.emit("stalled", jobId)
 
         except Exception as e:
-            print("Error checking stalled jobs", e)
             self.emit('error', e)
 
     async def close(self, force: bool = False):

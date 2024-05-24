@@ -10,8 +10,7 @@ def extract_result(job_task):
     except Exception as e:
         if not str(e).startswith('Connection closed by server'):
             # lets use a simple-but-effective error handling:
-            # print error message and ignore the job
-            print("ERROR:", e)
+            # ignore the job
             traceback.print_exc()
 
 def get_parent_key(opts: dict):

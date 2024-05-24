@@ -17,8 +17,8 @@ class Timer:
             while self._ok:
                 await asyncio.sleep(self.interval)
                 await self.callback(*self.args, **self.kwargs)
-        except Exception as ex:
-            print(ex)
+        except Exception:
+            pass
 
     def stop(self):
         self._ok = False
