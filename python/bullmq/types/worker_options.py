@@ -55,3 +55,10 @@ class WorkerOptions(TypedDict, total=False):
     """
     Options for connecting to a Redis instance.
     """
+
+    enable_logging: bool
+    """
+    Whether to enable basic logging for the worker. 
+    
+    @default False
+    """
