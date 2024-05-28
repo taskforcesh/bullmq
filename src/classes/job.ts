@@ -256,10 +256,10 @@ export class Job<
         new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
-    const multi = client.multi();
+    const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(multi as unknown), {
+      job.addJob(<RedisClient>(pipeline as unknown), {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -267,7 +267,7 @@ export class Job<
       });
     }
 
-    const results = (await multi.exec()) as [null | Error, string][];
+    const results = (await pipeline.exec()) as [null | Error, string][];
     for (let index = 0; index < results.length; ++index) {
       const [err, id] = results[index];
       if (err) {

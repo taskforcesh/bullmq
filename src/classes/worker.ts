@@ -1004,16 +1004,16 @@ will never work with more accuracy than 1ms. */
 
   protected async extendLocks(jobs: Job[]) {
     try {
-      const multi = (await this.client).multi();
+      const pipeline = (await this.client).pipeline();
       for (const job of jobs) {
         await this.scripts.extendLock(
           job.id,
           job.token,
           this.opts.lockDuration,
-          multi,
+          pipeline,
         );
       }
-      const result = (await multi.exec()) as [Error, string][];
+      const result = (await pipeline.exec()) as [Error, string][];
 
       for (const [err, jobId] of result) {
         if (err) {
