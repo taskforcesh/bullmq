@@ -631,8 +631,7 @@ will never work with more accuracy than 1ms. */
           // due to issues in Redis and IORedis, so we will reconnect if we
           // don't get a response in the expected time.
           timeout = setTimeout(async () => {
-            await this.blockingConnection.disconnect();
-            await this.blockingConnection.reconnect();
+            bclient.disconnect(!this.closing);
           }, blockTimeout * 1000 + 1000);
 
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
