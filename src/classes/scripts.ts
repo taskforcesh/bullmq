@@ -727,22 +727,12 @@ export class Scripts {
   }
 
   private changeDelayArgs(jobId: string, delay: number): (string | number)[] {
-    //
-    // Bake in the job id first 12 bits into the timestamp
-    // to guarantee correct execution order of delayed jobs
-    // (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
-    //
-    // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
-    //
-    const timestamp = Date.now(); // + delay;
-
-    /*if (timestamp > 0) {
-      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
-    }*/
+    const timestamp = Date.now();
 
     const keys: (string | number)[] = [
       this.queue.keys.delayed,
       this.queue.keys.meta,
+      this.queue.keys.id,
       this.queue.keys.marker,
       this.queue.keys.events,
     ];
