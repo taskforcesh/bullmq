@@ -1078,13 +1078,15 @@ export class Job<
   async moveToDelayed(timestamp: number, token?: string): Promise<void> {
     const now = Date.now();
     const delay = timestamp - now;
+    const finalDelay = delay > 0 ? delay : 0;
     const movedToDelayed = await this.scripts.moveToDelayed(
       this.id,
       now,
-      delay > 0 ? delay : 0,
+      finalDelay,
       token,
       { skipAttempt: true },
     );
+    this.delay = finalDelay;
 
     return movedToDelayed;
   }
