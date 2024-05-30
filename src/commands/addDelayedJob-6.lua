@@ -55,6 +55,7 @@ local parentData
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
 --- @include "includes/isQueuePaused"
@@ -91,9 +92,7 @@ local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
                                  opts, timestamp, parentKey, parentData,
                                  repeatJobKey)
 
--- Compute delayed timestamp and the score.
-local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
-local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
+local score = getDelayedScore(jobCounter, delayedKey, timestamp, delay)
 
 rcall("ZADD", delayedKey, score, jobId)
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "delayed",

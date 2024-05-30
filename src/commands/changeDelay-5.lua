@@ -24,6 +24,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePaused"
 
@@ -32,13 +33,7 @@ if rcall("EXISTS", ARGV[4]) == 1 then
 
   local jobCounter = rcall("INCR", KEYS[3])
   local delay = tonumber(ARGV[1])
-  local delayedTimestamp = (delay > 0 and (tonumber(ARGV[2]) + delay)) or 0
-  -- Bake in the job id first 12 bits into the timestamp
-  -- to guarantee correct execution order of delayed jobs
-  -- (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
-  --
-  -- WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
-  local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
+  local score = getDelayedScore(jobCounter, KEYS[1], ARGV[2], delay)
 
   local numRemovedElements = rcall("ZREM", KEYS[1], jobId)
 
