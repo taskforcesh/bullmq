@@ -672,7 +672,7 @@ export class Job<
       } else if (delay) {
         const args = this.scripts.moveToDelayedArgs(
           this.id,
-          Date.now() + delay,
+          Date.now(),
           token,
           delay,
         );
@@ -1076,10 +1076,11 @@ export class Job<
    * @returns
    */
   async moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    const delay = timestamp - Date.now();
+    const now = Date.now();
+    const delay = timestamp - now;
     const movedToDelayed = await this.scripts.moveToDelayed(
       this.id,
-      timestamp,
+      now,
       delay > 0 ? delay : 0,
       token,
       { skipAttempt: true },

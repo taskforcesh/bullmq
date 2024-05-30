@@ -734,11 +734,11 @@ export class Scripts {
     //
     // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
     //
-    let timestamp = Date.now() + delay;
+    const timestamp = Date.now(); // + delay;
 
-    if (timestamp > 0) {
+    /*if (timestamp > 0) {
       timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
-    }
+    }*/
 
     const keys: (string | number)[] = [
       this.queue.keys.delayed,
@@ -795,7 +795,6 @@ export class Scripts {
     ]);
   }
 
-  // Note: We have an issue here with jobs using custom job ids
   moveToDelayedArgs(
     jobId: string,
     timestamp: number,
@@ -803,19 +802,6 @@ export class Scripts {
     delay: number,
     opts: MoveToDelayedOpts = {},
   ): (string | number)[] {
-    //
-    // Bake in the job id first 12 bits into the timestamp
-    // to guarantee correct execution order of delayed jobs
-    // (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
-    //
-    // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
-    //
-    timestamp = Math.max(0, timestamp ?? 0);
-
-    if (timestamp > 0) {
-      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
-    }
-
     const queueKeys = this.queue.keys;
     const keys: (string | number)[] = [
       queueKeys.marker,
@@ -825,13 +811,13 @@ export class Scripts {
       this.queue.toKey(jobId),
       queueKeys.events,
       queueKeys.meta,
+      queueKeys.id,
       queueKeys.stalled,
     ];
 
     return keys.concat([
       this.queue.keys[''],
-      Date.now(),
-      JSON.stringify(timestamp),
+      timestamp,
       jobId,
       token,
       delay,
