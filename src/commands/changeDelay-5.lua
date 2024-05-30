@@ -33,7 +33,7 @@ if rcall("EXISTS", ARGV[4]) == 1 then
 
   local jobCounter = rcall("INCR", KEYS[3])
   local delay = tonumber(ARGV[1])
-  local score = getDelayedScore(jobCounter, KEYS[1], ARGV[2], delay)
+  local score, delayedTimestamp = getDelayedScore(jobCounter, KEYS[1], ARGV[2], delay)
 
   local numRemovedElements = rcall("ZREM", KEYS[1], jobId)
 

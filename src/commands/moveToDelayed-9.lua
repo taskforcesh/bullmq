@@ -49,7 +49,8 @@ if rcall("EXISTS", jobKey) == 1 then
     local delayedKey = KEYS[4]
     local jobId = ARGV[3]
     local delay = tonumber(ARGV[5])
-    local score = getDelayedScore(jobCounter, delayedKey, ARGV[2], delay)
+    local score, delayedTimestamp = getDelayedScore(jobCounter, delayedKey, ARGV[2], delay)
+
     local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
     if numRemovedElements < 1 then return -3 end
 

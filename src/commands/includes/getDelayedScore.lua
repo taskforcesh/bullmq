@@ -6,6 +6,6 @@
 ]]
 local function getDelayedScore(jobCounter, delayedKey, timestamp, delay)
   local delayedTimestamp = (delay > 0 and (tonumber(timestamp) + delay)) or 0
-  return delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
+  return delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff), delayedTimestamp
 end
   
