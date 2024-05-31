@@ -16,6 +16,7 @@ import { v4 } from 'uuid';
 import { Job, Queue, QueueEvents, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
 import { delay, getParentKey, removeAllQueueData } from '../src/utils';
+import * as sinon from 'sinon';
 
 describe('Job', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -224,6 +225,58 @@ describe('Job', function () {
         await promise;
       } finally {
         await newQueue.close();
+        worker && (await worker.close());
+      }
+    });
+  });
+
+  describe('serialize/deserialize', () => {
+    let queueName: string;
+    let queue: Queue;
+    const serializer = (data: any) => JSON.stringify(data) + 'test-serializer';
+    const deserializer = (data: string) => data.replace('test-serializer', '');
+
+    beforeEach(() => {
+      queueName = `test-${v4()}`;
+      queue = new Queue(queueName, { connection, prefix, serializer });
+    });
+
+    afterEach(async () => {
+      await queue.close();
+    });
+
+    it('should serialize the job data with the queue serializer', async () => {
+      const spy = sinon.spy(queue.opts, 'serializer');
+      const data = { foo: 'bar' };
+      const job = await Job.create(queue, 'test', data);
+
+      expect(spy.callCount).to.be.equal(1);
+      expect(job.asJSON().data).to.be.equal('{"foo":"bar"}test-serializer');
+    });
+
+    it('should deserialize the job data with the worker deserializer', async () => {
+      const data = { foo: 'bar' };
+      await Job.create(queue, 'test', data);
+
+      let worker: Worker;
+      const promise = new Promise<void>(async (resolve, reject) => {
+        worker = new Worker(
+          queueName,
+          async job => {
+            try {
+              expect(job.data).to.be.equal('{"foo":"bar"}');
+            } catch (err) {
+              reject(err);
+            }
+            resolve();
+          },
+          { connection, prefix, deserializer },
+        );
+      });
+
+      try {
+        await promise;
+      } finally {
         worker && (await worker.close());
       }
     });

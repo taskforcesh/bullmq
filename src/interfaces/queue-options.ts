@@ -31,6 +31,20 @@ export interface QueueBaseOptions {
    * @defaultValue false
    */
   skipVersionCheck?: boolean;
+
+  /**
+   * Pass a custom serializer to serialize job data into Redis
+   * @param data - the data for the job
+   * @returns the serialized string
+   */
+  serializer?: (data: any) => string;
+
+  /**
+   * Pass a custom deserializer to deserialize job data
+   * @param data - the serialized job data
+   * @returns the deserialize job data
+   */
+  deserializer?: (data: string) => any;
 }
 
 /**
