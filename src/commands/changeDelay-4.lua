@@ -3,9 +3,8 @@
   Input:
     KEYS[1] delayed key
     KEYS[2] meta key
-    KEYS[3] id key
-    KEYS[4] marker key
-    KEYS[5] events stream
+    KEYS[3] marker key
+    KEYS[4] events stream
 
     ARGV[1] delay
     ARGV[2] timestamp
@@ -31,9 +30,8 @@ local rcall = redis.call
 if rcall("EXISTS", ARGV[4]) == 1 then
   local jobId = ARGV[3]
 
-  local jobCounter = rcall("INCR", KEYS[3])
   local delay = tonumber(ARGV[1])
-  local score, delayedTimestamp = getDelayedScore(jobCounter, KEYS[1], ARGV[2], delay)
+  local score, delayedTimestamp = getDelayedScore(KEYS[1], ARGV[2], delay)
 
   local numRemovedElements = rcall("ZREM", KEYS[1], jobId)
 
@@ -46,13 +44,13 @@ if rcall("EXISTS", ARGV[4]) == 1 then
 
   local maxEvents = getOrSetMaxEvents(KEYS[2])
 
-  rcall("XADD", KEYS[5], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
+  rcall("XADD", KEYS[4], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
     "jobId", jobId, "delay", delayedTimestamp)
 
   -- mark that a delayed job is available
   local isPaused = isQueuePaused(KEYS[2])
   if not isPaused then
-    addDelayMarkerIfNeeded(KEYS[4], KEYS[1])
+    addDelayMarkerIfNeeded(KEYS[3], KEYS[1])
   end
 
   return 0

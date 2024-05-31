@@ -732,7 +732,6 @@ export class Scripts {
     const keys: (string | number)[] = [
       this.queue.keys.delayed,
       this.queue.keys.meta,
-      this.queue.keys.id,
       this.queue.keys.marker,
       this.queue.keys.events,
     ];
@@ -801,7 +800,6 @@ export class Scripts {
       this.queue.toKey(jobId),
       queueKeys.events,
       queueKeys.meta,
-      queueKeys.id,
       queueKeys.stalled,
     ];
 

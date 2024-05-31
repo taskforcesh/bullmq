@@ -46,7 +46,7 @@ class Scripts:
             "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-9.lua")),
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
-            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-9.lua")),
+            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-5.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
@@ -267,7 +267,6 @@ class Scripts:
         keys.append(self.toKey(job_id))
         keys.append(self.keys['events'])
         keys.append(self.keys['meta'])
-        keys.append(self.keys['id'])
         keys.append(self.keys['stalled'])
 
         args = [self.keys[''], str(timestamp),

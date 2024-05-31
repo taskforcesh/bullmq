@@ -9,8 +9,7 @@
     KEYS[5] job key
     KEYS[6] events stream
     KEYS[7] meta key
-    KEYS[8] id key
-    KEYS[9] stalled key
+    KEYS[8] stalled key
 
     ARGV[1] key prefix
     ARGV[2] timestamp
@@ -40,16 +39,15 @@ local jobKey = KEYS[5]
 local metaKey = KEYS[7]
 local token = ARGV[4] 
 if rcall("EXISTS", jobKey) == 1 then
-    local errorCode = removeLock(jobKey, KEYS[9], token, ARGV[3])
+    local errorCode = removeLock(jobKey, KEYS[8], token, ARGV[3])
     if errorCode < 0 then
         return errorCode
     end
 
-    local jobCounter = rcall("INCR", KEYS[8])
     local delayedKey = KEYS[4]
     local jobId = ARGV[3]
     local delay = tonumber(ARGV[5])
-    local score, delayedTimestamp = getDelayedScore(jobCounter, delayedKey, ARGV[2], delay)
+    local score, delayedTimestamp = getDelayedScore(delayedKey, ARGV[2], delay)
 
     local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
     if numRemovedElements < 1 then return -3 end
