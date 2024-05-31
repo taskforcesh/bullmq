@@ -61,9 +61,9 @@ class Worker(EventEmitter):
             raise Exception("Worker is already running")
 
         self.timer = Timer(
-            (self.opts.get("lockDuration") / 2) / 1000, self.extendLocks)
+            (self.opts.get("lockDuration") / 2) / 1000, self.extendLocks, self.emit)
         self.stalledCheckTimer = Timer(self.opts.get(
-            "stalledInterval") / 1000, self.runStalledJobsCheck)
+            "stalledInterval") / 1000, self.runStalledJobsCheck, self.emit)
         self.running = True
         jobs = []
 
@@ -77,7 +77,7 @@ class Worker(EventEmitter):
                 self.processing.add(waiting_job)
 
             try:
-                jobs, pending = await getCompleted(self.processing)
+                jobs, pending = await getCompleted(self.processing, self.emit)
 
                 jobs_to_process = [self.processJob(job, job.token) for job in jobs]
                 processing_jobs = [asyncio.ensure_future(
@@ -259,9 +259,9 @@ class Worker(EventEmitter):
                 job.cancel()
 
 
-async def getCompleted(task_set: set) -> tuple[list[Job], set]:
+async def getCompleted(task_set: set, emit_callback) -> tuple[list[Job], set]:
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
-    jobs = [extract_result(job_task) for job_task in job_set]
+    jobs = [extract_result(job_task, emit_callback) for job_task in job_set]
     # we filter `None` out to remove:
     # a) an empty 'completed jobs' list; and
     # b) a failed extract_result

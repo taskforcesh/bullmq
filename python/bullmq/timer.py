@@ -4,11 +4,12 @@ import asyncio
 
 
 class Timer:
-    def __init__(self, interval: int, callback, *args, **kwargs):
+    def __init__(self, interval: int, callback, emit_callback, *args, **kwargs):
         self.interval = interval
         self.args = args
         self.kwargs = kwargs
         self.callback = callback
+        self.emit = emit_callback
         self._ok = True
         self._task = asyncio.ensure_future(self._job())
 
@@ -17,7 +18,8 @@ class Timer:
             while self._ok:
                 await asyncio.sleep(self.interval)
                 await self.callback(*self.args, **self.kwargs)
-        except Exception:
+        except Exception as err:
+            self.emit("error", err)
             pass
 
     def stop(self):

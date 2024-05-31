@@ -1,4 +1,5 @@
 import asyncio
+from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
 from bullmq.utils import extract_result
@@ -6,7 +7,7 @@ from bullmq.scripts import Scripts
 from bullmq.job import Job
 
 
-class Queue:
+class Queue(EventEmitter):
     """
     Instantiate a Queue object
     """
@@ -265,7 +266,7 @@ class Queue:
         job_ids = await self.scripts.getRanges(current_types, start, end, asc)
         tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]   
         job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-        jobs = [extract_result(job_task) for job_task in job_set]
+        jobs = [extract_result(job_task, self.emit) for job_task in job_set]
         jobs_len = len(jobs)
 
         # we filter `None` out to remove:

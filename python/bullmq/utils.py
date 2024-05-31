@@ -4,7 +4,7 @@ import traceback
 def isRedisVersionLowerThan(current_version, minimum_version):
     return semver.VersionInfo.parse(current_version).compare(minimum_version) == -1
 
-def extract_result(job_task):
+def extract_result(job_task, emit_callback):
     try:
         return job_task.result()
     except Exception as e:
@@ -12,6 +12,7 @@ def extract_result(job_task):
             # lets use a simple-but-effective error handling:
             # ignore the job
             traceback.print_exc()
+            emit_callback("error", e)
 
 def get_parent_key(opts: dict):
     if opts:
