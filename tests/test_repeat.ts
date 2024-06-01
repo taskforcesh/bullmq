@@ -114,6 +114,23 @@ describe('repeat', function () {
     });
   });
 
+  describe('when endDate is not greater than current timestamp', () => {
+    it('throws an error', async function () {
+      await expect(
+        queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            repeat: {
+              endDate: Date.now() - 1000,
+              every: 100,
+            },
+          },
+        ),
+      ).to.be.rejectedWith('End date must be greater than current timestamp');
+    });
+  });
+
   it('it should stop repeating after endDate', async function () {
     const every = 100;
     const date = new Date('2017-02-07 9:24:00');

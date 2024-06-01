@@ -27,6 +27,7 @@
      0  - OK
      -1 - Missing key
      -2 - Missing lock
+     -3 - Job not in active set
 ]]
 local rcall = redis.call
 
@@ -52,7 +53,8 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     return errorCode
   end
 
-  rcall("LREM", KEYS[1], 0, ARGV[4])
+  local numRemovedElements = rcall("LREM", KEYS[1], -1, ARGV[4])
+  if (numRemovedElements < 1) then return -3 end
 
   local priority = tonumber(rcall("HGET", KEYS[4], "priority")) or 0
 

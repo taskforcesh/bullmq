@@ -631,8 +631,7 @@ will never work with more accuracy than 1ms. */
           // due to issues in Redis and IORedis, so we will reconnect if we
           // don't get a response in the expected time.
           timeout = setTimeout(async () => {
-            await this.blockingConnection.disconnect();
-            await this.blockingConnection.reconnect();
+            bclient.disconnect(!this.closing);
           }, blockTimeout * 1000 + 1000);
 
           this.updateDelays(); // reset delays to avoid reusing same values in next iteration
@@ -760,7 +759,7 @@ will never work with more accuracy than 1ms. */
 
           if (
             err instanceof DelayedError ||
-            err.message == 'DelayedError' ||
+            err.name == 'DelayedError' ||
             err instanceof WaitingChildrenError ||
             err.name == 'WaitingChildrenError'
           ) {
@@ -1004,16 +1003,16 @@ will never work with more accuracy than 1ms. */
 
   protected async extendLocks(jobs: Job[]) {
     try {
-      const multi = (await this.client).multi();
+      const pipeline = (await this.client).pipeline();
       for (const job of jobs) {
         await this.scripts.extendLock(
           job.id,
           job.token,
           this.opts.lockDuration,
-          multi,
+          pipeline,
         );
       }
-      const result = (await multi.exec()) as [Error, string][];
+      const result = (await pipeline.exec()) as [Error, string][];
 
       for (const [err, jobId] of result) {
         if (err) {

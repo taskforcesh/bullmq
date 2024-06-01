@@ -256,10 +256,10 @@ export class Job<
         new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
-    const multi = client.multi();
+    const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(multi as unknown), {
+      job.addJob(<RedisClient>(pipeline as unknown), {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -267,7 +267,7 @@ export class Job<
       });
     }
 
-    const results = (await multi.exec()) as [null | Error, string][];
+    const results = (await pipeline.exec()) as [null | Error, string][];
     for (let index = 0; index < results.length; ++index) {
       const [err, id] = results[index];
       if (err) {
@@ -409,29 +409,15 @@ export class Job<
    *
    * @returns The total number of log entries for this job so far.
    */
-  static async addJobLog(
+  static addJobLog(
     queue: MinimalQueue,
     jobId: string,
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    const client = await queue.client;
-    const logsKey = queue.toKey(jobId) + ':logs';
+    const scripts = (queue as any).scripts as Scripts;
 
-    const multi = client.multi();
-
-    multi.rpush(logsKey, logRow);
-
-    if (keepLogs) {
-      multi.ltrim(logsKey, -keepLogs, -1);
-    }
-
-    const result = (await multi.exec()) as [
-      [Error, number],
-      [Error, string] | undefined,
-    ];
-
-    return keepLogs ? Math.min(keepLogs, result[0][1]) : result[0][1];
+    return scripts.addLog(jobId, logRow, keepLogs);
   }
 
   toJSON() {

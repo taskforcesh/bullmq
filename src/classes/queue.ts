@@ -208,6 +208,12 @@ export class Queue<
     opts?: JobsOptions,
   ): Promise<Job<DataType, ResultType, NameType>> {
     if (opts && opts.repeat) {
+      if (opts.repeat.endDate) {
+        if (+new Date(opts.repeat.endDate) < Date.now()) {
+          throw new Error('End date must be greater than current timestamp');
+        }
+      }
+
       return (await this.repeat).addNextRepeatableJob<
         DataType,
         ResultType,
