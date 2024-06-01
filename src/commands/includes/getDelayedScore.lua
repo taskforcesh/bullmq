@@ -5,13 +5,15 @@
   WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
 ]]
 local function getDelayedScore(delayedKey, timestamp, delay)
-  local delayedTimestamp = (delay > 0 and (tonumber(timestamp) + delay)) or 0
+  local delayedTimestamp = (delay > 0 and (tonumber(timestamp) + delay)) or timestamp
 
-  local result = rcall("ZREVRANGEBYSCORE", delayedKey, delayedTimestamp * 0x1000,
-    (delayedTimestamp+1) * 0x1000 - 1, "WITHSCORES","LIMIT", 0, 1)
+  local result = rcall("ZREVRANGEBYSCORE", delayedKey, (delayedTimestamp +1 ) * 0x1000 - 1,
+    delayedTimestamp * 0x1000, "WITHSCORES","LIMIT", 0, 1)
   if #result then
-    local nextDelayedTimestamp = 
-    return tonumber(result[2]) + 1, delayedTimestamp
+    local maxTimestamp = tonumber(result[2])
+    if maxTimestamp ~= nil then
+      return maxTimestamp + 1, delayedTimestamp
+    end
   end
   return delayedTimestamp * 0x1000, delayedTimestamp
 end
