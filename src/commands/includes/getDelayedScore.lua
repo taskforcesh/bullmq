@@ -5,7 +5,7 @@
   WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
 ]]
 local function getDelayedScore(delayedKey, timestamp, delay)
-  local delayedTimestamp = (delay > 0 and (tonumber(timestamp) + delay)) or timestamp
+  local delayedTimestamp = (delay > 0 and (tonumber(timestamp) + delay)) or tonumber(timestamp)
 
   local result = rcall("ZREVRANGEBYSCORE", delayedKey, (delayedTimestamp + 1 ) * 0x1000 - 1,
     delayedTimestamp * 0x1000, "WITHSCORES","LIMIT", 0, 1)
