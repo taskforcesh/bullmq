@@ -92,7 +92,7 @@ local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
                                  opts, timestamp, parentKey, parentData,
                                  repeatJobKey)
 
-local score, delayedTimestamp = getDelayedScore(delayedKey, timestamp, delay)
+local score, delayedTimestamp = getDelayedScore(delayedKey, timestamp, tonumber(delay))
 
 rcall("ZADD", delayedKey, score, jobId)
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "delayed",
