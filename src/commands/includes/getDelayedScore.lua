@@ -6,14 +6,20 @@
 ]]
 local function getDelayedScore(delayedKey, timestamp, delay)
   local delayedTimestamp = (delay > 0 and (tonumber(timestamp) + delay)) or tonumber(timestamp)
+  local minScore = delayedTimestamp * 0x1000
+  local maxScore = (delayedTimestamp + 1 ) * 0x1000 - 1
 
-  local result = rcall("ZREVRANGEBYSCORE", delayedKey, (delayedTimestamp + 1 ) * 0x1000 - 1,
-    delayedTimestamp * 0x1000, "WITHSCORES","LIMIT", 0, 1)
+  local result = rcall("ZREVRANGEBYSCORE", delayedKey, maxScore,
+    minScore, "WITHSCORES","LIMIT", 0, 1)
   if #result then
-    local maxTimestamp = tonumber(result[2])
-    if maxTimestamp ~= nil then
-      return maxTimestamp + 1, delayedTimestamp
+    local currentMaxScore = tonumber(result[2])
+    if currentMaxScore ~= nil then
+      if currentMaxScore >= maxScore then
+        return maxScore, delayedTimestamp
+      else
+        return currentMaxScore + 1, delayedTimestamp
+      end
     end
   end
-  return delayedTimestamp * 0x1000, delayedTimestamp
+  return minScore, delayedTimestamp
 end
