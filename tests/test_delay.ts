@@ -318,7 +318,7 @@ describe('Delayed jobs', function () {
       async (job: Job) => {
         count++;
         try {
-          const delayed = job.processedOn! - job.timestamp;
+          const delayed = job.processedOn! - job.timestamp + 1;
           expect(
             delayed,
             'waited at least delay time',

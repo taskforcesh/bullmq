@@ -7,7 +7,7 @@
 local function getDelayedScore(delayedKey, timestamp, delay)
   local delayedTimestamp = (delay > 0 and (tonumber(timestamp) + delay)) or timestamp
 
-  local result = rcall("ZREVRANGEBYSCORE", delayedKey, (delayedTimestamp +1 ) * 0x1000 - 1,
+  local result = rcall("ZREVRANGEBYSCORE", delayedKey, (delayedTimestamp + 1 ) * 0x1000 - 1,
     delayedTimestamp * 0x1000, "WITHSCORES","LIMIT", 0, 1)
   if #result then
     local maxTimestamp = tonumber(result[2])
