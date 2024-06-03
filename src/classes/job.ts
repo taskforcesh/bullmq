@@ -434,13 +434,13 @@ export class Job<
   asJSON(): JobJson {
     const { serializer } = this.queue.opts;
 
-    const data = typeof this.data === 'undefined' ? {} : this.data;
-    const serializedData = serializer ? serializer(data) : JSON.stringify(data);
+    const rawData = typeof this.data === 'undefined' ? {} : this.data;
+    const data = serializer ? serializer(rawData) : rawData;
 
     return {
       id: this.id,
       name: this.name,
-      data: serializedData,
+      data: JSON.stringify(data),
       opts: this.optsAsJSON(this.opts),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
