@@ -295,7 +295,8 @@ export class Job<
   ): Job<T, R, N> {
     const rawData = json.data || '{}';
     const { deserializer } = queue.opts;
-    const data = deserializer ? deserializer(rawData) : JSON.parse(rawData);
+    const parsedData = JSON.parse(rawData);
+    const data = deserializer ? deserializer(parsedData) : parsedData;
     const opts = Job.optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
