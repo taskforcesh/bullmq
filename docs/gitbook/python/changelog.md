@@ -2,6 +2,10 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.8 (2024-06-05)
+### Fix
+* Remove print calls [python] ([#2579](https://github.com/taskforcesh/bullmq/issues/2579)) ([`f957186`](https://github.com/taskforcesh/bullmq/commit/f95718689864dbaca8a6b4113a6b37727919d6df))
+
 ## v2.7.7 (2024-06-04)
 ### Fix
 * **worker:** Properly cancel blocking command during disconnections ([`2cf12b3`](https://github.com/taskforcesh/bullmq/commit/2cf12b3622b0517f645971ece8acdcf673bede97))
