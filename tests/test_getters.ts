@@ -844,6 +844,30 @@ describe('Jobs getters', function () {
     });
   });
 
+  describe('.getCountsPerPriority', () => {
+    it('returns job counts per priority', async () => {
+      await queue.waitUntilReady();
+
+      const jobs = Array.from(Array(42).keys()).map(index => ({
+        name: 'test',
+        data: {},
+        opts: {
+          priority: index % 4,
+        },
+      }));
+      await queue.addBulk(jobs);
+
+      const counts = await queue.getCountsPerPriority([0, 1, 2, 3]);
+
+      expect(counts).to.be.eql({
+        '0': 11,
+        '1': 11,
+        '2': 10,
+        '3': 10,
+      });
+    });
+  });
+
   describe('.getDependencies', () => {
     it('return unprocessed jobs that are dependencies of a given parent job', async () => {
       const flowProducer = new FlowProducer({ connection, prefix });
