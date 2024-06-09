@@ -1,6 +1,10 @@
 import { ParentCommand } from '../enums';
 import { SandboxedJob } from '../interfaces';
-import { JobJsonSandbox } from '../types';
+import {
+  ChildrenValues,
+  JobJsonSandbox,
+  JobJsonSandBoxWithChildrenValues,
+} from '../types';
 import { errorToJSON } from '../utils';
 
 enum ChildStatus {
@@ -62,7 +66,10 @@ export class ChildProcessor {
     });
   }
 
-  public async start(jobJson: JobJsonSandbox, token?: string): Promise<void> {
+  public async start(
+    jobJson: JobJsonSandBoxWithChildrenValues,
+    token?: string,
+  ): Promise<void> {
     if (this.status !== ChildStatus.Idle) {
       return this.send({
         cmd: ParentCommand.Error,
@@ -73,6 +80,7 @@ export class ChildProcessor {
     this.currentJobPromise = (async () => {
       try {
         const job = this.wrapJob(jobJson, this.send);
+
         const result = await this.processor(job, token);
         await this.send({
           cmd: ParentCommand.Completed,
@@ -111,7 +119,7 @@ export class ChildProcessor {
    * The wrapped job adds back some of those original functions.
    */
   protected wrapJob(
-    job: JobJsonSandbox,
+    job: JobJsonSandBoxWithChildrenValues,
     send: (msg: any) => Promise<void>,
   ): SandboxedJob {
     return {
@@ -158,6 +166,12 @@ export class ChildProcessor {
           cmd: ParentCommand.Update,
           value: data,
         });
+      },
+      /*
+       * Emulate the real job `getChildrenValue` function.
+       */
+      getChildrenValues: <CT = any>(): ChildrenValues<CT> => {
+        return job.childrenValues;
       },
     };
   }

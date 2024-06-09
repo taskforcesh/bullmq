@@ -1,4 +1,4 @@
-import { JobJsonSandbox, JobsOptions } from '../types';
+import { ChildrenValues, JobJsonSandbox, JobsOptions } from '../types';
 
 /**
  * @see {@link https://docs.bullmq.io/guide/workers/sandboxed-processors}
@@ -11,5 +11,6 @@ export interface SandboxedJob<T = any, R = any>
   log: (row: any) => void;
   updateData: (data: any) => Promise<void>;
   updateProgress: (value: object | number) => Promise<void>;
+  getChildrenValues: <CT = any>() => ChildrenValues<CT>;
   returnValue: R;
 }

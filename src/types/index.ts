@@ -5,3 +5,4 @@ export * from './job-json-sandbox';
 export * from './job-options';
 export * from './job-type';
 export * from './repeat-strategy';
+export * from './children-values';

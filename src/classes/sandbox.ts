@@ -12,9 +12,10 @@ const sandbox = <T, R, N extends string>(
     let msgHandler: any;
     let exitHandler: any;
 
+    const childrenValues = await job.getChildrenValues();
     await child.send({
       cmd: ChildCommand.Start,
-      job: job.asJSONSandbox(),
+      job: { ...job.asJSONSandbox(), childrenValues },
       token,
     });
 
