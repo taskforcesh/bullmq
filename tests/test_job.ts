@@ -1067,7 +1067,7 @@ describe('Job', function () {
     describe('when lifo option is provided as true', () => {
       it('moves job to the head of wait list', async () => {
         await queue.pause();
-        await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
+        await Job.create(queue, 'test1', { foo: 'bar' });
         const job = await Job.create(
           queue,
           'test2',
@@ -1076,6 +1076,7 @@ describe('Job', function () {
         );
 
         await job.changePriority({
+          priority: 0,
           lifo: true,
         });
 
@@ -1115,9 +1116,10 @@ describe('Job', function () {
           { foo: 'bar' },
           { priority: 8 },
         );
-        await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });
+        await Job.create(queue, 'test2', { foo: 'bar' });
 
         await job.changePriority({
+          priority: 0,
           lifo: false,
         });
 
@@ -1134,7 +1136,7 @@ describe('Job', function () {
           worker.on(
             'completed',
             after(2, job => {
-              expect(job.name).to.be.eql('test2');
+              expect(job.name).to.be.eql('test1');
               resolve();
             }),
           );
