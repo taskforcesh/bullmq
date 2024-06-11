@@ -191,6 +191,23 @@ export class QueueGetters<
   }
 
   /**
+   * Returns the number of jobs per priority.
+   */
+  async getCountsPerPriority(priorities: number[]): Promise<{
+    [index: string]: number;
+  }> {
+    const uniquePriorities = [...new Set(priorities)];
+    const responses = await this.scripts.getCountsPerPriority(uniquePriorities);
+
+    const counts: { [index: string]: number } = {};
+    responses.forEach((res, index) => {
+      counts[`${uniquePriorities[index]}`] = res || 0;
+    });
+
+    return counts;
+  }
+
+  /**
    * Returns the number of jobs in waiting or paused statuses.
    */
   getWaitingCount(): Promise<number> {
