@@ -1517,6 +1517,67 @@ describe('workers', function () {
       await worker.close();
     });
 
+    describe('when priority counter is having a high number', () => {
+      it('should process jobs by priority', async () => {
+        let processor;
+
+        const numJobsPerPriority = 6;
+
+        const jobs = Array.from(Array(18).keys()).map(index => ({
+          name: 'test',
+          data: { p: (index % 3) + 1 },
+          opts: {
+            priority: (index % 3) + 1,
+          },
+        }));
+        await queue.addBulk(jobs);
+        const client = await queue.client;
+        await client.incrby(`${prefix}:${queue.name}:pc`, 2147483648);
+        await queue.addBulk(jobs);
+
+        let currentPriority = 1;
+        let counter = 0;
+        let total = 0;
+        const countersPerPriority = {};
+
+        const processing = new Promise<void>((resolve, reject) => {
+          processor = async (job: Job) => {
+            await delay(10);
+            try {
+              if (countersPerPriority[job.data.p]) {
+                expect(countersPerPriority[job.data.p]).to.be.lessThan(
+                  +job.id!,
+                );
+              }
+
+              countersPerPriority[job.data.p] = +job.id!;
+              expect(job.id).to.be.ok;
+              expect(job.data.p).to.be.eql(currentPriority);
+            } catch (err) {
+              reject(err);
+            }
+
+            total++;
+            if (++counter === numJobsPerPriority * 2) {
+              currentPriority++;
+              counter = 0;
+
+              if (currentPriority === 4 && total === numJobsPerPriority * 6) {
+                resolve();
+              }
+            }
+          };
+        });
+
+        const worker = new Worker(queueName, processor, { connection, prefix });
+        await worker.waitUntilReady();
+
+        await processing;
+
+        await worker.close();
+      });
+    });
+
     describe('while processing last active job', () => {
       it('should process prioritized job whithout delay', async function () {
         this.timeout(1000);
