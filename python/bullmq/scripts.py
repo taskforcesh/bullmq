@@ -38,8 +38,9 @@ class Scripts:
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-6.lua")),
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
-            "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")), #
-            "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")), #
+            "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
+            "getCountsPerPriority": self.redisClient.register_script(self.getScript("getCountsPerPriority-2.lua")),
+            "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")),
             "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
             "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
@@ -321,6 +322,19 @@ class Scripts:
             map(lambda type: 'wait' if type == 'waiting' else type, types))
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
+
+    def getCountsPerPriorityArgs(self, priorities):
+        keys = [self.keys['wait'],
+            self.keys['prioritized']]
+
+        args = priorities
+
+        return (keys, args)
+
+    def getCountsPerPriority(self, priorities):
+        keys, args = self.getCountsPerPriorityArgs(priorities)
+
+        return self.commands["getCountsPerPriority"](keys=keys, args=args)
 
     async def getState(self, job_id: str):
         keys = self.getKeys(['completed', 'failed', 'delayed', 'active', 'wait',
