@@ -220,6 +220,23 @@ class Queue(EventEmitter):
             counts[current_types[index]] = val or 0
         return counts
 
+    async def getCountsPerPriority(self, priorities):
+        """
+        Returns the number of jobs per priority.
+
+        @returns: An object, key (priority) and value (count)
+        """
+        set_priorities = set(priorities)
+        unique_priorities = (list(set_priorities))
+
+        responses = await self.scripts.getCountsPerPriority(unique_priorities)
+
+        counts = {}
+
+        for index, val in enumerate(responses):
+            counts[f"{unique_priorities[index]}"] = val or 0
+        return counts
+
     async def clean(self, grace: int, limit: int, type: str):
         """
         Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
