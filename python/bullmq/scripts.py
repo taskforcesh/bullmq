@@ -39,7 +39,7 @@ class Scripts:
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
-            "getCountsPerPriority": self.redisClient.register_script(self.getScript("getCountsPerPriority-2.lua")),
+            "getCountsPerPriority": self.redisClient.register_script(self.getScript("getCountsPerPriority-4.lua")),
             "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")),
             "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
@@ -325,6 +325,8 @@ class Scripts:
 
     def getCountsPerPriorityArgs(self, priorities):
         keys = [self.keys['wait'],
+            self.keys['paused'],
+            self.keys['meta'],
             self.keys['prioritized']]
 
         args = priorities
