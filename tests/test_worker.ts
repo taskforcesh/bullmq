@@ -1465,20 +1465,21 @@ describe('workers', function () {
 
   describe('when prioritized jobs are added', () => {
     it('should process jobs by priority', async () => {
-      const normalPriority: Promise<Job>[] = [];
-      const mediumPriority: Promise<Job>[] = [];
-      const highPriority: Promise<Job>[] = [];
-
       let processor;
 
       // for the current strategy this number should not exceed 8 (2^2*2)
       // this is done to maintain a deterministic output.
       const numJobsPerPriority = 6;
 
+      const jobs: {
+        name: string;
+        data: { p: number };
+        opts: { priority: number };
+      }[] = [];
       for (let i = 0; i < numJobsPerPriority; i++) {
-        normalPriority.push(queue.add('test', { p: 2 }, { priority: 2 }));
-        mediumPriority.push(queue.add('test', { p: 3 }, { priority: 3 }));
-        highPriority.push(queue.add('test', { p: 1 }, { priority: 1 }));
+        jobs.push({ name: 'test', data: { p: 2 }, opts: { priority: 2 } }); // normal priority
+        jobs.push({ name: 'test', data: { p: 3 }, opts: { priority: 3 } }); // medium priority
+        jobs.push({ name: 'test', data: { p: 1 }, opts: { priority: 1 } }); // high priority
       }
 
       let currentPriority = 1;
@@ -1510,7 +1511,7 @@ describe('workers', function () {
       await worker.waitUntilReady();
 
       // wait for all jobs to enter the queue and then start processing
-      await Promise.all([normalPriority, mediumPriority, highPriority]);
+      await queue.addBulk(jobs);
 
       await processing;
 
