@@ -12,17 +12,7 @@
 
 * **priority:** use module instead of bit.band to keep order (python) ([#2597](https://github.com/taskforcesh/bullmq/issues/2597)) ([9ece15b](https://github.com/taskforcesh/bullmq/commit/9ece15b17420fe0bee948a5307e870915e3bce87))
 
-
-### Features
-
-* **queue:** add getCountsPerPriority method [python] ([#2607](https://github.com/taskforcesh/bullmq/issues/2607)) ([02b8338](https://github.com/taskforcesh/bullmq/commit/02b83380334879cc2434043141566f2a375db958))
-
 # [5.8.0](https://github.com/taskforcesh/bullmq/compare/v5.7.15...v5.8.0) (2024-06-11)
-
-
-### Bug Fixes
-
-* remove print calls [python] ([#2579](https://github.com/taskforcesh/bullmq/issues/2579)) ([f957186](https://github.com/taskforcesh/bullmq/commit/f95718689864dbaca8a6b4113a6b37727919d6df))
 
 
 ### Features
@@ -76,7 +66,6 @@
 
 ### Bug Fixes
 
-* **connection:** use async Retry ([#2555](https://github.com/taskforcesh/bullmq/issues/2555)) [python] ([d6dd21d](https://github.com/taskforcesh/bullmq/commit/d6dd21d3ac28660bbfa7825bba0b586328769709))
 * **job:** validate job existence when adding a log ([#2562](https://github.com/taskforcesh/bullmq/issues/2562)) ([f87e3fe](https://github.com/taskforcesh/bullmq/commit/f87e3fe029e48d8964722da762326e531c2256ee))
 
 ## [5.7.8](https://github.com/taskforcesh/bullmq/compare/v5.7.7...v5.7.8) (2024-05-01)
