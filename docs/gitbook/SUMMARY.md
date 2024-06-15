@@ -81,6 +81,7 @@
 * [Observables](bullmq-pro/observables/README.md)
   * [Cancelation](bullmq-pro/observables/cancelation.md)
 * [Groups](bullmq-pro/groups/README.md)
+  * [Getters](bullmq-pro/groups/getters.md)
   * [Rate limiting](bullmq-pro/groups/rate-limiting.md)
   * [Concurrency](bullmq-pro/groups/concurrency.md)
   * [Local group concurrency](bullmq-pro/groups/local-group-concurrency.md)
