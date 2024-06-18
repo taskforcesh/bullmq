@@ -16,6 +16,12 @@ const count = await queue.getGroupsJobsCount(1000); // 1000 groups in each itera
 This count value includes prioritized and non-prioritized jobs included groups.
 {% endhint %}
 
+Or if you want to get active jobs count for an specific group
+
+```typescript
+const activeCount = await queue.getGroupActiveCount(groupId);
+```
+
 #### Get Jobs
 
 It is also possible to retrieve the jobs with pagination style semantics in a given group. For example:
@@ -27,4 +33,5 @@ const jobs = await queue.getGroupJobs(groupId, 0, 100);
 ## Read more:
 
 * 💡 [Get Groups Jobs Count API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupsJobsCount)
+* 💡 [Get Group Active Count API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupActiveCount)
 * 💡 [Get Group Jobs API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupJobs)
