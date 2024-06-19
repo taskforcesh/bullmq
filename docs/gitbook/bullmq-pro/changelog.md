@@ -1,3 +1,10 @@
+## [7.9.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.9.0...v7.9.1) (2024-06-18)
+
+
+### Bug Fixes
+
+* **maxed:** consider passing max concurrency into repairMaxedGroup ([#232](https://github.com/taskforcesh/bullmq-pro/issues/232)) ([a3885a5](https://github.com/taskforcesh/bullmq-pro/commit/a3885a5456a9ea12abfedb623def516b84c5c289))
+
 # [7.9.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.8.3...v7.9.0) (2024-06-15)
 
 
