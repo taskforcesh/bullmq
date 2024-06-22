@@ -1,5 +1,12 @@
 --[[
   Completely obliterates a queue and all of its contents
+  This command completely destroys a queue including all of its jobs, current or past 
+  leaving no trace of its existence. Since this script needs to iterate to find all the job
+  keys, consider that this call may be slow for very large queues.
+
+  The queue needs to be "paused" or it will return an error
+  If the queue has currently active jobs then the script by default will return error,
+  however this behaviour can be overrided using the 'force' option.
   
   Input:
     KEYS[1] meta
@@ -9,13 +16,6 @@
     ARGV[2] force
 ]]
 
--- This command completely destroys a queue including all of its jobs, current or past 
--- leaving no trace of its existence. Since this script needs to iterate to find all the job
--- keys, consider that this call may be slow for very large queues.
-
--- The queue needs to be "paused" or it will return an error
--- If the queue has currently active jobs then the script by default will return error,
--- however this behaviour can be overrided using the 'force' option.
 local maxCount = tonumber(ARGV[1])
 local baseKey = KEYS[2]
 
@@ -59,6 +59,22 @@ if(maxCount <= 0) then
   return 1
 end
 
+local repeatKey = baseKey .. 'repeat'
+local repeatJobsIds = getZSetItems(repeatKey, maxCount)
+for i, key in ipairs(repeatJobsIds) do
+  local jobKey = repeatKey .. ":" .. key
+  rcall("DEL", jobKey)
+end
+if(#repeatJobsIds > 0) then
+  for from, to in batches(#repeatJobsIds, 7000) do
+    rcall("ZREM", repeatKey, unpack(repeatJobsIds, from, to))
+  end
+end
+maxCount = maxCount - #repeatJobsIds
+if(maxCount <= 0) then
+  return 1
+end
+
 local completedKey = baseKey .. 'completed'
 maxCount = removeZSetJobs(completedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
@@ -92,7 +108,6 @@ if(maxCount > 0) then
     baseKey .. 'id',
     baseKey .. 'pc',
     baseKey .. 'meta',
-    baseKey .. 'repeat',
     baseKey .. 'metrics:completed',
     baseKey .. 'metrics:completed:data',
     baseKey .. 'metrics:failed',

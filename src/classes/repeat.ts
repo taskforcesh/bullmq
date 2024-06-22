@@ -106,7 +106,6 @@ export class Repeat extends QueueBase {
           currentCount,
           hasImmediately,
         );
-        //
       }
     }
   }

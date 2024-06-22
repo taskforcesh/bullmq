@@ -59,7 +59,7 @@ describe('repeat', function () {
     await queue.close();
     await repeat.close();
     await queueEvents.close();
-    //await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
