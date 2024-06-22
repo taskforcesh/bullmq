@@ -2717,13 +2717,14 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
+          await delay(10);
           expect(job.attemptsMade).to.be.eql(tries);
           tries++;
           if (job.attemptsMade < 1) {
             throw new Error('Not yet!');
           }
         },
-        { connection, prefix },
+        { autorun: false, connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -2735,6 +2736,8 @@ describe('workers', function () {
           attempts: 3,
         },
       );
+
+      worker.run();
 
       await new Promise(resolve => {
         worker.on('completed', resolve);
