@@ -369,7 +369,7 @@ describe('events', function () {
         async () => {
           await delay(100);
         },
-        { connection, prefix },
+        { autorun: false, connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -388,6 +388,7 @@ describe('events', function () {
         duplicatedEvent = true;
       });
 
+      worker.run();
       await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
 
       await completed;
