@@ -372,6 +372,7 @@ describe('Pause', function () {
             resolve();
           },
           {
+            autorun: false,
             connection,
             prefix,
           },
@@ -389,6 +390,7 @@ describe('Pause', function () {
         });
       });
 
+      worker!.run();
       await waitingEvent;
       await processing;
 
