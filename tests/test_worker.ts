@@ -1732,6 +1732,7 @@ describe('workers', function () {
       const processing = new Promise<void>((resolve, reject) => {
         processor = async (job: Job) => {
           try {
+            await delay(10);
             expect(job.data.num).to.be.equal(counter);
             expect(job.data.foo).to.be.equal('bar');
             if (counter === maxJobs) {
