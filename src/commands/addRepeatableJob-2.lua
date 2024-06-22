@@ -49,8 +49,8 @@ local function storeRepeatableJob(repeatKey, customKey, nextMilli, rawOpts)
     table.insert(optionalValues, opts['every'])
   end
 
-  rcall("HMSET", repeatKey .. ": " .. customKey, "name", opts['name'],
-    , unpack(optionalValues))
+  rcall("HMSET", repeatKey .. ":" .. customKey, "name", opts['name'],
+    unpack(optionalValues))
 
   return customKey
 end
@@ -63,7 +63,7 @@ if ARGV[4] == '0' then
     return storeRepeatableJob(repeatKey, customKey, nextMilli, ARGV[2])
   end
 else
-  return storeRepeatableJob(repeatKey, customKey, , nextMilli, ARGV[2])
+  return storeRepeatableJob(repeatKey, customKey, nextMilli, ARGV[2])
 end
 
 return ''

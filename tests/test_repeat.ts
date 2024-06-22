@@ -59,7 +59,7 @@ describe('repeat', function () {
     await queue.close();
     await repeat.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    //await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
@@ -239,40 +239,49 @@ describe('repeat', function () {
       .to.be.and.an('array')
       .and.have.length(5)
       .and.to.deep.include({
-        key: 'first::12345::10 * * * * *',
+        key: '81e7865a899dddf47c3ad19649304bac',
         name: 'first',
-        id: null,
         endDate: 12345,
         tz: null,
         pattern: '10 * * * * *',
+        every: null,
         next: 10000,
       })
       .and.to.deep.include({
-        key: 'second::610000::2 10 * * * *',
+        key: '47f7425312b6adf8db58ebd37c7ad8be',
         name: 'second',
-        id: null,
         endDate: 610000,
         tz: null,
         pattern: '2 10 * * * *',
+        every: null,
         next: 602000,
       })
       .and.to.deep.include({
-        key: 'fourth:::Africa/Accra:2 * * 4 * *',
+        key: 'f1e05411209310794fb4b34ec2a8df6b',
         name: 'fourth',
-        id: null,
         endDate: null,
         tz: 'Africa/Accra',
         pattern: '2 * * 4 * *',
+        every: null,
         next: 259202000,
       })
       .and.to.deep.include({
-        key: 'third:::Africa/Abidjan:1 * * 5 * *',
+        key: 'd58b8d085ba529d423d59e220a813f82',
         name: 'third',
-        id: null,
         endDate: null,
         tz: 'Africa/Abidjan',
         pattern: '1 * * 5 * *',
+        every: null,
         next: 345601000,
+      })
+      .and.to.deep.include({
+        key: 'e891826d68ad4ffbd7243b7f98d88614',
+        name: 'fifth',
+        endDate: null,
+        tz: 'Europa/Copenhaguen',
+        pattern: null,
+        every: '5000',
+        next: 5000,
       });
   });
 
@@ -503,7 +512,7 @@ describe('repeat', function () {
 
   describe('when custom cron strategy is provided', function () {
     it('should repeat every 2 seconds', async function () {
-      this.timeout(20000);
+      this.timeout(15000);
       const settings = {
         repeatStrategy: (millis, opts) => {
           const currentDate =
@@ -703,7 +712,7 @@ describe('repeat', function () {
   });
 
   it('should have repeatable job key with sha256 hashing when sha256 hash algorithm is provided', async function () {
-    this.timeout(20000);
+    this.timeout(15000);
     const settings = {
       repeatKeyHashAlgorithm: 'sha256',
     };
@@ -733,11 +742,17 @@ describe('repeat', function () {
     );
 
     const keyPrefix = getRepeatableJobKeyPrefix(prefix, queueName);
-    const jobsRedisKeys = await new IORedis(redisHost).keys(`${keyPrefix}*`);
-    expect(jobsRedisKeys.length).to.be.equal(1);
+    const client = await worker.client;
+
+    const jobsRedisKeys = await client.keys(`${keyPrefix}*`);
+    expect(jobsRedisKeys.length).to.be.equal(2);
 
     const actualHashedRepeatableJobKey =
-      extractRepeatableJobChecksumFromRedisKey(jobsRedisKeys[0]);
+      extractRepeatableJobChecksumFromRedisKey(
+        jobsRedisKeys[0].length > jobsRedisKeys[1].length
+          ? jobsRedisKeys[1]
+          : jobsRedisKeys[0],
+      );
     const expectedRawKey = createRepeatableJobKey(
       jobName,
       jobId,
@@ -746,10 +761,8 @@ describe('repeat', function () {
       suffix,
     );
     const expectedRepeatJobIdCheckum = getRepeatJobIdCheckum(
-      jobName,
       expectedRawKey,
       settings.repeatKeyHashAlgorithm,
-      jobId,
     );
 
     expect(actualHashedRepeatableJobKey).to.be.equal(
@@ -1011,7 +1024,7 @@ describe('repeat', function () {
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {
-    this.timeout(18000);
+    this.timeout(15000);
 
     const date = new Date('2017-02-02 7:21:42');
     this.clock.setSystemTime(date);
@@ -1561,7 +1574,7 @@ describe('repeat', function () {
       queueEvents.on('waiting', function ({ jobId }) {
         try {
           expect(jobId).to.be.equal(
-            `repeat:c602b9b36e4beddd9e7db39a3ef2ea4c:${
+            `repeat:16db7a9b166154f5c636abf3c8fe3364:${
               date.getTime() + 1 * ONE_SECOND
             }`,
           );

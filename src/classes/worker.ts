@@ -543,7 +543,6 @@ export class Worker<
       return;
     }
 
-    console.log('here ps', block);
     if (this.drained && block && !this.limitUntil && !this.waiting) {
       this.waiting = this.waitForJob(bclient, this.blockUntil);
       try {
@@ -564,7 +563,6 @@ export class Worker<
         this.waiting = null;
       }
     } else {
-      console.log('not');
       if (this.limitUntil) {
         this.abortDelayController?.abort();
         this.abortDelayController = new AbortController();
@@ -604,7 +602,6 @@ will never work with more accuracy than 1ms. */
     token: string,
     name?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    console.log('aqui');
     const [jobData, id, limitUntil, delayUntil] =
       await this.scripts.moveToActive(client, token, name);
     this.updateDelays(limitUntil, delayUntil);

@@ -303,24 +303,30 @@ export class Scripts {
   }
 
   private removeRepeatableArgs(
-    repeatJobId: string,
+    oldRepeatJobId: string,
+    optionsConcat: string,
     repeatJobKey: string,
   ): string[] {
     const queueKeys = this.queue.keys;
 
     const keys = [queueKeys.repeat, queueKeys.delayed];
 
-    const args = [repeatJobId, repeatJobKey, queueKeys['']];
+    const args = [oldRepeatJobId, optionsConcat, repeatJobKey, queueKeys['']];
 
     return keys.concat(args);
   }
 
   async removeRepeatable(
-    repeatJobId: string,
+    oldRepeatJobId: string,
+    optionsConcat: string,
     repeatJobKey: string,
   ): Promise<number> {
     const client = await this.queue.client;
-    const args = this.removeRepeatableArgs(repeatJobId, repeatJobKey);
+    const args = this.removeRepeatableArgs(
+      oldRepeatJobId,
+      optionsConcat,
+      repeatJobKey,
+    );
 
     return (<any>client).removeRepeatable(args);
   }
