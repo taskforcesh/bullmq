@@ -23,6 +23,7 @@ import {
   WorkerOptions,
   KeepJobs,
   MoveToDelayedOpts,
+  RepeatableOptions,
 } from '../interfaces';
 import {
   JobState,
@@ -257,6 +258,48 @@ export class Scripts {
     const args = this.pauseArgs(pause);
 
     return (<any>client).pause(args);
+  }
+
+  protected addRepeatableJobArgs(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    oldCustomKey: string,
+    skipCheckExists: boolean,
+  ): (string | number | Buffer)[] {
+    const keys: (string | number | Buffer)[] = [
+      this.queue.keys.repeat,
+      customKey,
+    ];
+
+    const args = [
+      nextMillis,
+      pack(opts),
+      oldCustomKey,
+      skipCheckExists ? '1' : '0',
+    ];
+
+    return keys.concat(args);
+  }
+
+  async addRepeatableJob(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    oldCustomKey: string,
+    skipCheckExists: boolean,
+  ): Promise<string> {
+    const client = await this.queue.client;
+
+    const args = this.addRepeatableJobArgs(
+      customKey,
+      nextMillis,
+      opts,
+      oldCustomKey,
+      skipCheckExists,
+    );
+
+    return (<any>client).addRepeatableJob(args);
   }
 
   private removeRepeatableArgs(
