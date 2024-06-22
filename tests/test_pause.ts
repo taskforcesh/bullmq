@@ -356,8 +356,6 @@ describe('Pause', function () {
 
   describe('when backoff is 0', () => {
     it('moves job into paused queue', async () => {
-      await queue.add('test', { foo: 'bar' }, { attempts: 2, backoff: 0 });
-
       let worker: Worker;
       const processing = new Promise<void>(resolve => {
         worker = new Worker(
@@ -389,6 +387,8 @@ describe('Pause', function () {
           }
         });
       });
+
+      await queue.add('test', { foo: 'bar' }, { attempts: 2, backoff: 0 });
 
       worker!.run();
       await waitingEvent;
