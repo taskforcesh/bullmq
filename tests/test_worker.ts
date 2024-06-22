@@ -857,7 +857,7 @@ describe('workers', function () {
 
       await delay(100);
       /* Try to gracefully close while having a job that will be failed running */
-      worker.close();
+      const closing = worker.close();
 
       await new Promise<void>(resolve => {
         worker.once('failed', async (job, err) => {
@@ -871,6 +871,7 @@ describe('workers', function () {
       const count = await queue.getJobCounts('active', 'failed');
       expect(count.active).to.be.eq(0);
       expect(count.failed).to.be.eq(1);
+      await closing;
     });
 
     it('process a job that complete after worker close', async () => {
