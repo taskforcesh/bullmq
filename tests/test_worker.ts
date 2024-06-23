@@ -857,7 +857,7 @@ describe('workers', function () {
 
       await delay(100);
       /* Try to gracefully close while having a job that will be failed running */
-      worker.close();
+      const closing = worker.close();
 
       await new Promise<void>(resolve => {
         worker.once('failed', async (job, err) => {
@@ -871,6 +871,7 @@ describe('workers', function () {
       const count = await queue.getJobCounts('active', 'failed');
       expect(count.active).to.be.eq(0);
       expect(count.failed).to.be.eq(1);
+      await closing;
     });
 
     it('process a job that complete after worker close', async () => {
@@ -1732,6 +1733,7 @@ describe('workers', function () {
       const processing = new Promise<void>((resolve, reject) => {
         processor = async (job: Job) => {
           try {
+            await delay(10);
             expect(job.data.num).to.be.equal(counter);
             expect(job.data.foo).to.be.equal('bar');
             if (counter === maxJobs) {
@@ -2716,13 +2718,14 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async job => {
+          await delay(10);
           expect(job.attemptsMade).to.be.eql(tries);
           tries++;
           if (job.attemptsMade < 1) {
             throw new Error('Not yet!');
           }
         },
-        { connection, prefix },
+        { autorun: false, connection, prefix },
       );
 
       await worker.waitUntilReady();
@@ -2734,6 +2737,8 @@ describe('workers', function () {
           attempts: 3,
         },
       );
+
+      worker.run();
 
       await new Promise(resolve => {
         worker.on('completed', resolve);

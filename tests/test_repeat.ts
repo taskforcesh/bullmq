@@ -50,6 +50,7 @@ describe('repeat', function () {
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
+    await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
 
@@ -183,13 +184,13 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
-  it('should create multiple jobs if they have the same cron pattern', async function () {
+  it('should create multiple jobs if they have the same cron pattern and different name', async function () {
     const cron = '*/10 * * * * *';
 
     await Promise.all([
       queue.add('test1', {}, { repeat: { pattern: cron } }),
       queue.add('test2', {}, { repeat: { pattern: cron } }),
-      queue.add('test3', {}),
+      queue.add('test3', {}, { repeat: { pattern: cron } }),
     ]);
 
     const count = await queue.count();
