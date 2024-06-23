@@ -21,7 +21,7 @@ local rcall = redis.call
 local millis = rcall("ZSCORE", KEYS[1], ARGV[2])
 
 -- Includes
---- @include "removeJobKeys"
+--- @include "includes/removeJobKeys"
 
 -- legacy removal TODO: remove in next breaking change
 if millis then
