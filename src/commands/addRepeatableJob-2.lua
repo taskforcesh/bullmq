@@ -12,7 +12,7 @@
             [3]  patten?
             [4]  endDate?
             [5]  every?
-      ARGV[3] old custom key TODO: remove this logic in next breaking change
+      ARGV[3] legacy custom key TODO: remove this logic in next breaking change
       ARGV[4] skipCheckExists
 
       Output:
@@ -21,7 +21,7 @@
 local rcall = redis.call
 local repeatKey = KEYS[1]
 local customKey = KEYS[2]
-local oldCustomKey = ARGV[3]
+local legacyCustomKey = ARGV[3]
 local nextMilli = ARGV[1]
 
 local function storeRepeatableJob(repeatKey, customKey, nextMilli, rawOpts)
@@ -56,9 +56,9 @@ local function storeRepeatableJob(repeatKey, customKey, nextMilli, rawOpts)
 end
 
 if ARGV[4] == '0' then
-  if rcall("ZSCORE", repeatKey, oldCustomKey) ~= false then
-    rcall("ZADD", repeatKey, nextMilli, oldCustomKey)
-    return oldCustomKey
+  if rcall("ZSCORE", repeatKey, legacyCustomKey) ~= false then
+    rcall("ZADD", repeatKey, nextMilli, legacyCustomKey)
+    return legacyCustomKey
   elseif rcall("ZSCORE", repeatKey, customKey) ~= false then
     return storeRepeatableJob(repeatKey, customKey, nextMilli, ARGV[2])
   end

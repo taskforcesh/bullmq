@@ -75,10 +75,10 @@ export class Repeat extends QueueBase {
         repeatOpts.jobId = opts.jobId;
       }
 
-      const optionsConcat = getRepeatKey(name, repeatOpts);
+      const qualifiedName = getQualifiedName(name, repeatOpts);
 
       const repeatJobKey = await this.scripts.addRepeatableJob(
-        opts.repeat.key ?? this.hash(optionsConcat),
+        opts.repeat.key ?? this.hash(qualifiedName),
         nextMillis,
         {
           name,
@@ -89,7 +89,7 @@ export class Repeat extends QueueBase {
           pattern: repeatOpts.pattern,
           every: repeatOpts.every,
         },
-        optionsConcat,
+        qualifiedName,
         skipCheckExists,
       );
 
@@ -149,19 +149,19 @@ export class Repeat extends QueueBase {
     repeat: RepeatOptions,
     jobId?: string,
   ): Promise<number> {
-    const optionsConcat = getRepeatKey(name, { ...repeat, jobId });
+    const qualifiedName = getQualifiedName(name, { ...repeat, jobId });
     const repeatJobKey = repeat.key ?? this.hash(optionsConcat);
-    const oldRepeatJobId = this.getRepeatJobId({
+    const legacyRepeatJobId = this.getRepeatJobId({
       name,
       nextMillis: '',
-      namespace: this.hash(optionsConcat),
+      namespace: this.hash(qualifiedName),
       jobId: jobId ?? repeat.jobId,
       key: repeat.key,
     });
 
     return this.scripts.removeRepeatable(
-      oldRepeatJobId,
-      optionsConcat,
+      legacyRepeatJobId,
+      qualifiedName,
       repeatJobKey,
     );
   }
@@ -169,14 +169,14 @@ export class Repeat extends QueueBase {
   async removeRepeatableByKey(repeatJobKey: string): Promise<number> {
     const data = this.keyToData(repeatJobKey);
 
-    const oldRepeatJobId = this.getRepeatJobId({
+    const legacyRepeatJobId = this.getRepeatJobId({
       name: data.name,
       nextMillis: '',
       namespace: this.hash(repeatJobKey),
       jobId: data.id,
     });
 
-    return this.scripts.removeRepeatable(oldRepeatJobId, '', repeatJobKey);
+    return this.scripts.removeRepeatable(legacyRepeatJobId, '', repeatJobKey);
   }
 
   private async getRepeatableData(
@@ -274,7 +274,7 @@ export class Repeat extends QueueBase {
   }
 }
 
-function getRepeatKey(name: string, repeat: RepeatOptions) {
+function getQualifiedName(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
   const pattern = repeat.pattern;
