@@ -150,7 +150,7 @@ export class Repeat extends QueueBase {
     jobId?: string,
   ): Promise<number> {
     const qualifiedName = getQualifiedName(name, { ...repeat, jobId });
-    const repeatJobKey = repeat.key ?? this.hash(optionsConcat);
+    const repeatJobKey = repeat.key ?? this.hash(qualifiedName);
     const legacyRepeatJobId = this.getRepeatJobId({
       name,
       nextMillis: '',
