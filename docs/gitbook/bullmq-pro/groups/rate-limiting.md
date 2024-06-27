@@ -52,3 +52,7 @@ const worker = new WorkerPro(
   },
 );
 ```
+
+## Read more:
+
+* 💡 [Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.Worker.html#rateLimitGroup)
