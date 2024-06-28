@@ -1630,9 +1630,14 @@ describe('workers', function () {
           };
         });
 
-        const worker = new Worker(queueName, processor, { connection, prefix });
+        const worker = new Worker(queueName, processor, {
+          connection,
+          autorun: false,
+          prefix,
+        });
         await worker.waitUntilReady();
 
+        worker.run();
         await processing;
 
         await worker.close();
@@ -2164,6 +2169,7 @@ describe('workers', function () {
           processing = false;
         },
         {
+          autorun: false,
           connection,
           prefix,
           concurrency: 1,
@@ -2174,6 +2180,7 @@ describe('workers', function () {
       await queue.add('test', {});
       await queue.add('test', {});
 
+      worker.run();
       await new Promise(resolve => {
         worker.on('completed', after(2, resolve));
       });
