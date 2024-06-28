@@ -20,6 +20,7 @@ import {
   JobJsonSandbox,
   MinimalQueue,
   RedisJobOptions,
+  ChildrenValues,
 } from '../types';
 import {
   errorObject,
@@ -826,7 +827,7 @@ export class Job<
    *
    * @returns Object mapping children job keys with their values.
    */
-  async getChildrenValues<CT = any>(): Promise<{ [jobKey: string]: CT }> {
+  async getChildrenValues<CT = any>(): Promise<ChildrenValues<CT>> {
     const client = await this.queue.client;
 
     const result = (await client.hgetall(
@@ -843,7 +844,7 @@ export class Job<
    *
    * @returns Object mapping children job keys with their failure values.
    */
-  async getFailedChildrenValues(): Promise<{ [jobKey: string]: string }> {
+  async getFailedChildrenValues(): Promise<ChildrenValues<string>> {
     const client = await this.queue.client;
 
     return client.hgetall(this.toKey(`${this.id}:failed`));
