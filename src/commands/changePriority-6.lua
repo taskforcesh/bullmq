@@ -28,7 +28,7 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/pushBackJobWithPriority"
 
-local function readdJobWithNewPriority( prioritizedKey, markerKey, targetKey,
+local function reAddJobWithNewPriority( prioritizedKey, markerKey, targetKey,
     priorityCounter, lifo, priority, jobId, paused)
     if priority == 0 then
         local pushCmd = lifo and 'RPUSH' or 'LPUSH'
@@ -51,10 +51,10 @@ if rcall("EXISTS", jobKey) == 1 then
 
     -- Re-add with the new priority
     if rcall("ZREM", KEYS[4], jobId) > 0 then
-        readdJobWithNewPriority( prioritizedKey, markerKey, target,
+        reAddJobWithNewPriority( prioritizedKey, markerKey, target,
             KEYS[5], ARGV[4] == '1', priority, jobId, isPaused)
     elseif rcall("LREM", target, -1, jobId) > 0 then
-        readdJobWithNewPriority( prioritizedKey, markerKey, target,
+        reAddJobWithNewPriority( prioritizedKey, markerKey, target,
             KEYS[5], ARGV[4] == '1', priority, jobId, isPaused)
     end
 
