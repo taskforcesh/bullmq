@@ -853,12 +853,12 @@ export class Scripts {
     jobId: string,
     token: string,
     opts?: MoveToWaitingChildrenOpts,
-  ): string[] {
+  ): (string | number)[] {
     const timestamp = Date.now();
 
     const childKey = getParentKey(opts.child);
 
-    const keys = [
+    const keys: (string | number)[] = [
       `${jobId}:lock`,
       'active',
       'waiting-children',
