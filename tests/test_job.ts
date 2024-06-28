@@ -985,41 +985,174 @@ describe('Job', function () {
   });
 
   describe('.changePriority', () => {
-    it('can change priority of a job', async function () {
-      await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
-      const job = await Job.create(
-        queue,
-        'test2',
-        { foo: 'bar' },
-        { priority: 16 },
-      );
+    describe('when job is in wait state', () => {
+      describe('when lifo option is provided as true', () => {
+        it('moves job to the head of wait list', async () => {
+          await queue.pause();
+          await Job.create(queue, 'test1', { foo: 'bar' });
+          const job = await Job.create(
+            queue,
+            'test2',
+            { foo: 'bar' },
+            { priority: 16 },
+          );
 
-      await job.changePriority({
-        priority: 1,
+          await job.changePriority({
+            priority: 0,
+            lifo: true,
+          });
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(20);
+            },
+            { connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          const completing = new Promise<void>(resolve => {
+            worker.on(
+              'completed',
+              after(2, job => {
+                expect(job.name).to.be.eql('test1');
+                resolve();
+              }),
+            );
+          });
+
+          await queue.resume();
+
+          await completing;
+
+          await worker.close();
+        });
       });
 
-      const worker = new Worker(
-        queueName,
-        async () => {
-          await delay(20);
-        },
-        { connection, prefix },
-      );
-      await worker.waitUntilReady();
+      describe('when lifo option is provided as false', () => {
+        it('moves job to the tail of wait list and has more priority', async () => {
+          await queue.pause();
+          const job = await Job.create(
+            queue,
+            'test1',
+            { foo: 'bar' },
+            { priority: 8 },
+          );
+          await Job.create(queue, 'test2', { foo: 'bar' });
 
-      const completing = new Promise<void>(resolve => {
-        worker.on(
-          'completed',
-          after(2, job => {
-            expect(job.name).to.be.eql('test1');
-            resolve();
-          }),
+          await job.changePriority({
+            priority: 0,
+            lifo: false,
+          });
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(20);
+            },
+            { connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          const completing = new Promise<void>(resolve => {
+            worker.on(
+              'completed',
+              after(2, job => {
+                expect(job.name).to.be.eql('test1');
+                resolve();
+              }),
+            );
+          });
+
+          await queue.resume();
+
+          await completing;
+
+          await worker.close();
+        });
+      });
+    });
+
+    describe('when job is in prioritized state', () => {
+      it('can change priority of a job', async function () {
+        await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
+        const job = await Job.create(
+          queue,
+          'test2',
+          { foo: 'bar' },
+          { priority: 16 },
         );
+
+        await job.changePriority({
+          priority: 1,
+        });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(20);
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const completing = new Promise<void>(resolve => {
+          worker.on(
+            'completed',
+            after(2, job => {
+              expect(job.name).to.be.eql('test1');
+              resolve();
+            }),
+          );
+        });
+
+        await completing;
+
+        await worker.close();
       });
 
-      await completing;
+      describe('when lifo option is provided as true', () => {
+        it('moves job to the head of prioritized jobs with same priority', async () => {
+          await queue.pause();
+          await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 16 });
+          const job = await Job.create(
+            queue,
+            'test2',
+            { foo: 'bar' },
+            { priority: 16 },
+          );
 
-      await worker.close();
+          await job.changePriority({
+            priority: 16,
+            lifo: true,
+          });
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(20);
+            },
+            { connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          const completing = new Promise<void>(resolve => {
+            worker.on(
+              'completed',
+              after(2, job => {
+                expect(job.name).to.be.eql('test1');
+                resolve();
+              }),
+            );
+          });
+
+          await queue.resume();
+
+          await completing;
+
+          await worker.close();
+        });
+      });
     });
 
     describe('when queue is paused', () => {
@@ -1064,91 +1197,7 @@ describe('Job', function () {
       });
     });
 
-    describe('when lifo option is provided as true', () => {
-      it('moves job to the head of wait list', async () => {
-        await queue.pause();
-        await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
-        const job = await Job.create(
-          queue,
-          'test2',
-          { foo: 'bar' },
-          { priority: 16 },
-        );
-
-        await job.changePriority({
-          lifo: true,
-        });
-
-        const worker = new Worker(
-          queueName,
-          async () => {
-            await delay(20);
-          },
-          { connection, prefix },
-        );
-        await worker.waitUntilReady();
-
-        const completing = new Promise<void>(resolve => {
-          worker.on(
-            'completed',
-            after(2, job => {
-              expect(job.name).to.be.eql('test1');
-              resolve();
-            }),
-          );
-        });
-
-        await queue.resume();
-
-        await completing;
-
-        await worker.close();
-      });
-    });
-
-    describe('when lifo option is provided as false', () => {
-      it('moves job to the tail of wait list and has more priority', async () => {
-        await queue.pause();
-        const job = await Job.create(
-          queue,
-          'test1',
-          { foo: 'bar' },
-          { priority: 8 },
-        );
-        await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });
-
-        await job.changePriority({
-          lifo: false,
-        });
-
-        const worker = new Worker(
-          queueName,
-          async () => {
-            await delay(20);
-          },
-          { connection, prefix },
-        );
-        await worker.waitUntilReady();
-
-        const completing = new Promise<void>(resolve => {
-          worker.on(
-            'completed',
-            after(2, job => {
-              expect(job.name).to.be.eql('test2');
-              resolve();
-            }),
-          );
-        });
-
-        await queue.resume();
-
-        await completing;
-
-        await worker.close();
-      });
-    });
-
-    describe('when job is not in wait state', () => {
+    describe('when job is not in wait or prioritized state', () => {
       it('does not add a record in priority zset', async () => {
         const job = await Job.create(
           queue,
