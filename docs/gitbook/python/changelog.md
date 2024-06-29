@@ -2,6 +2,28 @@
 
 <!--next-version-placeholder-->
 
+## v2.7.8 (2024-06-05)
+### Fix
+* Remove print calls [python] ([#2579](https://github.com/taskforcesh/bullmq/issues/2579)) ([`f957186`](https://github.com/taskforcesh/bullmq/commit/f95718689864dbaca8a6b4113a6b37727919d6df))
+
+## v2.7.7 (2024-06-04)
+### Fix
+* **worker:** Properly cancel blocking command during disconnections ([`2cf12b3`](https://github.com/taskforcesh/bullmq/commit/2cf12b3622b0517f645971ece8acdcf673bede97))
+* Extendlock,createbulk use pipeline no multi command ([`a053d9b`](https://github.com/taskforcesh/bullmq/commit/a053d9b87e9799b151e2563b499dbff309b9d2e5))
+* **repeat:** Throw error when endDate is pointing to the past ([#2574](https://github.com/taskforcesh/bullmq/issues/2574)) ([`5bd7990`](https://github.com/taskforcesh/bullmq/commit/5bd79900ea3ace8ec6aa00525aff81a345f8e18e))
+* **retry-job:** Throw error when job is not in active state ([#2576](https://github.com/taskforcesh/bullmq/issues/2576)) ([`ca207f5`](https://github.com/taskforcesh/bullmq/commit/ca207f593d0ed455ecc59d9e0ef389a9a50d9634))
+* **sandboxed:** Ensure DelayedError is checked in Sandboxed processors (#2567) fixes #2566 ([`8158fa1`](https://github.com/taskforcesh/bullmq/commit/8158fa114f57619b31f101bc8d0688a09c6218bb))
+* **job:** Validate job existence when adding a log ([#2562](https://github.com/taskforcesh/bullmq/issues/2562)) ([`f87e3fe`](https://github.com/taskforcesh/bullmq/commit/f87e3fe029e48d8964722da762326e531c2256ee))
+
+### Documentation
+* Correct typo in `maxmemory-policy` reference ([`c19c839`](https://github.com/taskforcesh/bullmq/commit/c19c83979a50fd5e188bb97d0511481e460bdfc9))
+* **aws-elasticache:** Fix image not displayed correctly(#2564) ([`2dd3709`](https://github.com/taskforcesh/bullmq/commit/2dd3709fe3b638f2ff13851fc9ff4dc81c4bfe94))
+* Fix typo ([#2563](https://github.com/taskforcesh/bullmq/issues/2563)) ([`be68695`](https://github.com/taskforcesh/bullmq/commit/be68695028fac0581b1561be7c6705188d9cdbb7))
+* **pro:** Add local group concurrency section ([#2551](https://github.com/taskforcesh/bullmq/issues/2551)) ([`cce0774`](https://github.com/taskforcesh/bullmq/commit/cce0774cffcee591407eee4d4530daa37aab3eca))
+
+### Performance
+* **job:** Set processedBy using hmset (#2592) (python) ([`238680b`](https://github.com/taskforcesh/bullmq/commit/238680b84593690a73d542dbe1120611c3508b47))
+
 ## v2.7.6 (2024-05-09)
 ### Fix
 * **connection:** Use async Retry (#2555) [python] ([`d6dd21d`](https://github.com/taskforcesh/bullmq/commit/d6dd21d3ac28660bbfa7825bba0b586328769709))

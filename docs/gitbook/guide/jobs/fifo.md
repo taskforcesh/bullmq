@@ -38,3 +38,7 @@ const queue = new Queue('Paint', { defaultJobOptions: {
   removeOnComplete: true, removeOnFail: 1000
 });
 ```
+
+## Read more:
+
+* 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)

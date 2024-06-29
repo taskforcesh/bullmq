@@ -23,29 +23,39 @@ local priority = tonumber(ARGV[1])
 local rcall = redis.call
 
 -- Includes
---- @include "includes/isQueuePaused"
+--- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
+--- @include "includes/getTargetQueueList"
+--- @include "includes/pushBackJobWithPriority"
+
+local function reAddJobWithNewPriority( prioritizedKey, markerKey, targetKey,
+    priorityCounter, lifo, priority, jobId, paused)
+    if priority == 0 then
+        local pushCmd = lifo and 'RPUSH' or 'LPUSH'
+        addJobInTargetList(targetKey, markerKey, pushCmd, paused, jobId)
+    else
+        if lifo then
+            pushBackJobWithPriority(prioritizedKey, priority, jobId)
+        else
+            addJobWithPriority(markerKey, prioritizedKey, priority, jobId,
+                priorityCounter, paused)
+        end
+    end
+end
 
 if rcall("EXISTS", jobKey) == 1 then
     local metaKey = KEYS[3]
-    local isPaused = isQueuePaused(metaKey)
+    local target, isPaused = getTargetQueueList(metaKey, KEYS[1], KEYS[2])
     local markerKey = KEYS[6]
     local prioritizedKey = KEYS[4]
 
     -- Re-add with the new priority
     if rcall("ZREM", KEYS[4], jobId) > 0 then
-        addJobWithPriority(markerKey, prioritizedKey, priority, jobId, KEYS[5],
-                           isPaused)
-        -- If the new priority is 0, then just leave the job where it is in the wait list.
-    elseif priority > 0 then
-        -- Job is already in the wait list, we need to re-add it with the new priority.
-        local target = isPaused and KEYS[2] or KEYS[1]
-
-        local numRemovedElements = rcall("LREM", target, -1, jobId)
-        if numRemovedElements > 0 then
-            addJobWithPriority(markerKey, prioritizedKey, priority, jobId,
-                               KEYS[5], isPaused)
-        end
+        reAddJobWithNewPriority( prioritizedKey, markerKey, target,
+            KEYS[5], ARGV[4] == '1', priority, jobId, isPaused)
+    elseif rcall("LREM", target, -1, jobId) > 0 then
+        reAddJobWithNewPriority( prioritizedKey, markerKey, target,
+            KEYS[5], ARGV[4] == '1', priority, jobId, isPaused)
     end
 
     rcall("HSET", jobKey, "priority", priority)

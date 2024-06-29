@@ -21,4 +21,4 @@ The priorities go from 0 to 2097151, where a higher number means lower priority 
 
 ## Read more:
 
-* 💡 [Add Job API Reference](https://api.bullmq.pro/classes/v6.Queue.html#add)
+* 💡 [Add Job API Reference](https://api.bullmq.pro/classes/v7.Queue.html#add)

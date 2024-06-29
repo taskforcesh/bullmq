@@ -1,4 +1,5 @@
 import asyncio
+from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
 from bullmq.utils import extract_result
@@ -6,7 +7,7 @@ from bullmq.scripts import Scripts
 from bullmq.job import Job
 
 
-class Queue:
+class Queue(EventEmitter):
     """
     Instantiate a Queue object
     """
@@ -219,6 +220,23 @@ class Queue:
             counts[current_types[index]] = val or 0
         return counts
 
+    async def getCountsPerPriority(self, priorities):
+        """
+        Returns the number of jobs per priority.
+
+        @returns: An object, key (priority) and value (count)
+        """
+        set_priorities = set(priorities)
+        unique_priorities = (list(set_priorities))
+
+        responses = await self.scripts.getCountsPerPriority(unique_priorities)
+
+        counts = {}
+
+        for index, val in enumerate(responses):
+            counts[f"{unique_priorities[index]}"] = val or 0
+        return counts
+
     async def clean(self, grace: int, limit: int, type: str):
         """
         Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
@@ -265,7 +283,7 @@ class Queue:
         job_ids = await self.scripts.getRanges(current_types, start, end, asc)
         tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]   
         job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-        jobs = [extract_result(job_task) for job_task in job_set]
+        jobs = [extract_result(job_task, self.emit) for job_task in job_set]
         jobs_len = len(jobs)
 
         # we filter `None` out to remove:

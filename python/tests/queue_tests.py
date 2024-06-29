@@ -422,6 +422,26 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    async def test_get_counts_per_priority(self):
+        queue = Queue(queueName)
+        jobs = [{
+            "name": "test",
+            "data": {},
+            "opts": {
+                "priority": index % 4
+            }
+        } for index in range(42)]
+        await queue.addBulk(jobs)
+        counts = await queue.getCountsPerPriority([0, 1, 2, 3])
+        self.assertEqual(counts, {
+            "0": 11,
+            "1": 11,
+            "2": 10,
+            "3": 10
+        })
+
+        await queue.close()
+
     async def test_reusable_redis(self):
         conn = redis.Redis(decode_responses=True, host="localhost", port="6379", db=0)
         queue = Queue(queueName, {"connection": conn})

@@ -616,6 +616,26 @@ export class Scripts {
     return (<any>client).getCounts(args);
   }
 
+  private getCountsPerPriorityArgs(priorities: number[]): (string | number)[] {
+    const keys: (string | number)[] = [
+      this.queue.keys.wait,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+      this.queue.keys.prioritized,
+    ];
+
+    const args = priorities;
+
+    return keys.concat(args);
+  }
+
+  async getCountsPerPriority(priorities: number[]): Promise<number[]> {
+    const client = await this.queue.client;
+    const args = this.getCountsPerPriorityArgs(priorities);
+
+    return (<any>client).getCountsPerPriority(args);
+  }
+
   moveToCompletedArgs<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     returnvalue: R,
@@ -835,12 +855,12 @@ export class Scripts {
     jobId: string,
     token: string,
     opts?: MoveToWaitingChildrenOpts,
-  ): string[] {
+  ): (string | number)[] {
     const timestamp = Date.now();
 
     const childKey = getParentKey(opts.child);
 
-    const keys = [
+    const keys: (string | number)[] = [
       `${jobId}:lock`,
       'active',
       'waiting-children',
