@@ -60,7 +60,6 @@ local rcall = redis.call
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
---- @include "includes/isQueueMaxed"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/moveParentToWaitIfNeeded"
@@ -203,11 +202,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- and not rate limited.
     if (ARGV[6] == "1") then
 
-        local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[8])
+        local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8])
 
         -- Check if there are delayed jobs that can be promoted
         promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], eventStreamKey, ARGV[7],
-                           timestamp, KEYS[10], paused)
+                           timestamp, KEYS[10], isPausedOrMaxed)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.
@@ -215,13 +214,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         if expireTime > 0 then return {0, 0, expireTime, 0} end
 
-        -- paused queue
-        if paused then return {0, 0, 0, 0} end
-
-        local isMaxed = isQueueMaxed(KEYS[9], KEYS[2])
-
-        -- maxed queue
-        if isMaxed then return {0, 0, 0, 0} end
+        -- paused or maxed queue
+        if isPausedOrMaxed then return {0, 0, 0, 0} end
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 

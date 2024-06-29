@@ -64,7 +64,7 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
         end
     end
 
-    local prev = removeJobFromAnyState(prefix, jobId, KEYS[2])
+    local prev = removeJobFromAnyState(prefix, jobId)
 
     if removeJobKeys(jobKey) > 0 then
         local maxEvents = getOrSetMaxEvents(KEYS[2])

@@ -13,7 +13,8 @@
       KEYS[3] 'id'
       KEYS[4] 'delayed'
       KEYS[5] 'completed'
-      KEYS[6] events stream key
+      KEYS[6] 'active'
+      KEYS[7] events stream key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -38,7 +39,7 @@ local idKey = KEYS[3]
 local delayedKey = KEYS[4]
 
 local completedKey = KEYS[5]
-local eventsKey = KEYS[6]
+local eventsKey = KEYS[7]
 
 local jobId
 local jobIdKey
@@ -57,7 +58,7 @@ local parentData
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
---- @include "includes/isQueuePaused"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/storeJob"
 
 if parentKey ~= nil then
@@ -100,8 +101,8 @@ rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "delayed",
       "jobId", jobId, "delay", delayedTimestamp)
 
 -- mark that a delayed job is available
-local isPaused = isQueuePaused(metaKey)
-if not isPaused then
+local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[6])
+if not isPausedOrMaxed then
     local markerKey = KEYS[1]
     addDelayMarkerIfNeeded(markerKey, delayedKey)
 end

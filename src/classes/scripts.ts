@@ -86,6 +86,7 @@ export class Scripts {
       queueKeys.id,
       queueKeys.delayed,
       queueKeys.completed,
+      queueKeys.active,
       queueKeys.events,
     ];
 
@@ -107,6 +108,7 @@ export class Scripts {
       queueKeys.id,
       queueKeys.prioritized,
       queueKeys.completed,
+      queueKeys.active,
       queueKeys.events,
       queueKeys.pc,
     ];
@@ -148,6 +150,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.completed,
+      queueKeys.active,
       queueKeys.events,
       queueKeys.marker,
     ];
@@ -745,6 +748,7 @@ export class Scripts {
     const keys: (string | number)[] = [
       this.queue.keys.delayed,
       this.queue.keys.meta,
+      this.queue.keys.active,
       this.queue.keys.marker,
       this.queue.keys.events,
     ];
@@ -785,6 +789,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
+      this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.marker,
     ];
@@ -865,8 +870,6 @@ export class Scripts {
       'active',
       'waiting-children',
       jobId,
-      '',
-      'meta',
       'stalled',
     ].map(name => {
       return this.queue.toKey(name);
@@ -1015,6 +1018,7 @@ export class Scripts {
       this.queue.toKey('wait'),
       this.queue.toKey('paused'),
       this.queue.keys.meta,
+      this.queue.keys.active,
       this.queue.keys.marker,
     ];
 
@@ -1069,6 +1073,7 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.meta,
       this.queue.keys.paused,
+      this.queue.keys.active,
       this.queue.keys.marker,
     ];
 
@@ -1139,6 +1144,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
+      this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.events,
       this.queue.keys.marker,
@@ -1221,10 +1227,9 @@ export class Scripts {
       this.queue.keys.prioritized,
       this.queue.keys.marker,
       this.queue.keys.events,
-      this.queue.toKey(''),
     ];
 
-    const args = [jobId, token, this.queue.toKey(jobId), Date.now()];
+    const args = [jobId, token, this.queue.toKey(jobId)];
 
     const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
 

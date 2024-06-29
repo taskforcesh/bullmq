@@ -12,7 +12,6 @@
     KEYS[8]  prioritized key
     KEYS[9]  marker key
     KEYS[10] event key
-    KEYS[11] prefix key
 
     ARGV[1] job id
     ARGV[2] lock token
@@ -36,7 +35,7 @@ if lockToken == token then
   local metaKey = KEYS[6]
   local removed = rcall("LREM", KEYS[1], 1, jobId)
   if removed > 0 then
-    local target, isPaused = getTargetQueueList(metaKey, KEYS[2], KEYS[5])
+    local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[1], KEYS[2], KEYS[5])
 
     rcall("SREM", KEYS[3], jobId)
 
@@ -45,7 +44,7 @@ if lockToken == token then
     if priority > 0 then
       pushBackJobWithPriority(KEYS[8], priority, jobId)
     else
-      addJobInTargetList(target, KEYS[9], "RPUSH", isPaused, jobId)
+      addJobInTargetList(target, KEYS[9], "RPUSH", isPausedOrMaxed, jobId)
     end
 
     rcall("DEL", lockKey)

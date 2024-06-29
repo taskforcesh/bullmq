@@ -6,9 +6,7 @@
     KEYS[2] active key
     KEYS[3] waitChildrenKey key
     KEYS[4] job key
-    KEYS[5] key prefix
-    KEYS[6] meta key
-    KEYS[7] stalled key
+    KEYS[5] stalled key
 
     ARGV[1] token
     ARGV[2] child key
@@ -23,14 +21,13 @@
    -3 - Job not in active set
 ]]
 local rcall = redis.call
-local prefix = KEYS[5]
-local metaKey = KEYS[6]
+local stalledKey = KEYS[5]
 
 --- Includes
 --- @include "includes/removeLock"
 
 local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
-    timestamp, prefix, metaKey)
+    timestamp)
   local score = tonumber(timestamp)
 
   local numRemovedElements = rcall("LREM", activeKey, -1, jobId)
@@ -47,21 +44,21 @@ end
 if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
     if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
-      local errorCode = removeLock(KEYS[4], KEYS[7], ARGV[1], ARGV[4])
+      local errorCode = removeLock(KEYS[4], stalledKey, ARGV[1], ARGV[4])
       if errorCode < 0 then
         return errorCode
       end
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], prefix, metaKey)
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3])
     end
 
     return 1
   else
     if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
-      local errorCode = removeLock(KEYS[4], KEYS[7], ARGV[1], ARGV[4])
+      local errorCode = removeLock(KEYS[4], stalledKey, ARGV[1], ARGV[4])
       if errorCode < 0 then
         return errorCode
       end
-      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3], prefix, metaKey)
+      return moveToWaitingChildren(KEYS[2], KEYS[3], ARGV[4], ARGV[3])
     end
 
     return 1

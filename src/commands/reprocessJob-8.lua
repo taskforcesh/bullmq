@@ -8,7 +8,8 @@
     KEYS[4] wait key
     KEYS[5] meta
     KEYS[6] paused key
-    KEYS[7] marker key
+    KEYS[7] active key
+    KEYS[8] marker key
 
     ARGV[1] job.id
     ARGV[2] (job.opts.lifo ? 'R' : 'L') + 'PUSH'
@@ -32,8 +33,8 @@ if rcall("EXISTS", KEYS[1]) == 1 then
   if (rcall("ZREM", KEYS[3], jobId) == 1) then
     rcall("HDEL", KEYS[1], "finishedOn", "processedOn", ARGV[3])
 
-    local target, isPaused = getTargetQueueList(KEYS[5], KEYS[4], KEYS[6])
-    addJobInTargetList(target, KEYS[7], ARGV[2], isPaused, jobId)
+    local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[7], KEYS[4], KEYS[6])
+    addJobInTargetList(target, KEYS[8], ARGV[2], isPausedOrMaxed, jobId)
 
     local maxEvents = getOrSetMaxEvents(KEYS[5])
     -- Emit waiting event

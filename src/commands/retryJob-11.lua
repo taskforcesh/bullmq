@@ -38,13 +38,14 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeLock"
+--- @include "includes/isQueuePausedOrMaxed"
 
-local target, paused = getTargetQueueList(KEYS[5], KEYS[2], KEYS[3])
+local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[1], KEYS[2], KEYS[3])
 local markerKey = KEYS[10]
 
 -- Check if there are delayed jobs that we can move to wait.
 -- test example: when there are delayed jobs between retries
-promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], paused)
+promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], isPausedOrMaxed)
 
 if rcall("EXISTS", KEYS[4]) == 1 then
   local errorCode = removeLock(KEYS[4], KEYS[11], ARGV[5], ARGV[4]) 
@@ -57,11 +58,14 @@ if rcall("EXISTS", KEYS[4]) == 1 then
 
   local priority = tonumber(rcall("HGET", KEYS[4], "priority")) or 0
 
+  --need to re-evaluate after removing job from active
+  isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[1])
+
   -- Standard or priority add
   if priority == 0 then
-    addJobInTargetList(target, markerKey, ARGV[3], paused, ARGV[4])
+    addJobInTargetList(target, markerKey, ARGV[3], isPausedOrMaxed, ARGV[4])
   else
-    addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], paused)
+    addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], isPausedOrMaxed)
   end
 
   rcall("HINCRBY", KEYS[4], "atm", 1)

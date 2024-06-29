@@ -23,7 +23,7 @@ describe('Concurrency', () => {
   });
 
   afterEach(async () => {
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    // await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
@@ -132,7 +132,7 @@ describe('Concurrency', () => {
   }).timeout(6000);
 
   describe('when global dynamic limit is used', () => {
-    it('should run max concurrency for jobs added', async () => {
+    it('should run max concurrency for jobs added respecting global dynamic limit', async () => {
       const numJobs = 5;
       const dynamicLimit = 250;
       const duration = 100;
@@ -450,6 +450,10 @@ describe('Concurrency', () => {
 
     const allCompleted = new Promise(resolve => {
       worker2.on('completed', after(numJobs, resolve));
+    });
+
+    worker2.on('error', error => {
+      console.log('error');
     });
 
     const allStalled = new Promise<void>(resolve => {

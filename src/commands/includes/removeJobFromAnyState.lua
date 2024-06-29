@@ -5,7 +5,7 @@
     prev state
 ]]
 
-local function removeJobFromAnyState( prefix, jobId, metaKey)
+local function removeJobFromAnyState( prefix, jobId)
   -- We start with the ZSCORE checks, since they have O(1) complexity
   if rcall("ZSCORE", prefix .. "completed", jobId) then
     rcall("ZREM", prefix .. "completed", jobId)
