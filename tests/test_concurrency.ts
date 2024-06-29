@@ -23,7 +23,7 @@ describe('Concurrency', () => {
   });
 
   afterEach(async () => {
-    // await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
