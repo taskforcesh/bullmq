@@ -22,7 +22,6 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addJobInTargetList"
---- @include "includes/decreaseConcurrency"
 --- @include "includes/pushBackJobWithPriority"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
@@ -49,7 +48,6 @@ if lockToken == token then
       addJobInTargetList(target, KEYS[9], "RPUSH", isPaused, jobId)
     end
 
-    decreaseConcurrency(KEYS[11], metaKey)
     rcall("DEL", lockKey)
 
     local maxEvents = getOrSetMaxEvents(metaKey)

@@ -316,10 +316,8 @@ export class Queue<
   /**
    * Returns true if the queue is currently maxed.
    */
-  async isMaxed(): Promise<boolean> {
-    const client = await this.client;
-    const maxed = await client.hexists(this.keys.meta, 'maxed');
-    return maxed === 1;
+  isMaxed(): Promise<boolean> {
+    return this.scripts.isMaxed();
   }
 
   /**

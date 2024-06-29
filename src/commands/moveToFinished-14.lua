@@ -57,7 +57,6 @@ local rcall = redis.call
 
 --- Includes
 --- @include "includes/collectMetrics"
---- @include "includes/decreaseConcurrency"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
@@ -117,8 +116,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local metaKey = KEYS[9]
     -- Trim events before emiting them to avoid trimming events emitted in this script
     trimEvents(metaKey, eventStreamKey)
-
-    decreaseConcurrency(ARGV[7], metaKey)
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -221,7 +218,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         -- paused queue
         if paused then return {0, 0, 0, 0} end
 
-        local isMaxed = isQueueMaxed(KEYS[9])
+        local isMaxed = isQueueMaxed(KEYS[9], KEYS[2])
 
         -- maxed queue
         if isMaxed then return {0, 0, 0, 0} end

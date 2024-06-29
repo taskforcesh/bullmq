@@ -26,7 +26,6 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
---- @include "includes/decreaseConcurrency"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/moveParentToWaitIfNeeded"
@@ -80,7 +79,6 @@ if (#stalling > 0) then
                 local removed = rcall("LREM", activeKey, 1, jobId)
 
                 if (removed > 0) then
-                    decreaseConcurrency(queueKeyPrefix, metaKey)
                     -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
                     local stalledCount =
                         rcall("HINCRBY", jobKey, "stalledCounter", 1)

@@ -1,6 +1,15 @@
 --[[
-  Function to check for the meta.maxed key to decide if we are maxed or not.
+  Function to check if queue is maxed or not.
 ]]
-local function isQueueMaxed(queueMetaKey)
-  return rcall("HEXISTS", queueMetaKey, "maxed") == 1
+local function isQueueMaxed(queueMetaKey, activeKey)
+  local maxConcurrency = rcall("HGET", queueMetaKey, "concurrency")
+
+  if maxConcurrency then
+    local activeCount = rcall("LLEN", activeKey)
+    if activeCount >= tonumber(maxConcurrency) then
+      return true
+    end
+  end
+
+  return false
 end

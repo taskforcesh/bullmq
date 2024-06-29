@@ -34,7 +34,6 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
---- @include "includes/decreaseConcurrency"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
@@ -64,8 +63,6 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   else
     addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], paused)
   end
-
-  decreaseConcurrency(ARGV[1], KEYS[5])
 
   rcall("HINCRBY", KEYS[4], "atm", 1)
 

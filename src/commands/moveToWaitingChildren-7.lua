@@ -27,7 +27,6 @@ local prefix = KEYS[5]
 local metaKey = KEYS[6]
 
 --- Includes
---- @include "includes/decreaseConcurrency"
 --- @include "includes/removeLock"
 
 local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
@@ -42,7 +41,6 @@ local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
 
   rcall("ZADD", waitingChildrenKey, score, jobId)
 
-  decreaseConcurrency(prefix, metaKey)
   return 0
 end
 

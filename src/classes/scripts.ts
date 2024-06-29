@@ -880,6 +880,20 @@ export class Scripts {
     ]);
   }
 
+  isMaxedArgs(): string[] {
+    const queueKeys = this.queue.keys;
+    const keys: string[] = [queueKeys.meta, queueKeys.active];
+
+    return keys;
+  }
+
+  async isMaxed(): Promise<boolean> {
+    const client = await this.queue.client;
+
+    const args = this.isMaxedArgs();
+    return !!(await (<any>client).isMaxed(args));
+  }
+
   async moveToDelayed(
     jobId: string,
     timestamp: number,

@@ -46,7 +46,6 @@ local opts = cmsgpack.unpack(ARGV[3])
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
 --- @include "includes/getTargetQueueList"
---- @include "includes/increaseConcurrency"
 --- @include "includes/isQueueMaxed"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/prepareJobForProcessing"
@@ -68,7 +67,7 @@ local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
 -- Check if we are rate limited first.
 if expireTime > 0 then return {0, 0, expireTime, 0} end
 
-local isMaxed = isQueueMaxed(KEYS[9])
+local isMaxed = isQueueMaxed(KEYS[9], activeKey)
 
 -- maxed queue
 if isMaxed then return {0, 0, 0, 0} end
@@ -83,13 +82,11 @@ if jobId and string.sub(jobId, 1, 2) == "0:" then
 end
 
 if jobId then
-    increaseConcurrency(ARGV[1], KEYS[9])
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                    maxJobs, opts)
 else
     jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
     if jobId then
-        increaseConcurrency(ARGV[1], KEYS[9])
         return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                        maxJobs, opts)
     end
