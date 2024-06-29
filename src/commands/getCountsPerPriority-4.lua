@@ -16,13 +16,16 @@ local pausedKey = KEYS[2]
 local prioritizedKey = KEYS[4]
 
 -- Includes
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePaused"
 
 for i = 1, #ARGV do
   local priority = tonumber(ARGV[i])
   if priority == 0 then
-    local target = getTargetQueueList(KEYS[3], waitKey, pausedKey)
-    results[#results+1] = rcall("LLEN", target)
+    if isQueuePaused(KEYS[3]) then
+      results[#results+1] = rcall("LLEN", pausedKey)
+    else
+      results[#results+1] = rcall("LLEN", waitKey)
+    end
   else
     results[#results+1] = rcall("ZCOUNT", prioritizedKey,
       priority * 0x100000000, (priority + 1)  * 0x100000000 - 1)

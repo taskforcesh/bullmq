@@ -619,7 +619,7 @@ will never work with more accuracy than 1ms. */
 
     let timeout: NodeJS.Timeout;
     try {
-      if (!this.closing) {
+      if (!this.closing && !this.limitUntil) {
         let blockTimeout = this.getBlockTimeout(blockUntil);
 
         if (blockTimeout > 0) {

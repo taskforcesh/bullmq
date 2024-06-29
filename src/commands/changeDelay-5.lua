@@ -3,8 +3,9 @@
   Input:
     KEYS[1] delayed key
     KEYS[2] meta key
-    KEYS[3] marker key
-    KEYS[4] events stream
+    KEYS[3] active key
+    KEYS[4] marker key
+    KEYS[5] events stream
 
     ARGV[1] delay
     ARGV[2] delayedTimestamp
@@ -24,7 +25,7 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/isQueuePaused"
+--- @include "includes/isQueuePausedOrMaxed"
 
 if rcall("EXISTS", ARGV[4]) == 1 then
   local jobId = ARGV[3]
@@ -42,13 +43,13 @@ if rcall("EXISTS", ARGV[4]) == 1 then
 
   local maxEvents = getOrSetMaxEvents(KEYS[2])
 
-  rcall("XADD", KEYS[4], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
+  rcall("XADD", KEYS[5], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
     "jobId", jobId, "delay", delayedTimestamp)
 
   -- mark that a delayed job is available
-  local isPaused = isQueuePaused(KEYS[2])
-  if not isPaused then
-    addDelayMarkerIfNeeded(KEYS[3], KEYS[1])
+  local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[2], KEYS[3])
+  if not isPausedOrMaxed then
+    addDelayMarkerIfNeeded(KEYS[4], KEYS[1])
   end
 
   return 0

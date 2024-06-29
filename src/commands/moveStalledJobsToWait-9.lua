@@ -142,11 +142,11 @@ if (#stalling > 0) then
 
                         table.insert(failed, jobId)
                     else
-                        local target, isPaused=
-                            getTargetQueueList(metaKey, waitKey, pausedKey)
+                        local target, isPausedOrMaxed=
+                            getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                        addJobInTargetList(target, markerKey, "RPUSH", isPaused, jobId)
+                        addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)
 
                         rcall("XADD", eventStreamKey, "*", "event",
                               "waiting", "jobId", jobId, 'prev', 'active')
