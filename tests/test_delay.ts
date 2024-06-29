@@ -510,21 +510,17 @@ describe('Delayed jobs', function () {
     });
 
     const now = Date.now();
-    const promises: Promise<Job<any, any, string>>[] = [];
     let i = 1;
     for (i; i <= numJobs; i++) {
-      promises.push(
-        queue.add(
-          'test',
-          { order: i },
-          {
-            delay: 1000,
-            timestamp: now,
-          },
-        ),
+      await queue.add(
+        'test',
+        { order: i },
+        {
+          delay: 1000,
+          timestamp: now,
+        },
       );
     }
-    await Promise.all(promises);
     await processing;
     await worker!.close();
   });

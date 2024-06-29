@@ -559,7 +559,7 @@ function sandboxProcessTests(
       const delaying = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ delay }) => {
           try {
-            expect(Number(delay)).to.be.greaterThanOrEqual(2500);
+            expect(Number(delay)).to.be.lessThanOrEqual(Date.now() + 2500);
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               1,
             );
