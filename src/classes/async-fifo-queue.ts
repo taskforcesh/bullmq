@@ -1,21 +1,60 @@
+class Node<T> {
+  value: T | undefined = undefined;
+  next: Node<T> | null = null;
+
+  constructor(value: T) {
+    this.value = value;
+  }
+}
+
+class LinkedList<T> {
+  length: number = 0;
+  private head: Node<T> | null;
+  private tail: Node<T> | null;
+
+  constructor() {
+    this.head = null;
+    this.tail = null;
+  }
+
+  push(value: T) {
+    const newNode = new Node(value);
+    if (!this.length) {
+      this.head = newNode;
+    } else {
+      this.tail.next = newNode;
+    }
+
+    this.tail = newNode;
+    this.length += 1;
+    return newNode;
+  }
+
+  shift() {
+    if (!this.length) {
+      return null;
+    } else {
+      const head = this.head;
+      this.head = this.head.next;
+      this.length -= 1;
+
+      return head;
+    }
+  }
+}
+
 /**
  * AsyncFifoQueue
  *
  * A minimal FIFO queue for asynchronous operations. Allows adding asynchronous operations
  * and consume them in the order they are resolved.
- *
- *  TODO: Optimize using a linked list for the queue instead of an array.
- *  Current implementation requires memory copies when shifting the queue.
- *  For a linked linked implementation, we can exploit the fact that the
- *  maximum number of elements in the list will never exceen the concurrency factor
- *  of the worker, so the nodes of the list could be pre-allocated.
  */
 export class AsyncFifoQueue<T> {
   /**
    * A queue of completed promises. As the pending
    * promises are resolved, they are added to this queue.
    */
-  private queue: (T | undefined)[] = [];
+  private queue: LinkedList<T> = new LinkedList();
 
   /**
    * A set of pending promises.
@@ -108,6 +147,6 @@ export class AsyncFifoQueue<T> {
         }
       }
     }
-    return this.queue.shift();
+    return this.queue.shift()?.value;
   }
 }
