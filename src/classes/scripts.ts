@@ -933,6 +933,19 @@ export class Scripts {
     }
   }
 
+  getRateLimitTtlArgs(maxJobs?: number): (string | number)[] {
+    const keys: (string | number)[] = [this.queue.keys.limiter];
+
+    return keys.concat([maxJobs ?? '0']);
+  }
+
+  async getRateLimitTtl(maxJobs?: number): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.getRateLimitTtlArgs(maxJobs);
+    return (<any>client).getRateLimitTtl(args);
+  }
+
   /**
    * Remove jobs in a specific state.
    *
