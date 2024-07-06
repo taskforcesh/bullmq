@@ -1,3 +1,21 @@
+# [7.10.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.9.2...v7.10.0) (2024-07-06)
+
+
+### Bug Fixes
+
+* **queue-getters:** consider passing maxJobs when calling getRateLimitTtl ([#2631](https://github.com/taskforcesh/bullmq/issues/2631)) fixes [#2628](https://github.com/taskforcesh/bullmq/issues/2628) ([9f6609a](https://github.com/taskforcesh/bullmq/commit/9f6609ab1856c473b2d5cf0710068ce2751d708e))
+* **job:** consider changing priority to 0 ([#2599](https://github.com/taskforcesh/bullmq/issues/2599)) ([4dba122](https://github.com/taskforcesh/bullmq/commit/4dba122174ab5173315fca7fdbb7454761514a53))
+* **priority:** consider paused state when calling getCountsPerPriority (python) ([#2609](https://github.com/taskforcesh/bullmq/issues/2609)) ([6e99250](https://github.com/taskforcesh/bullmq/commit/6e992504b2a7a2fa76f1d04ad53d1512e98add7f))
+* **priority:** use module instead of bit.band to keep order (python) ([#2597](https://github.com/taskforcesh/bullmq/issues/2597)) ([9ece15b](https://github.com/taskforcesh/bullmq/commit/9ece15b17420fe0bee948a5307e870915e3bce87))
+
+### Features
+
+* **queue:** add getCountsPerPriority method ([#2595](https://github.com/taskforcesh/bullmq/issues/2595)) ([77971f4](https://github.com/taskforcesh/bullmq/commit/77971f42b9fc425ad66e0b581e800ea429fc254e))
+
+### Performance Improvements
+
+* **job:** set processedBy using hmset ([#2592](https://github.com/taskforcesh/bullmq/issues/2592)) (python) ([238680b](https://github.com/taskforcesh/bullmq/commit/238680b84593690a73d542dbe1120611c3508b47))
+
 ## [7.9.2](https://github.com/taskforcesh/bullmq-pro/compare/v7.9.1...v7.9.2) (2024-06-28)
 
 
@@ -1040,9 +1058,9 @@ Fixes https://github.com/taskforcesh/bullmq-pro-support/issues/25
 ## [2.4.6](https://github.com/taskforcesh/bullmq-pro/compare/v2.4.5...v2.4.6) (2022-09-06)
 
 
-### Bug Fixes
+### Performance Improvements
 
-* **deps:** upgrade bullmq to 1.90.1 ([#91](https://github.com/taskforcesh/bullmq-pro/issues/91)) ([e3a6dac](https://github.com/taskforcesh/bullmq-pro/commit/e3a6dacfe58252d7373a96b54e41b18dd37367f7))
+* **add-job:** handle parent split on js ([#1397](https://github.com/taskforcesh/bullmq/issues/1397)) ([566f074](https://github.com/taskforcesh/bullmq/commit/566f0747110679e5b07e7642fef793744565fffe))
 
 ## [2.4.5](https://github.com/taskforcesh/bullmq-pro/compare/v2.4.4...v2.4.5) (2022-08-30)
 

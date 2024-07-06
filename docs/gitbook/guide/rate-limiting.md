@@ -103,8 +103,9 @@ For this purpose, you can use the **`getRateLimitTtl`** method like this:
 import { Queue } from 'bullmq';
 
 const queue = new Queue('myQueue', { connection });
+const maxJobs = 100;
 
-const ttl = await queue.getRateLimitTtl();
+const ttl = await queue.getRateLimitTtl(maxJobs);
 
 if (ttl > 0) {
   console.log('Queue is rate limited');
