@@ -31,8 +31,8 @@ class Scripts:
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
         self.commands = {
-            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-7.lua")), 
-            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")), 
+            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-7.lua")),
+            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")),
             "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-4.lua")),
             "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-7.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-6.lua")),
@@ -275,7 +275,7 @@ class Scripts:
         keys.append(self.keys['stalled'])
 
         args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
-            job_id, token, delay, "1" if opts.get("skipAttempt") else "0" ]
+            job_id, token, delay, "1" if opts.get("skipAttempt") else "0"]
 
         return (keys, args)
 
@@ -370,7 +370,7 @@ class Scripts:
             self.keys['prioritized'],
             self.keys['pc'],
             self.keys['marker']]
-        
+
         args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0]
 
         result = await self.commands["changePriority"](keys=keys, args=args)
@@ -440,7 +440,7 @@ class Scripts:
     def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
         keys = self.getKeys(
             ['', 'events', state, 'wait', 'paused', 'meta', 'marker'])
-        
+
         args = [count or 1000, timestamp or round(time.time()*1000), state]
         return (keys, args)
 
@@ -498,7 +498,8 @@ class Scripts:
                 raise self.finishedErrors(result, job_id, 'updateProgress', None)
         return None
 
-    def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+    def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str,
+                           opts: dict, fetchNext=True) -> list[Any] | None:
         transformed_value = json.dumps(val, separators=(',', ':'))
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
