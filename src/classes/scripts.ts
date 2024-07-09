@@ -614,7 +614,7 @@ export class Scripts {
     return (<any>client).getCounts(args);
   }
 
-  private getCountsPerPriorityArgs(priorities: number[]): (string | number)[] {
+  protected getCountsPerPriorityArgs(priorities: number[]): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.wait,
       this.queue.keys.paused,
