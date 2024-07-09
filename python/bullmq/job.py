@@ -254,7 +254,7 @@ class Job:
             job.parentKey = rawData.get("parentKey")
 
         if rawData.get("parent"):
-           job.parent = json.loads(rawData.get("parent"))
+            job.parent = json.loads(rawData.get("parent"))
 
         return job
 
@@ -274,7 +274,7 @@ class Job:
 
         if keepLogs:
             multi.ltrim(logs_key, -keepLogs, -1)
-        
+
         result = await multi.execute()
 
         return min(keepLogs, result[0]) if keepLogs else result[0]

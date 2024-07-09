@@ -44,7 +44,7 @@ class Queue(EventEmitter):
         job.id = job_id
         return job
 
-    async def addBulk(self, jobs: list[dict[str,dict | str]]):
+    async def addBulk(self, jobs: list[dict[str, dict | str]]):
         """
         Adds an array of jobs to the queue. This method may be faster than adding
         one job at a time in a sequence
@@ -54,7 +54,7 @@ class Queue(EventEmitter):
             opts = {}
             opts.update(self.jobsOpts)
             opts.update(job.get("opts", {}))
-            
+
             jobs_data.append({
                 "name": job.get("name"),
                 "data": job.get("data"),
@@ -70,7 +70,7 @@ class Queue(EventEmitter):
                     name=job_data.get("name"),
                     data=job_data.get("data"),
                     opts=current_job_opts,
-                    job_id = current_job_opts.get("jobId")
+                    job_id=current_job_opts.get("jobId")
                     )
                 job_id = await self.scripts.addJob(job, pipe)
                 job.id = job_id
@@ -140,7 +140,7 @@ class Queue(EventEmitter):
         return {
             "logs": result[0],
             "count": result[1]
-        }        
+        }
    
     async def obliterate(self, force: bool = False):
         """
@@ -190,7 +190,7 @@ class Queue(EventEmitter):
 
         @param maxLength:
         """
-        return self.client.xtrim(self.keys["events"], maxlen = maxLength, approximate = "~")
+        return self.client.xtrim(self.keys["events"], maxlen=maxLength, approximate="~")
 
     def removeDeprecatedPriorityKey(self):
         """
@@ -199,11 +199,11 @@ class Queue(EventEmitter):
         return self.client.delete(self.toKey("priority"))
 
     async def getJobCountByTypes(self, *types):
-      result = await self.getJobCounts(*types)
-      sum = 0
-      for attribute in result:
-        sum += result[attribute]
-      return sum
+        result = await self.getJobCounts(*types)
+        sum = 0
+        for attribute in result:
+            sum += result[attribute]
+        return sum
 
     async def getJobCounts(self, *types):
         """
@@ -257,7 +257,7 @@ class Queue(EventEmitter):
     def getFailedCount(self):
         return self.getJobCountByTypes('failed')
 
-    def getActive(self, start = 0, end=-1):
+    def getActive(self, start=0, end=-1):
         return self.getJobs(['active'], start, end, True)
 
     def getCompleted(self, start = 0, end=-1):
@@ -281,7 +281,7 @@ class Queue(EventEmitter):
     async def getJobs(self, types, start=0, end=-1, asc:bool=False):
         current_types = self.sanitizeJobTypes(types)
         job_ids = await self.scripts.getRanges(current_types, start, end, asc)
-        tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]   
+        tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]
         job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
         jobs = [extract_result(job_task, self.emit) for job_task in job_set]
         jobs_len = len(jobs)
