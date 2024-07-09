@@ -40,7 +40,7 @@ class FlowProducer:
         self.scripts = Scripts(
             self.prefix, "__default__", self.redisConnection)
 
-    def queueFromNode( self, node:dict, queue_keys, prefix: str):
+    def queueFromNode(self, node:dict, queue_keys, prefix: str):
         return MinimalQueue(node.get("queueName"),queue_keys,self.redisConnection, {"prefix": prefix})
 
     async def addChildren(self, nodes, parent, queues_opts, pipe):
@@ -77,13 +77,13 @@ class FlowProducer:
             name=node.get("name"),
             data=node.get("data"),
             opts=jobs_opts,
-            job_id = job_id
+            job_id=job_id
             )
 
         node_children = node.get("children", [])
 
         self.scripts.resetQueueKeys(queue_name)
-        if len(node_children)>0:
+        if len(node_children) > 0:
             parent_id = job_id
             queue_keys_parent = QueueKeys(prefix or self.opts.get("prefix", "bull"))
             wait_children_key = queue_keys_parent.toKey(queue_name, "waiting-children")

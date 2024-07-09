@@ -614,7 +614,7 @@ export class Scripts {
     return (<any>client).getCounts(args);
   }
 
-  private getCountsPerPriorityArgs(priorities: number[]): (string | number)[] {
+  protected getCountsPerPriorityArgs(priorities: number[]): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.wait,
       this.queue.keys.paused,
@@ -905,6 +905,19 @@ export class Scripts {
           state: 'active',
         });
     }
+  }
+
+  getRateLimitTtlArgs(maxJobs?: number): (string | number)[] {
+    const keys: (string | number)[] = [this.queue.keys.limiter];
+
+    return keys.concat([maxJobs ?? '0']);
+  }
+
+  async getRateLimitTtl(maxJobs?: number): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.getRateLimitTtlArgs(maxJobs);
+    return (<any>client).getRateLimitTtl(args);
   }
 
   /**

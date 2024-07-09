@@ -1,9 +1,5 @@
 # Flows
 
-{% hint style="info" %}
-Flows are a brand new feature in BullMQ, and although is implemented on a stable foundation there could be some unknown issues.
-{% endhint %}
-
 BullMQ supports parent - child relationships between jobs. The basic idea is that a parent job will not be moved to the wait status (i.e. where it could be picked up by a worker) until all its children jobs have been processed successfully. Apart from that, a parent or a child job are no different from regular jobs.
 
 This functionality enables the creation of flows where jobs are the node of trees of arbitrary depth.
