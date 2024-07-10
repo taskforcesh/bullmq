@@ -13,4 +13,3 @@ class QueueBaseOptions(TypedDict, total=False):
     """
     Prefix for all queue keys.
     """
-
