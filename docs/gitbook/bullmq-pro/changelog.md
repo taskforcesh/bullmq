@@ -1,3 +1,10 @@
+## [7.10.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.10.0...v7.10.1) (2024-07-09)
+
+
+### Bug Fixes
+
+* **get-groups-count:** consider other group states apart of waiting ([#240](https://github.com/taskforcesh/bullmq-pro/issues/240)) ([eccd4e6](https://github.com/taskforcesh/bullmq-pro/commit/eccd4e69ee3bda08136d227c3628be24746a5464))
+
 # [7.10.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.9.2...v7.10.0) (2024-07-06)
 
 
