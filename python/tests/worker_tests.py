@@ -299,7 +299,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
                     })
                     step = Step.Second
                 elif step == Step.Second:
-                    await queue.add('child-2', {"foo": "bar" },{
+                    await queue.add('child-2', { "foo": "bar" }, {
                         "parent": {
                             "id": job.id,
                             "queue": job.queueQualifiedName
@@ -364,7 +364,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         async def process(job: Job, token: str):
             nonlocal num_jobs_processing
-            nonlocal wait 
+            nonlocal wait
             nonlocal pending_message_to_process
             num_jobs_processing += 1
             self.assertLess(num_jobs_processing, 5)

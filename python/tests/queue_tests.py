@@ -38,7 +38,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job1 = await queue.add("test-job", {"foo": "bar"}, {})
         job2 = await queue.add("test-job", {"foo": "bar"}, {})
         jobs = await queue.getJobs(["wait"])
-    
+
         self.assertEqual(job2.id, jobs[0].id)
         self.assertEqual(job1.id, jobs[1].id)
         await queue.close()
@@ -106,7 +106,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         events_length = await queue.client.xlen(f"{queue.prefix}:{queueName}:events")
         self.assertEqual(events_length, 8)
 
-        await queue.trimEvents(0);
+        await queue.trimEvents(0)
 
         events_length = await queue.client.xlen(f"{queue.prefix}:{queue.name}:events")
 
@@ -124,7 +124,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         events_length = await queue.client.xlen(f"test:{queueName}:events")
         self.assertEqual(events_length, 8)
 
-        await queue.trimEvents(0);
+        await queue.trimEvents(0)
 
         events_length = await queue.client.xlen(f"test:{queue.name}:events")
 
@@ -374,13 +374,13 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job_count = 8
 
         for index in range(job_count):
-            data = {"idx": index}
+            data = { "idx": index }
             await queue.add("test", data=data, opts={ "delay": 5000 })
 
         delayed_count = await queue.getJobCounts('delayed')
         self.assertEqual(delayed_count['delayed'], job_count)
 
-        await queue.promoteJobs();
+        await queue.promoteJobs()
 
         waiting_count = await queue.getJobCounts('waiting')
         self.assertEqual(waiting_count['waiting'], job_count)

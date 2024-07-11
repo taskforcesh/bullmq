@@ -1,6 +1,7 @@
 import semver
 import traceback
 
+
 def isRedisVersionLowerThan(current_version, minimum_version):
     return semver.VersionInfo.parse(current_version).compare(minimum_version) == -1
 

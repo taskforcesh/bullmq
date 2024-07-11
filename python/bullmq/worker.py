@@ -16,8 +16,10 @@ import math
 
 maximum_block_timeout = 10
 # 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
-# Obviously we can still process much faster than 1 job per millisecond but delays and rate limits will never work with more accuracy than 1ms.
+# Obviously we can still process much faster than 1 job per millisecond but delays and
+# rate limits will never work with more accuracy than 1ms.
 minimum_block_timeout = 0.001
+
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):

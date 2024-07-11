@@ -258,7 +258,7 @@ class Scripts:
         push_cmd = "RPUSH" if lifo else "LPUSH"
 
         args = [self.keys[''], round(time.time() * 1000), push_cmd,
-            job_id, token, "1" if opts.get("skipAttempt") else "0"]
+                job_id, token, "1" if opts.get("skipAttempt") else "0"]
 
         return (keys, args)
 
@@ -270,7 +270,7 @@ class Scripts:
         keys.append(self.keys['stalled'])
 
         args = [self.keys[''], str(timestamp),
-            job_id, token, delay, "1" if opts.get("skipAttempt") else "0"]
+                job_id, token, delay, "1" if opts.get("skipAttempt") else "0"]
 
         return (keys, args)
 
@@ -320,9 +320,9 @@ class Scripts:
 
     def getCountsPerPriorityArgs(self, priorities):
         keys = [self.keys['wait'],
-            self.keys['paused'],
-            self.keys['meta'],
-            self.keys['prioritized']]
+                self.keys['paused'],
+                self.keys['meta'],
+                self.keys['prioritized']]
 
         args = priorities
 
