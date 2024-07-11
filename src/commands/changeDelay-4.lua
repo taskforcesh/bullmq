@@ -25,7 +25,6 @@ local rcall = redis.call
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/isQueuePaused"
 
 if rcall("EXISTS", ARGV[4]) == 1 then
   local jobId = ARGV[3]
@@ -48,10 +47,7 @@ if rcall("EXISTS", ARGV[4]) == 1 then
     "jobId", jobId, "delay", delayedTimestamp)
 
   -- mark that a delayed job is available
-  local isPaused = isQueuePaused(KEYS[2])
-  if not isPaused then
-    addDelayMarkerIfNeeded(KEYS[3], KEYS[1])
-  end
+  addDelayMarkerIfNeeded(KEYS[3], KEYS[1])
 
   return 0
 else
