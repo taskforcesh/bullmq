@@ -32,7 +32,6 @@ local rcall = redis.call
 --- @include "includes/addDelayMarkerIfNeeded"
 --- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/isQueuePaused"
 --- @include "includes/removeLock"
 
 local jobKey = KEYS[5]
@@ -65,11 +64,8 @@ if rcall("EXISTS", jobKey) == 1 then
           "jobId", jobId, "delay", delayedTimestamp)
 
     -- Check if we need to push a marker job to wake up sleeping workers.
-    local isPaused = isQueuePaused(metaKey)
-    if not isPaused then
-        local markerKey = KEYS[1]
-        addDelayMarkerIfNeeded(markerKey, delayedKey)
-    end
+    local markerKey = KEYS[1]
+    addDelayMarkerIfNeeded(markerKey, delayedKey)
 
     return 0
 else

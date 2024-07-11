@@ -58,7 +58,6 @@ local parentData
 --- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
---- @include "includes/isQueuePaused"
 --- @include "includes/storeJob"
 
 if parentKey ~= nil then
@@ -99,11 +98,8 @@ rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "delayed",
       "jobId", jobId, "delay", delayedTimestamp)
 
 -- mark that a delayed job is available
-local isPaused = isQueuePaused(metaKey)
-if not isPaused then
-    local markerKey = KEYS[1]
-    addDelayMarkerIfNeeded(markerKey, delayedKey)
-end
+local markerKey = KEYS[1]
+addDelayMarkerIfNeeded(markerKey, delayedKey)
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 if parentDependenciesKey ~= nil then
