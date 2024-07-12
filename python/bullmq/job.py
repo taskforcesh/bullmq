@@ -153,7 +153,7 @@ class Job:
                 elif delay:
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
-                        round(time.time() * 1000) + delay,
+                        round(time.time() * 1000),
                         token,
                         delay
                     )

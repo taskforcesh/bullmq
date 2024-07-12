@@ -263,18 +263,13 @@ class Scripts:
         return (keys, args)
 
     def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0, opts: dict = {}):
-        max_timestamp = max(0, timestamp or 0)
-
-        if timestamp > 0:
-            max_timestamp = max_timestamp * 0x1000 + (convert_to_int(job_id) & 0xfff)
-
         keys = self.getKeys(['marker', 'active', 'prioritized', 'delayed'])
         keys.append(self.toKey(job_id))
         keys.append(self.keys['events'])
         keys.append(self.keys['meta'])
         keys.append(self.keys['stalled'])
 
-        args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
+        args = [self.keys[''], str(timestamp),
                 job_id, token, delay, "1" if opts.get("skipAttempt") else "0"]
 
         return (keys, args)

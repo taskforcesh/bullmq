@@ -13,8 +13,7 @@
       KEYS[3] 'id'
       KEYS[4] 'delayed'
       KEYS[5] 'completed'
-      KEYS[6] 'active'
-      KEYS[7] events stream key
+      KEYS[6] events stream key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -39,7 +38,7 @@ local idKey = KEYS[3]
 local delayedKey = KEYS[4]
 
 local completedKey = KEYS[5]
-local eventsKey = KEYS[7]
+local eventsKey = KEYS[6]
 
 local jobId
 local jobIdKey
@@ -56,9 +55,9 @@ local parentData
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
---- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/storeJob"
 
 if parentKey ~= nil then
@@ -92,20 +91,15 @@ local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
                                  opts, timestamp, parentKey, parentData,
                                  repeatJobKey)
 
--- Compute delayed timestamp and the score.
-local delayedTimestamp = (delay > 0 and (timestamp + delay)) or 0
-local score = delayedTimestamp * 0x1000 + bit.band(jobCounter, 0xfff)
+local score, delayedTimestamp = getDelayedScore(delayedKey, timestamp, tonumber(delay))
 
 rcall("ZADD", delayedKey, score, jobId)
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "delayed",
       "jobId", jobId, "delay", delayedTimestamp)
 
 -- mark that a delayed job is available
-local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[6])
-if not isPausedOrMaxed then
-    local markerKey = KEYS[1]
-    addDelayMarkerIfNeeded(markerKey, delayedKey)
-end
+local markerKey = KEYS[1]
+addDelayMarkerIfNeeded(markerKey, delayedKey)
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 if parentDependenciesKey ~= nil then

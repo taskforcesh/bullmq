@@ -60,8 +60,8 @@ describe('Pause', function () {
     }
     const counts2 = await queue.getJobCounts('waiting', 'paused', 'delayed');
     expect(counts2).to.have.property('waiting', 0);
-    expect(counts2).to.have.property('paused', 0);
-    expect(counts2).to.have.property('delayed', 1);
+    expect(counts2).to.have.property('paused', 1);
+    expect(counts2).to.have.property('delayed', 0);
 
     await worker.close();
   });
