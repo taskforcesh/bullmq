@@ -32,7 +32,7 @@ class Scripts:
         self.redisClient = redisConnection.conn
         self.commands = {
             "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-8.lua")),
-            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-7.lua")),
+            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")),
             "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-4.lua")),
             "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-8.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-7.lua")),
@@ -130,7 +130,7 @@ class Scripts:
         Add a delayed job to the queue
         """
         keys = self.getKeys(['marker', 'meta', 'id',
-                            'delayed', 'completed', 'active', 'events'])
+                            'delayed', 'completed', 'events'])
         args = self.addJobArgs(job, None)
         args.append(timestamp)
 

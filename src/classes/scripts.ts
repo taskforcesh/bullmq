@@ -86,7 +86,6 @@ export class Scripts {
       queueKeys.id,
       queueKeys.delayed,
       queueKeys.completed,
-      queueKeys.active,
       queueKeys.events,
     ];
 
@@ -619,7 +618,9 @@ export class Scripts {
     return (<any>client).getCounts(args);
   }
 
-  protected getCountsPerPriorityArgs(priorities: number[]): (string | number)[] {
+  protected getCountsPerPriorityArgs(
+    priorities: number[],
+  ): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.wait,
       this.queue.keys.paused,
@@ -737,7 +738,6 @@ export class Scripts {
     const keys: (string | number)[] = [
       this.queue.keys.delayed,
       this.queue.keys.meta,
-      this.queue.keys.active,
       this.queue.keys.marker,
       this.queue.keys.events,
     ];
