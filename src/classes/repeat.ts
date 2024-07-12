@@ -75,7 +75,7 @@ export class Repeat extends QueueBase {
         repeatOpts.jobId = opts.jobId;
       }
 
-      const qualifiedName = getQualifiedName(name, repeatOpts);
+      const qualifiedName = getRepeatCocatOptions(name, repeatOpts);
 
       const repeatJobKey = await this.scripts.addRepeatableJob(
         opts.repeat.key ?? this.hash(qualifiedName),
@@ -149,7 +149,7 @@ export class Repeat extends QueueBase {
     repeat: RepeatOptions,
     jobId?: string,
   ): Promise<number> {
-    const qualifiedName = getQualifiedName(name, { ...repeat, jobId });
+    const qualifiedName = getRepeatCocatOptions(name, { ...repeat, jobId });
     const repeatJobKey = repeat.key ?? this.hash(qualifiedName);
     const legacyRepeatJobId = this.getRepeatJobId({
       name,
@@ -274,7 +274,7 @@ export class Repeat extends QueueBase {
   }
 }
 
-function getQualifiedName(name: string, repeat: RepeatOptions) {
+function getRepeatCocatOptions(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
   const pattern = repeat.pattern;
