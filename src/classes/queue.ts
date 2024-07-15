@@ -184,17 +184,31 @@ export class Queue<
   }
 
   /**
+   * Get global concurrency value.
+   * Returns null in case no value is set.
+   */
+  async getGlobalConcurrency():Promise<number|null> {
+    const client = await this.client;
+    const concurrency = await client.hget(this.keys.meta, 'concurrency');
+    if(concurrency){
+      return Number(concurrency);
+    }
+    return null;
+  }
+
+  /**
    * Enable and set global concurrency value.
    * @param concurrency - Maximum number of simultaneous jobs that the workers can handle.
    * For instance, setting this value to 1 ensures that no more than one job
    * is processed at any given time. If this limit is not defined, there will be no
    * restriction on the number of concurrent jobs.
    */
-  async setGlobalConcurrency(concurrency: number) {
-    const client = await this.client;
-    return client.hset(this.keys.meta, 'concurrency', concurrency);
-  }
-
+    async setGlobalConcurrency(concurrency: number) {
+      const client = await this.client;
+      return client.hset(this.keys.meta, 'concurrency', concurrency);
+    }
+  
+  
   /**
    * Adds a new job to the queue.
    *

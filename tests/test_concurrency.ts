@@ -41,6 +41,9 @@ describe('Concurrency', () => {
       });
     }
 
+    const noConcurrency = await queue.getGlobalConcurrency();
+    expect(noConcurrency).to.be.null;
+
     await queue.addBulk(jobsData);
     await queue.setGlobalConcurrency(1);
     const bar = new ProgressBar(':bar', { total: numJobs });
@@ -88,6 +91,10 @@ describe('Concurrency', () => {
     worker.run();
 
     await processing;
+
+    const globalConcurrency = await queue.getGlobalConcurrency();
+    expect(globalConcurrency).to.be.eql(1);
+
     await worker.close();
     await queue.close();
   }).timeout(16000);

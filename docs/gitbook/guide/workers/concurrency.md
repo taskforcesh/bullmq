@@ -2,9 +2,29 @@
 
 There are basically two ways to achieve concurrency with BullMQ. You can run a worker with a concurrency factor larger than 1 \(which is the default value\), or you can run several workers in different node processes.
 
-#### Concurrency factor
+#### Global Concurrency factor
 
-The concurrency factor is a worker option that determines how many jobs are allowed to be processed in parallel. This means that the same worker is able to process several jobs in parallel, however the queue guarantees such as "at-least-once" and order of processing are still preserved.
+The global concurrency factor is a queue option that determines how many jobs are allowed to be processed in parallel across all your worker instances.
+
+```typescript
+import { Queue } from 'bullmq';
+
+await queue.setGlobalConcurrency(4);
+```
+
+And in order to get this value:
+
+```typescript
+const globalConcurrency = await queue.getGlobalConcurrency();
+```
+
+{% hint style="info" %}
+Note that if you choose a concurrency level in your workers, it will not override the global one, it will just be the maximum jobs a given worker can process in parallel but never more than the global one.
+{% endhint %}
+
+#### Local Concurrency factor
+
+The local concurrency factor is a worker option that determines how many jobs are allowed to be processed in parallel for that instance. This means that the same worker is able to process several jobs in parallel, however the queue guarantees such as "at-least-once" and order of processing are still preserved.
 
 ```typescript
 import { Worker, Job } from 'bullmq';
