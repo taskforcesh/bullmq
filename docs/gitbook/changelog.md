@@ -1,3 +1,10 @@
+# [5.9.0](https://github.com/taskforcesh/bullmq/compare/v5.8.7...v5.9.0) (2024-07-15)
+
+
+### Features
+
+* **queue:** support global concurrency ([#2496](https://github.com/taskforcesh/bullmq/issues/2496)) ref [#2465](https://github.com/taskforcesh/bullmq/issues/2465) ([47ba055](https://github.com/taskforcesh/bullmq/commit/47ba055c1ea36178b684fd11c1e82cde7ec93ac8))
+
 ## [5.8.7](https://github.com/taskforcesh/bullmq/compare/v5.8.6...v5.8.7) (2024-07-11)
 
 
