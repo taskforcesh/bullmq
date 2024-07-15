@@ -107,6 +107,7 @@ export class Scripts {
       queueKeys.id,
       queueKeys.prioritized,
       queueKeys.completed,
+      queueKeys.active,
       queueKeys.events,
       queueKeys.pc,
     ];
@@ -148,6 +149,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.completed,
+      queueKeys.active,
       queueKeys.events,
       queueKeys.marker,
     ];
@@ -283,7 +285,9 @@ export class Scripts {
   async remove(jobId: string, removeChildren: boolean): Promise<number> {
     const client = await this.queue.client;
 
-    const keys: (string | number)[] = [''].map(name => this.queue.toKey(name));
+    const keys: (string | number)[] = ['', 'meta'].map(name =>
+      this.queue.toKey(name),
+    );
     return (<any>client).removeJob(
       keys.concat([jobId, removeChildren ? 1 : 0]),
     );
@@ -614,7 +618,9 @@ export class Scripts {
     return (<any>client).getCounts(args);
   }
 
-  protected getCountsPerPriorityArgs(priorities: number[]): (string | number)[] {
+  protected getCountsPerPriorityArgs(
+    priorities: number[],
+  ): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.wait,
       this.queue.keys.paused,
@@ -772,6 +778,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
+      this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.marker,
     ];
@@ -848,6 +855,20 @@ export class Scripts {
       JSON.stringify(timestamp),
       jobId,
     ]);
+  }
+
+  isMaxedArgs(): string[] {
+    const queueKeys = this.queue.keys;
+    const keys: string[] = [queueKeys.meta, queueKeys.active];
+
+    return keys;
+  }
+
+  async isMaxed(): Promise<boolean> {
+    const client = await this.queue.client;
+
+    const args = this.isMaxedArgs();
+    return !!(await (<any>client).isMaxed(args));
   }
 
   async moveToDelayed(
@@ -984,6 +1005,7 @@ export class Scripts {
       this.queue.toKey('wait'),
       this.queue.toKey('paused'),
       this.queue.keys.meta,
+      this.queue.keys.active,
       this.queue.keys.marker,
     ];
 
@@ -1038,6 +1060,7 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.meta,
       this.queue.keys.paused,
+      this.queue.keys.active,
       this.queue.keys.marker,
     ];
 
@@ -1108,6 +1131,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
+      this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.events,
       this.queue.keys.marker,
@@ -1179,7 +1203,7 @@ export class Scripts {
     const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
-    const keys = [
+    const keys: (string | number)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,
