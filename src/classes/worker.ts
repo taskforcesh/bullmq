@@ -769,9 +769,11 @@ will never work with more accuracy than 1ms. */
           const failed = await job.moveToFailed(err, token, true);
           this.emit('failed', job, err, 'active');
 
-          const [jobData, jobId, limitUntil, delayUntil] = failed || [];
-          this.updateDelays(limitUntil, delayUntil);
-          return this.nextJobFromJobData(jobData, jobId, token);
+          if (failed) {
+            const [jobData, jobId, limitUntil, delayUntil] = failed;
+            this.updateDelays(limitUntil, delayUntil);
+            return this.nextJobFromJobData(jobData, jobId, token);
+          }
         } catch (err) {
           this.emit('error', <Error>err);
           // It probably means that the job has lost the lock before completion
