@@ -189,6 +189,47 @@ As you may notice, the repeat strategy setting should be provided in `Queue` and
 The repeat strategy function receives an optional `jobName` third parameter.
 {% endhint %}
 
+### Custom Repeatable Key
+
+By default, we are generating repeatable keys base on repeat options and job name.
+
+In some cases, it is desired to pass a custom key to be able to differentiate your repeatable jobs even when they have same repeat options:
+
+```typescript
+import { Queue } from 'bullmq';
+
+const myQueue = new Queue('Paint', { connection });
+
+// Repeat job every 10 seconds
+await myQueue.add(
+  'bird',
+  { color: 'bird' },
+  {
+    repeat: {
+      every: 1000,
+    },
+    key: 'colibri',
+  },
+);
+
+// Repeat job every 10 seconds
+await myQueue.add(
+  'bird',
+  { color: 'bird' },
+  {
+    repeat: {
+      every: 1000,
+    },
+    key: 'eagle',
+  },
+);
+
+```
+
+{% hint style="warning" %}
+While adding a new repeatable job with same key but different repeat options, you will override your previous record.
+{% endhint %}
+
 ### Read more:
 
 * 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/v5.RepeatStrategy.html)
