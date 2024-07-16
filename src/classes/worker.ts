@@ -858,20 +858,16 @@ will never work with more accuracy than 1ms. */
     }
     this.closing = (async () => {
       this.emit('closing', 'closing queue');
-
       this.abortDelayController?.abort();
 
-      const client =
-        this.blockingConnection.status == 'ready'
-          ? await this.blockingConnection.client
-          : null;
-
       this.resume();
-      await Promise.resolve()
-        .finally(() => {
+
+      // Define the async cleanup functions
+      const asyncCleanups = [
+        () => {
           return force || this.whenCurrentJobsFinished(false);
-        })
-        .finally(() => {
+        },
+        () => {
           const closePoolPromise = this.childPool?.clean();
 
           if (force) {
@@ -883,13 +879,25 @@ will never work with more accuracy than 1ms. */
             return;
           }
           return closePoolPromise;
-        })
-        .finally(() => clearTimeout(this.extendLocksTimer))
-        .finally(() => clearTimeout(this.stalledCheckTimer))
-        .finally(() => client && client.disconnect())
-        .finally(() => this.connection.close())
-        .finally(() => this.emit('closed'));
+        },
+        () => this.blockingConnection.close(),
+        () => this.connection.close(),
+      ];
+
+      // Run cleanup functions sequentially and make sure all are run despite any errors
+      for (const cleanup of asyncCleanups) {
+        try {
+          await cleanup();
+        } catch (err) {
+          this.emit('error', <Error>err);
+        }
+      }
+
+      clearTimeout(this.extendLocksTimer);
+      clearTimeout(this.stalledCheckTimer);
+
       this.closed = true;
+      this.emit('closed');
     })();
     return this.closing;
   }
