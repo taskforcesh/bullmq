@@ -766,11 +766,11 @@ will never work with more accuracy than 1ms. */
             return;
           }
 
-          const failed = await job.moveToFailed(err, token, true);
+          const result = await job.moveToFailed(err, token, true);
           this.emit('failed', job, err, 'active');
 
-          if (failed) {
-            const [jobData, jobId, limitUntil, delayUntil] = failed;
+          if (result) {
+            const [jobData, jobId, limitUntil, delayUntil] = result;
             this.updateDelays(limitUntil, delayUntil);
             return this.nextJobFromJobData(jobData, jobId, token);
           }
@@ -792,7 +792,7 @@ will never work with more accuracy than 1ms. */
       const result = await this.callProcessJob(job, token);
       return await handleCompleted(result);
     } catch (err) {
-      return await handleFailed(<Error>err);
+      return handleFailed(<Error>err);
     } finally {
       jobsInProgress.delete(inProgressItem);
     }
