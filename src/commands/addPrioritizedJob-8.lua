@@ -10,8 +10,9 @@
       KEYS[3] 'id'
       KEYS[4] 'prioritized'
       KEYS[5] 'completed'
-      KEYS[6] events stream key
-      KEYS[7] 'pc' priority counter
+      KEYS[6] 'active'
+      KEYS[7] events stream key
+      KEYS[8] 'pc' priority counter
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -36,8 +37,9 @@ local idKey = KEYS[3]
 local priorityKey = KEYS[4]
 
 local completedKey = KEYS[5]
-local eventsKey = KEYS[6]
-local priorityCounterKey = KEYS[7]
+local activeKey = KEYS[6]
+local eventsKey = KEYS[7]
+local priorityCounterKey = KEYS[8]
 
 local jobId
 local jobIdKey
@@ -54,11 +56,11 @@ local parent = args[8]
 local parentData
 
 -- Includes
---- @include "includes/storeJob"
---- @include "includes/isQueuePaused"
 --- @include "includes/addJobWithPriority"
---- @include "includes/updateExistingJobsParent"
+--- @include "includes/storeJob"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/handleDuplicatedJob"
+--- @include "includes/isQueuePausedOrMaxed"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -79,14 +81,9 @@ else
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
-        updateExistingJobsParent(parentKey, parent, parentData,
-                                 parentDependenciesKey, completedKey, jobIdKey,
-                                 jobId, timestamp)
-
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-              "duplicated", "jobId", jobId)
-
-        return jobId .. "" -- convert to string
+        return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
+            parentData, parentDependenciesKey, completedKey, eventsKey,
+            maxEvents, timestamp)
     end
 end
 
@@ -96,8 +93,8 @@ local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
                                  repeatJobKey)
 
 -- Add the job to the prioritized set
-local isPause = isQueuePaused(metaKey)
-addJobWithPriority( KEYS[1], priorityKey, priority, jobId, priorityCounterKey, isPause)
+local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)
+addJobWithPriority( KEYS[1], priorityKey, priority, jobId, priorityCounterKey, isPausedOrMaxed)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",

@@ -1,5 +1,4 @@
 import { createHash } from 'crypto';
-import { glob, hasMagic } from 'glob';
 import * as path from 'path';
 import * as fs from 'fs';
 import { RedisClient } from '../interfaces';
@@ -76,7 +75,6 @@ export class ScriptLoaderError extends Error {
 
 const isPossiblyMappedPath = (path: string) =>
   path && ['~', '<'].includes(path[0]);
-const hasFilenamePattern = (path: string) => hasMagic(path, GlobOptions);
 
 /**
  * Lua script loader with include support
@@ -190,6 +188,43 @@ export class ScriptLoader {
     function raiseError(msg: string, match: string): void {
       const pos = findPos(file.content, match);
       throw new ScriptLoaderError(msg, file.path, stack, pos.line, pos.column);
+    }
+
+    const minimatch = await import('minimatch');
+
+    if (!minimatch) {
+      console.warn('Install minimatch as dev-dependency');
+    }
+
+    const Minimatch = minimatch.Minimatch || class Empty {};
+
+    const fg = await import('fast-glob');
+
+    if (!fg) {
+      console.warn('Install fast-glob as dev-dependency');
+    }
+
+    const nonOp = () => {
+      return [''];
+    };
+    const glob = (fg as any)?.default.glob || nonOp;
+
+    const hasMagic = (pattern: string | string[]): boolean => {
+      if (!Array.isArray(pattern)) {
+        pattern = [pattern];
+      }
+      for (const p of pattern) {
+        if ((new Minimatch(p, GlobOptions) as any).hasMagic()) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const hasFilenamePattern = (path: string) => hasMagic(path);
+
+    async function getFilenamesByPattern(pattern: string): Promise<string[]> {
+      return glob(pattern, { dot: true });
     }
 
     let res;
@@ -484,14 +519,6 @@ function splitFilename(filePath: string): {
   const [name, num] = longName.split('-');
   const numberOfKeys = num ? parseInt(num, 10) : undefined;
   return { name, numberOfKeys };
-}
-
-async function getFilenamesByPattern(pattern: string): Promise<string[]> {
-  return new Promise<string[]>((resolve, reject) => {
-    glob(pattern, GlobOptions, (err, files) => {
-      return err ? reject(err) : resolve(files);
-    });
-  });
 }
 
 // Determine the project root

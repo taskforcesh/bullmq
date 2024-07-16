@@ -96,6 +96,122 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
+  describe('when markers are deleted', function () {
+    it('should process a delayed job without getting stuck', async function () {
+      const delayTime = 6000;
+      const margin = 1.2;
+
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
+      await queueEvents.waitUntilReady();
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        autorun: false,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const timestamp = Date.now();
+      let publishHappened = false;
+
+      const delayed = new Promise<void>(resolve => {
+        queueEvents.on('delayed', () => {
+          publishHappened = true;
+          resolve();
+        });
+      });
+
+      const completed = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async function (job) {
+          try {
+            expect(Date.now() > timestamp + delayTime);
+            expect(job.processedOn! - job.timestamp).to.be.greaterThanOrEqual(
+              delayTime,
+            );
+            expect(
+              job.processedOn! - job.timestamp,
+              'processedOn is not within margin',
+            ).to.be.lessThan(delayTime * margin);
+
+            const jobs = await queue.getWaiting();
+            expect(jobs.length).to.be.equal(0);
+
+            const delayedJobs = await queue.getDelayed();
+            expect(delayedJobs.length).to.be.equal(0);
+            expect(publishHappened).to.be.eql(true);
+            await worker.close();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      const job = await queue.add(
+        'test',
+        { delayed: 'foobar' },
+        { delay: delayTime },
+      );
+
+      expect(job.id).to.be.ok;
+      expect(job.data.delayed).to.be.eql('foobar');
+      expect(job.opts.delay).to.be.eql(delayTime);
+      expect(job.delay).to.be.eql(delayTime);
+
+      await delayed;
+
+      const client = await queue.client;
+      await client.del(queue.toKey('marker'));
+
+      worker.run();
+
+      await delay(2000);
+
+      await client.del(queue.toKey('marker'));
+
+      await completed;
+      await queueEvents.close();
+      await worker.close();
+    });
+  });
+
+  describe('when queue is paused', function () {
+    it('should keep moving delayed jobs to waiting', async function () {
+      const delayTime = 2500;
+      const margin = 1.2;
+
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
+      await queueEvents.waitUntilReady();
+
+      await queue.pause();
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const timestamp = Date.now();
+      const publishHappened = false;
+
+      const waiting = new Promise<void>(resolve => {
+        queueEvents.on('waiting', () => {
+          console.log(Date.now() - timestamp);
+          const currentDelay = Date.now() - timestamp;
+          expect(currentDelay).to.be.greaterThanOrEqual(delayTime);
+          expect(currentDelay).to.be.lessThanOrEqual(delayTime * margin);
+          resolve();
+        });
+      });
+
+      await queue.add('test', { delayed: 'foobar' }, { delay: delayTime });
+
+      await waiting;
+
+      await queueEvents.close();
+      await worker.close();
+    });
+  });
+
   it('should process a delayed job added after an initial long delayed job', async function () {
     const oneYearDelay = 1000 * 60 * 60 * 24 * 365; // One year.
     const delayTime = 1000;
@@ -431,21 +547,17 @@ describe('Delayed jobs', function () {
     });
 
     const now = Date.now();
-    const promises: Promise<Job<any, any, string>>[] = [];
     let i = 1;
     for (i; i <= numJobs; i++) {
-      promises.push(
-        queue.add(
-          'test',
-          { order: i },
-          {
-            delay: 1000,
-            timestamp: now,
-          },
-        ),
+      await queue.add(
+        'test',
+        { order: i },
+        {
+          delay: 1000,
+          timestamp: now,
+        },
       );
     }
-    await Promise.all(promises);
     await processing;
     await worker!.close();
   });

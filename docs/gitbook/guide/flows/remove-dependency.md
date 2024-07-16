@@ -1,6 +1,6 @@
 # Remove Dependency
 
-In some situations, you may have a parent job and need to ignore when one of its children fail.
+In some situations, you may have a parent job and need to remove the relationship when one of its children fail.
 
 The pattern to solve this requirement consists on using the **removeDependencyOnFailure** option. This option will make sure that when a job fails, the dependency is removed from the parent, so the parent will complete without waiting for the failed children.
 

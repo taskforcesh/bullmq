@@ -16,9 +16,9 @@ await myQueue.add(
 ```
 
 {% hint style="info" %}
-Standard prioritized jobs get more priority than grouped prioritized jobs
+The priorities go from 0 to 2097151, where a higher number means lower priority (as in Unix [processes](https://en.wikipedia.org/wiki/Nice\_\(Unix\))). Thus, jobs without any explicit priority will have the highest priority.
 {% endhint %}
 
 ## Read more:
 
-- 💡 [Add Job API Reference](https://api.bullmq.pro/classes/v6.Queue.html#add)
+* 💡 [Add Job API Reference](https://api.bullmq.pro/classes/v7.Queue.html#add)

@@ -49,9 +49,9 @@ local parent = args[8]
 local parentData
 
 -- Includes
---- @include "includes/storeJob"
---- @include "includes/updateExistingJobsParent"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/handleDuplicatedJob"
+--- @include "includes/storeJob"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -72,13 +72,9 @@ else
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
-        updateExistingJobsParent(parentKey, parent, parentData,
-                                 parentDependenciesKey, completedKey, jobIdKey,
-                                 jobId, timestamp)
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-              "duplicated", "jobId", jobId)
-
-        return jobId .. "" -- convert to string
+        return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
+            parentData, parentDependenciesKey, completedKey, eventsKey,
+            maxEvents, timestamp)
     end
 end
 

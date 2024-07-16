@@ -60,8 +60,8 @@ describe('Pause', function () {
     }
     const counts2 = await queue.getJobCounts('waiting', 'paused', 'delayed');
     expect(counts2).to.have.property('waiting', 0);
-    expect(counts2).to.have.property('paused', 0);
-    expect(counts2).to.have.property('delayed', 1);
+    expect(counts2).to.have.property('paused', 1);
+    expect(counts2).to.have.property('delayed', 0);
 
     await worker.close();
   });
@@ -179,7 +179,7 @@ describe('Pause', function () {
     await worker.resume();
 
     await processPromise;
-    worker.close();
+    await worker.close();
   });
 
   it('should wait until active jobs are finished before resolving pause', async () => {
@@ -356,8 +356,6 @@ describe('Pause', function () {
 
   describe('when backoff is 0', () => {
     it('moves job into paused queue', async () => {
-      await queue.add('test', { foo: 'bar' }, { attempts: 2, backoff: 0 });
-
       let worker: Worker;
       const processing = new Promise<void>(resolve => {
         worker = new Worker(
@@ -372,6 +370,7 @@ describe('Pause', function () {
             resolve();
           },
           {
+            autorun: false,
             connection,
             prefix,
           },
@@ -389,6 +388,9 @@ describe('Pause', function () {
         });
       });
 
+      await queue.add('test', { foo: 'bar' }, { attempts: 2, backoff: 0 });
+
+      worker!.run();
       await waitingEvent;
       await processing;
 

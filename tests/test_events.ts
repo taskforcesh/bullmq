@@ -264,7 +264,7 @@ describe('events', function () {
       { name: 'test', data: { foo: 'baz' } },
     ]);
 
-    await delay(1000);
+    await delay(2000);
 
     const jobs = await queue.getJobCountByTypes('completed');
     expect(jobs).to.be.equal(4);
@@ -367,13 +367,13 @@ describe('events', function () {
       const worker = new Worker(
         queueName,
         async () => {
-          await delay(100);
+          await delay(50);
+          await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
+          await delay(50);
         },
-        { connection, prefix },
+        { autorun: false, connection, prefix },
       );
       await worker.waitUntilReady();
-
-      let duplicatedEvent = false;
 
       const completed = new Promise<void>(resolve => {
         worker.on('completed', async function () {
@@ -383,16 +383,16 @@ describe('events', function () {
 
       await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
 
-      queueEvents.once('duplicated', ({ jobId }) => {
-        expect(jobId).to.be.equal('a1');
-        duplicatedEvent = true;
+      worker.run();
+
+      await new Promise<void>(resolve => {
+        queueEvents.once('duplicated', ({ jobId }) => {
+          expect(jobId).to.be.equal('a1');
+          resolve();
+        });
       });
 
-      await queue.add(testName, { foo: 'bar' }, { jobId: 'a1' });
-
       await completed;
-
-      expect(duplicatedEvent).to.be.true;
 
       await worker.close();
     });

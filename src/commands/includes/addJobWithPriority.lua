@@ -1,11 +1,14 @@
 --[[
   Function to add job considering priority.
 ]]
-local function addJobWithPriority(markerKey, prioritizedKey, priority, jobId, priorityCounterKey, isPaused)
+
+-- Includes
+--- @include "addBaseMarkerIfNeeded"
+
+local function addJobWithPriority(markerKey, prioritizedKey, priority, jobId, priorityCounterKey,
+  isPausedOrMaxed)
   local prioCounter = rcall("INCR", priorityCounterKey)
-  local score = priority * 0x100000000 + bit.band(prioCounter, 0xffffffffffff)
+  local score = priority * 0x100000000 + prioCounter % 0x100000000
   rcall("ZADD", prioritizedKey, score, jobId)
-  if not isPaused then
-    rcall("ZADD", markerKey, 0, "0")
-  end
+  addBaseMarkerIfNeeded(markerKey, isPausedOrMaxed)
 end

@@ -1,11 +1,14 @@
 --[[
   Validate and move parent to active if needed.
 ]]
+
 -- Includes
 --- @include "addDelayMarkerIfNeeded"
---- @include "isQueuePaused"
+--- @include "addJobInTargetList"
 --- @include "addJobWithPriority"
+--- @include "isQueuePausedOrMaxed"
 --- @include "getTargetQueueList"
+
 local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
                                         parentKey, parentId, timestamp)
     local isParentActive = rcall("ZSCORE",
@@ -14,6 +17,7 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
         rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
         local parentWaitKey = parentQueueKey .. ":wait"
         local parentPausedKey = parentQueueKey .. ":paused"
+        local parentActiveKey = parentQueueKey .. ":active"
         local parentMetaKey = parentQueueKey .. ":meta"
 
         local parentMarkerKey = parentQueueKey .. ":marker"
@@ -32,16 +36,16 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
             addDelayMarkerIfNeeded(parentMarkerKey, parentDelayedKey)
         else
             if priority == 0 then
-                local parentTarget, _paused =
-                    getTargetQueueList(parentMetaKey, parentWaitKey,
+                local parentTarget, isParentPausedOrMaxed =
+                    getTargetQueueList(parentMetaKey, parentActiveKey, parentWaitKey,
                                        parentPausedKey)
-                rcall("RPUSH", parentTarget, parentId)
-                rcall("ZADD", parentMarkerKey, 0, "0")
+                addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPausedOrMaxed,
+                    parentId)
             else
-                local isPaused = isQueuePaused(parentMetaKey)
+                local isPausedOrMaxed = isQueuePausedOrMaxed(parentMetaKey, parentActiveKey)
                 addJobWithPriority(parentMarkerKey,
                                    parentQueueKey .. ":prioritized", priority,
-                                   parentId, parentQueueKey .. ":pc", isPaused)
+                                   parentId, parentQueueKey .. ":pc", isPausedOrMaxed)
             end
 
             rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting",

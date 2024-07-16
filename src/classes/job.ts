@@ -1,5 +1,4 @@
 import { ChainableCommander } from 'ioredis';
-import { invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -8,7 +7,6 @@ import {
   JobJson,
   JobJsonRaw,
   MinimalJob,
-  MoveToDelayedOpts,
   MoveToWaitingChildrenOpts,
   ParentKeys,
   ParentOpts,
@@ -25,6 +23,7 @@ import {
 } from '../types';
 import {
   errorObject,
+  invertObject,
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
@@ -40,11 +39,12 @@ const logger = debuglog('bull');
 
 const optsDecodeMap = {
   fpof: 'failParentOnFailure',
+  idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
 };
 
-const optsEncodeMap = invert(optsDecodeMap);
+const optsEncodeMap = invertObject(optsDecodeMap);
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -146,6 +146,11 @@ export class Job<
    */
   token?: string;
 
+  /**
+   * The worker name that is processing or processed this job.
+   */
+  processedBy?: string;
+
   protected toKey: (type: string) => string;
 
   protected discarded: boolean;
@@ -195,7 +200,7 @@ export class Job<
       : undefined;
 
     this.toKey = queue.toKey.bind(queue);
-    this.scripts = new Scripts(queue);
+    this.setScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -251,10 +256,10 @@ export class Job<
         new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
-    const multi = client.multi();
+    const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(multi as unknown), {
+      job.addJob(<RedisClient>(pipeline as unknown), {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -262,7 +267,7 @@ export class Job<
       });
     }
 
-    const results = (await multi.exec()) as [null | Error, string][];
+    const results = (await pipeline.exec()) as [null | Error, string][];
     for (let index = 0; index < results.length; ++index) {
       const [err, id] = results[index];
       if (err) {
@@ -337,7 +342,15 @@ export class Job<
       job.parent = JSON.parse(json.parent);
     }
 
+    if (json.pb) {
+      job.processedBy = json.pb;
+    }
+
     return job;
+  }
+
+  protected setScripts() {
+    this.scripts = new Scripts(this.queue);
   }
 
   private static optsFromJSON(rawOpts?: string): JobsOptions {
@@ -396,29 +409,15 @@ export class Job<
    *
    * @returns The total number of log entries for this job so far.
    */
-  static async addJobLog(
+  static addJobLog(
     queue: MinimalQueue,
     jobId: string,
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    const client = await queue.client;
-    const logsKey = queue.toKey(jobId) + ':logs';
+    const scripts = (queue as any).scripts as Scripts;
 
-    const multi = client.multi();
-
-    multi.rpush(logsKey, logRow);
-
-    if (keepLogs) {
-      multi.ltrim(logsKey, -keepLogs, -1);
-    }
-
-    const result = (await multi.exec()) as [
-      [Error, number],
-      [Error, string] | undefined,
-    ];
-
-    return keepLogs ? Math.min(keepLogs, result[0][1]) : result[0][1];
+    return scripts.addLog(jobId, logRow, keepLogs);
   }
 
   toJSON() {
@@ -511,6 +510,25 @@ export class Job<
    */
   async log(logRow: string): Promise<number> {
     return Job.addJobLog(this.queue, this.id, logRow, this.opts.keepLogs);
+  }
+
+  /**
+   * Removes child dependency from parent when child is not yet finished
+   *
+   * @returns True if the relationship existed and if it was removed.
+   */
+  async removeChildDependency(): Promise<boolean> {
+    const childDependencyIsRemoved = await this.scripts.removeChildDependency(
+      this.id,
+      this.parentKey,
+    );
+    if (childDependencyIsRemoved) {
+      this.parent = undefined;
+      this.parentKey = undefined;
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -654,12 +672,12 @@ export class Job<
       } else if (delay) {
         const args = this.scripts.moveToDelayedArgs(
           this.id,
-          Date.now() + delay,
+          Date.now(),
           token,
           delay,
         );
         (<any>multi).moveToDelayed(args);
-        command = 'delayed';
+        command = 'moveToDelayed';
       } else {
         // Retry immediately
         (<any>multi).retryJob(
@@ -682,7 +700,7 @@ export class Job<
       );
       (<any>multi).moveToFinished(args);
       finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
-      command = 'failed';
+      command = 'moveToFinished';
     }
 
     const results = await multi.exec();
@@ -695,7 +713,12 @@ export class Job<
 
     const result = results[results.length - 1][1] as number;
     if (result < 0) {
-      throw this.scripts.finishedErrors(result, this.id, command, 'active');
+      throw this.scripts.finishedErrors({
+        code: result,
+        jobId: this.id,
+        command,
+        state: 'active',
+      });
     }
 
     if (finishedOn && typeof finishedOn === 'number') {
@@ -817,6 +840,17 @@ export class Job<
     if (result) {
       return parseObjectValues(result);
     }
+  }
+
+  /**
+   * Get this jobs children failure values if any.
+   *
+   * @returns Object mapping children job keys with their failure values.
+   */
+  async getFailedChildrenValues(): Promise<{ [jobKey: string]: string }> {
+    const client = await this.queue.client;
+
+    return client.hgetall(this.toKey(`${this.id}:failed`));
   }
 
   /**
@@ -1046,14 +1080,17 @@ export class Job<
    * @returns
    */
   async moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    const delay = timestamp - Date.now();
+    const now = Date.now();
+    const delay = timestamp - now;
+    const finalDelay = delay > 0 ? delay : 0;
     const movedToDelayed = await this.scripts.moveToDelayed(
       this.id,
-      timestamp,
-      delay > 0 ? delay : 0,
+      now,
+      finalDelay,
       token,
       { skipAttempt: true },
     );
+    this.delay = finalDelay;
 
     return movedToDelayed;
   }
@@ -1187,7 +1224,7 @@ export class Job<
     if (err?.stack) {
       this.stacktrace.push(err.stack);
       if (this.opts.stackTraceLimit) {
-        this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+        this.stacktrace = this.stacktrace.slice(-this.opts.stackTraceLimit);
       }
     }
 

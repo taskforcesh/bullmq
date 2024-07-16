@@ -37,6 +37,7 @@
 local rcall = redis.call
 local waitKey = KEYS[1]
 local activeKey = KEYS[2]
+local eventStreamKey = KEYS[4]
 local rateLimiterKey = KEYS[6]
 local delayedKey = KEYS[7]
 local opts = cmsgpack.unpack(ARGV[3])
@@ -49,12 +50,12 @@ local opts = cmsgpack.unpack(ARGV[3])
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
-local target, paused = getTargetQueueList(KEYS[9], waitKey, KEYS[8])
+local target, isPausedOrMaxed = getTargetQueueList(KEYS[9], activeKey, waitKey, KEYS[8])
 
 -- Check if there are delayed jobs that we can move to wait.
 local markerKey = KEYS[11]
-promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], KEYS[4], ARGV[1],
-                   ARGV[2], KEYS[10], paused)
+promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], eventStreamKey, ARGV[1],
+                   ARGV[2], KEYS[10], isPausedOrMaxed)
 
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
 local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
@@ -62,8 +63,8 @@ local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
 -- Check if we are rate limited first.
 if expireTime > 0 then return {0, 0, expireTime, 0} end
 
--- paused queue
-if paused then return {0, 0, 0, 0} end
+-- paused or maxed queue
+if isPausedOrMaxed then return {0, 0, 0, 0} end
 
 -- no job ID, try non-blocking move from wait to active
 local jobId = rcall("RPOPLPUSH", waitKey, activeKey)
@@ -75,18 +76,18 @@ if jobId and string.sub(jobId, 1, 2) == "0:" then
 end
 
 if jobId then
-    return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2],
-                                   maxJobs, expireTime, opts)
+    return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
+                                   maxJobs, opts)
 else
     jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
     if jobId then
-        return prepareJobForProcessing(KEYS, ARGV[1], target, jobId, ARGV[2],
-                                       maxJobs, expireTime, opts)
+        return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
+                                       maxJobs, opts)
     end
 end
 
 -- Return the timestamp for the next delayed job if any.
 local nextTimestamp = getNextDelayedTimestamp(delayedKey)
-if (nextTimestamp ~= nil) then return {0, 0, 0, nextTimestamp} end
+if nextTimestamp ~= nil then return {0, 0, 0, nextTimestamp} end
 
 return {0, 0, 0, 0}

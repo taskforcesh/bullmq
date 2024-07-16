@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bullmq"
-version = "2.0.0"
+version = "2.8.1"
 description='BullMQ for Python'
 readme="README.md"
 authors = [
@@ -20,7 +20,7 @@ classifiers=[
 ]
 keywords = ["python", "bullmq", "queues"]
 dependencies = [
-    "redis >= 4.5.0, < 5",
+    "redis >= 5.0.0, < 6",
     "msgpack >= 1.0.0, < 2",
     "semver >= 2.13.0, < 3"
 ]
