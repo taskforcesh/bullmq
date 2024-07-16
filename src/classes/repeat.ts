@@ -95,7 +95,6 @@ export class Repeat extends QueueBase {
 
       const { immediately, ...filteredRepeatOpts } = repeatOpts;
 
-      // The job could have been deleted since this check
       if (repeatJobKey) {
         return this.createNextJob<T, R, N>(
           name,
