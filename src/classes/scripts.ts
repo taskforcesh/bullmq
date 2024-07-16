@@ -23,6 +23,7 @@ import {
   WorkerOptions,
   KeepJobs,
   MoveToDelayedOpts,
+  RepeatableOptions,
 } from '../interfaces';
 import {
   JobState,
@@ -259,25 +260,78 @@ export class Scripts {
     return (<any>client).pause(args);
   }
 
+  protected addRepeatableJobArgs(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    legacyCustomKey: string,
+    skipCheckExists: boolean,
+  ): (string | number | Buffer)[] {
+    const keys: (string | number | Buffer)[] = [
+      this.queue.keys.repeat,
+      customKey,
+    ];
+
+    const args = [
+      nextMillis,
+      pack(opts),
+      legacyCustomKey,
+      skipCheckExists ? '1' : '0',
+    ];
+
+    return keys.concat(args);
+  }
+
+  async addRepeatableJob(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    legacyCustomKey: string,
+    skipCheckExists: boolean,
+  ): Promise<string> {
+    const client = await this.queue.client;
+
+    const args = this.addRepeatableJobArgs(
+      customKey,
+      nextMillis,
+      opts,
+      legacyCustomKey,
+      skipCheckExists,
+    );
+
+    return (<any>client).addRepeatableJob(args);
+  }
+
   private removeRepeatableArgs(
-    repeatJobId: string,
+    legacyRepeatJobId: string,
+    qualifiedName: string,
     repeatJobKey: string,
   ): string[] {
     const queueKeys = this.queue.keys;
 
     const keys = [queueKeys.repeat, queueKeys.delayed];
 
-    const args = [repeatJobId, repeatJobKey, queueKeys['']];
+    const args = [
+      legacyRepeatJobId,
+      qualifiedName,
+      repeatJobKey,
+      queueKeys[''],
+    ];
 
     return keys.concat(args);
   }
 
   async removeRepeatable(
-    repeatJobId: string,
+    legacyRepeatJobId: string,
+    qualifiedName: string,
     repeatJobKey: string,
   ): Promise<number> {
     const client = await this.queue.client;
-    const args = this.removeRepeatableArgs(repeatJobId, repeatJobKey);
+    const args = this.removeRepeatableArgs(
+      legacyRepeatJobId,
+      qualifiedName,
+      repeatJobKey,
+    );
 
     return (<any>client).removeRepeatable(args);
   }
