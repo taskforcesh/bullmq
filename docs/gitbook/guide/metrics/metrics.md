@@ -20,7 +20,7 @@ const myWorker = new Worker('Paint', {
 You need to use the same setting on all your workers to get consistent metrics.
 {% endhint %}
 
-In order to get the metrics, use the `getMetrics` method on the `Queue` class. You can choose to get the metrics for the __completed_ or _failed_ jobs:
+In order to get the metrics, use the `getMetrics` method on the `Queue` class. You can choose to get the metrics for the _completed_ or _failed_ jobs:
 
 ```typescript
 import { Queue } from 'bullmq';
