@@ -376,7 +376,7 @@ describe('Cleaner', () => {
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
             // Expected keys: meta, id, stalled-check, events, failed and job
-            expect(keys.length).to.be.eql(7);
+            expect(keys.length).to.be.eql(8);
             for (const key of keys) {
               const type = key.split(':')[2];
               expect([
@@ -385,6 +385,7 @@ describe('Cleaner', () => {
                 'stalled-check',
                 'events',
                 'failed',
+                'marker',
                 tree.job.id!,
               ]).to.include(type);
             }
