@@ -267,15 +267,13 @@ export class Scripts {
     legacyCustomKey: string,
     skipCheckExists: boolean,
   ): (string | number | Buffer)[] {
-    const keys: (string | number | Buffer)[] = [
-      this.queue.keys.repeat,
-      customKey,
-    ];
+    const keys: (string | number | Buffer)[] = [this.queue.keys.repeat];
 
     const args = [
       nextMillis,
       pack(opts),
       legacyCustomKey,
+      customKey,
       skipCheckExists ? '1' : '0',
     ];
 
