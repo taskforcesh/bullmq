@@ -867,19 +867,7 @@ will never work with more accuracy than 1ms. */
         () => {
           return force || this.whenCurrentJobsFinished(false);
         },
-        () => {
-          const closePoolPromise = this.childPool?.clean();
-
-          if (force) {
-            // since we're not waiting for the job to end attach
-            // an error handler to avoid crashing the whole process
-            closePoolPromise?.catch(err => {
-              console.error(err); // TODO: emit error in next breaking change version
-            });
-            return;
-          }
-          return closePoolPromise;
-        },
+        () => this.childPool?.clean(),
         () => this.blockingConnection.close(),
         () => this.connection.close(),
       ];
