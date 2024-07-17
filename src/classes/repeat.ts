@@ -75,10 +75,10 @@ export class Repeat extends QueueBase {
         repeatOpts.jobId = opts.jobId;
       }
 
-      const qualifiedName = getRepeatCocatOptions(name, repeatOpts);
+      const repeatConcatOptions = getRepeatConcatOptions(name, repeatOpts);
 
       const repeatJobKey = await this.scripts.addRepeatableJob(
-        opts.repeat.key ?? this.hash(qualifiedName),
+        opts.repeat.key ?? this.hash(repeatConcatOptions),
         nextMillis,
         {
           name,
@@ -89,7 +89,7 @@ export class Repeat extends QueueBase {
           pattern: repeatOpts.pattern,
           every: repeatOpts.every,
         },
-        qualifiedName,
+        repeatConcatOptions,
         skipCheckExists,
       );
 
@@ -148,19 +148,22 @@ export class Repeat extends QueueBase {
     repeat: RepeatOptions,
     jobId?: string,
   ): Promise<number> {
-    const qualifiedName = getRepeatCocatOptions(name, { ...repeat, jobId });
-    const repeatJobKey = repeat.key ?? this.hash(qualifiedName);
+    const repeatConcatOptions = getRepeatConcatOptions(name, {
+      ...repeat,
+      jobId,
+    });
+    const repeatJobKey = repeat.key ?? this.hash(repeatConcatOptions);
     const legacyRepeatJobId = this.getRepeatJobId({
       name,
       nextMillis: '',
-      namespace: this.hash(qualifiedName),
+      namespace: this.hash(repeatConcatOptions),
       jobId: jobId ?? repeat.jobId,
       key: repeat.key,
     });
 
     return this.scripts.removeRepeatable(
       legacyRepeatJobId,
-      qualifiedName,
+      repeatConcatOptions,
       repeatJobKey,
     );
   }
@@ -268,12 +271,13 @@ export class Repeat extends QueueBase {
     jobId?: string;
     key?: string;
   }) {
+    console.log('key', key);
     const checksum = key ?? this.hash(`${name}${jobId || ''}${namespace}`);
     return `repeat:${checksum}:${nextMillis}`;
   }
 }
 
-function getRepeatCocatOptions(name: string, repeat: RepeatOptions) {
+function getRepeatConcatOptions(name: string, repeat: RepeatOptions) {
   const endDate = repeat.endDate ? new Date(repeat.endDate).getTime() : '';
   const tz = repeat.tz || '';
   const pattern = repeat.pattern;

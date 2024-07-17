@@ -304,7 +304,7 @@ export class Scripts {
 
   private removeRepeatableArgs(
     legacyRepeatJobId: string,
-    qualifiedName: string,
+    repeatConcatOptions: string,
     repeatJobKey: string,
   ): string[] {
     const queueKeys = this.queue.keys;
@@ -313,7 +313,7 @@ export class Scripts {
 
     const args = [
       legacyRepeatJobId,
-      qualifiedName,
+      repeatConcatOptions ? repeatConcatOptions : repeatJobKey, // TODO: remove this check in next breaking change
       repeatJobKey,
       queueKeys[''],
     ];
@@ -323,13 +323,13 @@ export class Scripts {
 
   async removeRepeatable(
     legacyRepeatJobId: string,
-    qualifiedName: string,
+    repeatConcatOptions: string,
     repeatJobKey: string,
   ): Promise<number> {
     const client = await this.queue.client;
     const args = this.removeRepeatableArgs(
       legacyRepeatJobId,
-      qualifiedName,
+      repeatConcatOptions,
       repeatJobKey,
     );
 
