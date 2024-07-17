@@ -313,12 +313,21 @@ export class Scripts {
 
     const args = [
       legacyRepeatJobId,
-      repeatConcatOptions ? repeatConcatOptions : repeatJobKey, // TODO: remove this check in next breaking change
+      this.getRepeatConcatOptions(repeatConcatOptions, repeatJobKey),
       repeatJobKey,
       queueKeys[''],
     ];
 
     return keys.concat(args);
+  }
+
+  // TODO: remove this check in next breaking change
+  getRepeatConcatOptions(repeatConcatOptions: string, repeatJobKey: string) {
+    if (repeatJobKey && repeatJobKey.split(':').length > 2) {
+      return repeatJobKey;
+    }
+
+    return repeatConcatOptions;
   }
 
   async removeRepeatable(
