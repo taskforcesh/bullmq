@@ -271,7 +271,6 @@ export class Repeat extends QueueBase {
     jobId?: string;
     key?: string;
   }) {
-    console.log('key', key);
     const checksum = key ?? this.hash(`${name}${jobId || ''}${namespace}`);
     return `repeat:${checksum}:${nextMillis}`;
   }
