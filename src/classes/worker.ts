@@ -868,8 +868,8 @@ will never work with more accuracy than 1ms. */
           return force || this.whenCurrentJobsFinished(false);
         },
         () => this.childPool?.clean(),
-        () => this.blockingConnection.close(),
-        () => this.connection.close(),
+        () => this.blockingConnection.close(force),
+        () => this.connection.close(force),
       ];
 
       // Run cleanup functions sequentially and make sure all are run despite any errors
