@@ -298,7 +298,7 @@ export class RedisConnection extends EventEmitter {
     return client.connect();
   }
 
-  async close(): Promise<void> {
+  async close(force = false): Promise<void> {
     if (!this.closing) {
       const status = this.status;
       this.status = 'closing';
@@ -310,7 +310,7 @@ export class RedisConnection extends EventEmitter {
           await this.initializing;
         }
         if (!this.shared) {
-          if (status == 'initializing') {
+          if (status == 'initializing' || force) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
           } else {
