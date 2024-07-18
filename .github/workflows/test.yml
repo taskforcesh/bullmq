@@ -78,6 +78,7 @@ jobs:
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
           node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
       - name: Start Redis
         uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
         with:
@@ -111,6 +112,7 @@ jobs:
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
           node-version: lts/*
+          cache: 'yarn'
       - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
       - run: yarn build
       - run: BULLMQ_TEST_PREFIX={b} yarn test
@@ -155,6 +157,7 @@ jobs:
         uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
         with:
           node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
       - name: Start Redis
         uses: supercharge/redis-github-action@f63fe516254d0af5df91755a4488274c2e71e38c # 1.5.0
         with:
