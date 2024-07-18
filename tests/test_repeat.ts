@@ -1232,6 +1232,88 @@ describe('repeat', function () {
     expect(repeatableJobsAfterRemove).to.have.length(0);
   });
 
+  describe('when legacy repeatable format is present', function () {
+    it('should be able to remove legacy repeatable jobs', async () => {
+      const client = await queue.client;
+      await client.hmset(
+        `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
+        'priority',
+        0,
+        'delay',
+        14524061394,
+        'data',
+        '{}',
+        'timestamp',
+        1721187138606,
+        'rjk',
+        'remove::::* 1 * 1 *',
+        'name',
+        'remove',
+      );
+      await client.zadd(
+        `${prefix}:${queue.name}:repeat`,
+        1735711200000,
+        'remove::::* 1 * 1 *',
+      );
+      await client.zadd(
+        `${prefix}:${queue.name}:delayed`,
+        1735711200000,
+        'repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000',
+      );
+
+      const repeat = { pattern: '* 1 * 1 *' };
+
+      const repeatableJobs = await queue.getRepeatableJobs();
+      expect(repeatableJobs).to.have.length(1);
+      const removed = await queue.removeRepeatable('remove', repeat);
+
+      const delayedCount = await queue.getJobCountByTypes('delayed');
+      expect(delayedCount).to.be.equal(0);
+      expect(removed).to.be.true;
+      const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
+      expect(repeatableJobsAfterRemove).to.have.length(0);
+    });
+
+    it('should be able to remove legacy repeatable jobs by key', async () => {
+      const client = await queue.client;
+      await client.hmset(
+        `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
+        'priority',
+        0,
+        'delay',
+        14524061394,
+        'data',
+        '{}',
+        'timestamp',
+        1721187138606,
+        'rjk',
+        'remove::::* 1 * 1 *',
+        'name',
+        'remove',
+      );
+      await client.zadd(
+        `${prefix}:${queue.name}:repeat`,
+        1735711200000,
+        'remove::::* 1 * 1 *',
+      );
+      await client.zadd(
+        `${prefix}:${queue.name}:delayed`,
+        1735711200000,
+        'repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000',
+      );
+
+      const repeatableJobs = await queue.getRepeatableJobs();
+      expect(repeatableJobs).to.have.length(1);
+      const removed = await queue.removeRepeatableByKey('remove::::* 1 * 1 *');
+
+      const delayedCount = await queue.getJobCountByTypes('delayed');
+      expect(delayedCount).to.be.equal(0);
+      expect(removed).to.be.true;
+      const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
+      expect(repeatableJobsAfterRemove).to.have.length(0);
+    });
+  });
+
   describe('when repeatable job does not exist', function () {
     it('returns false', async () => {
       const repeat = { pattern: '*/2 * * * * *' };
