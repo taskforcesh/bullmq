@@ -65,7 +65,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [lts/*, lts/-1, lts/-2, current]
+        node-version: [lts/*, lts/-1, lts/-2]
         redis-version: [7-alpine]
         include:
           - node-version: 'lts/*'
