@@ -23,6 +23,7 @@ import {
   WorkerOptions,
   KeepJobs,
   MoveToDelayedOpts,
+  RepeatableOptions,
 } from '../interfaces';
 import {
   JobState,
@@ -259,25 +260,85 @@ export class Scripts {
     return (<any>client).pause(args);
   }
 
+  protected addRepeatableJobArgs(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    legacyCustomKey: string,
+    skipCheckExists: boolean,
+  ): (string | number | Buffer)[] {
+    const keys: (string | number | Buffer)[] = [this.queue.keys.repeat];
+
+    const args = [
+      nextMillis,
+      pack(opts),
+      legacyCustomKey,
+      customKey,
+      skipCheckExists ? '1' : '0',
+    ];
+
+    return keys.concat(args);
+  }
+
+  async addRepeatableJob(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    legacyCustomKey: string,
+    skipCheckExists: boolean,
+  ): Promise<string> {
+    const client = await this.queue.client;
+
+    const args = this.addRepeatableJobArgs(
+      customKey,
+      nextMillis,
+      opts,
+      legacyCustomKey,
+      skipCheckExists,
+    );
+
+    return (<any>client).addRepeatableJob(args);
+  }
+
   private removeRepeatableArgs(
-    repeatJobId: string,
+    legacyRepeatJobId: string,
+    repeatConcatOptions: string,
     repeatJobKey: string,
   ): string[] {
     const queueKeys = this.queue.keys;
 
     const keys = [queueKeys.repeat, queueKeys.delayed];
 
-    const args = [repeatJobId, repeatJobKey, queueKeys['']];
+    const args = [
+      legacyRepeatJobId,
+      this.getRepeatConcatOptions(repeatConcatOptions, repeatJobKey),
+      repeatJobKey,
+      queueKeys[''],
+    ];
 
     return keys.concat(args);
   }
 
+  // TODO: remove this check in next breaking change
+  getRepeatConcatOptions(repeatConcatOptions: string, repeatJobKey: string) {
+    if (repeatJobKey && repeatJobKey.split(':').length > 2) {
+      return repeatJobKey;
+    }
+
+    return repeatConcatOptions;
+  }
+
   async removeRepeatable(
-    repeatJobId: string,
+    legacyRepeatJobId: string,
+    repeatConcatOptions: string,
     repeatJobKey: string,
   ): Promise<number> {
     const client = await this.queue.client;
-    const args = this.removeRepeatableArgs(repeatJobId, repeatJobKey);
+    const args = this.removeRepeatableArgs(
+      legacyRepeatJobId,
+      repeatConcatOptions,
+      repeatJobKey,
+    );
 
     return (<any>client).removeRepeatable(args);
   }

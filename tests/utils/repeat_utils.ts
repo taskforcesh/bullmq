@@ -25,11 +25,8 @@ export function hash(repeatKeyHashAlgorithm: string, payload: string) {
 }
 
 export function getRepeatJobIdCheckum(
-  name: string,
   repeatJobKey: string,
   repeatKeyHashAlgorithm: string,
-  jobId?: string,
 ) {
-  const namespace = hash(repeatKeyHashAlgorithm, repeatJobKey);
-  return hash(repeatKeyHashAlgorithm, `${name}${jobId || ''}${namespace}`);
+  return hash(repeatKeyHashAlgorithm, repeatJobKey);
 }
