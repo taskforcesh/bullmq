@@ -429,7 +429,7 @@ function sandboxProcessTests(
     });
 
     it('should reuse process with single processors', async function () {
-      this.timeout(30000);
+      this.timeout(20000);
 
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
@@ -921,7 +921,7 @@ function sandboxProcessTests(
     });
 
     it('should allow the job to complete and then exit on worker close', async function () {
-      this.timeout(1500000);
+      this.timeout(15000);
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,
