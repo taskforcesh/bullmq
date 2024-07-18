@@ -3657,7 +3657,7 @@ describe('workers', function () {
     it('should retry a job after a delay if a custom backoff is given based on the error thrown', async function () {
       class CustomError extends Error {}
 
-      this.timeout(12000);
+      this.timeout(10000);
 
       const worker = new Worker(
         queueName,
