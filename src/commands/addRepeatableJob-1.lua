@@ -3,7 +3,6 @@
 
     Input:
       KEYS[1] 'repeat' key
-      KEYS[2] custom key
 
       ARGV[1] next milliseconds
       ARGV[2] msgpacked options
@@ -13,16 +12,17 @@
             [4]  endDate?
             [5]  every?
       ARGV[3] legacy custom key TODO: remove this logic in next breaking change
-      ARGV[4] skipCheckExists
+      ARGV[4] custom key
+      ARGV[5] skipCheckExists
 
       Output:
         repeatableKey  - OK
 ]]
 local rcall = redis.call
 local repeatKey = KEYS[1]
-local customKey = KEYS[2]
-local legacyCustomKey = ARGV[3]
 local nextMilli = ARGV[1]
+local legacyCustomKey = ARGV[3]
+local customKey = ARGV[4]
 
 local function storeRepeatableJob(repeatKey, customKey, nextMilli, rawOpts)
   rcall("ZADD", repeatKey, nextMilli, customKey)
@@ -55,7 +55,7 @@ local function storeRepeatableJob(repeatKey, customKey, nextMilli, rawOpts)
   return customKey
 end
 
-if ARGV[4] == '0' then
+if ARGV[5] == '0' then
   if rcall("ZSCORE", repeatKey, legacyCustomKey) ~= false then
     rcall("ZADD", repeatKey, nextMilli, legacyCustomKey)
     return legacyCustomKey
