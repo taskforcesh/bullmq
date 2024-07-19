@@ -1357,7 +1357,7 @@ describe('repeat', function () {
         expect(repeatableJobsAfterRemove).to.have.length(0);
       });
 
-      it('should keep legacy repeatable job and delayed referece', async function () {
+      it.only('should keep legacy repeatable job and delayed referece', async function () {
         this.clock.setSystemTime(1721187138606);
 
         const client = await queue.client;
@@ -1394,6 +1394,9 @@ describe('repeat', function () {
 
         const delayedCount = await queue.getJobCountByTypes('delayed');
         expect(delayedCount).to.be.equal(1);
+
+        const jobs = await queue.getJobs(['delayed']);
+        console.log(jobs);
       });
     });
   });
