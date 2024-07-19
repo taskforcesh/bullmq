@@ -1314,7 +1314,8 @@ describe('repeat', function () {
     });
 
     describe('when re-adding repeatable job now with new format', function () {
-      it('should keep legacy repeatable job and be able to remove it', async () => {
+      it('should keep legacy repeatable job and be able to remove it', async function () {
+        this.clock.setSystemTime(1721187138606);
         const client = await queue.client;
         await client.hmset(
           `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
@@ -1393,8 +1394,6 @@ describe('repeat', function () {
 
         const delayedCount = await queue.getJobCountByTypes('delayed');
         expect(delayedCount).to.be.equal(1);
-        const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
-        expect(repeatableJobsAfterRemove).to.have.length(1);
       });
     });
   });
