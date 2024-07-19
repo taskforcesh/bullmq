@@ -21,15 +21,6 @@
 * **priority:** Consider paused state when calling getCountsPerPriority (python) ([#2609](https://github.com/taskforcesh/bullmq/issues/2609)) ([`6e99250`](https://github.com/taskforcesh/bullmq/commit/6e992504b2a7a2fa76f1d04ad53d1512e98add7f))
 * **priority:** Use module instead of bit.band to keep order (python) ([#2597](https://github.com/taskforcesh/bullmq/issues/2597)) ([`9ece15b`](https://github.com/taskforcesh/bullmq/commit/9ece15b17420fe0bee948a5307e870915e3bce87))
 
-### Documentation
-* **pro:** Update changelog to v7.10.1 ([#2637](https://github.com/taskforcesh/bullmq/issues/2637)) ([`db10c87`](https://github.com/taskforcesh/bullmq/commit/db10c87bb655fb487753a9fbc84e44eafaf55dcf))
-* **bullmq-pro:** Update changelog to v7.10.0 ([#2634](https://github.com/taskforcesh/bullmq/issues/2634)) ([`3db9e5d`](https://github.com/taskforcesh/bullmq/commit/3db9e5df74ba633a081d7645bef66a70a82946dd))
-* **flows:** Remove warning about beta usage ([#2632](https://github.com/taskforcesh/bullmq/issues/2632)) ([`b267fb5`](https://github.com/taskforcesh/bullmq/commit/b267fb5d8a041048995578c6523b656c07e01f22))
-* **api:** Add missing api references ([#2623](https://github.com/taskforcesh/bullmq/issues/2623)) ([`3fd6bca`](https://github.com/taskforcesh/bullmq/commit/3fd6bca791fa8dc2ca4be61bec64281e861e6b3a))
-* **bullmq-pro:** Update to v7.9.1 ([#2614](https://github.com/taskforcesh/bullmq/issues/2614)) ([`fb7115b`](https://github.com/taskforcesh/bullmq/commit/fb7115bf2fd40a15719820febf0cc76456817ef5))
-* **getters:** Add getGroupActiveCount reference ([#2613](https://github.com/taskforcesh/bullmq/issues/2613)) ([`3f00d0e`](https://github.com/taskforcesh/bullmq/commit/3f00d0e549b986e3e098381809a596dc1d11bf37))
-* **bullmq-pro:** Update changelog to v7.9.0 ([#2611](https://github.com/taskforcesh/bullmq/issues/2611)) ([`75f2c72`](https://github.com/taskforcesh/bullmq/commit/75f2c724d93950f5d8fbb7d994ef13f081b6a378))
-
 ## v2.7.8 (2024-06-05)
 ### Fix
 * Remove print calls [python] ([#2579](https://github.com/taskforcesh/bullmq/issues/2579)) ([`f957186`](https://github.com/taskforcesh/bullmq/commit/f95718689864dbaca8a6b4113a6b37727919d6df))
