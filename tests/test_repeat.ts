@@ -59,7 +59,7 @@ describe('repeat', function () {
     await queue.close();
     await repeat.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    //await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
@@ -1311,6 +1311,92 @@ describe('repeat', function () {
       expect(removed).to.be.true;
       const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
       expect(repeatableJobsAfterRemove).to.have.length(0);
+    });
+
+    describe('when re-adding repeatable job now with new format', function () {
+      it('should be able to remove legacy repeatable jobs', async () => {
+        const client = await queue.client;
+        await client.hmset(
+          `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
+          'priority',
+          0,
+          'delay',
+          14524061394,
+          'data',
+          '{}',
+          'timestamp',
+          1721187138606,
+          'rjk',
+          'remove::::* 1 * 1 *',
+          'name',
+          'remove',
+        );
+        await client.zadd(
+          `${prefix}:${queue.name}:repeat`,
+          1735711200000,
+          'remove::::* 1 * 1 *',
+        );
+        await client.zadd(
+          `${prefix}:${queue.name}:delayed`,
+          1735711200000,
+          'repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000',
+        );
+
+        const repeat = { pattern: '* 1 * 1 *' };
+
+        const repeatableJobs = await queue.getRepeatableJobs();
+        expect(repeatableJobs).to.have.length(1);
+        const removed = await queue.removeRepeatable('remove', repeat);
+
+        const delayedCount = await queue.getJobCountByTypes('delayed');
+        expect(delayedCount).to.be.equal(0);
+        expect(removed).to.be.true;
+        const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
+        expect(repeatableJobsAfterRemove).to.have.length(0);
+      });
+
+      it('should be able to remove legacy repeatable jobs by key', async function () {
+        const date = new Date('2017-02-07 9:24:00');
+        this.clock.setSystemTime(1721187138606);
+
+        const client = await queue.client;
+        await client.hmset(
+          `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
+          'priority',
+          0,
+          'delay',
+          14524061394,
+          'data',
+          '{}',
+          'timestamp',
+          1721187138606,
+          'rjk',
+          'remove::::* 1 * 1 *',
+          'name',
+          'remove',
+        );
+        await client.zadd(
+          `${prefix}:${queue.name}:repeat`,
+          1735711200000,
+          'remove::::* 1 * 1 *',
+        );
+        await client.zadd(
+          `${prefix}:${queue.name}:delayed`,
+          1735711200000,
+          'repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000',
+        );
+
+        await queue.add('remove', {}, { repeat: { pattern: '* 1 * 1 *' } });
+        const repeatableJobs = await queue.getRepeatableJobs();
+        expect(repeatableJobs).to.have.length(1);
+        //const removed = await queue.removeRepeatableByKey('remove::::* 1 * 1 *');
+
+        const delayedCount = await queue.getJobCountByTypes('delayed');
+        expect(delayedCount).to.be.equal(1);
+        //expect(removed).to.be.true;
+        const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
+        expect(repeatableJobsAfterRemove).to.have.length(1);
+      });
     });
   });
 

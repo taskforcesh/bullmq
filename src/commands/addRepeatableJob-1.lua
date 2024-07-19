@@ -55,8 +55,10 @@ local function storeRepeatableJob(repeatKey, customKey, nextMilli, rawOpts)
   return customKey
 end
 
-if ARGV[5] == '0' then
-  if rcall("ZSCORE", repeatKey, legacyCustomKey) ~= false then
+local legacyRepeatableJobExists = rcall("ZSCORE", repeatKey, legacyCustomKey)
+
+if ARGV[5] == '0' or legacyRepeatableJobExists  ~= false then
+  if legacyRepeatableJobExists ~= false then
     rcall("ZADD", repeatKey, nextMilli, legacyCustomKey)
     return legacyCustomKey
   elseif rcall("ZSCORE", repeatKey, customKey) ~= false then
