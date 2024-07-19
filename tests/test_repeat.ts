@@ -1356,7 +1356,6 @@ describe('repeat', function () {
       });
 
       it('should be able to remove legacy repeatable jobs by key', async function () {
-        const date = new Date('2017-02-07 9:24:00');
         this.clock.setSystemTime(1721187138606);
 
         const client = await queue.client;
@@ -1389,11 +1388,9 @@ describe('repeat', function () {
         await queue.add('remove', {}, { repeat: { pattern: '* 1 * 1 *' } });
         const repeatableJobs = await queue.getRepeatableJobs();
         expect(repeatableJobs).to.have.length(1);
-        //const removed = await queue.removeRepeatableByKey('remove::::* 1 * 1 *');
 
         const delayedCount = await queue.getJobCountByTypes('delayed');
         expect(delayedCount).to.be.equal(1);
-        //expect(removed).to.be.true;
         const repeatableJobsAfterRemove = await queue.getRepeatableJobs();
         expect(repeatableJobsAfterRemove).to.have.length(1);
       });
