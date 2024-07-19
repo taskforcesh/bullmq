@@ -1357,43 +1357,20 @@ describe('repeat', function () {
         expect(repeatableJobsAfterRemove).to.have.length(0);
       });
 
-      it.only('should keep legacy repeatable job and delayed referece', async function () {
+      it('should keep legacy repeatable job and delayed referece', async function () {
         this.clock.setSystemTime(1721187138606);
 
         const client = await queue.client;
-        await client.hmset(
-          `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
-          'priority',
-          0,
-          'delay',
-          14524061394,
-          'data',
-          '{}',
-          'timestamp',
-          1721187138606,
-          'rjk',
-          'remove::::* 1 * 1 *',
-          'name',
-          'remove',
-        );
         await client.zadd(
           `${prefix}:${queue.name}:repeat`,
-          1735711200000,
+          1735693200000,
           'remove::::* 1 * 1 *',
-        );
-        await client.zadd(
-          `${prefix}:${queue.name}:delayed`,
-          1735711200000,
-          'repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000',
         );
 
         await queue.add('remove', {}, { repeat: { pattern: '* 1 * 1 *' } });
         const repeatableJobs = await queue.getRepeatableJobs();
         expect(repeatableJobs).to.have.length(1);
         expect(repeatableJobs[0].key).to.be.equal('remove::::* 1 * 1 *');
-
-        const jobs = await queue.getJobs(['delayed']);
-        console.log(jobs);
 
         const delayedCount = await queue.getJobCountByTypes('delayed');
         expect(delayedCount).to.be.equal(1);
