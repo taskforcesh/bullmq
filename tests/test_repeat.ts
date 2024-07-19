@@ -1314,7 +1314,7 @@ describe('repeat', function () {
     });
 
     describe('when re-adding repeatable job now with new format', function () {
-      it('should be able to remove legacy repeatable jobs', async () => {
+      it('should keep legacy repeatable job and be able to remove it', async () => {
         const client = await queue.client;
         await client.hmset(
           `${prefix}:${queue.name}:repeat:839d4be40c8b2f30fca6f860d0cf76f7:1735711200000`,
@@ -1346,6 +1346,7 @@ describe('repeat', function () {
 
         const repeatableJobs = await queue.getRepeatableJobs();
         expect(repeatableJobs).to.have.length(1);
+        expect(repeatableJobs[0].key).to.be.equal('remove::::* 1 * 1 *');
         const removed = await queue.removeRepeatable('remove', repeat);
 
         const delayedCount = await queue.getJobCountByTypes('delayed');
@@ -1355,7 +1356,7 @@ describe('repeat', function () {
         expect(repeatableJobsAfterRemove).to.have.length(0);
       });
 
-      it('should be able to remove legacy repeatable jobs by key', async function () {
+      it('should keep legacy repeatable job and delayed referece', async function () {
         this.clock.setSystemTime(1721187138606);
 
         const client = await queue.client;
@@ -1388,6 +1389,7 @@ describe('repeat', function () {
         await queue.add('remove', {}, { repeat: { pattern: '* 1 * 1 *' } });
         const repeatableJobs = await queue.getRepeatableJobs();
         expect(repeatableJobs).to.have.length(1);
+        expect(repeatableJobs[0].key).to.be.equal('remove::::* 1 * 1 *');
 
         const delayedCount = await queue.getJobCountByTypes('delayed');
         expect(delayedCount).to.be.equal(1);
