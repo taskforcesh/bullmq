@@ -31,7 +31,7 @@ import {
   tryCatch,
 } from '../utils';
 import { Backoffs } from './backoffs';
-import { Scripts } from './scripts';
+import { Scripts, raw2NextJobData } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
 
@@ -634,7 +634,7 @@ export class Job<
     err: E,
     token: string,
     fetchNext = false,
-  ): Promise<void> {
+  ): Promise<void | any[]> {
     const client = await this.queue.client;
     const message = err?.message;
 
@@ -711,10 +711,10 @@ export class Job<
       );
     }
 
-    const code = results[results.length - 1][1] as number;
-    if (code < 0) {
+    const result = results[results.length - 1][1] as number;
+    if (result < 0) {
       throw this.scripts.finishedErrors({
-        code,
+        code: result,
         jobId: this.id,
         command,
         state: 'active',
@@ -730,6 +730,10 @@ export class Job<
     }
 
     this.attemptsMade += 1;
+
+    if (Array.isArray(result)) {
+      return raw2NextJobData(result);
+    }
   }
 
   /**
