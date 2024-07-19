@@ -121,10 +121,8 @@ export class Repeat extends QueueBase {
     //
     // Generate unique job id for this iteration.
     //
-    const jobId = this.getRepeatDelayedJobId({
-      customKey: repeatJobKey,
-      nextMillis,
-    });
+    const jobId = this.getRepeatJobKey(name, nextMillis, repeatJobKey, data);
+
     const now = Date.now();
     const delay =
       nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
@@ -141,6 +139,28 @@ export class Repeat extends QueueBase {
     mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
     return this.Job.create<T, R, N>(this, name, data, mergedOpts);
+  }
+
+  // TODO: remove legacy code in next breaking change
+  getRepeatJobKey<T = any, N extends string = string>(
+    name: N,
+    nextMillis: number,
+    repeatJobKey: string,
+    data: T,
+  ) {
+    if (repeatJobKey.split(':').length > 2) {
+      return this.getRepeatJobId({
+        name: name,
+        nextMillis: nextMillis,
+        namespace: this.hash(repeatJobKey),
+        jobId: (data as any)?.id,
+      });
+    }
+
+    return this.getRepeatDelayedJobId({
+      customKey: repeatJobKey,
+      nextMillis,
+    });
   }
 
   async removeRepeatable(

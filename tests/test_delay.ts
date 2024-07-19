@@ -191,11 +191,9 @@ describe('Delayed jobs', function () {
       await worker.waitUntilReady();
 
       const timestamp = Date.now();
-      const publishHappened = false;
 
       const waiting = new Promise<void>(resolve => {
         queueEvents.on('waiting', () => {
-          console.log(Date.now() - timestamp);
           const currentDelay = Date.now() - timestamp;
           expect(currentDelay).to.be.greaterThanOrEqual(delayTime);
           expect(currentDelay).to.be.lessThanOrEqual(delayTime * margin);
