@@ -1392,11 +1392,11 @@ describe('repeat', function () {
         expect(repeatableJobs).to.have.length(1);
         expect(repeatableJobs[0].key).to.be.equal('remove::::* 1 * 1 *');
 
-        const delayedCount = await queue.getJobCountByTypes('delayed');
-        expect(delayedCount).to.be.equal(1);
-
         const jobs = await queue.getJobs(['delayed']);
         console.log(jobs);
+
+        const delayedCount = await queue.getJobCountByTypes('delayed');
+        expect(delayedCount).to.be.equal(1);
       });
     });
   });
