@@ -91,13 +91,13 @@ end
 local debounceId = opts['deid']
 
 if debounceId then
-  local currentDebounceJobId = rcall('SET',
-    args[1] .. "debounce:" .. debounceId, jobId, 'PX',
-    opts['delay'] or 0, 'NX', 'GET')
-  if currentDebounceJobId then
+  local debounceKey = args[1] .. "debounce:" .. debounceId
+  local isFirstSet = rcall('SET', debounceKey, jobId, 'PX',
+    opts['delay'] or 0, 'NX')
+  if not isFirstSet then
+    local currentDebounceJobId = rcall('GET', debounceKey)
     rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
       "debounced", "jobId", currentDebounceJobId)
-
     return args[1] .. currentDebounceJobId
   end
 end
