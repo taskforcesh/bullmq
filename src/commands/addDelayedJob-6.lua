@@ -25,6 +25,7 @@
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9]  repeat job key
+            [10] debounce id
             
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -49,8 +50,8 @@ local args = cmsgpack.unpack(ARGV[1])
 local data = ARGV[2]
 
 local parentKey = args[5]
-local repeatJobKey = args[9]
 local parent = args[8]
+local repeatJobKey = args[9]
 local parentData
 
 -- Includes
@@ -73,6 +74,7 @@ local opts = cmsgpack.unpack(ARGV[3])
 
 local parentDependenciesKey = args[7]
 local timestamp = args[4]
+
 if args[2] == "" then
     jobId = jobCounter
     jobIdKey = args[1] .. jobId
@@ -84,6 +86,20 @@ else
             parentData, parentDependenciesKey, completedKey, eventsKey,
             maxEvents, timestamp)
     end
+end
+
+local debounceId = opts['deid']
+
+if debounceId then
+  local currentDebounceJobId = rcall('SET',
+    args[1] .. "debounce:" .. debounceId, jobId, 'PX',
+    opts['delay'] or 0, 'NX', 'GET')
+  if currentDebounceJobId then
+    rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
+      "debounced", "jobId", currentDebounceJobId)
+
+    return args[1] .. currentDebounceJobId
+  end
 end
 
 -- Store the job.

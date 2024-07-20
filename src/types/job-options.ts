@@ -2,6 +2,11 @@ import { BaseJobOptions } from '../interfaces';
 
 export type JobsOptions = BaseJobOptions & {
   /**
+   * Debounce identifier.
+   */
+  debounceId?: string;
+
+  /**
    * If true, moves parent to failed.
    */
   failParentOnFailure?: boolean;
@@ -21,6 +26,11 @@ export type JobsOptions = BaseJobOptions & {
  * These fields are the ones stored in Redis with smaller keys for compactness.
  */
 export type RedisJobOptions = BaseJobOptions & {
+  /**
+   * Debounce identifier.
+   */
+  deid?: string;
+
   /**
    * If true, moves parent to failed.
    */

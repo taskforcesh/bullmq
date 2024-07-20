@@ -398,6 +398,60 @@ describe('events', function () {
     });
   });
 
+  describe('when job is debounced when added again with same debounceId', function () {
+    it('emits debounced event', async function () {
+      const testName = 'test';
+
+      const job = await queue.add(
+        testName,
+        { foo: 'bar' },
+        { debounceId: 'a1', delay: 2000 },
+      );
+
+      let debouncedCounter = 0;
+      let secondJob;
+      queueEvents.on('debounced', ({ jobId }) => {
+        if (debouncedCounter > 1) {
+          expect(jobId).to.be.equal(secondJob.id);
+        } else {
+          expect(jobId).to.be.equal(job.id);
+        }
+        debouncedCounter++;
+      });
+
+      await delay(1000);
+      await queue.add(
+        testName,
+        { foo: 'bar' },
+        { debounceId: 'a1', delay: 2000 },
+      );
+      await queue.add(
+        testName,
+        { foo: 'bar' },
+        { debounceId: 'a1', delay: 2000 },
+      );
+      await delay(1100);
+      secondJob = await queue.add(
+        testName,
+        { foo: 'bar' },
+        { debounceId: 'a1', delay: 2000 },
+      );
+      await queue.add(
+        testName,
+        { foo: 'bar' },
+        { debounceId: 'a1', delay: 2000 },
+      );
+      await queue.add(
+        testName,
+        { foo: 'bar' },
+        { debounceId: 'a1', delay: 2000 },
+      );
+      await delay(100);
+
+      expect(debouncedCounter).to.be.equal(4);
+    });
+  });
+
   it('should emit an event when a job becomes active', async () => {
     const worker = new Worker(queueName, async job => {}, {
       connection,
