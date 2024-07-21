@@ -109,7 +109,7 @@
 
 ### Bug Fixes
 
-* extendlock,createbulk use pipeline no multi command ([a053d9b](https://github.com/taskforcesh/bullmq/commit/a053d9b87e9799b151e2563b499dbff309b9d2e5))
+* extendlock, createbulk use pipeline no multi command ([#2584](https://github.com/taskforcesh/bullmq/pull/2584)) ([a053d9b](https://github.com/taskforcesh/bullmq/commit/a053d9b87e9799b151e2563b499dbff309b9d2e5))
 
 ## [5.7.12](https://github.com/taskforcesh/bullmq/compare/v5.7.11...v5.7.12) (2024-05-24)
 
