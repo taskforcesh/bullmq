@@ -12,12 +12,9 @@
 ## v2.8.0 (2024-07-10)
 ### Feature
 * **queue:** Add getCountsPerPriority method [python] ([#2607](https://github.com/taskforcesh/bullmq/issues/2607)) ([`02b8338`](https://github.com/taskforcesh/bullmq/commit/02b83380334879cc2434043141566f2a375db958))
-* **queue:** Add getCountsPerPriority method ([#2595](https://github.com/taskforcesh/bullmq/issues/2595)) ([`77971f4`](https://github.com/taskforcesh/bullmq/commit/77971f42b9fc425ad66e0b581e800ea429fc254e))
 
 ### Fix
 * **parent:** Consider re-adding child that is in completed state using same jobIds (#2627) (python) fixes #2554 ([`00cd017`](https://github.com/taskforcesh/bullmq/commit/00cd0174539fbe1cc4628b9b6e1a7eb87a5ef705))
-* **queue-getters:** Consider passing maxJobs when calling getRateLimitTtl (#2631) fixes #2628 ([`9f6609a`](https://github.com/taskforcesh/bullmq/commit/9f6609ab1856c473b2d5cf0710068ce2751d708e))
-* **job:** Consider changing priority to 0 ([#2599](https://github.com/taskforcesh/bullmq/issues/2599)) ([`4dba122`](https://github.com/taskforcesh/bullmq/commit/4dba122174ab5173315fca7fdbb7454761514a53))
 * **priority:** Consider paused state when calling getCountsPerPriority (python) ([#2609](https://github.com/taskforcesh/bullmq/issues/2609)) ([`6e99250`](https://github.com/taskforcesh/bullmq/commit/6e992504b2a7a2fa76f1d04ad53d1512e98add7f))
 * **priority:** Use module instead of bit.band to keep order (python) ([#2597](https://github.com/taskforcesh/bullmq/issues/2597)) ([`9ece15b`](https://github.com/taskforcesh/bullmq/commit/9ece15b17420fe0bee948a5307e870915e3bce87))
 
@@ -27,18 +24,8 @@
 
 ## v2.7.7 (2024-06-04)
 ### Fix
-* **worker:** Properly cancel blocking command during disconnections ([`2cf12b3`](https://github.com/taskforcesh/bullmq/commit/2cf12b3622b0517f645971ece8acdcf673bede97))
-* Extendlock,createbulk use pipeline no multi command ([`a053d9b`](https://github.com/taskforcesh/bullmq/commit/a053d9b87e9799b151e2563b499dbff309b9d2e5))
-* **repeat:** Throw error when endDate is pointing to the past ([#2574](https://github.com/taskforcesh/bullmq/issues/2574)) ([`5bd7990`](https://github.com/taskforcesh/bullmq/commit/5bd79900ea3ace8ec6aa00525aff81a345f8e18e))
 * **retry-job:** Throw error when job is not in active state ([#2576](https://github.com/taskforcesh/bullmq/issues/2576)) ([`ca207f5`](https://github.com/taskforcesh/bullmq/commit/ca207f593d0ed455ecc59d9e0ef389a9a50d9634))
-* **sandboxed:** Ensure DelayedError is checked in Sandboxed processors (#2567) fixes #2566 ([`8158fa1`](https://github.com/taskforcesh/bullmq/commit/8158fa114f57619b31f101bc8d0688a09c6218bb))
 * **job:** Validate job existence when adding a log ([#2562](https://github.com/taskforcesh/bullmq/issues/2562)) ([`f87e3fe`](https://github.com/taskforcesh/bullmq/commit/f87e3fe029e48d8964722da762326e531c2256ee))
-
-### Documentation
-* Correct typo in `maxmemory-policy` reference ([`c19c839`](https://github.com/taskforcesh/bullmq/commit/c19c83979a50fd5e188bb97d0511481e460bdfc9))
-* **aws-elasticache:** Fix image not displayed correctly(#2564) ([`2dd3709`](https://github.com/taskforcesh/bullmq/commit/2dd3709fe3b638f2ff13851fc9ff4dc81c4bfe94))
-* Fix typo ([#2563](https://github.com/taskforcesh/bullmq/issues/2563)) ([`be68695`](https://github.com/taskforcesh/bullmq/commit/be68695028fac0581b1561be7c6705188d9cdbb7))
-* **pro:** Add local group concurrency section ([#2551](https://github.com/taskforcesh/bullmq/issues/2551)) ([`cce0774`](https://github.com/taskforcesh/bullmq/commit/cce0774cffcee591407eee4d4530daa37aab3eca))
 
 ### Performance
 * **job:** Set processedBy using hmset (#2592) (python) ([`238680b`](https://github.com/taskforcesh/bullmq/commit/238680b84593690a73d542dbe1120611c3508b47))
