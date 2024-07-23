@@ -90,7 +90,7 @@ else
     end
 end
 
-local debouncedJobId = debounceJob(args[1], opts['debo'],
+local debouncedJobId = debounceJob(args[1], opts['de'],
   jobId, debounceKey, eventsKey, maxEvents)
 if debouncedJobId then
   return debouncedJobId
