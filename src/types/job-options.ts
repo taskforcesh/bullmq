@@ -1,10 +1,10 @@
-import { BaseJobOptions } from '../interfaces';
+import { BaseJobOptions, DebouncingOptions } from '../interfaces';
 
 export type JobsOptions = BaseJobOptions & {
   /**
-   * Debounce identifier.
+   * Debouncing options.
    */
-  debounceId?: string;
+  debouncing?: DebouncingOptions;
 
   /**
    * If true, moves parent to failed.

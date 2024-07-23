@@ -60,6 +60,7 @@ local parentData
 
 -- Includes
 --- @include "includes/addJobInTargetList"
+--- @include "includes/debounceJob"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
 --- @include "includes/handleDuplicatedJob"
@@ -91,9 +92,19 @@ else
     end
 end
 
+local debounceId = opts['debo'] and opts['debo']['id']
+
+if debounceId then
+  local debouncedJobId = debounceJob(args[1], debounceId, opts['debo']['ttl'],
+    jobId, eventsKey, maxEvents)
+  if debouncedJobId then
+    return debouncedJobId
+  end
+end
+
 -- Store the job.
 storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
-         parentKey, parentData, repeatJobKey)
+         parentKey, parentData, repeatJobKey, debounceId)
 
 local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[1], KEYS[2])
 

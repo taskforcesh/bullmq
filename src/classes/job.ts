@@ -38,7 +38,7 @@ import type { QueueEvents } from './queue-events';
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
-  deid: 'debounceId',
+  debo: 'debouncing',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
@@ -1196,10 +1196,6 @@ export class Job<
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
       throw new Error(`Delay and repeat options could not be used together`);
-    }
-
-    if (this.opts.debounceId && !this.opts.delay) {
-      throw new Error(`DebounceId and delay options must be used together`);
     }
 
     if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {

@@ -4,6 +4,7 @@
 
 -- Includes
 --- @include "moveParentToWaitIfNeeded"
+--- @include "removeDebounceKeyIfNeeded"
 
 local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
   if rcall("ZREM", parentQueueKey .. ":waiting-children", parentId) == 1 then
@@ -13,10 +14,12 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
     rcall("XADD", parentQueueKey .. ":events", "*", "event", "failed", "jobId", parentId, "failedReason",
       failedReason, "prev", "waiting-children")
 
-    local rawParentData = rcall("HGET", parentKey, "parent")
+    local jobAttributes = rcall("HMGET", parentKey, "parent", "deid")
 
-    if rawParentData ~= false then
-      local parentData = cjson.decode(rawParentData)
+    removeDebounceKeyIfNeeded(parentQueueKey, jobAttributes[2])
+
+    if jobAttributes[1] then
+      local parentData = cjson.decode(jobAttributes[1])
       if parentData['fpof'] then
         moveParentFromWaitingChildrenToFailed(
           parentData['queueKey'],

@@ -56,6 +56,7 @@ local parentData
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/debounceJob"
 --- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
@@ -88,24 +89,20 @@ else
     end
 end
 
-local debounceId = opts['deid']
+local debounceId = opts['debo'] and opts['debo']['id']
 
 if debounceId then
-  local debounceKey = args[1] .. "debounce:" .. debounceId
-  local isFirstSet = rcall('SET', debounceKey, jobId, 'PX',
-    opts['delay'] or 0, 'NX')
-  if not isFirstSet then
-    local currentDebounceJobId = rcall('GET', debounceKey)
-    rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-      "debounced", "jobId", currentDebounceJobId)
-    return args[1] .. currentDebounceJobId
+  local debouncedJobKey = debounceJob(args[1], debounceId, opts['debo']['ttl'],
+    jobId, eventsKey, maxEvents)
+  if debouncedJobKey then
+    return debouncedJobKey
   end
 end
 
 -- Store the job.
 local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
                                  opts, timestamp, parentKey, parentData,
-                                 repeatJobKey)
+                                 repeatJobKey, debounceId)
 
 local score, delayedTimestamp = getDelayedScore(delayedKey, timestamp, tonumber(delay))
 

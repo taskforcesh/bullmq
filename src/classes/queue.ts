@@ -187,10 +187,10 @@ export class Queue<
    * Get global concurrency value.
    * Returns null in case no value is set.
    */
-  async getGlobalConcurrency():Promise<number|null> {
+  async getGlobalConcurrency(): Promise<number | null> {
     const client = await this.client;
     const concurrency = await client.hget(this.keys.meta, 'concurrency');
-    if(concurrency){
+    if (concurrency) {
       return Number(concurrency);
     }
     return null;
@@ -203,12 +203,11 @@ export class Queue<
    * is processed at any given time. If this limit is not defined, there will be no
    * restriction on the number of concurrent jobs.
    */
-    async setGlobalConcurrency(concurrency: number) {
-      const client = await this.client;
-      return client.hset(this.keys.meta, 'concurrency', concurrency);
-    }
-  
-  
+  async setGlobalConcurrency(concurrency: number) {
+    const client = await this.client;
+    return client.hset(this.keys.meta, 'concurrency', concurrency);
+  }
+
   /**
    * Adds a new job to the queue.
    *
@@ -372,6 +371,17 @@ export class Queue<
     const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
 
     return !removed;
+  }
+
+  /**
+   * Removes a debounce key.
+   *
+   * @param id - identifier
+   */
+  async removeDebounceKey(id: string): Promise<number> {
+    const client = await this.client;
+
+    return client.del(this.toKey('debounce:') + id);
   }
 
   /**

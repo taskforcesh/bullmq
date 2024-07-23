@@ -49,6 +49,7 @@ local parent = args[8]
 local parentData
 
 -- Includes
+--- @include "includes/debounceJob"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
 --- @include "includes/storeJob"
@@ -78,9 +79,19 @@ else
     end
 end
 
+local debounceId = opts['debo'] and opts['debo']['id']
+
+if debounceId then
+  local debouncedJobKey = debounceJob(args[1], debounceId, opts['debo']['ttl'],
+    jobId, eventsKey, maxEvents)
+  if debouncedJobKey then
+    return debouncedJobKey
+  end
+end
+
 -- Store the job.
 storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
-         parentKey, parentData, repeatJobKey)
+         parentKey, parentData, repeatJobKey, debounceId)
 
 local waitChildrenKey = args[6]
 rcall("ZADD", waitChildrenKey, timestamp, jobId)

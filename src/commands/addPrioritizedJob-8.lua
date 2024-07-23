@@ -57,6 +57,7 @@ local parentData
 
 -- Includes
 --- @include "includes/addJobWithPriority"
+--- @include "includes/debounceJob"
 --- @include "includes/storeJob"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
@@ -87,10 +88,20 @@ else
     end
 end
 
+local debounceId = opts['debo'] and opts['debo']['id']
+
+if debounceId then
+  local debouncedJobKey = debounceJob(args[1], debounceId, opts['debo']['ttl'],
+    jobId, eventsKey, maxEvents)
+  if debouncedJobKey then
+    return debouncedJobKey
+  end
+end
+
 -- Store the job.
 local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
                                  opts, timestamp, parentKey, parentData,
-                                 repeatJobKey)
+                                 repeatJobKey, debounceId)
 
 -- Add the job to the prioritized set
 local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)

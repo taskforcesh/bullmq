@@ -29,6 +29,7 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/moveParentToWaitIfNeeded"
+--- @include "includes/removeDebounceKeyIfNeeded"
 --- @include "includes/removeJob"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
@@ -83,12 +84,14 @@ if (#stalling > 0) then
                     local stalledCount =
                         rcall("HINCRBY", jobKey, "stalledCounter", 1)
                     if (stalledCount > MAX_STALLED_JOB_COUNT) then
-                        local jobAttributes = rcall("HMGET", jobKey, "opts", "parent")
+                        local jobAttributes = rcall("HMGET", jobKey, "opts", "parent", "deid")
                         local rawOpts = jobAttributes[1]
                         local rawParentData = jobAttributes[2]
                         local opts = cjson.decode(rawOpts)
                         local removeOnFailType = type(opts["removeOnFail"])
                         rcall("ZADD", failedKey, timestamp, jobId)
+                        removeDebounceKeyIfNeeded(queueKeyPrefix, jobAttributes[3])
+
                         local failedReason =
                             "job stalled more than allowable limit"
                         rcall("HMSET", jobKey, "failedReason", failedReason,
