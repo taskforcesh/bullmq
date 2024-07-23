@@ -3,7 +3,7 @@ export * from './backoff-options';
 export * from './base-job-options';
 export * from './child-message';
 export * from './connection';
-export * from './debouncing-options';
+export * from './debounce-options';
 export * from './flow-job';
 export * from './ioredis-events';
 export * from './job-json';
