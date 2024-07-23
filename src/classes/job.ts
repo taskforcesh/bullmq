@@ -138,6 +138,11 @@ export class Job<
   parent?: ParentKeys;
 
   /**
+   * Debounce identifier.
+   */
+  debounceId?: string;
+
+  /**
    * Base repeat job key.
    */
   repeatJobKey?: string;
@@ -199,6 +204,8 @@ export class Job<
     this.parent = opts.parent
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
+
+    this.debounceId = opts.debouncing ? opts.debouncing.id : undefined;
 
     this.toKey = queue.toKey.bind(queue);
     this.setScripts();
@@ -321,6 +328,10 @@ export class Job<
 
     if (json.rjk) {
       job.repeatJobKey = json.rjk;
+    }
+
+    if (json.deid) {
+      job.debounceId = json.deid;
     }
 
     job.failedReason = json.failedReason;

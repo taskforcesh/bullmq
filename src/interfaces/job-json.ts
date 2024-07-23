@@ -37,6 +37,7 @@ export interface JobJsonRaw {
   returnvalue: string;
   parentKey?: string;
   parent?: string;
+  deid?: string;
   rjk?: string;
   atm?: string;
   ats?: string;

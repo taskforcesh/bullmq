@@ -25,7 +25,6 @@
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9]  repeat job key
-            [10] debounce id
             
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
