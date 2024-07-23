@@ -4,7 +4,7 @@
 
 local function removeDebounceKeyIfNeeded(prefixKey, debounceId)
   if debounceId then
-    local debounceKey = prefixKey .. "debounce:" .. debounceId
+    local debounceKey = prefixKey .. "de:" .. debounceId
     local pttl = rcall("PTTL", debounceKey)
 
     if pttl == 0 or pttl == -1 then
@@ -12,4 +12,3 @@ local function removeDebounceKeyIfNeeded(prefixKey, debounceId)
     end
   end
 end
-    
