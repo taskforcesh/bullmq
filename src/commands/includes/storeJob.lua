@@ -2,11 +2,12 @@
   Function to store a job
 ]]
 local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
-                        parentKey, parentData, repeatJobKey, debounceId)
+                        parentKey, parentData, repeatJobKey)
     local jsonOpts = cjson.encode(opts)
     local delay = opts['delay'] or 0
     local priority = opts['priority'] or 0
-
+    local debounceId = opts['debo'] and opts['debo']['id']
+    
     local optionalValues = {}
     if parentKey ~= nil then
         table.insert(optionalValues, "parentKey")
@@ -20,7 +21,7 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
         table.insert(optionalValues, repeatJobKey)
     end
 
-    if debounceId ~= nil then
+    if debounceId then
         table.insert(optionalValues, "deid")
         table.insert(optionalValues, debounceId)
     end

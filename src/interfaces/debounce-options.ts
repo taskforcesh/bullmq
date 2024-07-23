@@ -1,7 +1,7 @@
 /**
- * Debouncing options
+ * Debounce options
  */
-export interface DebouncingOptions {
+export interface DebounceOptions {
   /**
    * ttl in milliseconds
    */

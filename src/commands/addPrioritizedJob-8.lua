@@ -24,7 +24,8 @@
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9]  repeat job key
-            
+            [10] debounce key
+
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
 
@@ -51,8 +52,9 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
-local repeatJobKey = args[9]
 local parent = args[8]
+local repeatJobKey = args[9]
+local debounceKey = args[10]
 local parentData
 
 -- Includes
@@ -88,20 +90,16 @@ else
     end
 end
 
-local debounceId = opts['debo'] and opts['debo']['id']
-
-if debounceId then
-  local debouncedJobKey = debounceJob(args[1], debounceId, opts['debo']['ttl'],
-    jobId, eventsKey, maxEvents)
-  if debouncedJobKey then
-    return debouncedJobKey
-  end
+local debouncedJobId = debounceJob(args[1], opts['debo'],
+  jobId, debounceKey, eventsKey, maxEvents)
+if debouncedJobId then
+  return debouncedJobId
 end
 
 -- Store the job.
 local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
                                  opts, timestamp, parentKey, parentData,
-                                 repeatJobKey, debounceId)
+                                 repeatJobKey)
 
 -- Add the job to the prioritized set
 local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)

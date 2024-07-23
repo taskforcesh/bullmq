@@ -381,7 +381,7 @@ export class Queue<
   async removeDebounceKey(id: string): Promise<number> {
     const client = await this.client;
 
-    return client.del(this.toKey('debounce:') + id);
+    return client.del(`${this.keys.de}:${id}`);
   }
 
   /**

@@ -406,7 +406,7 @@ describe('events', function () {
         const job = await queue.add(
           testName,
           { foo: 'bar' },
-          { debouncing: { id: 'a1', ttl: 2000 } },
+          { debounce: { id: 'a1', ttl: 2000 } },
         );
 
         let debouncedCounter = 0;
@@ -424,28 +424,28 @@ describe('events', function () {
         await queue.add(
           testName,
           { foo: 'bar' },
-          { debouncing: { id: 'a1', ttl: 2000 } },
+          { debounce: { id: 'a1', ttl: 2000 } },
         );
         await queue.add(
           testName,
           { foo: 'bar' },
-          { debouncing: { id: 'a1', ttl: 2000 } },
+          { debounce: { id: 'a1', ttl: 2000 } },
         );
         await delay(1100);
         secondJob = await queue.add(
           testName,
           { foo: 'bar' },
-          { debouncing: { id: 'a1', ttl: 2000 } },
+          { debounce: { id: 'a1', ttl: 2000 } },
         );
         await queue.add(
           testName,
           { foo: 'bar' },
-          { debouncing: { id: 'a1', ttl: 2000 } },
+          { debounce: { id: 'a1', ttl: 2000 } },
         );
         await queue.add(
           testName,
           { foo: 'bar' },
-          { debouncing: { id: 'a1', ttl: 2000 } },
+          { debounce: { id: 'a1', ttl: 2000 } },
         );
         await delay(100);
 
@@ -464,13 +464,13 @@ describe('events', function () {
             await queue.add(
               testName,
               { foo: 'bar' },
-              { debouncing: { id: 'a1' } },
+              { debounce: { id: 'a1' } },
             );
             await delay(100);
             await queue.add(
               testName,
               { foo: 'bar' },
-              { debouncing: { id: 'a1' } },
+              { debounce: { id: 'a1' } },
             );
             await delay(100);
           },
@@ -497,14 +497,14 @@ describe('events', function () {
 
         worker.run();
 
-        await queue.add(testName, { foo: 'bar' }, { debouncing: { id: 'a1' } });
+        await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
 
         await completing;
 
         const secondJob = await queue.add(
           testName,
           { foo: 'bar' },
-          { debouncing: { id: 'a1' } },
+          { debounce: { id: 'a1' } },
         );
 
         const count = await queue.getJobCountByTypes();

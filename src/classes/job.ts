@@ -38,7 +38,7 @@ import type { QueueEvents } from './queue-events';
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
-  debo: 'debouncing',
+  de: 'debounce',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
@@ -205,7 +205,7 @@ export class Job<
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
 
-    this.debounceId = opts.debouncing ? opts.debouncing.id : undefined;
+    this.debounceId = opts.debounce ? opts.debounce.id : undefined;
 
     this.toKey = queue.toKey.bind(queue);
     this.setScripts();
