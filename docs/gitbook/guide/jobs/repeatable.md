@@ -207,8 +207,8 @@ await myQueue.add(
   {
     repeat: {
       every: 1000,
+      key: 'colibri',
     },
-    key: 'colibri',
   },
 );
 
@@ -219,8 +219,8 @@ await myQueue.add(
   {
     repeat: {
       every: 1000,
+      key: 'eagle',
     },
-    key: 'eagle',
   },
 );
 
