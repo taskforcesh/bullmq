@@ -41,7 +41,7 @@ While this job is not moved to completed or failed state, next jobs added with s
 This mode is particularly useful for jobs that have a long running time or those that must not be duplicated until they are resolved, such as processing a file upload or performing a critical update that should not be repeated if the initial attempt is still in progress.
 
 {% hint style="warning" %}
-Any manual deletion will remove the debounce key. For example, when calling _job.remove_ method.
+Any manual deletion will disable the debouncing. For example, when calling _job.remove_ method.
 {% endhint %}
 
 ## Read more:

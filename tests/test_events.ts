@@ -451,6 +451,57 @@ describe('events', function () {
 
         expect(debouncedCounter).to.be.equal(4);
       });
+
+      describe('when removing debounced job', function () {
+        it('removes debounce key', async function () {
+          const testName = 'test';
+
+          const job = await queue.add(
+            testName,
+            { foo: 'bar' },
+            { debounce: { id: 'a1', ttl: 2000 } },
+          );
+
+          let debouncedCounter = 0;
+          queueEvents.on('debounced', ({ jobId }) => {
+            debouncedCounter++;
+          });
+          await job.remove();
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { debounce: { id: 'a1', ttl: 2000 } },
+          );
+          await delay(1000);
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { debounce: { id: 'a1', ttl: 2000 } },
+          );
+          await delay(1100);
+          const secondJob = await queue.add(
+            testName,
+            { foo: 'bar' },
+            { debounce: { id: 'a1', ttl: 2000 } },
+          );
+          await secondJob.remove();
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { debounce: { id: 'a1', ttl: 2000 } },
+          );
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { debounce: { id: 'a1', ttl: 2000 } },
+          );
+          await delay(100);
+
+          expect(debouncedCounter).to.be.equal(2);
+        });
+      });
     });
 
     describe('when ttl is not provided', function () {
