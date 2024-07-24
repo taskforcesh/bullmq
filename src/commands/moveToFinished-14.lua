@@ -182,7 +182,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             -- TODO: when a child is removed when finished, result or failure in parent
             -- must not be deleted, those value references should be deleted when the parent
             -- is deleted
-            removeParentDependencyKey(jobIdKey, false, parentKey)
+            removeParentDependencyKey(jobIdKey, false, parentKey, jobAttributes[3])
         end
     end
 

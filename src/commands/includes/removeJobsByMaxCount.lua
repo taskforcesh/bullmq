@@ -9,7 +9,7 @@ local function removeJobsByMaxCount(maxCount, targetSet, prefix)
   local start = maxCount
   local jobIds = rcall("ZREVRANGE", targetSet, start, -1)
   for i, jobId in ipairs(jobIds) do
-    removeJob(jobId, false, prefix)
+    removeJob(jobId, false, prefix, false)
   end
   rcall("ZREMRANGEBYRANK", targetSet, 0, -(maxCount + 1))
 end
