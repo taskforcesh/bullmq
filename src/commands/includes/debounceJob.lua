@@ -6,13 +6,13 @@ local function debounceJob(prefixKey, debounceOpts, jobId, debounceKey, eventsKe
   local debounceId = debounceOpts and debounceOpts['id']
   if debounceId then
     local ttl = debounceOpts['ttl']
-    local isFirstSet
+    local debounceKeyExists
     if ttl then
-      isFirstSet = rcall('SET', debounceKey, jobId, 'PX', ttl, 'NX')
+      debounceKeyExists = not rcall('SET', debounceKey, jobId, 'PX', ttl, 'NX')
     else
-      isFirstSet = rcall('SET', debounceKey, jobId, 'NX')
+      debounceKeyExists = not rcall('SET', debounceKey, jobId, 'NX')
     end
-    if not isFirstSet then
+    if debounceKeyExists then
       local currentDebounceJobId = rcall('GET', debounceKey)
       rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
         "debounced", "jobId", currentDebounceJobId)

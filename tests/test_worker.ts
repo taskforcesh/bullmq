@@ -1948,7 +1948,7 @@ describe('workers', function () {
 
     await worker.waitUntilReady();
 
-    const jobs = await Promise.all(
+    await Promise.all(
       Array.from({ length: concurrency }).map(() =>
         queue.add('test', { bar: 'baz' }),
       ),
