@@ -47,11 +47,11 @@ if millis then
   if(rcall("ZREM", KEYS[2], repeatJobId) == 1) then
     removeJobKeys(ARGV[4] .. repeatJobId)
     rcall("XADD", KEYS[3], "*", "event", "removed", "jobId", repeatJobId, "prev", "delayed")
-    rcall("DEL", KEYS[1] .. ":" .. ARGV[3])
   end
 end
 
 if(rcall("ZREM", KEYS[1], ARGV[3]) == 1) then
+  rcall("DEL", KEYS[1] .. ":" .. ARGV[3])
   return 0
 end
 
