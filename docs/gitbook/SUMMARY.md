@@ -16,6 +16,7 @@
 * [Queues](guide/queues/README.md)
   * [Auto-removal of jobs](guide/queues/auto-removal-of-jobs.md)
   * [Adding jobs in bulk](guide/queues/adding-bulks.md)
+  * [Global Concurrency](guide/queues/global-concurrency.md)
   * [Removing Jobs](guide/queues/removing-jobs.md)
 * [Workers](guide/workers/README.md)
   * [Auto-removal of jobs](guide/workers/auto-removal-of-jobs.md)

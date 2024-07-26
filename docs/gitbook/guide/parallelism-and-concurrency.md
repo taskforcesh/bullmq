@@ -37,6 +37,3 @@ The concurrency factor will just take advantage of NodeJS's event loop so that t
 If the jobs are very CPU intensive without IO calls, then there is no point in having a large concurrency number as it will just add overhead. Still, since BullMQ itself also performs IO operations (when updating Redis and fetching new jobs), there is a chance that a slight concurrency factor may even improve the throughput of CPU-intensive jobs.
 
 Secondly, you can run as many workers as you want. Every worker will run in parallel if it has a CPU at its disposal. You can run several workers in a given machine if the machine has more than one core, but you can also run workers in totally different machines. The jobs running on different workers will be running in parallel, so even if the job is CPU-intensive you will be able to increase the throughput which will normally scale linearly with the number of workers.
-
-
-

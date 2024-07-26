@@ -1,3 +1,17 @@
+# [7.12.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.11.0...v7.12.0) (2024-07-26)
+
+
+### Features
+
+* **queue:** support global concurrency ([#243](https://github.com/taskforcesh/bullmq-pro/issues/243)) ([4baac78](https://github.com/taskforcesh/bullmq-pro/commit/4baac78a1e00e42b58e62778a5b13df62decd792))
+
+# [7.11.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.10.1...v7.11.0) (2024-07-14)
+
+
+### Features
+
+* **groups:** add getCountsPerPriorityForGroup method ([#241](https://github.com/taskforcesh/bullmq-pro/issues/241)) ref [#238](https://github.com/taskforcesh/bullmq-pro/issues/238) ([2d3c81c](https://github.com/taskforcesh/bullmq-pro/commit/2d3c81c11c5c566913de15d50250ca5ade1eb59a))
+
 ## [7.10.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.10.0...v7.10.1) (2024-07-09)
 
 
