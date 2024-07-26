@@ -1215,6 +1215,7 @@ describe('repeat', function () {
   });
 
   it('should be able to remove repeatable jobs by key', async () => {
+    const client = await queue.client;
     const repeat = { pattern: '*/2 * * * * *' };
 
     const createdJob = await queue.add('remove', { foo: 'bar' }, { repeat });
@@ -1223,9 +1224,17 @@ describe('repeat', function () {
     const job = await queue.getJob(createdJob.id!);
     const repeatableJobs = await queue.getRepeatableJobs();
     expect(repeatableJobs).to.have.length(1);
-    const removed = await queue.removeRepeatableByKey(createdJob.repeatJobKey);
+    const existBeforeRemoval = await client.exists(
+      `${prefix}:${queue.name}:repeat:${createdJob.repeatJobKey!}`,
+    );
+    expect(existBeforeRemoval).to.be.equal(1);
+    const removed = await queue.removeRepeatableByKey(createdJob.repeatJobKey!);
     const delayedCount = await queue.getJobCountByTypes('delayed');
     expect(delayedCount).to.be.equal(0);
+    const existAfterRemoval = await client.exists(
+      `${prefix}:${queue.name}:repeat:${createdJob.repeatJobKey!}`,
+    );
+    expect(existAfterRemoval).to.be.equal(0);
     expect(job!.repeatJobKey).to.not.be.undefined;
     expect(removed).to.be.true;
     const repeatableJobsAfterRemove = await queue.getRepeatableJobs();

@@ -4,6 +4,7 @@
   Input:
     KEYS[1] repeat jobs key
     KEYS[2] delayed jobs key
+    KEYS[3] events key
 
     ARGV[1] old repeat job id
     ARGV[2] options concat
@@ -29,7 +30,7 @@ if millis then
   local repeatJobId = ARGV[1] .. millis
   if(rcall("ZREM", KEYS[2], repeatJobId) == 1) then
     removeJobKeys(ARGV[4] .. repeatJobId)
-    rcall("XADD", ARGV[4] .. "events", "*", "event", "removed", "jobId", repeatJobId, "prev", "delayed");
+    rcall("XADD", KEYS[3], "*", "event", "removed", "jobId", repeatJobId, "prev", "delayed");
   end
 end
 
@@ -45,11 +46,12 @@ if millis then
   local repeatJobId = "repeat:" .. ARGV[3] .. ":" .. millis
   if(rcall("ZREM", KEYS[2], repeatJobId) == 1) then
     removeJobKeys(ARGV[4] .. repeatJobId)
-    rcall("XADD", ARGV[4] .. "events", "*", "event", "removed", "jobId", repeatJobId, "prev", "delayed");
+    rcall("XADD", KEYS[3], "*", "event", "removed", "jobId", repeatJobId, "prev", "delayed")
   end
 end
 
 if(rcall("ZREM", KEYS[1], ARGV[3]) == 1) then
+  rcall("DEL", KEYS[1] .. ":" .. ARGV[3])
   return 0
 end
 
