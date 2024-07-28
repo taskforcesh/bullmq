@@ -41,22 +41,35 @@ In order to consume the jobs from the queue you need to use the `Worker` class, 
 
 ```python
 from bullmq import Worker
+import asyncio
 
 async def process(job, job_token):
     # job.data will include the data added to the queue
     return doSomethingAsync(job)
 
 async def main():
+
+    # Create an event that will be triggered for shutdown
+    shutdown_event = asyncio.Event()
+
+    def signal_handler(signal, frame):
+        print("Signal received, shutting down.")
+        shutdown_event.set()
+
+    # Assign signal handlers to SIGTERM and SIGINT
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     # Feel free to remove the connection parameter, if your redis runs on localhost
     worker = Worker("myQueue", process, {"connection": "rediss://<user>:<password>@<host>:<port>"})
 
-    # This while loop is just for the sake of this example
-    # you won't need it in practice.
-    while True: # Add some breaking conditions here
-        await asyncio.sleep(1)
+    # Wait until the shutdown event is set
+    await shutdown_event.wait()
 
-    # When no need to process more jobs we should close the worker
+    # close the worker
+    print("Cleaning up worker...")
     await worker.close()
+    print("Worker shut down successfully.")
 
 if __name__ == "__main__":
     asyncio.run(main())
