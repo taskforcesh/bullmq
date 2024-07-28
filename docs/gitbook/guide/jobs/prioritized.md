@@ -39,7 +39,7 @@ await job.changePriority({
 });
 ```
 
-or if you want to use the [LIFO (_Last In, First Out_)](../lifo.md) option:
+or if you want to use the [LIFO (_Last In, First Out_)](lifo.md) option:
 
 ```typescript
 const job = await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });
