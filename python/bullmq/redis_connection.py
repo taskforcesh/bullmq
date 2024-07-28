@@ -1,6 +1,6 @@
 import redis.asyncio as redis
 from redis.backoff import ExponentialBackoff
-from redis.retry import Retry
+from redis.asyncio.retry import Retry
 from redis.exceptions import (
    BusyLoadingError,
    ConnectionError,
@@ -18,15 +18,18 @@ class RedisConnection:
     recommended_minimum_version = '6.2.0'
 
     capabilities = {
+        "canBlockFor1Ms": True,
         "canDoubleTimeout": False
     }
 
-    def __init__(self, redisOpts: dict | str = {}):
+    def __init__(self, redisOpts: dict | str | redis.Redis = {}):
         self.version = None
-        retry = Retry(ExponentialBackoff(), 3)
+        retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
-        if isinstance(redisOpts, dict):
+        if isinstance(redisOpts, redis.Redis):
+            self.conn = redisOpts
+        elif isinstance(redisOpts, dict):
             defaultOpts = {
                 "host": "localhost",
                 "port": 6379,
@@ -64,6 +67,7 @@ class RedisConnection:
         self.version = doc.get("redis_version")
 
         self.capabilities = {
+            "canBlockFor1Ms": not isRedisVersionLowerThan(self.version, '7.0.8'),
             "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0')
         }
         return self.version

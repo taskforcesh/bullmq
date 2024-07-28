@@ -24,6 +24,7 @@ const deprecationMessage =
 
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
+  canBlockFor1Ms: boolean;
 }
 
 export interface RawCommand {
@@ -39,6 +40,7 @@ export class RedisConnection extends EventEmitter {
   closing: boolean;
   capabilities: RedisCapabilities = {
     canDoubleTimeout: false,
+    canBlockFor1Ms: true,
   };
 
   status: 'initializing' | 'ready' | 'closing' | 'closed' = 'initializing';
@@ -251,6 +253,7 @@ export class RedisConnection extends EventEmitter {
 
       this.capabilities = {
         canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
+        canBlockFor1Ms: !isRedisVersionLowerThan(this.version, '7.0.8'),
       };
 
       this.status = 'ready';

@@ -1671,6 +1671,78 @@ describe('flows', () => {
         await flow.close();
       });
     });
+
+    describe('when child already existed and it is re-added with same parentId', async () => {
+      it('moves parent to wait if child is already completed', async () => {
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await new Promise(s => {
+              setTimeout(s, 250);
+            });
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+
+        const completing = new Promise<void>(resolve => {
+          worker.on('completed', (job: Job) => {
+            if (job.id === 'tue') {
+              resolve();
+            }
+          });
+        });
+
+        const flow = new FlowProducer({ connection, prefix });
+
+        await flow.add({
+          queueName,
+          name: 'tue',
+          opts: {
+            jobId: 'tue',
+            removeOnComplete: true,
+          },
+          children: [
+            {
+              name: 'mon',
+              queueName,
+              opts: {
+                jobId: 'mon',
+              },
+            },
+          ],
+        });
+
+        await completing;
+
+        const tree = await flow.add({
+          queueName,
+          name: 'tue',
+          opts: {
+            jobId: 'tue',
+          },
+          children: [
+            {
+              name: 'mon',
+              queueName,
+              opts: {
+                jobId: 'mon',
+              },
+            },
+          ],
+        });
+
+        await delay(1000);
+        const state = await tree.job.getState();
+
+        expect(state).to.be.equal('completed');
+
+        await worker.close();
+        await flow.close();
+      });
+    });
   });
 
   describe('when custom prefix is set in flow producer', async () => {

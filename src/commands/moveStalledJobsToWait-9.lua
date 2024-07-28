@@ -27,6 +27,8 @@ local rcall = redis.call
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/moveParentFromWaitingChildrenToFailed"
+--- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeJob"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
@@ -81,7 +83,9 @@ if (#stalling > 0) then
                     local stalledCount =
                         rcall("HINCRBY", jobKey, "stalledCounter", 1)
                     if (stalledCount > MAX_STALLED_JOB_COUNT) then
-                        local rawOpts = rcall("HGET", jobKey, "opts")
+                        local jobAttributes = rcall("HMGET", jobKey, "opts", "parent")
+                        local rawOpts = jobAttributes[1]
+                        local rawParentData = jobAttributes[2]
                         local opts = cjson.decode(rawOpts)
                         local removeOnFailType = type(opts["removeOnFail"])
                         rcall("ZADD", failedKey, timestamp, jobId)
@@ -93,6 +97,26 @@ if (#stalling > 0) then
                               "failed", "jobId", jobId, 'prev', 'active',
                               'failedReason', failedReason)
 
+                        if opts['fpof'] and rawParentData ~= false then
+                            local parentData = cjson.decode(rawParentData)
+                            moveParentFromWaitingChildrenToFailed(
+                                parentData['queueKey'],
+                                parentData['queueKey'] .. ':' .. parentData['id'],
+                                parentData['id'],
+                                jobKey,
+                                timestamp
+                            )
+                        elseif opts['idof'] then
+                            local parentData = cjson.decode(rawParentData)
+                            local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
+                            local dependenciesSet = parentKey .. ":dependencies"
+                            if rcall("SREM", dependenciesSet, jobKey) == 1 then
+                                moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
+                                                         parentKey, parentData['id'], timestamp)
+                                local failedSet = parentKey .. ":failed"
+                                rcall("HSET", failedSet, jobKey, failedReason)
+                            end
+                        end
                         if removeOnFailType == "number" then
                             removeJobsByMaxCount(opts["removeOnFail"],
                                                   failedKey, queueKeyPrefix)
@@ -118,11 +142,11 @@ if (#stalling > 0) then
 
                         table.insert(failed, jobId)
                     else
-                        local target, isPaused=
-                            getTargetQueueList(metaKey, waitKey, pausedKey)
+                        local target, isPausedOrMaxed=
+                            getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                        addJobInTargetList(target, markerKey, "RPUSH", isPaused, jobId)
+                        addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)
 
                         rcall("XADD", eventStreamKey, "*", "event",
                               "waiting", "jobId", jobId, 'prev', 'active')

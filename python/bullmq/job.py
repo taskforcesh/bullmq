@@ -14,6 +14,7 @@ import traceback
 
 optsDecodeMap = {
     'fpof': 'failParentOnFailure',
+    'idof': 'ignoreDependencyOnFailure',
     'kl': 'keepLogs',
 }
 
@@ -152,7 +153,7 @@ class Job:
                 elif delay and not self.queue.opts.get("preserveOrder", False):
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
-                        round(time.time() * 1000) + delay,
+                        round(time.time() * 1000),
                         token,
                         delay
                     )
@@ -256,7 +257,7 @@ class Job:
             job.parentKey = rawData.get("parentKey")
 
         if rawData.get("parent"):
-           job.parent = json.loads(rawData.get("parent"))
+            job.parent = json.loads(rawData.get("parent"))
 
         return job
 
@@ -276,7 +277,7 @@ class Job:
 
         if keepLogs:
             multi.ltrim(logs_key, -keepLogs, -1)
-        
+
         result = await multi.execute()
 
         return min(keepLogs, result[0]) if keepLogs else result[0]

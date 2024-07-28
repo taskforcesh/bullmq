@@ -175,6 +175,41 @@ describe('Delayed jobs', function () {
     });
   });
 
+  describe('when queue is paused', function () {
+    it('should keep moving delayed jobs to waiting', async function () {
+      const delayTime = 2500;
+      const margin = 1.2;
+
+      const queueEvents = new QueueEvents(queueName, { connection, prefix });
+      await queueEvents.waitUntilReady();
+
+      await queue.pause();
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+      await worker.waitUntilReady();
+
+      const timestamp = Date.now();
+
+      const waiting = new Promise<void>(resolve => {
+        queueEvents.on('waiting', () => {
+          const currentDelay = Date.now() - timestamp;
+          expect(currentDelay).to.be.greaterThanOrEqual(delayTime);
+          expect(currentDelay).to.be.lessThanOrEqual(delayTime * margin);
+          resolve();
+        });
+      });
+
+      await queue.add('test', { delayed: 'foobar' }, { delay: delayTime });
+
+      await waiting;
+
+      await queueEvents.close();
+      await worker.close();
+    });
+  });
+
   it('should process a delayed job added after an initial long delayed job', async function () {
     const oneYearDelay = 1000 * 60 * 60 * 24 * 365; // One year.
     const delayTime = 1000;
@@ -563,21 +598,17 @@ describe('Delayed jobs', function () {
     });
 
     const now = Date.now();
-    const promises: Promise<Job<any, any, string>>[] = [];
     let i = 1;
     for (i; i <= numJobs; i++) {
-      promises.push(
-        queue.add(
-          'test',
-          { order: i },
-          {
-            delay: 1000,
-            timestamp: now,
-          },
-        ),
+      await queue.add(
+        'test',
+        { order: i },
+        {
+          delay: 1000,
+          timestamp: now,
+        },
       );
     }
-    await Promise.all(promises);
     await processing;
     await worker!.close();
   });

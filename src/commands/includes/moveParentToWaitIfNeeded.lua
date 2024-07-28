@@ -6,7 +6,7 @@
 --- @include "addDelayMarkerIfNeeded"
 --- @include "addJobInTargetList"
 --- @include "addJobWithPriority"
---- @include "isQueuePaused"
+--- @include "isQueuePausedOrMaxed"
 --- @include "getTargetQueueList"
 
 local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
@@ -17,6 +17,7 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
         rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
         local parentWaitKey = parentQueueKey .. ":wait"
         local parentPausedKey = parentQueueKey .. ":paused"
+        local parentActiveKey = parentQueueKey .. ":active"
         local parentMetaKey = parentQueueKey .. ":meta"
 
         local parentMarkerKey = parentQueueKey .. ":marker"
@@ -35,15 +36,16 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
             addDelayMarkerIfNeeded(parentMarkerKey, parentDelayedKey)
         else
             if priority == 0 then
-                local parentTarget, isParentPaused =
-                    getTargetQueueList(parentMetaKey, parentWaitKey,
+                local parentTarget, isParentPausedOrMaxed =
+                    getTargetQueueList(parentMetaKey, parentActiveKey, parentWaitKey,
                                        parentPausedKey)
-                addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPaused, parentId)
+                addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPausedOrMaxed,
+                    parentId)
             else
-                local isPaused = isQueuePaused(parentMetaKey)
+                local isPausedOrMaxed = isQueuePausedOrMaxed(parentMetaKey, parentActiveKey)
                 addJobWithPriority(parentMarkerKey,
                                    parentQueueKey .. ":prioritized", priority,
-                                   parentId, parentQueueKey .. ":pc", isPaused)
+                                   parentId, parentQueueKey .. ":pc", isPausedOrMaxed)
             end
 
             rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting",

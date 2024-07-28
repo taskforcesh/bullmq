@@ -68,6 +68,7 @@ local rcall = redis.call
 --- @include "includes/removeJobKeys"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
+--- @include "includes/removeLock"
 --- @include "includes/removeParentDependencyKey"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
@@ -77,27 +78,16 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local opts = cmsgpack.unpack(ARGV[8])
 
     local token = opts['token']
+
+    local errorCode = removeLock(jobIdKey, KEYS[5], token, ARGV[1])
+    if errorCode < 0 then
+        return errorCode
+    end
+
     local attempts = opts['attempts']
     local maxMetricsSize = opts['maxMetricsSize']
     local maxCount = opts['keepJobs']['count']
     local maxAge = opts['keepJobs']['age']
-
-    if token ~= "0" then
-        local lockKey = jobIdKey .. ':lock'
-        local lockToken = rcall("GET", lockKey)
-        if lockToken == token then
-            rcall("DEL", lockKey)
-            rcall("SREM", KEYS[5], ARGV[1])
-        else
-            if lockToken then
-                -- Lock exists but token does not match
-                return -6
-            else
-                -- Lock is missing completely
-                return -2
-            end
-        end
-    end
 
     if rcall("SCARD", jobIdKey .. ":dependencies") ~= 0 then -- // Make sure it does not have pending dependencies
         return -4
@@ -212,11 +202,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- and not rate limited.
     if (ARGV[6] == "1") then
 
-        local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[8])
+        local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8])
 
         -- Check if there are delayed jobs that can be promoted
         promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], eventStreamKey, ARGV[7],
-                           timestamp, KEYS[10], paused)
+                           timestamp, KEYS[10], isPausedOrMaxed)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.
@@ -224,8 +214,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         if expireTime > 0 then return {0, 0, expireTime, 0} end
 
-        -- paused queue
-        if paused then return {0, 0, 0, 0} end
+        -- paused or maxed queue
+        if isPausedOrMaxed then return {0, 0, 0, 0} end
 
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 

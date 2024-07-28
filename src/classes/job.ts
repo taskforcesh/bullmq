@@ -31,7 +31,7 @@ import {
   tryCatch,
 } from '../utils';
 import { Backoffs } from './backoffs';
-import { Scripts } from './scripts';
+import { Scripts, raw2NextJobData } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
 
@@ -256,10 +256,10 @@ export class Job<
         new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
-    const multi = client.multi();
+    const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(multi as unknown), {
+      job.addJob(<RedisClient>(pipeline as unknown), {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -267,7 +267,7 @@ export class Job<
       });
     }
 
-    const results = (await multi.exec()) as [null | Error, string][];
+    const results = (await pipeline.exec()) as [null | Error, string][];
     for (let index = 0; index < results.length; ++index) {
       const [err, id] = results[index];
       if (err) {
@@ -409,29 +409,15 @@ export class Job<
    *
    * @returns The total number of log entries for this job so far.
    */
-  static async addJobLog(
+  static addJobLog(
     queue: MinimalQueue,
     jobId: string,
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    const client = await queue.client;
-    const logsKey = queue.toKey(jobId) + ':logs';
+    const scripts = (queue as any).scripts as Scripts;
 
-    const multi = client.multi();
-
-    multi.rpush(logsKey, logRow);
-
-    if (keepLogs) {
-      multi.ltrim(logsKey, -keepLogs, -1);
-    }
-
-    const result = (await multi.exec()) as [
-      [Error, number],
-      [Error, string] | undefined,
-    ];
-
-    return keepLogs ? Math.min(keepLogs, result[0][1]) : result[0][1];
+    return scripts.addLog(jobId, logRow, keepLogs);
   }
 
   toJSON() {
@@ -648,7 +634,7 @@ export class Job<
     err: E,
     token: string,
     fetchNext = false,
-  ): Promise<void> {
+  ): Promise<void | any[]> {
     const client = await this.queue.client;
     const message = err?.message;
 
@@ -686,7 +672,7 @@ export class Job<
       } else if (delay && !opts.preserveOrder) {
         const args = this.scripts.moveToDelayedArgs(
           this.id,
-          Date.now() + delay,
+          Date.now(),
           token,
           delay,
         );
@@ -728,10 +714,10 @@ export class Job<
       );
     }
 
-    const code = results[results.length - 1][1] as number;
-    if (code < 0) {
+    const result = results[results.length - 1][1] as number;
+    if (result < 0) {
       throw this.scripts.finishedErrors({
-        code,
+        code: result,
         jobId: this.id,
         command,
         state: 'active',
@@ -747,6 +733,10 @@ export class Job<
     }
 
     this.attemptsMade += 1;
+
+    if (Array.isArray(result)) {
+      return raw2NextJobData(result);
+    }
   }
 
   /**
@@ -1093,14 +1083,17 @@ export class Job<
    * @returns
    */
   async moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    const delay = timestamp - Date.now();
+    const now = Date.now();
+    const delay = timestamp - now;
+    const finalDelay = delay > 0 ? delay : 0;
     const movedToDelayed = await this.scripts.moveToDelayed(
       this.id,
-      timestamp,
-      delay > 0 ? delay : 0,
+      now,
+      finalDelay,
       token,
       { skipAttempt: true },
     );
+    this.delay = finalDelay;
 
     return movedToDelayed;
   }

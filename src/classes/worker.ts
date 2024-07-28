@@ -38,10 +38,6 @@ import {
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
-/* 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
-Obviously we can still process much faster than 1 job per millisecond but delays and rate limits
-will never work with more accuracy than 1ms. */
-const minimumBlockTimeout = 0.001;
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -558,7 +554,7 @@ export class Worker<
       try {
         this.blockUntil = await this.waiting;
 
-        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 10) {
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
           return this.moveToActive(client, token, this.opts.name);
         }
       } catch (err) {
@@ -598,6 +594,15 @@ export class Worker<
     );
   }
 
+  get minimumBlockTimeout(): number {
+    return this.blockingConnection.capabilities.canBlockFor1Ms
+      ? /* 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
+Obviously we can still process much faster than 1 job per millisecond but delays and rate limits
+will never work with more accuracy than 1ms. */
+        0.001
+      : 0.002;
+  }
+
   protected async moveToActive(
     client: RedisClient,
     token: string,
@@ -618,28 +623,35 @@ export class Worker<
       return Infinity;
     }
 
+    let timeout: NodeJS.Timeout;
     try {
-      if (!this.closing) {
+      if (!this.closing && !this.limitUntil) {
         let blockTimeout = this.getBlockTimeout(blockUntil);
 
-        blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
-          ? blockTimeout
-          : Math.ceil(blockTimeout);
+        if (blockTimeout > 0) {
+          blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
+            ? blockTimeout
+            : Math.ceil(blockTimeout);
 
-        // We restrict the maximum block timeout to 10 second to avoid
-        // blocking the connection for too long in the case of reconnections
-        // reference: https://github.com/taskforcesh/bullmq/issues/1658
-        blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+          // We cannot trust that the blocking connection stays blocking forever
+          // due to issues in Redis and IORedis, so we will reconnect if we
+          // don't get a response in the expected time.
+          timeout = setTimeout(async () => {
+            bclient.disconnect(!this.closing);
+          }, blockTimeout * 1000 + 1000);
 
-        // Markers should only be used for un-blocking, so we will handle them in this
-        // function only.
-        const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+          this.updateDelays(); // reset delays to avoid reusing same values in next iteration
 
-        if (result) {
-          const [_key, member, score] = result;
+          // Markers should only be used for un-blocking, so we will handle them in this
+          // function only.
+          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
 
-          if (member) {
-            return parseInt(score);
+          if (result) {
+            const [_key, member, score] = result;
+
+            if (member) {
+              return parseInt(score);
+            }
           }
         }
 
@@ -652,6 +664,8 @@ export class Worker<
       if (!this.closing) {
         await this.delay();
       }
+    } finally {
+      clearTimeout(timeout);
     }
     return Infinity;
   }
@@ -663,13 +677,18 @@ export class Worker<
     if (blockUntil) {
       const blockDelay = blockUntil - Date.now();
       // when we reach the time to get new jobs
-      if (blockDelay < 1) {
-        return minimumBlockTimeout;
+      if (blockDelay <= 0) {
+        return blockDelay;
+      } else if (blockDelay < this.minimumBlockTimeout * 1000) {
+        return this.minimumBlockTimeout;
       } else {
-        return blockDelay / 1000;
+        // We restrict the maximum block timeout to 10 second to avoid
+        // blocking the connection for too long in the case of reconnections
+        // reference: https://github.com/taskforcesh/bullmq/issues/1658
+        return Math.min(blockDelay / 1000, maximumBlockTimeout);
       }
     } else {
-      return Math.max(opts.drainDelay, minimumBlockTimeout);
+      return Math.max(opts.drainDelay, this.minimumBlockTimeout);
     }
   }
 
@@ -746,15 +765,21 @@ export class Worker<
 
           if (
             err instanceof DelayedError ||
-            err.message == 'DelayedError' ||
+            err.name == 'DelayedError' ||
             err instanceof WaitingChildrenError ||
             err.name == 'WaitingChildrenError'
           ) {
             return;
           }
 
-          await job.moveToFailed(err, token);
+          const result = await job.moveToFailed(err, token, true);
           this.emit('failed', job, err, 'active');
+
+          if (result) {
+            const [jobData, jobId, limitUntil, delayUntil] = result;
+            this.updateDelays(limitUntil, delayUntil);
+            return this.nextJobFromJobData(jobData, jobId, token);
+          }
         } catch (err) {
           this.emit('error', <Error>err);
           // It probably means that the job has lost the lock before completion
@@ -990,16 +1015,16 @@ export class Worker<
 
   protected async extendLocks(jobs: Job[]) {
     try {
-      const multi = (await this.client).multi();
+      const pipeline = (await this.client).pipeline();
       for (const job of jobs) {
         await this.scripts.extendLock(
           job.id,
           job.token,
           this.opts.lockDuration,
-          multi,
+          pipeline,
         );
       }
-      const result = (await multi.exec()) as [Error, string][];
+      const result = (await pipeline.exec()) as [Error, string][];
 
       for (const [err, jobId] of result) {
         if (err) {

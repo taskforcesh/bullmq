@@ -29,13 +29,16 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
     rcall("SET", lockKey, opts['token'], "PX", opts['lockDuration'])
   end
 
+  local optionalValues = {}
+
   if opts['name'] then
     -- Set "processedBy" field to the worker name
-    rcall("HSET", jobKey, "pb", opts['name'])
+    table.insert(optionalValues, "pb")
+    table.insert(optionalValues, opts['name'])
   end
 
   rcall("XADD", eventStreamKey, "*", "event", "active", "jobId", jobId, "prev", "waiting")
-  rcall("HSET", jobKey, "processedOn", processedOn)
+  rcall("HMSET", jobKey, "processedOn", processedOn, unpack(optionalValues))
   rcall("HINCRBY", jobKey, "ats", 1)
 
   return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data

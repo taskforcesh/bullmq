@@ -59,8 +59,23 @@ const jobs = await queue.getJobs(['prioritized']);
 const jobs2 = await queue.getPrioritized();
 ```
 
+## Get Counts per Priority
+
+If you want to get the `count` of jobs in `prioritized` status (priorities higher than 0) or in `waiting` status (priority 0), use the **`getCountsPerPriority`** method. For example, let's say that you want to get counts for `priority` `1` and `0`:
+
+```typescript
+const counts = await queue.getCountsPerPriority([1, 0]);
+/*
+{
+  '1': 11,
+  '0': 10
+}
+*/
+```
+
 ## Read more:
 
 * 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 * 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changePriority)
 * 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getPrioritized)
+* 💡 [Get Counts per Priority API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getCountsPerPriority)

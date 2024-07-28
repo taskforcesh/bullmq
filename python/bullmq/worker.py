@@ -16,8 +16,10 @@ import math
 
 maximum_block_timeout = 10
 # 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
-# Obviously we can still process much faster than 1 job per millisecond but delays and rate limits will never work with more accuracy than 1ms.
+# Obviously we can still process much faster than 1 job per millisecond but delays and
+# rate limits will never work with more accuracy than 1ms.
 minimum_block_timeout = 0.001
+
 
 class Worker(EventEmitter):
     def __init__(self, name: str, processor: Callable[[Job, str], asyncio.Future], opts: WorkerOptions = {}):
@@ -25,6 +27,7 @@ class Worker(EventEmitter):
         self.name = name
         self.processor = processor
         final_opts = {
+            "drainDelay": 5,
             "concurrency": 1,
             "lockDuration": 30000,
             "maxStalledCount": 1,
@@ -60,9 +63,9 @@ class Worker(EventEmitter):
             raise Exception("Worker is already running")
 
         self.timer = Timer(
-            (self.opts.get("lockDuration") / 2) / 1000, self.extendLocks)
+            (self.opts.get("lockDuration") / 2) / 1000, self.extendLocks, self.emit)
         self.stalledCheckTimer = Timer(self.opts.get(
-            "stalledInterval") / 1000, self.runStalledJobsCheck)
+            "stalledInterval") / 1000, self.runStalledJobsCheck, self.emit)
         self.running = True
         jobs = []
 
@@ -76,7 +79,7 @@ class Worker(EventEmitter):
                 self.processing.add(waiting_job)
 
             try:
-                jobs, pending = await getCompleted(self.processing)
+                jobs, pending = await getCompleted(self.processing, self.emit)
 
                 jobs_to_process = [self.processJob(job, job.token) for job in jobs]
                 processing_jobs = [asyncio.ensure_future(
@@ -90,7 +93,6 @@ class Worker(EventEmitter):
 
             except Exception as e:
                 # This should never happen or we will have an endless loop
-                print("ERROR:", e)
                 traceback.print_exc()
                 return
 
@@ -153,7 +155,6 @@ class Worker(EventEmitter):
     async def waitForJob(self):
         block_timeout = self.getBlockTimeout(self.blockUntil)
         block_timeout = block_timeout if self.blockingRedisConnection.capabilities.get("canDoubleTimeout", False) else math.ceil(block_timeout)
-        block_timeout = min(block_timeout, maximum_block_timeout)
 
         result = await self.bclient.bzpopmin(self.scripts.keys["marker"], block_timeout)
         if result:
@@ -167,13 +168,23 @@ class Worker(EventEmitter):
 
     def getBlockTimeout(self, block_until: int):
         if block_until:
+            block_timeout = None
             block_delay = block_until - int(time.time() * 1000)
-            if block_delay < 1:
-                return minimum_block_timeout
+            if block_delay < self.minimumBlockTimeout * 1000:
+                return self.minimumBlockTimeout
             else:
-                return block_delay / 1000
+                block_timeout = block_delay / 1000
+            # We restrict the maximum block timeout to 10 second to avoid
+            # blocking the connection for too long in the case of reconnections
+            # reference: https://github.com/taskforcesh/bullmq/issues/1658
+            return min(block_timeout, maximum_block_timeout)
         else:
-            return max(self.opts.get("drainDelay", 5), minimum_block_timeout)
+            return max(self.opts.get("drainDelay", 5), self.minimumBlockTimeout)
+
+    @property
+    def minimumBlockTimeout(self):
+        return minimum_block_timeout if self.blockingRedisConnection.capabilities.get("canBlockFor1Ms", True) else 0.002
+        
 
     async def processJob(self, job: Job, token: str):
         try:
@@ -190,13 +201,11 @@ class Worker(EventEmitter):
             return
         except Exception as err:
             try:
-                print("Error processing job", err)
                 if not self.forceClosing:
                     await job.moveToFailed(err, token)
 
                 self.emit("failed", job, err)
             except Exception as err:
-                print("Error moving job to failed", err)
                 self.emit("error", err, job)
         finally:
             self.jobs.remove((job, token))
@@ -215,7 +224,6 @@ class Worker(EventEmitter):
             #    self.emit("error", "could not renew lock for job " + jobId)
 
         except Exception as e:
-            print("Error renewing locks", e)
             traceback.print_exc()
 
     async def runStalledJobsCheck(self):
@@ -228,17 +236,21 @@ class Worker(EventEmitter):
                 self.emit("stalled", jobId)
 
         except Exception as e:
-            print("Error checking stalled jobs", e)
             self.emit('error', e)
 
     async def close(self, force: bool = False):
         """
-        Close the worker
+        Closes the worker and related redis connections.
+
+        This method waits for current jobs to finalize before returning.
         """
         self.closing = True
         if force:
             self.forceClosing = True
             self.cancelProcessing()
+
+        if not force and len(self.processing) > 0:
+            await asyncio.wait(self.processing, return_when=asyncio.ALL_COMPLETED)
 
         await self.blockingRedisConnection.close()
         await self.redisConnection.close()
@@ -249,9 +261,9 @@ class Worker(EventEmitter):
                 job.cancel()
 
 
-async def getCompleted(task_set: set) -> tuple[list[Job], set]:
+async def getCompleted(task_set: set, emit_callback) -> tuple[list[Job], set]:
     job_set, pending = await asyncio.wait(task_set, return_when=asyncio.FIRST_COMPLETED)
-    jobs = [extract_result(job_task) for job_task in job_set]
+    jobs = [extract_result(job_task, emit_callback) for job_task in job_set]
     # we filter `None` out to remove:
     # a) an empty 'completed jobs' list; and
     # b) a failed extract_result

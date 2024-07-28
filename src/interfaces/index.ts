@@ -17,6 +17,7 @@ export * from './rate-limiter-options';
 export * from './redis-options';
 export * from './redis-streams';
 export * from './repeatable-job';
+export * from './repeatable-options';
 export * from './repeat-options';
 export * from './sandboxed-job-processor';
 export * from './sandboxed-job';

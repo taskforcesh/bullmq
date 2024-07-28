@@ -7,7 +7,7 @@
     KEYS[4] events stream
 
     ARGV[1] delay
-    ARGV[2] delayedTimestamp
+    ARGV[2] timestamp
     ARGV[3] the id of the job
     ARGV[4] job key
 
@@ -23,13 +23,14 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/isQueuePaused"
 
 if rcall("EXISTS", ARGV[4]) == 1 then
   local jobId = ARGV[3]
-  local score = tonumber(ARGV[2])
-  local delayedTimestamp = (score / 0x1000)
+
+  local delay = tonumber(ARGV[1])
+  local score, delayedTimestamp = getDelayedScore(KEYS[1], ARGV[2], delay)
 
   local numRemovedElements = rcall("ZREM", KEYS[1], jobId)
 
@@ -37,7 +38,7 @@ if rcall("EXISTS", ARGV[4]) == 1 then
     return -3
   end
 
-  rcall("HSET", ARGV[4], "delay", tonumber(ARGV[1]))
+  rcall("HSET", ARGV[4], "delay", delay)
   rcall("ZADD", KEYS[1], score, jobId)
 
   local maxEvents = getOrSetMaxEvents(KEYS[2])
@@ -46,10 +47,7 @@ if rcall("EXISTS", ARGV[4]) == 1 then
     "jobId", jobId, "delay", delayedTimestamp)
 
   -- mark that a delayed job is available
-  local isPaused = isQueuePaused(KEYS[2])
-  if not isPaused then
-    addDelayMarkerIfNeeded(KEYS[3], KEYS[1])
-  end
+  addDelayMarkerIfNeeded(KEYS[3], KEYS[1])
 
   return 0
 else

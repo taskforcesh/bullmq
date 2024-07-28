@@ -103,13 +103,14 @@ export class QueueGetters<
 
   /**
    * Returns the time to live for a rate limited key in milliseconds.
+   * @param maxJobs - max jobs to be considered in rate limit state. If not passed
+   * it will return the remaining ttl without considering if max jobs is excedeed.
    * @returns -2 if the key does not exist.
    * -1 if the key exists but has no associated expire.
    * @see {@link https://redis.io/commands/pttl/}
    */
-  async getRateLimitTtl(): Promise<number> {
-    const client = await this.client;
-    return client.pttl(this.keys.limiter);
+  async getRateLimitTtl(maxJobs?: number): Promise<number> {
+    return this.scripts.getRateLimitTtl(maxJobs);
   }
 
   /**
@@ -148,6 +149,7 @@ export class QueueGetters<
   /**
    * Get current job state.
    *
+   * @param jobId - job identifier.
    * @returns Returns one of these values:
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
@@ -188,6 +190,23 @@ export class QueueGetters<
    */
   getPrioritizedCount(): Promise<number> {
     return this.getJobCountByTypes('prioritized');
+  }
+
+  /**
+   * Returns the number of jobs per priority.
+   */
+  async getCountsPerPriority(priorities: number[]): Promise<{
+    [index: string]: number;
+  }> {
+    const uniquePriorities = [...new Set(priorities)];
+    const responses = await this.scripts.getCountsPerPriority(uniquePriorities);
+
+    const counts: { [index: string]: number } = {};
+    responses.forEach((res, index) => {
+      counts[`${uniquePriorities[index]}`] = res || 0;
+    });
+
+    return counts;
   }
 
   /**

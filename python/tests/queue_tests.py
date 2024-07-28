@@ -5,6 +5,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
+import redis.asyncio as redis
 from bullmq import Queue, Worker, Job
 from uuid import uuid4
 
@@ -37,7 +38,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job1 = await queue.add("test-job", {"foo": "bar"}, {})
         job2 = await queue.add("test-job", {"foo": "bar"}, {})
         jobs = await queue.getJobs(["wait"])
-    
+
         self.assertEqual(job2.id, jobs[0].id)
         self.assertEqual(job1.id, jobs[1].id)
         await queue.close()
@@ -105,7 +106,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         events_length = await queue.client.xlen(f"{queue.prefix}:{queueName}:events")
         self.assertEqual(events_length, 8)
 
-        await queue.trimEvents(0);
+        await queue.trimEvents(0)
 
         events_length = await queue.client.xlen(f"{queue.prefix}:{queue.name}:events")
 
@@ -123,7 +124,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         events_length = await queue.client.xlen(f"test:{queueName}:events")
         self.assertEqual(events_length, 8)
 
-        await queue.trimEvents(0);
+        await queue.trimEvents(0)
 
         events_length = await queue.client.xlen(f"test:{queue.name}:events")
 
@@ -373,13 +374,13 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job_count = 8
 
         for index in range(job_count):
-            data = {"idx": index}
+            data = { "idx": index }
             await queue.add("test", data=data, opts={ "delay": 5000 })
 
         delayed_count = await queue.getJobCounts('delayed')
         self.assertEqual(delayed_count['delayed'], job_count)
 
-        await queue.promoteJobs();
+        await queue.promoteJobs()
 
         waiting_count = await queue.getJobCounts('waiting')
         self.assertEqual(waiting_count['waiting'], job_count)
@@ -419,6 +420,34 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job = await Job.fromId(queue, job.id)
         self.assertIsNone(job)
 
+        await queue.close()
+
+    async def test_get_counts_per_priority(self):
+        queue = Queue(queueName)
+        jobs = [{
+            "name": "test",
+            "data": {},
+            "opts": {
+                "priority": index % 4
+            }
+        } for index in range(42)]
+        await queue.addBulk(jobs)
+        counts = await queue.getCountsPerPriority([0, 1, 2, 3])
+        self.assertEqual(counts, {
+            "0": 11,
+            "1": 11,
+            "2": 10,
+            "3": 10
+        })
+
+        await queue.close()
+
+    async def test_reusable_redis(self):
+        conn = redis.Redis(decode_responses=True, host="localhost", port="6379", db=0)
+        queue = Queue(queueName, {"connection": conn})
+        job = await queue.add("test-job", {"foo": "bar"}, {})
+
+        self.assertEqual(job.id, "1")
         await queue.close()
 
 if __name__ == '__main__':

@@ -31,30 +31,31 @@ class Scripts:
         self.redisConnection = redisConnection
         self.redisClient = redisConnection.conn
         self.commands = {
-            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-7.lua")), 
-            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")), 
+            "addStandardJob": self.redisClient.register_script(self.getScript("addStandardJob-8.lua")),
+            "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")),
             "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-4.lua")),
-            "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-7.lua")),
-            "changePriority": self.redisClient.register_script(self.getScript("changePriority-6.lua")),
+            "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-8.lua")),
+            "changePriority": self.redisClient.register_script(self.getScript("changePriority-7.lua")),
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
-            "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")), #
-            "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")), #
+            "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
+            "getCountsPerPriority": self.redisClient.register_script(self.getScript("getCountsPerPriority-4.lua")),
+            "getRanges": self.redisClient.register_script(self.getScript("getRanges-1.lua")),
             "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
             "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-9.lua")),
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
-            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-7.lua")),
+            "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
-            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-4.lua")),
+            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-5.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
-            "promote": self.redisClient.register_script(self.getScript("promote-8.lua")),
-            "removeJob": self.redisClient.register_script(self.getScript("removeJob-1.lua")),
-            "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-7.lua")),
-            "retryJob": self.redisClient.register_script(self.getScript("retryJob-11.lua")),
-            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-7.lua")),
+            "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
+            "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
+            "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-8.lua")),
+            "retryJob": self.redisClient.register_script(self.getScript("retryJob-12.lua")),
+            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-8.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
             "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")),
@@ -118,7 +119,7 @@ class Scripts:
         Add a standard job to the queue
         """
         keys = self.getKeys(['wait', 'paused', 'meta', 'id',
-                             'completed', 'events', 'marker'])
+                             'completed', 'active', 'events', 'marker'])
         args = self.addJobArgs(job, None)
         args.append(timestamp)
 
@@ -140,7 +141,7 @@ class Scripts:
         Add a prioritized job to the queue
         """
         keys = self.getKeys(['marker', 'meta', 'id',
-                            'prioritized', 'completed', 'events', 'pc'])
+                            'prioritized', 'completed', 'active', 'events', 'pc'])
         args = self.addJobArgs(job, None)
         args.append(timestamp)
 
@@ -171,7 +172,8 @@ class Scripts:
         keys = [self.toKey(job_id) + ":lock",
                 self.keys['active'],
                 self.keys['waiting-children'],
-                self.toKey(job_id)]
+                self.toKey(job_id),
+                self.keys['stalled']]
         child_key = opts.get("child") if opts else None
         args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id,
                 "1" if opts.get("skipAttempt") else "0"]
@@ -252,29 +254,26 @@ class Scripts:
         keys.append(self.keys['pc'])
         keys.append(self.keys['limiter'])
         keys.append(self.keys['marker'])
+        keys.append(self.keys['stalled'])
 
         push_cmd = "RPUSH" if lifo else "LPUSH"
 
         pttl = opts.get("pttl", 0)
         args = [self.keys[''], round(time.time() * 1000), push_cmd,
-            job_id, token, "1" if opts.get("preserveOrder") else "0",
-            pttl if pttl > 0 else 0]
+                job_id, token, "1" if opts.get("preserveOrder") else "0",
+                pttl if pttl > 0 else 0]
 
         return (keys, args)
 
     def moveToDelayedArgs(self, job_id: str, timestamp: int, token: str, delay: int = 0, opts: dict = {}):
-        max_timestamp = max(0, timestamp or 0)
-
-        if timestamp > 0:
-            max_timestamp = max_timestamp * 0x1000 + (convert_to_int(job_id) & 0xfff)
-
         keys = self.getKeys(['marker', 'active', 'prioritized', 'delayed'])
         keys.append(self.toKey(job_id))
         keys.append(self.keys['events'])
         keys.append(self.keys['meta'])
+        keys.append(self.keys['stalled'])
 
-        args = [self.keys[''], round(time.time() * 1000), str(max_timestamp),
-            job_id, token, delay, "1" if opts.get("skipAttempt") else "0" ]
+        args = [self.keys[''], str(timestamp),
+                job_id, token, delay, "1" if opts.get("skipAttempt") else "0"]
 
         return (keys, args)
 
@@ -289,7 +288,7 @@ class Scripts:
         return None
 
     def promoteArgs(self, job_id: str):
-        keys = self.getKeys(['delayed', 'wait', 'paused', 'meta', 'prioritized', 'pc', 'events', 'marker'])
+        keys = self.getKeys(['delayed', 'wait', 'paused', 'meta', 'prioritized', 'active', 'pc', 'events', 'marker'])
         keys.append(self.toKey(job_id))
         keys.append(self.keys['events'])
         keys.append(self.keys['paused'])
@@ -310,7 +309,7 @@ class Scripts:
         return None
 
     def remove(self, job_id: str, remove_children: bool):
-        keys = self.getKeys([''])
+        keys = self.getKeys(['', 'meta'])
         args = [job_id, 1 if remove_children else 0]
 
         return self.commands["removeJob"](keys=keys, args=args)
@@ -321,6 +320,21 @@ class Scripts:
             map(lambda type: 'wait' if type == 'waiting' else type, types))
 
         return self.commands["getCounts"](keys=keys, args=transformed_types)
+
+    def getCountsPerPriorityArgs(self, priorities):
+        keys = [self.keys['wait'],
+                self.keys['paused'],
+                self.keys['meta'],
+                self.keys['prioritized']]
+
+        args = priorities
+
+        return (keys, args)
+
+    def getCountsPerPriority(self, priorities):
+        keys, args = self.getCountsPerPriorityArgs(priorities)
+
+        return self.commands["getCountsPerPriority"](keys=keys, args=args)
 
     async def getState(self, job_id: str):
         keys = self.getKeys(['completed', 'failed', 'delayed', 'active', 'wait',
@@ -352,9 +366,10 @@ class Scripts:
             self.keys['paused'],
             self.keys['meta'],
             self.keys['prioritized'],
+            self.keys['active'],
             self.keys['pc'],
             self.keys['marker']]
-        
+
         args = [priority, self.toKey(job_id), job_id, 1 if lifo else 0]
 
         result = await self.commands["changePriority"](keys=keys, args=args)
@@ -383,6 +398,7 @@ class Scripts:
         keys.append(self.keys['wait'])
         keys.append(self.keys['meta'])
         keys.append(self.keys['paused'])
+        keys.append(self.keys['active'])
         keys.append(self.keys['marker'])
 
         args = [
@@ -423,8 +439,8 @@ class Scripts:
 
     def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
         keys = self.getKeys(
-            ['', 'events', state, 'wait', 'paused', 'meta', 'marker'])
-        
+            ['', 'events', state, 'wait', 'paused', 'meta', 'active', 'marker'])
+
         args = [count or 1000, timestamp or round(time.time()*1000), state]
         return (keys, args)
 
@@ -482,7 +498,8 @@ class Scripts:
                 raise self.finishedErrors(result, job_id, 'updateProgress', None)
         return None
 
-    def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str, opts: dict, fetchNext=True) -> list[Any] | None:
+    def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str,
+                           opts: dict, fetchNext=True) -> list[Any] | None:
         transformed_value = json.dumps(val, separators=(',', ':'))
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
@@ -512,11 +529,6 @@ class Scripts:
                 return metrics.get("maxDataPoints", "")
             return ""
 
-        def getFailParentOnFailure(job: Job):
-            opts = job.opts
-            if opts is not None:
-                return opts.get("failParentOnFailure", False)
-
         keepJobs = getKeepJobs(shouldRemove)
 
         packedOpts = msgpack.packb({
@@ -527,7 +539,8 @@ class Scripts:
             "attempts": job.attempts,
             "attemptsMade": job.attemptsMade,
             "maxMetricsSize": getMetricsSize(opts),
-            "fpof": getFailParentOnFailure(job),
+            "fpof": opts.get("failParentOnFailure", False),
+            "idof": opts.get("ignoreDependencyOnFailure", False)
         }, use_bin_type=True)
 
         args = [job.id, timestamp, propVal, transformed_value or "", target,

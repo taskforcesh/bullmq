@@ -429,7 +429,7 @@ function sandboxProcessTests(
     });
 
     it('should reuse process with single processors', async function () {
-      this.timeout(30000);
+      this.timeout(20000);
 
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
@@ -559,7 +559,7 @@ function sandboxProcessTests(
       const delaying = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ delay }) => {
           try {
-            expect(Number(delay)).to.be.greaterThanOrEqual(2500);
+            expect(Number(delay)).to.be.lessThanOrEqual(Date.now() + 2500);
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               1,
             );
@@ -921,7 +921,7 @@ function sandboxProcessTests(
     });
 
     it('should allow the job to complete and then exit on worker close', async function () {
-      this.timeout(1500000);
+      this.timeout(15000);
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,

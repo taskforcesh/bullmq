@@ -24,6 +24,7 @@ import {
   KeepJobs,
   MoveToDelayedOpts,
   RetryOpts,
+  RepeatableOptions,
 } from '../interfaces';
 import {
   JobState,
@@ -108,6 +109,7 @@ export class Scripts {
       queueKeys.id,
       queueKeys.prioritized,
       queueKeys.completed,
+      queueKeys.active,
       queueKeys.events,
       queueKeys.pc,
     ];
@@ -149,6 +151,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.id,
       queueKeys.completed,
+      queueKeys.active,
       queueKeys.events,
       queueKeys.marker,
     ];
@@ -258,25 +261,85 @@ export class Scripts {
     return (<any>client).pause(args);
   }
 
-  private removeRepeatableArgs(
-    repeatJobId: string,
-    repeatJobKey: string,
-  ): string[] {
-    const queueKeys = this.queue.keys;
+  protected addRepeatableJobArgs(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    legacyCustomKey: string,
+    skipCheckExists: boolean,
+  ): (string | number | Buffer)[] {
+    const keys: (string | number | Buffer)[] = [this.queue.keys.repeat];
 
-    const keys = [queueKeys.repeat, queueKeys.delayed];
-
-    const args = [repeatJobId, repeatJobKey, queueKeys['']];
+    const args = [
+      nextMillis,
+      pack(opts),
+      legacyCustomKey,
+      customKey,
+      skipCheckExists ? '1' : '0',
+    ];
 
     return keys.concat(args);
   }
 
+  async addRepeatableJob(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    legacyCustomKey: string,
+    skipCheckExists: boolean,
+  ): Promise<string> {
+    const client = await this.queue.client;
+
+    const args = this.addRepeatableJobArgs(
+      customKey,
+      nextMillis,
+      opts,
+      legacyCustomKey,
+      skipCheckExists,
+    );
+
+    return (<any>client).addRepeatableJob(args);
+  }
+
+  private removeRepeatableArgs(
+    legacyRepeatJobId: string,
+    repeatConcatOptions: string,
+    repeatJobKey: string,
+  ): string[] {
+    const queueKeys = this.queue.keys;
+
+    const keys = [queueKeys.repeat, queueKeys.delayed, queueKeys.events];
+
+    const args = [
+      legacyRepeatJobId,
+      this.getRepeatConcatOptions(repeatConcatOptions, repeatJobKey),
+      repeatJobKey,
+      queueKeys[''],
+    ];
+
+    return keys.concat(args);
+  }
+
+  // TODO: remove this check in next breaking change
+  getRepeatConcatOptions(repeatConcatOptions: string, repeatJobKey: string) {
+    if (repeatJobKey && repeatJobKey.split(':').length > 2) {
+      return repeatJobKey;
+    }
+
+    return repeatConcatOptions;
+  }
+
   async removeRepeatable(
-    repeatJobId: string,
+    legacyRepeatJobId: string,
+    repeatConcatOptions: string,
     repeatJobKey: string,
   ): Promise<number> {
     const client = await this.queue.client;
-    const args = this.removeRepeatableArgs(repeatJobId, repeatJobKey);
+    const args = this.removeRepeatableArgs(
+      legacyRepeatJobId,
+      repeatConcatOptions,
+      repeatJobKey,
+    );
 
     return (<any>client).removeRepeatable(args);
   }
@@ -284,7 +347,9 @@ export class Scripts {
   async remove(jobId: string, removeChildren: boolean): Promise<number> {
     const client = await this.queue.client;
 
-    const keys: (string | number)[] = [''].map(name => this.queue.toKey(name));
+    const keys: (string | number)[] = ['', 'meta'].map(name =>
+      this.queue.toKey(name),
+    );
     return (<any>client).removeJob(
       keys.concat([jobId, removeChildren ? 1 : 0]),
     );
@@ -327,7 +392,7 @@ export class Scripts {
     }
   }
 
-  async updateProgress<T = any, R = any, N extends string = string>(
+  async updateProgress(
     jobId: string,
     progress: number | object,
   ): Promise<void> {
@@ -351,6 +416,33 @@ export class Scripts {
         command: 'updateProgress',
       });
     }
+  }
+
+  async addLog(
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.toKey(jobId),
+      this.queue.toKey(jobId) + ':logs',
+    ];
+
+    const result = await (<any>client).addLog(
+      keys.concat([jobId, logRow, keepLogs ? keepLogs : '']),
+    );
+
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'addLog',
+      });
+    }
+
+    return result;
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
@@ -588,6 +680,28 @@ export class Scripts {
     return (<any>client).getCounts(args);
   }
 
+  protected getCountsPerPriorityArgs(
+    priorities: number[],
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      this.queue.keys.wait,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+      this.queue.keys.prioritized,
+    ];
+
+    const args = priorities;
+
+    return keys.concat(args);
+  }
+
+  async getCountsPerPriority(priorities: number[]): Promise<number[]> {
+    const client = await this.queue.client;
+    const args = this.getCountsPerPriorityArgs(priorities);
+
+    return (<any>client).getCountsPerPriority(args);
+  }
+
   moveToCompletedArgs<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     returnvalue: R,
@@ -681,18 +795,7 @@ export class Scripts {
   }
 
   private changeDelayArgs(jobId: string, delay: number): (string | number)[] {
-    //
-    // Bake in the job id first 12 bits into the timestamp
-    // to guarantee correct execution order of delayed jobs
-    // (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
-    //
-    // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
-    //
-    let timestamp = Date.now() + delay;
-
-    if (timestamp > 0) {
-      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
-    }
+    const timestamp = Date.now();
 
     const keys: (string | number)[] = [
       this.queue.keys.delayed,
@@ -737,6 +840,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
+      this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.marker,
     ];
@@ -749,7 +853,6 @@ export class Scripts {
     ]);
   }
 
-  // Note: We have an issue here with jobs using custom job ids
   moveToDelayedArgs(
     jobId: string,
     timestamp: number,
@@ -757,19 +860,6 @@ export class Scripts {
     delay: number,
     opts: MoveToDelayedOpts = {},
   ): (string | number)[] {
-    //
-    // Bake in the job id first 12 bits into the timestamp
-    // to guarantee correct execution order of delayed jobs
-    // (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
-    //
-    // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
-    //
-    timestamp = Math.max(0, timestamp ?? 0);
-
-    if (timestamp > 0) {
-      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
-    }
-
     const queueKeys = this.queue.keys;
     const keys: (string | number)[] = [
       queueKeys.marker,
@@ -779,12 +869,12 @@ export class Scripts {
       this.queue.toKey(jobId),
       queueKeys.events,
       queueKeys.meta,
+      queueKeys.stalled,
     ];
 
     return keys.concat([
       this.queue.keys[''],
-      Date.now(),
-      JSON.stringify(timestamp),
+      timestamp,
       jobId,
       token,
       delay,
@@ -806,16 +896,20 @@ export class Scripts {
     jobId: string,
     token: string,
     opts?: MoveToWaitingChildrenOpts,
-  ): string[] {
+  ): (string | number)[] {
     const timestamp = Date.now();
 
     const childKey = getParentKey(opts.child);
 
-    const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      name => {
-        return this.queue.toKey(name);
-      },
-    );
+    const keys: (string | number)[] = [
+      `${jobId}:lock`,
+      'active',
+      'waiting-children',
+      jobId,
+      'stalled',
+    ].map(name => {
+      return this.queue.toKey(name);
+    });
 
     return keys.concat([
       token,
@@ -823,6 +917,20 @@ export class Scripts {
       JSON.stringify(timestamp),
       jobId,
     ]);
+  }
+
+  isMaxedArgs(): string[] {
+    const queueKeys = this.queue.keys;
+    const keys: string[] = [queueKeys.meta, queueKeys.active];
+
+    return keys;
+  }
+
+  async isMaxed(): Promise<boolean> {
+    const client = await this.queue.client;
+
+    const args = this.isMaxedArgs();
+    return !!(await (<any>client).isMaxed(args));
   }
 
   async moveToDelayed(
@@ -882,6 +990,19 @@ export class Scripts {
     }
   }
 
+  getRateLimitTtlArgs(maxJobs?: number): (string | number)[] {
+    const keys: (string | number)[] = [this.queue.keys.limiter];
+
+    return keys.concat([maxJobs ?? '0']);
+  }
+
+  async getRateLimitTtl(maxJobs?: number): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.getRateLimitTtlArgs(maxJobs);
+    return (<any>client).getRateLimitTtl(args);
+  }
+
   /**
    * Remove jobs in a specific state.
    *
@@ -920,8 +1041,9 @@ export class Scripts {
       this.queue.keys.delayed,
       this.queue.keys.prioritized,
       this.queue.keys.pc,
-      this.queue.keys.limiter,
       this.queue.keys.marker,
+      this.queue.keys.stalled,
+      this.queue.keys.limiter,
     ];
 
     const pushCmd = (lifo || opts.preserveOrder ? 'R' : 'L') + 'PUSH';
@@ -949,6 +1071,7 @@ export class Scripts {
       this.queue.toKey('wait'),
       this.queue.toKey('paused'),
       this.queue.keys.meta,
+      this.queue.keys.active,
       this.queue.keys.marker,
     ];
 
@@ -1003,6 +1126,7 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.meta,
       this.queue.keys.paused,
+      this.queue.keys.active,
       this.queue.keys.marker,
     ];
 
@@ -1073,6 +1197,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
+      this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.events,
       this.queue.keys.marker,
@@ -1091,18 +1216,7 @@ export class Scripts {
     }
   }
 
-  /**
-   * Looks for unlocked jobs in the active queue.
-   *
-   * The job was being worked on, but the worker process died and it failed to renew the lock.
-   * We call these jobs 'stalled'. This is the most common case. We resolve these by moving them
-   * back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait,
-   * (e.g. if the job handler keeps crashing),
-   * we limit the number stalled job recoveries to settings.maxStalledCount.
-   */
-  async moveStalledJobsToWait(): Promise<[string[], string[]]> {
-    const client = await this.queue.client;
-
+  protected moveStalledJobsToWaitArgs(): (string | number)[] {
     const opts = this.queue.opts as WorkerOptions;
     const keys: (string | number)[] = [
       this.queue.keys.stalled,
@@ -1121,7 +1235,25 @@ export class Scripts {
       Date.now(),
       opts.stalledInterval,
     ];
-    return (<any>client).moveStalledJobsToWait(keys.concat(args));
+
+    return keys.concat(args);
+  }
+
+  /**
+   * Looks for unlocked jobs in the active queue.
+   *
+   * The job was being worked on, but the worker process died and it failed to renew the lock.
+   * We call these jobs 'stalled'. This is the most common case. We resolve these by moving them
+   * back to wait to be re-processed. To prevent jobs from cycling endlessly between active and wait,
+   * (e.g. if the job handler keeps crashing),
+   * we limit the number stalled job recoveries to settings.maxStalledCount.
+   */
+  async moveStalledJobsToWait(): Promise<[string[], string[]]> {
+    const client = await this.queue.client;
+
+    const args = this.moveStalledJobsToWaitArgs();
+
+    return (<any>client).moveStalledJobsToWait(args);
   }
 
   /**
@@ -1137,7 +1269,7 @@ export class Scripts {
     const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
-    const keys = [
+    const keys: (string | number)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,
