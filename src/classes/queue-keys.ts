@@ -24,6 +24,7 @@ export class QueueKeys {
       'events',
       'pc', // priority counter key
       'marker', // marker key
+      'de', // debounce key
     ].forEach(key => {
       keys[key] = this.toKey(name, key);
     });

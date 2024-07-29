@@ -38,6 +38,7 @@ import type { QueueEvents } from './queue-events';
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
+  de: 'debounce',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
@@ -137,6 +138,11 @@ export class Job<
   parent?: ParentKeys;
 
   /**
+   * Debounce identifier.
+   */
+  debounceId?: string;
+
+  /**
    * Base repeat job key.
    */
   repeatJobKey?: string;
@@ -198,6 +204,8 @@ export class Job<
     this.parent = opts.parent
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
+
+    this.debounceId = opts.debounce ? opts.debounce.id : undefined;
 
     this.toKey = queue.toKey.bind(queue);
     this.setScripts();
@@ -320,6 +328,10 @@ export class Job<
 
     if (json.rjk) {
       job.repeatJobKey = json.rjk;
+    }
+
+    if (json.deid) {
+      job.debounceId = json.deid;
     }
 
     job.failedReason = json.failedReason;
@@ -445,6 +457,7 @@ export class Job<
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
+      debounceId: this.debounceId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     };
