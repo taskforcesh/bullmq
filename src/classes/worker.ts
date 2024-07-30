@@ -858,7 +858,7 @@ will never work with more accuracy than 1ms. */
    *
    * @returns Promise that resolves when the worker has been closed.
    */
-  close(force = false): Promise<void> {
+  close(force = false, closeConnection = true): Promise<void> {
     if (this.closing) {
       return this.closing;
     }
@@ -892,8 +892,8 @@ will never work with more accuracy than 1ms. */
         })
         .finally(() => clearTimeout(this.extendLocksTimer))
         .finally(() => clearTimeout(this.stalledCheckTimer))
-        .finally(() => client && client.disconnect())
-        .finally(() => this.connection.close())
+        .finally(() => closeConnection && client && client.disconnect())
+        .finally(() => closeConnection && this.connection.close())
         .finally(() => this.emit('closed'));
       this.closed = true;
     })();
