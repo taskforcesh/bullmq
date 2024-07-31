@@ -375,19 +375,16 @@ describe('Cleaner', () => {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
+            const suffixes = keys.map(key => key.split(':')[2]);
             // Expected keys: meta, id, stalled-check, events, failed and job
-            expect(keys.length).to.be.greaterThanOrEqual(7);
-            for (const key of keys) {
-              const type = key.split(':')[2];
-              expect([
-                'meta',
-                'id',
-                'stalled-check',
-                'events',
-                'failed',
-                tree.job.id!,
-              ]).to.include(type);
-            }
+            expect(suffixes).to.include.members([
+              'meta',
+              'id',
+              'stalled-check',
+              'events',
+              'failed',
+              tree.job.id!,
+            ]);
 
             const parentState = await tree.job.getState();
             expect(parentState).to.be.equal('failed');
