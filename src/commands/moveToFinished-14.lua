@@ -65,6 +65,7 @@ local rcall = redis.call
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
+--- @include "includes/removeDebounceKeyIfNeeded"
 --- @include "includes/removeJobKeys"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
@@ -93,12 +94,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         return -4
     end
 
-    local parentReferences = rcall("HMGET", jobIdKey, "parentKey", "parent")
-    local parentKey = parentReferences[1] or ""
+    local jobAttributes = rcall("HMGET", jobIdKey, "parentKey", "parent", "deid")
+    local parentKey = jobAttributes[1] or ""
     local parentId = ""
     local parentQueueKey = ""
-    if parentReferences[2] ~= false then
-        local jsonDecodedParent = cjson.decode(parentReferences[2])
+    if jobAttributes[2] ~= false then
+        local jsonDecodedParent = cjson.decode(jobAttributes[2])
         parentId = jsonDecodedParent['id']
         parentQueueKey = jsonDecodedParent['queueKey']
     end
@@ -115,6 +116,10 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local metaKey = KEYS[9]
     -- Trim events before emiting them to avoid trimming events emitted in this script
     trimEvents(metaKey, eventStreamKey)
+
+    local prefix = ARGV[7]
+
+    removeDebounceKeyIfNeeded(prefix, jobAttributes[3])
 
     -- If job has a parent we need to
     -- 1) remove this job id from parents dependencies
@@ -164,8 +169,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         -- "returnvalue" / "failedReason" and "finishedOn"
 
         -- Remove old jobs?
-        local prefix = ARGV[7]
-
         if maxAge ~= nil then
             removeJobsByMaxAge(timestamp, maxAge, targetSet, prefix)
         end
@@ -179,7 +182,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             -- TODO: when a child is removed when finished, result or failure in parent
             -- must not be deleted, those value references should be deleted when the parent
             -- is deleted
-            removeParentDependencyKey(jobIdKey, false, parentKey)
+            removeParentDependencyKey(jobIdKey, false, parentKey, jobAttributes[3])
         end
     end
 
@@ -205,7 +208,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8])
 
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], eventStreamKey, ARGV[7],
+        promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], eventStreamKey, prefix,
                            timestamp, KEYS[10], isPausedOrMaxed)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
@@ -229,19 +232,19 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                 if jobId == "0:0" then
                     jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2],
                                                         KEYS[10])
-                    return prepareJobForProcessing(ARGV[7], KEYS[6], eventStreamKey, jobId,
+                    return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
                                                    timestamp, maxJobs,
                                                    opts)
                 end
             else
-                return prepareJobForProcessing(ARGV[7], KEYS[6], eventStreamKey, jobId,
+                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
                                                timestamp, maxJobs,
                                                opts)
             end
         else
             jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then
-                return prepareJobForProcessing(ARGV[7], KEYS[6], eventStreamKey, jobId,
+                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
                                                timestamp, maxJobs,
                                                opts)
             end
