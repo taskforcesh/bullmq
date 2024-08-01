@@ -15,7 +15,7 @@ local function debounceJob(prefixKey, debounceOpts, jobId, debounceKey, eventsKe
     if debounceKeyExists then
       local currentDebounceJobId = rcall('GET', debounceKey)
       rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-        "debounced", "jobId", currentDebounceJobId)
+        "debounced", "jobId", currentDebounceJobId, "debounceId", debounceId)
       return currentDebounceJobId
     end
   end
