@@ -411,11 +411,13 @@ describe('events', function () {
 
         let debouncedCounter = 0;
         let secondJob;
-        queueEvents.on('debounced', ({ jobId }) => {
+        queueEvents.on('debounced', ({ jobId, debounceId }) => {
           if (debouncedCounter > 1) {
             expect(jobId).to.be.equal(secondJob.id);
+            expect(debounceId).to.be.equal('a1');
           } else {
             expect(jobId).to.be.equal(job.id);
+            expect(debounceId).to.be.equal('a1');
           }
           debouncedCounter++;
         });

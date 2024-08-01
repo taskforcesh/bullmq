@@ -48,9 +48,9 @@ export interface QueueEventsListener extends IoredisListener {
   /**
    * Listen to 'debounced' event.
    *
-   * This event is triggered when a job is debounced because debouncedId still existed.
+   * This event is triggered when a job is debounced because debounceId still existed.
    */
-  debounced: (args: { jobId: string }, id: string) => void;
+  debounced: (args: { jobId: string; debounceId: string }, id: string) => void;
 
   /**
    * Listen to 'delayed' event.
