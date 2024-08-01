@@ -90,7 +90,7 @@ class Scripts:
         #  ARGV[1] msgpacked arguments array
         #         [9]  repeat job key
 
-        jsonData = json.dumps(job.data, separators=(',', ':'))
+        jsonData = json.dumps(job.data, separators=(',', ':'), allow_nan=False)
         packedOpts = msgpack.packb(job.opts)
 
         parent = job.parent
@@ -378,7 +378,7 @@ class Scripts:
 
     async def updateData(self, job_id: str, data):
         keys = [self.toKey(job_id)]
-        data_json = json.dumps(data, separators=(',', ':'))
+        data_json = json.dumps(data, separators=(',', ':'), allow_nan=False)
         args = [data_json]
 
         result = await self.commands["updateData"](keys=keys, args=args)
@@ -486,7 +486,7 @@ class Scripts:
 
     async def updateProgress(self, job_id: str, progress):
         keys = [self.toKey(job_id), self.keys['events'], self.keys['meta']]
-        progress_json = json.dumps(progress, separators=(',', ':'))
+        progress_json = json.dumps(progress, separators=(',', ':'), allow_nan=False)
         args = [job_id, progress_json]
         result = await self.commands["updateProgress"](keys=keys, args=args)
 
@@ -497,7 +497,7 @@ class Scripts:
 
     def moveToFinishedArgs(self, job: Job, val: Any, propVal: str, shouldRemove, target, token: str,
                            opts: dict, fetchNext=True) -> list[Any] | None:
-        transformed_value = json.dumps(val, separators=(',', ':'))
+        transformed_value = json.dumps(val, separators=(',', ':'), allow_nan=False)
         timestamp = round(time.time() * 1000)
         metricsKey = self.toKey('metrics:' + target)
 
