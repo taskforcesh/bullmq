@@ -72,6 +72,14 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
 
         await queue.close()
 
+    async def test_job_data_json_compliant(self):
+        queue = Queue(queueName)
+        job = await queue.add("test", {"foo": "bar"}, {})
+        with self.assertRaises(ValueError):
+            await job.updateData({"baz": float('nan')})
+
+        await queue.close()
+
     async def test_update_job_data_when_is_removed(self):
         queue = Queue(queueName)
         job = await queue.add("test", {"foo": "bar"}, {})
