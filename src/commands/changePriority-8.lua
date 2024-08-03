@@ -8,6 +8,7 @@
     KEYS[5] 'active'
     KEYS[6] 'pc' priority counter
     KEYS[7] 'marker'
+    KEYS[8] 'pending'
 
     ARGV[1] priority value
     ARGV[2] job key
@@ -46,11 +47,11 @@ end
 
 if rcall("EXISTS", jobKey) == 1 then
     local metaKey = KEYS[3]
-    local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[5], KEYS[1], KEYS[2])
+    local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[5], KEYS[1], KEYS[2], KEYS[8])
     local prioritizedKey = KEYS[4]
     local priorityCounterKey = KEYS[6]
     local markerKey = KEYS[7]
-    
+
     -- Re-add with the new priority
     if rcall("ZREM", KEYS[4], jobId) > 0 then
         reAddJobWithNewPriority( prioritizedKey, markerKey, target,

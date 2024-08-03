@@ -7,23 +7,24 @@
   so that no other worker picks this job again.
 
   Input:
-    KEYS[1] wait key
-    KEYS[2] active key
-    KEYS[3] prioritized key
-    KEYS[4] stream events key
-    KEYS[5] stalled key
+    KEYS[1]  wait key
+    KEYS[2]  active key
+    KEYS[3]  prioritized key
+    KEYS[4]  stream events key
+    KEYS[5]  stalled key
 
     -- Rate limiting
-    KEYS[6] rate limiter key
-    KEYS[7] delayed key
+    KEYS[6]  rate limiter key
+    KEYS[7]  delayed key
 
     -- Delayed jobs
-    KEYS[8] paused key
-    KEYS[9] meta key
+    KEYS[8]  paused key
+    KEYS[9]  meta key
     KEYS[10] pc priority counter
 
     -- Marker
     KEYS[11] marker key
+    KEYS[12] pending key
 
     -- Arguments
     ARGV[1] key prefix
@@ -50,12 +51,12 @@ local opts = cmsgpack.unpack(ARGV[3])
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
-local target, isPausedOrMaxed = getTargetQueueList(KEYS[9], activeKey, waitKey, KEYS[8])
+local target, isPausedOrMaxed = getTargetQueueList(KEYS[9], activeKey, waitKey, KEYS[8], KEYS[12])
 
 -- Check if there are delayed jobs that we can move to wait.
 local markerKey = KEYS[11]
 promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], eventStreamKey, ARGV[1],
-                   ARGV[2], KEYS[10], isPausedOrMaxed)
+                   ARGV[2], KEYS[10], isPausedOrMaxed, KEYS[12])
 
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
 local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)

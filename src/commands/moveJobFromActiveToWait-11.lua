@@ -11,7 +11,8 @@
     KEYS[7]  limiter key
     KEYS[8]  prioritized key
     KEYS[9]  marker key
-    KEYS[10] event key
+    KEYS[10] pending key
+    KEYS[11] event key
 
     ARGV[1] job id
     ARGV[2] lock token
@@ -35,7 +36,7 @@ if lockToken == token then
   local metaKey = KEYS[6]
   local removed = rcall("LREM", KEYS[1], 1, jobId)
   if removed > 0 then
-    local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[1], KEYS[2], KEYS[5])
+    local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[1], KEYS[2], KEYS[5], KEYS[10])
 
     rcall("SREM", KEYS[3], jobId)
 
@@ -52,7 +53,7 @@ if lockToken == token then
     local maxEvents = getOrSetMaxEvents(metaKey)
 
     -- Emit waiting event
-    rcall("XADD", KEYS[10], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
+    rcall("XADD", KEYS[11], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
       "jobId", jobId)
   end
 end

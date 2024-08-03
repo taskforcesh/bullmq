@@ -454,6 +454,59 @@ describe('Delayed jobs', function () {
     await worker.close();
   });
 
+  describe('when pending option is provided', function () {
+    it('should process delayed jobs waiting to be finished in correct order', async function () {
+      this.timeout(4000);
+      const numJobs = 12;
+
+      const worker = new Worker(queueName, async (job: Job) => {}, {
+        autorun: false,
+        connection,
+        prefix,
+      });
+
+      worker.on('failed', function (job, err) {});
+
+      const orderList: number[] = [];
+      let count = 0;
+      const completed = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async function (job) {
+          try {
+            count++;
+            orderList.push(job.data.order as number);
+            if (count == numJobs) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      const jobs = Array.from(Array(numJobs).keys()).map(index => ({
+        name: 'test',
+        data: { order: numJobs - index },
+        opts: {
+          pending: true,
+          delay: (numJobs - index) * 150,
+          attempts: 1,
+          backoff: { type: 'fixed', delay: 200 },
+        },
+      }));
+      const expectedOrder = Array.from(Array(numJobs).keys()).map(
+        index => index + 1,
+      );
+
+      await queue.addBulk(jobs);
+      worker.run();
+      await completed;
+
+      expect(orderList).to.eql(expectedOrder);
+
+      await worker.close();
+    });
+  });
+
   describe('when failed jobs are retried and moved to delayed', function () {
     it('processes jobs without getting stuck', async () => {
       const countJobs = 2;

@@ -38,6 +38,7 @@ import type { QueueEvents } from './queue-events';
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
+  pen: 'pending',
   de: 'debounce',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',

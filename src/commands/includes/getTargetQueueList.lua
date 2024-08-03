@@ -3,7 +3,7 @@
   (since an empty list and !EXISTS are not really the same).
 ]]
 
-local function getTargetQueueList(queueMetaKey, activeKey, waitKey, pausedKey)
+local function getTargetQueueList(queueMetaKey, activeKey, waitKey, pausedKey, pendingKey)
   local queueAttributes = rcall("HMGET", queueMetaKey, "paused", "concurrency")
 
   if queueAttributes[1] then
@@ -11,7 +11,8 @@ local function getTargetQueueList(queueMetaKey, activeKey, waitKey, pausedKey)
   else
     if queueAttributes[2] then
       local activeCount = rcall("LLEN", activeKey)
-      if activeCount >= tonumber(queueAttributes[2]) then
+      local pendingCount = rcall("ZCARD", pendingKey)
+      if (activeCount + pendingCount) >= tonumber(queueAttributes[2]) then
         return waitKey, true
       else
         return waitKey, false

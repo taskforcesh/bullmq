@@ -60,6 +60,7 @@ export class Scripts {
       undefined,
       undefined,
       undefined,
+      undefined,
     ];
   }
 
@@ -111,6 +112,7 @@ export class Scripts {
       queueKeys.active,
       queueKeys.events,
       queueKeys.pc,
+      queueKeys.pending,
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
@@ -153,6 +155,7 @@ export class Scripts {
       queueKeys.active,
       queueKeys.events,
       queueKeys.marker,
+      queueKeys.pending,
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
@@ -467,6 +470,7 @@ export class Scripts {
     keys[11] = this.queue.toKey(job.id ?? '');
     keys[12] = metricsKey;
     keys[13] = this.queue.keys.marker;
+    keys[14] = this.queue.keys.pending;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
@@ -843,6 +847,7 @@ export class Scripts {
       this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.marker,
+      this.queue.keys.pending,
     ];
 
     return keys.concat([
@@ -870,6 +875,7 @@ export class Scripts {
       queueKeys.events,
       queueKeys.meta,
       queueKeys.stalled,
+      queueKeys.pending,
     ];
 
     return keys.concat([
@@ -907,6 +913,7 @@ export class Scripts {
       'waiting-children',
       jobId,
       'stalled',
+      'pending',
     ].map(name => {
       return this.queue.toKey(name);
     });
@@ -921,7 +928,11 @@ export class Scripts {
 
   isMaxedArgs(): string[] {
     const queueKeys = this.queue.keys;
-    const keys: string[] = [queueKeys.meta, queueKeys.active];
+    const keys: string[] = [
+      queueKeys.meta,
+      queueKeys.active,
+      queueKeys.pending,
+    ];
 
     return keys;
   }
@@ -1042,6 +1053,7 @@ export class Scripts {
       this.queue.keys.pc,
       this.queue.keys.marker,
       this.queue.keys.stalled,
+      this.queue.keys.pending,
     ];
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
@@ -1068,6 +1080,7 @@ export class Scripts {
       this.queue.toKey('paused'),
       this.queue.keys.meta,
       this.queue.keys.active,
+      this.queue.keys.pending,
       this.queue.keys.marker,
     ];
 
@@ -1124,6 +1137,7 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.active,
       this.queue.keys.marker,
+      this.queue.keys.pending,
     ];
 
     const args = [
@@ -1164,6 +1178,7 @@ export class Scripts {
       queueKeys.meta,
       queueKeys.pc,
       queueKeys.marker,
+      queueKeys.pending,
     ];
 
     const args: (string | number | boolean | Buffer)[] = [
@@ -1196,6 +1211,7 @@ export class Scripts {
       this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.events,
+      this.queue.keys.pending,
       this.queue.keys.marker,
     ];
 
@@ -1222,6 +1238,7 @@ export class Scripts {
       this.queue.keys['stalled-check'],
       this.queue.keys.meta,
       this.queue.keys.paused,
+      this.queue.keys.pending,
       this.queue.keys.marker,
       this.queue.keys.events,
     ];
@@ -1275,6 +1292,7 @@ export class Scripts {
       this.queue.keys.limiter,
       this.queue.keys.prioritized,
       this.queue.keys.marker,
+      this.queue.keys.pending,
       this.queue.keys.events,
     ];
 

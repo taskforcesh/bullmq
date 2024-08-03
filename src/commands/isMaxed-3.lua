@@ -4,6 +4,7 @@
   Input:
     KEYS[1] meta key
     KEYS[2] active key
+    KEYS[3] pending key
 
   Output:
     1 if element found in the list.
@@ -14,4 +15,4 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/isQueueMaxed"
 
-return isQueueMaxed(KEYS[1], KEYS[2])
+return isQueueMaxed(KEYS[1], KEYS[2], KEYS[3])

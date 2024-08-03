@@ -16,12 +16,13 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
     if rcall("SCARD", parentDependenciesKey) == 0 and isParentActive then
         rcall("ZREM", parentQueueKey .. ":waiting-children", parentId)
         local parentWaitKey = parentQueueKey .. ":wait"
+        local parentPendingKey = parentQueueKey .. ":pending"
         local parentPausedKey = parentQueueKey .. ":paused"
         local parentActiveKey = parentQueueKey .. ":active"
         local parentMetaKey = parentQueueKey .. ":meta"
 
         local parentMarkerKey = parentQueueKey .. ":marker"
-        local jobAttributes = rcall("HMGET", parentKey, "priority", "delay")
+        local jobAttributes = rcall("HMGET", parentKey, "priority", "delay", "pen")
         local priority = tonumber(jobAttributes[1]) or 0
         local delay = tonumber(jobAttributes[2]) or 0
 
@@ -35,17 +36,22 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
 
             addDelayMarkerIfNeeded(parentMarkerKey, parentDelayedKey)
         else
-            if priority == 0 then
-                local parentTarget, isParentPausedOrMaxed =
-                    getTargetQueueList(parentMetaKey, parentActiveKey, parentWaitKey,
-                                       parentPausedKey)
-                addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPausedOrMaxed,
-                    parentId)
+            if jobAttributes[3] then
+                rcall("ZREM", parentPendingKey, parentId)
+                addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPausedOrMaxed, parentId)
             else
-                local isPausedOrMaxed = isQueuePausedOrMaxed(parentMetaKey, parentActiveKey)
-                addJobWithPriority(parentMarkerKey,
-                                   parentQueueKey .. ":prioritized", priority,
-                                   parentId, parentQueueKey .. ":pc", isPausedOrMaxed)
+                if priority == 0 then
+                    local parentTarget, isParentPausedOrMaxed =
+                        getTargetQueueList(parentMetaKey, parentActiveKey, parentWaitKey,
+                                           parentPausedKey, parentPendingKey)
+                    addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPausedOrMaxed,
+                        parentId)
+                else
+                    local isPausedOrMaxed = isQueuePausedOrMaxed(parentMetaKey, parentActiveKey, parentPendingKey)
+                    addJobWithPriority(parentMarkerKey,
+                                       parentQueueKey .. ":prioritized", priority,
+                                       parentId, parentQueueKey .. ":pc", isPausedOrMaxed)
+                end
             end
 
             rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting",
