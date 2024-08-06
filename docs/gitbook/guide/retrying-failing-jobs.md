@@ -27,11 +27,11 @@ Retried jobs will respect their priority when they are moved back to waiting sta
 
 The current built-in backoff functions are "exponential" and "fixed".
 
-With exponential backoff, it will retry after `2 ^ (attempts - 1) * delay` milliseconds. For example, with a delay of 3000 milliseconds, for the 7th attempt, it will retry `2^6 \* 3000` milliseconds = 3.2 minutes after the previous attempt.
+With exponential backoff, it will retry after `2 ^ (attempts - 1) * delay` milliseconds. For example, with a delay of 3000 milliseconds, for the 7th attempt, it will retry `2^6 * 3000` milliseconds = 3.2 minutes after the previous attempt.
 
 With a fixed backoff, it will retry after `delay` milliseconds, so with a delay of 3000 milliseconds, it will retry _every_ attempt 3000 milliseconds after the previous attempt.
 
-The code below shows how to specify the built-in "exponential" backoff function with a 1-second delay as a seed value, so it will retry at most 3 times spaced after 1 second, 2 seconds, and 4 seconds respectively:
+The code below shows how to specify the built-in "exponential" backoff function with a 1-second delay as a seed value, so it will retry at most 2 times (after the first attempt, reaching a total 3 attempts) spaced after 1 second, 2 seconds, and 4 seconds respectively:
 
 ```typescript
 import { Queue } from 'bullmq';
