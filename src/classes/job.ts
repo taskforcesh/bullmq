@@ -1236,7 +1236,9 @@ export class Job<
 
     if (err?.stack) {
       this.stacktrace.push(err.stack);
-      if (this.opts.stackTraceLimit) {
+      if (this.opts.stackTraceLimit === 0) {
+        this.stacktrace = [];
+      } else if (this.opts.stackTraceLimit) {
         this.stacktrace = this.stacktrace.slice(-this.opts.stackTraceLimit);
       }
     }
