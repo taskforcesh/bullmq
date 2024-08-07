@@ -863,6 +863,36 @@ describe('Job', function () {
       await worker.close();
     });
 
+    describe('when stackTraceLimit is provided as 0', function () {
+      it('keep stacktrace empty', async function () {
+        const worker = new Worker(queueName, null, { connection, prefix });
+        const token = 'my-token';
+        const stackTraceLimit = 0;
+        await Job.create(
+          queue,
+          'test',
+          { foo: 'bar' },
+          { stackTraceLimit: stackTraceLimit, attempts: 2 },
+        );
+        const job = (await worker.getNextJob(token)) as Job;
+        const isFailed = await job.isFailed();
+        expect(isFailed).to.be.equal(false);
+        // first time failed.
+        await job.moveToFailed(new Error('failed once'), '0', true);
+        const isFailed1 = await job.isFailed();
+        expect(isFailed1).to.be.false;
+        expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+        // second time failed.
+        const again = (await worker.getNextJob(token)) as Job;
+        await again.moveToFailed(new Error('failed twice'), '0', true);
+        const isFailed2 = await again.isFailed();
+        expect(isFailed2).to.be.true;
+        expect(again.name).to.be.equal(job.name);
+        expect(again.stacktrace.length).to.be.equal(stackTraceLimit);
+        await worker.close();
+      });
+    });
+
     it('saves error stacktrace', async function () {
       const worker = new Worker(queueName, null, { connection, prefix });
       const token = 'my-token';
