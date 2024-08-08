@@ -2,6 +2,14 @@
 
 <!--next-version-placeholder-->
 
+## v2.9.1 (2024-08-08)
+### Fix
+* **job:** Consider passing stackTraceLimit as 0 (#2692) ref #2487 ([`509a36b`](https://github.com/taskforcesh/bullmq/commit/509a36baf8d8cf37176e406fd28e33f712229d27))
+
+### Documentation
+* Update example in introduction [python] ([#2677](https://github.com/taskforcesh/bullmq/issues/2677)) ([`c67ce33`](https://github.com/taskforcesh/bullmq/commit/c67ce331e31c1312e85dfde46bc92a7985b0d493))
+* **guide:** Clarify example in retrying failing jobs section (#2690) ref #2602 ([`5e6154f`](https://github.com/taskforcesh/bullmq/commit/5e6154f220bf89dc1dd9d3f0a49ff5c35200557b))
+
 ## v2.9.0 (2024-08-02)
 ### Feature
 * **queue-events:** Pass debounceId as a param of debounced event ([#2678](https://github.com/taskforcesh/bullmq/issues/2678)) ([`97fb97a`](https://github.com/taskforcesh/bullmq/commit/97fb97a054d6cebbe1d7ff1cb5c46d7da1c018d8))
