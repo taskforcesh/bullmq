@@ -40,7 +40,7 @@
       opts - maxMetricsSize
       opts - fpof - fail parent on fail
       opts - idof - ignore dependency on fail
-      opts - rdof - remove dependency on fail
+      opts - rdof - remove dependency on fail TODO: remove it in next breaking change
 
     Output:
       0 OK
@@ -140,11 +140,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                                          ARGV[4], timestamp)
             end
         else
-            if opts['fpof'] then
-                moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
-                                                      parentId, jobIdKey,
-                                                      timestamp)
-            elseif opts['idof'] or opts['rdof'] then
+            if opts['idof'] or opts['rdof'] then
                 local dependenciesSet = parentKey .. ":dependencies"
                 if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
                     moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
@@ -154,6 +150,10 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                         rcall("HSET", failedSet, jobIdKey, ARGV[4])
                     end
                 end
+            else
+                moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
+                                                      parentId, jobIdKey,
+                                                      timestamp)
             end
         end
     end
