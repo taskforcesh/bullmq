@@ -39,6 +39,9 @@ import {
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
 
+// 30 seconds is the maximum limit until.
+const maximumLimitUntil = 30000;
+
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
@@ -563,10 +566,14 @@ export class Worker<
         this.waiting = null;
       }
     } else {
-      if (this.limitUntil) {
+      const limitUntil = this.limitUntil;
+      if (limitUntil) {
         this.abortDelayController?.abort();
         this.abortDelayController = new AbortController();
-        await this.delay(this.limitUntil, this.abortDelayController);
+        await this.delay(
+          this.getLimitUntil(limitUntil),
+          this.abortDelayController,
+        );
       }
       return this.moveToActive(client, token, this.opts.name);
     }
@@ -684,6 +691,12 @@ will never work with more accuracy than 1ms. */
     } else {
       return Math.max(opts.drainDelay, this.minimumBlockTimeout);
     }
+  }
+
+  protected getLimitUntil(limitUntil: number): number {
+    // We restrict the maximum limit until to 30 second to
+    // be able to promote delayed jobs while queue is rate limited
+    return Math.min(limitUntil, maximumLimitUntil);
   }
 
   /**
