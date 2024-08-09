@@ -706,6 +706,81 @@ function sandboxProcessTests(
       await flow.close();
     });
 
+    it('should get children values in parent job', async () => {
+      const parentProcessFile =
+        __dirname +
+        '/fixtures/fixture_processor_sandbox_getChildrenValues_parent.js';
+      const child1ProcessFile =
+        __dirname +
+        '/fixtures/fixture_processor_sandbox_getChildrenValues_child_1.js';
+      const child2ProcessFile =
+        __dirname +
+        '/fixtures/fixture_processor_sandbox_getChildrenValues_child_2.js';
+
+      const parentQueueName = `parent-queue-${v4()}`;
+      const child1QueueName = `child-1-queue-${v4()}`;
+      const child2QueueName = `child-2-queue-${v4()}`;
+      const parentJobId = `parent-job-${v4()}`;
+      const child1JobId = `child-1-job-${v4()}`;
+      const child2JobId = `child-2-job-${v4()}`;
+
+      const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+        connection,
+        drainDelay: 1,
+      });
+      const child1Worker = new Worker(child1QueueName, child1ProcessFile, {
+        connection,
+        drainDelay: 1,
+      });
+      const child2Worker = new Worker(child2QueueName, child2ProcessFile, {
+        connection,
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        parentWorker.on('completed', async (_job: Job, value: any) => {
+          try {
+            expect(value).to.be.eql({
+              [`bull:${child1QueueName}:${child1JobId}`]: { bar: 'oof' },
+              [`bull:${child2QueueName}:${child2JobId}`]: { foo: 'bar' },
+            });
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      const flow = new FlowProducer({ connection });
+      await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        data: {},
+        opts: { jobId: parentJobId },
+        children: [
+          {
+            name: 'child-1-job',
+            data: {},
+            queueName: child1QueueName,
+            opts: { jobId: child1JobId },
+          },
+          {
+            name: 'child-2-job',
+            data: {},
+            queueName: child2QueueName,
+            opts: { jobId: child2JobId },
+          },
+        ],
+      });
+
+      await completing;
+
+      await parentWorker.close();
+      await child1Worker.close();
+      await child2Worker.close();
+      await flow.close();
+    });
+
     it('should process and fail', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_fail.js';
 
