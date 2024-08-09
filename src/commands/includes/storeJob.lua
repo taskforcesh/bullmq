@@ -7,7 +7,8 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
     local delay = opts['delay'] or 0
     local priority = opts['priority'] or 0
     local debounceId = opts['de'] and opts['de']['id']
-    
+    local pending = opts['pen']
+
     local optionalValues = {}
     if parentKey ~= nil then
         table.insert(optionalValues, "parentKey")
@@ -24,6 +25,11 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
     if debounceId then
         table.insert(optionalValues, "deid")
         table.insert(optionalValues, debounceId)
+    end
+
+    if pending then
+        table.insert(optionalValues, "pen")
+        table.insert(optionalValues, 1)
     end
 
     rcall("HMSET", jobIdKey, "name", name, "data", data, "opts", jsonOpts,

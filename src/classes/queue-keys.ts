@@ -8,6 +8,7 @@ export class QueueKeys {
     [
       '',
       'active',
+      'pending',
       'wait',
       'waiting-children',
       'paused',

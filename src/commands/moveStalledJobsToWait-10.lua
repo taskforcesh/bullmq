@@ -2,15 +2,16 @@
   Move stalled jobs to wait.
 
     Input:
-      KEYS[1] 'stalled' (SET)
-      KEYS[2] 'wait',   (LIST)
-      KEYS[3] 'active', (LIST)
-      KEYS[4] 'failed', (ZSET)
-      KEYS[5] 'stalled-check', (KEY)
-      KEYS[6] 'meta', (KEY)
-      KEYS[7] 'paused', (LIST)
-      KEYS[8] 'marker'
-      KEYS[9] 'event stream' (STREAM)
+      KEYS[1]  'stalled' (SET)
+      KEYS[2]  'wait',   (LIST)
+      KEYS[3]  'active', (LIST)
+      KEYS[4]  'failed', (ZSET)
+      KEYS[5]  'stalled-check', (KEY)
+      KEYS[6]  'meta', (KEY)
+      KEYS[7]  'paused', (LIST)
+      KEYS[8]  'pending' (ZSET)
+      KEYS[9]  'marker'
+      KEYS[10] 'event stream' (STREAM)
 
       ARGV[1]  Max stalled job count
       ARGV[2]  queue.toKey('')
@@ -42,8 +43,8 @@ local failedKey = KEYS[4]
 local stalledCheckKey = KEYS[5]
 local metaKey = KEYS[6]
 local pausedKey = KEYS[7]
-local markerKey = KEYS[8]
-local eventStreamKey = KEYS[9]
+local markerKey = KEYS[9]
+local eventStreamKey = KEYS[10]
 local maxStalledJobCount = ARGV[1]
 local queueKeyPrefix = ARGV[2]
 local timestamp = ARGV[3]
@@ -147,7 +148,7 @@ if (#stalling > 0) then
                         table.insert(failed, jobId)
                     else
                         local target, isPausedOrMaxed=
-                            getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
+                            getTargetQueueList(metaKey, activeKey, waitKey, pausedKey, KEYS[8])
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
                         addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)

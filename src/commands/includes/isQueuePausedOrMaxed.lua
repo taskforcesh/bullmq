@@ -3,7 +3,7 @@
   (since an empty list and !EXISTS are not really the same).
 ]]
 
-local function isQueuePausedOrMaxed(queueMetaKey, activeKey)
+local function isQueuePausedOrMaxed(queueMetaKey, activeKey, pendingKey)
   local queueAttributes = rcall("HMGET", queueMetaKey, "paused", "concurrency")
 
   if queueAttributes[1] then
@@ -11,7 +11,8 @@ local function isQueuePausedOrMaxed(queueMetaKey, activeKey)
   else
     if queueAttributes[2] then
       local activeCount = rcall("LLEN", activeKey)
-      return activeCount >= tonumber(queueAttributes[2])
+      local pendingCount = rcall("ZCARD", pendingKey)
+      return (activeCount + pendingCount) >= tonumber(queueAttributes[2])
     end
   end
   return false

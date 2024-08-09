@@ -10,6 +10,7 @@
     KEYS[6] events stream
     KEYS[7] meta key
     KEYS[8] stalled key
+    KEYS[9] pending key
 
     ARGV[1] key prefix
     ARGV[2] timestamp
@@ -30,6 +31,7 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/addPendingJobIfNeeded"
 --- @include "includes/getDelayedScore"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/removeLock"
@@ -50,6 +52,9 @@ if rcall("EXISTS", jobKey) == 1 then
 
     local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
     if numRemovedElements < 1 then return -3 end
+
+    local isPending = rcall("HGET", jobKey, "pen")
+    addPendingJobIfNeeded(isPending, KEYS[9], jobId, ARGV[2])
 
     if ARGV[6] == "0" then
         rcall("HINCRBY", jobKey, "atm", 1)

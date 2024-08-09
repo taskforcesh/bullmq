@@ -17,6 +17,11 @@ export type JobsOptions = BaseJobOptions & {
   ignoreDependencyOnFailure?: boolean;
 
   /**
+   * Consider job as pending since it's move to active for the first time.
+   */
+  pending?: boolean;
+
+  /**
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
   removeDependencyOnFailure?: boolean;
@@ -45,6 +50,11 @@ export type RedisJobOptions = BaseJobOptions & {
    * Maximum amount of log entries that will be preserved
    */
   kl?: number;
+
+  /**
+   * Consider job as pending since it's move to active for the first time.
+   */
+  pen?: string;
 
   /**
    * If true, removes the job from its parent dependencies when it fails after all attempts.

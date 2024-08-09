@@ -12,7 +12,7 @@
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
   local parentTarget, isPausedOrMaxed = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "active",
-    parentPrefix .. "wait", parentPrefix .. "paused")
+    parentPrefix .. "wait", parentPrefix .. "paused", parentPrefix .. "pending")
   addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
 
   if emitEvent then

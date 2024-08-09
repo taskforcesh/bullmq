@@ -13,6 +13,7 @@
       KEYS[9]  'pc' priority counter
       KEYS[10] 'marker'
       KEYS[11] 'stalled'
+      KEYS[12] 'pending'
 
       ARGV[1]  key prefix
       ARGV[2]  timestamp
@@ -40,12 +41,12 @@ local rcall = redis.call
 --- @include "includes/removeLock"
 --- @include "includes/isQueuePausedOrMaxed"
 
-local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[1], KEYS[2], KEYS[3])
+local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[1], KEYS[2], KEYS[3], KEYS[12])
 local markerKey = KEYS[10]
 
 -- Check if there are delayed jobs that we can move to wait.
 -- test example: when there are delayed jobs between retries
-promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], isPausedOrMaxed)
+promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], isPausedOrMaxed, KEYS[12])
 
 if rcall("EXISTS", KEYS[4]) == 1 then
   local errorCode = removeLock(KEYS[4], KEYS[11], ARGV[5], ARGV[4]) 
@@ -56,16 +57,21 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   local numRemovedElements = rcall("LREM", KEYS[1], -1, ARGV[4])
   if (numRemovedElements < 1) then return -3 end
 
-  local priority = tonumber(rcall("HGET", KEYS[4], "priority")) or 0
+  local jobAttributes = rcall("HMGET", KEYS[4], "priority", "pen")
+  local priority = tonumber(jobAttributes[1]) or 0
 
   --need to re-evaluate after removing job from active
-  isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[1])
+  isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[1], KEYS[12])
 
-  -- Standard or priority add
-  if priority == 0 then
-    addJobInTargetList(target, markerKey, ARGV[3], isPausedOrMaxed, ARGV[4])
+  if jobAttributes[2] then
+    addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, ARGV[4])
   else
-    addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], isPausedOrMaxed)
+    -- Standard or priority add
+    if priority == 0 then
+      addJobInTargetList(target, markerKey, ARGV[3], isPausedOrMaxed, ARGV[4])
+    else
+      addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], isPausedOrMaxed)
+    end
   end
 
   rcall("HINCRBY", KEYS[4], "atm", 1)

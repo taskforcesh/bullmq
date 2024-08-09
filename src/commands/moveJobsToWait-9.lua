@@ -11,7 +11,8 @@
     KEYS[5] 'paused'
     KEYS[6] 'meta'
     KEYS[7] 'active'
-    KEYS[8] 'marker'
+    KEYS[8] 'pendings'
+    KEYS[9] 'marker'
 
     ARGV[1] count
     ARGV[2] timestamp
@@ -33,7 +34,7 @@ local rcall = redis.call;
 --- @include "includes/getTargetQueueList"
 
 local metaKey = KEYS[6]
-local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[7], KEYS[4], KEYS[5])
+local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[7], KEYS[4], KEYS[5], KEYS[8])
 
 local jobs = rcall('ZRANGEBYSCORE', KEYS[3], 0, timestamp, 'LIMIT', 0, maxCount)
 if (#jobs > 0) then
@@ -63,7 +64,7 @@ if (#jobs > 0) then
         rcall("LPUSH", target, unpack(jobs, from, to))
     end
 
-    addBaseMarkerIfNeeded(KEYS[8], isPausedOrMaxed)
+    addBaseMarkerIfNeeded(KEYS[9], isPausedOrMaxed)
 end
 
 maxCount = maxCount - #jobs

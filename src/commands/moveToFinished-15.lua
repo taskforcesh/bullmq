@@ -23,6 +23,7 @@
       KEYS[12] jobId key
       KEYS[13] metrics key
       KEYS[14] marker key
+      KEYS[15] pending key
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
@@ -205,11 +206,11 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- and not rate limited.
     if (ARGV[6] == "1") then
 
-        local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8])
+        local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8], KEYS[15])
 
         -- Check if there are delayed jobs that can be promoted
         promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], eventStreamKey, prefix,
-                           timestamp, KEYS[10], isPausedOrMaxed)
+                           timestamp, KEYS[10], isPausedOrMaxed, KEYS[15])
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.
