@@ -563,10 +563,14 @@ export class Worker<
         this.waiting = null;
       }
     } else {
-      if (this.limitUntil) {
+      const limitUntil = this.limitUntil;
+      if (limitUntil) {
         this.abortDelayController?.abort();
         this.abortDelayController = new AbortController();
-        await this.delay(this.limitUntil, this.abortDelayController);
+        await this.delay(
+          this.getLimitUntil(limitUntil),
+          this.abortDelayController,
+        );
       }
       return this.moveToActive(client, token, this.opts.name);
     }
@@ -684,6 +688,12 @@ will never work with more accuracy than 1ms. */
     } else {
       return Math.max(opts.drainDelay, this.minimumBlockTimeout);
     }
+  }
+
+  protected getLimitUntil(limitUntil: number): number {
+    // We restrict the maximum limit until to 10 second to
+    // be able to promote delayed jobs while queue is rate limited
+    return Math.min(limitUntil, maximumBlockTimeout);
   }
 
   /**
