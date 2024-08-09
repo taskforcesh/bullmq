@@ -219,42 +219,44 @@ class Job:
         @param json: the plain object containing the job.
         @param jobId: an optional job id (overrides the id coming from the JSON object)
         """
-        data = json.loads(rawData.get("data", '{}'))
-        opts = optsFromJSON(json.loads(rawData.get("opts", '{}')))
+        decodedData = _decodeRawData(rawData)
 
-        job = Job(queue, rawData.get("name"), data, opts)
-        job.id = jobId or rawData.get("id", b'').decode("utf-8")
+        data = decodedData.get("data", "{}")
+        opts = decodedData.get("opts", "{}")
 
-        job.progress = json.loads(rawData.get("progress",  '0'))
-        job.delay = int(rawData.get("delay", "0"))
-        job.timestamp = int(rawData.get("timestamp", "0"))
+        job = Job(queue, decodedData.get("name"), data, opts)
+        job.id = _decodeByteString(jobId) or decodedData.get("id", "")
 
-        if rawData.get("finishedOn"):
-            job.finishedOn = int(rawData.get("finishedOn"))
+        job.progress = decodedData.get("progress",  "0")
+        job.delay = decodedData.get("delay", "0")
+        job.timestamp = decodedData.get("timestamp", "0")
 
-        if rawData.get("processedOn"):
-            job.processedOn = int(rawData.get("processedOn"))
+        if finishedOn := decodedData.get("finishedOn"):
+            job.finishedOn = finishedOn
 
-        if rawData.get("rjk"):
-            job.repeatJobKey = rawData.get("rjk")
+        if processedOn := decodedData.get("processedOn"):
+            job.processedOn = processedOn
 
-        if rawData.get("ats"):
-            job.attemptsStarted = int(rawData.get("ats"))
+        if rjk := decodedData.get("rjk"):
+            job.repeatJobKey = rjk
 
-        job.failedReason = rawData.get("failedReason")
-        job.attemptsMade = int(rawData.get("attemptsMade") or rawData.get("atm") or "0")
+        if ats := decodedData.get("ats"):
+            job.attemptsStarted = ats
 
-        returnvalue = rawData.get("returnvalue")
-        if type(returnvalue) == str:
-            job.returnvalue = getReturnValue(returnvalue)
+        job.failedReason = decodedData.get("failedReason")
+        job.attemptsMade = int(decodedData.get("attemptsMade") or decodedData.get("atm") or "0")
 
-        job.stacktrace = json.loads(rawData.get("stacktrace", "[]"))
+        returnvalue = decodedData.get("returnvalue")
+        if isinstance(returnvalue, str):
+            job.returnvalue = returnvalue
 
-        if rawData.get("parentKey"):
-            job.parentKey = rawData.get("parentKey")
+        job.stacktrace = decodedData.get("stacktrace", "[]")
 
-        if rawData.get("parent"):
-            job.parent = json.loads(rawData.get("parent"))
+        if parentKey := decodedData.get("parentKey"):
+            job.parentKey = parentKey
+
+        if parent := decodedData.get("parent"):
+            job.parent = parent
 
         return job
 
@@ -279,26 +281,48 @@ class Job:
 
         return min(keepLogs, result[0]) if keepLogs else result[0]
 
-def optsFromJSON(rawOpts: dict) -> dict:
-    # opts = json.loads(rawOpts)
-    opts = rawOpts
 
-    option_entries = opts.items()
+def _decodeByteString(raw: bytes) -> str:
+    """
+    This function decode byte string
 
-    options = {}
-    for item in option_entries:
-        attribute_name = item[0]
-        value = item[1]
-        if attribute_name in optsDecodeMap:
-            options[optsDecodeMap[attribute_name]] = value
-        else:
-            options[attribute_name] = value
-
-    return options
+    :param raw: byte string (bytes)
+    :return:
+    """
+    return raw.decode("utf-8") if isinstance(raw, bytes) else raw
 
 
-def getReturnValue(value: Any):
-    try:
-        return json.loads(value)
-    except Exception as err:
-        return value
+def _decodeRawData(rawData: dict) -> dict:
+    """
+    This function decode a dict where keys or values maybe are byte strings and
+    convert them into their appropriate Python types.
+
+    This function performs the following operations:
+    1. Decodes byte strings to UTF-8 text strings.
+    2. Attempts to parse JSON strings into Python dictionaries or lists.
+    3. Leaves non-JSON strings as they are.
+
+    :param rawData: A dictionary where keys and values are byte strings
+                    (i.e., instances of `bytes`). Example format:
+                    {b'key': b'value', b'json_key': b'{"nested_key": "nested_value"}'}
+
+    :return: A dictionary with text string keys and values. JSON strings
+             are parsed into Python objects (dictionaries or lists), while
+             other string values remain unchanged. Example output:
+             {'key': 'value', 'json_key': {'nested_key': 'nested_value'}}
+
+    :rtype: dict
+
+    :raises TypeError: If `rawData` is not of type `dict` or if the keys or values
+                       are not of type `bytes`.
+    """
+    decodedData = {}
+
+    for key, value in rawData.items():
+        key, value = _decodeByteString(key), _decodeByteString(value)
+        try:
+            decodedData[key] = json.loads(value)
+        except json.JSONDecodeError:
+            decodedData[key] = value
+
+    return decodedData
