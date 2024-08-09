@@ -1,3 +1,18 @@
+## [7.14.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.14.0...v7.14.1) (2024-08-09)
+
+
+### Bug Fixes
+
+* **flow:** get groupId from moveToWaitingChildren script ([#247](https://github.com/taskforcesh/bullmq-pro/issues/247)) ([1bee26e](https://github.com/taskforcesh/bullmq-pro/commit/1bee26ec6da1bcfa40ce1c7593a9b1183f6215a4))
+
+# [7.14.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.13.0...v7.14.0) (2024-08-08)
+
+
+### Features
+
+* **queue-events:** pass debounceId as a param of debounced event ([#2678](https://github.com/taskforcesh/bullmq/issues/2678)) ([97fb97a](https://github.com/taskforcesh/bullmq/commit/97fb97a054d6cebbe1d7ff1cb5c46d7da1c018d8))
+* **job:** allow passing debounce as option ([#2666](https://github.com/taskforcesh/bullmq/issues/2666)) ([163ccea](https://github.com/taskforcesh/bullmq/commit/163ccea19ef48191c4db6da27638ff6fb0080a74))
+
 # [7.13.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.12.0...v7.13.0) (2024-07-31)
 
 
