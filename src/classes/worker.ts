@@ -39,6 +39,9 @@ import {
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
 
+// 30 seconds is the maximum limit until.
+const maximumLimitUntil = 30000;
+
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
 
@@ -691,9 +694,9 @@ will never work with more accuracy than 1ms. */
   }
 
   protected getLimitUntil(limitUntil: number): number {
-    // We restrict the maximum limit until to 10 second to
+    // We restrict the maximum limit until to 30 second to
     // be able to promote delayed jobs while queue is rate limited
-    return Math.min(limitUntil, maximumBlockTimeout);
+    return Math.min(limitUntil, maximumLimitUntil);
   }
 
   /**
