@@ -100,26 +100,29 @@ if (#stalling > 0) then
                               "failed", "jobId", jobId, 'prev', 'active',
                               'failedReason', failedReason)
 
-                        if opts['fpof'] and rawParentData ~= false then
-                            local parentData = cjson.decode(rawParentData)
-                            moveParentFromWaitingChildrenToFailed(
-                                parentData['queueKey'],
-                                parentData['queueKey'] .. ':' .. parentData['id'],
-                                parentData['id'],
-                                jobKey,
-                                timestamp
-                            )
-                        elseif opts['idof'] then
-                            local parentData = cjson.decode(rawParentData)
-                            local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-                            local dependenciesSet = parentKey .. ":dependencies"
-                            if rcall("SREM", dependenciesSet, jobKey) == 1 then
-                                moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
-                                                         parentKey, parentData['id'], timestamp)
-                                local failedSet = parentKey .. ":failed"
-                                rcall("HSET", failedSet, jobKey, failedReason)
+                        if rawParentData ~= false then
+                            if opts['fpof'] then
+                                local parentData = cjson.decode(rawParentData)
+                                moveParentFromWaitingChildrenToFailed(
+                                    parentData['queueKey'],
+                                    parentData['queueKey'] .. ':' .. parentData['id'],
+                                    parentData['id'],
+                                    jobKey,
+                                    timestamp
+                                )
+                            elseif opts['idof'] then
+                                local parentData = cjson.decode(rawParentData)
+                                local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
+                                local dependenciesSet = parentKey .. ":dependencies"
+                                if rcall("SREM", dependenciesSet, jobKey) == 1 then
+                                    moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
+                                                             parentKey, parentData['id'], timestamp)
+                                    local failedSet = parentKey .. ":failed"
+                                    rcall("HSET", failedSet, jobKey, failedReason)
+                                end
                             end
                         end
+
                         if removeOnFailType == "number" then
                             removeJobsByMaxCount(opts["removeOnFail"],
                                                   failedKey, queueKeyPrefix)
