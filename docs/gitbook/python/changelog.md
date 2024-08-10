@@ -2,6 +2,16 @@
 
 <!--next-version-placeholder-->
 
+## v2.9.2 (2024-08-10)
+### Fix
+* **flow:** Validate parentData before ignoreDependencyOnFailure when stalled check happens (#2702) (python) ([`9416501`](https://github.com/taskforcesh/bullmq/commit/9416501551b1ad464e59bdba1045a5a9955e2ea4))
+
+### Documentation
+* **bullmq-pro:** Update changelog to v7.14.1 ([#2698](https://github.com/taskforcesh/bullmq/issues/2698)) ([`8260582`](https://github.com/taskforcesh/bullmq/commit/826058207f8b75fa77432df9e3a9c3b0b31ffc69))
+
+### Performance
+* **worker:** Promote delayed jobs while queue is rate limited (#2697) ref #2582 ([`f3290ac`](https://github.com/taskforcesh/bullmq/commit/f3290ace2f117e26357f9fae611a255af26b950b))
+
 ## v2.9.1 (2024-08-08)
 ### Fix
 * **job:** Consider passing stackTraceLimit as 0 (#2692) ref #2487 ([`509a36b`](https://github.com/taskforcesh/bullmq/commit/509a36baf8d8cf37176e406fd28e33f712229d27))
