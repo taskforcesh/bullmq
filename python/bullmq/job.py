@@ -246,7 +246,8 @@ class Job:
         else:
             job.attemptsMade = 0
 
-        if returnvalue := decodedData.get("returnvalue") and isinstance(returnvalue, str):
+        returnvalue = decodedData.get("returnvalue")
+        if isinstance(returnvalue, str):
             job.returnvalue = returnvalue
 
         job.stacktrace = decodedData.get("stacktrace", [])
