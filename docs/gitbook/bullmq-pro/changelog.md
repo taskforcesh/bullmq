@@ -1,3 +1,36 @@
+## [7.14.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.14.0...v7.14.1) (2024-08-09)
+
+
+### Bug Fixes
+
+* **flow:** get groupId from moveToWaitingChildren script ([#247](https://github.com/taskforcesh/bullmq-pro/issues/247)) ([1bee26e](https://github.com/taskforcesh/bullmq-pro/commit/1bee26ec6da1bcfa40ce1c7593a9b1183f6215a4))
+
+# [7.14.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.13.0...v7.14.0) (2024-08-08)
+
+
+### Features
+
+* **queue-events:** pass debounceId as a param of debounced event ([#2678](https://github.com/taskforcesh/bullmq/issues/2678)) ([97fb97a](https://github.com/taskforcesh/bullmq/commit/97fb97a054d6cebbe1d7ff1cb5c46d7da1c018d8))
+* **job:** allow passing debounce as option ([#2666](https://github.com/taskforcesh/bullmq/issues/2666)) ([163ccea](https://github.com/taskforcesh/bullmq/commit/163ccea19ef48191c4db6da27638ff6fb0080a74))
+
+# [7.13.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.12.0...v7.13.0) (2024-07-31)
+
+
+### Bug Fixes
+
+* **repeatable:** remove repeat hash when removing repeatable job ([#2676](https://github.com/taskforcesh/bullmq/issues/2676)) ([97a297d](https://github.com/taskforcesh/bullmq/commit/97a297d90ad8b27bcddb7db6a8a158acfb549389))
+* **repeatable:** keep legacy repeatables if it exists instead of creating one with new structure ([#2665](https://github.com/taskforcesh/bullmq/issues/2665)) ([93fad41](https://github.com/taskforcesh/bullmq/commit/93fad41a9520961d0e6814d82454bc916a039501))
+* **repeatable:** consider removing legacy repeatable job ([#2658](https://github.com/taskforcesh/bullmq/issues/2658)) fixes [#2661](https://github.com/taskforcesh/bullmq/issues/2661) ([a6764ae](https://github.com/taskforcesh/bullmq/commit/a6764aecb557fb918d061f5e5c2e26e4afa3e8ee))
+* **repeatable:** pass custom key as an args in addRepeatableJob to prevent CROSSSLOT issue ([#2662](https://github.com/taskforcesh/bullmq/issues/2662)) fixes [#2660](https://github.com/taskforcesh/bullmq/issues/2660) ([9d8f874](https://github.com/taskforcesh/bullmq/commit/9d8f874b959e09662985f38c4614b95ab4d5e89c))
+
+### Features
+
+* **repeatable:** new repeatables structure ([#2617](https://github.com/taskforcesh/bullmq/issues/2617)) ref [#2612](https://github.com/taskforcesh/bullmq/issues/2612) fixes [#2399](https://github.com/taskforcesh/bullmq/issues/2399) [#2596](https://github.com/taskforcesh/bullmq/issues/2596) ([8376a9a](https://github.com/taskforcesh/bullmq/commit/8376a9a9007f58ac7eab1a3a1c2f9e7ec373bbd6))
+
+### Performance Improvements
+
+* **worker:** fetch next job on failure ([#2342](https://github.com/taskforcesh/bullmq/issues/2342)) ([f917b80](https://github.com/taskforcesh/bullmq/commit/f917b8090f306c0580aac12f6bd4394fd9ef003d))
+
 # [7.12.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.11.0...v7.12.0) (2024-07-26)
 
 

@@ -19,6 +19,7 @@ local rcall = redis.call
 --- @include "includes/destructureJobKey"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isLocked"
+--- @include "includes/removeDebounceKey"
 --- @include "includes/removeJobFromAnyState"
 --- @include "includes/removeJobKeys"
 --- @include "includes/removeParentDependencyKey"
@@ -26,7 +27,7 @@ local rcall = redis.call
 local function removeJob( prefix, jobId, parentKey, removeChildren)
     local jobKey = prefix .. jobId;
 
-    removeParentDependencyKey(jobKey, false, parentKey)
+    removeParentDependencyKey(jobKey, false, parentKey, nil)
 
     if removeChildren == "1" then
         -- Check if this job has children
@@ -66,6 +67,7 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
 
     local prev = removeJobFromAnyState(prefix, jobId)
 
+    removeDebounceKey(prefix, jobKey)
     if removeJobKeys(jobKey) > 0 then
         local maxEvents = getOrSetMaxEvents(KEYS[2])
         rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",

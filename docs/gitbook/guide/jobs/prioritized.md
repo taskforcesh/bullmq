@@ -25,7 +25,7 @@ await myQueue.add('wall', { color: 'blue' }, { priority: 7 });
 // finally pink.
 ```
 
-If several jobs are added with the same priority value, then the jobs within that priority will be processed in [FIFO (_First in, first out_)](../fifo.md) fashion.
+If several jobs are added with the same priority value, then the jobs within that priority will be processed in [FIFO (_First in, first out_)](fifo.md) fashion.
 
 ## Change priority
 
@@ -39,7 +39,7 @@ await job.changePriority({
 });
 ```
 
-or if you want to use the [LIFO (_Last In, First Out_)](../lifo.md) option:
+or if you want to use the [LIFO (_Last In, First Out_)](lifo.md) option:
 
 ```typescript
 const job = await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });

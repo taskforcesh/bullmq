@@ -183,6 +183,7 @@ export class Scripts {
       parentOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
+      job.debounceId ? `${queueKeys.de}:${job.debounceId}` : null,
     ];
 
     let encodedOpts;
@@ -307,7 +308,7 @@ export class Scripts {
   ): string[] {
     const queueKeys = this.queue.keys;
 
-    const keys = [queueKeys.repeat, queueKeys.delayed];
+    const keys = [queueKeys.repeat, queueKeys.delayed, queueKeys.events];
 
     const args = [
       legacyRepeatJobId,

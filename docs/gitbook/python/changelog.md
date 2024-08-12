@@ -2,6 +2,48 @@
 
 <!--next-version-placeholder-->
 
+## v2.9.2 (2024-08-10)
+### Fix
+* **flow:** Validate parentData before ignoreDependencyOnFailure when stalled check happens (#2702) (python) ([`9416501`](https://github.com/taskforcesh/bullmq/commit/9416501551b1ad464e59bdba1045a5a9955e2ea4))
+
+### Documentation
+* **bullmq-pro:** Update changelog to v7.14.1 ([#2698](https://github.com/taskforcesh/bullmq/issues/2698)) ([`8260582`](https://github.com/taskforcesh/bullmq/commit/826058207f8b75fa77432df9e3a9c3b0b31ffc69))
+
+### Performance
+* **worker:** Promote delayed jobs while queue is rate limited (#2697) ref #2582 ([`f3290ac`](https://github.com/taskforcesh/bullmq/commit/f3290ace2f117e26357f9fae611a255af26b950b))
+
+## v2.9.1 (2024-08-08)
+### Fix
+* **job:** Consider passing stackTraceLimit as 0 (#2692) ref #2487 ([`509a36b`](https://github.com/taskforcesh/bullmq/commit/509a36baf8d8cf37176e406fd28e33f712229d27))
+
+### Documentation
+* Update example in introduction [python] ([#2677](https://github.com/taskforcesh/bullmq/issues/2677)) ([`c67ce33`](https://github.com/taskforcesh/bullmq/commit/c67ce331e31c1312e85dfde46bc92a7985b0d493))
+* **guide:** Clarify example in retrying failing jobs section (#2690) ref #2602 ([`5e6154f`](https://github.com/taskforcesh/bullmq/commit/5e6154f220bf89dc1dd9d3f0a49ff5c35200557b))
+
+## v2.9.0 (2024-08-02)
+### Feature
+* **queue-events:** Pass debounceId as a param of debounced event ([#2678](https://github.com/taskforcesh/bullmq/issues/2678)) ([`97fb97a`](https://github.com/taskforcesh/bullmq/commit/97fb97a054d6cebbe1d7ff1cb5c46d7da1c018d8))
+* **job:** Allow passing a debounce as option ([#2666](https://github.com/taskforcesh/bullmq/issues/2666)) ([`163ccea`](https://github.com/taskforcesh/bullmq/commit/163ccea19ef48191c4db6da27638ff6fb0080a74))
+* **repeatable:** New repeatables structure (#2617) ref #2612 fixes #2399 #2596 ([`8376a9a`](https://github.com/taskforcesh/bullmq/commit/8376a9a9007f58ac7eab1a3a1c2f9e7ec373bbd6))
+* **queue:** Support global concurrency (#2496) ref #2465 ([`47ba055`](https://github.com/taskforcesh/bullmq/commit/47ba055c1ea36178b684fd11c1e82cde7ec93ac8))
+
+### Fix
+* **job:** Make sure json.dumps return JSON compliant JSON [python] ([#2683](https://github.com/taskforcesh/bullmq/issues/2683)) ([`4441711`](https://github.com/taskforcesh/bullmq/commit/4441711a986a9f6a326100308d639eb0a2ea8c8d))
+* **repeatable:** Remove repeat hash when removing repeatable job ([#2676](https://github.com/taskforcesh/bullmq/issues/2676)) ([`97a297d`](https://github.com/taskforcesh/bullmq/commit/97a297d90ad8b27bcddb7db6a8a158acfb549389))
+* **repeatable:** Keep legacy repeatables if it exists instead of creating one with new structure ([#2665](https://github.com/taskforcesh/bullmq/issues/2665)) ([`93fad41`](https://github.com/taskforcesh/bullmq/commit/93fad41a9520961d0e6814d82454bc916a039501))
+* **repeatable:** Consider removing legacy repeatable job (#2658) fixes #2661 ([`a6764ae`](https://github.com/taskforcesh/bullmq/commit/a6764aecb557fb918d061f5e5c2e26e4afa3e8ee))
+* **repeatable:** Pass custom key as an args in addRepeatableJob to prevent CROSSSLOT issue (#2662) fixes #2660 ([`9d8f874`](https://github.com/taskforcesh/bullmq/commit/9d8f874b959e09662985f38c4614b95ab4d5e89c))
+
+### Documentation
+* **pro:** Update changelog to v7.12.0 ([#2675](https://github.com/taskforcesh/bullmq/issues/2675)) ([`45fa04e`](https://github.com/taskforcesh/bullmq/commit/45fa04e74b90ee9b331aed1b7aaa81ca1e0219c7))
+* **repeatable:** Fix examples when passing repeat.key ([#2669](https://github.com/taskforcesh/bullmq/issues/2669)) ([`e99fc2d`](https://github.com/taskforcesh/bullmq/commit/e99fc2d6435704c407e4c4bdeaeda580dd20bf8b))
+* **guide:** Add queue global concurrency section ([#2667](https://github.com/taskforcesh/bullmq/issues/2667)) ([`c905d62`](https://github.com/taskforcesh/bullmq/commit/c905d6206aa3d1b0a8f315da220cbc27f6a397c3))
+* **changelog:** Remove documentation section ([`b5500c4`](https://github.com/taskforcesh/bullmq/commit/b5500c4b24fefb2f0646839331f242642a4adcb8))
+* **metrics:** Fix markdown typo in metrics.md ([#2655](https://github.com/taskforcesh/bullmq/issues/2655)) ([`3e071fa`](https://github.com/taskforcesh/bullmq/commit/3e071fa17c8cf9c96003293d75ffd961b22e750c))
+
+### Performance
+* **worker:** Fetch next job on failure ([#2342](https://github.com/taskforcesh/bullmq/issues/2342)) ([`f917b80`](https://github.com/taskforcesh/bullmq/commit/f917b8090f306c0580aac12f6bd4394fd9ef003d))
+
 ## v2.8.1 (2024-07-11)
 ### Fix
 * **delayed:** Avoid using jobId in order to schedule delayed jobs (#2587) (python) ([`228db2c`](https://github.com/taskforcesh/bullmq/commit/228db2c780a1ca8323900fc568156495a13355a3))

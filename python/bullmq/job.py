@@ -203,7 +203,7 @@ class Job:
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
         keys, args = self.scripts.saveStacktraceArgs(
-            self.id, json.dumps(self.stacktrace, separators=(',', ':')), err)
+            self.id, json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False), err)
 
         await self.scripts.commands["saveStacktrace"](keys=keys, args=args, client=pipe)
 
