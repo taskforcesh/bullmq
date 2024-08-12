@@ -13,12 +13,10 @@ import traceback
 
 
 optsDecodeMap = {
-    'fpof': 'failParentOnFailure',
-    'idof': 'ignoreDependencyOnFailure',
-    'kl': 'keepLogs',
+    "fpof": "failParentOnFailure",
+    "idof": "ignoreDependencyOnFailure",
+    "kl": "keepLogs"
 }
-
-optsEncodeMap = {v: k for k, v in optsDecodeMap.items()}
 
 
 class Job:
@@ -211,7 +209,7 @@ class Job:
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
 
     @staticmethod
-    def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
+    def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None) -> Job:
         """
         Instantiates a Job from a JobJsonRaw object (coming from a deserialized JSON object)
 
@@ -220,44 +218,43 @@ class Job:
         @param jobId: an optional job id (overrides the id coming from the JSON object)
         """
         decodedData = _decodeRawData(rawData)
-
-        data = decodedData.get("data", "{}")
-        opts = decodedData.get("opts", "{}")
-
+        data = decodedData.get("data", {})
+        opts = optsFromJSON(decodedData.get("opts", {}))
+        
         job = Job(queue, decodedData.get("name"), data, opts)
         job.id = _decodeByteString(jobId) or decodedData.get("id", "")
 
-        job.progress = decodedData.get("progress",  "0")
-        job.delay = decodedData.get("delay", "0")
-        job.timestamp = decodedData.get("timestamp", "0")
+        job.progress = decodedData.get("progress",  0)
+        job.delay = decodedData.get("delay", 0)
+        job.timestamp = decodedData.get("timestamp", 0)
 
         if finishedOn := decodedData.get("finishedOn"):
             job.finishedOn = finishedOn
-
         if processedOn := decodedData.get("processedOn"):
             job.processedOn = processedOn
-
         if rjk := decodedData.get("rjk"):
             job.repeatJobKey = rjk
-
         if ats := decodedData.get("ats"):
             job.attemptsStarted = ats
 
         job.failedReason = decodedData.get("failedReason")
-        job.attemptsMade = int(decodedData.get("attemptsMade") or decodedData.get("atm") or "0")
 
-        returnvalue = decodedData.get("returnvalue")
-        if isinstance(returnvalue, str):
+        if isinstance(decodedData.get("attemptsMade"), int):
+            job.attemptsMade = decodedData.get("attemptsMade")
+        elif isinstance(decodedData.get("atm"), int):
+            job.attemptsMade = decodedData.get("atm")
+        else:
+            job.attemptsMade = 0
+
+        if returnvalue := decodedData.get("returnvalue") and isinstance(returnvalue, str):
             job.returnvalue = returnvalue
 
-        job.stacktrace = decodedData.get("stacktrace", "[]")
+        job.stacktrace = decodedData.get("stacktrace", [])
 
         if parentKey := decodedData.get("parentKey"):
             job.parentKey = parentKey
-
         if parent := decodedData.get("parent"):
             job.parent = parent
-
         return job
 
     @staticmethod
@@ -317,12 +314,21 @@ def _decodeRawData(rawData: dict) -> dict:
                        are not of type `bytes`.
     """
     decodedData = {}
-
+    
     for key, value in rawData.items():
         key, value = _decodeByteString(key), _decodeByteString(value)
         try:
             decodedData[key] = json.loads(value)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             decodedData[key] = value
-
     return decodedData
+
+
+def optsFromJSON(rawOpts: dict) -> dict:
+    options = {}
+    for key, value in rawOpts.items():
+        if key in optsDecodeMap:
+            options[optsDecodeMap[key]] = value
+        else:
+            options[key] = value
+    return options
