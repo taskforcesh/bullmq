@@ -220,42 +220,28 @@ class Job:
         decodedData = _decodeRawData(rawData)
         data = decodedData.get("data", {})
         opts = optsFromJSON(decodedData.get("opts", {}))
-        
         job = Job(queue, decodedData.get("name"), data, opts)
+        
         job.id = _decodeByteString(jobId) or decodedData.get("id", "")
-
         job.progress = decodedData.get("progress",  0)
         job.delay = decodedData.get("delay", 0)
         job.timestamp = decodedData.get("timestamp", 0)
-
-        if finishedOn := decodedData.get("finishedOn"):
-            job.finishedOn = finishedOn
-        if processedOn := decodedData.get("processedOn"):
-            job.processedOn = processedOn
-        if rjk := decodedData.get("rjk"):
-            job.repeatJobKey = rjk
-        if ats := decodedData.get("ats"):
-            job.attemptsStarted = ats
-
+        job.finishedOn = decodedData.get("finishedOn", 0)
+        job.processedOn = decodedData.get("processedOn", 0)
+        job.repeatJobKey = decodedData.get("rjk")
         job.failedReason = decodedData.get("failedReason")
 
-        if isinstance(decodedData.get("attemptsMade"), int):
-            job.attemptsMade = decodedData.get("attemptsMade")
-        elif isinstance(decodedData.get("atm"), int):
-            job.attemptsMade = decodedData.get("atm")
-        else:
-            job.attemptsMade = 0
-
-        returnvalue = decodedData.get("returnvalue")
-        if isinstance(returnvalue, str):
-            job.returnvalue = returnvalue
-
+        job.attemptsStarted = decodedData.get("ats", 0)
+        attemptsMade = decodedData.get("attemptsMade")
+        job.attemptsMade = attemptsMade if attemptsMade else job.attemptsStarted
+        
+        job.returnvalue = decodedData.get("returnvalue")
         job.stacktrace = decodedData.get("stacktrace", [])
 
         if parentKey := decodedData.get("parentKey"):
             job.parentKey = parentKey
         if parent := decodedData.get("parent"):
-            job.parent = parent
+            job.parent =  decodedData.get("parent")
         return job
 
     @staticmethod
