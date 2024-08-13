@@ -310,7 +310,7 @@ export class RedisConnection extends EventEmitter {
           await this.initializing;
         }
         if (!this.shared) {
-          if (status == 'initializing' || force || process.env.CI) {
+          if (status == 'initializing' || force) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
           } else {
