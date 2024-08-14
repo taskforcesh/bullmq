@@ -600,13 +600,13 @@ export class Job<
    * @param returnValue - The jobs success message.
    * @param token - Worker token used to acquire completed job.
    * @param fetchNext - True when wanting to fetch the next job.
-   * @returns Returns the jobData of the next job in the waiting queue.
+   * @returns Returns the jobData of the next job in the waiting queue or void.
    */
   async moveToCompleted(
     returnValue: ReturnType,
     token: string,
     fetchNext = true,
-  ) {
+  ): Promise<void | any[]> {
     await this.queue.waitUntilReady();
 
     this.returnvalue = returnValue || void 0;
@@ -641,7 +641,7 @@ export class Job<
    * @param err - the jobs error message.
    * @param token - token to check job is locked by current worker
    * @param fetchNext - true when wanting to fetch the next job
-   * @returns void
+   * @returns Returns the jobData of the next job in the waiting queue or void.
    */
   async moveToFailed<E extends Error>(
     err: E,
