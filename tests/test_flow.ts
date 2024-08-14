@@ -40,7 +40,7 @@ describe('flows', () => {
   });
 
   describe('when removeOnFail is true in last pending child', () => {
-    it('moves parent to wait without getting stuck', async () => {
+    it('moves parent to failed without getting stuck', async () => {
       const worker = new Worker(
         queueName,
         async job => {
@@ -51,9 +51,14 @@ describe('flows', () => {
         { connection, prefix },
       );
       await worker.waitUntilReady();
+      const queueEvents = new QueueEvents(queueName, {
+        connection,
+        prefix,
+      });
+      await queueEvents.waitUntilReady();
 
       const flow = new FlowProducer({ connection, prefix });
-      await flow.add({
+      const tree = await flow.add({
         name: 'parent',
         data: {},
         queueName,
@@ -74,21 +79,17 @@ describe('flows', () => {
         ],
       });
 
-      const completed = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async (job: Job) => {
-          try {
-            if (job.name === 'parent') {
-              const { processed } = await job.getDependenciesCount();
-              expect(processed).to.equal(1);
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
+      const failed = new Promise<void>(resolve => {
+        queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+          if (jobId === tree.job.id) {
+            const { processed } = await tree.job!.getDependenciesCount();
+            expect(processed).to.equal(1);
+            resolve();
           }
         });
       });
 
-      await completed;
+      await failed;
       await flow.close();
       await worker.close();
     });
