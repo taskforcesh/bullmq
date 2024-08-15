@@ -487,7 +487,10 @@ export class Scripts {
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
-        fpof: !!job.opts?.failParentOnFailure,
+        fpof:
+          job.opts?.failParentOnFailure === undefined
+            ? true
+            : job.opts?.failParentOnFailure,
         idof: !!job.opts?.ignoreDependencyOnFailure,
         rdof: !!job.opts?.removeDependencyOnFailure,
       }),

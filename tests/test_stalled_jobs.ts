@@ -604,7 +604,10 @@ describe('stalled jobs', function () {
               name: 'test',
               data: { foo: 'bar' },
               queueName,
-              opts: { removeDependencyOnFailure: true },
+              opts: {
+                removeDependencyOnFailure: true,
+                failParentOnFailure: false,
+              },
             },
           ],
         });

@@ -20,14 +20,7 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
 
     if jobAttributes[1] then
       local parentData = cjson.decode(jobAttributes[1])
-      if parentData['rdof'] then
-        local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local grandParentDependenciesSet = grandParentKey .. ":dependencies"
-        if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
-          moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
-            grandParentKey, parentData['id'], timestamp)
-        end
-      else
+      if parentData['fpof'] or parentData['fpof'] == nil then
         moveParentFromWaitingChildrenToFailed(
           parentData['queueKey'],
           parentData['queueKey'] .. ':' .. parentData['id'],
@@ -35,6 +28,13 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
           parentKey,
           timestamp
         )
+      elseif parentData['rdof'] then
+        local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
+        local grandParentDependenciesSet = grandParentKey .. ":dependencies"
+        if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
+          moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
+            grandParentKey, parentData['id'], timestamp)
+        end
       end
     end
   end

@@ -8,6 +8,7 @@ export type JobsOptions = BaseJobOptions & {
 
   /**
    * If true, moves parent to failed.
+   * @defaultValue true
    */
   failParentOnFailure?: boolean;
 

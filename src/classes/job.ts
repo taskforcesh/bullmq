@@ -39,7 +39,7 @@ const logger = debuglog('bull');
 
 const optsDecodeMap = {
   de: 'debounce',
-  fpof: 'failParentOnFailure', // TODO: deprecate it in next breaking change
+  fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
@@ -1212,6 +1212,16 @@ export class Job<
 
     if (`${parseInt(this.id, 10)}` === this.id) {
       throw new Error('Custom Ids cannot be integers');
+    }
+
+    const failParentOnFailure =
+      this.opts.failParentOnFailure === undefined
+        ? true
+        : this.opts.failParentOnFailure;
+    if (this.opts.removeDependencyOnFailure && failParentOnFailure) {
+      throw new Error(
+        `RemoveDependencyOnFailure and failParentOnFailure options can not be true together`,
+      );
     }
 
     if (this.opts.priority) {

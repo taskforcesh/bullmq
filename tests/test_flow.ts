@@ -45,6 +45,7 @@ describe('flows', () => {
         queueName,
         async job => {
           if (job.name === 'child0') {
+            await delay(50);
             throw new Error('fail');
           }
         },
@@ -80,7 +81,7 @@ describe('flows', () => {
       });
 
       const failed = new Promise<void>(resolve => {
-        queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+        queueEvents.on('failed', async ({ jobId }) => {
           if (jobId === tree.job.id) {
             const { processed } = await tree.job!.getDependenciesCount();
             expect(processed).to.equal(1);
@@ -714,19 +715,28 @@ describe('flows', () => {
             name,
             data: { idx: 0, foo: 'bar' },
             queueName,
-            opts: { ignoreDependencyOnFailure: true },
+            opts: {
+              ignoreDependencyOnFailure: true,
+              failParentOnFailure: false,
+            },
           },
           {
             name,
             data: { idx: 1, foo: 'baz' },
             queueName,
-            opts: { ignoreDependencyOnFailure: true },
+            opts: {
+              ignoreDependencyOnFailure: true,
+              failParentOnFailure: false,
+            },
           },
           {
             name,
             data: { idx: 2, foo: 'qux' },
             queueName,
-            opts: { ignoreDependencyOnFailure: true },
+            opts: {
+              ignoreDependencyOnFailure: true,
+              failParentOnFailure: false,
+            },
           },
         ],
       });
@@ -819,19 +829,28 @@ describe('flows', () => {
             name,
             data: { idx: 0, foo: 'bar' },
             queueName,
-            opts: { removeDependencyOnFailure: true },
+            opts: {
+              removeDependencyOnFailure: true,
+              failParentOnFailure: false,
+            },
           },
           {
             name,
             data: { idx: 1, foo: 'baz' },
             queueName,
-            opts: { removeDependencyOnFailure: true },
+            opts: {
+              removeDependencyOnFailure: true,
+              failParentOnFailure: false,
+            },
           },
           {
             name,
             data: { idx: 2, foo: 'qux' },
             queueName,
-            opts: { removeDependencyOnFailure: true },
+            opts: {
+              removeDependencyOnFailure: true,
+              failParentOnFailure: false,
+            },
           },
         ],
       });
@@ -2197,7 +2216,10 @@ describe('flows', () => {
               name,
               data: { foo: 'qux' },
               queueName,
-              opts: { removeDependencyOnFailure: true },
+              opts: {
+                removeDependencyOnFailure: true,
+                failParentOnFailure: false,
+              },
               children: [
                 {
                   name,
