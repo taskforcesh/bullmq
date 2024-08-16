@@ -28,12 +28,16 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
           parentKey,
           timestamp
         )
-      elseif parentData['rdof'] then
+      elseif parentData['idof'] or parentData['rdof'] then
         local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
         local grandParentDependenciesSet = grandParentKey .. ":dependencies"
         if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
           moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
             grandParentKey, parentData['id'], timestamp)
+          if parentData['idof'] then
+            local grandParentFailedSet = grandParentKey .. ":failed"
+            rcall("HSET", grandParentFailedSet, parentKey, failedReason)
+          end
         end
       end
     end
