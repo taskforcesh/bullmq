@@ -152,6 +152,32 @@ describe('Job', function () {
       });
     });
 
+    describe('when removeDependencyOnFailure and ignoreDependencyOnFailure options are provided', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = {
+          removeDependencyOnFailure: true,
+          ignoreDependencyOnFailure: true,
+        };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'RemoveDependencyOnFailure and ignoreDependencyOnFailure options can not be used together',
+        );
+      });
+    });
+
+    describe('when failParentOnFailure and ignoreDependencyOnFailure options are provided', () => {
+      it('throws an error', async () => {
+        const data = { foo: 'bar' };
+        const opts = {
+          ignoreDependencyOnFailure: true,
+          failParentOnFailure: true,
+        };
+        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
+          'FailParentOnFailure and ignoreDependencyOnFailure options can not be used together',
+        );
+      });
+    });
+
     describe('when priority option is provided as float', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };

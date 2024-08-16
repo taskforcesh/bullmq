@@ -1216,6 +1216,21 @@ export class Job<
       );
     }
 
+    if (
+      this.opts.removeDependencyOnFailure &&
+      this.opts.ignoreDependencyOnFailure
+    ) {
+      throw new Error(
+        `RemoveDependencyOnFailure and ignoreDependencyOnFailure options can not be used together`,
+      );
+    }
+
+    if (this.opts.failParentOnFailure && this.opts.ignoreDependencyOnFailure) {
+      throw new Error(
+        `FailParentOnFailure and ignoreDependencyOnFailure options can not be used together`,
+      );
+    }
+
     if (`${parseInt(this.id, 10)}` === this.id) {
       throw new Error('Custom Ids cannot be integers');
     }
