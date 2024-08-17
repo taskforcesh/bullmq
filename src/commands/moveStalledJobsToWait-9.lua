@@ -27,8 +27,7 @@ local rcall = redis.call
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
 --- @include "includes/getTargetQueueList"
---- @include "includes/moveParentFromWaitingChildrenToFailed"
---- @include "includes/moveParentToWaitIfNeeded"
+--- @include "includes/moveParentIfNeeded"
 --- @include "includes/removeDebounceKeyIfNeeded"
 --- @include "includes/removeJob"
 --- @include "includes/removeJobsByMaxAge"
@@ -102,57 +101,8 @@ if (#stalling > 0) then
 
                         if rawParentData ~= false then
                             local parentData = cjson.decode(rawParentData)
-                            if parentData['ocf'] then
-                                if parentData['ocf'] == 'fail' then
-                                    moveParentFromWaitingChildrenToFailed(
-                                        parentData['queueKey'],
-                                        parentData['queueKey'] .. ':' .. parentData['id'],
-                                        parentData['id'],
-                                        jobKey,
-                                        timestamp
-                                    )
-                                elseif parentData['ocf'] == 'ignore' or parentData['ocf'] == 'remove' then
-                                    local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-                                    local dependenciesSet = parentKey .. ":dependencies"
-                                    if rcall("SREM", dependenciesSet, jobKey) == 1 then
-                                        moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
-                                                                 parentKey, parentData['id'], timestamp)
-                                        if parentData['ocf'] == 'ignore' then
-                                            local failedSet = parentKey .. ":failed"
-                                            rcall("HSET", failedSet, jobKey, failedReason)
-                                        end
-                                    end
-                                end
-                            else
-                                if parentData['fpof'] then
-                                    moveParentFromWaitingChildrenToFailed(
-                                        parentData['queueKey'],
-                                        parentData['queueKey'] .. ':' .. parentData['id'],
-                                        parentData['id'],
-                                        jobKey,
-                                        timestamp
-                                    )
-                                elseif parentData['idof'] or parentData['rdof'] then
-                                    local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-                                    local dependenciesSet = parentKey .. ":dependencies"
-                                    if rcall("SREM", dependenciesSet, jobKey) == 1 then
-                                        moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
-                                                                 parentKey, parentData['id'], timestamp)
-                                        if parentData['idof'] then
-                                           local failedSet = parentKey .. ":failed"
-                                           rcall("HSET", failedSet, jobKey, failedReason)
-                                        end
-                                    end
-                                else
-                                    moveParentFromWaitingChildrenToFailed(
-                                        parentData['queueKey'],
-                                        parentData['queueKey'] .. ':' .. parentData['id'],
-                                        parentData['id'],
-                                        jobKey,
-                                        timestamp
-                                    )
-                                end 
-                            end
+                            moveParentIfNeeded(parentData, parentData['queueKey'] .. ':' .. parentData['id'], jobKey,
+                               failedReason, timestamp)
                         end
 
                         if removeOnFailType == "number" then
