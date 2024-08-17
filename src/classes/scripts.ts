@@ -170,7 +170,7 @@ export class Scripts {
     const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof }
+      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
       : null;
 
     const args = [

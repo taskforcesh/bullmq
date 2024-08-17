@@ -62,6 +62,7 @@
   * [Queue Events Listeners](guide/nestjs/queue-events-listeners.md)
 * [Going to production](guide/going-to-production.md)
 * [Migration to newer versions](guide/migration-to-newer-versions.md)
+* [Troubleshooting](guide/troubleshooting.md)
 
 ## Patterns
 
