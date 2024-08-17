@@ -38,9 +38,6 @@
       opts - lockDuration - lock duration in milliseconds
       opts - attempts max attempts
       opts - maxMetricsSize
-      opts - fpof - fail parent on fail
-      opts - idof - ignore dependency on fail
-      opts - rdof - remove dependency on fail
 
     Output:
       0 OK
@@ -95,14 +92,6 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     end
 
     local jobAttributes = rcall("HMGET", jobIdKey, "parentKey", "parent", "deid")
-    local parentKey = jobAttributes[1] or ""
-    local parentId = ""
-    local parentQueueKey = ""
-    if jobAttributes[2] ~= false then
-        local jsonDecodedParent = cjson.decode(jobAttributes[2])
-        parentId = jsonDecodedParent['id']
-        parentQueueKey = jsonDecodedParent['queueKey']
-    end
 
     local jobId = ARGV[1]
     local timestamp = ARGV[2]
@@ -126,12 +115,13 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- 2) move the job Id to parent "processed" set
     -- 3) push the results into parent "results" list
     -- 4) if parent's dependencies is empty, then move parent to "wait/paused". Note it may be a different queue!.
-    if parentId == "" and parentKey ~= "" then
-        parentId = getJobIdFromKey(parentKey)
-        parentQueueKey = getJobKeyPrefix(parentKey, ":" .. parentId)
-    end
+    local parentKey = jobAttributes[1] or ""
 
-    if parentId ~= "" then
+    if jobAttributes[2] ~= false then
+        local parentData = cjson.decode(jobAttributes[2])
+        local parentId = parentData['id']
+        local parentQueueKey = parentData['queueKey']
+
         if ARGV[5] == "completed" then
             local dependenciesSet = parentKey .. ":dependencies"
             if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
@@ -140,20 +130,45 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
                                          ARGV[4], timestamp)
             end
         else
-            if opts['fpof'] or opts['fpof'] == nil then
-                moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
-                    parentId, jobIdKey,
-                    timestamp)
-            elseif opts['idof'] or opts['rdof'] then
-                local dependenciesSet = parentKey .. ":dependencies"
-                if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
-                    moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
-                                             parentKey, parentId, timestamp)
-                    if opts['idof'] then
-                        local failedSet = parentKey .. ":failed"
-                        rcall("HSET", failedSet, jobIdKey, ARGV[4])
+            if parentData['ocf'] then
+                if parentData['ocf'] then
+                    moveParentFromWaitingChildrenToFailed(
+                        parentQueueKey,
+                        parentKey,
+                        parentId,
+                        jobIdKey,
+                        timestamp)
+                elseif parentData['ocf'] == 'ignore' or parentData['ocf'] == 'remove' then
+                    local dependenciesSet = parentKey .. ":dependencies"
+                    if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
+                        moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
+                                                 parentKey, parentId, timestamp)
+                        if parentData['ocf'] == 'ignore' then
+                            local failedSet = parentKey .. ":failed"
+                            rcall("HSET", failedSet, jobIdKey, ARGV[4])
+                        end
                     end
-                end
+                end    
+            else
+                if parentData['fpof'] then
+                    moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
+                        parentId, jobIdKey,
+                        timestamp)
+                elseif opts['idof'] or opts['rdof'] then
+                    local dependenciesSet = parentKey .. ":dependencies"
+                    if rcall("SREM", dependenciesSet, jobIdKey) == 1 then
+                        moveParentToWaitIfNeeded(parentQueueKey, dependenciesSet,
+                                                 parentKey, parentId, timestamp)
+                        if opts['idof'] then
+                            local failedSet = parentKey .. ":failed"
+                            rcall("HSET", failedSet, jobIdKey, ARGV[4])
+                        end
+                    end
+                else
+                    moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
+                        parentId, jobIdKey,
+                        timestamp)
+                end    
             end
         end
     end

@@ -536,8 +536,6 @@ class Scripts:
             "attempts": job.attempts,
             "attemptsMade": job.attemptsMade,
             "maxMetricsSize": getMetricsSize(opts),
-            "fpof": opts.get("failParentOnFailure", False),
-            "idof": opts.get("ignoreDependencyOnFailure", False)
         }, use_bin_type=True)
 
         args = [job.id, timestamp, propVal, transformed_value or "", target,

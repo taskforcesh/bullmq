@@ -378,7 +378,7 @@ describe('stalled jobs', function () {
       await queueEvents.close();
     });
 
-    describe('when failParentOnFailure is provided as true', function () {
+    describe('when onChildFailure is provided as fail', function () {
       it('should move parent to failed when child is moved to failed', async function () {
         this.timeout(6000);
         const concurrency = 4;
@@ -421,7 +421,7 @@ describe('stalled jobs', function () {
               name: 'test',
               data: { foo: 'bar' },
               queueName,
-              opts: { failParentOnFailure: true },
+              opts: { onChildFailure: 'fail' },
             },
           ],
         });
@@ -467,7 +467,7 @@ describe('stalled jobs', function () {
       });
     });
 
-    describe('when ignoreDependencyOnFailure is provided as true', function () {
+    describe('when onChildFailure is provided as ignore', function () {
       it('should move parent to waiting when child is moved to failed and save child failedReason', async function () {
         this.timeout(6000);
         const concurrency = 4;
@@ -510,7 +510,7 @@ describe('stalled jobs', function () {
               name: 'test',
               data: { foo: 'bar' },
               queueName,
-              opts: { ignoreDependencyOnFailure: true },
+              opts: { onChildFailure: 'ignore' },
             },
           ],
         });
@@ -561,7 +561,7 @@ describe('stalled jobs', function () {
       });
     });
 
-    describe('when removeDependencyOnFailure is provided as true', function () {
+    describe('when onChildFailure is provided as remove', function () {
       it('should move parent to waiting when child is moved to failed', async function () {
         this.timeout(6000);
         const concurrency = 4;
@@ -605,8 +605,7 @@ describe('stalled jobs', function () {
               data: { foo: 'bar' },
               queueName,
               opts: {
-                removeDependencyOnFailure: true,
-                failParentOnFailure: false,
+                onChildFailure: 'remove',
               },
             },
           ],

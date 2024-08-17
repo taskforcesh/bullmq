@@ -20,25 +20,56 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
 
     if jobAttributes[1] then
       local parentData = cjson.decode(jobAttributes[1])
-      if parentData['idof'] or parentData['rdof'] then
-        local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local grandParentDependenciesSet = grandParentKey .. ":dependencies"
-        if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
-          moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
-            grandParentKey, parentData['id'], timestamp)
-          if parentData['idof'] then
-            local grandParentFailedSet = grandParentKey .. ":failed"
-            rcall("HSET", grandParentFailedSet, parentKey, failedReason)
+      if parentData['ocf'] then
+        if parentData['ocf'] == 'fail' then
+          moveParentFromWaitingChildrenToFailed(
+            parentData['queueKey'],
+            parentData['queueKey'] .. ':' .. parentData['id'],
+            parentData['id'],
+            parentKey,
+            timestamp
+          )
+        elseif parentData['ocf'] == 'ignore' or parentData['ocf'] == 'remove' then
+          local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
+          local grandParentDependenciesSet = grandParentKey .. ":dependencies"
+          if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
+            moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
+              grandParentKey, parentData['id'], timestamp)
+            if parentData['ocf'] == 'ignore' then
+              local grandParentFailedSet = grandParentKey .. ":failed"
+              rcall("HSET", grandParentFailedSet, parentKey, failedReason)
+            end
           end
         end
-      elseif parentData['fpof'] then
-        moveParentFromWaitingChildrenToFailed(
-          parentData['queueKey'],
-          parentData['queueKey'] .. ':' .. parentData['id'],
-          parentData['id'],
-          parentKey,
-          timestamp
-        )
+      else
+        if parentData['fpof'] then
+          moveParentFromWaitingChildrenToFailed(
+            parentData['queueKey'],
+            parentData['queueKey'] .. ':' .. parentData['id'],
+            parentData['id'],
+            parentKey,
+            timestamp
+          )
+        elseif parentData['idof'] or parentData['rdof'] then
+          local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
+          local grandParentDependenciesSet = grandParentKey .. ":dependencies"
+          if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
+            moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
+              grandParentKey, parentData['id'], timestamp)
+            if parentData['idof'] then
+              local grandParentFailedSet = grandParentKey .. ":failed"
+              rcall("HSET", grandParentFailedSet, parentKey, failedReason)
+            end
+          end
+        else
+          moveParentFromWaitingChildrenToFailed(
+            parentData['queueKey'],
+            parentData['queueKey'] .. ':' .. parentData['id'],
+            parentData['id'],
+            parentKey,
+            timestamp
+          )
+        end
       end
     end
   end

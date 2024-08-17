@@ -662,7 +662,7 @@ describe('flows', () => {
     });
   });
 
-  describe('when ignoreDependencyOnFailure is provided', async () => {
+  describe('when onChildFailure is provided as ignore', async () => {
     it('moves parent to wait after children fail', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
@@ -716,8 +716,7 @@ describe('flows', () => {
             data: { idx: 0, foo: 'bar' },
             queueName,
             opts: {
-              ignoreDependencyOnFailure: true,
-              failParentOnFailure: false,
+              onChildFailure: 'ignore',
             },
           },
           {
@@ -725,8 +724,7 @@ describe('flows', () => {
             data: { idx: 1, foo: 'baz' },
             queueName,
             opts: {
-              ignoreDependencyOnFailure: true,
-              failParentOnFailure: false,
+              onChildFailure: 'ignore',
             },
           },
           {
@@ -734,8 +732,7 @@ describe('flows', () => {
             data: { idx: 2, foo: 'qux' },
             queueName,
             opts: {
-              ignoreDependencyOnFailure: true,
-              failParentOnFailure: false,
+              onChildFailure: 'ignore',
             },
           },
         ],
@@ -776,7 +773,7 @@ describe('flows', () => {
     }).timeout(8000);
   });
 
-  describe('when removeDependencyOnFailure is provided', async () => {
+  describe('when onChildFailure is provided as remove', async () => {
     it('moves parent to wait after children fail', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
@@ -830,8 +827,7 @@ describe('flows', () => {
             data: { idx: 0, foo: 'bar' },
             queueName,
             opts: {
-              removeDependencyOnFailure: true,
-              failParentOnFailure: false,
+              onChildFailure: 'remove',
             },
           },
           {
@@ -839,8 +835,7 @@ describe('flows', () => {
             data: { idx: 1, foo: 'baz' },
             queueName,
             opts: {
-              removeDependencyOnFailure: true,
-              failParentOnFailure: false,
+              onChildFailure: 'remove',
             },
           },
           {
@@ -848,8 +843,7 @@ describe('flows', () => {
             data: { idx: 2, foo: 'qux' },
             queueName,
             opts: {
-              removeDependencyOnFailure: true,
-              failParentOnFailure: false,
+              onChildFailure: 'remove',
             },
           },
         ],
@@ -2028,7 +2022,7 @@ describe('flows', () => {
     }).timeout(8000);
   });
 
-  describe('when failParentOnFailure option is provided', async () => {
+  describe('when onChildFailure option is provided as fail', async () => {
     it('should move parent to failed when child is moved to failed', async () => {
       const name = 'child-job';
 
@@ -2088,13 +2082,13 @@ describe('flows', () => {
             name,
             data: { foo: 'qux' },
             queueName,
-            opts: { failParentOnFailure: true },
+            opts: { onChildFailure: 'fail' },
             children: [
               {
                 name,
                 data: { foo: 'bar' },
                 queueName: grandChildrenQueueName,
-                opts: { failParentOnFailure: true },
+                opts: { onChildFailure: 'fail' },
               },
               {
                 name,
@@ -2164,7 +2158,7 @@ describe('flows', () => {
       await removeAllQueueData(new IORedis(redisHost), grandChildrenQueueName);
     }).timeout(8000);
 
-    describe('when removeDependencyOnFailure is provided', async () => {
+    describe('when onChildFailure is provided as remove', async () => {
       it('moves parent to wait after children fail', async () => {
         const name = 'child-job';
 
@@ -2217,15 +2211,14 @@ describe('flows', () => {
               data: { foo: 'qux' },
               queueName,
               opts: {
-                removeDependencyOnFailure: true,
-                failParentOnFailure: false,
+                onChildFailure: 'remove',
               },
               children: [
                 {
                   name,
                   data: { foo: 'bar' },
                   queueName: grandChildrenQueueName,
-                  opts: { failParentOnFailure: true },
+                  opts: { onChildFailure: 'fail' },
                 },
                 {
                   name,
@@ -2309,7 +2302,7 @@ describe('flows', () => {
       }).timeout(8000);
     });
 
-    describe('when ignoreDependencyOnFailure is provided', async () => {
+    describe('when onChildFailure is provided as ignore', async () => {
       it('moves parent to wait after children fail', async () => {
         const name = 'child-job';
 
@@ -2361,13 +2354,13 @@ describe('flows', () => {
               name,
               data: { foo: 'qux' },
               queueName,
-              opts: { ignoreDependencyOnFailure: true },
+              opts: { onChildFailure: 'ignore' },
               children: [
                 {
                   name,
                   data: { foo: 'bar' },
                   queueName: grandChildrenQueueName,
-                  opts: { failParentOnFailure: true },
+                  opts: { onChildFailure: 'fail' },
                 },
                 {
                   name,

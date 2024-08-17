@@ -2,7 +2,7 @@
 
 In some situations, you may have a parent job and need to ignore when one of its children fail.
 
-The pattern to solve this requirement consists on using the **ignoreDependencyOnFailure** option. This option will make sure that when a job fails, the dependency is ignored from the parent, so the parent will complete without waiting for the failed children.
+The pattern to solve this requirement consists on using the **onChildFailure** option as **ignore**. This option will make sure that when a job fails, the dependency is ignored from the parent, so the parent will complete without waiting for the failed children.
 
 ```typescript
 const flow = new FlowProducer({ connection });
@@ -16,7 +16,7 @@ const originalTree = await flow.add({
       name,
       data: { idx: 0, foo: 'bar' },
       queueName: 'childrenQueueName',
-      opts: { ignoreDependencyOnFailure: true },
+      opts: { onChildFailure: 'ignore' },
       children: [
         {
           name,

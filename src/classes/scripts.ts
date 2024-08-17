@@ -170,7 +170,7 @@ export class Scripts {
     const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
+      ? { ...job.parent, ocf: opts.ocf }
       : null;
 
     const args = [
@@ -487,12 +487,6 @@ export class Scripts {
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
-        fpof:
-          job.opts?.failParentOnFailure === undefined
-            ? true
-            : job.opts?.failParentOnFailure,
-        idof: !!job.opts?.ignoreDependencyOnFailure,
-        rdof: !!job.opts?.removeDependencyOnFailure,
       }),
     ];
 
