@@ -41,7 +41,7 @@ class Queue(EventEmitter):
         """
         job = Job(self, name, data, opts)
         job_id = await self.scripts.addJob(job)
-        job.id = job_id
+        job.id = job_id.decode("utf-8")
         return job
 
     async def addBulk(self, jobs: list[dict[str, dict | str]]):
