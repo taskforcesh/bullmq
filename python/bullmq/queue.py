@@ -31,7 +31,7 @@ class Queue(EventEmitter):
     def toKey(self, type: str):
         return self.scripts.queue_keys.toKey(self.name, type)
 
-    async def add(self, name: str, data, opts: JobOptions = {}):
+    async def add(self, name: str, data, opts: JobOptions = {}) -> Job:
         """
         Adds a new job to the queue.
 
@@ -41,7 +41,7 @@ class Queue(EventEmitter):
         """
         job = Job(self, name, data, opts)
         job_id = await self.scripts.addJob(job)
-        job.id = job_id.decode("utf-8")
+        job.id = int(job_id) if job_id.isdigit() else job_id
         return job
 
     async def addBulk(self, jobs: list[dict[str, dict | str]]):
