@@ -232,8 +232,9 @@ class Job:
         job.failedReason = decodedData.get("failedReason")
 
         job.attemptsStarted = decodedData.get("ats", 0)
-        attemptsMade = decodedData.get("attemptsMade")
-        job.attemptsMade = attemptsMade if attemptsMade else job.attemptsStarted
+        job.attemptsMade = int(
+            decodedData.get("attemptsMade") or decodedData.get("atm") or "0"
+        )
         
         job.returnvalue = decodedData.get("returnvalue")
         job.stacktrace = decodedData.get("stacktrace", [])
