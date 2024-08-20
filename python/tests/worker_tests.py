@@ -454,5 +454,36 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close(force=True)
         await queue.close()
 
+    async def test_getting_job_data_in_process(self) -> None:
+        queue = Queue(queueName)
+        data = {"foo": "bar"}
+        job = await queue.add(
+            "test-job", data,
+            {"removeOnComplete": False}
+        )
+
+        async def process(job: Job, token: str) -> str:
+            return job.data
+
+        worker = Worker(queueName, process)
+        processing = Future()
+        worker.on(
+            "completed",
+            lambda job, result: processing.set_result(None)
+        )
+
+        await processing
+        completedJob = await Job.fromId(queue, job.id)
+
+        self.assertEqual(completedJob.id, job.id)
+        self.assertEqual(completedJob.attemptsMade, 1)
+        self.assertEqual(completedJob.data, data)
+        self.assertEqual(completedJob.returnvalue, data)
+        self.assertNotEqual(completedJob.finishedOn, None)
+
+        await worker.close(force=True)
+        await queue.close()
+
+
 if __name__ == '__main__':
     unittest.main()
