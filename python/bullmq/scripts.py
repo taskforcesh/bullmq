@@ -22,6 +22,13 @@ import os
 basePath = os.path.dirname(os.path.realpath(__file__))
 
 
+onChildFailureMap = {
+    'fail': 'f',
+    'ignore': 'i',
+    'remove': 'r',
+    'wait': 'w'
+}
+
 class Scripts:
 
     def __init__(self, prefix: str, queueName: str, redisConnection: RedisConnection):
@@ -92,6 +99,12 @@ class Scripts:
 
         jsonData = json.dumps(job.data, separators=(',', ':'), allow_nan=False)
         packedOpts = msgpack.packb(job.opts)
+
+        parent = {}
+        parent.update(job.parent or {})
+        parent.update({
+            'ocf': onChildFailureMap.get(job.opts.get("ocf", ''), None)
+        })
 
         parent = job.parent
         parentKey = job.parentKey
