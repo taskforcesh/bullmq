@@ -4,8 +4,13 @@ from bullmq.scripts import Scripts
 from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
+
 from bullmq.types import JobOptions
-from bullmq.utils import get_parent_key
+from .utils import (
+    decodeByteJSON,
+    decodeByteString,
+    get_parent_key
+)
 
 import json
 import time
@@ -217,12 +222,12 @@ class Job:
         @param json: the plain object containing the job.
         @param jobId: an optional job id (overrides the id coming from the JSON object)
         """
-        decodedData = _decodeRawData(rawData)
+        decodedData = decodeByteJSON(rawData)
         data = decodedData.get("data", {})
         opts = optsFromJSON(decodedData.get("opts", {}))
         job = Job(queue, decodedData.get("name"), data, opts)
         
-        job.id = _decodeByteString(jobId) or decodedData.get("id", "")
+        job.id = decodeByteString(jobId) or decodedData.get("id", "")
         job.progress = decodedData.get("progress",  0)
         job.delay = decodedData.get("delay", 0)
         job.timestamp = decodedData.get("timestamp", 0)
@@ -265,51 +270,6 @@ class Job:
         result = await multi.execute()
 
         return min(keepLogs, result[0]) if keepLogs else result[0]
-
-
-def _decodeByteString(raw: bytes) -> str:
-    """
-    This function decode byte string
-
-    :param raw: byte string (bytes)
-    :return:
-    """
-    return raw.decode("utf-8") if isinstance(raw, bytes) else raw
-
-
-def _decodeRawData(rawData: dict) -> dict:
-    """
-    This function decode a dict where keys or values maybe are byte strings and
-    convert them into their appropriate Python types.
-
-    This function performs the following operations:
-    1. Decodes byte strings to UTF-8 text strings.
-    2. Attempts to parse JSON strings into Python dictionaries or lists.
-    3. Leaves non-JSON strings as they are.
-
-    :param rawData: A dictionary where keys and values are byte strings
-                    (i.e., instances of `bytes`). Example format:
-                    {b'key': b'value', b'json_key': b'{"nested_key": "nested_value"}'}
-
-    :return: A dictionary with text string keys and values. JSON strings
-             are parsed into Python objects (dictionaries or lists), while
-             other string values remain unchanged. Example output:
-             {'key': 'value', 'json_key': {'nested_key': 'nested_value'}}
-
-    :rtype: dict
-
-    :raises TypeError: If `rawData` is not of type `dict` or if the keys or values
-                       are not of type `bytes`.
-    """
-    decodedData = {}
-    
-    for key, value in rawData.items():
-        key, value = _decodeByteString(key), _decodeByteString(value)
-        try:
-            decodedData[key] = json.loads(value)
-        except (json.JSONDecodeError, TypeError):
-            decodedData[key] = value
-    return decodedData
 
 
 def optsFromJSON(rawOpts: dict) -> dict:

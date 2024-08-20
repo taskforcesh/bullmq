@@ -2,7 +2,7 @@ import asyncio
 from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
 from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
-from bullmq.utils import extract_result
+from .utils import extract_result, decodeByteString
 from bullmq.scripts import Scripts
 from bullmq.job import Job
 
@@ -41,7 +41,7 @@ class Queue(EventEmitter):
         """
         job = Job(self, name, data, opts)
         job_id = await self.scripts.addJob(job)
-        job.id = int(job_id) if job_id.isdigit() else job_id
+        job.id = decodeByteString(job_id)
         return job
 
     async def addBulk(self, jobs: list[dict[str, dict | str]]):
