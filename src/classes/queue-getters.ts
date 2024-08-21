@@ -114,6 +114,17 @@ export class QueueGetters<
   }
 
   /**
+   * Get jobId that starts debounced state.
+   *
+   * @param id - debounce identifier
+   */
+  async getDebounceJobId(id: string): Promise<string | null> {
+    const client = await this.client;
+
+    return client.get(`${this.keys.de}:${id}`);
+  }
+
+  /**
    * Job counts by type
    *
    * Queue#getJobCountByTypes('completed') => completed count
