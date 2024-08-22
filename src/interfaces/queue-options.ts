@@ -1,6 +1,7 @@
 import { AdvancedRepeatOptions } from './advanced-options';
 import { DefaultJobOptions } from './base-job-options';
 import { ConnectionOptions } from './redis-options';
+import { Telemetry } from './opentelemetry';
 
 export enum ClientType {
   blocking = 'blocking',
@@ -55,6 +56,8 @@ export interface QueueOptions extends QueueBaseOptions {
   };
 
   settings?: AdvancedRepeatOptions;
+
+  telemetry?: Telemetry;
 }
 
 /**
