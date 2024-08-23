@@ -44,6 +44,15 @@ This mode is particularly useful for jobs that have a long running time or those
 Any manual deletion will disable the debouncing. For example, when calling _job.remove_ method.
 {% endhint %}
 
+## Remove Debounce Key
+
+If you need to stop debouncing before ttl finishes or before finishing a job. You can call **removeDebounceKey** method.
+
+```typescript
+await myQueue.removeDebounceKey('customValue');
+```
+
 ## Read more:
 
 - 💡 [Add Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#add)
+- 💡 [Remove Debounce Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeDebounceKey)
