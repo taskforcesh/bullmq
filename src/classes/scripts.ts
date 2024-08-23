@@ -39,6 +39,13 @@ import { ChainableCommander } from 'ioredis';
 
 export type JobData = [JobJsonRaw | number, string?];
 
+const onChildFailureMap = {
+  fail: 'f',
+  ignore: 'i',
+  remove: 'r',
+  wait: 'w',
+};
+
 export class Scripts {
   moveToFinishedKeys: (string | undefined)[];
 
@@ -170,7 +177,7 @@ export class Scripts {
     const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
+      ? { ...job.parent, ocf: onChildFailureMap[opts.ocf] }
       : null;
 
     const args = [
@@ -487,9 +494,6 @@ export class Scripts {
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
-        fpof: !!job.opts?.failParentOnFailure,
-        idof: !!job.opts?.ignoreDependencyOnFailure,
-        rdof: !!job.opts?.removeDependencyOnFailure,
       }),
     ];
 
