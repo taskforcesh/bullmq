@@ -4,6 +4,7 @@ import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
 import { KeepJobs } from './keep-jobs';
+import { Telemetry } from './telemetry';
 
 /**
  * An async function that receives `Job`s and handles them.
@@ -144,6 +145,8 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default false
    */
   useWorkerThreads?: boolean;
+
+  telemetry?: Telemetry;
 }
 
 export interface GetNextJobOptions {

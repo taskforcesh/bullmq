@@ -1,4 +1,4 @@
-export enum OpenTelemetryAttributes {
+export enum TelemetryAttributes {
   QueueName = 'bullmq.queue.name',
   WorkerName = 'bullmq.worker.name',
   BulkCount = 'bullmq.job.bulk.count',
@@ -15,4 +15,11 @@ export enum OpenTelemetryAttributes {
   JobTimestamp = 'bullmq.job.timestamp',
   QueueOptions = 'bullmq.queue.options',
   QueueEventMaxLength = 'bullmq.queue.event.max.length',
+  WorkerOptions = 'bullmq.worker.options',
+  WorkerToken = 'bullmq.worker.token',
+  WorkerId = 'bullmq.worker.id',
+  WorkerRateLimit = 'bullmq.worker.rate.limit',
+  WorkerDoNotWaitActive = 'bullmq.worker.do.not.wait.active',
+  WorkerForceClose = 'bullmq.worker.force.close',
+  WorkerJobsInvolved = 'bullmq.worker.jobs.involved',
 }

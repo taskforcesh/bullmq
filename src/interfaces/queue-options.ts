@@ -1,7 +1,7 @@
 import { AdvancedRepeatOptions } from './advanced-options';
 import { DefaultJobOptions } from './base-job-options';
 import { ConnectionOptions } from './redis-options';
-import { Telemetry } from './opentelemetry';
+import { Telemetry } from './telemetry';
 
 export enum ClientType {
   blocking = 'blocking',

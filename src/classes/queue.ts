@@ -13,7 +13,7 @@ import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
-import { OpenTelemetryAttributes } from '../enums';
+import { TelemetryAttributes } from '../enums';
 
 export interface ObliterateOpts {
   /**
@@ -230,7 +230,7 @@ export class Queue<
       const spanName = `${this.name}.${name} Queue.add`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueName]: this.name,
       });
     }
 
@@ -272,6 +272,10 @@ export class Queue<
       this.emit('waiting', job);
 
       if (this.tracer) {
+        span.setAttributes({
+          [TelemetryAttributes.JobId]: job.id,
+        });
+
         span.end();
       }
 
@@ -286,7 +290,7 @@ export class Queue<
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
    */
-  addBulk(
+  async addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
   ): Promise<Job<DataType, ResultType, NameType>[]> {
     let span;
@@ -295,13 +299,13 @@ export class Queue<
       const spanName = `${this.name} Queue.addBulk`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.BulkNames]: jobsInBulk,
-        [OpenTelemetryAttributes.BulkCount]: jobsInBulk.length,
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.BulkNames]: jobsInBulk,
+        [TelemetryAttributes.BulkCount]: jobsInBulk.length,
       });
     }
 
-    const bulk = this.Job.createBulk<DataType, ResultType, NameType>(
+    const bulk = await this.Job.createBulk<DataType, ResultType, NameType>(
       this as MinimalQueue,
       jobs.map(job => ({
         name: job.name,
@@ -338,7 +342,7 @@ export class Queue<
       const spanName = `${this.name} Queue.pause`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueName]: this.name,
       });
     }
 
@@ -361,7 +365,7 @@ export class Queue<
       const spanName = `${this.name} Queue.close`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueName]: this.name,
       });
     }
 
@@ -371,7 +375,7 @@ export class Queue<
       }
     }
 
-    super.close();
+    await super.close();
 
     if (this.tracer) {
       span.end();
@@ -389,7 +393,7 @@ export class Queue<
       const spanName = `${this.name} Queue.resume`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueName]: this.name,
       });
     }
 
@@ -457,7 +461,7 @@ export class Queue<
       const spanName = `${this.name} ${name} Queue.removeRepeatable`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueName]: this.name,
       });
     }
 
@@ -482,7 +486,7 @@ export class Queue<
       const spanName = `${this.name} ${id} Queue.removeDebounceKey`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueName]: this.name,
       });
     }
 
@@ -513,8 +517,8 @@ export class Queue<
       const spanName = `${this.name} ${key} Queue.removeRepeatableByKey`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.JobKey]: key,
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.JobKey]: key,
       });
     }
 
@@ -543,9 +547,9 @@ export class Queue<
       const spanName = `${this.name} ${jobId} Queue.remove`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.JobId]: jobId,
-        [OpenTelemetryAttributes.JobOptions]: JSON.stringify({
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.JobId]: jobId,
+        [TelemetryAttributes.JobOptions]: JSON.stringify({
           removeChildren,
         }),
       });
@@ -575,9 +579,9 @@ export class Queue<
       const spanName = `${this.name} Queue.updateJobProgress`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.JobId]: jobId,
-        [OpenTelemetryAttributes.JobProgress]: JSON.stringify(progress),
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.JobId]: jobId,
+        [TelemetryAttributes.JobProgress]: JSON.stringify(progress),
       });
     }
 
@@ -618,8 +622,8 @@ export class Queue<
       const spanName = `${this.name} Queue.drain`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.QueueDrainDelay]: delayed,
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueDrainDelay]: delayed,
       });
     }
 
@@ -657,9 +661,9 @@ export class Queue<
       const spanName = `${this.name} Queue.clean`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.QueueGrace]: grace,
-        [OpenTelemetryAttributes.JobType]: type,
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueGrace]: grace,
+        [TelemetryAttributes.JobType]: type,
       });
     }
 
@@ -671,8 +675,8 @@ export class Queue<
 
     if (this.tracer) {
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueCleanLimit]: maxCount,
-        [OpenTelemetryAttributes.JobTimestamp]: timestamp,
+        [TelemetryAttributes.QueueCleanLimit]: maxCount,
+        [TelemetryAttributes.JobTimestamp]: timestamp,
       });
     }
 
@@ -694,7 +698,7 @@ export class Queue<
 
     if (this.tracer) {
       span.setAttributes({
-        [OpenTelemetryAttributes.JobId]: deletedJobsIds,
+        [TelemetryAttributes.JobId]: deletedJobsIds,
       });
 
       span.end();
@@ -720,7 +724,7 @@ export class Queue<
       const spanName = `${this.name} Queue.obliterate`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueName]: this.name,
       });
     }
 
@@ -758,8 +762,8 @@ export class Queue<
       const spanName = `${this.name} Queue.retryJobs`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.QueueOptions]: JSON.stringify(opts),
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueOptions]: JSON.stringify(opts),
       });
     }
 
@@ -791,8 +795,8 @@ export class Queue<
       const spanName = `${this.name} Queue.promoteJobs`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.QueueOptions]: JSON.stringify(opts),
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueOptions]: JSON.stringify(opts),
       });
     }
 
@@ -817,8 +821,8 @@ export class Queue<
       const spanName = `${this.name} Queue.trimEvents`;
       span = this.tracer.startSpan(spanName);
       span.setAttributes({
-        [OpenTelemetryAttributes.QueueName]: this.name,
-        [OpenTelemetryAttributes.QueueEventMaxLength]: maxLength,
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueEventMaxLength]: maxLength,
       });
     }
 

@@ -35,6 +35,8 @@ import {
   RATE_LIMIT_ERROR,
   WaitingChildrenError,
 } from './errors';
+import { Tracer } from '../interfaces';
+import { TelemetryAttributes } from '../enums';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -190,6 +192,8 @@ export class Worker<
   protected processFn: Processor<DataType, ResultType, NameType>;
   protected running = false;
 
+  private tracer: Tracer | undefined;
+
   static RateLimitError(): Error {
     return new RateLimitError();
   }
@@ -314,6 +318,8 @@ export class Worker<
     this.blockingConnection.on('ready', () =>
       setTimeout(() => this.emit('ready'), 0),
     );
+
+    this.tracer = opts?.telemetry.tracer;
   }
 
   emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
@@ -402,11 +408,30 @@ export class Worker<
   }
 
   async run() {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.run`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+        [TelemetryAttributes.WorkerOptions]: JSON.stringify(this.opts),
+      });
+    }
+
     if (!this.processFn) {
+      if (this.tracer) {
+        span.end();
+      }
+
       throw new Error('No process function is defined.');
     }
 
     if (this.running) {
+      if (this.tracer) {
+        span.end();
+      }
+
       throw new Error('Worker is already running.');
     }
 
@@ -507,10 +532,14 @@ export class Worker<
       }
 
       this.running = false;
-      return asyncFifoQueue.waitAll();
+      return await asyncFifoQueue.waitAll();
     } catch (error) {
       this.running = false;
       throw error;
+    } finally {
+      if (this.tracer) {
+        span.end();
+      }
     }
   }
 
@@ -520,12 +549,30 @@ export class Worker<
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
-    return this._getNextJob(
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.getNextJob`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+        [TelemetryAttributes.WorkerToken]: token,
+        [TelemetryAttributes.WorkerOptions]: JSON.stringify({ block }),
+      });
+    }
+
+    const nextJob = await this._getNextJob(
       await this.client,
       await this.blockingConnection.client,
       token,
       { block },
     );
+
+    if (this.tracer) {
+      span.end();
+    }
+
+    return nextJob;
   }
 
   private async _getNextJob(
@@ -585,6 +632,17 @@ export class Worker<
    * @param expireTimeMs - expire time in ms of this rate limit.
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.rateLimit`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+        [TelemetryAttributes.WorkerRateLimit]: expireTimeMs,
+      });
+    }
+
     await this.client.then(client =>
       client.set(
         this.keys.limiter,
@@ -593,6 +651,10 @@ export class Worker<
         expireTimeMs,
       ),
     );
+
+    if (this.tracer) {
+      span.end();
+    }
   }
 
   get minimumBlockTimeout(): number {
@@ -743,7 +805,23 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.processJob`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+        [TelemetryAttributes.WorkerToken]: token,
+        [TelemetryAttributes.JobId]: job.id,
+      });
+    }
+
     if (!job || this.closing || this.paused) {
+      if (this.tracer) {
+        span.end();
+      }
+
       return;
     }
 
@@ -808,6 +886,10 @@ will never work with more accuracy than 1ms. */
       return handleFailed(<Error>err);
     } finally {
       jobsInProgress.delete(inProgressItem);
+
+      if (this.tracer) {
+        span.end();
+      }
     }
   }
 
@@ -816,6 +898,17 @@ will never work with more accuracy than 1ms. */
    * Pauses the processing of this queue only for this worker.
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.pause`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+        [TelemetryAttributes.WorkerDoNotWaitActive]: doNotWaitActive,
+      });
+    }
+
     if (!this.paused) {
       this.paused = new Promise(resolve => {
         this.resumeWorker = function () {
@@ -827,6 +920,10 @@ will never work with more accuracy than 1ms. */
       await (!doNotWaitActive && this.whenCurrentJobsFinished());
       this.emit('paused');
     }
+
+    if (this.tracer) {
+      span.end();
+    }
   }
 
   /**
@@ -834,9 +931,23 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.resume`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+      });
+    }
+
     if (this.resumeWorker) {
       this.resumeWorker();
       this.emit('resumed');
+    }
+
+    if (this.tracer) {
+      span.end();
     }
   }
 
@@ -872,7 +983,22 @@ will never work with more accuracy than 1ms. */
    * @returns Promise that resolves when the worker has been closed.
    */
   close(force = false): Promise<void> {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.close`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+        [TelemetryAttributes.WorkerForceClose]: force,
+      });
+    }
+
     if (this.closing) {
+      if (this.tracer) {
+        span.end();
+      }
+
       return this.closing;
     }
     this.closing = (async () => {
@@ -905,6 +1031,10 @@ will never work with more accuracy than 1ms. */
 
       this.closed = true;
       this.emit('closed');
+
+      if (this.tracer) {
+        span.end();
+      }
     })();
     return this.closing;
   }
@@ -922,6 +1052,16 @@ will never work with more accuracy than 1ms. */
    * @see {@link https://docs.bullmq.io/patterns/manually-fetching-jobs}
    */
   async startStalledCheckTimer(): Promise<void> {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.startStalledCheckTimer`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+      });
+    }
+
     if (!this.opts.skipStalledCheck) {
       clearTimeout(this.stalledCheckTimer);
 
@@ -935,6 +1075,10 @@ will never work with more accuracy than 1ms. */
           this.emit('error', <Error>err);
         }
       }
+    }
+
+    if (this.tracer) {
+      span.end();
     }
   }
 
@@ -1017,6 +1161,17 @@ will never work with more accuracy than 1ms. */
   }
 
   protected async extendLocks(jobs: Job[]) {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.extendLocks`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+        [TelemetryAttributes.WorkerJobsInvolved]: JSON.stringify(jobs),
+      });
+    }
+
     try {
       const pipeline = (await this.client).pipeline();
       for (const job of jobs) {
@@ -1040,10 +1195,24 @@ will never work with more accuracy than 1ms. */
       }
     } catch (err) {
       this.emit('error', <Error>err);
+    } finally {
+      if (this.tracer) {
+        span.end();
+      }
     }
   }
 
   private async moveStalledJobsToWait() {
+    let span;
+    if (this.tracer) {
+      const spanName = `${this.name} ${this.id} Worker.moveStalledJobsToWait`;
+      span = this.tracer.startSpan(spanName);
+      span.setAttributes({
+        [TelemetryAttributes.WorkerName]: this.name,
+        [TelemetryAttributes.WorkerId]: this.id,
+      });
+    }
+
     const chunkSize = 50;
     const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
 
@@ -1065,6 +1234,10 @@ will never work with more accuracy than 1ms. */
     }
 
     this.notifyFailedJobs(await Promise.all(jobPromises));
+
+    if (this.tracer) {
+      span.end();
+    }
   }
 
   private notifyFailedJobs(failedJobs: Job<DataType, ResultType, NameType>[]) {

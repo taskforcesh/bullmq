@@ -2,4 +2,4 @@ export * from './child-command';
 export * from './error-code';
 export * from './parent-command';
 export * from './metrics-time';
-export * from './opentelemetry-attributes';
+export * from './telemetry-attributes';
