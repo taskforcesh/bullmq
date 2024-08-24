@@ -235,8 +235,8 @@ export class Queue<
     } else {
       const jobId = opts?.jobId;
 
-      if (jobId == '0' || jobId?.startsWith('0:')) {
-        throw new Error("JobId cannot be '0' or start with 0:");
+      if (jobId == '0' || jobId?.includes(':')) {
+        throw new Error("JobId cannot be '0' or include :");
       }
 
       const job = await this.Job.create<DataType, ResultType, NameType>(

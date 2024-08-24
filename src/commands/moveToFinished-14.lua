@@ -198,24 +198,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
         jobId = rcall("RPOPLPUSH", KEYS[1], KEYS[2])
 
         if jobId then
-            -- Markers in waitlist DEPRECATED in v5: Remove in v6.
-            if string.sub(jobId, 1, 2) == "0:" then
-                rcall("LREM", KEYS[2], 1, jobId)
-
-                -- If jobId is special ID 0:delay (delay greater than 0), then there is no job to process
-                -- but if ID is 0:0, then there is at least 1 prioritized job to process
-                if jobId == "0:0" then
-                    jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2],
-                                                        KEYS[10])
-                    return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
-                                                   timestamp, maxJobs,
-                                                   opts)
-                end
-            else
-                return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
-                                               timestamp, maxJobs,
-                                               opts)
-            end
+            return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
+                                            timestamp, maxJobs, opts)
         else
             jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
             if jobId then

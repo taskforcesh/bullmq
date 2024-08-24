@@ -69,12 +69,6 @@ if isPausedOrMaxed then return {0, 0, 0, 0} end
 -- no job ID, try non-blocking move from wait to active
 local jobId = rcall("RPOPLPUSH", waitKey, activeKey)
 
--- Markers in waitlist DEPRECATED in v5: Will be completely removed in v6.
-if jobId and string.sub(jobId, 1, 2) == "0:" then
-    rcall("LREM", activeKey, 1, jobId)
-    jobId = rcall("RPOPLPUSH", waitKey, activeKey)
-end
-
 if jobId then
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                    maxJobs, opts)
