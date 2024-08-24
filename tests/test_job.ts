@@ -100,6 +100,13 @@ describe('Job', function () {
       );
     });
 
+    it('should fail when custom jobId contains :', async () => {
+      const opts = { jobId: 'job:id' };
+      await expect(Job.create(queue, 'test', {}, opts)).to.be.rejectedWith(
+        "JobId cannot be '0' or contain :",
+      );
+    });
+
     it('should set default size limit with non-ascii data and fail due to size limit exception', async () => {
       const data = { foo: 'βÅ®' }; // 16 bytes
       const opts = { sizeLimit: 15 };

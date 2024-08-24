@@ -236,7 +236,7 @@ export class Queue<
       const jobId = opts?.jobId;
 
       if (jobId == '0' || jobId?.includes(':')) {
-        throw new Error("JobId cannot be '0' or include :");
+        throw new Error("JobId cannot be '0' or contain :");
       }
 
       const job = await this.Job.create<DataType, ResultType, NameType>(
