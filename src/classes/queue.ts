@@ -117,7 +117,7 @@ export class Queue<
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
 
-    this.tracer = opts?.telemetry.tracer;
+    this.tracer = opts?.telemetry?.tracer;
 
     this.waitUntilReady()
       .then(client => {

@@ -319,7 +319,7 @@ export class Worker<
       setTimeout(() => this.emit('ready'), 0),
     );
 
-    this.tracer = opts?.telemetry.tracer;
+    this.tracer = opts?.telemetry?.tracer;
   }
 
   emit<U extends keyof WorkerListener<DataType, ResultType, NameType>>(
