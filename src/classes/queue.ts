@@ -456,6 +456,13 @@ export class Queue<
   }
 
   /**
+   * Remove legacy markers before v5
+   */
+  removeLegacyMarkers(): Promise<void> {
+    return this.scripts.removeLegacyMarkers();
+  }
+
+  /**
    * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
    *
