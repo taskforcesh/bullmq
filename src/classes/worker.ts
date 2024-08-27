@@ -192,6 +192,11 @@ export class Worker<
   protected processFn: Processor<DataType, ResultType, NameType>;
   protected running = false;
 
+  /**
+   * Instance of a telemetry client
+   * To use it create if statement in a method to observe with start and end of a span
+   * It will check if tracer is provided and if not it will continue as is
+   */
   private tracer: Tracer | undefined;
 
   static RateLimitError(): Error {

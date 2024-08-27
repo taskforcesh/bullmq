@@ -57,6 +57,9 @@ export interface QueueOptions extends QueueBaseOptions {
 
   settings?: AdvancedRepeatOptions;
 
+  /**
+   * Telemetry client
+   */
   telemetry?: Telemetry;
 }
 

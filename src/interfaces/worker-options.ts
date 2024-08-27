@@ -146,6 +146,9 @@ export interface WorkerOptions extends QueueBaseOptions {
    */
   useWorkerThreads?: boolean;
 
+  /**
+   * Telemetry client
+   */
   telemetry?: Telemetry;
 }
 

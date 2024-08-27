@@ -99,6 +99,12 @@ export class Queue<
   jobsOpts: BaseJobOptions;
   opts: QueueOptions;
   private _repeat?: Repeat;
+
+  /**
+   * Instance of a telemetry client
+   * To use it create if statement in a method to observe with start and end of a span
+   * It will check if tracer is provided and if not it will continue as is
+   */
   private tracer: Tracer | undefined;
 
   constructor(
