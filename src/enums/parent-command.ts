@@ -2,6 +2,7 @@ export enum ParentCommand {
   Completed,
   Error,
   Failed,
+  GetChildrenValues,
   InitFailed,
   InitCompleted,
   Log,

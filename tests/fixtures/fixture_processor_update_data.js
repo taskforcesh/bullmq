@@ -7,6 +7,7 @@
 const delay = require('./delay');
 
 module.exports = function (job) {
+  console.log('ya pus');
   return delay(50)
     .then(() => {
       job.updateData({ foo: 'bar' });

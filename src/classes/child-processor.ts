@@ -1,5 +1,5 @@
-import { ParentCommand } from '../enums';
-import { SandboxedJob } from '../interfaces';
+import { ChildCommand, ParentCommand } from '../enums';
+import { SandboxedJob, ParentMessage } from '../interfaces';
 import { JobJsonSandbox } from '../types';
 import { errorToJSON } from '../utils';
 
@@ -158,6 +158,46 @@ export class ChildProcessor {
           cmd: ParentCommand.Update,
           value: data,
         });
+      },
+      /*
+       * Emulate the real job `getChildrenValues` function.
+       */
+      getChildrenValues: async <CT = any>(): Promise<{
+        [jobKey: string]: CT;
+      }> => {
+        let msgHandler: any;
+
+        console.log('hola');
+        const done = new Promise<{
+          [jobKey: string]: CT;
+        }>((resolve, reject) => {
+          msgHandler = async (msg: ParentMessage) => {
+            switch (msg.cmd) {
+              case ChildCommand.GetChildrenValues: {
+                console.log('se llamo', msg.value);
+                resolve(msg.value);
+                break;
+              }
+              case ChildCommand.GetChildrenValuesError: {
+                console.log('un error', msg.value);
+                const err = new Error();
+                Object.assign(err, msg.value);
+                reject(err);
+                break;
+              }
+            }
+          };
+        });
+
+        process.on('message', msgHandler);
+        send({
+          cmd: ParentCommand.GetChildrenValues,
+        });
+
+        const childrenValues = await done;
+        process.removeListener('message', msgHandler);
+
+        return childrenValues;
       },
     };
   }

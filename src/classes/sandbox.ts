@@ -1,3 +1,4 @@
+import { errorToJSON } from '../utils';
 import { ChildCommand, ParentCommand } from '../enums';
 import { ChildMessage } from '../interfaces';
 import { ChildPool } from './child-pool';
@@ -20,6 +21,7 @@ const sandbox = <T, R, N extends string>(
 
     const done: Promise<R> = new Promise((resolve, reject) => {
       msgHandler = async (msg: ChildMessage) => {
+        console.log('el cmd', msg.cmd);
         switch (msg.cmd) {
           case ParentCommand.Completed:
             resolve(msg.value);
@@ -43,6 +45,24 @@ const sandbox = <T, R, N extends string>(
           case ParentCommand.Update:
             await job.updateData(msg.value);
             break;
+          case ParentCommand.GetChildrenValues: {
+            try {
+              console.log('antes');
+              const value = await job.getChildrenValues();
+
+              await child.send({
+                cmd: ChildCommand.GetChildrenValues,
+                value,
+              });
+              console.log('despues', value);
+            } catch (error) {
+              await child.send({
+                cmd: ChildCommand.GetChildrenValuesError,
+                value: errorToJSON(error),
+              });
+            }
+            break;
+          }
         }
       };
 
