@@ -617,7 +617,7 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.removeLegacyMarkersArgs();
 
-    return (<any>client).removeLegacyMarkersArgs(args);
+    return (<any>client).removeLegacyMarkers(args);
   }
 
   private removeChildDependencyArgs(

@@ -32,7 +32,7 @@ local function removeMarkerFromWait( stateKey)
 end
 
 local function removeMarkerFromFinished(keyName, prefix)
-    local jobs = getZSetItems(keyName)
+    local jobs = getZSetItems(keyName, 0)
     if #jobs > 0 then
         for _, jobId in ipairs(jobs) do
             local jobKey = prefix .. jobId
