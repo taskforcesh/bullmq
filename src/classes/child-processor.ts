@@ -114,7 +114,7 @@ export class ChildProcessor {
     job: JobJsonSandbox,
     send: (msg: any) => Promise<void>,
   ): SandboxedJob {
-    return {
+    const wrappedJob = {
       ...job,
       data: JSON.parse(job.data || '{}'),
       opts: job.opts,
@@ -136,7 +136,7 @@ export class ChildProcessor {
        * Emulate the real job `log` function.
        */
       log: async (row: any) => {
-        send({
+        await send({
           cmd: ParentCommand.Log,
           value: row,
         });
@@ -145,7 +145,7 @@ export class ChildProcessor {
        * Emulate the real job `moveToDelayed` function.
        */
       moveToDelayed: async (timestamp: number, token?: string) => {
-        send({
+        await send({
           cmd: ParentCommand.MoveToDelayed,
           value: { timestamp, token },
         });
@@ -154,11 +154,14 @@ export class ChildProcessor {
        * Emulate the real job `updateData` function.
        */
       updateData: async (data: any) => {
-        send({
+        await send({
           cmd: ParentCommand.Update,
           value: data,
         });
+        wrappedJob.data = data;
       },
     };
+
+    return wrappedJob;
   }
 }
