@@ -418,6 +418,7 @@ describe('queues', function () {
 
       const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
+      // meta key
       expect(keys.length).to.be.eql(1);
     });
   });
