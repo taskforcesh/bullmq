@@ -99,6 +99,46 @@ describe('workers', function () {
     await worker.close();
   });
 
+  describe('when legacy marker is present', () => {
+    it('does not get stuck', async () => {
+      const client = await queue.client;
+      await client.rpush(`${prefix}:${queue.name}:wait`, '0:0');
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await delay(200);
+        },
+        { autorun: false, connection, prefix },
+      );
+      await worker.waitUntilReady();
+
+      const secondJob = await queue.add('test', { foo: 'bar' });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async job => {
+          try {
+            if (job.id === secondJob.id) {
+              resolve();
+            }
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      worker.run();
+
+      await completing;
+
+      const completedCount = await queue.getCompletedCount();
+
+      expect(completedCount).to.be.equal(2);
+
+      await worker.close();
+    });
+  });
+
   it('process several jobs serially', async () => {
     let counter = 1;
     const maxJobs = 35;
