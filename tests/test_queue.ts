@@ -44,6 +44,15 @@ describe('queues', function () {
         ).to.be.rejectedWith('Custom Ids cannot be integers');
       });
     });
+
+    describe('when jobId contains :', () => {
+      it('throws error', async () => {
+        const opts = { jobId: 'job:id' };
+        await expect(queue.add('test', {}, opts)).to.be.rejectedWith(
+          "JobId cannot be '0' or contain :",
+        );
+      });
+    });
   });
 
   describe('when empty name is provided', () => {
