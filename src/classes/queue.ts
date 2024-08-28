@@ -233,12 +233,6 @@ export class Queue<
         NameType
       >(name, data, { ...this.jobsOpts, ...opts }, true);
     } else {
-      const jobId = opts?.jobId;
-
-      if (jobId == '0' || jobId?.includes(':')) {
-        throw new Error("JobId cannot be '0' or contain :");
-      }
-
       const job = await this.Job.create<DataType, ResultType, NameType>(
         this as MinimalQueue,
         name,
@@ -246,7 +240,6 @@ export class Queue<
         {
           ...this.jobsOpts,
           ...opts,
-          jobId,
         },
       );
       this.emit('waiting', job);

@@ -1198,6 +1198,10 @@ export class Job<
       this.opts.sizeLimit &&
       lengthInUtf8Bytes(jobData.data) > this.opts.sizeLimit;
 
+    if (this.opts.jobId == '0' || this.opts.jobId?.includes(':')) {
+      throw new Error("JobId cannot be '0' or contain :");
+    }
+
     if (exceedLimit) {
       throw new Error(
         `The size of job ${this.name} exceeds the limit ${this.opts.sizeLimit} bytes`,
