@@ -58,12 +58,11 @@ export function delay(
   return new Promise(resolve => {
     let timeout: ReturnType<typeof setTimeout> | undefined;
     const callback = () => {
-      abortController?.signal.removeEventListener('abort', callback);
       clearTimeout(timeout);
       resolve();
     };
     timeout = setTimeout(callback, ms);
-    abortController?.signal.addEventListener('abort', callback);
+    abortController?.signal.addEventListener('abort', callback, { once: true });
   });
 }
 
