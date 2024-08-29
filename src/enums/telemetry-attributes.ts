@@ -22,4 +22,5 @@ export enum TelemetryAttributes {
   WorkerDoNotWaitActive = 'bullmq.worker.do.not.wait.active',
   WorkerForceClose = 'bullmq.worker.force.close',
   WorkerJobsInvolved = 'bullmq.worker.jobs.involved',
+  WorkerJobsIdsInvolved = 'bullmq.worker.jobs.ids.involved',
 }

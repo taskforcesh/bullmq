@@ -7,6 +7,7 @@ import {
   RepeatableJob,
   RepeatOptions,
   Tracer,
+  StatusCode,
 } from '../interfaces';
 import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
 import { Job } from './job';
@@ -243,7 +244,20 @@ export class Queue<
     if (opts && opts.repeat) {
       if (opts.repeat.endDate) {
         if (+new Date(opts.repeat.endDate) < Date.now()) {
-          throw new Error('End date must be greater than current timestamp');
+          const error = 'End date must be greater than current timestamp';
+
+          try {
+            if (this.tracer) {
+              span.recordException(error);
+              span.setStatus({ code: StatusCode.ERROR, message: error });
+            }
+
+            throw new Error(error);
+          } finally {
+            if (this.tracer) {
+              span.end();
+            }
+          }
         }
       }
 
@@ -262,7 +276,20 @@ export class Queue<
       const jobId = opts?.jobId;
 
       if (jobId == '0' || jobId?.startsWith('0:')) {
-        throw new Error("JobId cannot be '0' or start with 0:");
+        const error = "JobId cannot be '0' or start with 0:";
+
+        try {
+          if (this.tracer) {
+            span.recordException(error);
+            span.setStatus({ code: StatusCode.ERROR, message: error });
+          }
+
+          throw new Error(error);
+        } finally {
+          if (this.tracer) {
+            span.end();
+          }
+        }
       }
 
       const job = await this.Job.create<DataType, ResultType, NameType>(

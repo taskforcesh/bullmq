@@ -13,6 +13,7 @@ import {
   JobJsonRaw,
   Processor,
   RedisClient,
+  StatusCode,
   WorkerOptions,
 } from '../interfaces';
 import { MinimalQueue } from '../types';
@@ -425,25 +426,47 @@ export class Worker<
     }
 
     if (!this.processFn) {
-      if (this.tracer) {
-        span.end();
-      }
+      const error = 'No process function is defined.';
 
-      throw new Error('No process function is defined.');
+      try {
+        if (this.tracer) {
+          span.recordException(error);
+          span.setStatus({ code: StatusCode.ERROR, message: error });
+        }
+
+        throw new Error(error);
+      } finally {
+        if (this.tracer) {
+          span.end();
+        }
+      }
     }
 
     if (this.running) {
-      if (this.tracer) {
-        span.end();
-      }
+      const error = 'Worker is already running.';
 
-      throw new Error('Worker is already running.');
+      try {
+        if (this.tracer) {
+          span.recordException(error);
+          span.setStatus({ code: StatusCode.ERROR, message: error });
+        }
+
+        throw new Error(error);
+      } finally {
+        if (this.tracer) {
+          span.end();
+        }
+      }
     }
 
     try {
       this.running = true;
 
       if (this.closing) {
+        if (this.tracer) {
+          span.end();
+        }
+
         return;
       }
 
@@ -539,6 +562,14 @@ export class Worker<
       this.running = false;
       return await asyncFifoQueue.waitAll();
     } catch (error) {
+      if (this.tracer) {
+        span.recordException(JSON.stringify(error));
+        span.setStatus({
+          code: StatusCode.ERROR,
+          message: JSON.stringify(error),
+        });
+      }
+
       this.running = false;
       throw error;
     } finally {
@@ -574,6 +605,10 @@ export class Worker<
     );
 
     if (this.tracer) {
+      span.setAttributes({
+        [TelemetryAttributes.JobId]: nextJob.id,
+      });
+
       span.end();
     }
 
@@ -987,7 +1022,7 @@ will never work with more accuracy than 1ms. */
    *
    * @returns Promise that resolves when the worker has been closed.
    */
-  close(force = false): Promise<void> {
+  async close(force = false): Promise<void> {
     let span;
     if (this.tracer) {
       const spanName = `${this.name} ${this.id} Worker.close`;
@@ -1036,12 +1071,15 @@ will never work with more accuracy than 1ms. */
 
       this.closed = true;
       this.emit('closed');
-
-      if (this.tracer) {
-        span.end();
-      }
     })();
-    return this.closing;
+
+    await this.closing;
+
+    if (this.tracer) {
+      span.end();
+    }
+
+    return;
   }
 
   /**
@@ -1170,10 +1208,12 @@ will never work with more accuracy than 1ms. */
     if (this.tracer) {
       const spanName = `${this.name} ${this.id} Worker.extendLocks`;
       span = this.tracer.startSpan(spanName);
+      const jobids = jobs.map(job => job.id);
       span.setAttributes({
         [TelemetryAttributes.WorkerName]: this.name,
         [TelemetryAttributes.WorkerId]: this.id,
         [TelemetryAttributes.WorkerJobsInvolved]: JSON.stringify(jobs),
+        [TelemetryAttributes.WorkerJobsIdsInvolved]: jobids,
       });
     }
 
@@ -1241,6 +1281,10 @@ will never work with more accuracy than 1ms. */
     this.notifyFailedJobs(await Promise.all(jobPromises));
 
     if (this.tracer) {
+      span.setAttributes({
+        [TelemetryAttributes.WorkerJobsIdsInvolved]: stalled,
+      });
+
       span.end();
     }
   }

@@ -9,6 +9,8 @@ export interface Tracer {
 export interface Span {
   setAttribute(key: string, value: Attribute): Span;
   setAttributes(attributes: Attributes): Span;
+  recordException(exception: Exception, time?: Time): void;
+  setStatus(code: SpanStatus): Span;
   end(): void;
 }
 
@@ -23,3 +25,43 @@ export type Attribute =
   | null
   | undefined
   | (null | undefined | string | number | boolean)[];
+
+export type Exception = string | ExceptionType;
+
+export type ExceptionType = CodeException | MessageException | NameException;
+
+interface CodeException {
+  code: string | number;
+  name?: string;
+  message?: string;
+  stack?: string;
+}
+
+interface MessageException {
+  code?: string | number;
+  name?: string;
+  message: string;
+  stack?: string;
+}
+
+interface NameException {
+  code?: string | number;
+  name: string;
+  message?: string;
+  stack?: string;
+}
+
+export type Time = HighResolutionTime | number | Date;
+
+type HighResolutionTime = [number, number];
+
+interface SpanStatus {
+  code: StatusCode;
+  message?: string;
+}
+
+export enum StatusCode {
+  UNSET = 0,
+  OK = 1,
+  ERROR = 2,
+}
