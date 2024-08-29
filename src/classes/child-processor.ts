@@ -168,19 +168,16 @@ export class ChildProcessor {
       }> => {
         let msgHandler: any;
 
-        console.log('hola');
         const done = new Promise<{
           [jobKey: string]: CT;
         }>((resolve, reject) => {
           msgHandler = async (msg: ParentMessage) => {
             switch (msg.cmd) {
               case ChildCommand.GetChildrenValues: {
-                console.log('se llamo', msg.value);
                 resolve(msg.value);
                 break;
               }
               case ChildCommand.GetChildrenValuesError: {
-                console.log('un error', msg.value);
                 const err = new Error();
                 Object.assign(err, msg.value);
                 reject(err);
@@ -191,7 +188,7 @@ export class ChildProcessor {
         });
 
         process.on('message', msgHandler);
-        send({
+        await send({
           cmd: ParentCommand.GetChildrenValues,
         });
 

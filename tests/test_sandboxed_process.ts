@@ -512,7 +512,7 @@ function sandboxProcessTests(
       await worker.close();
     });
 
-    it.only('should process and update data', async () => {
+    it('should process and update data', async () => {
       const processFile =
         __dirname + '/fixtures/fixture_processor_update_data.js';
 

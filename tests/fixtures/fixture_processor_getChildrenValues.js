@@ -5,6 +5,6 @@
 'use strict';
 
 module.exports = async function (job) {
-  console.log('jeronimo');
-  return job.getChildrenValues();
+  const values  = await job.getChildrenValues();
+  return values;
 };

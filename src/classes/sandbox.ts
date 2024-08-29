@@ -21,7 +21,6 @@ const sandbox = <T, R, N extends string>(
 
     const done: Promise<R> = new Promise((resolve, reject) => {
       msgHandler = async (msg: ChildMessage) => {
-        console.log('el cmd', msg.cmd);
         switch (msg.cmd) {
           case ParentCommand.Completed:
             resolve(msg.value);
@@ -47,14 +46,13 @@ const sandbox = <T, R, N extends string>(
             break;
           case ParentCommand.GetChildrenValues: {
             try {
-              console.log('antes');
               const value = await job.getChildrenValues();
 
               await child.send({
                 cmd: ChildCommand.GetChildrenValues,
                 value,
               });
-              console.log('despues', value);
+              break;
             } catch (error) {
               await child.send({
                 cmd: ChildCommand.GetChildrenValuesError,

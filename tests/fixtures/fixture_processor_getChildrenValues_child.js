@@ -5,6 +5,5 @@
 'use strict';
 
 module.exports = function (job) {
-  console.log('otro jeronimo');
   return { childResult: 'bar' };
 };
