@@ -139,19 +139,6 @@ describe('Job', function () {
       });
     });
 
-    describe('when removeDependencyOnFailure and failParentOnFailure options are provided', () => {
-      it('throws an error', async () => {
-        const data = { foo: 'bar' };
-        const opts = {
-          removeDependencyOnFailure: true,
-          failParentOnFailure: true,
-        };
-        await expect(Job.create(queue, 'test', data, opts)).to.be.rejectedWith(
-          'RemoveDependencyOnFailure and failParentOnFailure options can not be used together',
-        );
-      });
-    });
-
     describe('when priority option is provided as float', () => {
       it('throws an error', async () => {
         const data = { foo: 'bar' };
@@ -477,6 +464,16 @@ describe('Job', function () {
 
       expect(logs).to.be.eql({ logs: [firstLog, secondLog], count: 2 });
     });
+
+    describe('when job is removed', () => {
+      it('throws error', async function () {
+        const job = await Job.create(queue, 'test', { foo: 'bar' });
+        await job.remove();
+        await expect(job.log('oneLog')).to.be.rejectedWith(
+          `Missing key for job ${job.id}. addLog`,
+        );
+      });
+    });
   });
 
   describe('.clearLogs', () => {
@@ -689,13 +686,12 @@ describe('Job', function () {
     it('moves the job to wait for retry if attempts are given', async function () {
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
+      const worker = new Worker(queueName, null, { connection, prefix });
 
-      const job = await Job.create(
-        queue,
-        'test',
-        { foo: 'bar' },
-        { attempts: 3 },
-      );
+      await Job.create(queue, 'test', { foo: 'bar' }, { attempts: 3 });
+      const token = 'my-token';
+      const job = (await worker.getNextJob(token)) as Job;
+
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
 
@@ -715,6 +711,31 @@ describe('Job', function () {
       expect(isWaiting).to.be.equal(true);
 
       await queueEvents.close();
+      await worker.close();
+    });
+
+    describe('when job is not in active state', function () {
+      it('throws an error', async function () {
+        const queueEvents = new QueueEvents(queueName, { connection, prefix });
+        await queueEvents.waitUntilReady();
+
+        const job = await Job.create(
+          queue,
+          'test',
+          { foo: 'bar' },
+          { attempts: 3 },
+        );
+        const isFailed = await job.isFailed();
+        expect(isFailed).to.be.equal(false);
+
+        await expect(
+          job.moveToFailed(new Error('test error'), '0', true),
+        ).to.be.rejectedWith(
+          `Job ${job.id} is not in the active state. retryJob`,
+        );
+
+        await queueEvents.close();
+      });
     });
 
     describe('when job is removed', function () {
@@ -734,7 +755,7 @@ describe('Job', function () {
 
         await expect(
           job.moveToFailed(new Error('test error'), '0'),
-        ).to.be.rejectedWith(`Missing key for job ${job.id}. failed`);
+        ).to.be.rejectedWith(`Missing key for job ${job.id}. moveToFinished`);
 
         const processed = await client.hgetall(
           `${prefix}:${queueName}:${job.id}`,
@@ -805,17 +826,58 @@ describe('Job', function () {
         queue,
         'test',
         { foo: 'bar' },
-        { stackTraceLimit: stackTraceLimit },
+        { stackTraceLimit: stackTraceLimit, attempts: 2 },
       );
       const job = (await worker.getNextJob(token)) as Job;
       const isFailed = await job.isFailed();
       expect(isFailed).to.be.equal(false);
-      await job.moveToFailed(new Error('test error'), '0', true);
-      const isFailed2 = await job.isFailed();
-      expect(isFailed2).to.be.equal(true);
+      // first time failed.
+      await job.moveToFailed(new Error('failed once'), '0', true);
+      const isFailed1 = await job.isFailed();
+      const stackTrace1 = job.stacktrace[0];
+      expect(isFailed1).to.be.false;
       expect(job.stacktrace).not.be.equal(null);
       expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+      // second time failed.
+      const again = (await worker.getNextJob(token)) as Job;
+      await again.moveToFailed(new Error('failed twice'), '0', true);
+      const isFailed2 = await again.isFailed();
+      const stackTrace2 = again.stacktrace[0];
+      expect(isFailed2).to.be.true;
+      expect(again.name).to.be.equal(job.name);
+      expect(again.stacktrace.length).to.be.equal(stackTraceLimit);
+      expect(stackTrace1).not.be.equal(stackTrace2);
       await worker.close();
+    });
+
+    describe('when stackTraceLimit is provided as 0', function () {
+      it('keep stacktrace empty', async function () {
+        const worker = new Worker(queueName, null, { connection, prefix });
+        const token = 'my-token';
+        const stackTraceLimit = 0;
+        await Job.create(
+          queue,
+          'test',
+          { foo: 'bar' },
+          { stackTraceLimit: stackTraceLimit, attempts: 2 },
+        );
+        const job = (await worker.getNextJob(token)) as Job;
+        const isFailed = await job.isFailed();
+        expect(isFailed).to.be.equal(false);
+        // first time failed.
+        await job.moveToFailed(new Error('failed once'), '0', true);
+        const isFailed1 = await job.isFailed();
+        expect(isFailed1).to.be.false;
+        expect(job.stacktrace.length).to.be.equal(stackTraceLimit);
+        // second time failed.
+        const again = (await worker.getNextJob(token)) as Job;
+        await again.moveToFailed(new Error('failed twice'), '0', true);
+        const isFailed2 = await again.isFailed();
+        expect(isFailed2).to.be.true;
+        expect(again.name).to.be.equal(job.name);
+        expect(again.stacktrace.length).to.be.equal(stackTraceLimit);
+        await worker.close();
+      });
     });
 
     it('saves error stacktrace', async function () {
@@ -847,7 +909,7 @@ describe('Job', function () {
       const completing = new Promise<void>(resolve => {
         worker.on('completed', async () => {
           const timeDiff = new Date().getTime() - startTime;
-          expect(timeDiff).to.be.gte(4000);
+          expect(timeDiff).to.be.gte(2000);
           resolve();
         });
       });
@@ -856,17 +918,17 @@ describe('Job', function () {
         queue,
         'test',
         { foo: 'bar' },
-        { delay: 2000 },
+        { delay: 8000 },
       );
 
       const isDelayed = await job.isDelayed();
       expect(isDelayed).to.be.equal(true);
 
-      await job.changeDelay(4000);
+      await job.changeDelay(2000);
 
       const isDelayedAfterChangeDelay = await job.isDelayed();
       expect(isDelayedAfterChangeDelay).to.be.equal(true);
-      expect(job.delay).to.be.equal(4000);
+      expect(job.delay).to.be.equal(2000);
 
       await completing;
 
@@ -882,44 +944,232 @@ describe('Job', function () {
         `Job ${job.id} is not in the delayed state. changeDelay`,
       );
     });
+
+    describe('when adding delayed job after standard one when worker is drained', () => {
+      it('pick standard job without delay', async function () {
+        this.timeout(6000);
+
+        await Job.create(queue, 'test1', { foo: 'bar' });
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            await delay(1000);
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+        await worker.waitUntilReady();
+
+        // after this event, worker should be drained
+        const completing = new Promise<void>(resolve => {
+          worker.once('completed', async () => {
+            await queue.addBulk([
+              { name: 'test1', data: { idx: 0, foo: 'bar' } },
+              {
+                name: 'test2',
+                data: { idx: 1, foo: 'baz' },
+                opts: { delay: 3000 },
+              },
+            ]);
+
+            resolve();
+          });
+        });
+
+        await completing;
+
+        const now = Date.now();
+        const completing2 = new Promise<void>(resolve => {
+          worker.on(
+            'completed',
+            after(2, job => {
+              const timeDiff = Date.now() - now;
+              expect(timeDiff).to.be.greaterThanOrEqual(4000);
+              expect(timeDiff).to.be.lessThan(4500);
+              expect(job.delay).to.be.equal(0);
+              resolve();
+            }),
+          );
+        });
+
+        await completing2;
+        await worker.close();
+      });
+    });
   });
 
   describe('.changePriority', () => {
-    it('can change priority of a job', async function () {
-      await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
-      const job = await Job.create(
-        queue,
-        'test2',
-        { foo: 'bar' },
-        { priority: 16 },
-      );
+    describe('when job is in wait state', () => {
+      describe('when lifo option is provided as true', () => {
+        it('moves job to the head of wait list', async () => {
+          await queue.pause();
+          await Job.create(queue, 'test1', { foo: 'bar' });
+          const job = await Job.create(
+            queue,
+            'test2',
+            { foo: 'bar' },
+            { priority: 16 },
+          );
 
-      await job.changePriority({
-        priority: 1,
+          await job.changePriority({
+            priority: 0,
+            lifo: true,
+          });
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(20);
+            },
+            { connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          const completing = new Promise<void>(resolve => {
+            worker.on(
+              'completed',
+              after(2, job => {
+                expect(job.name).to.be.eql('test1');
+                resolve();
+              }),
+            );
+          });
+
+          await queue.resume();
+
+          await completing;
+
+          await worker.close();
+        });
       });
 
-      const worker = new Worker(
-        queueName,
-        async () => {
-          await delay(20);
-        },
-        { connection, prefix },
-      );
-      await worker.waitUntilReady();
+      describe('when lifo option is provided as false', () => {
+        it('moves job to the tail of wait list and has more priority', async () => {
+          await queue.pause();
+          const job = await Job.create(
+            queue,
+            'test1',
+            { foo: 'bar' },
+            { priority: 8 },
+          );
+          await Job.create(queue, 'test2', { foo: 'bar' });
 
-      const completing = new Promise<void>(resolve => {
-        worker.on(
-          'completed',
-          after(2, job => {
-            expect(job.name).to.be.eql('test1');
-            resolve();
-          }),
+          await job.changePriority({
+            priority: 0,
+            lifo: false,
+          });
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(20);
+            },
+            { connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          const completing = new Promise<void>(resolve => {
+            worker.on(
+              'completed',
+              after(2, job => {
+                expect(job.name).to.be.eql('test1');
+                resolve();
+              }),
+            );
+          });
+
+          await queue.resume();
+
+          await completing;
+
+          await worker.close();
+        });
+      });
+    });
+
+    describe('when job is in prioritized state', () => {
+      it('can change priority of a job', async function () {
+        await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
+        const job = await Job.create(
+          queue,
+          'test2',
+          { foo: 'bar' },
+          { priority: 16 },
         );
+
+        await job.changePriority({
+          priority: 1,
+        });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(20);
+          },
+          { connection, prefix },
+        );
+        await worker.waitUntilReady();
+
+        const completing = new Promise<void>(resolve => {
+          worker.on(
+            'completed',
+            after(2, job => {
+              expect(job.name).to.be.eql('test1');
+              resolve();
+            }),
+          );
+        });
+
+        await completing;
+
+        await worker.close();
       });
 
-      await completing;
+      describe('when lifo option is provided as true', () => {
+        it('moves job to the head of prioritized jobs with same priority', async () => {
+          await queue.pause();
+          await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 16 });
+          const job = await Job.create(
+            queue,
+            'test2',
+            { foo: 'bar' },
+            { priority: 16 },
+          );
 
-      await worker.close();
+          await job.changePriority({
+            priority: 16,
+            lifo: true,
+          });
+
+          const worker = new Worker(
+            queueName,
+            async () => {
+              await delay(20);
+            },
+            { connection, prefix },
+          );
+          await worker.waitUntilReady();
+
+          const completing = new Promise<void>(resolve => {
+            worker.on(
+              'completed',
+              after(2, job => {
+                expect(job.name).to.be.eql('test1');
+                resolve();
+              }),
+            );
+          });
+
+          await queue.resume();
+
+          await completing;
+
+          await worker.close();
+        });
+      });
     });
 
     describe('when queue is paused', () => {
@@ -964,91 +1214,7 @@ describe('Job', function () {
       });
     });
 
-    describe('when lifo option is provided as true', () => {
-      it('moves job to the head of wait list', async () => {
-        await queue.pause();
-        await Job.create(queue, 'test1', { foo: 'bar' }, { priority: 8 });
-        const job = await Job.create(
-          queue,
-          'test2',
-          { foo: 'bar' },
-          { priority: 16 },
-        );
-
-        await job.changePriority({
-          lifo: true,
-        });
-
-        const worker = new Worker(
-          queueName,
-          async () => {
-            await delay(20);
-          },
-          { connection, prefix },
-        );
-        await worker.waitUntilReady();
-
-        const completing = new Promise<void>(resolve => {
-          worker.on(
-            'completed',
-            after(2, job => {
-              expect(job.name).to.be.eql('test1');
-              resolve();
-            }),
-          );
-        });
-
-        await queue.resume();
-
-        await completing;
-
-        await worker.close();
-      });
-    });
-
-    describe('when lifo option is provided as false', () => {
-      it('moves job to the tail of wait list and has more priority', async () => {
-        await queue.pause();
-        const job = await Job.create(
-          queue,
-          'test1',
-          { foo: 'bar' },
-          { priority: 8 },
-        );
-        await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });
-
-        await job.changePriority({
-          lifo: false,
-        });
-
-        const worker = new Worker(
-          queueName,
-          async () => {
-            await delay(20);
-          },
-          { connection, prefix },
-        );
-        await worker.waitUntilReady();
-
-        const completing = new Promise<void>(resolve => {
-          worker.on(
-            'completed',
-            after(2, job => {
-              expect(job.name).to.be.eql('test2');
-              resolve();
-            }),
-          );
-        });
-
-        await queue.resume();
-
-        await completing;
-
-        await worker.close();
-      });
-    });
-
-    describe('when job is not in wait state', () => {
+    describe('when job is not in wait or prioritized state', () => {
       it('does not add a record in priority zset', async () => {
         const job = await Job.create(
           queue,

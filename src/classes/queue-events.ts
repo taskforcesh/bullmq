@@ -46,6 +46,13 @@ export interface QueueEventsListener extends IoredisListener {
   ) => void;
 
   /**
+   * Listen to 'debounced' event.
+   *
+   * This event is triggered when a job is debounced because debounceId still existed.
+   */
+  debounced: (args: { jobId: string; debounceId: string }, id: string) => void;
+
+  /**
    * Listen to 'delayed' event.
    *
    * This event is triggered when a job is delayed.
@@ -236,6 +243,7 @@ export class QueueEvents extends QueueBase {
         this.running = true;
         const client = await this.client;
 
+        // TODO: Planed for deprecation as it has no really a use case
         try {
           await client.client('SETNAME', this.clientName(QUEUE_EVENT_SUFFIX));
         } catch (err) {

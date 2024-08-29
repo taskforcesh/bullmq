@@ -24,6 +24,7 @@ const deprecationMessage =
 
 interface RedisCapabilities {
   canDoubleTimeout: boolean;
+  canBlockFor1Ms: boolean;
 }
 
 export interface RawCommand {
@@ -39,6 +40,7 @@ export class RedisConnection extends EventEmitter {
   closing: boolean;
   capabilities: RedisCapabilities = {
     canDoubleTimeout: false,
+    canBlockFor1Ms: true,
   };
 
   status: 'initializing' | 'ready' | 'closing' | 'closed' = 'initializing';
@@ -162,7 +164,16 @@ export class RedisConnection extends EventEmitter {
         };
 
         handleEnd = () => {
-          reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
+          if (client.status !== 'end') {
+            reject(lastError || new Error(CONNECTION_CLOSED_ERROR_MSG));
+          } else {
+            if (lastError) {
+              reject(lastError);
+            } else {
+              // when custon 'end' status is set we already closed
+              resolve();
+            }
+          }
         };
 
         increaseMaxListeners(client, 3);
@@ -215,34 +226,38 @@ export class RedisConnection extends EventEmitter {
 
     this.loadCommands();
 
-    this.version = await this.getRedisVersion();
-    if (this.skipVersionCheck !== true && !this.closing) {
-      if (
-        isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
-      ) {
-        throw new Error(
-          `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} Current: ${this.version}`,
-        );
+    if (this._client['status'] !== 'end') {
+      this.version = await this.getRedisVersion();
+      if (this.skipVersionCheck !== true && !this.closing) {
+        if (
+          isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
+        ) {
+          throw new Error(
+            `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} ` +
+              `Current: ${this.version}`,
+          );
+        }
+
+        if (
+          isRedisVersionLowerThan(
+            this.version,
+            RedisConnection.recommendedMinimumVersion,
+          )
+        ) {
+          console.warn(
+            `It is highly recommended to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
+             Current: ${this.version}`,
+          );
+        }
       }
 
-      if (
-        isRedisVersionLowerThan(
-          this.version,
-          RedisConnection.recommendedMinimumVersion,
-        )
-      ) {
-        console.warn(
-          `It is highly recommended to use a minimum Redis version of ${RedisConnection.recommendedMinimumVersion}
-           Current: ${this.version}`,
-        );
-      }
+      this.capabilities = {
+        canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
+        canBlockFor1Ms: !isRedisVersionLowerThan(this.version, '7.0.8'),
+      };
+
+      this.status = 'ready';
     }
-
-    this.capabilities = {
-      canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
-    };
-
-    this.status = 'ready';
 
     return this._client;
   }
@@ -283,18 +298,26 @@ export class RedisConnection extends EventEmitter {
     return client.connect();
   }
 
-  async close(): Promise<void> {
+  async close(force = false): Promise<void> {
     if (!this.closing) {
       const status = this.status;
       this.status = 'closing';
       this.closing = true;
+
       try {
         if (status === 'ready') {
           // Not sure if we need to wait for this
           await this.initializing;
-          if (!this.shared) {
+        }
+        if (!this.shared) {
+          if (status == 'initializing' || force) {
+            // If we have not still connected to Redis, we need to disconnect.
+            this._client.disconnect();
+          } else {
             await this._client.quit();
           }
+          // As IORedis does not update this status properly, we do it ourselves.
+          this._client['status'] = 'end';
         }
       } catch (error) {
         if (isNotConnectionError(error as Error)) {

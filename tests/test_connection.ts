@@ -144,6 +144,20 @@ describe('connection', () => {
     await worker.close();
   });
 
+  it('should close underlying redis connection when closing fast', async () => {
+    const queue = new Queue('CALLS_JOB_QUEUE_NAME', {
+      connection: {
+        host: 'localhost',
+        port: 6379,
+      },
+    });
+
+    const client = queue['connection']['_client'];
+    await queue.close();
+
+    expect(client.status).to.be.eql('end');
+  });
+
   it('should recover from a connection loss', async () => {
     let processor;
 
@@ -326,10 +340,10 @@ describe('connection', () => {
       },
     });
 
-    await expect(queueFail.close()).to.be.eventually.equal(undefined);
-
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
       'connect ECONNREFUSED 127.0.0.1:1234',
     );
+
+    await expect(queueFail.close()).to.be.eventually.equal(undefined);
   });
 });

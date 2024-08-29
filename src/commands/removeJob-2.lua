@@ -4,6 +4,7 @@
 
     Input:
       KEYS[1] queue prefix
+      KEYS[2] meta key
 
       ARGV[1] jobId
       ARGV[2] remove children
@@ -18,13 +19,15 @@ local rcall = redis.call
 --- @include "includes/destructureJobKey"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isLocked"
+--- @include "includes/removeDebounceKey"
 --- @include "includes/removeJobFromAnyState"
+--- @include "includes/removeJobKeys"
 --- @include "includes/removeParentDependencyKey"
 
 local function removeJob( prefix, jobId, parentKey, removeChildren)
     local jobKey = prefix .. jobId;
 
-    removeParentDependencyKey(jobKey, false, parentKey)
+    removeParentDependencyKey(jobKey, false, parentKey, nil)
 
     if removeChildren == "1" then
         -- Check if this job has children
@@ -50,12 +53,23 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
                 removeJob( childJobPrefix, childJobId, jobKey, removeChildren )
             end
         end
+
+        local failed = rcall("HGETALL", jobKey .. ":failed")
+
+        if (#failed > 0) then
+            for i = 1, #failed, 2 do
+                local childJobId = getJobIdFromKey(failed[i])
+                local childJobPrefix = getJobKeyPrefix(failed[i], childJobId)
+                removeJob( childJobPrefix, childJobId, jobKey, removeChildren )
+            end
+        end
     end
 
     local prev = removeJobFromAnyState(prefix, jobId)
 
-    if rcall("DEL", jobKey, jobKey .. ":logs", jobKey .. ":dependencies", jobKey .. ":processed") > 0 then
-        local maxEvents = getOrSetMaxEvents(prefix .. "meta")
+    removeDebounceKey(prefix, jobKey)
+    if removeJobKeys(jobKey) > 0 then
+        local maxEvents = getOrSetMaxEvents(KEYS[2])
         rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",
             "jobId", jobId, "prev", prev)
     end

@@ -1,9 +1,10 @@
 --[[
-  Function to recursively move from waitingChildren to failed.
+  Function to move from waitingChildren to failed.
+  Returns parent data and failedReason from parent.
 ]]
 
 -- Includes
---- @include "moveParentToWaitIfNeeded"
+--- @include "removeDebounceKeyIfNeeded"
 
 local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
   if rcall("ZREM", parentQueueKey .. ":waiting-children", parentId) == 1 then
@@ -13,26 +14,14 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
     rcall("XADD", parentQueueKey .. ":events", "*", "event", "failed", "jobId", parentId, "failedReason",
       failedReason, "prev", "waiting-children")
 
-    local rawParentData = rcall("HGET", parentKey, "parent")
+    local jobAttributes = rcall("HMGET", parentKey, "parent", "deid")
 
-    if rawParentData ~= false then
-      local parentData = cjson.decode(rawParentData)
-      if parentData['fpof'] then
-        moveParentFromWaitingChildrenToFailed(
-          parentData['queueKey'],
-          parentData['queueKey'] .. ':' .. parentData['id'],
-          parentData['id'],
-          parentKey,
-          timestamp
-        )
-      elseif parentData['rdof'] then
-        local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local grandParentDependenciesSet = grandParentKey .. ":dependencies"
-        if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
-          moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
-            grandParentKey, parentData['id'], timestamp)
-        end
-      end
+    removeDebounceKeyIfNeeded(parentQueueKey, jobAttributes[2])
+
+    if jobAttributes[1] then
+      return cjson.decode(jobAttributes[1]), failedReason
     end
+    
+    return nil, nil
   end
 end

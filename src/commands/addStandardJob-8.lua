@@ -20,8 +20,9 @@
       KEYS[3] 'meta'
       KEYS[4] 'id'
       KEYS[5] 'completed'
-      KEYS[6] events stream key
-      KEYS[7] marker key
+      KEYS[6] 'active'
+      KEYS[7] events stream key
+      KEYS[8] marker key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -33,7 +34,8 @@
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9]  repeat job key
-            
+            [10] debounce key
+
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
 
@@ -41,7 +43,7 @@
         jobId  - OK
         -5     - Missing parent key
 ]]
-local eventsKey = KEYS[6]
+local eventsKey = KEYS[7]
 
 local jobId
 local jobIdKey
@@ -53,15 +55,18 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
-local repeatJobKey = args[9]
 local parent = args[8]
+local repeatJobKey = args[9]
+local debounceKey = args[10]
 local parentData
 
 -- Includes
---- @include "includes/storeJob"
---- @include "includes/updateExistingJobsParent"
+--- @include "includes/addJobInTargetList"
+--- @include "includes/debounceJob"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/getTargetQueueList"
+--- @include "includes/handleDuplicatedJob"
+--- @include "includes/storeJob"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -83,31 +88,27 @@ else
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
-        updateExistingJobsParent(parentKey, parent, parentData,
-                                 parentDependenciesKey, KEYS[5], jobIdKey,
-                                 jobId, timestamp)
-
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-              "duplicated", "jobId", jobId)
-
-        return jobId .. "" -- convert to string
+        return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
+            parentData, parentDependenciesKey, KEYS[5], eventsKey,
+            maxEvents, timestamp)
     end
+end
+
+local debouncedJobId = debounceJob(args[1], opts['de'],
+  jobId, debounceKey, eventsKey, maxEvents)
+if debouncedJobId then
+  return debouncedJobId
 end
 
 -- Store the job.
 storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
          parentKey, parentData, repeatJobKey)
 
-local target, paused = getTargetQueueList(metaKey, KEYS[1], KEYS[2])
-
-if not paused then
-    -- mark that a job is available
-    rcall("ZADD", KEYS[7], 0, "0")
-end
+local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[1], KEYS[2])
 
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-rcall(pushCmd, target, jobId)
+addJobInTargetList(target, KEYS[8], pushCmd, isPausedOrMaxed, jobId)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",

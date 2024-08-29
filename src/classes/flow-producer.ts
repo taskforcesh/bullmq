@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import { get } from 'lodash';
 import { Redis, ChainableCommander } from 'ioredis';
 import { v4 } from 'uuid';
 import {
@@ -279,7 +278,7 @@ export class FlowProducer extends EventEmitter {
     const queue = this.queueFromNode(node, new QueueKeys(prefix), prefix);
     const queueOpts = queuesOpts && queuesOpts[node.queueName];
 
-    const jobsOpts = get(queueOpts, 'defaultJobOptions');
+    const jobsOpts = queueOpts?.defaultJobOptions ?? {};
     const jobId = node.opts?.jobId || v4();
 
     const job = new this.Job(
@@ -287,7 +286,7 @@ export class FlowProducer extends EventEmitter {
       node.name,
       node.data,
       {
-        ...(jobsOpts ? jobsOpts : {}),
+        ...jobsOpts,
         ...node.opts,
         parent: parent?.parentOpts,
       },

@@ -34,7 +34,7 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd,
         -- replace the entry with a deletion marker; the actual deletion will
         -- occur at the end of the script
         rcall("LSET", listKey, rangeEnd - jobIdsLen + i, deletionMarker)
-        removeJob(job, true, jobKeyPrefix)
+        removeJob(job, true, jobKeyPrefix, true --[[remove debounce key]])
         deletedCount = deletedCount + 1
         table.insert(deleted, job)
       end

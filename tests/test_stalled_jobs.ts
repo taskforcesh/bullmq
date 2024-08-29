@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueEvents } from '../src/classes';
+import { FlowProducer, Queue, Worker, QueueEvents } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
@@ -32,7 +32,7 @@ describe('stalled jobs', function () {
   });
 
   it('process stalled jobs when starting a queue', async function () {
-    this.timeout(10000);
+    this.timeout(5000);
 
     const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -298,7 +298,7 @@ describe('stalled jobs', function () {
     });
 
     it('moves jobs to failed with maxStalledCount > 1', async function () {
-      this.timeout(60000);
+      this.timeout(8000);
 
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
@@ -376,6 +376,280 @@ describe('stalled jobs', function () {
       }
 
       await queueEvents.close();
+    });
+
+    describe('when onChildFailure is provided as fail', function () {
+      it('should move parent to failed when child is moved to failed', async function () {
+        this.timeout(6000);
+        const concurrency = 4;
+        const parentQueueName = `parent-queue-${v4()}`;
+
+        const parentQueue = new Queue(parentQueueName, {
+          connection,
+          prefix,
+        });
+
+        const flow = new FlowProducer({ connection, prefix });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            return delay(10000);
+          },
+          {
+            connection,
+            prefix,
+            lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
+            concurrency,
+          },
+        );
+
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
+
+        await worker.waitUntilReady();
+
+        const { job: parent } = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name: 'test',
+              data: { foo: 'bar' },
+              queueName,
+              opts: { onChildFailure: 'fail' },
+            },
+          ],
+        });
+
+        const jobs = Array.from(Array(3).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+        }));
+
+        await queue.addBulk(jobs);
+        await allActive;
+        await worker.close(true);
+
+        const worker2 = new Worker(queueName, async job => {}, {
+          connection,
+          prefix,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+          concurrency,
+        });
+
+        const errorMessage = 'job stalled more than allowable limit';
+        const allFailed = new Promise<void>(resolve => {
+          worker2.on(
+            'failed',
+            after(concurrency, async (job, failedReason, prev) => {
+              const parentState = await parent.getState();
+
+              expect(parentState).to.be.equal('failed');
+              expect(prev).to.be.equal('active');
+              expect(failedReason.message).to.be.equal(errorMessage);
+              resolve();
+            }),
+          );
+        });
+
+        await allFailed;
+
+        await worker2.close();
+        await parentQueue.close();
+        await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
+    });
+
+    describe('when onChildFailure is provided as ignore', function () {
+      it('should move parent to waiting when child is moved to failed and save child failedReason', async function () {
+        this.timeout(6000);
+        const concurrency = 4;
+        const parentQueueName = `parent-queue-${v4()}`;
+
+        const parentQueue = new Queue(parentQueueName, {
+          connection,
+          prefix,
+        });
+
+        const flow = new FlowProducer({ connection, prefix });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            return delay(10000);
+          },
+          {
+            connection,
+            prefix,
+            lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
+            concurrency,
+          },
+        );
+
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
+
+        await worker.waitUntilReady();
+
+        const { job: parent, children } = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name: 'test',
+              data: { foo: 'bar' },
+              queueName,
+              opts: { onChildFailure: 'ignore' },
+            },
+          ],
+        });
+
+        const jobs = Array.from(Array(3).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+        }));
+
+        await queue.addBulk(jobs);
+        await allActive;
+        await worker.close(true);
+
+        const worker2 = new Worker(queueName, async job => {}, {
+          connection,
+          prefix,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+          concurrency,
+        });
+
+        const errorMessage = 'job stalled more than allowable limit';
+        const allFailed = new Promise<void>(resolve => {
+          worker2.on(
+            'failed',
+            after(concurrency, async (job, failedReason, prev) => {
+              const parentState = await parent.getState();
+
+              expect(parentState).to.be.equal('waiting');
+              expect(prev).to.be.equal('active');
+              expect(failedReason.message).to.be.equal(errorMessage);
+              resolve();
+            }),
+          );
+        });
+
+        await allFailed;
+        const failedChildrenValues = await parent.getFailedChildrenValues();
+        expect(failedChildrenValues).to.deep.equal({
+          [`${queue.qualifiedName}:${children[0].job.id}`]:
+            'job stalled more than allowable limit',
+        });
+
+        await worker2.close();
+        await parentQueue.close();
+        await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
+    });
+
+    describe('when onChildFailure is provided as remove', function () {
+      it('should move parent to waiting when child is moved to failed', async function () {
+        this.timeout(6000);
+        const concurrency = 4;
+        const parentQueueName = `parent-queue-${v4()}`;
+
+        const parentQueue = new Queue(parentQueueName, {
+          connection,
+          prefix,
+        });
+
+        const flow = new FlowProducer({ connection, prefix });
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            return delay(10000);
+          },
+          {
+            connection,
+            prefix,
+            lockDuration: 1000,
+            stalledInterval: 100,
+            maxStalledCount: 0,
+            concurrency,
+          },
+        );
+
+        const allActive = new Promise(resolve => {
+          worker.on('active', after(concurrency, resolve));
+        });
+
+        await worker.waitUntilReady();
+
+        const { job: parent } = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name: 'test',
+              data: { foo: 'bar' },
+              queueName,
+              opts: {
+                onChildFailure: 'remove',
+              },
+            },
+          ],
+        });
+
+        const jobs = Array.from(Array(3).keys()).map(index => ({
+          name: 'test',
+          data: { index },
+        }));
+
+        await queue.addBulk(jobs);
+        await allActive;
+        await worker.close(true);
+
+        const worker2 = new Worker(queueName, async job => {}, {
+          connection,
+          prefix,
+          stalledInterval: 100,
+          maxStalledCount: 0,
+          concurrency,
+        });
+
+        const errorMessage = 'job stalled more than allowable limit';
+        const allFailed = new Promise<void>(resolve => {
+          worker2.on(
+            'failed',
+            after(concurrency, async (job, failedReason, prev) => {
+              const parentState = await parent.getState();
+
+              expect(parentState).to.be.equal('waiting');
+              expect(prev).to.be.equal('active');
+              expect(failedReason.message).to.be.equal(errorMessage);
+              resolve();
+            }),
+          );
+        });
+
+        await allFailed;
+
+        await worker2.close();
+        await parentQueue.close();
+        await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
     });
 
     describe('when removeOnFail is provided as a number', function () {
