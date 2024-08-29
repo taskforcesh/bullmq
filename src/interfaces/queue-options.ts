@@ -32,6 +32,11 @@ export interface QueueBaseOptions {
    * @defaultValue false
    */
   skipVersionCheck?: boolean;
+
+  /**
+   * Telemetry client
+   */
+  telemetry?: Telemetry;
 }
 
 /**

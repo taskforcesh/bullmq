@@ -10,7 +10,6 @@ export interface Span {
   setAttribute(key: string, value: Attribute): Span;
   setAttributes(attributes: Attributes): Span;
   recordException(exception: Exception, time?: Time): void;
-  setStatus(code: SpanStatus): Span;
   end(): void;
 }
 
@@ -54,14 +53,3 @@ interface NameException {
 export type Time = HighResolutionTime | number | Date;
 
 type HighResolutionTime = [number, number];
-
-interface SpanStatus {
-  code: StatusCode;
-  message?: string;
-}
-
-export enum StatusCode {
-  UNSET = 0,
-  OK = 1,
-  ERROR = 2,
-}
