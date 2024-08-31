@@ -308,6 +308,7 @@ describe('metrics', function () {
         throw new Error('test');
       },
       {
+        autorun: false,
         connection,
         prefix,
         metrics: {
@@ -332,11 +333,10 @@ describe('metrics', function () {
       await queue.add('test', { index: i });
     }
 
+    worker.run();
     await completing;
 
-    const closing = worker.close();
-
-    await closing;
+    await worker.close();
 
     const metrics = await queue.getMetrics('failed');
 

@@ -1,5 +1,6 @@
 import { ParentCommand } from '../enums';
-import { JobJson, SandboxedJob } from '../interfaces';
+import { SandboxedJob } from '../interfaces';
+import { JobJsonSandbox } from '../types';
 import { errorToJSON } from '../utils';
 
 enum ChildStatus {
@@ -26,7 +27,8 @@ export class ChildProcessor {
   public async init(processorFile: string): Promise<void> {
     let processor;
     try {
-      processor = require(processorFile);
+      const { default: processorFn } = await import(processorFile);
+      processor = processorFn;
 
       if (processor.default) {
         // support es2015 module.
@@ -60,7 +62,7 @@ export class ChildProcessor {
     });
   }
 
-  public async start(jobJson: JobJson, token?: string): Promise<void> {
+  public async start(jobJson: JobJsonSandbox, token?: string): Promise<void> {
     if (this.status !== ChildStatus.Idle) {
       return this.send({
         cmd: ParentCommand.Error,
@@ -109,10 +111,10 @@ export class ChildProcessor {
    * The wrapped job adds back some of those original functions.
    */
   protected wrapJob(
-    job: JobJson,
+    job: JobJsonSandbox,
     send: (msg: any) => Promise<void>,
   ): SandboxedJob {
-    return {
+    const wrappedJob = {
       ...job,
       data: JSON.parse(job.data || '{}'),
       opts: job.opts,
@@ -134,7 +136,7 @@ export class ChildProcessor {
        * Emulate the real job `log` function.
        */
       log: async (row: any) => {
-        send({
+        await send({
           cmd: ParentCommand.Log,
           value: row,
         });
@@ -143,7 +145,7 @@ export class ChildProcessor {
        * Emulate the real job `moveToDelayed` function.
        */
       moveToDelayed: async (timestamp: number, token?: string) => {
-        send({
+        await send({
           cmd: ParentCommand.MoveToDelayed,
           value: { timestamp, token },
         });
@@ -152,11 +154,14 @@ export class ChildProcessor {
        * Emulate the real job `updateData` function.
        */
       updateData: async (data: any) => {
-        send({
+        await send({
           cmd: ParentCommand.Update,
           value: data,
         });
+        wrappedJob.data = data;
       },
     };
+
+    return wrappedJob;
   }
 }

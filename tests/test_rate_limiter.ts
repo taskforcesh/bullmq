@@ -153,10 +153,13 @@ describe('Rate Limiter', function () {
           duration: 2000,
         },
       };
-      const worker1 = new Worker(queueName, async () => {}, commontOpts);
-      const worker2 = new Worker(queueName, async () => {}, commontOpts);
-      const worker3 = new Worker(queueName, async () => {}, commontOpts);
-      const worker4 = new Worker(queueName, async () => {}, commontOpts);
+
+      const processor = async () => {};
+
+      const worker1 = new Worker(queueName, processor, commontOpts);
+      const worker2 = new Worker(queueName, processor, commontOpts);
+      const worker3 = new Worker(queueName, processor, commontOpts);
+      const worker4 = new Worker(queueName, processor, commontOpts);
 
       const result = new Promise<void>((resolve, reject) => {
         queueEvents.once('completed', async () => {
@@ -168,13 +171,15 @@ describe('Rate Limiter', function () {
         });
       });
 
-      await delay(500);
+      await delay(100);
 
       const jobs = Array.from(Array(numJobs).keys()).map(() => ({
         name: 'rate test',
         data: {},
       }));
       await queue.addBulk(jobs);
+
+      await delay(100);
 
       await queue.pause();
 
@@ -367,7 +372,7 @@ describe('Rate Limiter', function () {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.attemptsMade === 1) {
+          if (job.attemptsStarted === 1) {
             await worker.rateLimit(dynamicLimit);
             const currentTtl = await queue.getRateLimitTtl();
             expect(currentTtl).to.be.lessThanOrEqual(250);
@@ -421,6 +426,191 @@ describe('Rate Limiter', function () {
       await worker.close();
     });
 
+    describe('when rate limit is too low', () => {
+      it('should move job to wait anyway', async function () {
+        this.timeout(4000);
+
+        const numJobs = 10;
+        const dynamicLimit = 1;
+        const duration = 100;
+
+        const ttl = await queue.getRateLimitTtl();
+        expect(ttl).to.be.equal(-2);
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            if (job.attemptsStarted === 1) {
+              delay(50);
+              await worker.rateLimit(dynamicLimit);
+              const currentTtl = await queue.getRateLimitTtl();
+              expect(currentTtl).to.be.lessThanOrEqual(dynamicLimit);
+              throw Worker.RateLimitError();
+            }
+          },
+          {
+            connection,
+            prefix,
+            maxStalledCount: 0,
+            limiter: {
+              max: 1,
+              duration,
+            },
+          },
+        );
+
+        const result = new Promise<void>((resolve, reject) => {
+          queueEvents.on(
+            'completed',
+            // after every job has been completed
+            after(numJobs, async () => {
+              try {
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
+            }),
+          );
+
+          queueEvents.on('failed', async err => {
+            await worker.close();
+            reject(err);
+          });
+        });
+
+        const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+          name: 'rate test',
+          data: {},
+        }));
+        await queue.addBulk(jobs);
+
+        await result;
+        await worker.close();
+      });
+    });
+
+    describe('when passing maxJobs when getting rate limit ttl', () => {
+      describe('when rate limit counter is lower than maxJobs', () => {
+        it('should returns 0', async function () {
+          this.timeout(4000);
+
+          const numJobs = 1;
+          const duration = 100;
+
+          const ttl = await queue.getRateLimitTtl();
+          expect(ttl).to.be.equal(-2);
+
+          const worker = new Worker(
+            queueName,
+            async job => {
+              if (job.attemptsStarted === 1) {
+                delay(50);
+                const currentTtl = await queue.getRateLimitTtl(2);
+                expect(currentTtl).to.be.equal(0);
+              }
+            },
+            {
+              connection,
+              prefix,
+              maxStalledCount: 0,
+              limiter: {
+                max: 2,
+                duration,
+              },
+            },
+          );
+
+          const result = new Promise<void>((resolve, reject) => {
+            queueEvents.on(
+              'completed',
+              // after every job has been completed
+              after(numJobs, async () => {
+                try {
+                  resolve();
+                } catch (err) {
+                  reject(err);
+                }
+              }),
+            );
+
+            queueEvents.on('failed', async err => {
+              await worker.close();
+              reject(err);
+            });
+          });
+
+          const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+            name: 'rate test',
+            data: {},
+          }));
+          await queue.addBulk(jobs);
+
+          await result;
+          await worker.close();
+        });
+      });
+
+      describe('when rate limit counter is greater than maxJobs', () => {
+        it('should returns at least rate limit duration', async function () {
+          this.timeout(4000);
+
+          const numJobs = 10;
+          const duration = 100;
+
+          const ttl = await queue.getRateLimitTtl();
+          expect(ttl).to.be.equal(-2);
+
+          const worker = new Worker(
+            queueName,
+            async job => {
+              if (job.attemptsStarted === 1) {
+                delay(50);
+                const currentTtl = await queue.getRateLimitTtl(1);
+                expect(currentTtl).to.be.lessThanOrEqual(duration);
+              }
+            },
+            {
+              connection,
+              prefix,
+              maxStalledCount: 0,
+              limiter: {
+                max: 1,
+                duration,
+              },
+            },
+          );
+
+          const result = new Promise<void>((resolve, reject) => {
+            queueEvents.on(
+              'completed',
+              // after every job has been completed
+              after(numJobs, async () => {
+                try {
+                  resolve();
+                } catch (err) {
+                  reject(err);
+                }
+              }),
+            );
+
+            queueEvents.on('failed', async err => {
+              await worker.close();
+              reject(err);
+            });
+          });
+
+          const jobs = Array.from(Array(numJobs).keys()).map(() => ({
+            name: 'rate test',
+            data: {},
+          }));
+          await queue.addBulk(jobs);
+
+          await result;
+          await worker.close();
+        });
+      });
+    });
+
     describe('when reaching max attempts and we want to move the job to failed', () => {
       it('should throw Unrecoverable error', async function () {
         const dynamicLimit = 550;
@@ -430,7 +620,7 @@ describe('Rate Limiter', function () {
           queueName,
           async job => {
             await worker.rateLimit(dynamicLimit);
-            if (job.attemptsMade >= job.opts.attempts!) {
+            if (job.attemptsStarted >= job.opts.attempts!) {
               throw new UnrecoverableError('Unrecoverable');
             }
             throw Worker.RateLimitError();
@@ -485,7 +675,7 @@ describe('Rate Limiter', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade === 1) {
+            if (job.attemptsStarted === 1) {
               if (extraCount > 0) {
                 await queue.add('rate test', {}, { priority });
                 priority -= 1;
@@ -617,7 +807,7 @@ describe('Rate Limiter', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            if (job.attemptsMade === 1) {
+            if (job.attemptsMade === 0) {
               await queue.pause();
               await delay(150);
               await worker.rateLimit(dynamicLimit);

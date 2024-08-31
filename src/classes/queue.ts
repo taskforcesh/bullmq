@@ -1,4 +1,3 @@
-import { get } from 'lodash';
 import { v4 } from 'uuid';
 import {
   BaseJobOptions,
@@ -85,7 +84,7 @@ export interface QueueListener<DataType, ResultType, NameType extends string>
 /**
  * Queue
  *
- * This class provides methods to add jobs to a queue and some othe high-level
+ * This class provides methods to add jobs to a queue and some other high-level
  * administration such as pausing or deleting queues.
  *
  */
@@ -96,6 +95,7 @@ export class Queue<
 > extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
   jobsOpts: BaseJobOptions;
+  opts: QueueOptions;
   private _repeat?: Repeat;
 
   constructor(
@@ -112,16 +112,12 @@ export class Queue<
       Connection,
     );
 
-    this.jobsOpts = get(opts, 'defaultJobOptions') ?? {};
+    this.jobsOpts = opts?.defaultJobOptions ?? {};
 
     this.waitUntilReady()
       .then(client => {
         if (!this.closing) {
-          client.hset(
-            this.keys.meta,
-            'opts.maxLenEvents',
-            get(opts, 'streams.events.maxLen', 10000),
-          );
+          client.hmset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
@@ -168,6 +164,12 @@ export class Queue<
     return { ...this.jobsOpts };
   }
 
+  get metaValues(): Record<string, string | number> {
+    return {
+      'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
+    };
+  }
+
   get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
@@ -182,9 +184,34 @@ export class Queue<
   }
 
   /**
+   * Get global concurrency value.
+   * Returns null in case no value is set.
+   */
+  async getGlobalConcurrency(): Promise<number | null> {
+    const client = await this.client;
+    const concurrency = await client.hget(this.keys.meta, 'concurrency');
+    if (concurrency) {
+      return Number(concurrency);
+    }
+    return null;
+  }
+
+  /**
+   * Enable and set global concurrency value.
+   * @param concurrency - Maximum number of simultaneous jobs that the workers can handle.
+   * For instance, setting this value to 1 ensures that no more than one job
+   * is processed at any given time. If this limit is not defined, there will be no
+   * restriction on the number of concurrent jobs.
+   */
+  async setGlobalConcurrency(concurrency: number) {
+    const client = await this.client;
+    return client.hset(this.keys.meta, 'concurrency', concurrency);
+  }
+
+  /**
    * Adds a new job to the queue.
    *
-   * @param name - Name of the job to be added to the queue,.
+   * @param name - Name of the job to be added to the queue.
    * @param data - Arbitrary data to append to the job.
    * @param opts - Job options that affects how the job is going to be processed.
    */
@@ -194,6 +221,12 @@ export class Queue<
     opts?: JobsOptions,
   ): Promise<Job<DataType, ResultType, NameType>> {
     if (opts && opts.repeat) {
+      if (opts.repeat.endDate) {
+        if (+new Date(opts.repeat.endDate) < Date.now()) {
+          throw new Error('End date must be greater than current timestamp');
+        }
+      }
+
       return (await this.repeat).addNextRepeatableJob<
         DataType,
         ResultType,
@@ -294,6 +327,13 @@ export class Queue<
   }
 
   /**
+   * Returns true if the queue is currently maxed.
+   */
+  isMaxed(): Promise<boolean> {
+    return this.scripts.isMaxed();
+  }
+
+  /**
    * Get all repeatable meta jobs.
    *
    * @param start - Offset of first job to return.
@@ -317,7 +357,7 @@ export class Queue<
    *
    * @see removeRepeatableByKey
    *
-   * @param name - job name
+   * @param name - Job name
    * @param repeatOpts -
    * @param jobId -
    * @returns
@@ -334,13 +374,24 @@ export class Queue<
   }
 
   /**
+   * Removes a debounce key.
+   *
+   * @param id - identifier
+   */
+  async removeDebounceKey(id: string): Promise<number> {
+    const client = await this.client;
+
+    return client.del(`${this.keys.de}:${id}`);
+  }
+
+  /**
    * Removes a repeatable job by its key. Note that the key is the one used
    * to store the repeatable job metadata and not one of the job iterations
    * themselves. You can use "getRepeatableJobs" in order to get the keys.
    *
    * @see getRepeatableJobs
    *
-   * @param repeatJobKey - to the repeatable job.
+   * @param repeatJobKey - To the repeatable job.
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
@@ -367,7 +418,7 @@ export class Queue<
    * Updates the given job's progress.
    *
    * @param jobId - The id of the job to update
-   * @param progress - number or object to be saved as progress.
+   * @param progress - Number or object to be saved as progress.
    */
   async updateJobProgress(
     jobId: string,
@@ -380,8 +431,8 @@ export class Queue<
    * Logs one row of job's log data.
    *
    * @param jobId - The job id to log against.
-   * @param logRow - string with log data to be logged.
-   * @param keepLogs - max number of log entries to keep (0 for unlimited).
+   * @param logRow - String with log data to be logged.
+   * @param keepLogs - Max number of log entries to keep (0 for unlimited).
    *
    * @returns The total number of log entries for this job so far.
    */
@@ -475,7 +526,7 @@ export class Queue<
   }
 
   /**
-   * Retry all the failed jobs.
+   * Retry all the failed or completed jobs.
    *
    * @param opts: { count: number; state: FinishedStatus; timestamp: number}
    *   - count  number to limit how many jobs will be moved to wait status per iteration,

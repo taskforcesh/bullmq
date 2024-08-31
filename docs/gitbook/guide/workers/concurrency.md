@@ -1,10 +1,10 @@
 # Concurrency
 
-There are basically two ways to achieve concurrency with BullMQ. You can run a worker with a concurrency factor larger than 1 \(which is the default value\), or you can run several workers in different node processes.
+There are basically two ways to achieve concurrency with BullMQ using Worker instances. You can run a worker with a concurrency factor larger than 1 (which is the default value), or you can run several workers in different node processes.
 
-#### Concurrency factor
+#### Local Concurrency factor
 
-The concurrency factor is a worker option that determines how many jobs are allowed to be processed in parallel. This means that the same worker is able to process several jobs in parallel, however the queue guarantees such as "at-least-once" and order of processing are still preserved.
+The local concurrency factor is a worker option that determines how many jobs are allowed to be processed in parallel for that instance. This means that the same worker is able to process several jobs in parallel, however the queue guarantees such as "at-least-once" and order of processing are still preserved.
 
 ```typescript
 import { Worker, Job } from 'bullmq';
@@ -34,7 +34,7 @@ worker.concurrency = 5;
 The other way to achieve concurrency is to provide multiple workers. This is the recommended way to setup bull anyway since besides providing concurrency it also provides higher availability for your workers. You can easily launch a fleet of workers running in many different machines in order to execute the jobs in parallel in a predictable and robust way.
 
 {% hint style="info" %}
-It is not possible to achieve a global concurrency of at most 1 job at a time if you use more than one worker.
+If you need to achieve a global concurrency of at most 1 job at a time, refer to [Global concurrency](../queues/global-concurrency.md).
 {% endhint %}
 
-You can still \(and it is a perfectly good practice to\) choose a high concurrency factor for every worker, so that the resources of every machine where the worker is running are used more efficiently.
+You can still (and it is a perfectly good practice to) choose a high concurrency factor for every worker, so that the resources of every machine where the worker is running are used more efficiently.

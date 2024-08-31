@@ -1,10 +1,20 @@
-import { BaseJobOptions } from '../interfaces';
+import { BaseJobOptions, DebounceOptions } from '../interfaces';
 
 export type JobsOptions = BaseJobOptions & {
+  /**
+   * Debounce options.
+   */
+  debounce?: DebounceOptions;
+
   /**
    * If true, moves parent to failed.
    */
   failParentOnFailure?: boolean;
+
+  /**
+   * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
+   */
+  ignoreDependencyOnFailure?: boolean;
 
   /**
    * If true, removes the job from its parent dependencies when it fails after all attempts.
@@ -17,9 +27,19 @@ export type JobsOptions = BaseJobOptions & {
  */
 export type RedisJobOptions = BaseJobOptions & {
   /**
+   * Debounce identifier.
+   */
+  deid?: string;
+
+  /**
    * If true, moves parent to failed.
    */
   fpof?: boolean;
+
+  /**
+   * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
+   */
+  idof?: boolean;
 
   /**
    * Maximum amount of log entries that will be preserved

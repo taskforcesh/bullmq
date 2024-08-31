@@ -8,10 +8,10 @@ const { DelayedError } = require('../../dist/cjs/classes');
 const delay = require('./delay');
 
 module.exports = function (job, token) {
-  if (job.attemptsMade == 1) {
+  if (job.attemptsStarted == 1) {
     return delay(250)
       .then(() => {
-        job.moveToDelayed(2500, token);
+        job.moveToDelayed(Date.now() + 2500, token);
         return delay(500);
       })
       .then(() => {

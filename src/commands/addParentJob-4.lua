@@ -20,6 +20,7 @@
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9]  repeat job key
+            [10] debounce key
             
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -44,13 +45,16 @@ local data = ARGV[2]
 local opts = cmsgpack.unpack(ARGV[3])
 
 local parentKey = args[5]
-local repeatJobKey = args[9]
 local parent = args[8]
+local repeatJobKey = args[9]
+local debounceKey = args[10]
 local parentData
 
 -- Includes
+--- @include "includes/debounceJob"
+--- @include "includes/getOrSetMaxEvents"
+--- @include "includes/handleDuplicatedJob"
 --- @include "includes/storeJob"
---- @include "includes/updateExistingJobsParent"
 
 if parentKey ~= nil then
     if rcall("EXISTS", parentKey) ~= 1 then return -5 end
@@ -60,7 +64,7 @@ end
 
 local jobCounter = rcall("INCR", idKey)
 
-local maxEvents = rcall("HGET", metaKey, "opts.maxLenEvents") or 10000
+local maxEvents = getOrSetMaxEvents(metaKey)
 
 local parentDependenciesKey = args[7]
 local timestamp = args[4]
@@ -71,14 +75,16 @@ else
     jobId = args[2]
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
-        updateExistingJobsParent(parentKey, parent, parentData,
-                                 parentDependenciesKey, completedKey, jobIdKey,
-                                 jobId, timestamp)
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-              "duplicated", "jobId", jobId)
-
-        return jobId .. "" -- convert to string
+        return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
+            parentData, parentDependenciesKey, completedKey, eventsKey,
+            maxEvents, timestamp)
     end
+end
+
+local debouncedJobId = debounceJob(args[1], opts['de'],
+  jobId, debounceKey, eventsKey, maxEvents)
+if debouncedJobId then
+  return debouncedJobId
 end
 
 -- Store the job.
@@ -91,8 +97,6 @@ rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
       "waiting-children", "jobId", jobId)
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
--- TODO: Should not be possible to add a child job to a parent that is not in the "waiting-children" status.
--- fail in this case.
 if parentDependenciesKey ~= nil then
     rcall("SADD", parentDependenciesKey, jobIdKey)
 end

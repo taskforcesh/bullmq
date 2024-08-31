@@ -5,6 +5,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
+import redis.asyncio as redis
 from bullmq import Queue, Worker, Job
 from uuid import uuid4
 
@@ -37,7 +38,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job1 = await queue.add("test-job", {"foo": "bar"}, {})
         job2 = await queue.add("test-job", {"foo": "bar"}, {})
         jobs = await queue.getJobs(["wait"])
-    
+
         self.assertEqual(job2.id, jobs[0].id)
         self.assertEqual(job1.id, jobs[1].id)
         await queue.close()
@@ -80,7 +81,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_is_paused_with_custom_prefix(self):
-        queue = Queue(queueName, {}, {"prefix": "test"})
+        queue = Queue(queueName, {"prefix": "test"})
         await queue.pause()
         isPaused = await queue.isPaused()
 
@@ -105,7 +106,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         events_length = await queue.client.xlen(f"{queue.prefix}:{queueName}:events")
         self.assertEqual(events_length, 8)
 
-        await queue.trimEvents(0);
+        await queue.trimEvents(0)
 
         events_length = await queue.client.xlen(f"{queue.prefix}:{queue.name}:events")
 
@@ -114,7 +115,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_trim_events_manually_with_custom_prefix(self):
-        queue = Queue(queueName, {}, {"prefix": "test"})
+        queue = Queue(queueName, {"prefix": "test"})
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
@@ -123,7 +124,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         events_length = await queue.client.xlen(f"test:{queueName}:events")
         self.assertEqual(events_length, 8)
 
-        await queue.trimEvents(0);
+        await queue.trimEvents(0)
 
         events_length = await queue.client.xlen(f"test:{queue.name}:events")
 
@@ -368,6 +369,50 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
         await worker.close()
 
+    async def test_promote_all_delayed_jobs(self):
+        queue = Queue(queueName)
+        job_count = 8
+
+        for index in range(job_count):
+            data = { "idx": index }
+            await queue.add("test", data=data, opts={ "delay": 5000 })
+
+        delayed_count = await queue.getJobCounts('delayed')
+        self.assertEqual(delayed_count['delayed'], job_count)
+
+        await queue.promoteJobs()
+
+        waiting_count = await queue.getJobCounts('waiting')
+        self.assertEqual(waiting_count['waiting'], job_count)
+
+        async def process(job: Job, token: str):
+            await asyncio.sleep(0.1)
+            return
+        order = 0
+
+        worker = Worker(queueName, process)
+
+        completed_events = Future()
+
+        def completing(job: Job, result):
+            nonlocal order
+            if order == (job_count - 1):
+                completed_events.set_result(None)
+            order += 1
+
+        worker.on("completed", completing)
+
+        await completed_events
+
+        worker.off('completed', completing)
+
+        delayed_count = await queue.getJobCounts('delayed')
+
+        self.assertEqual(delayed_count['delayed'], 0)
+
+        await queue.close()
+        await worker.close()
+
     async def test_remove_job(self):
         queue = Queue(queueName)
         job = await queue.add("test", {"foo": "bar"}, {})
@@ -375,6 +420,34 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         job = await Job.fromId(queue, job.id)
         self.assertIsNone(job)
 
+        await queue.close()
+
+    async def test_get_counts_per_priority(self):
+        queue = Queue(queueName)
+        jobs = [{
+            "name": "test",
+            "data": {},
+            "opts": {
+                "priority": index % 4
+            }
+        } for index in range(42)]
+        await queue.addBulk(jobs)
+        counts = await queue.getCountsPerPriority([0, 1, 2, 3])
+        self.assertEqual(counts, {
+            "0": 11,
+            "1": 11,
+            "2": 10,
+            "3": 10
+        })
+
+        await queue.close()
+
+    async def test_reusable_redis(self):
+        conn = redis.Redis(decode_responses=True, host="localhost", port="6379", db=0)
+        queue = Queue(queueName, {"connection": conn})
+        job = await queue.add("test-job", {"foo": "bar"}, {})
+
+        self.assertEqual(job.id, "1")
         await queue.close()
 
 if __name__ == '__main__':

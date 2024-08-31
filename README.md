@@ -36,6 +36,18 @@
 
 You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
+# News 🚀
+
+## 🌐 Language agnostic BullMQ
+
+Do you need to work with BullMQ on platforms other than Node.js? If so, check out the [BullMQ Proxy](https://github.com/taskforcesh/bullmq-proxy)
+
+## 🌟 Rediscover Scale Conference 2024
+
+Discover the latest in in-memory and real-time data technologies at **Rediscover Scale 2024**. Ideal for engineers, architects, and technical leaders looking to push technological boundaries. Connect with experts and advance your skills at The Foundry SF, San Francisco.
+
+[Learn more and register here!](https://www.rediscoverscale.com/)
+
 # Official FrontEnd
 
 [<img src="http://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
@@ -61,16 +73,6 @@ Sign up at [Taskforce.sh](https://taskforce.sh)
     <td>
       Dragonfly is a new Redis™ drop-in replacement that is fully compatible with BullMQ and brings some important advantages over Redis™ such as massive
       better performance by utilizing all CPU cores available and faster and more memory efficient data structures. Read more <a href="https://www.dragonflydb.io/docs/integrations/bullmq">here</a> on how to use it with BullMQ.
-    </td>
-  </tr>
-  <tr>
-    <td>
-      <a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">
-        <img src="https://www.memetria.com/images/logo/memetria-logo.svg" width=350 alt="Memetria for Redis" />
-      </a>
-    </td>
-    <td>
-    If you need high quality production Redis instances for your BullMQ project, please consider subscribing to <a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">Memetria for Redis</a>, leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us sponsor the development of BullMQ!    
     </td>
   </tr>
 </table>
@@ -145,6 +147,19 @@ Some notable organizations using BullMQ:
           width="50"
           alt="NoCodeDB"
         />
+      </a>
+    </td>
+    </td>
+      <td valign="center">
+       <a href="https://infisical.com/">
+         <picture>
+          <source media="(prefers-color-scheme: dark)" srcset="https://mintlify.s3-us-west-1.amazonaws.com/infisical/logo/dark.svg">
+          <img
+          src="https://mintlify.s3-us-west-1.amazonaws.com/infisical/logo/light.svg"
+          width="150"
+          alt="Infisical"
+        />
+          </picture>
       </a>
     </td>
     </tr>

@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import { URL } from 'url';
 import { Redis } from 'ioredis';
 import * as path from 'path';
 import { v4 } from 'uuid';
@@ -20,7 +21,6 @@ import {
   DELAY_TIME_1,
   isNotConnectionError,
   isRedisInstance,
-  WORKER_SUFFIX,
 } from '../utils';
 import { QueueBase } from './queue-base';
 import { Repeat } from './repeat';
@@ -29,11 +29,18 @@ import { Job } from './job';
 import { RedisConnection } from './redis-connection';
 import sandbox from './sandbox';
 import { AsyncFifoQueue } from './async-fifo-queue';
-import { DelayedError } from './delayed-error';
-import { WaitingChildrenError } from './waiting-children-error';
+import {
+  DelayedError,
+  RateLimitError,
+  RATE_LIMIT_ERROR,
+  WaitingChildrenError,
+} from './errors';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
+
+// 30 seconds is the maximum limit until.
+const maximumLimitUntil = 30000;
 
 // note: sandboxed processors would also like to define concurrency per process
 // for better resource utilization.
@@ -147,8 +154,6 @@ export interface WorkerListener<
   stalled: (jobId: string, prev: string) => void;
 }
 
-const RATE_LIMIT_ERROR = 'bullmq:rateLimitExceeded';
-
 /**
  *
  * This class represents a worker that is able to process jobs from the queue.
@@ -178,7 +183,7 @@ export class Worker<
   private limitUntil = 0;
   private resumeWorker: () => void;
   private stalledCheckTimer: NodeJS.Timeout;
-  private waiting: Promise<string> | null = null;
+  private waiting: Promise<number> | null = null;
   private _repeat: Repeat;
 
   protected paused: Promise<void>;
@@ -186,13 +191,13 @@ export class Worker<
   protected running = false;
 
   static RateLimitError(): Error {
-    return new Error(RATE_LIMIT_ERROR);
+    return new RateLimitError();
   }
 
   constructor(
     name: string,
-    processor?: string | null | Processor<DataType, ResultType, NameType>,
-    opts: WorkerOptions = {},
+    processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
+    opts?: WorkerOptions,
     Connection?: typeof RedisConnection,
   ) {
     super(
@@ -203,6 +208,10 @@ export class Worker<
       },
       Connection,
     );
+
+    if (!opts || !opts.connection) {
+      throw new Error('Worker requires a connection');
+    }
 
     this.opts = {
       drainDelay: 5,
@@ -219,6 +228,10 @@ export class Worker<
       throw new Error('stalledInterval must be greater than 0');
     }
 
+    if (this.opts.drainDelay <= 0) {
+      throw new Error('drainDelay must be greater than 0');
+    }
+
     this.concurrency = this.opts.concurrency;
 
     this.opts.lockRenewTime =
@@ -231,25 +244,39 @@ export class Worker<
         this.processFn = processor;
       } else {
         // SANDBOXED
-        const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs'];
-        const processorFile =
-          processor +
-          (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
+        if (processor instanceof URL) {
+          if (!fs.existsSync(processor)) {
+            throw new Error(
+              `URL ${processor} does not exist in the local file system`,
+            );
+          }
+          processor = processor.href;
+        } else {
+          const supportedFileTypes = ['.js', '.ts', '.flow', '.cjs'];
+          const processorFile =
+            processor +
+            (supportedFileTypes.includes(path.extname(processor)) ? '' : '.js');
 
-        if (!fs.existsSync(processorFile)) {
-          throw new Error(`File ${processorFile} does not exist`);
+          if (!fs.existsSync(processorFile)) {
+            throw new Error(`File ${processorFile} does not exist`);
+          }
         }
 
-        const mainFile = this.opts.useWorkerThreads
-          ? 'main-worker.js'
-          : 'main.js';
-        let mainFilePath = path.join(
-          path.dirname(module.filename),
-          `${mainFile}`,
-        );
+        // Separate paths so that bundling tools can resolve dependencies easier
+        const dirname = path.dirname(module.filename || __filename);
+        const workerThreadsMainFile = path.join(dirname, 'main-worker.js');
+        const spawnProcessMainFile = path.join(dirname, 'main.js');
+
+        let mainFilePath = this.opts.useWorkerThreads
+          ? workerThreadsMainFile
+          : spawnProcessMainFile;
+
         try {
           fs.statSync(mainFilePath); // would throw if file not exists
         } catch (_) {
+          const mainFile = this.opts.useWorkerThreads
+            ? 'main-worker.js'
+            : 'main.js';
           mainFilePath = path.join(
             process.cwd(),
             `dist/cjs/classes/${mainFile}`,
@@ -273,7 +300,8 @@ export class Worker<
       }
     }
 
-    const connectionName = this.clientName(WORKER_SUFFIX);
+    const connectionName =
+      this.clientName() + (this.opts.name ? `:w:${this.opts.name}` : '');
     this.blockingConnection = new RedisConnection(
       isRedisInstance(opts.connection)
         ? (<Redis>opts.connection).duplicate({ connectionName })
@@ -402,8 +430,18 @@ export class Worker<
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
 
+      /**
+       * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
+       * as efficiently as possible, providing concurrency and minimal unnecessary calls
+       * to Redis.
+       */
       while (!this.closing) {
         let numTotal = asyncFifoQueue.numTotal();
+
+        /**
+         * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
+         * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
+         */
         while (
           !this.waiting &&
           numTotal < this.opts.concurrency &&
@@ -424,7 +462,7 @@ export class Worker<
           numTotal = asyncFifoQueue.numTotal();
 
           if (this.waiting && numTotal > 1) {
-            // We have a job waiting but we have others that we could start processing already
+            // We are waiting for jobs but we have others that we could start processing already
             break;
           }
 
@@ -449,11 +487,7 @@ export class Worker<
         let job: Job<DataType, ResultType, NameType> | void;
         do {
           job = await asyncFifoQueue.fetch();
-        } while (
-          !job &&
-          asyncFifoQueue.numTotal() > 0 &&
-          asyncFifoQueue.numQueued() > 0
-        );
+        } while (!job && asyncFifoQueue.numQueued() > 0);
 
         if (job) {
           const token = job.token;
@@ -513,10 +547,13 @@ export class Worker<
     }
 
     if (this.drained && block && !this.limitUntil && !this.waiting) {
-      this.waiting = this.waitForJob(bclient);
+      this.waiting = this.waitForJob(bclient, this.blockUntil);
       try {
-        const jobId = await this.waiting;
-        return this.moveToActive(client, token, jobId);
+        this.blockUntil = await this.waiting;
+
+        if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
+          return this.moveToActive(client, token, this.opts.name);
+        }
       } catch (err) {
         // Swallow error if locally paused or closing since we did force a disconnection
         if (
@@ -529,12 +566,16 @@ export class Worker<
         this.waiting = null;
       }
     } else {
-      if (this.limitUntil) {
+      const limitUntil = this.limitUntil;
+      if (limitUntil) {
         this.abortDelayController?.abort();
         this.abortDelayController = new AbortController();
-        await this.delay(this.limitUntil, this.abortDelayController);
+        await this.delay(
+          this.getLimitUntil(limitUntil),
+          this.abortDelayController,
+        );
       }
-      return this.moveToActive(client, token);
+      return this.moveToActive(client, token, this.opts.name);
     }
   }
 
@@ -554,68 +595,68 @@ export class Worker<
     );
   }
 
+  get minimumBlockTimeout(): number {
+    return this.blockingConnection.capabilities.canBlockFor1Ms
+      ? /* 1 millisecond is chosen because the granularity of our timestamps are milliseconds.
+Obviously we can still process much faster than 1 job per millisecond but delays and rate limits
+will never work with more accuracy than 1ms. */
+        0.001
+      : 0.002;
+  }
+
   protected async moveToActive(
     client: RedisClient,
     token: string,
-    jobId?: string,
+    name?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    // If we get the special delayed job ID, we pick the delay as the next
-    // block timeout.
-    if (jobId && jobId.startsWith('0:')) {
-      this.blockUntil = parseInt(jobId.split(':')[1]) || 0;
-
-      // Remove marker from active list.
-      await client.lrem(this.keys.active, 1, jobId);
-      if (this.blockUntil > 0) {
-        return;
-      }
-    }
     const [jobData, id, limitUntil, delayUntil] =
-      await this.scripts.moveToActive(client, token, jobId);
+      await this.scripts.moveToActive(client, token, name);
     this.updateDelays(limitUntil, delayUntil);
 
     return this.nextJobFromJobData(jobData, id, token);
   }
 
-  private async waitForJob(bclient: RedisClient): Promise<string> {
+  private async waitForJob(
+    bclient: RedisClient,
+    blockUntil: number,
+  ): Promise<number> {
     if (this.paused) {
-      return;
+      return Infinity;
     }
 
+    let timeout: NodeJS.Timeout;
     try {
-      const opts: WorkerOptions = <WorkerOptions>this.opts;
+      if (!this.closing && !this.limitUntil) {
+        let blockTimeout = this.getBlockTimeout(blockUntil);
 
-      if (!this.closing) {
-        let blockTimeout = Math.max(
-          this.blockUntil
-            ? (this.blockUntil - Date.now()) / 1000
-            : opts.drainDelay,
-          0,
-        );
-
-        let jobId;
-
-        // Blocking for less than 50ms is useless.
-        if (blockTimeout > 0.05) {
+        if (blockTimeout > 0) {
           blockTimeout = this.blockingConnection.capabilities.canDoubleTimeout
             ? blockTimeout
             : Math.ceil(blockTimeout);
 
-          // We restrict the maximum block timeout to 10 second to avoid
-          // blocking the connection for too long in the case of reconnections
-          // reference: https://github.com/taskforcesh/bullmq/issues/1658
-          blockTimeout = Math.min(blockTimeout, maximumBlockTimeout);
+          // We cannot trust that the blocking connection stays blocking forever
+          // due to issues in Redis and IORedis, so we will reconnect if we
+          // don't get a response in the expected time.
+          timeout = setTimeout(async () => {
+            bclient.disconnect(!this.closing);
+          }, blockTimeout * 1000 + 1000);
 
-          jobId = await bclient.brpoplpush(
-            this.keys.wait,
-            this.keys.active,
-            blockTimeout,
-          );
-        } else {
-          jobId = await bclient.rpoplpush(this.keys.wait, this.keys.active);
+          this.updateDelays(); // reset delays to avoid reusing same values in next iteration
+
+          // Markers should only be used for un-blocking, so we will handle them in this
+          // function only.
+          const result = await bclient.bzpopmin(this.keys.marker, blockTimeout);
+
+          if (result) {
+            const [_key, member, score] = result;
+
+            if (member) {
+              return parseInt(score);
+            }
+          }
         }
-        this.blockUntil = 0;
-        return jobId;
+
+        return 0;
       }
     } catch (error) {
       if (isNotConnectionError(<Error>error)) {
@@ -625,8 +666,37 @@ export class Worker<
         await this.delay();
       }
     } finally {
-      this.waiting = null;
+      clearTimeout(timeout);
     }
+    return Infinity;
+  }
+
+  protected getBlockTimeout(blockUntil: number): number {
+    const opts: WorkerOptions = <WorkerOptions>this.opts;
+
+    // when there are delayed jobs
+    if (blockUntil) {
+      const blockDelay = blockUntil - Date.now();
+      // when we reach the time to get new jobs
+      if (blockDelay <= 0) {
+        return blockDelay;
+      } else if (blockDelay < this.minimumBlockTimeout * 1000) {
+        return this.minimumBlockTimeout;
+      } else {
+        // We restrict the maximum block timeout to 10 second to avoid
+        // blocking the connection for too long in the case of reconnections
+        // reference: https://github.com/taskforcesh/bullmq/issues/1658
+        return Math.min(blockDelay / 1000, maximumBlockTimeout);
+      }
+    } else {
+      return Math.max(opts.drainDelay, this.minimumBlockTimeout);
+    }
+  }
+
+  protected getLimitUntil(limitUntil: number): number {
+    // We restrict the maximum limit until to 30 second to
+    // be able to promote delayed jobs while queue is rate limited
+    return Math.min(limitUntil, maximumLimitUntil);
   }
 
   /**
@@ -702,15 +772,21 @@ export class Worker<
 
           if (
             err instanceof DelayedError ||
-            err.message == 'DelayedError' ||
+            err.name == 'DelayedError' ||
             err instanceof WaitingChildrenError ||
             err.name == 'WaitingChildrenError'
           ) {
             return;
           }
 
-          await job.moveToFailed(err, token);
+          const result = await job.moveToFailed(err, token, true);
           this.emit('failed', job, err, 'active');
+
+          if (result) {
+            const [jobData, jobId, limitUntil, delayUntil] = result;
+            this.updateDelays(limitUntil, delayUntil);
+            return this.nextJobFromJobData(jobData, jobId, token);
+          }
         } catch (err) {
           this.emit('error', <Error>err);
           // It probably means that the job has lost the lock before completion
@@ -801,35 +877,34 @@ export class Worker<
     }
     this.closing = (async () => {
       this.emit('closing', 'closing queue');
-
       this.abortDelayController?.abort();
 
-      const client = await this.blockingConnection.client;
-
       this.resume();
-      await Promise.resolve()
-        .finally(() => {
-          return force || this.whenCurrentJobsFinished(false);
-        })
-        .finally(() => {
-          const closePoolPromise = this.childPool?.clean();
 
-          if (force) {
-            // since we're not waiting for the job to end attach
-            // an error handler to avoid crashing the whole process
-            closePoolPromise?.catch(err => {
-              console.error(err); // TODO: emit error in next breaking change version
-            });
-            return;
-          }
-          return closePoolPromise;
-        })
-        .finally(() => clearTimeout(this.extendLocksTimer))
-        .finally(() => clearTimeout(this.stalledCheckTimer))
-        .finally(() => client.disconnect())
-        .finally(() => this.connection.close())
-        .finally(() => this.emit('closed'));
+      // Define the async cleanup functions
+      const asyncCleanups = [
+        () => {
+          return force || this.whenCurrentJobsFinished(false);
+        },
+        () => this.childPool?.clean(),
+        () => this.blockingConnection.close(force),
+        () => this.connection.close(force),
+      ];
+
+      // Run cleanup functions sequentially and make sure all are run despite any errors
+      for (const cleanup of asyncCleanups) {
+        try {
+          await cleanup();
+        } catch (err) {
+          this.emit('error', <Error>err);
+        }
+      }
+
+      clearTimeout(this.extendLocksTimer);
+      clearTimeout(this.stalledCheckTimer);
+
       this.closed = true;
+      this.emit('closed');
     })();
     return this.closing;
   }
@@ -943,16 +1018,16 @@ export class Worker<
 
   protected async extendLocks(jobs: Job[]) {
     try {
-      const multi = (await this.client).multi();
+      const pipeline = (await this.client).pipeline();
       for (const job of jobs) {
         await this.scripts.extendLock(
           job.id,
           job.token,
           this.opts.lockDuration,
-          multi,
+          pipeline,
         );
       }
-      const result = (await multi.exec()) as [Error, string][];
+      const result = (await pipeline.exec()) as [Error, string][];
 
       for (const [err, jobId] of result) {
         if (err) {

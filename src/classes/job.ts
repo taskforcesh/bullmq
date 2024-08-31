@@ -1,5 +1,4 @@
 import { ChainableCommander } from 'ioredis';
-import { invert } from 'lodash';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -24,6 +23,7 @@ import {
 } from '../types';
 import {
   errorObject,
+  invertObject,
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
@@ -31,19 +31,21 @@ import {
   tryCatch,
 } from '../utils';
 import { Backoffs } from './backoffs';
-import { Scripts } from './scripts';
-import { UnrecoverableError } from './unrecoverable-error';
+import { Scripts, raw2NextJobData } from './scripts';
+import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
 
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
+  de: 'debounce',
   fpof: 'failParentOnFailure',
+  idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
 };
 
-const optsEncodeMap = invert(optsDecodeMap);
+const optsEncodeMap = invertObject(optsDecodeMap);
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -99,6 +101,12 @@ export class Job<
   timestamp: number;
 
   /**
+   * Number of attempts when job is moved to active.
+   * @defaultValue 0
+   */
+  attemptsStarted = 0;
+
+  /**
    * Number of attempts after the job has failed.
    * @defaultValue 0
    */
@@ -130,6 +138,11 @@ export class Job<
   parent?: ParentKeys;
 
   /**
+   * Debounce identifier.
+   */
+  debounceId?: string;
+
+  /**
    * Base repeat job key.
    */
   repeatJobKey?: string;
@@ -138,6 +151,11 @@ export class Job<
    * The token used for locking this job.
    */
   token?: string;
+
+  /**
+   * The worker name that is processing or processed this job.
+   */
+  processedBy?: string;
 
   protected toKey: (type: string) => string;
 
@@ -187,8 +205,10 @@ export class Job<
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
 
+    this.debounceId = opts.debounce ? opts.debounce.id : undefined;
+
     this.toKey = queue.toKey.bind(queue);
-    this.scripts = new Scripts(queue);
+    this.setScripts();
 
     this.queueQualifiedName = queue.qualifiedName;
   }
@@ -244,10 +264,10 @@ export class Job<
         new this<T, R, N>(queue, job.name, job.data, job.opts, job.opts?.jobId),
     );
 
-    const multi = client.multi();
+    const pipeline = client.pipeline();
 
     for (const job of jobInstances) {
-      job.addJob(<RedisClient>(multi as unknown), {
+      job.addJob(<RedisClient>(pipeline as unknown), {
         parentKey: job.parentKey,
         parentDependenciesKey: job.parentKey
           ? `${job.parentKey}:dependencies`
@@ -255,7 +275,7 @@ export class Job<
       });
     }
 
-    const results = (await multi.exec()) as [null | Error, string][];
+    const results = (await pipeline.exec()) as [null | Error, string][];
     for (let index = 0; index < results.length; ++index) {
       const [err, id] = results[index];
       if (err) {
@@ -310,8 +330,15 @@ export class Job<
       job.repeatJobKey = json.rjk;
     }
 
+    if (json.deid) {
+      job.debounceId = json.deid;
+    }
+
     job.failedReason = json.failedReason;
-    job.attemptsMade = parseInt(json.attemptsMade || '0');
+
+    job.attemptsStarted = parseInt(json.ats || '0');
+
+    job.attemptsMade = parseInt(json.attemptsMade || json.atm || '0');
 
     job.stacktrace = getTraces(json.stacktrace);
 
@@ -327,7 +354,15 @@ export class Job<
       job.parent = JSON.parse(json.parent);
     }
 
+    if (json.pb) {
+      job.processedBy = json.pb;
+    }
+
     return job;
+  }
+
+  protected setScripts() {
+    this.scripts = new Scripts(this.queue);
   }
 
   private static optsFromJSON(rawOpts?: string): JobsOptions {
@@ -386,29 +421,15 @@ export class Job<
    *
    * @returns The total number of log entries for this job so far.
    */
-  static async addJobLog(
+  static addJobLog(
     queue: MinimalQueue,
     jobId: string,
     logRow: string,
     keepLogs?: number,
   ): Promise<number> {
-    const client = await queue.client;
-    const logsKey = queue.toKey(jobId) + ':logs';
+    const scripts = (queue as any).scripts as Scripts;
 
-    const multi = client.multi();
-
-    multi.rpush(logsKey, logRow);
-
-    if (keepLogs) {
-      multi.ltrim(logsKey, -keepLogs, -1);
-    }
-
-    const result = (await multi.exec()) as [
-      [Error, number],
-      [Error, string] | undefined,
-    ];
-
-    return keepLogs ? Math.min(keepLogs, result[0][1]) : result[0][1];
+    return scripts.addLog(jobId, logRow, keepLogs);
   }
 
   toJSON() {
@@ -430,11 +451,13 @@ export class Job<
       parentKey: this.parentKey,
       progress: this.progress,
       attemptsMade: this.attemptsMade,
+      attemptsStarted: this.attemptsStarted,
       finishedOn: this.finishedOn,
       processedOn: this.processedOn,
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
+      debounceId: this.debounceId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     };
@@ -503,6 +526,25 @@ export class Job<
   }
 
   /**
+   * Removes child dependency from parent when child is not yet finished
+   *
+   * @returns True if the relationship existed and if it was removed.
+   */
+  async removeChildDependency(): Promise<boolean> {
+    const childDependencyIsRemoved = await this.scripts.removeChildDependency(
+      this.id,
+      this.parentKey,
+    );
+    if (childDependencyIsRemoved) {
+      this.parent = undefined;
+      this.parentKey = undefined;
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
    * Clears job's logs
    *
    * @param keepLogs - the amount of log entries to preserve
@@ -558,13 +600,13 @@ export class Job<
    * @param returnValue - The jobs success message.
    * @param token - Worker token used to acquire completed job.
    * @param fetchNext - True when wanting to fetch the next job.
-   * @returns Returns the jobData of the next job in the waiting queue.
+   * @returns Returns the jobData of the next job in the waiting queue or void.
    */
   async moveToCompleted(
     returnValue: ReturnType,
     token: string,
     fetchNext = true,
-  ) {
+  ): Promise<void | any[]> {
     await this.queue.waitUntilReady();
 
     this.returnvalue = returnValue || void 0;
@@ -585,7 +627,10 @@ export class Job<
     );
 
     const result = await this.scripts.moveToFinished(this.id, args);
-    this.finishedOn = args[14] as number;
+    this.finishedOn = args[
+      this.scripts.moveToFinishedKeys.length + 1
+    ] as number;
+    this.attemptsMade += 1;
 
     return result;
   }
@@ -596,13 +641,13 @@ export class Job<
    * @param err - the jobs error message.
    * @param token - token to check job is locked by current worker
    * @param fetchNext - true when wanting to fetch the next job
-   * @returns void
+   * @returns Returns the jobData of the next job in the waiting queue or void.
    */
   async moveToFailed<E extends Error>(
     err: E,
     token: string,
     fetchNext = false,
-  ): Promise<void> {
+  ): Promise<void | any[]> {
     const client = await this.queue.client;
     const message = err?.message;
 
@@ -620,7 +665,7 @@ export class Job<
     let moveToFailed = false;
     let finishedOn, delay;
     if (
-      this.attemptsMade < this.opts.attempts &&
+      this.attemptsMade + 1 < this.opts.attempts &&
       !this.discarded &&
       !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
     ) {
@@ -629,7 +674,7 @@ export class Job<
       // Check if backoff is needed
       delay = await Backoffs.calculate(
         <BackoffOptions>this.opts.backoff,
-        this.attemptsMade,
+        this.attemptsMade + 1,
         err,
         this,
         opts.settings && opts.settings.backoffStrategy,
@@ -640,12 +685,12 @@ export class Job<
       } else if (delay) {
         const args = this.scripts.moveToDelayedArgs(
           this.id,
-          Date.now() + delay,
+          Date.now(),
           token,
           delay,
         );
         (<any>multi).moveToDelayed(args);
-        command = 'delayed';
+        command = 'moveToDelayed';
       } else {
         // Retry immediately
         (<any>multi).retryJob(
@@ -667,8 +712,8 @@ export class Job<
         fetchNext,
       );
       (<any>multi).moveToFinished(args);
-      finishedOn = args[14];
-      command = 'failed';
+      finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
+      command = 'moveToFinished';
     }
 
     const results = await multi.exec();
@@ -679,9 +724,14 @@ export class Job<
       );
     }
 
-    const code = results[results.length - 1][1] as number;
-    if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, command, 'active');
+    const result = results[results.length - 1][1] as number;
+    if (result < 0) {
+      throw this.scripts.finishedErrors({
+        code: result,
+        jobId: this.id,
+        command,
+        state: 'active',
+      });
     }
 
     if (finishedOn && typeof finishedOn === 'number') {
@@ -690,6 +740,12 @@ export class Job<
 
     if (delay && typeof delay === 'number') {
       this.delay = delay;
+    }
+
+    this.attemptsMade += 1;
+
+    if (Array.isArray(result)) {
+      return raw2NextJobData(result);
     }
   }
 
@@ -797,6 +853,17 @@ export class Job<
     if (result) {
       return parseObjectValues(result);
     }
+  }
+
+  /**
+   * Get this jobs children failure values if any.
+   *
+   * @returns Object mapping children job keys with their failure values.
+   */
+  async getFailedChildrenValues(): Promise<{ [jobKey: string]: string }> {
+    const client = await this.queue.client;
+
+    return client.hgetall(this.toKey(`${this.id}:failed`));
   }
 
   /**
@@ -1025,14 +1092,20 @@ export class Job<
    * @param token - token to check job is locked by current worker
    * @returns
    */
-  moveToDelayed(timestamp: number, token?: string): Promise<void> {
-    const delay = timestamp - Date.now();
-    return this.scripts.moveToDelayed(
+  async moveToDelayed(timestamp: number, token?: string): Promise<void> {
+    const now = Date.now();
+    const delay = timestamp - now;
+    const finalDelay = delay > 0 ? delay : 0;
+    const movedToDelayed = await this.scripts.moveToDelayed(
       this.id,
-      timestamp,
-      delay > 0 ? delay : 0,
+      now,
+      finalDelay,
       token,
+      { skipAttempt: true },
     );
+    this.delay = finalDelay;
+
+    return movedToDelayed;
   }
 
   /**
@@ -1042,11 +1115,17 @@ export class Job<
    * @param opts - The options bag for moving a job to waiting-children.
    * @returns true if the job was moved
    */
-  moveToWaitingChildren(
+  async moveToWaitingChildren(
     token: string,
     opts: MoveToWaitingChildrenOpts = {},
   ): Promise<boolean> {
-    return this.scripts.moveToWaitingChildren(this.id, token, opts);
+    const movedToWaitingChildren = await this.scripts.moveToWaitingChildren(
+      this.id,
+      token,
+      opts,
+    );
+
+    return movedToWaitingChildren;
   }
 
   /**
@@ -1055,10 +1134,9 @@ export class Job<
   async promote(): Promise<void> {
     const jobId = this.id;
 
-    const code = await this.scripts.promote(jobId);
-    if (code < 0) {
-      throw this.scripts.finishedErrors(code, this.id, 'promote', 'delayed');
-    }
+    await this.scripts.promote(jobId);
+
+    this.delay = 0;
   }
 
   /**
@@ -1138,11 +1216,23 @@ export class Job<
       );
     }
 
-    if (`${parseInt(this.id, 10)}` === this.id) {
-      //TODO: throw an error in next breaking change
-      console.warn(
-        'Custom Ids should not be integers: https://github.com/taskforcesh/bullmq/pull/1569',
+    if (
+      this.opts.removeDependencyOnFailure &&
+      this.opts.ignoreDependencyOnFailure
+    ) {
+      throw new Error(
+        `RemoveDependencyOnFailure and ignoreDependencyOnFailure options can not be used together`,
       );
+    }
+
+    if (this.opts.failParentOnFailure && this.opts.ignoreDependencyOnFailure) {
+      throw new Error(
+        `FailParentOnFailure and ignoreDependencyOnFailure options can not be used together`,
+      );
+    }
+
+    if (`${parseInt(this.id, 10)}` === this.id) {
+      throw new Error('Custom Ids cannot be integers');
     }
 
     if (this.opts.priority) {
@@ -1161,8 +1251,10 @@ export class Job<
 
     if (err?.stack) {
       this.stacktrace.push(err.stack);
-      if (this.opts.stackTraceLimit) {
-        this.stacktrace = this.stacktrace.slice(0, this.opts.stackTraceLimit);
+      if (this.opts.stackTraceLimit === 0) {
+        this.stacktrace = [];
+      } else if (this.opts.stackTraceLimit) {
+        this.stacktrace = this.stacktrace.slice(-this.opts.stackTraceLimit);
       }
     }
 

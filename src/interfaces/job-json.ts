@@ -8,6 +8,7 @@ export interface JobJson {
   opts: RedisJobOptions;
   progress: number | object;
   attemptsMade: number;
+  attemptsStarted: number;
   finishedOn?: number;
   processedOn?: number;
   timestamp: number;
@@ -17,6 +18,8 @@ export interface JobJson {
   parent?: ParentKeys;
   parentKey?: string;
   repeatJobKey?: string;
+  debounceId?: string;
+  processedBy?: string;
 }
 
 export interface JobJsonRaw {
@@ -26,7 +29,7 @@ export interface JobJsonRaw {
   delay: string;
   opts: string;
   progress: string;
-  attemptsMade: string;
+  attemptsMade?: string;
   finishedOn?: string;
   processedOn?: string;
   timestamp: string;
@@ -35,5 +38,9 @@ export interface JobJsonRaw {
   returnvalue: string;
   parentKey?: string;
   parent?: string;
+  deid?: string;
   rjk?: string;
+  atm?: string;
+  ats?: string;
+  pb?: string; // Worker name
 }

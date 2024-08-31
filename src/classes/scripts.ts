@@ -22,6 +22,8 @@ import {
   RedisClient,
   WorkerOptions,
   KeepJobs,
+  MoveToDelayedOpts,
+  RepeatableOptions,
 } from '../interfaces';
 import {
   JobState,
@@ -57,6 +59,7 @@ export class Scripts {
       undefined,
       undefined,
       undefined,
+      undefined,
     ];
   }
 
@@ -71,16 +74,15 @@ export class Scripts {
     return Number.isInteger(result);
   }
 
-  private async addDelayedJob(
+  protected addDelayedJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
-  ): Promise<string> {
+  ): Promise<string | number> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
-      queueKeys.wait,
-      queueKeys.paused,
+      queueKeys.marker,
       queueKeys.meta,
       queueKeys.id,
       queueKeys.delayed,
@@ -93,20 +95,20 @@ export class Scripts {
     return (<any>client).addDelayedJob(keys);
   }
 
-  private async addPrioritizedJob(
+  protected addPrioritizedJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
-  ): Promise<string> {
+  ): Promise<string | number> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
-      queueKeys.wait,
-      queueKeys.paused,
+      queueKeys.marker,
       queueKeys.meta,
       queueKeys.id,
       queueKeys.prioritized,
       queueKeys.completed,
+      queueKeys.active,
       queueKeys.events,
       queueKeys.pc,
     ];
@@ -116,12 +118,12 @@ export class Scripts {
     return (<any>client).addPrioritizedJob(keys);
   }
 
-  private async addParentJob(
+  protected addParentJob(
     client: RedisClient,
     job: JobJson,
     encodedOpts: any,
     args: (string | number | Record<string, any>)[],
-  ): Promise<string> {
+  ): Promise<string | number> {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.meta,
@@ -135,6 +137,29 @@ export class Scripts {
     return (<any>client).addParentJob(keys);
   }
 
+  protected addStandardJob(
+    client: RedisClient,
+    job: JobJson,
+    encodedOpts: any,
+    args: (string | number | Record<string, any>)[],
+  ): Promise<string | number> {
+    const queueKeys = this.queue.keys;
+    const keys: (string | Buffer)[] = [
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.id,
+      queueKeys.completed,
+      queueKeys.active,
+      queueKeys.events,
+      queueKeys.marker,
+    ];
+
+    keys.push(pack(args), job.data, encodedOpts);
+
+    return (<any>client).addStandardJob(keys);
+  }
+
   async addJob(
     client: RedisClient,
     job: JobJson,
@@ -145,7 +170,7 @@ export class Scripts {
     const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof }
+      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
       : null;
 
     const args = [
@@ -158,6 +183,7 @@ export class Scripts {
       parentOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
+      job.debounceId ? `${queueKeys.de}:${job.debounceId}` : null,
     ];
 
     let encodedOpts;
@@ -181,7 +207,7 @@ export class Scripts {
       encodedOpts = pack(opts);
     }
 
-    let result;
+    let result: string | number;
 
     if (parentOpts.waitChildrenKey) {
       result = await this.addParentJob(client, job, encodedOpts, args);
@@ -190,28 +216,21 @@ export class Scripts {
     } else if (opts.priority) {
       result = await this.addPrioritizedJob(client, job, encodedOpts, args);
     } else {
-      const keys: (string | Buffer)[] = [
-        queueKeys.wait,
-        queueKeys.paused,
-        queueKeys.meta,
-        queueKeys.id,
-        queueKeys.completed,
-        queueKeys.events,
-      ];
-      keys.push(pack(args), job.data, encodedOpts);
-      result = await (<any>client).addStandardJob(keys);
+      result = await this.addStandardJob(client, job, encodedOpts, args);
     }
 
-    if (result < 0) {
-      throw this.finishedErrors(result, parentOpts.parentKey, 'addJob');
+    if (<number>result < 0) {
+      throw this.finishedErrors({
+        code: <number>result,
+        parentKey: parentOpts.parentKey,
+        command: 'addJob',
+      });
     }
 
-    return result;
+    return <string>result;
   }
 
-  async pause(pause: boolean): Promise<void> {
-    const client = await this.queue.client;
-
+  protected pauseArgs(pause: boolean): (string | number)[] {
     let src = 'wait',
       dst = 'paused';
     if (!pause) {
@@ -223,30 +242,104 @@ export class Scripts {
       this.queue.toKey(name),
     );
 
-    keys.push(this.queue.keys.events);
+    keys.push(
+      this.queue.keys.events,
+      this.queue.keys.delayed,
+      this.queue.keys.marker,
+    );
 
-    return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
-  }
-
-  private removeRepeatableArgs(
-    repeatJobId: string,
-    repeatJobKey: string,
-  ): string[] {
-    const queueKeys = this.queue.keys;
-
-    const keys = [queueKeys.repeat, queueKeys.delayed];
-
-    const args = [repeatJobId, repeatJobKey, queueKeys['']];
+    const args = [pause ? 'paused' : 'resumed'];
 
     return keys.concat(args);
   }
 
+  async pause(pause: boolean): Promise<void> {
+    const client = await this.queue.client;
+
+    const args = this.pauseArgs(pause);
+
+    return (<any>client).pause(args);
+  }
+
+  protected addRepeatableJobArgs(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    legacyCustomKey: string,
+    skipCheckExists: boolean,
+  ): (string | number | Buffer)[] {
+    const keys: (string | number | Buffer)[] = [this.queue.keys.repeat];
+
+    const args = [
+      nextMillis,
+      pack(opts),
+      legacyCustomKey,
+      customKey,
+      skipCheckExists ? '1' : '0',
+    ];
+
+    return keys.concat(args);
+  }
+
+  async addRepeatableJob(
+    customKey: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+    legacyCustomKey: string,
+    skipCheckExists: boolean,
+  ): Promise<string> {
+    const client = await this.queue.client;
+
+    const args = this.addRepeatableJobArgs(
+      customKey,
+      nextMillis,
+      opts,
+      legacyCustomKey,
+      skipCheckExists,
+    );
+
+    return (<any>client).addRepeatableJob(args);
+  }
+
+  private removeRepeatableArgs(
+    legacyRepeatJobId: string,
+    repeatConcatOptions: string,
+    repeatJobKey: string,
+  ): string[] {
+    const queueKeys = this.queue.keys;
+
+    const keys = [queueKeys.repeat, queueKeys.delayed, queueKeys.events];
+
+    const args = [
+      legacyRepeatJobId,
+      this.getRepeatConcatOptions(repeatConcatOptions, repeatJobKey),
+      repeatJobKey,
+      queueKeys[''],
+    ];
+
+    return keys.concat(args);
+  }
+
+  // TODO: remove this check in next breaking change
+  getRepeatConcatOptions(repeatConcatOptions: string, repeatJobKey: string) {
+    if (repeatJobKey && repeatJobKey.split(':').length > 2) {
+      return repeatJobKey;
+    }
+
+    return repeatConcatOptions;
+  }
+
   async removeRepeatable(
-    repeatJobId: string,
+    legacyRepeatJobId: string,
+    repeatConcatOptions: string,
     repeatJobKey: string,
   ): Promise<number> {
     const client = await this.queue.client;
-    const args = this.removeRepeatableArgs(repeatJobId, repeatJobKey);
+    const args = this.removeRepeatableArgs(
+      legacyRepeatJobId,
+      repeatConcatOptions,
+      repeatJobKey,
+    );
 
     return (<any>client).removeRepeatable(args);
   }
@@ -254,7 +347,9 @@ export class Scripts {
   async remove(jobId: string, removeChildren: boolean): Promise<number> {
     const client = await this.queue.client;
 
-    const keys: (string | number)[] = [''].map(name => this.queue.toKey(name));
+    const keys: (string | number)[] = ['', 'meta'].map(name =>
+      this.queue.toKey(name),
+    );
     return (<any>client).removeJob(
       keys.concat([jobId, removeChildren ? 1 : 0]),
     );
@@ -289,11 +384,15 @@ export class Scripts {
     const result = await (<any>client).updateData(keys.concat([dataJson]));
 
     if (result < 0) {
-      throw this.finishedErrors(result, job.id, 'updateData');
+      throw this.finishedErrors({
+        code: result,
+        jobId: job.id,
+        command: 'updateData',
+      });
     }
   }
 
-  async updateProgress<T = any, R = any, N extends string = string>(
+  async updateProgress(
     jobId: string,
     progress: number | object,
   ): Promise<void> {
@@ -311,8 +410,39 @@ export class Scripts {
     );
 
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'updateProgress');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'updateProgress',
+      });
     }
+  }
+
+  async addLog(
+    jobId: string,
+    logRow: string,
+    keepLogs?: number,
+  ): Promise<number> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.toKey(jobId),
+      this.queue.toKey(jobId) + ':logs',
+    ];
+
+    const result = await (<any>client).addLog(
+      keys.concat([jobId, logRow, keepLogs ? keepLogs : '']),
+    );
+
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'addLog',
+      });
+    }
+
+    return result;
   }
 
   protected moveToFinishedArgs<T = any, R = any, N extends string = string>(
@@ -336,6 +466,7 @@ export class Scripts {
     keys[10] = queueKeys[target];
     keys[11] = this.queue.toKey(job.id ?? '');
     keys[12] = metricsKey;
+    keys[13] = this.queue.keys.marker;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
@@ -345,7 +476,6 @@ export class Scripts {
       propVal,
       typeof val === 'undefined' ? 'null' : val,
       target,
-      JSON.stringify({ jobId: job.id, val: val }), // TODO: verify if it is used
       !fetchNext || this.queue.closing ? 0 : 1,
       queueKeys[''],
       pack({
@@ -354,11 +484,11 @@ export class Scripts {
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
         attempts: job.opts.attempts,
-        attemptsMade: job.attemptsMade,
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
         fpof: !!job.opts?.failParentOnFailure,
+        idof: !!job.opts?.ignoreDependencyOnFailure,
         rdof: !!job.opts?.removeDependencyOnFailure,
       }),
     ];
@@ -389,7 +519,12 @@ export class Scripts {
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'moveToFinished', 'active');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'moveToFinished',
+        state: 'active',
+      });
     } else {
       if (typeof result !== 'undefined') {
         return raw2NextJobData(result);
@@ -397,12 +532,19 @@ export class Scripts {
     }
   }
 
-  finishedErrors(
-    code: number,
-    jobId: string,
-    command: string,
-    state?: string,
-  ): Error {
+  finishedErrors({
+    code,
+    jobId,
+    parentKey,
+    command,
+    state,
+  }: {
+    code: number;
+    jobId?: string;
+    parentKey?: string;
+    command: string;
+    state?: string;
+  }): Error {
     switch (code) {
       case ErrorCode.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
@@ -415,10 +557,14 @@ export class Scripts {
       case ErrorCode.JobPendingDependencies:
         return new Error(`Job ${jobId} has pending dependencies. ${command}`);
       case ErrorCode.ParentJobNotExist:
-        return new Error(`Missing key for parent job ${jobId}. ${command}`);
+        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
       case ErrorCode.JobLockMismatch:
         return new Error(
           `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
+        );
+      case ErrorCode.ParentJobCannotBeReplaced:
+        return new Error(
+          `The parent job ${parentKey} cannot be replaced. ${command}`,
         );
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
@@ -445,6 +591,43 @@ export class Scripts {
     const args = this.drainArgs(delayed);
 
     return (<any>client).drain(args);
+  }
+
+  private removeChildDependencyArgs(
+    jobId: string,
+    parentKey: string,
+  ): (string | number)[] {
+    const queueKeys = this.queue.keys;
+
+    const keys: string[] = [queueKeys['']];
+
+    const args = [this.queue.toKey(jobId), parentKey];
+
+    return keys.concat(args);
+  }
+
+  async removeChildDependency(
+    jobId: string,
+    parentKey: string,
+  ): Promise<boolean> {
+    const client = await this.queue.client;
+    const args = this.removeChildDependencyArgs(jobId, parentKey);
+
+    const result = await (<any>client).removeChildDependency(args);
+
+    switch (result) {
+      case 0:
+        return true;
+      case 1:
+        return false;
+      default:
+        throw this.finishedErrors({
+          code: result,
+          jobId,
+          parentKey,
+          command: 'removeChildDependency',
+        });
+    }
   }
 
   private getRangesArgs(
@@ -495,6 +678,28 @@ export class Scripts {
     const args = this.getCountsArgs(types);
 
     return (<any>client).getCounts(args);
+  }
+
+  protected getCountsPerPriorityArgs(
+    priorities: number[],
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      this.queue.keys.wait,
+      this.queue.keys.paused,
+      this.queue.keys.meta,
+      this.queue.keys.prioritized,
+    ];
+
+    const args = priorities;
+
+    return keys.concat(args);
+  }
+
+  async getCountsPerPriority(priorities: number[]): Promise<number[]> {
+    const client = await this.queue.client;
+    const args = this.getCountsPerPriorityArgs(priorities);
+
+    return (<any>client).getCountsPerPriority(args);
   }
 
   moveToCompletedArgs<T = any, R = any, N extends string = string>(
@@ -580,30 +785,31 @@ export class Scripts {
     const args = this.changeDelayArgs(jobId, delay);
     const result = await (<any>client).changeDelay(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'changeDelay',
+        state: 'delayed',
+      });
     }
   }
 
   private changeDelayArgs(jobId: string, delay: number): (string | number)[] {
-    //
-    // Bake in the job id first 12 bits into the timestamp
-    // to guarantee correct execution order of delayed jobs
-    // (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
-    //
-    // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
-    //
-    let timestamp = Date.now() + delay;
+    const timestamp = Date.now();
 
-    if (timestamp > 0) {
-      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
-    }
+    const keys: (string | number)[] = [
+      this.queue.keys.delayed,
+      this.queue.keys.meta,
+      this.queue.keys.marker,
+      this.queue.keys.events,
+    ];
 
-    const keys: (string | number)[] = ['delayed', jobId].map(name => {
-      return this.queue.toKey(name);
-    });
-    keys.push.apply(keys, [this.queue.keys.events]);
-
-    return keys.concat([delay, JSON.stringify(timestamp), jobId]);
+    return keys.concat([
+      delay,
+      JSON.stringify(timestamp),
+      jobId,
+      this.queue.toKey(jobId),
+    ]);
   }
 
   async changePriority(
@@ -616,7 +822,11 @@ export class Scripts {
     const args = this.changePriorityArgs(jobId, priority, lifo);
     const result = await (<any>client).changePriority(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'changePriority');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'changePriority',
+      });
     }
   }
 
@@ -630,7 +840,9 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
+      this.queue.keys.active,
       this.queue.keys.pc,
+      this.queue.keys.marker,
     ];
 
     return keys.concat([
@@ -641,48 +853,32 @@ export class Scripts {
     ]);
   }
 
-  // Note: We have an issue here with jobs using custom job ids
   moveToDelayedArgs(
     jobId: string,
     timestamp: number,
     token: string,
     delay: number,
+    opts: MoveToDelayedOpts = {},
   ): (string | number)[] {
-    //
-    // Bake in the job id first 12 bits into the timestamp
-    // to guarantee correct execution order of delayed jobs
-    // (up to 4096 jobs per given timestamp or 4096 jobs apart per timestamp)
-    //
-    // WARNING: Jobs that are so far apart that they wrap around will cause FIFO to fail
-    //
-    timestamp = Math.max(0, timestamp ?? 0);
-
-    if (timestamp > 0) {
-      timestamp = timestamp * 0x1000 + (+jobId & 0xfff);
-    }
-
+    const queueKeys = this.queue.keys;
     const keys: (string | number)[] = [
-      'wait',
-      'active',
-      'prioritized',
-      'delayed',
-      jobId,
-    ].map(name => {
-      return this.queue.toKey(name);
-    });
-    keys.push.apply(keys, [
-      this.queue.keys.events,
-      this.queue.keys.paused,
-      this.queue.keys.meta,
-    ]);
+      queueKeys.marker,
+      queueKeys.active,
+      queueKeys.prioritized,
+      queueKeys.delayed,
+      this.queue.toKey(jobId),
+      queueKeys.events,
+      queueKeys.meta,
+      queueKeys.stalled,
+    ];
 
     return keys.concat([
       this.queue.keys[''],
-      Date.now(),
-      JSON.stringify(timestamp),
+      timestamp,
       jobId,
       token,
       delay,
+      opts.skipAttempt ? '1' : '0',
     ]);
   }
 
@@ -700,16 +896,20 @@ export class Scripts {
     jobId: string,
     token: string,
     opts?: MoveToWaitingChildrenOpts,
-  ): string[] {
+  ): (string | number)[] {
     const timestamp = Date.now();
 
     const childKey = getParentKey(opts.child);
 
-    const keys = [`${jobId}:lock`, 'active', 'waiting-children', jobId].map(
-      name => {
-        return this.queue.toKey(name);
-      },
-    );
+    const keys: (string | number)[] = [
+      `${jobId}:lock`,
+      'active',
+      'waiting-children',
+      jobId,
+      'stalled',
+    ].map(name => {
+      return this.queue.toKey(name);
+    });
 
     return keys.concat([
       token,
@@ -719,18 +919,38 @@ export class Scripts {
     ]);
   }
 
+  isMaxedArgs(): string[] {
+    const queueKeys = this.queue.keys;
+    const keys: string[] = [queueKeys.meta, queueKeys.active];
+
+    return keys;
+  }
+
+  async isMaxed(): Promise<boolean> {
+    const client = await this.queue.client;
+
+    const args = this.isMaxedArgs();
+    return !!(await (<any>client).isMaxed(args));
+  }
+
   async moveToDelayed(
     jobId: string,
     timestamp: number,
     delay: number,
     token = '0',
+    opts: MoveToDelayedOpts = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay);
+    const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
-      throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'moveToDelayed',
+        state: 'active',
+      });
     }
   }
 
@@ -761,13 +981,26 @@ export class Scripts {
       case 1:
         return false;
       default:
-        throw this.finishedErrors(
-          result,
+        throw this.finishedErrors({
+          code: result,
           jobId,
-          'moveToWaitingChildren',
-          'active',
-        );
+          command: 'moveToWaitingChildren',
+          state: 'active',
+        });
     }
+  }
+
+  getRateLimitTtlArgs(maxJobs?: number): (string | number)[] {
+    const keys: (string | number)[] = [this.queue.keys.limiter];
+
+    return keys.concat([maxJobs ?? '0']);
+  }
+
+  async getRateLimitTtl(maxJobs?: number): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.getRateLimitTtlArgs(maxJobs);
+    return (<any>client).getRateLimitTtl(args);
   }
 
   /**
@@ -798,21 +1031,18 @@ export class Scripts {
     token: string,
   ): (string | number)[] {
     const keys: (string | number)[] = [
-      'active',
-      'wait',
-      'paused',
-      jobId,
-      'meta',
-    ].map(name => {
-      return this.queue.toKey(name);
-    });
-
-    keys.push(
+      this.queue.keys.active,
+      this.queue.keys.wait,
+      this.queue.keys.paused,
+      this.queue.toKey(jobId),
+      this.queue.keys.meta,
       this.queue.keys.events,
       this.queue.keys.delayed,
       this.queue.keys.prioritized,
       this.queue.keys.pc,
-    );
+      this.queue.keys.marker,
+      this.queue.keys.stalled,
+    ];
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
 
@@ -836,7 +1066,9 @@ export class Scripts {
       this.queue.toKey(state),
       this.queue.toKey('wait'),
       this.queue.toKey('paused'),
-      this.queue.toKey('meta'),
+      this.queue.keys.meta,
+      this.queue.keys.active,
+      this.queue.keys.marker,
     ];
 
     const args = [count, timestamp, state];
@@ -890,6 +1122,8 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.meta,
       this.queue.keys.paused,
+      this.queue.keys.active,
+      this.queue.keys.marker,
     ];
 
     const args = [
@@ -905,11 +1139,16 @@ export class Scripts {
       case 1:
         return;
       default:
-        throw this.finishedErrors(result, job.id, 'reprocessJob', state);
+        throw this.finishedErrors({
+          code: result,
+          jobId: job.id,
+          command: 'reprocessJob',
+          state,
+        });
     }
   }
 
-  async moveToActive(client: RedisClient, token: string, jobId?: string) {
+  async moveToActive(client: RedisClient, token: string, name?: string) {
     const opts = this.queue.opts as WorkerOptions;
 
     const queueKeys = this.queue.keys;
@@ -924,16 +1163,17 @@ export class Scripts {
       queueKeys.paused,
       queueKeys.meta,
       queueKeys.pc,
+      queueKeys.marker,
     ];
 
     const args: (string | number | boolean | Buffer)[] = [
       queueKeys[''],
       Date.now(),
-      jobId || '',
       pack({
         token,
         lockDuration: opts.lockDuration,
         limiter: opts.limiter,
+        name,
       }),
     ];
 
@@ -944,7 +1184,7 @@ export class Scripts {
     return raw2NextJobData(result);
   }
 
-  async promote(jobId: string): Promise<number> {
+  async promote(jobId: string): Promise<void> {
     const client = await this.queue.client;
 
     const keys = [
@@ -953,13 +1193,46 @@ export class Scripts {
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
+      this.queue.keys.active,
       this.queue.keys.pc,
       this.queue.keys.events,
+      this.queue.keys.marker,
     ];
 
     const args = [this.queue.toKey(''), jobId];
 
-    return (<any>client).promote(keys.concat(args));
+    const code = await (<any>client).promote(keys.concat(args));
+    if (code < 0) {
+      throw this.finishedErrors({
+        code,
+        jobId,
+        command: 'promote',
+        state: 'delayed',
+      });
+    }
+  }
+
+  protected moveStalledJobsToWaitArgs(): (string | number)[] {
+    const opts = this.queue.opts as WorkerOptions;
+    const keys: (string | number)[] = [
+      this.queue.keys.stalled,
+      this.queue.keys.wait,
+      this.queue.keys.active,
+      this.queue.keys.failed,
+      this.queue.keys['stalled-check'],
+      this.queue.keys.meta,
+      this.queue.keys.paused,
+      this.queue.keys.marker,
+      this.queue.keys.events,
+    ];
+    const args = [
+      opts.maxStalledCount,
+      this.queue.toKey(''),
+      Date.now(),
+      opts.stalledInterval,
+    ];
+
+    return keys.concat(args);
   }
 
   /**
@@ -974,24 +1247,9 @@ export class Scripts {
   async moveStalledJobsToWait(): Promise<[string[], string[]]> {
     const client = await this.queue.client;
 
-    const opts = this.queue.opts as WorkerOptions;
-    const keys: (string | number)[] = [
-      this.queue.keys.stalled,
-      this.queue.keys.wait,
-      this.queue.keys.active,
-      this.queue.keys.failed,
-      this.queue.keys['stalled-check'],
-      this.queue.keys.meta,
-      this.queue.keys.paused,
-      this.queue.keys.events,
-    ];
-    const args = [
-      opts.maxStalledCount,
-      this.queue.toKey(''),
-      Date.now(),
-      opts.stalledInterval,
-    ];
-    return (<any>client).moveStalledJobsToWait(keys.concat(args));
+    const args = this.moveStalledJobsToWaitArgs();
+
+    return (<any>client).moveStalledJobsToWait(args);
   }
 
   /**
@@ -1007,7 +1265,7 @@ export class Scripts {
     const client = await this.queue.client;
     const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
-    const keys = [
+    const keys: (string | number)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,
@@ -1016,6 +1274,7 @@ export class Scripts {
       this.queue.keys.meta,
       this.queue.keys.limiter,
       this.queue.keys.prioritized,
+      this.queue.keys.marker,
       this.queue.keys.events,
     ];
 
@@ -1045,6 +1304,88 @@ export class Scripts {
       }
     }
     return result;
+  }
+
+  /**
+   * Paginate a set or hash keys.
+   * @param opts
+   *
+   */
+  async paginate(
+    key: string,
+    opts: { start: number; end: number; fetchJobs?: boolean },
+  ): Promise<{
+    cursor: string;
+    items: { id: string; v?: any; err?: string }[];
+    total: number;
+    jobs?: JobJsonRaw[];
+  }> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [key];
+
+    const maxIterations = 5;
+
+    const pageSize = opts.end >= 0 ? opts.end - opts.start + 1 : Infinity;
+
+    let cursor = '0',
+      offset = 0,
+      items,
+      total,
+      rawJobs,
+      page: string[] = [],
+      jobs: JobJsonRaw[] = [];
+    do {
+      const args = [
+        opts.start + page.length,
+        opts.end,
+        cursor,
+        offset,
+        maxIterations,
+      ];
+
+      if (opts.fetchJobs) {
+        args.push(1);
+      }
+
+      [cursor, offset, items, total, rawJobs] = await (<any>client).paginate(
+        keys.concat(args),
+      );
+      page = page.concat(items);
+
+      if (rawJobs && rawJobs.length) {
+        jobs = jobs.concat(rawJobs.map(array2obj));
+      }
+
+      // Important to keep this coercive inequality (!=) instead of strict inequality (!==)
+    } while (cursor != '0' && page.length < pageSize);
+
+    // If we get an array of arrays, it means we are paginating a hash
+    if (page.length && Array.isArray(page[0])) {
+      const result = [];
+      for (let index = 0; index < page.length; index++) {
+        const [id, value] = page[index];
+        try {
+          result.push({ id, v: JSON.parse(value) });
+        } catch (err) {
+          result.push({ id, err: (<Error>err).message });
+        }
+      }
+
+      return {
+        cursor,
+        items: result,
+        total,
+        jobs,
+      };
+    } else {
+      return {
+        cursor,
+        items: page.map(item => ({ id: item })),
+        total,
+        jobs,
+      };
+    }
   }
 }
 

@@ -39,7 +39,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   constructor(
     public readonly name: string,
-    public opts: QueueBaseOptions = {},
+    public opts: QueueBaseOptions = { connection: {} },
     Connection: typeof RedisConnection = RedisConnection,
   ) {
     super();
@@ -53,19 +53,13 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       throw new Error('Queue name must be provided');
     }
 
-    if (!opts.connection) {
-      console.warn(
-        [
-          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker and QueueEvents',
-          'without providing explicitly a connection or connection options is deprecated. This behaviour will',
-          'be removed in the next major release',
-        ].join(' '),
-      );
+    if (name.includes(':')) {
+      throw new Error('Queue name cannot contain :');
     }
 
     this.connection = new Connection(
       opts.connection,
-      isRedisInstance(opts?.connection),
+      isRedisInstance(opts.connection),
       opts.blockingConnection,
       opts.skipVersionCheck,
     );
@@ -81,7 +75,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.scripts = new Scripts(this);
+    this.setScripts();
   }
 
   /**
@@ -89,6 +83,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   get client(): Promise<RedisClient> {
     return this.connection.client;
+  }
+
+  protected setScripts() {
+    this.scripts = new Scripts(this);
   }
 
   /**
@@ -141,7 +139,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   /**
    *
-   * @returns Closes the connection and returns a promise that resolves when the connection is closed.
+   * Closes the connection and returns a promise that resolves when the connection is closed.
    */
   async close(): Promise<void> {
     if (!this.closing) {

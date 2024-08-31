@@ -7,12 +7,13 @@
 ]]
 
 -- Includes
+--- @include "addJobInTargetList"
 --- @include "addJobWithPriority"
 
 -- Try to get as much as 1000 jobs at once
-local function promoteDelayedJobs(delayedKey, waitKey, targetKey, prioritizedKey,
-                                  eventStreamKey, prefix, timestamp, paused, priorityCounterKey)
-    local jobs = rcall("ZRANGEBYSCORE", delayedKey, 0, (timestamp + 1) * 0x1000, "LIMIT", 0, 1000)
+local function promoteDelayedJobs(delayedKey, markerKey, targetKey, prioritizedKey,
+                                  eventStreamKey, prefix, timestamp, priorityCounterKey, isPaused)
+    local jobs = rcall("ZRANGEBYSCORE", delayedKey, 0, (timestamp + 1) * 0x1000 - 1, "LIMIT", 0, 1000)
 
     if (#jobs > 0) then
         rcall("ZREM", delayedKey, unpack(jobs))
@@ -24,10 +25,10 @@ local function promoteDelayedJobs(delayedKey, waitKey, targetKey, prioritizedKey
 
             if priority == 0 then
                 -- LIFO or FIFO
-                rcall("LPUSH", targetKey, jobId)
+                addJobInTargetList(targetKey, markerKey, "LPUSH", isPaused, jobId)
             else
-                addJobWithPriority(waitKey, prioritizedKey, priority, paused,
-                  jobId, priorityCounterKey)
+                addJobWithPriority(markerKey, prioritizedKey, priority,
+                  jobId, priorityCounterKey, isPaused)
             end
 
             -- Emit waiting event

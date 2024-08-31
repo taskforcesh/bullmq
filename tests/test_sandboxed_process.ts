@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { pathToFileURL } from 'url';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { FlowProducer, Job, Queue, QueueEvents, Worker } from '../src/classes';
@@ -53,6 +54,77 @@ function sandboxProcessTests(
 
     it('should process and complete', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.returnvalue).to.be.eql(42);
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql(42);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await completing;
+
+      await worker.close();
+    });
+
+    it('should process and complete when passing a URL', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+      const processUrl = pathToFileURL(processFile);
+
+      const worker = new Worker(queueName, processUrl, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.returnvalue).to.be.eql(42);
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql(42);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].free[processUrl.href]).to.have.lengthOf(
+              1,
+            );
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await completing;
+
+      await worker.close();
+    });
+
+    it('should process and complete using esbuild compiled processor', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_esbuild.js';
 
       const worker = new Worker(queueName, processFile, {
         connection,
@@ -360,7 +432,7 @@ function sandboxProcessTests(
     });
 
     it('should reuse process with single processors', async function () {
-      this.timeout(30000);
+      this.timeout(20000);
 
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
@@ -476,6 +548,37 @@ function sandboxProcessTests(
       await worker.close();
     });
 
+    it('should process steps and complete', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_steps.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          try {
+            expect(job.data).to.be.eql({
+              step: 'FINISH',
+              extraDataSecondStep: 'second data',
+              extraDataFinishedStep: 'finish data',
+            });
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { step: 'INITIAL' });
+
+      await completing;
+
+      await worker.close();
+    });
+
     it('should process and move to delayed', async () => {
       const processFile =
         __dirname + '/fixtures/fixture_processor_move_to_delayed.js';
@@ -490,7 +593,7 @@ function sandboxProcessTests(
       const delaying = new Promise<void>((resolve, reject) => {
         queueEvents.on('delayed', async ({ delay }) => {
           try {
-            expect(Number(delay)).to.be.greaterThanOrEqual(2500);
+            expect(Number(delay)).to.be.lessThanOrEqual(Date.now() + 2500);
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               1,
             );
@@ -694,6 +797,28 @@ function sandboxProcessTests(
       }
     });
 
+    it('should error if processor file passed as URL is missing', async () => {
+      let worker;
+      let didThrow = false;
+      try {
+        const missingProcessFile = __dirname + '/fixtures/missing_processor.js';
+        const missingProcessUrl = pathToFileURL(missingProcessFile);
+        worker = new Worker(queueName, missingProcessUrl, {
+          connection,
+          prefix,
+          useWorkerThreads,
+        });
+      } catch (err) {
+        didThrow = true;
+      }
+
+      worker && (await worker.close());
+
+      if (!didThrow) {
+        throw new Error('did not throw error');
+      }
+    });
+
     it('should fail if the process crashes', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_crash.js';
 
@@ -830,7 +955,7 @@ function sandboxProcessTests(
     });
 
     it('should allow the job to complete and then exit on worker close', async function () {
-      this.timeout(1500000);
+      this.timeout(15000);
       const processFile = __dirname + '/fixtures/fixture_processor_slow.js';
       const worker = new Worker(queueName, processFile, {
         connection,

@@ -4,12 +4,16 @@
   which requires code from "moveToFinished"
 ]]
 
+-- Includes
+--- @include "addJobInTargetList"
 --- @include "destructureJobKey"
 --- @include "getTargetQueueList"
+--- @include "removeJobKeys"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
-  local parentTarget = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "wait", parentPrefix .. "paused")
-  rcall("RPUSH", parentTarget, parentId)
+  local parentTarget, isPausedOrMaxed = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "active",
+    parentPrefix .. "wait", parentPrefix .. "paused")
+  addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
 
   if emitEvent then
     local parentEventStream = parentPrefix .. "events"
@@ -17,7 +21,7 @@ local function moveParentToWait(parentPrefix, parentId, emitEvent)
   end
 end
 
-local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
+local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debounceId)
   if parentKey then
     local parentDependenciesKey = parentKey .. ":dependencies"
     local result = rcall("SREM", parentDependenciesKey, jobKey)
@@ -30,11 +34,13 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
         local numRemovedElements = rcall("ZREM", parentPrefix .. "waiting-children", parentId)
 
         if numRemovedElements == 1 then
-          if hard then
+          if hard then -- remove parent in same queue
             if parentPrefix == baseKey then
-              removeParentDependencyKey(parentKey, hard, nil, baseKey)
-              rcall("DEL", parentKey, parentKey .. ':logs',
-                parentKey .. ':dependencies', parentKey .. ':processed')
+              removeParentDependencyKey(parentKey, hard, nil, baseKey, nil)
+              removeJobKeys(parentKey)
+              if debounceId then
+                rcall("DEL", parentPrefix .. "de:" .. debounceId)
+              end
             else
               moveParentToWait(parentPrefix, parentId)
             end
@@ -43,10 +49,13 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
           end
         end
       end
+      return true
     end
   else
-    local missedParentKey = rcall("HGET", jobKey, "parentKey")
-    if( (type(missedParentKey) == "string") and missedParentKey ~= "" and (rcall("EXISTS", missedParentKey) == 1)) then
+    local parentAttributes = rcall("HMGET", jobKey, "parentKey", "deid")
+    local missedParentKey = parentAttributes[1]
+    if( (type(missedParentKey) == "string") and missedParentKey ~= ""
+      and (rcall("EXISTS", missedParentKey) == 1)) then
       local parentDependenciesKey = missedParentKey .. ":dependencies"
       local result = rcall("SREM", parentDependenciesKey, jobKey)
       if result > 0 then
@@ -60,9 +69,11 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
           if numRemovedElements == 1 then
             if hard then
               if parentPrefix == baseKey then
-                removeParentDependencyKey(missedParentKey, hard, nil, baseKey)
-                rcall("DEL", missedParentKey, missedParentKey .. ':logs',
-                  missedParentKey .. ':dependencies', missedParentKey .. ':processed')
+                removeParentDependencyKey(missedParentKey, hard, nil, baseKey, nil)
+                removeJobKeys(missedParentKey)
+                if parentAttributes[2] then
+                  rcall("DEL", parentPrefix .. "de:" .. parentAttributes[2])
+                end
               else
                 moveParentToWait(parentPrefix, parentId)
               end
@@ -71,7 +82,9 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey)
             end
           end
         end
+        return true
       end
     end
   end
+  return false
 end

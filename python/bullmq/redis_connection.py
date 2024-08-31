@@ -1,12 +1,13 @@
 import redis.asyncio as redis
 from redis.backoff import ExponentialBackoff
-from redis.retry import Retry
+from redis.asyncio.retry import Retry
 from redis.exceptions import (
    BusyLoadingError,
    ConnectionError,
    TimeoutError
 )
 import warnings
+from bullmq.utils import isRedisVersionLowerThan
 
 class RedisConnection:
     """
@@ -16,21 +17,29 @@ class RedisConnection:
     minimum_version = '5.0.0'
     recommended_minimum_version = '6.2.0'
 
-    def __init__(self, redisOpts: dict | str = {}):
+    capabilities = {
+        "canBlockFor1Ms": True,
+        "canDoubleTimeout": False
+    }
+
+    def __init__(self, redisOpts: dict | str | redis.Redis = {}):
         self.version = None
-        retry = Retry(ExponentialBackoff(), 3)
+        retry = Retry(ExponentialBackoff(cap=20, base=1), 20)
         retry_errors = [BusyLoadingError, ConnectionError, TimeoutError]
 
-        if isinstance(redisOpts, dict):
-            host = redisOpts.get("host") or "localhost"
-            port = redisOpts.get("port") or 6379
-            db = redisOpts.get("db") or 0
-            password = redisOpts.get("password") or None
-            username = redisOpts.get("username") or None
+        if isinstance(redisOpts, redis.Redis):
+            self.conn = redisOpts
+        elif isinstance(redisOpts, dict):
+            defaultOpts = {
+                "host": "localhost",
+                "port": 6379,
+                "db": 0,
+                "password": None,
+                "username": None,
+            }
+            finalOpts = {**defaultOpts, **redisOpts}
 
-            self.conn = redis.Redis(
-                host=host, port=port, db=db, password=password, decode_responses=True,
-                retry=retry, retry_on_error=retry_errors, username=username)
+            self.conn = redis.Redis(decode_responses=True, retry=retry, retry_on_error=retry_errors, **finalOpts)
         else:
             self.conn = redis.from_url(redisOpts, decode_responses=True, retry=retry,
                 retry_on_error=retry_errors)
@@ -56,4 +65,9 @@ class RedisConnection:
             warnings.warn(f'IMPORTANT! Eviction policy is {doc.get("maxmemory_policy")}. It should be "noeviction"')
 
         self.version = doc.get("redis_version")
-        return doc.get("redis_version")
+
+        self.capabilities = {
+            "canBlockFor1Ms": not isRedisVersionLowerThan(self.version, '7.0.8'),
+            "canDoubleTimeout": not isRedisVersionLowerThan(self.version, '6.0.0')
+        }
+        return self.version

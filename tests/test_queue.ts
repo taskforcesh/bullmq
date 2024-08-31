@@ -39,14 +39,25 @@ describe('queues', function () {
     await connection.quit();
   });
 
-  //TODO: restore this tests in next breaking change
-  describe.skip('.add', () => {
+  describe('.add', () => {
     describe('when jobId is provided as integer', () => {
       it('throws error', async function () {
         await expect(
           queue.add('test', { foo: 1 }, { jobId: '2' }),
         ).to.be.rejectedWith('Custom Ids cannot be integers');
       });
+    });
+  });
+
+  describe('when empty name contains :', () => {
+    it('throws an error', function () {
+      expect(
+        () =>
+          new Queue('name:test', {
+            connection,
+            prefix,
+          }),
+      ).to.throw('Queue name cannot contain :');
     });
   });
 
@@ -83,8 +94,12 @@ describe('queues', function () {
 
       const client = await queue.client;
       const keys = await client.keys(`${prefix}:${queue.name}:*`);
+      expect(keys.length).to.be.eql(5);
 
-      expect(keys.length).to.be.eql(4);
+      for (const key of keys) {
+        const type = key.split(':')[2];
+        expect(['marker', 'events', 'meta', 'pc', 'id']).to.include(type);
+      }
     }).timeout(10000);
 
     describe('when having a flow', async () => {
@@ -114,7 +129,11 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(3);
+            expect(keys.length).to.be.eql(4);
+            for (const key of keys) {
+              const type = key.split(':')[2];
+              expect(['events', 'meta', 'id', 'marker']).to.include(type);
+            }
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
@@ -144,7 +163,11 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(3);
+            expect(keys.length).to.be.eql(4);
+            for (const key of keys) {
+              const type = key.split(':')[2];
+              expect(['id', 'meta', 'marker', 'events']).to.include(type);
+            }
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
@@ -228,7 +251,11 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(3);
+            expect(keys.length).to.be.eql(4);
+            for (const key of keys) {
+              const type = key.split(':')[2];
+              expect(['id', 'meta', 'events', 'marker']).to.include(type);
+            }
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
@@ -275,7 +302,11 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(3);
+            expect(keys.length).to.be.eql(4);
+            for (const key of keys) {
+              const type = key.split(':')[2];
+              expect(['id', 'meta', 'events', 'marker']).to.include(type);
+            }
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(0);
@@ -452,7 +483,7 @@ describe('queues', function () {
     });
 
     describe('when completed state is provided', () => {
-      it('retries all completed jobs', async () => {
+      it('retries all completed jobs', async function () {
         await queue.waitUntilReady();
         const jobCount = 8;
 
@@ -469,9 +500,11 @@ describe('queues', function () {
           worker.on('completed', after(jobCount, resolve));
         });
 
-        for (const index of Array.from(Array(jobCount).keys())) {
-          await queue.add('test', { idx: index });
-        }
+        const jobs = Array.from(Array(jobCount).keys()).map(index => ({
+          name: 'test',
+          data: { idx: index },
+        }));
+        await queue.addBulk(jobs);
 
         await completing1;
 

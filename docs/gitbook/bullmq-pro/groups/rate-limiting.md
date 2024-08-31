@@ -6,7 +6,7 @@ The way the rate limiting works is that when the jobs for a given group exceed t
 
 For example "group 2" is rate limited in the following chart:
 
-![Rate limited group](<../../.gitbook/assets/image (3).png>)
+![Rate limited group](<../../.gitbook/assets/image (3) (1).png>)
 
 While one or more groups are rate limited, the rest of the jobs belonging to non rate limited groups will continue to be consumed normally or until they also get rate limited.
 
@@ -52,3 +52,7 @@ const worker = new WorkerPro(
   },
 );
 ```
+
+## Read more:
+
+* 💡 [Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.Worker.html#rateLimitGroup)
