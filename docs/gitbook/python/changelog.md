@@ -2,6 +2,27 @@
 
 <!--next-version-placeholder-->
 
+## v2.9.3 (2024-08-31)
+### Fix
+* **flows:** Throw error when queueName contains colon (#2719) fixes #2718 ([`9ef97c3`](https://github.com/taskforcesh/bullmq/commit/9ef97c37663e209f03c501a357b6b1a662b24d99))
+* **sandboxed:** Properly update data on wrapped job (#2739) fixes #2731 ([`9c4b245`](https://github.com/taskforcesh/bullmq/commit/9c4b2454025a14459de47b0586a09130d7a93cae))
+* **flow:** Remove debounce key when parent is moved to fail ([#2720](https://github.com/taskforcesh/bullmq/issues/2720)) ([`d51aabe`](https://github.com/taskforcesh/bullmq/commit/d51aabe999a489c285f871d21e36c3c84e2bef33))
+* **flow:** Recursive ignoreDependencyOnFailure option ([#2712](https://github.com/taskforcesh/bullmq/issues/2712)) ([`53bc9eb`](https://github.com/taskforcesh/bullmq/commit/53bc9eb68b5bb0a470a8fe64ef78ece5cde44632))
+* **job:** Throw error if removeDependencyOnFailure and ignoreDependencyOnFailure are used together ([#2711](https://github.com/taskforcesh/bullmq/issues/2711)) ([`967632c`](https://github.com/taskforcesh/bullmq/commit/967632c9ef8468aab59f0b36d1d828bcde1fbd70))
+* **stalled:** Support removeDependencyOnFailure option when job is stalled ([#2708](https://github.com/taskforcesh/bullmq/issues/2708)) ([`e0d3790`](https://github.com/taskforcesh/bullmq/commit/e0d3790e755c4dfe31006b52f177f08b40348e61))
+* **job:** Change moveToFinished return type to reflect jobData (#2706) ref #2342 ([`de094a3`](https://github.com/taskforcesh/bullmq/commit/de094a361a25886acbee0112bb4341c6b285b1c9))
+* **connection:** Remove unnecessary process.env.CI reference ([#2705](https://github.com/taskforcesh/bullmq/issues/2705)) ([`53de304`](https://github.com/taskforcesh/bullmq/commit/53de3049493ef79e02af40e8e450e2056c134155))
+* **worker:** Fix close sequence to reduce risk for open handlers ([#2656](https://github.com/taskforcesh/bullmq/issues/2656)) ([`8468e44`](https://github.com/taskforcesh/bullmq/commit/8468e44e5e9e39c7b65691945c26688a9e5d2275))
+
+### Documentation
+* **connection:** Add decode_responses warning [python] (#2745) fixes #2695 ([`188192c`](https://github.com/taskforcesh/bullmq/commit/188192c1b15e77013ad78a4904f099cd314b4b86))
+* Update README.md sponsors ([`e7e7193`](https://github.com/taskforcesh/bullmq/commit/e7e7193bacf048162d7095ba003169ee81a3766e))
+* Update copyright holder ([`13516c6`](https://github.com/taskforcesh/bullmq/commit/13516c6f5a982b44f3bb49024ec8d11a90c6c9ab))
+* **debouncing:** Add remove debounce key sub-section ([#2724](https://github.com/taskforcesh/bullmq/issues/2724)) ([`b8d8886`](https://github.com/taskforcesh/bullmq/commit/b8d8886999dca42165c83ae1951edd293e8187dd))
+
+### Performance
+* **fifo-queue:** Use linked list structure for queue ([#2629](https://github.com/taskforcesh/bullmq/issues/2629)) ([`df74578`](https://github.com/taskforcesh/bullmq/commit/df7457844a769e5644eb11d31d1a05a9d5b4e084))
+
 ## v2.9.2 (2024-08-10)
 ### Fix
 * **flow:** Validate parentData before ignoreDependencyOnFailure when stalled check happens (#2702) (python) ([`9416501`](https://github.com/taskforcesh/bullmq/commit/9416501551b1ad464e59bdba1045a5a9955e2ea4))
