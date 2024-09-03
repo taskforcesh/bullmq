@@ -29,7 +29,7 @@ local customKey = ARGV[4]
 local prefixKey = ARGV[5]
 
 -- Includes
---- @include "removeJob"
+--- @include "includes/removeJob"
 
 local function storeRepeatableJob(repeatKey, delayedKey, prefixKey, customKey, nextMilli, rawOpts)
   if rcall("ZSCORE", repeatKey, customKey) ~= false then
