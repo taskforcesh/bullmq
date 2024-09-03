@@ -148,6 +148,7 @@ export class Repeat extends QueueBase {
     repeatJobKey: string,
     data: T,
   ) {
+    // TODO: legacy logic to be removed in next breaking change
     if (repeatJobKey.split(':').length > 2) {
       return this.getRepeatJobId({
         name: name,
