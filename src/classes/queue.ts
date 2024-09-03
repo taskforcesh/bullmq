@@ -227,11 +227,11 @@ export class Queue<
         }
       }
 
-      return (await this.repeat).addNextRepeatableJob<
+      return (await this.repeat).updateRepeatableJob<
         DataType,
         ResultType,
         NameType
-      >(name, data, { ...this.jobsOpts, ...opts }, true);
+      >(name, data, { ...this.jobsOpts, ...opts }, { override: true });
     } else {
       const jobId = opts?.jobId;
 
