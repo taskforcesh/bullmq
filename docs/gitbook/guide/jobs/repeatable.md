@@ -244,7 +244,7 @@ await myQueue.add(
 );
 ```
 
-The code above will not create a new repeatable meta job, it will just update the existing meta job's interval from 10 seconds to 25 seconds. Note that if there is already a job delayed for running withinthe 10 seconds it will not be affected by this change.
+The code above will not create a new repeatable meta job, it will just update the existing meta job's interval from 10 seconds to 25 seconds. Note that if there is already a job delayed for running within the 10 seconds it will be replaced by a new job using the new repeatable job's settings.
 
 ### Read more:
 
