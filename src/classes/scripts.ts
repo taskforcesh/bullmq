@@ -266,16 +266,19 @@ export class Scripts {
     nextMillis: number,
     opts: RepeatableOptions,
     legacyCustomKey: string,
-    skipCheckExists: boolean,
   ): (string | number | Buffer)[] {
-    const keys: (string | number | Buffer)[] = [this.queue.keys.repeat];
+    const queueKeys = this.queue.keys;
+    const keys: (string | number | Buffer)[] = [
+      queueKeys.repeat,
+      queueKeys.delayed,
+    ];
 
     const args = [
       nextMillis,
       pack(opts),
       legacyCustomKey,
       customKey,
-      skipCheckExists ? '1' : '0',
+      queueKeys[''],
     ];
 
     return keys.concat(args);
@@ -286,7 +289,6 @@ export class Scripts {
     nextMillis: number,
     opts: RepeatableOptions,
     legacyCustomKey: string,
-    skipCheckExists: boolean,
   ): Promise<string> {
     const client = await this.queue.client;
 
@@ -295,10 +297,24 @@ export class Scripts {
       nextMillis,
       opts,
       legacyCustomKey,
-      skipCheckExists,
     );
 
     return (<any>client).addRepeatableJob(args);
+  }
+
+  async updateRepeatableJobMillis(
+    client: RedisClient,
+    customKey: string,
+    nextMillis: number,
+    legacyCustomKey: string,
+  ): Promise<string> {
+    const args = [
+      this.queue.keys.repeat,
+      nextMillis,
+      customKey,
+      legacyCustomKey,
+    ];
+    return (<any>client).updateRepeatableJobMillis(args);
   }
 
   private removeRepeatableArgs(
