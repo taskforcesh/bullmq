@@ -843,7 +843,7 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
-  it('should repeat once a day for 5 days and start immediately', async function () {
+  it('should repeat once a day for 5 days and start immediately using endDate', async function () {
     this.timeout(8000);
 
     const date = new Date('2017-05-05 01:01:00');
@@ -897,6 +897,76 @@ describe('repeat', function () {
           pattern: '0 1 * * *',
           immediately: true,
           endDate: new Date('2017-05-10 13:13:00'),
+        },
+      },
+    );
+    this.clock.tick(delay);
+
+    worker.run();
+
+    await completing;
+    await worker.close();
+    delayStub.restore();
+  });
+
+  it('should repeat once a day for 5 days and start immediately', async function () {
+    this.timeout(8000);
+
+    const date = new Date('2017-05-05 01:01:00');
+    this.clock.setSystemTime(date);
+
+    const nextTick = ONE_DAY + 10 * ONE_SECOND;
+    const delay = 5 * ONE_SECOND + 500;
+
+    let counter = 0;
+    const worker = new Worker(
+      queueName,
+      async () => {
+        if(counter === 0){
+          this.clock.tick(6 * ONE_HOUR);
+
+        }else {
+          this.clock.tick(nextTick);
+        }
+      },
+      {
+        autorun: false,
+        connection,
+        prefix,
+        skipStalledCheck: true,
+        skipLockRenewal: true,
+      },
+    );
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
+      console.log('delay');
+    });
+
+    let prev: Job;
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        if (counter === 1) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(delay);
+        } else if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+        }
+        prev = job;
+
+        counter++;
+        if (counter == 5) {
+          resolve();
+        }
+      });
+    });
+
+    await queue.add(
+      'repeat',
+      { foo: 'bar' },
+      {
+        repeat: {
+          pattern: '0 0 7 * * *',
+          immediately: true,
         },
       },
     );

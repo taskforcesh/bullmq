@@ -65,7 +65,7 @@ export class Repeat extends QueueBase {
     const hasImmediately = Boolean(
       (every || pattern) && repeatOpts.immediately,
     );
-    const offset = hasImmediately ? now - nextMillis : undefined;
+    const offset = (hasImmediately && every) ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
       if (!prevMillis && opts.jobId) {
@@ -340,7 +340,11 @@ export const getNextMillis = (
   });
 
   try {
-    return interval.next().getTime();
+    if(opts.immediately){
+      return interval.prev().getTime();
+    } else {
+      return interval.next().getTime();
+    }
   } catch (e) {
     // Ignore error
   }
