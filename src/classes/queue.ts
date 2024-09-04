@@ -221,13 +221,9 @@ export class Queue<
     data: DataType,
     opts?: JobsOptions,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    return this.trace(
+    return await this.trace<Job<DataType, ResultType, NameType>>(
       () => `${this.name}.${name} Queue.add`,
       async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
-        });
-
         if (opts && opts.repeat) {
           if (opts.repeat.endDate) {
             if (+new Date(opts.repeat.endDate) < Date.now()) {
@@ -283,11 +279,10 @@ export class Queue<
   async addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
   ): Promise<Job<DataType, ResultType, NameType>[]> {
-    return this.trace(
+    return await this.trace<Job<DataType, ResultType, NameType>[]>(
       () => `${this.name} Queue.addBulk`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
           [TelemetryAttributes.BulkCount]: jobs.length,
         });
@@ -320,13 +315,9 @@ export class Queue<
    * and in that case it will add it there instead of the wait list.
    */
   async pause(): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} Queue.pause`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
-        });
-
+      async () => {
         await this.scripts.pause(true);
 
         this.emit('paused');
@@ -339,13 +330,9 @@ export class Queue<
    *
    */
   async close(): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} Queue.close`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
-        });
-
+      async () => {
         if (!this.closing) {
           if (this._repeat) {
             await this._repeat.close();
@@ -363,13 +350,9 @@ export class Queue<
    * queue.
    */
   async resume(): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} Queue.resume`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
-        });
-
+      async () => {
         await this.scripts.pause(false);
 
         this.emit('resumed');
@@ -427,13 +410,9 @@ export class Queue<
     repeatOpts: RepeatOptions,
     jobId?: string,
   ): Promise<boolean> {
-    return this.trace(
+    return await this.trace<boolean>(
       () => `${this.name} ${name} Queue.removeRepeatable`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
-        });
-
+      async () => {
         const repeat = await this.repeat;
         const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
 
@@ -448,13 +427,9 @@ export class Queue<
    * @param id - identifier
    */
   async removeDebounceKey(id: string): Promise<number> {
-    return this.trace(
+    return await this.trace<number>(
       () => `${this.name} ${id} Queue.removeDebounceKey`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
-        });
-
+      async () => {
         const client = await this.client;
 
         return await client.del(`${this.keys.de}:${id}`);
@@ -473,11 +448,10 @@ export class Queue<
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
-    return this.trace(
+    return await this.trace<boolean>(
       () => `${this.name} ${key} Queue.removeRepeatableByKey`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.JobKey]: key,
         });
 
@@ -499,11 +473,10 @@ export class Queue<
    * any of its dependencies were locked.
    */
   async remove(jobId: string, { removeChildren = true } = {}): Promise<number> {
-    return this.trace(
+    return await this.trace<number>(
       () => `${this.name} ${jobId} Queue.remove`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.JobId]: jobId,
           [TelemetryAttributes.JobOptions]: JSON.stringify({
             removeChildren,
@@ -525,11 +498,10 @@ export class Queue<
     jobId: string,
     progress: number | object,
   ): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} Queue.updateJobProgress`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.JobId]: jobId,
           [TelemetryAttributes.JobProgress]: JSON.stringify(progress),
         });
@@ -564,11 +536,10 @@ export class Queue<
    * delayed jobs.
    */
   async drain(delayed = false): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} Queue.drain`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.QueueDrainDelay]: delayed,
         });
 
@@ -599,25 +570,14 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    return this.trace(
+    return await this.trace<string[]>(
       () => `${this.name} Queue.clean`,
       async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
-          [TelemetryAttributes.QueueGrace]: grace,
-          [TelemetryAttributes.JobType]: type,
-        });
-
         const maxCount = limit || Infinity;
         const maxCountPerCall = Math.min(10000, maxCount);
         const timestamp = Date.now() - grace;
         let deletedCount = 0;
         const deletedJobsIds: string[] = [];
-
-        span?.setAttributes({
-          [TelemetryAttributes.QueueCleanLimit]: maxCount,
-          [TelemetryAttributes.JobTimestamp]: timestamp,
-        });
 
         while (deletedCount < maxCount) {
           const jobsIds = await this.scripts.cleanJobsInSet(
@@ -636,6 +596,10 @@ export class Queue<
         }
 
         span?.setAttributes({
+          [TelemetryAttributes.QueueGrace]: grace,
+          [TelemetryAttributes.JobType]: type,
+          [TelemetryAttributes.QueueCleanLimit]: maxCount,
+          [TelemetryAttributes.JobTimestamp]: timestamp,
           [TelemetryAttributes.JobId]: deletedJobsIds,
         });
 
@@ -656,13 +620,9 @@ export class Queue<
    * @param opts - Obliterate options.
    */
   async obliterate(opts?: ObliterateOpts): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} Queue.obliterate`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
-        });
-
+      async () => {
         await this.pause();
 
         let cursor = 0;
@@ -690,11 +650,10 @@ export class Queue<
   async retryJobs(
     opts: { count?: number; state?: FinishedStatus; timestamp?: number } = {},
   ): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} Queue.retryJobs`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.QueueOptions]: JSON.stringify(opts),
         });
 
@@ -719,11 +678,10 @@ export class Queue<
    * @returns
    */
   async promoteJobs(opts: { count?: number } = {}): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} Queue.promoteJobs`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.QueueOptions]: JSON.stringify(opts),
         });
 
@@ -741,11 +699,10 @@ export class Queue<
    * @param maxLength -
    */
   async trimEvents(maxLength: number): Promise<number> {
-    return this.trace(
+    return await this.trace<number>(
       () => `${this.name} Queue.trimEvents`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.QueueName]: this.name,
           [TelemetryAttributes.QueueEventMaxLength]: maxLength,
         });
 

@@ -11,6 +11,7 @@ import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
+import { TelemetryAttributes } from '../enums';
 
 /**
  * @class QueueBase
@@ -190,6 +191,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     }
 
     const span = this.tracer.startSpan(getSpanName());
+
+    span.setAttributes({
+      [TelemetryAttributes.QueueName]: this.name,
+    });
 
     try {
       return callback(span);

@@ -35,7 +35,6 @@ import {
   RATE_LIMIT_ERROR,
   WaitingChildrenError,
 } from './errors';
-import { Tracer } from '../interfaces';
 import { TelemetryAttributes } from '../enums';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
@@ -404,11 +403,10 @@ export class Worker<
   }
 
   async run() {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} ${this.id} Worker.run`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerOptions]: JSON.stringify(this.opts),
         });
@@ -533,16 +531,9 @@ export class Worker<
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
-    return this.trace(
+    return await this.trace<Job<DataType, ResultType, NameType>>(
       () => `${this.name} ${this.id} Worker.getNextJob`,
       async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
-          [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerToken]: token,
-          [TelemetryAttributes.WorkerOptions]: JSON.stringify({ block }),
-        });
-
         const nextJob = await this._getNextJob(
           await this.client,
           await this.blockingConnection.client,
@@ -551,7 +542,10 @@ export class Worker<
         );
 
         span?.setAttributes({
-          [TelemetryAttributes.JobId]: nextJob.id,
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerToken]: token,
+          [TelemetryAttributes.WorkerOptions]: JSON.stringify({ block }),
+          [TelemetryAttributes.JobId]: nextJob?.id,
         });
 
         return nextJob;
@@ -616,11 +610,10 @@ export class Worker<
    * @param expireTimeMs - expire time in ms of this rate limit.
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} ${this.id} Worker.rateLimit`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerRateLimit]: expireTimeMs,
         });
@@ -785,11 +778,10 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    return this.trace(
+    return await this.trace<void | Job<DataType, ResultType, NameType>>(
       () => `${this.name} ${this.id} Worker.processJob`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerToken]: token,
           [TelemetryAttributes.JobId]: job.id,
@@ -870,11 +862,10 @@ will never work with more accuracy than 1ms. */
    * Pauses the processing of this queue only for this worker.
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} ${this.id} Worker.pause`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerDoNotWaitActive]: doNotWaitActive,
         });
@@ -899,11 +890,10 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    this.trace(
+    this.trace<void>(
       () => `${this.name} ${this.id} Worker.resume`,
       span => {
         span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
           [TelemetryAttributes.WorkerId]: this.id,
         });
 
@@ -947,11 +937,10 @@ will never work with more accuracy than 1ms. */
    * @returns Promise that resolves when the worker has been closed.
    */
   async close(force = false): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} ${this.id} Worker.close`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerForceClose]: force,
         });
@@ -1009,11 +998,10 @@ will never work with more accuracy than 1ms. */
    * @see {@link https://docs.bullmq.io/patterns/manually-fetching-jobs}
    */
   async startStalledCheckTimer(): Promise<void> {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} ${this.id} Worker.startStalledCheckTimer`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
           [TelemetryAttributes.WorkerId]: this.id,
         });
 
@@ -1116,14 +1104,14 @@ will never work with more accuracy than 1ms. */
   }
 
   protected async extendLocks(jobs: Job[]) {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} ${this.id} Worker.extendLocks`,
       async span => {
         span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
           [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerJobsInvolved]: JSON.stringify(jobs),
-          [TelemetryAttributes.WorkerJobsIdsInvolved]: jobs.map(job => job.id),
+          [TelemetryAttributes.WorkerJobsToExtendLocks]: jobs.map(
+            job => job.id,
+          ),
         });
 
         try {
@@ -1155,14 +1143,9 @@ will never work with more accuracy than 1ms. */
   }
 
   private async moveStalledJobsToWait() {
-    this.trace(
+    await this.trace<void>(
       () => `${this.name} ${this.id} Worker.moveStalledJobsToWait`,
       async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerName]: this.name,
-          [TelemetryAttributes.WorkerId]: this.id,
-        });
-
         const chunkSize = 50;
         const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
 
@@ -1188,7 +1171,8 @@ will never work with more accuracy than 1ms. */
         this.notifyFailedJobs(await Promise.all(jobPromises));
 
         span?.setAttributes({
-          [TelemetryAttributes.WorkerJobsIdsInvolved]: stalled,
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerStalledJobs]: stalled,
         });
       },
     );
