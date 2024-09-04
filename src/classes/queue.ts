@@ -233,13 +233,11 @@ export class Queue<
             }
           }
 
-          const repeatableJob = (await this.repeat).addNextRepeatableJob<
+          return (await this.repeat).updateRepeatableJob<
             DataType,
             ResultType,
             NameType
-          >(name, data, { ...this.jobsOpts, ...opts }, true);
-
-          return repeatableJob;
+          >(name, data, { ...this.jobsOpts, ...opts }, { override: true });
         } else {
           const jobId = opts?.jobId;
 

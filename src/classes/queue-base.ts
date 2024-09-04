@@ -61,6 +61,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       throw new Error('Queue name must be provided');
     }
 
+    if (name.includes(':')) {
+      throw new Error('Queue name cannot contain :');
+    }
+
     this.connection = new Connection(
       opts.connection,
       isRedisInstance(opts.connection),

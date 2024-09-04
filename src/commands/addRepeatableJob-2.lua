@@ -3,7 +3,8 @@
 
     Input:
       KEYS[1] 'repeat' key
-
+      KEYS[2] 'delayed' key
+      
       ARGV[1] next milliseconds
       ARGV[2] msgpacked options
             [1]  name
@@ -13,19 +14,25 @@
             [5]  every?
       ARGV[3] legacy custom key TODO: remove this logic in next breaking change
       ARGV[4] custom key
-      ARGV[5] skipCheckExists
+      ARGV[5] prefix key
 
       Output:
         repeatableKey  - OK
 ]]
 local rcall = redis.call
 local repeatKey = KEYS[1]
-local nextMilli = ARGV[1]
+local delayedKey = KEYS[2]
+
+local nextMillis = ARGV[1]
 local legacyCustomKey = ARGV[3]
 local customKey = ARGV[4]
+local prefixKey = ARGV[5]
 
-local function storeRepeatableJob(repeatKey, customKey, nextMilli, rawOpts)
-  rcall("ZADD", repeatKey, nextMilli, customKey)
+-- Includes
+--- @include "includes/removeJob"
+
+local function storeRepeatableJob(repeatKey, customKey, nextMillis, rawOpts)
+  rcall("ZADD", repeatKey, nextMillis, customKey)
   local opts = cmsgpack.unpack(rawOpts)
 
   local optionalValues = {}
@@ -55,17 +62,21 @@ local function storeRepeatableJob(repeatKey, customKey, nextMilli, rawOpts)
   return customKey
 end
 
-local legacyRepeatableJobExists = rcall("ZSCORE", repeatKey, legacyCustomKey)
+-- If we are overriding a repeatable job we must delete the delayed job for
+-- the next iteration.
+local prevMillis = rcall("ZSCORE", repeatKey, customKey)
+if prevMillis ~= false then
+  local delayedJobId =  "repeat:" .. customKey .. ":" .. prevMillis
 
-if ARGV[5] == '0' or legacyRepeatableJobExists  ~= false then
-  if legacyRepeatableJobExists ~= false then
-    rcall("ZADD", repeatKey, nextMilli, legacyCustomKey)
-    return legacyCustomKey
-  elseif rcall("ZSCORE", repeatKey, customKey) ~= false then
-    return storeRepeatableJob(repeatKey, customKey, nextMilli, ARGV[2])
+  if rcall("ZSCORE", delayedKey, delayedJobId) ~= false then
+    removeJob(delayedJobId, true, prefixKey, true --[[remove debounce key]])
+    rcall("ZREM", delayedKey, delayedJobId)
   end
-else
-  return storeRepeatableJob(repeatKey, customKey, nextMilli, ARGV[2])
 end
 
-return ''
+-- Keep backwards compatibility with old repeatable jobs (<= 3.0.0)
+if rcall("ZSCORE", repeatKey, legacyCustomKey) ~= false then
+  return storeRepeatableJob(repeatKey, legacyCustomKey, nextMillis, ARGV[2])
+end
+
+return storeRepeatableJob(repeatKey, customKey, nextMillis, ARGV[2])

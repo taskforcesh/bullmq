@@ -75,3 +75,7 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 ```
+
+{% hint style="warning" %}
+If Redis responses are in binary format, you should pass (decode_responses)[https://redis-py.readthedocs.io/en/latest/examples/connection_examples.html#By-default-Redis-return-binary-responses,-to-decode-them-use-decode_responses=True] option as _True_.
+{% endhint %}
