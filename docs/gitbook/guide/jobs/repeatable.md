@@ -48,9 +48,9 @@ await myQueue.add(
 
 There are some important considerations regarding repeatable jobs:
 
-- Bull is smart enough not to add the same repeatable job if the repeat options are the same.
-- If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
-- Repeatable jobs can be removed using the [`removeRepeatable`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable) or [`removeRepeatableByKey`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey) methods.
+* Bull is smart enough not to add the same repeatable job if the repeat options are the same.
+* If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
+* Repeatable jobs can be removed using the [`removeRepeatable`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable) or [`removeRepeatableByKey`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey) methods.
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -61,7 +61,7 @@ const myQueue = new Queue('Paint');
 
 const job1 = await myQueue.add('red', { foo: 'bar' }, { repeat });
 const job2 = await myQueue.add('blue', { foo: 'baz' }, { repeat });
-
+    
 const isRemoved1 = await myQueue.removeRepeatableByKey(job1.repeatJobKey);
 const isRemoved2 = await queue.removeRepeatable('blue', repeat);
 ```
@@ -223,6 +223,7 @@ await myQueue.add(
     },
   },
 );
+
 ```
 
 #### Updating repeatable job's options
@@ -247,6 +248,6 @@ The code above will not create a new repeatable meta job, it will just update th
 
 ### Read more:
 
-- 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/v5.RepeatStrategy.html)
-- 💡 [Remove Repeatable Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable)
-- 💡 [Remove Repeatable Job by Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey)
+* 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/v5.RepeatStrategy.html)
+* 💡 [Remove Repeatable Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable)
+* 💡 [Remove Repeatable Job by Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey)
