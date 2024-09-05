@@ -341,7 +341,7 @@ export const getNextMillis = (
 
   try {
     if(opts.immediately){
-      return interval.prev().getTime();
+      return new Date().getTime();
     } else {
       return interval.next().getTime();
     }
