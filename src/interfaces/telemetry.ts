@@ -1,5 +1,26 @@
 export interface Telemetry {
-  tracer: Tracer;
+  trace: Trace;
+  contextManager: ContextManager;
+  tracerName: string;
+}
+
+export interface ContextManager {
+  with<A extends (...args: any[]) => any>(
+    context: Context,
+    fn: A,
+  ): ReturnType<A>;
+  active(): Context;
+}
+
+export interface Trace {
+  getTracer(name: string, version?: string): Tracer;
+  setSpan: SetSpan;
+}
+
+export type SetSpan = (context: Context, span: Span) => Context;
+
+export interface Context {
+  [key: string]: Function;
 }
 
 export interface Tracer {

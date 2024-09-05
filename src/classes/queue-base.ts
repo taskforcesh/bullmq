@@ -1,5 +1,12 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient, Span, Tracer } from '../interfaces';
+import {
+  QueueBaseOptions,
+  RedisClient,
+  Span,
+  Tracer,
+  SetSpan,
+  ContextManager,
+} from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
   delay,
@@ -37,6 +44,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * It will check if tracer is provided and if not it will continue as is
    */
   private tracer: Tracer | undefined;
+  private setSpan: SetSpan | undefined;
+  private contextManager: ContextManager | undefined;
 
   /**
    *
@@ -85,7 +94,11 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.toKey = (type: string) => queueKeys.toKey(name, type);
     this.setScripts();
 
-    this.tracer = opts?.telemetry?.tracer;
+    if (opts?.telemetry) {
+      this.tracer = opts.telemetry.trace.getTracer(opts.telemetry.tracerName);
+      this.setSpan = opts.telemetry.trace.setSpan;
+      this.contextManager = opts.telemetry.contextManager;
+    }
   }
 
   /**
@@ -186,6 +199,13 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     }
   }
 
+  /**
+   * Wraps the code with telemetry and provides span for configuration.
+   *
+   * @param getSpanName - name of the span
+   * @param callback - code to wrap with telemetry
+   * @returns
+   */
   protected trace<T>(
     getSpanName: () => string,
     callback: (span?: Span) => Promise<T> | T,
@@ -201,7 +221,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     });
 
     try {
-      return callback(span);
+      return this.contextManager.with(
+        this.setSpan(this.contextManager.active(), span),
+        () => callback(span),
+      );
     } catch (err) {
       span.recordException(err as Error);
       throw err;
