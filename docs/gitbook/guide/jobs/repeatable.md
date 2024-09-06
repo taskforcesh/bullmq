@@ -152,7 +152,7 @@ const myQueue = new Queue('Paint', { settings });
 // Repeat job every 10 seconds
 await myQueue.add(
   'bird',
-  { color: 'bird' },
+  { color: 'green' },
   {
     repeat: {
       pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=;WKST=MO',
@@ -163,7 +163,7 @@ await myQueue.add(
 
 await myQueue.add(
   'bird',
-  { color: 'bird' },
+  { color: 'gray' },
   {
     repeat: {
       pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=;WKST=MO',
@@ -203,10 +203,10 @@ const myQueue = new Queue('Paint', { connection });
 // Repeat job every 10 seconds
 await myQueue.add(
   'bird',
-  { color: 'bird' },
+  { color: 'gray' },
   {
     repeat: {
-      every: 1000,
+      every: 10_000,
       key: 'colibri',
     },
   },
@@ -215,10 +215,10 @@ await myQueue.add(
 // Repeat job every 10 seconds
 await myQueue.add(
   'bird',
-  { color: 'bird' },
+  { color: 'brown' },
   {
     repeat: {
-      every: 1000,
+      every: 10_000,
       key: 'eagle',
     },
   },
@@ -226,9 +226,25 @@ await myQueue.add(
 
 ```
 
-{% hint style="warning" %}
-While adding a new repeatable job with same key but different repeat options, you will override your previous record.
-{% endhint %}
+#### Updating repeatable job's options
+
+Using custom keys allows to update existing repeatable jobs by just adding a new repeatable job using the same key, so for instance, if we wanted to change the repetition interval of the previous job that used the key "eagle" we could just a new job like this:
+
+```typescript
+// Repeat job every 25 seconds instead of 10 seconds
+await myQueue.add(
+  'bird',
+  { color: 'turquoise' },
+  {
+    repeat: {
+      every: 25_000,
+      key: 'eagle',
+    },
+  },
+);
+```
+
+The code above will not create a new repeatable meta job, it will just update the existing meta job's interval from 10 seconds to 25 seconds. Note that if there is already a job delayed for running within the 10 seconds it will be replaced by a new job using the new repeatable job's settings.
 
 ### Read more:
 

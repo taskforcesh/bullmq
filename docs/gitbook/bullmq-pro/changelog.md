@@ -1,3 +1,27 @@
+## [7.15.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.15.0...v7.15.1) (2024-09-06)
+
+
+### Bug Fixes
+
+* **worker:** fix close sequence to reduce risk for open handlers ([#2656](https://github.com/taskforcesh/bullmq/issues/2656)) ([8468e44](https://github.com/taskforcesh/bullmq/commit/8468e44e5e9e39c7b65691945c26688a9e5d2275))
+* **flow:** validate parentData before ignoreDependencyOnFailure when stalled check happens ([#2702](https://github.com/taskforcesh/bullmq/issues/2702)) (python) ([9416501](https://github.com/taskforcesh/bullmq/commit/9416501551b1ad464e59bdba1045a5a9955e2ea4))
+
+# [7.15.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.14.1...v7.15.0) (2024-09-05)
+
+
+### Bug Fixes
+
+* **job:** consider passing stackTraceLimit as 0 ([#2692](https://github.com/taskforcesh/bullmq/issues/2692)) ref [#2487](https://github.com/taskforcesh/bullmq/issues/2487) ([509a36b](https://github.com/taskforcesh/bullmq/commit/509a36baf8d8cf37176e406fd28e33f712229d27))
+
+
+### Features
+
+* **queue-pro:** add getGroupRateLimitTtl method ([#250](https://github.com/taskforcesh/bullmq-pro/issues/250)) ([5a907d9](https://github.com/taskforcesh/bullmq-pro/commit/5a907d9ca1f4719ad835673fcf0773b5f64c2398))
+
+### Performance Improvements
+
+* **worker:** promote delayed jobs while queue is rate limited ([#2697](https://github.com/taskforcesh/bullmq/issues/2697)) ref [#2582](https://github.com/taskforcesh/bullmq/issues/2582) ([f3290ac](https://github.com/taskforcesh/bullmq/commit/f3290ace2f117e26357f9fae611a255af26b950b))
+
 ## [7.14.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.14.0...v7.14.1) (2024-08-09)
 
 

@@ -731,7 +731,9 @@ will never work with more accuracy than 1ms. */
       job.token = token;
       if (job.opts.repeat) {
         const repeat = await this.repeat;
-        await repeat.addNextRepeatableJob(job.name, job.data, job.opts);
+        await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
+          override: false,
+        });
       }
       return job;
     }

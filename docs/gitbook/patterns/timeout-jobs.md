@@ -51,6 +51,3 @@ const worker = new Worker("foo", async (job) => {
 In this example we are aborting the fetch call using [AbortController](https://developer.mozilla.org/en-US/docs/Web/API/AbortController), which is the default mechanism provided by fetch to abort calls. Note that abort will even cause the async call to response.text() to also throw an Abort exception.
 
 In summary, while it is possible to implement timeout in your jobs, the mechanism to do it may vary depending on the type of asynchronous operations your jobs is performing, but in many cases using AbortController in combination with a setTimeout is more than enough.
-
-
-

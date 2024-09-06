@@ -1511,6 +1511,51 @@ describe('repeat', function () {
       await processing;
       delayStub.restore();
     });
+
+    it('should keep only one delayed job if adding a new repeatable job with the same key', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      const key = 'mykey';
+
+      this.clock.setSystemTime(date);
+
+      const nextTick = 2 * ONE_SECOND;
+
+      await queue.add(
+        'test',
+        { foo: 'bar' },
+        {
+          repeat: {
+            every: 10_000,
+            key,
+          },
+        },
+      );
+
+      this.clock.tick(nextTick);
+
+      let jobs = await queue.getRepeatableJobs();
+      expect(jobs).to.have.length(1);
+
+      let delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      await queue.add(
+        'test2',
+        { qux: 'baz' },
+        {
+          repeat: {
+            every: 35_160,
+            key,
+          },
+        },
+      );
+
+      jobs = await queue.getRepeatableJobs();
+      expect(jobs).to.have.length(1);
+
+      delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+    });
   });
 
   // This test is flaky and too complex we need something simpler that tests the same thing
@@ -1521,7 +1566,7 @@ describe('repeat', function () {
     const jobId = 'xxxx';
     const date = new Date('2017-02-07 9:24:00');
     const nextTick = 2 * ONE_SECOND + 100;
-    const addNextRepeatableJob = repeat.addNextRepeatableJob;
+    const addNextRepeatableJob = repeat.updateRepeatableJob;
     this.clock.setSystemTime(date);
 
     const repeatOpts = { pattern: '*/2 * * * * *' };
@@ -1531,7 +1576,7 @@ describe('repeat', function () {
         queueName,
         async () => {
           const repeatWorker = await worker.repeat;
-          (<unknown>repeatWorker.addNextRepeatableJob) = async (
+          (<unknown>repeatWorker.updateRepeatableJob) = async (
             ...args: [string, unknown, JobsOptions, boolean?]
           ) => {
             // In order to simulate race condition
