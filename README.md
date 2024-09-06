@@ -228,6 +228,7 @@ Since there are a few job queue solutions, here is a table comparing them:
 | Group Support             |        ✓        |                 |                 |       |          |        |
 | Batches Support           |        ✓        |                 |                 |       |          |        |
 | Parent/Child Dependencies |        ✓        |        ✓        |                 |       |          |        |
+| Debouncing               |        ✓        |        ✓        |        ✓        |       |          |        |
 | Priorities                |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
 | Concurrency               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
 | Delayed jobs              |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
