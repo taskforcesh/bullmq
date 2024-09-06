@@ -53,6 +53,27 @@ const worker = new WorkerPro(
 );
 ```
 
+### Get Group Rate Limit Ttl
+
+Sometimes is useful to know if our group is rate limited.
+
+For this purpose, you can use the **`getGroupRateLimitTtl`** method like this:
+
+```typescript
+import { QueuePro } from '@taskforcesh/bullmq-pro';
+
+const queue = new QueuePro('myQueue', { connection });
+const groupId = '0';
+const maxJobs = 100;
+
+const ttl = await queue.getGroupRateLimitTtl(groupId, maxJobs);
+
+if (ttl > 0) {
+  console.log('Group is rate limited');
+}
+```
+
 ## Read more:
 
 * 💡 [Rate Limit Group API Reference](https://api.bullmq.pro/classes/v7.Worker.html#rateLimitGroup)
+- 💡 [Get Group Rate Limit Ttl API Reference](https://api.bullmq.pro/classes/v7.Queue.html#getGroupRateLimitTtl)
