@@ -14,6 +14,10 @@ const groupId = 'my group';
 await queue.setGroupConcurrency(groupId, 4);
 ```
 
+{% hint style="warning" %}
+Make sure to set [Group Concurrency](concurrency.md) at worker instance level along side with local concurrency. It will work as a default concurrency for those groups that don't have a local concurrency. In this way workers will know about this feature.
+{% endhint %}
+
 And you can use the `getGroupConcurrency` method like this:
 
 ```typescript
