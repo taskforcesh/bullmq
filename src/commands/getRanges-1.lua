@@ -42,21 +42,7 @@ end
 
 for i = 4, #ARGV do
   local stateKey = prefix .. ARGV[i]
-  if ARGV[i] == "wait" or ARGV[i] == "paused" then
-    -- Markers in waitlist DEPRECATED in v5: Remove in v6.
-    local marker = rcall("LINDEX", stateKey, -1)
-    if marker and string.sub(marker, 1, 2) == "0:" then
-      local count = rcall("LLEN", stateKey)
-      if count > 1 then
-        rcall("RPOP", stateKey)
-        getRangeInList(stateKey, asc, rangeStart, rangeEnd, results)
-      else
-        results[#results+1] = {}
-      end
-    else
-      getRangeInList(stateKey, asc, rangeStart, rangeEnd, results)
-    end
-  elseif ARGV[i] == "active" then
+  if ARGV[i] == "wait" or ARGV[i] == "paused" or ARGV[i] == "active" then
     getRangeInList(stateKey, asc, rangeStart, rangeEnd, results)
   else
     if asc == "1" then

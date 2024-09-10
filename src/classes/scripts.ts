@@ -597,6 +597,29 @@ export class Scripts {
     return (<any>client).drain(args);
   }
 
+  private removeLegacyMarkersArgs(): (string | number)[] {
+    const queueKeys = this.queue.keys;
+
+    const keys: string[] = [
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.completed,
+      queueKeys.failed,
+    ];
+
+    const args = [queueKeys['']];
+
+    return keys.concat(args);
+  }
+
+  async removeLegacyMarkers(): Promise<void> {
+    const client = await this.queue.client;
+    const args = this.removeLegacyMarkersArgs();
+
+    return (<any>client).removeLegacyMarkers(args);
+  }
+
   private removeChildDependencyArgs(
     jobId: string,
     parentKey: string,

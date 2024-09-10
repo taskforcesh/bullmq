@@ -44,6 +44,15 @@ describe('queues', function () {
         ).to.be.rejectedWith('Custom Ids cannot be integers');
       });
     });
+
+    describe('when jobId contains :', () => {
+      it('throws error', async () => {
+        const opts = { jobId: 'job:id' };
+        await expect(queue.add('test', {}, opts)).to.be.rejectedWith(
+          "JobId cannot be '0' or contain :",
+        );
+      });
+    });
   });
 
   describe('when empty name is provided', () => {
@@ -404,6 +413,22 @@ describe('queues', function () {
       );
 
       expect(updatedCount).to.be.eql(0);
+    });
+  });
+
+  describe('.removeLegacyMarkers', () => {
+    it('removes old markers', async () => {
+      const client = await queue.client;
+      await client.zadd(`${prefix}:${queue.name}:completed`, 1, '0:2');
+      await client.zadd(`${prefix}:${queue.name}:failed`, 2, '0:1');
+      await client.rpush(`${prefix}:${queue.name}:wait`, '0:0');
+
+      await queue.removeLegacyMarkers();
+
+      const keys = await client.keys(`${prefix}:${queue.name}:*`);
+
+      // meta key
+      expect(keys.length).to.be.eql(1);
     });
   });
 
