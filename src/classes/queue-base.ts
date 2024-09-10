@@ -21,7 +21,6 @@ import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
 import { TelemetryAttributes } from '../enums';
-import { Context } from 'vm';
 
 /**
  * @class QueueBase
