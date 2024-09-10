@@ -2,6 +2,18 @@
 
 <!--next-version-placeholder-->
 
+## v2.9.4 (2024-09-10)
+### Fix
+* **metrics:** Differentiate points in different minutes to be more accurate (#2766) (python) ([`7cb670e`](https://github.com/taskforcesh/bullmq/commit/7cb670e1bf9560a24de3da52427b4f6b6152a59a))
+* **pattern:** Do not save offset when immediately is provided ([#2756](https://github.com/taskforcesh/bullmq/issues/2756)) ([`a8cb8a2`](https://github.com/taskforcesh/bullmq/commit/a8cb8a21ea52437ac507097994ef0fde058c5433))
+* **repeat:** Replace delayed job when updating repeat key ([`88029bb`](https://github.com/taskforcesh/bullmq/commit/88029bbeab2a58768f9c438318f540010cd286a7))
+
+### Documentation
+* **bullmq-pro:** Add get group rate limit ttl section ([#2761](https://github.com/taskforcesh/bullmq/issues/2761)) ([`3dc13d1`](https://github.com/taskforcesh/bullmq/commit/3dc13d107c81519ee9ceab1f8d6d2a614b005384))
+
+### Performance
+* **metrics:** Save zeros as much as max data points ([#2758](https://github.com/taskforcesh/bullmq/issues/2758)) ([`3473054`](https://github.com/taskforcesh/bullmq/commit/347305451a9f5d7f2c16733eb139b5de96ea4b9c))
+
 ## v2.9.3 (2024-08-31)
 ### Fix
 * **flows:** Throw error when queueName contains colon (#2719) fixes #2718 ([`9ef97c3`](https://github.com/taskforcesh/bullmq/commit/9ef97c37663e209f03c501a357b6b1a662b24d99))
