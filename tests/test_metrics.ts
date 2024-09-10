@@ -66,6 +66,8 @@ describe('metrics', function () {
       ONE_MINUTE,
       ONE_MINUTE,
       ONE_MINUTE * 3,
+      ONE_SECOND * 70,
+      ONE_SECOND * 50,
       ONE_HOUR,
       ONE_MINUTE,
     ];
@@ -131,6 +133,8 @@ describe('metrics', function () {
       '0',
       '0',
       '0',
+      '1',
+      '1',
       '1',
       '0',
       '0',
