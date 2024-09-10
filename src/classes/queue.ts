@@ -221,9 +221,14 @@ export class Queue<
     data: DataType,
     opts?: JobsOptions,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    return await this.trace<Job<DataType, ResultType, NameType>>(
+    return this.trace<Job<DataType, ResultType, NameType>>(
+      () => 3,
       () => `${this.name}.${name} Queue.add`,
-      async span => {
+      async (span, telemetryHeaders) => {
+        if (telemetryHeaders) {
+          data = { ...data, telemetryHeaders };
+        }
+
         if (opts && opts.repeat) {
           if (opts.repeat.endDate) {
             if (+new Date(opts.repeat.endDate) < Date.now()) {
@@ -277,9 +282,10 @@ export class Queue<
   async addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
   ): Promise<Job<DataType, ResultType, NameType>[]> {
-    return await this.trace<Job<DataType, ResultType, NameType>[]>(
+    return this.trace<Job<DataType, ResultType, NameType>[]>(
+      () => 3,
       () => `${this.name} Queue.addBulk`,
-      async span => {
+      async (span, telemetryHeaders) => {
         span?.setAttributes({
           [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
           [TelemetryAttributes.BulkCount]: jobs.length,
@@ -289,7 +295,10 @@ export class Queue<
           this as MinimalQueue,
           jobs.map(job => ({
             name: job.name,
-            data: job.data,
+            data: {
+              ...job.data,
+              ...(span && telemetryHeaders),
+            },
             opts: {
               ...this.jobsOpts,
               ...job.opts,
@@ -314,6 +323,7 @@ export class Queue<
    */
   async pause(): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} Queue.pause`,
       async () => {
         await this.scripts.pause(true);
@@ -329,6 +339,7 @@ export class Queue<
    */
   async close(): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} Queue.close`,
       async () => {
         if (!this.closing) {
@@ -349,6 +360,7 @@ export class Queue<
    */
   async resume(): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} Queue.resume`,
       async () => {
         await this.scripts.pause(false);
@@ -408,7 +420,8 @@ export class Queue<
     repeatOpts: RepeatOptions,
     jobId?: string,
   ): Promise<boolean> {
-    return await this.trace<boolean>(
+    return this.trace<boolean>(
+      () => 3,
       () => `${this.name} ${name} Queue.removeRepeatable`,
       async () => {
         const repeat = await this.repeat;
@@ -425,7 +438,8 @@ export class Queue<
    * @param id - identifier
    */
   async removeDebounceKey(id: string): Promise<number> {
-    return await this.trace<number>(
+    return this.trace<number>(
+      () => 3,
       () => `${this.name} ${id} Queue.removeDebounceKey`,
       async () => {
         const client = await this.client;
@@ -446,7 +460,8 @@ export class Queue<
    * @returns
    */
   async removeRepeatableByKey(key: string): Promise<boolean> {
-    return await this.trace<boolean>(
+    return this.trace<boolean>(
+      () => 3,
       () => `${this.name} ${key} Queue.removeRepeatableByKey`,
       async span => {
         span?.setAttributes({
@@ -471,7 +486,8 @@ export class Queue<
    * any of its dependencies were locked.
    */
   async remove(jobId: string, { removeChildren = true } = {}): Promise<number> {
-    return await this.trace<number>(
+    return this.trace<number>(
+      () => 3,
       () => `${this.name} ${jobId} Queue.remove`,
       async span => {
         span?.setAttributes({
@@ -497,6 +513,7 @@ export class Queue<
     progress: number | object,
   ): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} Queue.updateJobProgress`,
       async span => {
         span?.setAttributes({
@@ -535,6 +552,7 @@ export class Queue<
    */
   async drain(delayed = false): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} Queue.drain`,
       async span => {
         span?.setAttributes({
@@ -568,7 +586,8 @@ export class Queue<
       | 'delayed'
       | 'failed' = 'completed',
   ): Promise<string[]> {
-    return await this.trace<string[]>(
+    return this.trace<string[]>(
+      () => 3,
       () => `${this.name} Queue.clean`,
       async span => {
         const maxCount = limit || Infinity;
@@ -619,6 +638,7 @@ export class Queue<
    */
   async obliterate(opts?: ObliterateOpts): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} Queue.obliterate`,
       async () => {
         await this.pause();
@@ -649,6 +669,7 @@ export class Queue<
     opts: { count?: number; state?: FinishedStatus; timestamp?: number } = {},
   ): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} Queue.retryJobs`,
       async span => {
         span?.setAttributes({
@@ -677,6 +698,7 @@ export class Queue<
    */
   async promoteJobs(opts: { count?: number } = {}): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} Queue.promoteJobs`,
       async span => {
         span?.setAttributes({
@@ -697,7 +719,8 @@ export class Queue<
    * @param maxLength -
    */
   async trimEvents(maxLength: number): Promise<number> {
-    return await this.trace<number>(
+    return this.trace<number>(
+      () => 3,
       () => `${this.name} Queue.trimEvents`,
       async span => {
         span?.setAttributes({

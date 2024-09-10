@@ -2,6 +2,7 @@ export interface Telemetry {
   trace: Trace;
   contextManager: ContextManager;
   tracerName: string;
+  propagation: Propagation;
 }
 
 export interface ContextManager {
@@ -24,14 +25,32 @@ export interface Context {
 }
 
 export interface Tracer {
-  startSpan(name: string): Span;
+  startSpan(name: string, options?: SpanOptions): Span;
+}
+
+export interface SpanOptions {
+  kind: SpanKind;
+}
+
+export enum SpanKind {
+  INTERNAL = 0,
+  SERVER = 1,
+  CLIENT = 2,
+  PRODUCER = 3,
+  CONSUMER = 4,
 }
 
 export interface Span {
   setAttribute(key: string, value: Attribute): Span;
   setAttributes(attributes: Attributes): Span;
   recordException(exception: Exception, time?: Time): void;
+  spanContext(): SpanContext;
   end(): void;
+}
+
+export interface SpanContext {
+  traceId: string;
+  spanId: string;
 }
 
 export interface Attributes {
@@ -74,3 +93,16 @@ interface NameException {
 export type Time = HighResolutionTime | number | Date;
 
 type HighResolutionTime = [number, number];
+
+export interface Propagation {
+  inject<T>(context: Context, carrier: T, setter?: TextMapSetter): void;
+  extract<T>(context: Context, carrier: T): Context;
+}
+
+interface TextMapSetter {
+  get<T>(carrier: T, key: string): undefined | string | string[];
+}
+
+export interface JobDataWithHeaders {
+  telemetryHeaders?: Record<string, string>;
+}

@@ -10,6 +10,7 @@ import { AbortController } from 'node-abort-controller';
 import {
   GetNextJobOptions,
   IoredisListener,
+  JobDataWithHeaders,
   JobJsonRaw,
   Processor,
   RedisClient,
@@ -404,6 +405,7 @@ export class Worker<
 
   async run() {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} ${this.id} Worker.run`,
       async span => {
         span?.setAttributes({
@@ -531,7 +533,8 @@ export class Worker<
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
-    return await this.trace<Job<DataType, ResultType, NameType>>(
+    return this.trace<Job<DataType, ResultType, NameType>>(
+      () => 3,
       () => `${this.name} ${this.id} Worker.getNextJob`,
       async span => {
         const nextJob = await this._getNextJob(
@@ -611,6 +614,7 @@ export class Worker<
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} ${this.id} Worker.rateLimit`,
       async span => {
         span?.setAttributes({
@@ -780,7 +784,10 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    return await this.trace<void | Job<DataType, ResultType, NameType>>(
+    const { telemetryHeaders } = job.data as JobDataWithHeaders;
+
+    return this.trace<void | Job<DataType, ResultType, NameType>>(
+      () => 3,
       () => `${this.name} ${this.id} Worker.processJob`,
       async span => {
         span?.setAttributes({
@@ -856,6 +863,7 @@ will never work with more accuracy than 1ms. */
           jobsInProgress.delete(inProgressItem);
         }
       },
+      telemetryHeaders,
     );
   }
 
@@ -865,6 +873,7 @@ will never work with more accuracy than 1ms. */
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} ${this.id} Worker.pause`,
       async span => {
         span?.setAttributes({
@@ -893,6 +902,7 @@ will never work with more accuracy than 1ms. */
    */
   resume(): void {
     this.trace<void>(
+      () => 3,
       () => `${this.name} ${this.id} Worker.resume`,
       span => {
         span?.setAttributes({
@@ -940,6 +950,7 @@ will never work with more accuracy than 1ms. */
    */
   async close(force = false): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} ${this.id} Worker.close`,
       async span => {
         span?.setAttributes({
@@ -1001,6 +1012,7 @@ will never work with more accuracy than 1ms. */
    */
   async startStalledCheckTimer(): Promise<void> {
     await this.trace<void>(
+      () => 3,
       () => `${this.name} ${this.id} Worker.startStalledCheckTimer`,
       async span => {
         span?.setAttributes({
@@ -1107,6 +1119,7 @@ will never work with more accuracy than 1ms. */
 
   protected async extendLocks(jobs: Job[]) {
     await this.trace<void>(
+      () => 0,
       () => `${this.name} ${this.id} Worker.extendLocks`,
       async span => {
         span?.setAttributes({
@@ -1146,6 +1159,7 @@ will never work with more accuracy than 1ms. */
 
   private async moveStalledJobsToWait() {
     await this.trace<void>(
+      () => 0,
       () => `${this.name} ${this.id} Worker.moveStalledJobsToWait`,
       async span => {
         const chunkSize = 50;

@@ -6,6 +6,8 @@ import {
   Tracer,
   SetSpan,
   ContextManager,
+  SpanKind,
+  Propagation,
 } from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
@@ -19,6 +21,7 @@ import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
 import { TelemetryAttributes } from '../enums';
+import { Context } from 'vm';
 
 /**
  * @class QueueBase
@@ -45,7 +48,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   private tracer: Tracer | undefined;
   private setSpan: SetSpan | undefined;
-  private contextManager: ContextManager | undefined;
+  protected contextManager: ContextManager | undefined;
+  protected propagation: Propagation | undefined;
 
   /**
    *
@@ -98,6 +102,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       this.tracer = opts.telemetry.trace.getTracer(opts.telemetry.tracerName);
       this.setSpan = opts.telemetry.trace.setSpan;
       this.contextManager = opts.telemetry.contextManager;
+      this.propagation = opts.telemetry.propagation;
     }
   }
 
@@ -202,28 +207,49 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   /**
    * Wraps the code with telemetry and provides span for configuration.
    *
+   * @param spanType - type of the span: Producer, Consumer, Internal
    * @param getSpanName - name of the span
    * @param callback - code to wrap with telemetry
    * @returns
    */
   protected trace<T>(
+    getSpanType: () => SpanKind,
     getSpanName: () => string,
-    callback: (span?: Span) => Promise<T> | T,
+    callback: (
+      span?: Span,
+      telemetryHeaders?: Record<string, string>,
+    ) => Promise<T> | T,
+    activeTelemetryHeaders?: Record<string, string>,
   ) {
     if (!this.tracer) {
       return callback();
     }
 
-    const span = this.tracer.startSpan(getSpanName());
+    const span = this.tracer.startSpan(getSpanName(), {
+      kind: getSpanType(),
+    });
 
     span.setAttributes({
       [TelemetryAttributes.QueueName]: this.name,
     });
 
     try {
+      if (activeTelemetryHeaders) {
+        const activeContext = this.propagation.extract(
+          this.contextManager.active(),
+          activeTelemetryHeaders,
+        );
+
+        return this.contextManager.with(activeContext, () => callback(span));
+      }
+
+      const telemetryHeaders: Record<string, string> = {};
+
+      this.propagation.inject(this.contextManager.active(), telemetryHeaders);
+
       return this.contextManager.with(
         this.setSpan(this.contextManager.active(), span),
-        () => callback(span),
+        () => callback(span, telemetryHeaders),
       );
     } catch (err) {
       span.recordException(err as Error);
