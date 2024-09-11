@@ -44,6 +44,14 @@ This mode is particularly useful for jobs that have a long running time or those
 Any manual deletion will disable the debouncing. For example, when calling _job.remove_ method.
 {% endhint %}
 
+## Get Debounce Job Id
+
+If you need to know which is the job id that started the debounce state. You can call **getDebounceJobId** method.
+
+```typescript
+const jobId = await myQueue.getDebounceJobId('customValue');
+```
+
 ## Remove Debounce Key
 
 If you need to stop debouncing before ttl finishes or before finishing a job. You can call **removeDebounceKey** method.
