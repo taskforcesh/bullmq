@@ -1362,6 +1362,37 @@ describe('Job', function () {
       );
     });
 
+    describe('when a repeatable job is promoted', () => {
+      it('add next delayed job after promoted job completion', async () => {
+        const job = await queue.add(
+          'test',
+          { foo: 'bar' },
+          { repeat: {
+            pattern: '0 0 7 * * *'
+          }, },
+        );
+        const isDelayed = await job.isDelayed();
+        expect(isDelayed).to.be.equal(true);
+        await job.promote();
+        expect(job.delay).to.be.equal(0);
+
+        const worker = new Worker(queueName, null, { connection, prefix });
+      
+        const currentJob1 = (await worker.getNextJob('token')) as Job;
+        expect(currentJob1).to.not.be.undefined;
+
+        await currentJob1.moveToCompleted('succeeded', 'token', true);
+
+        const delayedCount = await queue.getDelayedCount();
+        expect(delayedCount).to.be.equal(1);
+
+        const isDelayedAfterPromote = await job.isDelayed();
+        expect(isDelayedAfterPromote).to.be.equal(false);
+        const isCompleted = await job.isCompleted();
+        expect(isCompleted).to.be.equal(true);
+      });
+    });
+
     describe('when queue is paused', () => {
       it('should promote delayed job to the right queue', async () => {
         await queue.add('normal', { foo: 'bar' });
