@@ -625,8 +625,17 @@ describe('workers', function () {
       { connection, prefix },
     );
 
-    worker.on('completed', async () => {
-      await anotherWorker.close();
+    await anotherWorker.waitUntilReady();
+
+    await new Promise<void>((resolve, reject) => {
+      worker.once('completed', async () => {
+        try {
+          await anotherWorker.close();
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
     });
 
     await worker.close();

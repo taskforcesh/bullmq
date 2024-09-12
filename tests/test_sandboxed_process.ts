@@ -545,6 +545,37 @@ function sandboxProcessTests(
       await worker.close();
     });
 
+    it('should process steps and complete', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_steps.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job) => {
+          try {
+            expect(job.data).to.be.eql({
+              step: 'FINISH',
+              extraDataSecondStep: 'second data',
+              extraDataFinishedStep: 'finish data',
+            });
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { step: 'INITIAL' });
+
+      await completing;
+
+      await worker.close();
+    });
+
     it('should process and move to delayed', async () => {
       const processFile =
         __dirname + '/fixtures/fixture_processor_move_to_delayed.js';

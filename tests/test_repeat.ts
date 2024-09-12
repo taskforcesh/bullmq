@@ -843,7 +843,7 @@ describe('repeat', function () {
     delayStub.restore();
   });
 
-  it('should repeat once a day for 5 days and start immediately', async function () {
+  it('should repeat once a day for 5 days and start immediately using endDate', async function () {
     this.timeout(8000);
 
     const date = new Date('2017-05-05 01:01:00');
@@ -897,6 +897,76 @@ describe('repeat', function () {
           pattern: '0 1 * * *',
           immediately: true,
           endDate: new Date('2017-05-10 13:13:00'),
+        },
+      },
+    );
+    this.clock.tick(delay);
+
+    worker.run();
+
+    await completing;
+    await worker.close();
+    delayStub.restore();
+  });
+
+  it('should repeat once a day for 5 days and start immediately', async function () {
+    this.timeout(8000);
+
+    const date = new Date('2017-05-05 01:01:00');
+    this.clock.setSystemTime(date);
+
+    const nextTick = ONE_DAY + 10 * ONE_SECOND;
+    const delay = 5 * ONE_SECOND + 500;
+
+    let counter = 0;
+    const worker = new Worker(
+      queueName,
+      async () => {
+        if(counter === 0){
+          this.clock.tick(6 * ONE_HOUR);
+
+        }else {
+          this.clock.tick(nextTick);
+        }
+      },
+      {
+        autorun: false,
+        connection,
+        prefix,
+        skipStalledCheck: true,
+        skipLockRenewal: true,
+      },
+    );
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
+      console.log('delay');
+    });
+
+    let prev: Job;
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        if (counter === 1) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(delay);
+        } else if (prev) {
+          expect(prev.timestamp).to.be.lt(job.timestamp);
+          expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+        }
+        prev = job;
+
+        counter++;
+        if (counter == 5) {
+          resolve();
+        }
+      });
+    });
+
+    await queue.add(
+      'repeat',
+      { foo: 'bar' },
+      {
+        repeat: {
+          pattern: '0 0 7 * * *',
+          immediately: true,
         },
       },
     );
@@ -1508,6 +1578,51 @@ describe('repeat', function () {
       await processing;
       delayStub.restore();
     });
+
+    it('should keep only one delayed job if adding a new repeatable job with the same key', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      const key = 'mykey';
+
+      this.clock.setSystemTime(date);
+
+      const nextTick = 2 * ONE_SECOND;
+
+      await queue.add(
+        'test',
+        { foo: 'bar' },
+        {
+          repeat: {
+            every: 10_000,
+            key,
+          },
+        },
+      );
+
+      this.clock.tick(nextTick);
+
+      let jobs = await queue.getRepeatableJobs();
+      expect(jobs).to.have.length(1);
+
+      let delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      await queue.add(
+        'test2',
+        { qux: 'baz' },
+        {
+          repeat: {
+            every: 35_160,
+            key,
+          },
+        },
+      );
+
+      jobs = await queue.getRepeatableJobs();
+      expect(jobs).to.have.length(1);
+
+      delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+    });
   });
 
   // This test is flaky and too complex we need something simpler that tests the same thing
@@ -1518,7 +1633,7 @@ describe('repeat', function () {
     const jobId = 'xxxx';
     const date = new Date('2017-02-07 9:24:00');
     const nextTick = 2 * ONE_SECOND + 100;
-    const addNextRepeatableJob = repeat.addNextRepeatableJob;
+    const addNextRepeatableJob = repeat.updateRepeatableJob;
     this.clock.setSystemTime(date);
 
     const repeatOpts = { pattern: '*/2 * * * * *' };
@@ -1528,7 +1643,7 @@ describe('repeat', function () {
         queueName,
         async () => {
           const repeatWorker = await worker.repeat;
-          (<unknown>repeatWorker.addNextRepeatableJob) = async (
+          (<unknown>repeatWorker.updateRepeatableJob) = async (
             ...args: [string, unknown, JobsOptions, boolean?]
           ) => {
             // In order to simulate race condition

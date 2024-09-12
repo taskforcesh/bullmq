@@ -16,7 +16,7 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
 
     local jobAttributes = rcall("HMGET", parentKey, "parent", "deid")
 
-    removeDebounceKeyIfNeeded(parentQueueKey, jobAttributes[2])
+    removeDebounceKeyIfNeeded(parentQueueKey .. ":", jobAttributes[2])
 
     if jobAttributes[1] then
       return cjson.decode(jobAttributes[1]), failedReason

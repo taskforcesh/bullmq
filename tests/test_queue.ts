@@ -55,6 +55,18 @@ describe('queues', function () {
     });
   });
 
+  describe('when empty name contains :', () => {
+    it('throws an error', function () {
+      expect(
+        () =>
+          new Queue('name:test', {
+            connection,
+            prefix,
+          }),
+      ).to.throw('Queue name cannot contain :');
+    });
+  });
+
   describe('when empty name is provided', () => {
     it('throws an error', function () {
       expect(

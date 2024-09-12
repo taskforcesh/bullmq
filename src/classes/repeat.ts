@@ -29,42 +29,40 @@ export class Repeat extends QueueBase {
       (opts.settings && opts.settings.repeatKeyHashAlgorithm) || 'md5';
   }
 
-  async addNextRepeatableJob<T = any, R = any, N extends string = string>(
+  async updateRepeatableJob<T = any, R = any, N extends string = string>(
     name: N,
     data: T,
     opts: JobsOptions,
-    skipCheckExists?: boolean,
+    { override }: { override: boolean },
   ): Promise<Job<T, R, N> | undefined> {
     const repeatOpts: RepeatOptions = { ...opts.repeat };
 
-    const prevMillis = opts.prevMillis || 0;
-    const currentCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
-
+    // Check if we reached the limit of the repeatable job's iterations
+    const iterationCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
     if (
       typeof repeatOpts.limit !== 'undefined' &&
-      currentCount > repeatOpts.limit
+      iterationCount > repeatOpts.limit
     ) {
       return;
     }
 
+    // Check if we reached the end date of the repeatable job
     let now = Date.now();
-
-    if (
-      !(typeof repeatOpts.endDate === undefined) &&
-      now > new Date(repeatOpts.endDate!).getTime()
-    ) {
+    const { endDate } = repeatOpts;
+    if (!(typeof endDate === undefined) && now > new Date(endDate!).getTime()) {
       return;
     }
 
+    const prevMillis = opts.prevMillis || 0;
     now = prevMillis < now ? now : prevMillis;
 
     const nextMillis = await this.repeatStrategy(now, repeatOpts, name);
-    const pattern = repeatOpts.pattern;
+    const { every, pattern } = repeatOpts;
 
     const hasImmediately = Boolean(
-      (repeatOpts.every || pattern) && repeatOpts.immediately,
+      (every || pattern) && repeatOpts.immediately,
     );
-    const offset = hasImmediately ? now - nextMillis : undefined;
+    const offset = (hasImmediately && every) ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
       if (!prevMillis && opts.jobId) {
@@ -73,32 +71,41 @@ export class Repeat extends QueueBase {
 
       const repeatConcatOptions = getRepeatConcatOptions(name, repeatOpts);
 
-      const repeatJobKey = await this.scripts.addRepeatableJob(
-        opts.repeat.key ?? this.hash(repeatConcatOptions),
-        nextMillis,
-        {
-          name,
-          endDate: repeatOpts.endDate
-            ? new Date(repeatOpts.endDate).getTime()
-            : undefined,
-          tz: repeatOpts.tz,
-          pattern: repeatOpts.pattern,
-          every: repeatOpts.every,
-        },
-        repeatConcatOptions,
-        skipCheckExists,
-      );
+      let repeatJobKey;
+      if (override) {
+        repeatJobKey = await this.scripts.addRepeatableJob(
+          opts.repeat.key ?? this.hash(repeatConcatOptions),
+          nextMillis,
+          {
+            name,
+            endDate: endDate ? new Date(endDate).getTime() : undefined,
+            tz: repeatOpts.tz,
+            pattern,
+            every,
+          },
+          repeatConcatOptions,
+        );
+      } else {
+        const client = await this.client;
 
-      const { immediately, ...filteredRepeatOpts } = repeatOpts;
+        repeatJobKey = await this.scripts.updateRepeatableJobMillis(
+          client,
+          opts.repeat.key ?? this.hash(repeatConcatOptions),
+          nextMillis,
+          repeatConcatOptions,
+        );
+      }
 
       if (repeatJobKey) {
+        const { immediately, ...filteredRepeatOpts } = repeatOpts;
+
         return this.createNextJob<T, R, N>(
           name,
           nextMillis,
           repeatJobKey,
           { ...opts, repeat: { offset, ...filteredRepeatOpts } },
           data,
-          currentCount,
+          iterationCount,
           hasImmediately,
         );
       }
@@ -330,7 +337,11 @@ export const getNextMillis = (
   });
 
   try {
-    return interval.next().getTime();
+    if(opts.immediately){
+      return new Date().getTime();
+    } else {
+      return interval.next().getTime();
+    }
   } catch (e) {
     // Ignore error
   }

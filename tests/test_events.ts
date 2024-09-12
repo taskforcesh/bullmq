@@ -568,6 +568,37 @@ describe('events', function () {
         expect(secondJob.id).to.be.equal('4');
         await worker.close();
       });
+
+      describe('when removing debounced job', function () {
+        it('removes debounce key', async function () {
+          const testName = 'test';
+
+          const job = await queue.add(
+            testName,
+            { foo: 'bar' },
+            { debounce: { id: 'a1' } },
+          );
+
+          let debouncedCounter = 0;
+          queueEvents.on('debounced', ({ jobId }) => {
+            debouncedCounter++;
+          });
+          await job.remove();
+
+          await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
+
+          await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
+          await delay(100);
+          const secondJob = await queue.add(
+            testName,
+            { foo: 'bar' },
+            { debounce: { id: 'a1' } },
+          );
+          await secondJob.remove();
+
+          expect(debouncedCounter).to.be.equal(2);
+        });
+      });
     });
   });
 
