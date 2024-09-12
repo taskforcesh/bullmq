@@ -4,7 +4,7 @@
     Input:
       KEYS[1]  'active',
       KEYS[2]  'wait'
-      KEYS[3]  'paused'
+      KEYS[3]  'paused' // TODO remove
       KEYS[4]  job key
       KEYS[5]  'meta'
       KEYS[6]  events stream
@@ -35,17 +35,16 @@ local rcall = redis.call
 --- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeLock"
 --- @include "includes/isQueuePausedOrMaxed"
 
-local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[1], KEYS[2], KEYS[3])
+local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[1])
 local markerKey = KEYS[10]
 
 -- Check if there are delayed jobs that we can move to wait.
 -- test example: when there are delayed jobs between retries
-promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], isPausedOrMaxed)
+promoteDelayedJobs(KEYS[7], markerKey, KEYS[2], KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], isPausedOrMaxed)
 
 if rcall("EXISTS", KEYS[4]) == 1 then
   local errorCode = removeLock(KEYS[4], KEYS[11], ARGV[5], ARGV[4]) 
@@ -63,7 +62,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
 
   -- Standard or priority add
   if priority == 0 then
-    addJobInTargetList(target, markerKey, ARGV[3], isPausedOrMaxed, ARGV[4])
+    addJobInTargetList(KEYS[2], markerKey, ARGV[3], isPausedOrMaxed, ARGV[4])
   else
     addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], isPausedOrMaxed)
   end

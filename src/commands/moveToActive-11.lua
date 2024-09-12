@@ -18,7 +18,7 @@
     KEYS[7] delayed key
 
     -- Delayed jobs
-    KEYS[8] paused key
+    KEYS[8] paused key // TODO remove
     KEYS[9] meta key
     KEYS[10] pc priority counter
 
@@ -45,16 +45,16 @@ local opts = cmsgpack.unpack(ARGV[3])
 -- Includes
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
-local target, isPausedOrMaxed = getTargetQueueList(KEYS[9], activeKey, waitKey, KEYS[8])
+local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[9], activeKey)
 
 -- Check if there are delayed jobs that we can move to wait.
 local markerKey = KEYS[11]
-promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], eventStreamKey, ARGV[1],
+promoteDelayedJobs(delayedKey, markerKey, KEYS[1], KEYS[3], eventStreamKey, ARGV[1],
                    ARGV[2], KEYS[10], isPausedOrMaxed)
 
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])

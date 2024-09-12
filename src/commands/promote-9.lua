@@ -4,7 +4,7 @@
     Input:
       KEYS[1] 'delayed'
       KEYS[2] 'wait'
-      KEYS[3] 'paused'
+      KEYS[3] 'paused' // TODO remove
       KEYS[4] 'meta'
       KEYS[5] 'prioritized'
       KEYS[6] 'active'
@@ -28,7 +28,7 @@ local jobId = ARGV[2]
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 
 if rcall("ZREM", KEYS[1], jobId) == 1 then
     local jobKey = ARGV[1] .. jobId
@@ -36,11 +36,11 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
     local metaKey = KEYS[4]
     local markerKey = KEYS[9]
 
-    local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[2], KEYS[3])
+    local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[6])
 
     if priority == 0 then
         -- LIFO or FIFO
-        addJobInTargetList(target, markerKey, "LPUSH", isPausedOrMaxed, jobId)
+        addJobInTargetList(KEYS[2], markerKey, "LPUSH", isPausedOrMaxed, jobId)
     else
         addJobWithPriority(markerKey, KEYS[5], priority, jobId, KEYS[7], isPausedOrMaxed)
     end

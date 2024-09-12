@@ -15,7 +15,7 @@
       KEYS[6] rate limiter key
       KEYS[7] delayed key
 
-      KEYS[8] paused key
+      KEYS[8] paused key // TODO remove
       KEYS[9] meta key
       KEYS[10] pc priority counter
 
@@ -56,7 +56,7 @@ local rcall = redis.call
 --- @include "includes/collectMetrics"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/moveParentIfNeeded"
 --- @include "includes/prepareJobForProcessing"
@@ -180,10 +180,10 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     -- and not rate limited.
     if (ARGV[6] == "1") then
 
-        local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8])
+        local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[2])
 
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], KEYS[14], target, KEYS[3], eventStreamKey, prefix,
+        promoteDelayedJobs(KEYS[7], KEYS[14], KEYS[1], KEYS[3], eventStreamKey, prefix,
                            timestamp, KEYS[10], isPausedOrMaxed)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])

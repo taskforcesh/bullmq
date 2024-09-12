@@ -8,7 +8,7 @@
       KEYS[4] 'failed', (ZSET)
       KEYS[5] 'stalled-check', (KEY)
       KEYS[6] 'meta', (KEY)
-      KEYS[7] 'paused', (LIST)
+      KEYS[7] 'paused', (LIST) // TODO remove
       KEYS[8] 'marker'
       KEYS[9] 'event stream' (STREAM)
 
@@ -26,7 +26,7 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/batches"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveParentIfNeeded"
 --- @include "includes/removeDebounceKeyIfNeeded"
 --- @include "includes/removeJob"
@@ -40,7 +40,6 @@ local activeKey = KEYS[3]
 local failedKey = KEYS[4]
 local stalledCheckKey = KEYS[5]
 local metaKey = KEYS[6]
-local pausedKey = KEYS[7]
 local markerKey = KEYS[8]
 local eventStreamKey = KEYS[9]
 local maxStalledJobCount = ARGV[1]
@@ -126,11 +125,10 @@ if (#stalling > 0) then
 
                     table.insert(failed, jobId)
                 else
-                    local target, isPausedOrMaxed=
-                        getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
+                    local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)
 
                     -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                    addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)
+                    addJobInTargetList(waitKey, markerKey, "RPUSH", isPausedOrMaxed, jobId)
 
                     rcall("XADD", eventStreamKey, "*", "event",
                             "waiting", "jobId", jobId, 'prev', 'active')

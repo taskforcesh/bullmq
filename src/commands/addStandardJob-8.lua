@@ -16,7 +16,7 @@
 
     Input:
       KEYS[1] 'wait',
-      KEYS[2] 'paused'
+      KEYS[2] 'paused' // TODO: remove
       KEYS[3] 'meta'
       KEYS[4] 'id'
       KEYS[5] 'completed'
@@ -64,8 +64,8 @@ local parentData
 --- @include "includes/addJobInTargetList"
 --- @include "includes/debounceJob"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/getTargetQueueList"
 --- @include "includes/handleDuplicatedJob"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/storeJob"
 
 if parentKey ~= nil then
@@ -76,6 +76,7 @@ end
 
 local jobCounter = rcall("INCR", KEYS[4])
 
+local waitKey = KEYS[1]
 local metaKey = KEYS[3]
 local maxEvents = getOrSetMaxEvents(metaKey)
 
@@ -104,11 +105,11 @@ end
 storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
          parentKey, parentData, repeatJobKey)
 
-local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[1], KEYS[2])
+local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[6])
 
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-addJobInTargetList(target, KEYS[8], pushCmd, isPausedOrMaxed, jobId)
+addJobInTargetList(waitKey, KEYS[8], pushCmd, isPausedOrMaxed, jobId)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
