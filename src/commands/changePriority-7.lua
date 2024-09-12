@@ -55,7 +55,7 @@ if rcall("EXISTS", jobKey) == 1 then
     if rcall("ZREM", KEYS[4], jobId) > 0 then
         reAddJobWithNewPriority( prioritizedKey, markerKey, KEYS[1],
             priorityCounterKey, ARGV[4] == '1', priority, jobId, isPausedOrMaxed)
-    elseif rcall("LREM", target, -1, jobId) > 0 then
+    elseif rcall("LREM", KEYS[1], -1, jobId) > 0 then
         reAddJobWithNewPriority( prioritizedKey, markerKey, KEYS[1],
             priorityCounterKey, ARGV[4] == '1', priority, jobId, isPausedOrMaxed)
     end
