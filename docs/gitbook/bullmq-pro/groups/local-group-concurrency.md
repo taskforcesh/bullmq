@@ -15,7 +15,7 @@ await queue.setGroupConcurrency(groupId, 4);
 ```
 
 {% hint style="warning" %}
-Make sure to set [Group Concurrency](concurrency.md) at worker instance level along side with local concurrency. It will work as a default concurrency for those groups that don't have a local concurrency. In this way workers will know about this feature.
+Make sure to also set the [Group Concurrency](concurrency.md) at the worker instance level along side with the desired local concurrency, as it is required for this feature to function properly and also will act as a default concurrency value for the groups that have no local concurrency defined.
 {% endhint %}
 
 And you can use the `getGroupConcurrency` method like this:
