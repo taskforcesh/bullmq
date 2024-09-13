@@ -153,7 +153,6 @@ export class Scripts {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.wait,
-      queueKeys.paused,
       queueKeys.meta,
       queueKeys.id,
       queueKeys.completed,

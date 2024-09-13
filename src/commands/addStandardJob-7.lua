@@ -16,13 +16,12 @@
 
     Input:
       KEYS[1] 'wait',
-      KEYS[2] 'paused' // TODO: remove
-      KEYS[3] 'meta'
-      KEYS[4] 'id'
-      KEYS[5] 'completed'
-      KEYS[6] 'active'
-      KEYS[7] events stream key
-      KEYS[8] marker key
+      KEYS[2] 'meta'
+      KEYS[3] 'id'
+      KEYS[4] 'completed'
+      KEYS[5] 'active'
+      KEYS[6] events stream key
+      KEYS[7] marker key
 
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
@@ -43,7 +42,7 @@
         jobId  - OK
         -5     - Missing parent key
 ]]
-local eventsKey = KEYS[7]
+local eventsKey = KEYS[6]
 
 local jobId
 local jobIdKey
@@ -74,10 +73,10 @@ if parentKey ~= nil then
     parentData = cjson.encode(parent)
 end
 
-local jobCounter = rcall("INCR", KEYS[4])
+local jobCounter = rcall("INCR", KEYS[3])
 
 local waitKey = KEYS[1]
-local metaKey = KEYS[3]
+local metaKey = KEYS[2]
 local maxEvents = getOrSetMaxEvents(metaKey)
 
 local parentDependenciesKey = args[7]
@@ -90,7 +89,7 @@ else
     jobIdKey = args[1] .. jobId
     if rcall("EXISTS", jobIdKey) == 1 then
         return handleDuplicatedJob(jobIdKey, jobId, parentKey, parent,
-            parentData, parentDependenciesKey, KEYS[5], eventsKey,
+            parentData, parentDependenciesKey, KEYS[4], eventsKey,
             maxEvents, timestamp)
     end
 end
@@ -105,11 +104,11 @@ end
 storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2], opts, timestamp,
          parentKey, parentData, repeatJobKey)
 
-local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[6])
+local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[5])
 
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-addJobInTargetList(waitKey, KEYS[8], pushCmd, isPausedOrMaxed, jobId)
+addJobInTargetList(waitKey, KEYS[7], pushCmd, isPausedOrMaxed, jobId)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
