@@ -2,12 +2,11 @@
   Change job priority
   Input:
     KEYS[1] 'wait',
-    KEYS[2] 'paused' // TODO remove
-    KEYS[3] 'meta'
-    KEYS[4] 'prioritized'
-    KEYS[5] 'active'
-    KEYS[6] 'pc' priority counter
-    KEYS[7] 'marker'
+    KEYS[2] 'meta'
+    KEYS[3] 'prioritized'
+    KEYS[4] 'active'
+    KEYS[5] 'pc' priority counter
+    KEYS[6] 'marker'
 
     ARGV[1] priority value
     ARGV[2] job key
@@ -45,14 +44,14 @@ local function reAddJobWithNewPriority( prioritizedKey, markerKey, waitKey,
 end
 
 if rcall("EXISTS", jobKey) == 1 then
-    local metaKey = KEYS[3]
-    local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[5])
-    local prioritizedKey = KEYS[4]
-    local priorityCounterKey = KEYS[6]
-    local markerKey = KEYS[7]
+    local metaKey = KEYS[2]
+    local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[4])
+    local prioritizedKey = KEYS[3]
+    local priorityCounterKey = KEYS[5]
+    local markerKey = KEYS[6]
     
     -- Re-add with the new priority
-    if rcall("ZREM", KEYS[4], jobId) > 0 then
+    if rcall("ZREM", KEYS[3], jobId) > 0 then
         reAddJobWithNewPriority( prioritizedKey, markerKey, KEYS[1],
             priorityCounterKey, ARGV[4] == '1', priority, jobId, isPausedOrMaxed)
     elseif rcall("LREM", KEYS[1], -1, jobId) > 0 then

@@ -6,12 +6,11 @@
     
     KEYS[3]  stalled key
     KEYS[4]  job lock key
-    KEYS[5]  paused key // TODO remove
-    KEYS[6]  meta key
-    KEYS[7]  limiter key
-    KEYS[8]  prioritized key
-    KEYS[9]  marker key
-    KEYS[10] event key
+    KEYS[5]  meta key
+    KEYS[6]  limiter key
+    KEYS[7]  prioritized key
+    KEYS[8]  marker key
+    KEYS[9] event key
 
     ARGV[1] job id
     ARGV[2] lock token
@@ -30,9 +29,9 @@ local token = ARGV[2]
 local lockKey = KEYS[4]
 
 local lockToken = rcall("GET", lockKey)
-local pttl = rcall("PTTL", KEYS[7])
+local pttl = rcall("PTTL", KEYS[6])
 if lockToken == token then
-  local metaKey = KEYS[6]
+  local metaKey = KEYS[5]
   local removed = rcall("LREM", KEYS[1], 1, jobId)
   if removed > 0 then
     local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[1])
@@ -42,9 +41,9 @@ if lockToken == token then
     local priority = tonumber(rcall("HGET", ARGV[3], "priority")) or 0
 
     if priority > 0 then
-      pushBackJobWithPriority(KEYS[8], priority, jobId)
+      pushBackJobWithPriority(KEYS[7], priority, jobId)
     else
-      addJobInTargetList(KEYS[2], KEYS[9], "RPUSH", isPausedOrMaxed, jobId)
+      addJobInTargetList(KEYS[2], KEYS[8], "RPUSH", isPausedOrMaxed, jobId)
     end
 
     rcall("DEL", lockKey)
@@ -52,7 +51,7 @@ if lockToken == token then
     local maxEvents = getOrSetMaxEvents(metaKey)
 
     -- Emit waiting event
-    rcall("XADD", KEYS[10], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
+    rcall("XADD", KEYS[9], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
       "jobId", jobId)
   end
 end

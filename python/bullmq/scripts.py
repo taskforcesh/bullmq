@@ -42,7 +42,7 @@ class Scripts:
             "addDelayedJob": self.redisClient.register_script(self.getScript("addDelayedJob-6.lua")),
             "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-4.lua")),
             "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-8.lua")),
-            "changePriority": self.redisClient.register_script(self.getScript("changePriority-7.lua")),
+            "changePriority": self.redisClient.register_script(self.getScript("changePriority-6.lua")),
             "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
@@ -60,7 +60,7 @@ class Scripts:
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
             "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
-            "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-8.lua")),
+            "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-7.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-11.lua")),
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-8.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
@@ -373,7 +373,6 @@ class Scripts:
 
     async def changePriority(self, job_id: str, priority:int = 0, lifo:bool = False):
         keys = [self.keys['wait'],
-            self.keys['paused'],
             self.keys['meta'],
             self.keys['prioritized'],
             self.keys['active'],
@@ -407,7 +406,6 @@ class Scripts:
         keys.append(self.keys[state])
         keys.append(self.keys['wait'])
         keys.append(self.keys['meta'])
-        keys.append(self.keys['paused'])
         keys.append(self.keys['active'])
         keys.append(self.keys['marker'])
 

@@ -879,7 +879,6 @@ export class Scripts {
   ): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.wait,
-      this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
       this.queue.keys.active,
@@ -1163,7 +1162,6 @@ export class Scripts {
       this.queue.toKey(state),
       this.queue.keys.wait,
       this.queue.keys.meta,
-      this.queue.keys.paused,
       this.queue.keys.active,
       this.queue.keys.marker,
     ];
@@ -1312,7 +1310,6 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.stalled,
       lockKey,
-      this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.limiter,
       this.queue.keys.prioritized,
