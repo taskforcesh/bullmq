@@ -484,10 +484,10 @@ export class Scripts {
     const metricsKey = this.queue.toKey(`metrics:${target}`);
 
     const keys = this.moveToFinishedKeys;
-    keys[10] = queueKeys[target];
-    keys[11] = this.queue.toKey(job.id ?? '');
-    keys[12] = metricsKey;
-    keys[13] = this.queue.keys.marker;
+    keys[9] = queueKeys[target];
+    keys[10] = this.queue.toKey(job.id ?? '');
+    keys[11] = metricsKey;
+    keys[12] = this.queue.keys.marker;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
