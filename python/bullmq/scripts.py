@@ -58,10 +58,10 @@ class Scripts:
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-5.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
-            "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
+            "promote": self.redisClient.register_script(self.getScript("promote-8.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-7.lua")),
-            "retryJob": self.redisClient.register_script(self.getScript("retryJob-11.lua")),
+            "retryJob": self.redisClient.register_script(self.getScript("retryJob-10.lua")),
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-8.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
@@ -258,15 +258,15 @@ class Scripts:
         return (keys, args)
 
     def retryJobArgs(self, job_id: str, lifo: bool, token: str, opts: dict = {}):
-        keys = self.getKeys(['active', 'wait', 'paused'])
+        keys = self.getKeys(['active', 'wait'])
         keys.append(self.toKey(job_id))
         keys.append(self.keys['meta'])
         keys.append(self.keys['events'])
         keys.append(self.keys['delayed'])
         keys.append(self.keys['prioritized'])
         keys.append(self.keys['pc'])
-        keys.append(self.keys['marker'])
         keys.append(self.keys['stalled'])
+        keys.append(self.keys['marker'])
 
         push_cmd = "RPUSH" if lifo else "LPUSH"
 
@@ -301,7 +301,6 @@ class Scripts:
         keys = self.getKeys(['delayed', 'wait', 'paused', 'meta', 'prioritized', 'active', 'pc', 'events', 'marker'])
         keys.append(self.toKey(job_id))
         keys.append(self.keys['events'])
-        keys.append(self.keys['paused'])
         keys.append(self.keys['meta'])
 
         args = [self.keys[''], job_id]

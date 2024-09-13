@@ -1074,15 +1074,14 @@ export class Scripts {
     const keys: (string | number)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
-      this.queue.keys.paused,
       this.queue.toKey(jobId),
       this.queue.keys.meta,
       this.queue.keys.events,
       this.queue.keys.delayed,
       this.queue.keys.prioritized,
       this.queue.keys.pc,
-      this.queue.keys.marker,
       this.queue.keys.stalled,
+      this.queue.keys.marker,
     ];
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
@@ -1230,7 +1229,6 @@ export class Scripts {
     const keys = [
       this.queue.keys.delayed,
       this.queue.keys.wait,
-      this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
       this.queue.keys.active,
