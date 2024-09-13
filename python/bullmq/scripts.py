@@ -54,7 +54,7 @@ class Scripts:
             "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-10.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
-            "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
+            "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-13.lua")),
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-5.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
@@ -512,7 +512,7 @@ class Scripts:
         metricsKey = self.toKey('metrics:' + target)
 
         keys = self.getKeys(['wait', 'active', 'prioritized', 'events',
-                            'stalled', 'limiter', 'delayed', 'paused', 'meta', 'pc', target])
+                            'stalled', 'limiter', 'delayed', 'meta', 'pc', target])
         keys.append(self.toKey(job.id))
         keys.append(metricsKey)
         keys.append(self.keys['marker'])

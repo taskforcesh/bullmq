@@ -60,7 +60,6 @@ export class Scripts {
       queueKeys.stalled,
       queueKeys.limiter,
       queueKeys.delayed,
-      queueKeys.paused,
       queueKeys.meta,
       queueKeys.pc,
       undefined,
