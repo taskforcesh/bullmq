@@ -1105,7 +1105,6 @@ export class Scripts {
       this.queue.keys.events,
       this.queue.toKey(state),
       this.queue.toKey('wait'),
-      this.queue.toKey('paused'),
       this.queue.keys.meta,
       this.queue.keys.active,
       this.queue.keys.marker,
@@ -1199,7 +1198,6 @@ export class Scripts {
       queueKeys.stalled,
       queueKeys.limiter,
       queueKeys.delayed,
-      queueKeys.paused,
       queueKeys.meta,
       queueKeys.pc,
       queueKeys.marker,
@@ -1259,7 +1257,6 @@ export class Scripts {
       this.queue.keys.failed,
       this.queue.keys['stalled-check'],
       this.queue.keys.meta,
-      this.queue.keys.paused,
       this.queue.keys.marker,
       this.queue.keys.events,
     ];

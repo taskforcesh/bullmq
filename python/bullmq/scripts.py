@@ -51,8 +51,8 @@ class Scripts:
             "getState": self.redisClient.register_script(self.getScript("getState-8.lua")),
             "getStateV2": self.redisClient.register_script(self.getScript("getStateV2-8.lua")),
             "isJobInList": self.redisClient.register_script(self.getScript("isJobInList-1.lua")),
-            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-9.lua")),
-            "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
+            "moveStalledJobsToWait": self.redisClient.register_script(self.getScript("moveStalledJobsToWait-8.lua")),
+            "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-10.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-5.lua")),
@@ -62,7 +62,7 @@ class Scripts:
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-7.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-10.lua")),
-            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-8.lua")),
+            "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-7.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
             "updateProgress": self.redisClient.register_script(self.getScript("updateProgress-3.lua")),
@@ -446,7 +446,7 @@ class Scripts:
 
     def moveJobsToWaitArgs(self, state: str, count: int, timestamp: int) -> int:
         keys = self.getKeys(
-            ['', 'events', state, 'wait', 'paused', 'meta', 'active', 'marker'])
+            ['', 'events', state, 'wait', 'meta', 'active', 'marker'])
 
         args = [count or 1000, timestamp or round(time.time()*1000), state]
         return (keys, args)
@@ -479,7 +479,7 @@ class Scripts:
         limiter = opts.get("limiter", None)
 
         keys = self.getKeys(['wait', 'active', 'prioritized', 'events',
-                            'stalled', 'limiter', 'delayed', 'paused', 'meta', 'pc', 'marker'])
+                            'stalled', 'limiter', 'delayed', 'meta', 'pc', 'marker'])
         packedOpts = msgpack.packb(
             {"token": token, "lockDuration": lockDuration, "limiter": limiter}, use_bin_type=True)
         args = [self.keys[''], timestamp, packedOpts]
@@ -576,7 +576,7 @@ class Scripts:
 
     def moveStalledJobsToWait(self, maxStalledCount: int, stalledInterval: int):
         keys = self.getKeys(['stalled', 'wait', 'active', 'failed',
-                            'stalled-check', 'meta', 'paused', 'marker', 'events'])
+                            'stalled-check', 'meta', 'marker', 'events'])
         args = [maxStalledCount, self.keys[''], round(
             time.time() * 1000), stalledInterval]
         return self.commands["moveStalledJobsToWait"](keys, args)

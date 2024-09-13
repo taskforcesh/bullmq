@@ -18,12 +18,11 @@
     KEYS[7] delayed key
 
     -- Delayed jobs
-    KEYS[8] paused key // TODO remove
-    KEYS[9] meta key
-    KEYS[10] pc priority counter
+    KEYS[8]  meta key
+    KEYS[9]  pc priority counter
 
     -- Marker
-    KEYS[11] marker key
+    KEYS[10] marker key
 
     -- Arguments
     ARGV[1] key prefix
@@ -50,12 +49,12 @@ local opts = cmsgpack.unpack(ARGV[3])
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
-local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[9], activeKey)
+local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[8], activeKey)
 
 -- Check if there are delayed jobs that we can move to wait.
-local markerKey = KEYS[11]
+local markerKey = KEYS[10]
 promoteDelayedJobs(delayedKey, markerKey, KEYS[1], KEYS[3], eventStreamKey, ARGV[1],
-                   ARGV[2], KEYS[10], isPausedOrMaxed)
+                   ARGV[2], KEYS[9], isPausedOrMaxed)
 
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
 local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
@@ -73,7 +72,7 @@ if jobId then
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                    maxJobs, opts)
 else
-    jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
+    jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[9])
     if jobId then
         return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                        maxJobs, opts)
