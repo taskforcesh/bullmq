@@ -586,4 +586,18 @@ export class Queue<
     const client = await this.client;
     return client.del(this.toKey('priority'));
   }
+
+  /**
+   * Repair deprecated paused key
+   *
+   * @param maxCount - Max quantity of jobs to be moved to wait per iteration.
+   */
+  async repairDeprecatedPausedKey(maxCount: number = 1000): Promise<void> {
+    let cursor = 0;
+    do {
+      cursor = await this.scripts.repairDeprecatedPausedKey(
+        maxCount
+      );
+    } while (cursor);
+  }
 }

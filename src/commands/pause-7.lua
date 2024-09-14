@@ -35,7 +35,7 @@ else
         --move a maximum of 7000 per resumed call in order to not block
         --if users have more jobs in paused state, call resumed multiple times
         local jobs = rcall('LRANGE', KEYS[1], 0, 6999)
-        rcall("LPUSH", KEYS[2], unpack(jobs))
+        rcall("RPUSH", KEYS[2], unpack(jobs))
         rcall("LTRIM", KEYS[1], #jobs, -1)
     end
 

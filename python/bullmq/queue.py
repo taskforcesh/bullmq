@@ -141,7 +141,7 @@ class Queue(EventEmitter):
             "logs": result[0],
             "count": result[1]
         }
-   
+
     async def obliterate(self, force: bool = False):
         """
         Completely destroys the queue and all of its contents irreversibly.
@@ -197,6 +197,17 @@ class Queue(EventEmitter):
         Delete old priority helper key.
         """
         return self.client.delete(self.toKey("priority"))
+
+    async def repairDeprecatedPausedKey(self, maxCount: int = 1000):
+        """
+        Repair deprecated paused key.
+
+        @param maxCount: Max quantity of jobs to be moved to wait per iteration.
+        """
+        while True:
+            cursor = await self.scripts.repairDeprecatedPausedKey(maxCount)
+            if cursor is None or cursor == 0 or cursor == "0":
+                break
 
     async def getJobCountByTypes(self, *types):
         result = await self.getJobCounts(*types)

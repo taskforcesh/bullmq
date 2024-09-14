@@ -1420,6 +1420,18 @@ export class Scripts {
       };
     }
   }
+
+  async repairDeprecatedPausedKey(maxCount: number): Promise<number> {
+    const client = await this.queue.client;
+
+    const keys: (string | number)[] = [
+      this.queue.keys.paused,
+      this.queue.keys.wait,
+    ];
+    const args = [maxCount];
+
+    return (<any>client).repairPausedKey(keys.concat(args));
+  }
 }
 
 export function raw2NextJobData(raw: any[]) {

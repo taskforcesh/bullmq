@@ -428,6 +428,22 @@ describe('queues', function () {
     });
   });
 
+  describe('.repairDeprecatedPausedKey', () => {
+    it('moves jobs from paused to wait', async () => {
+      const client = await queue.client;
+      await client.lpush(`${prefix}:${queue.name}:paused`, 'a', 'b', 'c');
+      await client.lpush(`${prefix}:${queue.name}:wait`, 'd', 'e', 'f');
+
+      await queue.repairDeprecatedPausedKey();
+
+      const jobs = await client.lrange(
+        `${prefix}:${queue.name}:wait`, 0, -1
+      );
+
+      expect(jobs).to.be.eql(['f', 'e', 'd', 'c', 'b', 'a']);
+    });
+  });
+
   describe('.removeLegacyMarkers', () => {
     it('removes old markers', async () => {
       const client = await queue.client;
