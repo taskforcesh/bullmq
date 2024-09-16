@@ -23,3 +23,11 @@ export enum TelemetryAttributes {
   WorkerStalledJobs = 'bullmq.worker.stalled.jobs',
   WorkerJobsToExtendLocks = 'bullmq.worker.jobs.to.extend.locks',
 }
+
+export enum SpanKind {
+  INTERNAL = 0,
+  SERVER = 1,
+  CLIENT = 2,
+  PRODUCER = 3,
+  CONSUMER = 4,
+}

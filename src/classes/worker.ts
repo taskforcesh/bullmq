@@ -10,7 +10,6 @@ import { AbortController } from 'node-abort-controller';
 import {
   GetNextJobOptions,
   IoredisListener,
-  JobDataWithHeaders,
   JobJsonRaw,
   Processor,
   RedisClient,
@@ -36,7 +35,7 @@ import {
   RATE_LIMIT_ERROR,
   WaitingChildrenError,
 } from './errors';
-import { TelemetryAttributes } from '../enums';
+import { SpanKind, TelemetryAttributes } from '../enums';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -405,7 +404,7 @@ export class Worker<
 
   async run() {
     await this.trace<void>(
-      () => 3,
+      SpanKind.CONSUMER,
       () => `${this.name} ${this.id} Worker.run`,
       async span => {
         span?.setAttributes({
@@ -534,7 +533,7 @@ export class Worker<
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
     return this.trace<Job<DataType, ResultType, NameType>>(
-      () => 3,
+      SpanKind.CONSUMER,
       () => `${this.name} ${this.id} Worker.getNextJob`,
       async span => {
         const nextJob = await this._getNextJob(
@@ -614,7 +613,7 @@ export class Worker<
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
     await this.trace<void>(
-      () => 3,
+      SpanKind.CONSUMER,
       () => `${this.name} ${this.id} Worker.rateLimit`,
       async span => {
         span?.setAttributes({
@@ -784,10 +783,10 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    const { telemetryHeaders } = job.data as JobDataWithHeaders;
+    const { tm: dstPropagationMedatada } = job.opts;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
-      () => 3,
+      SpanKind.CONSUMER,
       () => `${this.name} ${this.id} Worker.processJob`,
       async span => {
         span?.setAttributes({
@@ -863,7 +862,7 @@ will never work with more accuracy than 1ms. */
           jobsInProgress.delete(inProgressItem);
         }
       },
-      telemetryHeaders,
+      dstPropagationMedatada,
     );
   }
 
@@ -873,7 +872,7 @@ will never work with more accuracy than 1ms. */
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
     await this.trace<void>(
-      () => 3,
+      SpanKind.CONSUMER,
       () => `${this.name} ${this.id} Worker.pause`,
       async span => {
         span?.setAttributes({
@@ -902,7 +901,7 @@ will never work with more accuracy than 1ms. */
    */
   resume(): void {
     this.trace<void>(
-      () => 3,
+      SpanKind.CONSUMER,
       () => `${this.name} ${this.id} Worker.resume`,
       span => {
         span?.setAttributes({
@@ -950,7 +949,7 @@ will never work with more accuracy than 1ms. */
    */
   async close(force = false): Promise<void> {
     await this.trace<void>(
-      () => 3,
+      SpanKind.CONSUMER,
       () => `${this.name} ${this.id} Worker.close`,
       async span => {
         span?.setAttributes({
@@ -1012,7 +1011,7 @@ will never work with more accuracy than 1ms. */
    */
   async startStalledCheckTimer(): Promise<void> {
     await this.trace<void>(
-      () => 3,
+      SpanKind.CONSUMER,
       () => `${this.name} ${this.id} Worker.startStalledCheckTimer`,
       async span => {
         span?.setAttributes({
@@ -1119,7 +1118,7 @@ will never work with more accuracy than 1ms. */
 
   protected async extendLocks(jobs: Job[]) {
     await this.trace<void>(
-      () => 0,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.extendLocks`,
       async span => {
         span?.setAttributes({
@@ -1159,7 +1158,7 @@ will never work with more accuracy than 1ms. */
 
   private async moveStalledJobsToWait() {
     await this.trace<void>(
-      () => 0,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.moveStalledJobsToWait`,
       async span => {
         const chunkSize = 50;

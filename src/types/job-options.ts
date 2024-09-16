@@ -20,6 +20,11 @@ export type JobsOptions = BaseJobOptions & {
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
   removeDependencyOnFailure?: boolean;
+
+  /**
+   * TelemetryMetadata, provide for context propagation.
+   */
+  tm?: Record<string, string>;
 };
 
 /**

@@ -1,3 +1,5 @@
+import { SpanKind } from '../enums';
+
 export interface Telemetry {
   trace: Trace;
   contextManager: ContextManager;
@@ -6,11 +8,22 @@ export interface Telemetry {
 }
 
 export interface ContextManager {
+  /**
+   * Creates a new context and sets it as active for the fn passed as last argument
+   *
+   * @param context
+   * @param fn
+   */
   with<A extends (...args: any[]) => any>(
     context: Context,
     fn: A,
   ): ReturnType<A>;
   active(): Context;
+  getMetadata(context: Context): Record<string, string>;
+  fromMetadata(
+    activeContext: Context,
+    metadata: Record<string, string>,
+  ): Context;
 }
 
 export interface Trace {
@@ -30,14 +43,6 @@ export interface Tracer {
 
 export interface SpanOptions {
   kind: SpanKind;
-}
-
-export enum SpanKind {
-  INTERNAL = 0,
-  SERVER = 1,
-  CLIENT = 2,
-  PRODUCER = 3,
-  CONSUMER = 4,
 }
 
 export interface Span {
@@ -95,14 +100,6 @@ export type Time = HighResolutionTime | number | Date;
 type HighResolutionTime = [number, number];
 
 export interface Propagation {
-  inject<T>(context: Context, carrier: T, setter?: TextMapSetter): void;
+  inject<T>(context: Context, carrier: T): void;
   extract<T>(context: Context, carrier: T): Context;
-}
-
-interface TextMapSetter {
-  get<T>(carrier: T, key: string): undefined | string | string[];
-}
-
-export interface JobDataWithHeaders {
-  telemetryHeaders?: Record<string, string>;
 }

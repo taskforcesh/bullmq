@@ -111,4 +111,9 @@ export interface BaseJobOptions extends DefaultJobOptions {
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;
+
+  /**
+   * Telemetry propagation
+   */
+  tm?: Record<string, string>;
 }

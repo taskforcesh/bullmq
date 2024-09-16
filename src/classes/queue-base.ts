@@ -6,8 +6,8 @@ import {
   Tracer,
   SetSpan,
   ContextManager,
-  SpanKind,
   Propagation,
+  Context,
 } from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
@@ -20,7 +20,7 @@ import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
-import { TelemetryAttributes } from '../enums';
+import { TelemetryAttributes, SpanKind } from '../enums';
 
 /**
  * @class QueueBase
@@ -102,6 +102,20 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       this.setSpan = opts.telemetry.trace.setSpan;
       this.contextManager = opts.telemetry.contextManager;
       this.propagation = opts.telemetry.propagation;
+
+      this.contextManager.getMetadata = (context: Context) => {
+        const metadata = {};
+        this.propagation.inject(context, metadata);
+        return metadata;
+      };
+
+      this.contextManager.fromMetadata = (
+        activeContext: Context,
+        metadata: Record<string, string>,
+      ) => {
+        const context = this.propagation.extract(activeContext, metadata);
+        return context;
+      };
     }
   }
 
@@ -206,49 +220,51 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   /**
    * Wraps the code with telemetry and provides span for configuration.
    *
-   * @param spanType - type of the span: Producer, Consumer, Internal
+   * @param spanKind - kind of the span: Producer, Consumer, Internal
    * @param getSpanName - name of the span
    * @param callback - code to wrap with telemetry
+   * @param srcPropagationMedatada -
    * @returns
    */
-  protected trace<T>(
-    getSpanType: () => SpanKind,
+  protected async trace<T>(
+    spanKind: SpanKind,
     getSpanName: () => string,
     callback: (
       span?: Span,
-      telemetryHeaders?: Record<string, string>,
+      dstPropagationMetadata?: Record<string, string>,
     ) => Promise<T> | T,
-    activeTelemetryHeaders?: Record<string, string>,
+    srcPropagationMetadata?: Record<string, string>,
   ) {
     if (!this.tracer) {
       return callback();
     }
 
     const span = this.tracer.startSpan(getSpanName(), {
-      kind: getSpanType(),
-    });
-
-    span.setAttributes({
-      [TelemetryAttributes.QueueName]: this.name,
+      kind: spanKind,
     });
 
     try {
-      if (activeTelemetryHeaders) {
-        const activeContext = this.propagation.extract(
-          this.contextManager.active(),
-          activeTelemetryHeaders,
-        );
+      span.setAttributes({
+        [TelemetryAttributes.QueueName]: this.name,
+      });
 
-        return this.contextManager.with(activeContext, () => callback(span));
+      let activeContext = this.contextManager.active();
+      if (srcPropagationMetadata) {
+        activeContext = this.contextManager.fromMetadata(
+          activeContext,
+          srcPropagationMetadata,
+        );
       }
 
-      const telemetryHeaders: Record<string, string> = {};
+      let dstPropagationMetadata: undefined | Record<string, string>;
+      if (spanKind === SpanKind.PRODUCER) {
+        dstPropagationMetadata = this.contextManager.getMetadata(activeContext);
+      }
 
-      this.propagation.inject(this.contextManager.active(), telemetryHeaders);
+      const messageContext = this.setSpan(activeContext, span);
 
-      return this.contextManager.with(
-        this.setSpan(this.contextManager.active(), span),
-        () => callback(span, telemetryHeaders),
+      return await this.contextManager.with(messageContext, () =>
+        callback(span, dstPropagationMetadata),
       );
     } catch (err) {
       span.recordException(err as Error);
