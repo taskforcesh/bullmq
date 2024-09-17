@@ -3589,12 +3589,7 @@ describe('workers', function () {
             connection,
             prefix,
             settings: {
-              backoffStrategy: (
-                attemptsMade: number,
-                type: string,
-                err: Error,
-                job: MinimalJob,
-              ) => {
+              backoffStrategy: (attemptsMade: number, type: string) => {
                 switch (type) {
                   case 'custom1': {
                     return attemptsMade * 1000;
