@@ -211,7 +211,8 @@ export class RedisConnection extends EventEmitter {
 
   private async init() {
     if (!this._client) {
-      this._client = new IORedis(this.opts);
+      const { url, ...rest } = this.opts;
+      this._client = url ? new IORedis(url, rest) : new IORedis(rest);
     }
 
     increaseMaxListeners(this._client, 3);

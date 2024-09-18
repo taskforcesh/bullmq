@@ -2,6 +2,7 @@ import type * as IORedis from 'ioredis';
 
 export interface BaseOptions {
   skipVersionCheck?: boolean;
+  url?: string;
 }
 
 export type RedisOptions = IORedis.RedisOptions & BaseOptions;
