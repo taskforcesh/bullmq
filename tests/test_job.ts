@@ -1367,29 +1367,68 @@ describe('Job', function () {
         const job = await queue.add(
           'test',
           { foo: 'bar' },
-          { repeat: {
-            pattern: '0 0 7 * * *'
-          }, },
+          {
+            repeat: {
+              pattern: '0 0 7 * * *',
+            },
+          },
         );
         const isDelayed = await job.isDelayed();
         expect(isDelayed).to.be.equal(true);
+
+        // When a job with the same ID is added multiple times, there should be only one delayed job
+        await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            repeat: {
+              pattern: '0 0 7 * * *',
+            },
+          },
+        );
+        const delayedCount = await queue.getDelayedCount();
+        expect(delayedCount).to.be.equal(1);
+
+        // After promoting the delayed job and completing it,
+        // there should be one completed job and one delayed job each.
         await job.promote();
         expect(job.delay).to.be.equal(0);
 
         const worker = new Worker(queueName, null, { connection, prefix });
-      
         const currentJob1 = (await worker.getNextJob('token')) as Job;
         expect(currentJob1).to.not.be.undefined;
 
         await currentJob1.moveToCompleted('succeeded', 'token', true);
+        const completedCount = await queue.getCompletedCount();
+        const delayedCountAfterPromote = await queue.getDelayedCount();
+        expect(completedCount).to.be.equal(1);
+        expect(delayedCountAfterPromote).to.be.equal(1);
 
-        const delayedCount = await queue.getDelayedCount();
-        expect(delayedCount).to.be.equal(1);
+        // Even if the server restarts due to deployment or other reasons,
+        // and the queue is newly created, the jobs should still persist.
+        await queue.close();
+        const queue2 = new Queue(queueName, { connection, prefix });
 
-        const isDelayedAfterPromote = await job.isDelayed();
-        expect(isDelayedAfterPromote).to.be.equal(false);
-        const isCompleted = await job.isCompleted();
-        expect(isCompleted).to.be.equal(true);
+        const completedCountAfterRestart = await queue2.getCompletedCount();
+        const delayedCountAfterRestart = await queue2.getDelayedCount();
+        expect(completedCountAfterRestart).to.be.equal(1);
+        expect(delayedCountAfterRestart).to.be.equal(1);
+
+        // Even if the `queue.add()` method is executed again when the server restarts,
+        // a job with the same ID should not be modified.
+        await queue2.add(
+          'test',
+          { foo: 'bar' },
+          {
+            repeat: {
+              pattern: '0 0 7 * * *',
+            },
+          },
+        );
+        const completedCountAfterDuplicated = await queue2.getCompletedCount();
+        const delayedCountAfterDuplicated = await queue2.getDelayedCount();
+        expect(completedCountAfterDuplicated).to.be.equal(1);
+        expect(delayedCountAfterDuplicated).to.be.equal(1);
       });
     });
 
