@@ -10,7 +10,7 @@
     KEYS[7] 'marker'
 
     ARGV[1] priority value
-    ARGV[2] job key
+    ARGV[2] prefix key
     ARGV[3] job id
     ARGV[4] lifo
 
@@ -18,8 +18,8 @@
        0  - OK
       -1  - Missing job
 ]]
-local jobKey = ARGV[2]
 local jobId = ARGV[3]
+local jobKey = ARGV[2] .. jobId
 local priority = tonumber(ARGV[1])
 local rcall = redis.call
 
@@ -52,7 +52,7 @@ if rcall("EXISTS", jobKey) == 1 then
     local markerKey = KEYS[7]
     
     -- Re-add with the new priority
-    if rcall("ZREM", KEYS[4], jobId) > 0 then
+    if rcall("ZREM", prioritizedKey, jobId) > 0 then
         reAddJobWithNewPriority( prioritizedKey, markerKey, target,
             priorityCounterKey, ARGV[4] == '1', priority, jobId, isPausedOrMaxed)
     elseif rcall("LREM", target, -1, jobId) > 0 then
