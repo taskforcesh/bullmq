@@ -871,7 +871,7 @@ export class Scripts {
     }
   }
 
-  private changePriorityArgs(
+  protected changePriorityArgs(
     jobId: string,
     priority = 0,
     lifo = false,
@@ -887,7 +887,7 @@ export class Scripts {
 
     return keys.concat([
       priority,
-      this.queue.toKey(jobId),
+      this.queue.toKey(''),
       jobId,
       lifo ? 1 : 0,
     ]);
