@@ -462,7 +462,7 @@ class Scripts:
         result = await self.commands["moveJobsToWait"](keys=keys, args=args)
         return result
 
-    async def repairDeprecatedPausedKey(self, maxCount: int):
+    async def migrateDeprecatedPausedKey(self, maxCount: int):
         keys = self.getKeys(
             ['paused', 'wait'])
 

@@ -428,13 +428,13 @@ describe('queues', function () {
     });
   });
 
-  describe('.repairDeprecatedPausedKey', () => {
+  describe('.migrateDeprecatedPausedKey', () => {
     it('moves jobs from paused to wait', async () => {
       const client = await queue.client;
       await client.lpush(`${prefix}:${queue.name}:paused`, 'a', 'b', 'c');
       await client.lpush(`${prefix}:${queue.name}:wait`, 'd', 'e', 'f');
 
-      await queue.repairDeprecatedPausedKey();
+      await queue.migrateDeprecatedPausedKey();
 
       const jobs = await client.lrange(
         `${prefix}:${queue.name}:wait`, 0, -1

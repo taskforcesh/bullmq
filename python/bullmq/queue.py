@@ -198,14 +198,14 @@ class Queue(EventEmitter):
         """
         return self.client.delete(self.toKey("priority"))
 
-    async def repairDeprecatedPausedKey(self, maxCount: int = 1000):
+    async def migrateDeprecatedPausedKey(self, maxCount: int = 1000):
         """
-        Repair deprecated paused key.
+        Migrate deprecated paused key.
 
         @param maxCount: Max quantity of jobs to be moved to wait per iteration.
         """
         while True:
-            cursor = await self.scripts.repairDeprecatedPausedKey(maxCount)
+            cursor = await self.scripts.migrateDeprecatedPausedKey(maxCount)
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 

@@ -1421,7 +1421,7 @@ export class Scripts {
     }
   }
 
-  async repairDeprecatedPausedKey(maxCount: number): Promise<number> {
+  async migrateDeprecatedPausedKey(maxCount: number): Promise<number> {
     const client = await this.queue.client;
 
     const keys: (string | number)[] = [
