@@ -613,7 +613,7 @@ export class Worker<
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
     await this.trace<void>(
-      SpanKind.CONSUMER,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.rateLimit`,
       async span => {
         span?.setAttributes({
@@ -783,7 +783,7 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    const { tm: dstPropagationMedatada } = job.opts;
+    const { telemetryMetadata: dstPropagationMedatada } = job.opts;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
@@ -872,7 +872,7 @@ will never work with more accuracy than 1ms. */
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
     await this.trace<void>(
-      SpanKind.CONSUMER,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.pause`,
       async span => {
         span?.setAttributes({
@@ -901,7 +901,7 @@ will never work with more accuracy than 1ms. */
    */
   resume(): void {
     this.trace<void>(
-      SpanKind.CONSUMER,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.resume`,
       span => {
         span?.setAttributes({
@@ -949,7 +949,7 @@ will never work with more accuracy than 1ms. */
    */
   async close(force = false): Promise<void> {
     await this.trace<void>(
-      SpanKind.CONSUMER,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.close`,
       async span => {
         span?.setAttributes({
@@ -1011,7 +1011,7 @@ will never work with more accuracy than 1ms. */
    */
   async startStalledCheckTimer(): Promise<void> {
     await this.trace<void>(
-      SpanKind.CONSUMER,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.startStalledCheckTimer`,
       async span => {
         span?.setAttributes({

@@ -42,13 +42,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   /**
    * Instance of a telemetry client
-   * To use it create if statement in a method to observe with start and end of a span
+   * To use it wrap the code with trace helper
    * It will check if tracer is provided and if not it will continue as is
    */
   private tracer: Tracer | undefined;
-  private setSpan: SetSpan | undefined;
-  protected contextManager: ContextManager | undefined;
-  protected propagation: Propagation | undefined;
 
   /**
    *
@@ -99,23 +96,6 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
     if (opts?.telemetry) {
       this.tracer = opts.telemetry.trace.getTracer(opts.telemetry.tracerName);
-      this.setSpan = opts.telemetry.trace.setSpan;
-      this.contextManager = opts.telemetry.contextManager;
-      this.propagation = opts.telemetry.propagation;
-
-      this.contextManager.getMetadata = (context: Context) => {
-        const metadata = {};
-        this.propagation.inject(context, metadata);
-        return metadata;
-      };
-
-      this.contextManager.fromMetadata = (
-        activeContext: Context,
-        metadata: Record<string, string>,
-      ) => {
-        const context = this.propagation.extract(activeContext, metadata);
-        return context;
-      };
     }
   }
 
@@ -218,7 +198,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   }
 
   /**
-   * Wraps the code with telemetry and provides span for configuration.
+   * Wraps the code with telemetry and provides a span for configuration.
    *
    * @param spanKind - kind of the span: Producer, Consumer, Internal
    * @param getSpanName - name of the span
@@ -248,9 +228,9 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
         [TelemetryAttributes.QueueName]: this.name,
       });
 
-      let activeContext = this.contextManager.active();
+      let activeContext = this.opts.telemetry.contextManager.active();
       if (srcPropagationMetadata) {
-        activeContext = this.contextManager.fromMetadata(
+        activeContext = this.opts.telemetry.contextManager.fromMetadata(
           activeContext,
           srcPropagationMetadata,
         );
@@ -258,12 +238,16 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
       let dstPropagationMetadata: undefined | Record<string, string>;
       if (spanKind === SpanKind.PRODUCER) {
-        dstPropagationMetadata = this.contextManager.getMetadata(activeContext);
+        dstPropagationMetadata =
+          this.opts.telemetry.contextManager.getMetadata(activeContext);
       }
 
-      const messageContext = this.setSpan(activeContext, span);
+      const messageContext = this.opts.telemetry.trace.setSpan(
+        activeContext,
+        span,
+      );
 
-      return await this.contextManager.with(messageContext, () =>
+      return await this.opts.telemetry.contextManager.with(messageContext, () =>
         callback(span, dstPropagationMetadata),
       );
     } catch (err) {

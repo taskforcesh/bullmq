@@ -1,4 +1,4 @@
-import { expect } from 'chai';
+import { expect, assert } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
@@ -38,7 +38,6 @@ describe('Telemetry', () => {
     constructor() {
       this.trace = new MockTrace();
       this.contextManager = new MockContextManager();
-      this.propagation = new MockPropagation();
     }
   }
 
@@ -130,17 +129,6 @@ describe('Telemetry', () => {
     end(): void {}
   }
 
-  class MockPropagation implements Propagation {
-    inject<T>(context: Context, carrier: T): void {}
-
-    extract<T>(context: Context, carrier: T): Context {
-      const newContext = { ...context };
-      newContext['extractedFunction'] = () => {};
-
-      return newContext;
-    }
-  }
-
   let telemetryClient;
 
   let queue: Queue;
@@ -186,30 +174,28 @@ describe('Telemetry', () => {
     });
 
     it('should correctly handle errors and record them in telemetry', async () => {
-      const addStub = sinon
-        .stub(queue, 'add')
-        .rejects(new Error('Simulated error'));
+      const opts = {
+        repeat: {
+          endDate: 1,
+        },
+      };
 
-      const span = telemetryClient.trace
-        .getTracer('testtracer')
-        .startSpan('Queue.add.error') as MockSpan;
-      const recordExceptionSpy = sinon.spy(span, 'recordException');
-
-      const activeContext = telemetryClient.contextManager.active();
-      activeContext['getSpan'] = () => span;
+      const recordExceptionSpy = sinon.spy(
+        MockSpan.prototype,
+        'recordException',
+      );
 
       try {
-        await queue.add('testJob', { foo: 'bar' });
-
-        expect.fail('Expected an error to be thrown');
-      } catch (error) {
-        span.recordException(error);
-
-        sinon.assert.calledOnce(recordExceptionSpy);
-        const [exception] = recordExceptionSpy.firstCall.args;
-        expect(exception?.message).to.equal('Simulated error');
+        await queue.add('testJob', { someData: 'testData' }, opts);
+      } catch (e) {
+        assert(recordExceptionSpy.calledOnce);
+        const recordedError = recordExceptionSpy.firstCall.args[0];
+        assert.equal(
+          recordedError.message,
+          'End date must be greater than current timestamp',
+        );
       } finally {
-        addStub.restore();
+        recordExceptionSpy.restore();
       }
     });
   });
@@ -238,35 +224,26 @@ describe('Telemetry', () => {
     });
 
     it('should correctly handle errors and record them in telemetry for addBulk', async () => {
-      const jobs = [
-        { name: 'job1', data: { foo: 'bar' } },
-        { name: 'job2', data: { baz: 'qux' } },
-      ];
-
-      const addBulkStub = sinon
-        .stub(queue.Job, 'createBulk')
-        .rejects(new Error('Simulated bulk error'));
-
-      const span = telemetryClient.trace
-        .getTracer('testtracer')
-        .startSpan('Queue.addBulk.error') as MockSpan;
-      const recordExceptionSpy = sinon.spy(span, 'recordException');
-
-      const activeContext = telemetryClient.contextManager.active();
-      activeContext['getSpan'] = () => span;
+      const recordExceptionSpy = sinon.spy(
+        MockSpan.prototype,
+        'recordException',
+      );
 
       try {
-        await queue.addBulk(jobs);
-
-        expect.fail('Expected an error to be thrown');
-      } catch (error) {
-        span.recordException(error);
-
-        sinon.assert.calledOnce(recordExceptionSpy);
-        const [exception] = recordExceptionSpy.firstCall.args;
-        expect(exception?.message).to.equal('Simulated bulk error');
+        await queue.addBulk([
+          { name: 'testJob1', data: { someData: 'testData1' } },
+          {
+            name: 'testJob2',
+            data: { someData: 'testData2' },
+            opts: { jobId: '0' },
+          },
+        ]);
+      } catch (e) {
+        assert(recordExceptionSpy.calledOnce);
+        const recordedError = recordExceptionSpy.firstCall.args[0];
+        assert.equal(recordedError.message, 'Custom Ids cannot be integers');
       } finally {
-        addBulkStub.restore();
+        recordExceptionSpy.restore();
       }
     });
   });

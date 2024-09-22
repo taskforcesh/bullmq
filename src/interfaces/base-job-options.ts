@@ -113,7 +113,7 @@ export interface BaseJobOptions extends DefaultJobOptions {
   prevMillis?: number;
 
   /**
-   * Telemetry propagation
+   * TelemetryMetadata, provide for context propagation.
    */
-  tm?: Record<string, string>;
+  telemetryMetadata?: Record<string, string>;
 }

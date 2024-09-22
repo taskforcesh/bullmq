@@ -43,6 +43,7 @@ const optsDecodeMap = {
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
+  tm: 'telemetryMetadata',
 };
 
 const optsEncodeMap = invertObject(optsDecodeMap);
