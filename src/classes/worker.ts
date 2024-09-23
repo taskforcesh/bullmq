@@ -404,7 +404,7 @@ export class Worker<
 
   async run() {
     await this.trace<void>(
-      SpanKind.CONSUMER,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.run`,
       async span => {
         span?.setAttributes({
@@ -533,7 +533,7 @@ export class Worker<
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
     return this.trace<Job<DataType, ResultType, NameType>>(
-      SpanKind.CONSUMER,
+      SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.getNextJob`,
       async span => {
         const nextJob = await this._getNextJob(
@@ -783,7 +783,7 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    const { telemetryMetadata: dstPropagationMedatada } = job.opts;
+    const { telemetryMetadata: srcPropagationMedatada } = job.opts;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
@@ -862,7 +862,7 @@ will never work with more accuracy than 1ms. */
           jobsInProgress.delete(inProgressItem);
         }
       },
-      dstPropagationMedatada,
+      srcPropagationMedatada,
     );
   }
 
