@@ -924,7 +924,6 @@ describe('repeat', function () {
       async () => {
         if(counter === 0){
           this.clock.tick(6 * ONE_HOUR);
-
         }else {
           this.clock.tick(nextTick);
         }
@@ -946,10 +945,10 @@ describe('repeat', function () {
       worker.on('completed', async job => {
         if (counter === 1) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(delay);
+          expect(job.processedOn! - prev.timestamp).to.be.gte(delay);
         } else if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+          expect(job.processedOn! - prev.timestamp).to.be.gte(ONE_DAY);
         }
         prev = job;
 
@@ -1576,7 +1575,53 @@ describe('repeat', function () {
       });
 
       await processing;
+      await worker.close();
       delayStub.restore();
+    });
+
+    it('should keep only one delayed job if adding a new repeatable job with the same key', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      const key = 'mykey';
+
+      this.clock.setSystemTime(date);
+
+      const nextTick = 2 * ONE_SECOND;
+
+      await queue.add(
+        'test',
+        { foo: 'bar' },
+        {
+          repeat: {
+            every: 10_000,
+            key,
+          },
+        },
+      );
+
+      this.clock.tick(nextTick);
+
+      let jobs = await queue.getRepeatableJobs();
+      expect(jobs).to.have.length(1);
+
+      let delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      await queue.add(
+        'test2',
+        { qux: 'baz' },
+        {
+          repeat: {
+            every: 35_160,
+            key,
+          },
+        },
+      );
+
+      jobs = await queue.getRepeatableJobs();
+      expect(jobs).to.have.length(1);
+
+      delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
     });
 
     it('should keep only one delayed job if adding a new repeatable job with the same key', async function () {
