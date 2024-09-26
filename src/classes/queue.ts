@@ -465,7 +465,7 @@ export class Queue<
    * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
    *
-   * @param grace - The grace period
+   * @param grace - The grace period in milliseconds
    * @param limit - Max number of jobs to clean
    * @param type - The type of job to clean
    * Possible values are completed, wait, active, paused, delayed, failed. Defaults to completed.
