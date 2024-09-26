@@ -1430,7 +1430,26 @@ export class Scripts {
     ];
     const args = [maxCount];
 
-    return (<any>client).repairPausedKey(keys.concat(args));
+    return (<any>client).migrateDeprecatedPausedKey(keys.concat(args));
+  }
+
+  protected executeMigrationsArgs(currentMigrationExecution = 1): (string | number)[] {
+    const keys: (string | number)[] = [
+      this.queue.keys.meta,
+      this.queue.keys.migrations,
+      this.queue.toKey(''),
+    ];
+    const args = [6, Date.now(), currentMigrationExecution];
+
+    return keys.concat(args);
+  }
+
+  async executeMigrations(currentMigrationExecution: number): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.executeMigrationsArgs(currentMigrationExecution);
+
+    return (<any>client).executeMigrations(args);
   }
 }
 

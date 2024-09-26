@@ -60,7 +60,7 @@ class Scripts:
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
             "promote": self.redisClient.register_script(self.getScript("promote-8.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
-            "repairPausedKey": self.redisClient.register_script(self.getScript("repairPausedKey-2.lua")),
+            "migrateDeprecatedPausedKey": self.redisClient.register_script(self.getScript("migrateDeprecatedPausedKey-2.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-7.lua")),
             "retryJob": self.redisClient.register_script(self.getScript("retryJob-10.lua")),
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-7.lua")),
@@ -468,7 +468,7 @@ class Scripts:
 
         args = [maxCount]
 
-        result = await self.commands["repairPausedKey"](keys=keys, args=args)
+        result = await self.commands["migrateDeprecatedPausedKey"](keys=keys, args=args)
         return result
 
     async def promoteJobs(self, count: int):

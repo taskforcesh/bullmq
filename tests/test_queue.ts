@@ -428,38 +428,6 @@ describe('queues', function () {
     });
   });
 
-  describe('.migrateDeprecatedPausedKey', () => {
-    it('moves jobs from paused to wait', async () => {
-      const client = await queue.client;
-      await client.lpush(`${prefix}:${queue.name}:paused`, 'a', 'b', 'c');
-      await client.lpush(`${prefix}:${queue.name}:wait`, 'd', 'e', 'f');
-
-      await queue.migrateDeprecatedPausedKey();
-
-      const jobs = await client.lrange(
-        `${prefix}:${queue.name}:wait`, 0, -1
-      );
-
-      expect(jobs).to.be.eql(['f', 'e', 'd', 'c', 'b', 'a']);
-    });
-  });
-
-  describe('.removeLegacyMarkers', () => {
-    it('removes old markers', async () => {
-      const client = await queue.client;
-      await client.zadd(`${prefix}:${queue.name}:completed`, 1, '0:2');
-      await client.zadd(`${prefix}:${queue.name}:failed`, 2, '0:1');
-      await client.rpush(`${prefix}:${queue.name}:wait`, '0:0');
-
-      await queue.removeLegacyMarkers();
-
-      const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-      // meta key
-      expect(keys.length).to.be.eql(1);
-    });
-  });
-
   describe('.retryJobs', () => {
     it('retries all failed jobs by default', async () => {
       await queue.waitUntilReady();
