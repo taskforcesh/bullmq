@@ -1,3 +1,4 @@
+import { errorToJSON } from '../utils';
 import { ChildCommand, ParentCommand } from '../enums';
 import { ChildMessage } from '../interfaces';
 import { ChildPool } from './child-pool';
@@ -43,6 +44,23 @@ const sandbox = <T, R, N extends string>(
           case ParentCommand.Update:
             await job.updateData(msg.value);
             break;
+          case ParentCommand.GetChildrenValues: {
+            try {
+              const value = await job.getChildrenValues();
+
+              await child.send({
+                cmd: ChildCommand.GetChildrenValues,
+                value,
+              });
+              break;
+            } catch (error) {
+              await child.send({
+                cmd: ChildCommand.GetChildrenValuesError,
+                value: errorToJSON(error),
+              });
+            }
+            break;
+          }
         }
       };
 
