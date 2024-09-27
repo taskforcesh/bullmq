@@ -11,11 +11,8 @@
   <br/>
   <br/>
   <p>
-    <a href="https://openbase.com/js/bullmq?utm_source=embedded&utm_medium=badge&utm_campaign=rate-badge">
-      <img src="https://badges.openbase.com/js/rating/bullmq.svg"/>
-    </a>
-    <a href="https://gitter.im/OptimalBits/bull">
-      <img src="https://badges.gitter.im/Join%20Chat.svg"/>
+    <a href="https://join.slack.com/t/bullmq/shared_invite/zt-1nbtpk6mv-TItWpF9jf3k4yrCaS0PPZA">
+      <img src="https://img.shields.io/badge/Slack-4A154B"/>
     </a>    
     <a href="https://badge.fury.io/js/bullmq">
       <img src="https://badge.fury.io/js/bullmq.svg"/>
