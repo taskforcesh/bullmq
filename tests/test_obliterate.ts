@@ -6,7 +6,7 @@ import { v4 } from 'uuid';
 import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe.only('Obliterate', function () {
+describe('Obliterate', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
