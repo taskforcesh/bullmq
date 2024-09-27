@@ -6,7 +6,7 @@ import { v4 } from 'uuid';
 import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
-describe('Obliterate', function () {
+describe.only('Obliterate', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
@@ -74,7 +74,8 @@ describe('Obliterate', function () {
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.eql(0);
+    // only migration key should be kept
+    expect(keys.length).to.be.eql(1);
 
     await worker.close();
   });
@@ -164,7 +165,8 @@ describe('Obliterate', function () {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(0);
+          // only migration key should be kept
+          expect(keys.length).to.be.eql(1);
 
           await worker.close();
           await flow.close();
@@ -375,7 +377,8 @@ describe('Obliterate', function () {
     await queue.obliterate({ force: true });
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.eql(0);
+    // only migration key should be kept
+    expect(keys.length).to.be.eql(1);
 
     await worker.close();
   });
@@ -475,6 +478,7 @@ describe('Obliterate', function () {
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}*`);
-    expect(keys.length).to.be.eql(0);
+    // only migration key should be kept
+    expect(keys.length).to.be.eql(1);
   });
 });

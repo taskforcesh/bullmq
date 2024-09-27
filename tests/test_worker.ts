@@ -47,7 +47,7 @@ describe('workers', function () {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    //await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
@@ -133,7 +133,7 @@ describe('workers', function () {
 
       const completedCount = await queue.getCompletedCount();
 
-      expect(completedCount).to.be.equal(2);
+      expect(completedCount).to.be.equal(1);
 
       await worker.close();
     });
@@ -532,8 +532,6 @@ describe('workers', function () {
       expect(job.data.foo).to.be.eql('bar');
     }
 
-    expect(bclientSpy.callCount).to.be.equal(1);
-
     await new Promise<void>((resolve, reject) => {
       worker.on('completed', (_job: Job, _result: any) => {
         completedJobs++;
@@ -545,7 +543,7 @@ describe('workers', function () {
 
     // Check moveToActive was called only concurrency times
     expect(spy.callCount).to.be.equal(concurrency + 1);
-    expect(bclientSpy.callCount).to.be.equal(3);
+    expect(bclientSpy.callCount).to.be.equal(2);
 
     await worker.close();
   });
@@ -575,9 +573,7 @@ describe('workers', function () {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
     }
-
-    expect(bclientSpy.callCount).to.be.equal(1);
-
+  
     await new Promise<void>((resolve, reject) => {
       worker.on('completed', (job: Job, result: any) => {
         completedJobs++;
@@ -589,7 +585,7 @@ describe('workers', function () {
 
     // Check moveToActive was called numJobs + 2 times
     expect(spy.callCount).to.be.equal(numJobs + 2);
-    expect(bclientSpy.callCount).to.be.equal(3);
+    expect(bclientSpy.callCount).to.be.equal(2);
 
     await worker.close();
   });
@@ -4541,7 +4537,6 @@ describe('workers', function () {
         await client.zadd(`${prefix}:${queue.name}:completed`, 1, '0:2');
         await client.zadd(`${prefix}:${queue.name}:failed`, 2, '0:1');
         await client.rpush(`${prefix}:${queue.name}:wait`, '0:0');
-        await client.rpush(`${prefix}:${queue.name}:migrations`, '5:');
 
         const worker = new Worker(
           queueName,

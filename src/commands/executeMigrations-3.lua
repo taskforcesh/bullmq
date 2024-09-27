@@ -1,5 +1,5 @@
 --[[
-  Remove jobs from the specific set.
+  Execute migrations.
 
   Input:
     KEYS[1]  meta key
