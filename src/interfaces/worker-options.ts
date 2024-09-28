@@ -1,3 +1,4 @@
+import { WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
 import { Job } from '../classes/job';
 import { AdvancedOptions } from './advanced-options';
 import { QueueBaseOptions } from './queue-options';
@@ -144,6 +145,8 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default false
    */
   useWorkerThreads?: boolean;
+
+  workerThreadsOptions?: WorkerThreadsOptions;
 }
 
 export interface GetNextJobOptions {
