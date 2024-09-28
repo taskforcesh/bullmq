@@ -55,7 +55,7 @@ describe('Sandboxed process using worker threads', () => {
         useWorkerThreads: true,
         workerThreadsOptions: {
           resourceLimits: {
-            maxOldGenerationSizeMb: 0.1
+            maxOldGenerationSizeMb: 1
           }
         }
       });
