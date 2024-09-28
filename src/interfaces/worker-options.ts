@@ -146,6 +146,12 @@ export interface WorkerOptions extends QueueBaseOptions {
    */
   useWorkerThreads?: boolean;
 
+  /**
+   * Support passing Worker Threads Options.
+   * Note: This option can only be used when specifying
+   * a file for the processor argument and useWorkerThreads is passed as true.
+   * @see {@link https://nodejs.org/api/worker_threads.html#new-workerfilename-options}
+   */
   workerThreadsOptions?: WorkerThreadsOptions;
 }
 
