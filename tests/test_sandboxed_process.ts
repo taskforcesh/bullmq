@@ -15,6 +15,75 @@ describe('Sandboxed process using child processes', () => {
 
 describe('Sandboxed process using worker threads', () => {
   sandboxProcessTests({ useWorkerThreads: true });
+
+  describe('custom cases', () => {
+    const redisHost = process.env.REDIS_HOST || 'localhost';
+    const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+    let queue: Queue;
+    let queueEvents: QueueEvents;
+    let queueName: string;
+
+    let connection;
+    before(async function () {
+      connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    });
+
+    beforeEach(async function () {
+      queueName = `test-${v4()}`;
+      queue = new Queue(queueName, { connection, prefix });
+      queueEvents = new QueueEvents(queueName, { connection, prefix });
+      await queueEvents.waitUntilReady();
+    });
+
+    afterEach(async function () {
+      await queue.close();
+      await queueEvents.close();
+      await removeAllQueueData(new IORedis(), queueName);
+    });
+
+    afterAll(async function () {
+      await connection.quit();
+    });
+
+    it('should allow to pass workerThreadsOptions', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads: true,
+        workerThreadsOptions: {
+          resourceLimits: {
+            maxOldGenerationSizeMb: 1
+          }
+        }
+      });
+
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(job.returnvalue).to.be.eql(42);
+            expect(job.data).to.be.eql({ foo: 'bar' });
+            expect(value).to.be.eql(42);
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].free[processFile]).to.have.lengthOf(1);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await completing;
+
+      await worker.close();
+    });
+  });
 });
 
 function sandboxProcessTests(

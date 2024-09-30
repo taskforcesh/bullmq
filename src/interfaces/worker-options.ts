@@ -1,3 +1,4 @@
+import { WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
 import { Job } from '../classes/job';
 import { AdvancedOptions } from './advanced-options';
 import { QueueBaseOptions } from './queue-options';
@@ -144,6 +145,14 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default false
    */
   useWorkerThreads?: boolean;
+
+  /**
+   * Support passing Worker Threads Options.
+   * Note: This option can only be used when specifying
+   * a file for the processor argument and useWorkerThreads is passed as true.
+   * @see {@link https://nodejs.org/api/worker_threads.html#new-workerfilename-options}
+   */
+  workerThreadsOptions?: WorkerThreadsOptions;
 }
 
 export interface GetNextJobOptions {
