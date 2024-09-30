@@ -10,7 +10,7 @@ export type MigrationFunction = (
   opts: MigrationOptions,
 ) => Promise<void>;
 
-export const hasPendingMigrations = async (
+export const checkPendingMigrations = async (
   client: RedisClient,
   opts: MigrationOptions,
 ) => {
