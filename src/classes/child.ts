@@ -86,7 +86,7 @@ export class Child extends EventEmitter {
         stdin: true,
         stdout: true,
         stderr: true,
-        ...(this.opts.workerThreadsOptions?this.opts.workerThreadsOptions:{})
+        ...(this.opts.workerThreadsOptions ? this.opts.workerThreadsOptions : {})
       });
     } else {
       this.childProcess = parent = fork(this.mainFile, [], {
