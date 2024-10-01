@@ -93,7 +93,7 @@ jobs:
     env:
       node-version: lts/*
 
-    name: testing node@lts/*, dragonflydb@latest
+    name: testing node@lts/*, valkey@8
 
     services:
       valkey:
