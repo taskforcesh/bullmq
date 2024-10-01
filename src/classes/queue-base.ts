@@ -90,7 +90,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     if (this.checkedPendingMigrations) {
       return this.connection.client;
     } else {
-      this.connection.client.then(client => {
+      return this.connection.client.then(client => {
         return checkPendingMigrations(client, {
           prefix: this.opts.prefix,
           queueName: this.name,
@@ -101,6 +101,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
             );
           }
           this.checkedPendingMigrations = true;
+          return client;
         });
       });
     }
