@@ -1,15 +1,11 @@
-import { ForkOptions } from 'child_process';
-import { WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
 import * as path from 'path';
 import { Child } from './child';
+import { SandboxedOptions } from '../interfaces';
 
 const CHILD_KILL_TIMEOUT = 30_000;
 
-interface ChildPoolOpts {
+interface ChildPoolOpts extends SandboxedOptions {
   mainFile?: string;
-  useWorkerThreads?: boolean;
-  workerForkOptions?: ForkOptions;
-  workerThreadsOptions?: WorkerThreadsOptions;
 }
 
 export class ChildPool {

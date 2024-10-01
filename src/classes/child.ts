@@ -1,7 +1,8 @@
-import { ChildProcess, fork, ForkOptions } from 'child_process';
+import { ChildProcess, fork } from 'child_process';
 import { AddressInfo, createServer } from 'net';
-import { Worker, WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
+import { Worker } from 'worker_threads';
 import { ChildCommand, ParentCommand } from '../enums';
+import { SandboxedOptions } from '../interfaces';
 import { EventEmitter } from 'events';
 
 /**
@@ -40,11 +41,7 @@ export class Child extends EventEmitter {
   constructor(
     private mainFile: string,
     public processFile: string,
-    private opts: {
-      useWorkerThreads: boolean;
-      workerForkOptions?: ForkOptions;
-      workerThreadsOptions?: WorkerThreadsOptions;
-    } = {
+    private opts: SandboxedOptions = {
       useWorkerThreads: false,
     },
   ) {

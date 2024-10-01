@@ -1,11 +1,10 @@
-import { ForkOptions } from 'child_process';
-import { WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
 import { Job } from '../classes/job';
 import { AdvancedOptions } from './advanced-options';
 import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
 import { KeepJobs } from './keep-jobs';
+import { SandboxedOptions } from './sandboxed-options';
 
 /**
  * An async function that receives `Job`s and handles them.
@@ -15,7 +14,7 @@ export type Processor<T = any, R = any, N extends string = string> = (
   token?: string,
 ) => Promise<R>;
 
-export interface WorkerOptions extends QueueBaseOptions {
+export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   /**
    * Optional worker name. The name will be stored on every job
    * processed by this worker instance, and can be used to monitor
@@ -137,31 +136,6 @@ export interface WorkerOptions extends QueueBaseOptions {
    * More advanced options.
    */
   settings?: AdvancedOptions;
-
-  /**
-   * Use Worker Threads instead of Child Processes.
-   * Note: This option can only be used when specifying
-   * a file for the processor argument.
-   *
-   * @default false
-   */
-  useWorkerThreads?: boolean;
-
-  /**
-   * Support passing Worker Fork Options.
-   * Note: This option can only be used when specifying
-   * a file for the processor argument and useWorkerThreads is passed as false (default value).
-   * @see {@link https://nodejs.org/api/child_process.html#child_processforkmodulepath-args-options}
-   */
-  workerForkOptions?: ForkOptions;
-
-  /**
-   * Support passing Worker Threads Options.
-   * Note: This option can only be used when specifying
-   * a file for the processor argument and useWorkerThreads is passed as true.
-   * @see {@link https://nodejs.org/api/worker_threads.html#new-workerfilename-options}
-   */
-  workerThreadsOptions?: WorkerThreadsOptions;
 }
 
 export interface GetNextJobOptions {
