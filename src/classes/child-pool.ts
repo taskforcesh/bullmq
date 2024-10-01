@@ -1,3 +1,5 @@
+import { ForkOptions } from 'child_process';
+import { WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
 import * as path from 'path';
 import { Child } from './child';
 
@@ -6,6 +8,8 @@ const CHILD_KILL_TIMEOUT = 30_000;
 interface ChildPoolOpts {
   mainFile?: string;
   useWorkerThreads?: boolean;
+  workerForkOptions?: ForkOptions;
+  workerThreadsOptions?: WorkerThreadsOptions;
 }
 
 export class ChildPool {
@@ -16,8 +20,15 @@ export class ChildPool {
   constructor({
     mainFile = path.join(process.cwd(), 'dist/cjs/classes/main.js'),
     useWorkerThreads,
+    workerForkOptions,
+    workerThreadsOptions,
   }: ChildPoolOpts) {
-    this.opts = { mainFile, useWorkerThreads };
+    this.opts = {
+      mainFile,
+      useWorkerThreads,
+      workerForkOptions,
+      workerThreadsOptions,
+    };
   }
 
   async retain(processFile: string): Promise<Child> {
@@ -30,6 +41,8 @@ export class ChildPool {
 
     child = new Child(this.opts.mainFile, processFile, {
       useWorkerThreads: this.opts.useWorkerThreads,
+      workerForkOptions: this.opts.workerForkOptions,
+      workerThreadsOptions: this.opts.workerThreadsOptions,
     });
     child.on('exit', this.remove.bind(this, child));
 

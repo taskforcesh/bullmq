@@ -1,4 +1,4 @@
-import { ChildProcess, fork } from 'child_process';
+import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { AddressInfo, createServer } from 'net';
 import { Worker, WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
 import { ChildCommand, ParentCommand } from '../enums';
@@ -42,9 +42,10 @@ export class Child extends EventEmitter {
     public processFile: string,
     private opts: {
       useWorkerThreads: boolean;
+      workerForkOptions?: ForkOptions;
       workerThreadsOptions?: WorkerThreadsOptions;
     } = {
-      useWorkerThreads: false
+      useWorkerThreads: false,
     },
   ) {
     super();
@@ -86,12 +87,15 @@ export class Child extends EventEmitter {
         stdin: true,
         stdout: true,
         stderr: true,
-        ...(this.opts.workerThreadsOptions ? this.opts.workerThreadsOptions : {})
+        ...(this.opts.workerThreadsOptions
+          ? this.opts.workerThreadsOptions
+          : {}),
       });
     } else {
       this.childProcess = parent = fork(this.mainFile, [], {
         execArgv,
         stdio: 'pipe',
+        ...(this.opts.workerForkOptions ? this.opts.workerForkOptions : {}),
       });
     }
 

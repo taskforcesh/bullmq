@@ -1,3 +1,4 @@
+import { ForkOptions } from 'child_process';
 import { WorkerOptions as WorkerThreadsOptions } from 'worker_threads';
 import { Job } from '../classes/job';
 import { AdvancedOptions } from './advanced-options';
@@ -145,6 +146,14 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default false
    */
   useWorkerThreads?: boolean;
+
+  /**
+   * Support passing Worker Fork Options.
+   * Note: This option can only be used when specifying
+   * a file for the processor argument and useWorkerThreads is passed as false (default value).
+   * @see {@link https://nodejs.org/api/child_process.html#child_processforkmodulepath-args-options}
+   */
+  workerForkOptions?: ForkOptions;
 
   /**
    * Support passing Worker Threads Options.
