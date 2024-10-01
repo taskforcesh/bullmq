@@ -87,6 +87,32 @@ jobs:
       - run: yarn build
       - run: yarn test
 
+  node-valkey:
+    runs-on: ubuntu-latest
+
+    env:
+      node-version: lts/*
+
+    name: testing node@lts/*, dragonflydb@latest
+
+    services:
+      valkey:
+        image: valkey/valkey:8-alpine3.20
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3 # v3
+      - name: Use Node.js ${{ env.node-version }}
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn test
+
   node-dragonflydb:
     runs-on: ubuntu-latest
 
