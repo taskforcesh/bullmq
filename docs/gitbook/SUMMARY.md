@@ -33,6 +33,7 @@
   * [Debouncing](guide/jobs/debouncing.md)
   * [Delayed](guide/jobs/delayed.md)
   * [Repeatable](guide/jobs/repeatable.md)
+  * [Job Scheduler](guide/jobs/job-scheduler.md)
   * [Prioritized](guide/jobs/prioritized.md)
   * [Removing jobs](guide/jobs/removing-job.md)
   * [Stalled](guide/jobs/stalled.md)
@@ -119,11 +120,6 @@
   * [Custom backoff strategy](bull/patterns/custom-backoff-strategy.md)
   * [Debugging](bull/patterns/debugging.md)
   * [Manually fetching jobs](bull/patterns/manually-fetching-jobs.md)
-
-## Bull 3.x Migration
-
-* [Compatibility class](bull-3.x-migration/compatibility-class.md)
-* [Migration](bull-3.x-migration/migration.md)
 
 ## Python
 
