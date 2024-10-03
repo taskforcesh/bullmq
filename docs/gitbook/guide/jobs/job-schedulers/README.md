@@ -1,10 +1,10 @@
 ---
 description: >-
-  Job Schedulers replace "repeatable jobs", and are available in v5.5.5 and
-  above.
+  Job Schedulers replace "repeatable jobs", and are available in v5.16.0 and
+  onwards
 ---
 
-# Job Scheduler
+# Job Schedulers
 
 A Job Scheduler acts as a factory , producing jobs based on specified "repeat" settings. The Job Scheduler is highly flexible, accommodating various scenarios, including jobs produced at fixed intervals, according to cron expressions, or based on custom requirements. For historical reasons, jobs produced by the Job Scheduler are often referred to as ‘Repeatable Jobs’.
 
@@ -19,7 +19,7 @@ This example will create a new Job Scheduler that will produce a new job every s
 
 Now there are also a few important considerations that need to be explained here.:
 
-* **Upsert vs. Add:** 'upsert' is used instead of 'add' to simplify management of recurring jobs, especially in production deployments. It ensures the scheduler is updated or created without duplications.
+* **Upsert vs. Add:** the 'upsert' is used instead of 'add' to simplify management of recurring jobs, especially in production deployments. It ensures the scheduler is updated or created without duplications.
 * **Job Production Rate:** The scheduler will only generate new jobs when the last job begins processing. Therefore, if your queue is very busy, or if you do not have enough workers or concurrency, it is possible that you will get the jobs less frequently than the specified  repetition interval.
 * **Job Status:**  As long as a Job Scheduler is producing jobs, there will be always one job associated to the scheduler in the "Delayed" status.
 
@@ -44,7 +44,7 @@ const firstJob = await queue.upsertJobScheduler(
  
 ```
 
-All jobs produced by this scheduler will use the given settings. Note that in the future you could call "upsertJobScheduler" again  with the given "my-scheduler-id" in order to update any settings, both the repeat options or/and the job's template settings.
+All jobs produced by this scheduler will use the given settings. Note that in the future you could call "upsertJobScheduler" again  with the given "my-scheduler-id" in order to update any settings of this particular job scheduler, such as the repeat options or/and the job's template settings.
 
 {% hint style="info" %}
 Since jobs produced by the Job Scheduler will get a special job ID in order to guarantee that jobs will never be created more often than the given repeat settings, you cannot choose a custom job id. However you can use the job's name if you need to discriminate these jobs from other jobs.

@@ -1,5 +1,9 @@
 # Repeatable
 
+{% hint style="danger" %}
+Note: from BullMQ version 5.16.0 and onwards, we have deprecated these APIs in favor of ["Job Schedulers"](job-schedulers/), which provide a more cohesive and more robust API for handling repeatable jobs.
+{% endhint %}
+
 There is a special type of _meta_ job called **repeatable**. These jobs are special in the sense that even though you only add one job to the queue, they will keep repeating according to a predefined schedule.
 
 Adding a job with the `repeat` option set will actually do two things immediately: create a Repeatable Job configuration, and schedule a regular delayed job for the job's first run. This first run will be scheduled "on the hour", that is if you create a job that repeats every 15 minutes at 4:07, the job will first run at 4:15, then 4:30, and so on.
