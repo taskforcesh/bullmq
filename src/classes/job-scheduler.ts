@@ -33,10 +33,10 @@ export class JobScheduler extends QueueBase {
 
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
-    repeatOpts: RepeatOptions,
+    repeatOpts: Omit<RepeatOptions, 'key'>,
     jobName: N,
     jobData: T,
-    opts: JobsOptions,
+    opts: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>,
     { override }: { override: boolean },
   ): Promise<Job<T, R, N> | undefined> {
     // Check if we reached the limit of the repeatable job's iterations
@@ -66,11 +66,6 @@ export class JobScheduler extends QueueBase {
     );
     const offset = hasImmediately && every ? now - nextMillis : undefined;
     if (nextMillis) {
-      // We store the undecorated opts.jobId into the repeat options
-      if (!prevMillis && opts.jobId) {
-        repeatOpts.jobId = opts.jobId;
-      }
-
       if (override) {
         await this.scripts.addJobScheduler(jobSchedulerId, nextMillis, {
           name: jobName,
