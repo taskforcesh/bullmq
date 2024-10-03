@@ -314,7 +314,7 @@ export class Queue<
     jobTemplate?: {
       name?: NameType;
       data?: DataType;
-      opts?: Omit<JobsOptions, 'repeat'>;
+      opts?: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>;
     },
   ) {
     if (repeatOpts.endDate) {
