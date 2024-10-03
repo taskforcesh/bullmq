@@ -3,8 +3,14 @@ import { BaseJobOptions, DebounceOptions } from '../interfaces';
 export type JobsOptions = BaseJobOptions & {
   /**
    * Debounce options.
+   * @deprecated use deduplication option
    */
   debounce?: DebounceOptions;
+
+  /**
+   * Deduplication options.
+   */
+  deduplication?: DebounceOptions;
 
   /**
    * If true, moves parent to failed.

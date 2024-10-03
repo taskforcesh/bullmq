@@ -375,6 +375,7 @@ export class Queue<
 
   /**
    * Removes a debounce key.
+   * @deprecated use removeDeduplicationKey
    *
    * @param id - identifier
    */
@@ -384,6 +385,17 @@ export class Queue<
     return client.del(`${this.keys.de}:${id}`);
   }
 
+  /**
+   * Removes a deduplication key.
+   *
+   * @param id - identifier
+   */
+    async removeDeduplicationKey(id: string): Promise<number> {
+      const client = await this.client;
+  
+      return client.del(`${this.keys.de}:${id}`);
+    }
+  
   /**
    * Removes a repeatable job by its key. Note that the key is the one used
    * to store the repeatable job metadata and not one of the job iterations
