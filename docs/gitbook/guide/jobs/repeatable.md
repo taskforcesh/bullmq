@@ -1,7 +1,7 @@
 # Repeatable
 
 {% hint style="danger" %}
-Note: from BullMQ version 5.16.0 and onwards, we have deprecated these APIs in favor of ["Job Schedulers"](job-scheduler/), which provide a more cohesive and more robust API for handling repeatable jobs.
+Note: from BullMQ version 5.16.0 and onwards, we have deprecated these APIs in favor of ["Job Schedulers"](../job-schedulers/), which provide a more cohesive and more robust API for handling repeatable jobs.
 {% endhint %}
 
 There is a special type of _meta_ job called **repeatable**. These jobs are special in the sense that even though you only add one job to the queue, they will keep repeating according to a predefined schedule.
