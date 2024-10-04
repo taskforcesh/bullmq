@@ -413,7 +413,7 @@ export class Scripts {
       keys.concat([jobId, removeChildren ? 1 : 0]),
     );
 
-    if (result == -1) {
+    if (result == ErrorCode.JobBelongsToJobScheduler) {
       throw finishedErrors({
         code: ErrorCode.JobBelongsToJobScheduler,
         jobId,

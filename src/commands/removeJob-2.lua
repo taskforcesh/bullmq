@@ -78,12 +78,9 @@ local jobId = ARGV[1]
 local shouldRemoveChildren = ARGV[2]
 local jobKey = prefix .. jobId
 
--- Check if the job belongs to a job scheduler and is in delayed state.
--- Note that jobs that are children in a flow, will not be subject to this check.
--- This will require a recursive check before the removal processs could start.
--- We could expand isLocked for that.
+-- Check if the job belongs to a job scheduler and it is in delayed state.
 if rcall("ZSCORE", prefix .. "delayed", jobId) and rcall("HGET", jobKey, "rjk") then
-    return -1
+    return -8 -- Return error code as the job is part of a job scheduler and is in delayed state.
 end
 
 if not isLocked(prefix, jobId, shouldRemoveChildren) then
