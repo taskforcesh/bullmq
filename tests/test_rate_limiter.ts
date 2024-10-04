@@ -21,7 +21,10 @@ describe('Rate Limiter', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async function () {
@@ -850,7 +853,11 @@ describe('Rate Limiter', function () {
   describe('when there are more added jobs than max limiter', () => {
     it('processes jobs as max limiter from the beginning', async function () {
       const numJobs = 400;
-      this.timeout(5000);
+      if (process.env.UPSTASH_HOST) {
+        this.timeout(10000);
+      } else {
+        this.timeout(5000);
+      }
       let parallelJobs = 0;
 
       const processor = async () => {

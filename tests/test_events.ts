@@ -17,7 +17,10 @@ describe('events', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async function () {
@@ -856,8 +859,10 @@ describe('events', function () {
       await waitCompletedEvent;
 
       const eventsLength = await client.xlen(trimmedQueue.keys.events);
-
-      expect(eventsLength).to.be.lte(35);
+      // Trim near is not guaranteed to trim all in redis spec.
+      if (!process.env.UPSTASH_HOST) {
+        expect(eventsLength).to.be.lte(35);
+      }
       expect(eventsLength).to.be.gte(20);
 
       await worker.close();
@@ -914,8 +919,10 @@ describe('events', function () {
         await waitDelayedEvent;
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
-
-        expect(eventsLength).to.be.lte(35);
+        // Trim near is not guaranteed to trim all in redis spec.
+        if (!process.env.UPSTASH_HOST) {
+          expect(eventsLength).to.be.lte(35);
+        }
         expect(eventsLength).to.be.gte(20);
 
         await worker.close();
@@ -971,8 +978,10 @@ describe('events', function () {
         await waitCompletedEvent;
 
         const eventsLength = await client.xlen(trimmedQueue.keys.events);
-
-        expect(eventsLength).to.be.lte(35);
+        // Trim near is not guaranteed to trim all in redis spec.
+        if (!process.env.UPSTASH_HOST) {
+          expect(eventsLength).to.be.lte(35);
+        }
         expect(eventsLength).to.be.gte(20);
 
         await worker.close();
