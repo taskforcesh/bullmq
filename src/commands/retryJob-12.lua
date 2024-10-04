@@ -13,12 +13,15 @@
       KEYS[9]  'pc' priority counter
       KEYS[10] 'marker'
       KEYS[11] 'stalled'
+      KEYS[12] limiter key
 
       ARGV[1]  key prefix
       ARGV[2]  timestamp
-      ARGV[3]  pushCmd
+      ARGV[3]  pushCmd - lifo -> RPUSH - fifo -> LPUSH
       ARGV[4]  jobId
       ARGV[5]  token
+      ARGV[6]  preserve order
+      ARGV[7]  rate limit pttl
 
     Events:
       'waiting'
@@ -69,6 +72,13 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   end
 
   rcall("HINCRBY", KEYS[4], "atm", 1)
+
+  if ARGV[6] == "1" then
+    local pttl = tonumber(ARGV[7])
+    if pttl > 0 then
+      rcall("SET", KEYS[12], 999999, "PX", pttl)
+    end
+  end
 
   local maxEvents = getOrSetMaxEvents(KEYS[5])
 

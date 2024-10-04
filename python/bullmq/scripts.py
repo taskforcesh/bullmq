@@ -54,7 +54,7 @@ class Scripts:
             "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
             "reprocessJob": self.redisClient.register_script(self.getScript("reprocessJob-8.lua")),
-            "retryJob": self.redisClient.register_script(self.getScript("retryJob-11.lua")),
+            "retryJob": self.redisClient.register_script(self.getScript("retryJob-12.lua")),
             "moveJobsToWait": self.redisClient.register_script(self.getScript("moveJobsToWait-8.lua")),
             "saveStacktrace": self.redisClient.register_script(self.getScript("saveStacktrace-1.lua")),
             "updateData": self.redisClient.register_script(self.getScript("updateData-1.lua")),
@@ -252,13 +252,16 @@ class Scripts:
         keys.append(self.keys['delayed'])
         keys.append(self.keys['prioritized'])
         keys.append(self.keys['pc'])
+        keys.append(self.keys['limiter'])
         keys.append(self.keys['marker'])
         keys.append(self.keys['stalled'])
 
         push_cmd = "RPUSH" if lifo else "LPUSH"
 
+        pttl = opts.get("pttl", 0)
         args = [self.keys[''], round(time.time() * 1000), push_cmd,
-                job_id, token, "1" if opts.get("skipAttempt") else "0"]
+                job_id, token, "1" if opts.get("preserveOrder") else "0",
+                pttl if pttl > 0 else 0]
 
         return (keys, args)
 
