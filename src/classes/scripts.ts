@@ -609,6 +609,7 @@ export class Scripts {
       queueKeys.paused,
       delayed ? queueKeys.delayed : '',
       queueKeys.prioritized,
+      queueKeys.repeat,
     ];
 
     const args = [queueKeys['']];
@@ -1043,6 +1044,7 @@ export class Scripts {
     return (<any>client).cleanJobsInSet([
       this.queue.toKey(set),
       this.queue.toKey('events'),
+      this.queue.toKey('repeat'),
       this.queue.toKey(''),
       timestamp,
       limit,

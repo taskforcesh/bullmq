@@ -4,6 +4,7 @@
   Input:
     KEYS[1]  set key,
     KEYS[2]  events stream key
+    KEYS[3]  job schedulers key
 
     ARGV[1]  jobKey prefix
     ARGV[2]  timestamp
@@ -32,21 +33,21 @@ end
 
 local result
 if ARGV[4] == "active" then
-  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false)
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false --[[ hasFinished ]])
 elseif ARGV[4] == "delayed" then
   rangeEnd = "+inf"
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
-                    {"processedOn", "timestamp"}, false)
+                    {"processedOn", "timestamp"}, false  --[[ hasFinished ]], KEYS[3])
 elseif ARGV[4] == "prioritized" then
   rangeEnd = "+inf"
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
-                    {"timestamp"}, false)
+                    {"timestamp"}, false  --[[ hasFinished ]])
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
-  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true)
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true --[[ hasFinished ]])
 else
   rangeEnd = ARGV[2]
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
-                    {"finishedOn"}, true)
+                    {"finishedOn"}, true  --[[ hasFinished ]])
 end
 
 rcall("XADD", KEYS[2], "*", "event", "cleaned", "count", result[2])

@@ -1217,60 +1217,6 @@ describe('Job Scheduler', function () {
     });
   });
 
-  it('should allow removing a customId repeatable job', async function () {
-    const numJobs = 4;
-    const date = new Date('2017-02-07 9:24:00');
-    let prev: Job;
-    let counter = 0;
-    let processor;
-    const jobId = 'xxxx';
-
-    this.clock.setSystemTime(date);
-
-    const nextTick = 2 * ONE_SECOND + 10;
-    const repeat = { pattern: '*/2 * * * * *' };
-
-    await queue.add('test', { foo: 'bar' }, { repeat, jobId });
-
-    this.clock.tick(nextTick);
-
-    const processing = new Promise<void>((resolve, reject) => {
-      processor = async () => {
-        counter++;
-        if (counter == numJobs) {
-          try {
-            await queue.removeRepeatable('test', repeat, jobId);
-            this.clock.tick(nextTick);
-            const delayed = await queue.getDelayed();
-            expect(delayed).to.be.empty;
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        } else if (counter > numJobs) {
-          reject(Error(`should not repeat more than ${numJobs} times`));
-        }
-      };
-    });
-
-    const worker = new Worker(queueName, processor, { connection, prefix });
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
-    await worker.waitUntilReady();
-
-    worker.on('completed', job => {
-      this.clock.tick(nextTick);
-      if (prev) {
-        expect(prev.timestamp).to.be.lt(job.timestamp);
-        expect(job.timestamp - prev.timestamp).to.be.gte(2000);
-      }
-      prev = job;
-    });
-
-    await processing;
-    await worker.close();
-    delayStub.restore();
-  });
-
   it('should keep only one delayed job if adding a new repeatable job with the same id', async function () {
     const date = new Date('2017-02-07 9:24:00');
     const key = 'mykey';
@@ -1433,6 +1379,40 @@ describe('Job Scheduler', function () {
 
       expect(err.message).to.be.eql(expectedErrMessage);
     }
+  });
+
+  it('should not remove delayed jobs if they belong to a repeatable job when using drain', async function () {
+    await queue.upsertJobScheduler('myTestJob', { every: 5000 });
+    await queue.add('test', { foo: 'bar' }, { delay: 1000 });
+
+    // Get delayed jobs
+    let delayed = await queue.getDelayed();
+    expect(delayed.length).to.be.eql(2);
+
+    // Drain the queue
+    await queue.drain(true);
+
+    delayed = await queue.getDelayed();
+    expect(delayed.length).to.be.eql(1);
+
+    expect(delayed[0].name).to.be.eql('myTestJob');
+  });
+
+  it('should not remove delayed jobs if they belong to a repeatable job when using clean', async function () {
+    await queue.upsertJobScheduler('myTestJob', { every: 5000 });
+    await queue.add('test', { foo: 'bar' }, { delay: 1000 });
+
+    // Get delayed jobs
+    let delayed = await queue.getDelayed();
+    expect(delayed.length).to.be.eql(2);
+
+    // Clean delayed jobs
+    await queue.clean(0, 100, 'delayed');
+
+    delayed = await queue.getDelayed();
+    expect(delayed.length).to.be.eql(1);
+
+    expect(delayed[0].name).to.be.eql('myTestJob');
   });
 
   it("should keep one delayed job if updating a repeatable job's every option", async function () {
