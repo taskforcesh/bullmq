@@ -85,6 +85,7 @@ describe('Sandboxed process using child processes', () => {
         timeout: 100,
       } as any;
       const worker = new Worker(queueName, processFile, {
+        autorun: false,
         connection,
         prefix,
         drainDelay: 1,
@@ -106,6 +107,8 @@ describe('Sandboxed process using child processes', () => {
       });
 
       await queue.add('test', { foo: 'bar' });
+
+      worker.run();
 
       await failing;
 
