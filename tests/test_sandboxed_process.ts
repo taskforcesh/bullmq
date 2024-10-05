@@ -1092,7 +1092,7 @@ function sandboxProcessTests(
       });
     });
 
-    it('should remove exited process', async () => {
+    it('should release exited process', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_exit.js';
 
       const worker = new Worker(queueName, processFile, {
@@ -1114,7 +1114,7 @@ function sandboxProcessTests(
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               0,
             );
-            expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+            expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
             resolve();
           } catch (err) {
             reject(err);
@@ -1139,7 +1139,10 @@ function sandboxProcessTests(
       });
 
       // acquire and release a child here so we know it has it's full termination handler setup
-      const initializedChild = await worker['childPool'].retain(processFile);
+      const initializedChild = await worker['childPool'].retain(
+        processFile,
+        () => {},
+      );
       await worker['childPool'].release(initializedChild);
 
       // await this After we've added the job

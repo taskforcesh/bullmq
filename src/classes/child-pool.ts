@@ -27,7 +27,7 @@ export class ChildPool {
     };
   }
 
-  async retain(processFile: string, rejectCb: Function): Promise<Child> {
+  async retain(processFile: string, exitHandler: any): Promise<Child> {
     let child = this.getFree(processFile).pop();
 
     if (child) {
@@ -41,12 +41,7 @@ export class ChildPool {
       workerThreadsOptions: this.opts.workerThreadsOptions,
     });
 
-    child.on('exit', (exitCode: any, signal: any) => {
-      this.remove.bind(this, child);
-      rejectCb(
-        new Error('Unexpected exit code: ' + exitCode + ' signal: ' + signal),
-      );
-    });
+    child.on('exit', exitHandler);
 
     try {
       await child.init();

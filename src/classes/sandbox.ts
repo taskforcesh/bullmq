@@ -11,11 +11,20 @@ const sandbox = <T, R, N extends string>(
   return async function process(job: Job<T, R, N>, token?: string): Promise<R> {
     let child: Child;
     let msgHandler: any;
+    let exitHandler: any;
     try {
       const done: Promise<R> = new Promise((resolve, reject) => {
         const initChild = async () => {
           try {
-            child = await childPool.retain(processFile, reject);
+            exitHandler = (exitCode: any, signal: any) => {
+              reject(
+                new Error(
+                  'Unexpected exit code: ' + exitCode + ' signal: ' + signal,
+                ),
+              );
+            };
+
+            child = await childPool.retain(processFile, exitHandler);
 
             msgHandler = async (msg: ChildMessage) => {
               switch (msg.cmd) {
@@ -66,7 +75,7 @@ const sandbox = <T, R, N extends string>(
     } finally {
       if (child) {
         child.off('message', msgHandler);
-
+        child.off('exit', exitHandler);
         if (child.exitCode !== null || /SIG.*/.test(`${child.signalCode}`)) {
           childPool.remove(child);
         } else {
