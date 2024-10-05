@@ -77,6 +77,40 @@ describe('Sandboxed process using child processes', () => {
 
       await worker.close();
     });
+
+    it('should allow to pass workerForkOptions with timeout', async function () {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      const workerForkOptions = {
+        timeout: 100,
+      } as any;
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads: false,
+        workerForkOptions,
+      });
+
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, error) => {
+          try {
+            expect(error.message).to.be.equal(
+              'Unexpected exit code: null signal: SIGTERM',
+            );
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await failing;
+
+      await worker.close();
+    });
   });
 });
 
@@ -1019,12 +1053,20 @@ function sandboxProcessTests(
         useWorkerThreads,
       });
 
-      const job = await queue.add('test', { exitCode: 1 });
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, error) => {
+          try {
+            expect(error.message).to.be.equal('Broken file processor');
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
 
-      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
-        'Broken file processor',
-      );
+      await queue.add('test', { exitCode: 1 });
 
+      await failing;
       await worker.close();
     });
 
