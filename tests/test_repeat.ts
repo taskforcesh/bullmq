@@ -813,10 +813,10 @@ describe('repeat', function () {
       worker.on('completed', async job => {
         if (prev && counter === 1) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(100);
+          expect(job.processedOn! - prev.timestamp).to.be.gte(100);
         } else if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+          expect(job.processedOn! - prev.timestamp).to.be.gte(2000);
         }
         prev = job;
         counter++;
@@ -876,10 +876,10 @@ describe('repeat', function () {
       worker.on('completed', async job => {
         if (counter === 1) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(delay);
+          expect(job.processedOn! - prev.timestamp).to.be.gte(delay);
         } else if (prev) {
           expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+          expect(job.processedOn! - prev.timestamp).to.be.gte(ONE_DAY);
         }
         prev = job;
 
@@ -1012,7 +1012,7 @@ describe('repeat', function () {
         try {
           if (prev) {
             expect(prev.timestamp).to.be.lt(job.timestamp);
-            expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+            expect(job.processedOn! - prev.timestamp).to.be.gte(ONE_DAY);
           }
           prev = job;
 
@@ -1074,7 +1074,7 @@ describe('repeat', function () {
           try {
             if (prev) {
               expect(prev.timestamp).to.be.lt(job.timestamp);
-              expect(job.timestamp - prev.timestamp).to.be.gte(ONE_DAY);
+              expect(job.processedOn! - prev.timestamp).to.be.gte(ONE_DAY);
             }
             prev = job;
 
@@ -1138,7 +1138,7 @@ describe('repeat', function () {
         try {
           if (prev) {
             expect(prev.timestamp).to.be.lt(job.timestamp);
-            const diff = moment(job.timestamp).diff(
+            const diff = moment(job.processedOn!).diff(
               moment(prev.timestamp),
               'months',
               true,

@@ -1,5 +1,9 @@
 # Repeatable
 
+{% hint style="danger" %}
+Note: from BullMQ version 5.16.0 and onwards, we have deprecated these APIs in favor of ["Job Schedulers"](../job-schedulers/), which provide a more cohesive and more robust API for handling repeatable jobs.
+{% endhint %}
+
 There is a special type of _meta_ job called **repeatable**. These jobs are special in the sense that even though you only add one job to the queue, they will keep repeating according to a predefined schedule.
 
 Adding a job with the `repeat` option set will actually do two things immediately: create a Repeatable Job configuration, and schedule a regular delayed job for the job's first run. This first run will be scheduled "on the hour", that is if you create a job that repeats every 15 minutes at 4:07, the job will first run at 4:15, then 4:30, and so on.
@@ -48,9 +52,9 @@ await myQueue.add(
 
 There are some important considerations regarding repeatable jobs:
 
-* Bull is smart enough not to add the same repeatable job if the repeat options are the same.
-* If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
-* Repeatable jobs can be removed using the [`removeRepeatable`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable) or [`removeRepeatableByKey`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey) methods.
+- Bull is smart enough not to add the same repeatable job if the repeat options are the same.
+- If there are no workers running, repeatable jobs will not accumulate next time a worker is online.
+- Repeatable jobs can be removed using the [`removeRepeatable`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable) or [`removeRepeatableByKey`](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey) methods.
 
 ```typescript
 import { Queue } from 'bullmq';
@@ -61,7 +65,7 @@ const myQueue = new Queue('Paint');
 
 const job1 = await myQueue.add('red', { foo: 'bar' }, { repeat });
 const job2 = await myQueue.add('blue', { foo: 'baz' }, { repeat });
-    
+
 const isRemoved1 = await myQueue.removeRepeatableByKey(job1.repeatJobKey);
 const isRemoved2 = await queue.removeRepeatable('blue', repeat);
 ```
@@ -223,7 +227,6 @@ await myQueue.add(
     },
   },
 );
-
 ```
 
 #### Updating repeatable job's options
@@ -248,6 +251,6 @@ The code above will not create a new repeatable meta job, it will just update th
 
 ### Read more:
 
-* 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/v5.RepeatStrategy.html)
-* 💡 [Remove Repeatable Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable)
-* 💡 [Remove Repeatable Job by Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey)
+- 💡 [Repeat Strategy API Reference](https://api.docs.bullmq.io/types/v5.RepeatStrategy.html)
+- 💡 [Remove Repeatable Job API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatable)
+- 💡 [Remove Repeatable Job by Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRepeatableByKey)

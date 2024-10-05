@@ -11,7 +11,9 @@
 
     Events:
       'removed'
-]] local rcall = redis.call
+]]
+
+local rcall = redis.call
 
 -- Includes
 --- @include "includes/destructureJobKey"

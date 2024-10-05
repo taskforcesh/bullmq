@@ -290,6 +290,8 @@ export class Worker<
         this.childPool = new ChildPool({
           mainFile: mainFilePath,
           useWorkerThreads: this.opts.useWorkerThreads,
+          workerForkOptions: this.opts.workerForkOptions,
+          workerThreadsOptions: this.opts.workerThreadsOptions,
         });
 
         this.processFn = sandbox<DataType, ResultType, NameType>(
