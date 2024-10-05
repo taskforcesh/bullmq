@@ -55,4 +55,3 @@ Since BullMQ supports global pause, one possible strategy, if suitable for your 
 ### Use new queues altogether
 
 This drastic solution involves discontinuing use of older queues and creating new ones. You could rename older queues (e.g., "myQueueV2"), use a new Redis host, or maintain two versions of the service—one running an older BullMQ version with old queues, and a newer one with the latest BullMQ and a different set of queues. When the older version has no more jobs to process, it can be retired, leaving only the upgraded version.
-

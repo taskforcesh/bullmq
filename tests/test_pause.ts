@@ -58,9 +58,8 @@ describe('Pause', function () {
     if (processed) {
       throw new Error('should not process delayed jobs in paused queue.');
     }
-    const counts2 = await queue.getJobCounts('waiting', 'paused', 'delayed');
-    expect(counts2).to.have.property('waiting', 0);
-    expect(counts2).to.have.property('paused', 1);
+    const counts2 = await queue.getJobCounts('waiting', 'delayed');
+    expect(counts2).to.have.property('waiting', 1);
     expect(counts2).to.have.property('delayed', 0);
 
     await worker.close();
@@ -380,7 +379,7 @@ describe('Pause', function () {
       const waitingEvent = new Promise<void>(resolve => {
         queueEvents.on('waiting', async ({ prev }) => {
           if (prev === 'failed') {
-            const count = await queue.getJobCountByTypes('paused');
+            const count = await queue.getJobCountByTypes('wait');
             expect(count).to.be.equal(1);
             await queue.resume();
             resolve();
