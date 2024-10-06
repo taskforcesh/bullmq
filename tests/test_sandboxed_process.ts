@@ -97,7 +97,7 @@ describe('Sandboxed process using child processes', () => {
         worker.on('failed', async (job, error) => {
           try {
             expect(error.message).to.be.equal(
-              'Unexpected exit code: null signal: SIGTERM',
+              'Unexpected exit code: 0 signal: null',
             );
             resolve();
           } catch (err) {
