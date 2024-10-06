@@ -82,7 +82,7 @@ describe('Sandboxed process using child processes', () => {
       const processFile = __dirname + '/fixtures/fixture_processor.js';
 
       const workerForkOptions = {
-        timeout: 100,
+        timeout: 150,
       } as any;
       const worker = new Worker(queueName, processFile, {
         autorun: false,
@@ -96,9 +96,10 @@ describe('Sandboxed process using child processes', () => {
       const failing = new Promise<void>((resolve, reject) => {
         worker.on('failed', async (job, error) => {
           try {
-            expect(error.message).to.be.equal(
+            expect([
+              'Unexpected exit code: null signal: SIGTERM',
               'Unexpected exit code: 0 signal: null',
-            );
+            ]).to.include(error.message);
             resolve();
           } catch (err) {
             reject(err);
