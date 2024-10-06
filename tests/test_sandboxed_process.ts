@@ -82,7 +82,7 @@ describe('Sandboxed process using child processes', () => {
       const processFile = __dirname + '/fixtures/fixture_processor.js';
 
       const workerForkOptions = {
-        timeout: 150,
+        timeout: 250,
       } as any;
       const worker = new Worker(queueName, processFile, {
         autorun: false,
