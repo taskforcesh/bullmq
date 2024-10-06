@@ -1,6 +1,6 @@
 # Repeat Strategies
 
-BullMQ comes with two predefined strategies for creating repeatable jobs. The ‘every’ strategy is straightforward, allowing you to schedule jobs to repeat at specific intervals, measured in seconds. The more complex ‘cron’ strategy uses cron expressions, as defined by the  [cron-parser](https://www.npmjs.com/package/cron-parser) to schedule jobs in intricate patterns. Additionally, BullMQ lets you create custom strategies, giving you the flexibility to define your own logic for setting job intervals.
+BullMQ comes with two predefined strategies for creating repeatable jobs. The ‘every’ strategy is straightforward, allowing you to schedule jobs to repeat at specific intervals, measured in seconds. The more complex ‘cron’ strategy uses cron expressions, as defined by the [cron-parser](https://www.npmjs.com/package/cron-parser) to schedule jobs in intricate patterns. Additionally, BullMQ lets you create custom strategies, giving you the flexibility to define your own logic for setting job intervals.
 
 ### "Every" strategy
 
@@ -11,24 +11,32 @@ const { Queue, Worker } = require('bullmq');
 
 const connection = {
   host: 'localhost',
-  port: 6379
+  port: 6379,
 };
 
 const myQueue = new Queue('my-repeatable-jobs', { connection });
 
 // Upserting a repeatable job in the queue
-await myQueue.upsertJobScheduler('repeat-every-10s', {
-  every: 10000  // Job will repeat every 10000 milliseconds (10 seconds)
-}, {
-  name: 'every-job',
-  data: { jobData: 'data' },
-  opts: {}  // Optional additional job options
-});
+await myQueue.upsertJobScheduler(
+  'repeat-every-10s',
+  {
+    every: 10000, // Job will repeat every 10000 milliseconds (10 seconds)
+  },
+  {
+    name: 'every-job',
+    data: { jobData: 'data' },
+    opts: {}, // Optional additional job options
+  },
+);
 
 // Worker to process the jobs
-const worker = new Worker('my-repeatable-jobs', async job => {
-  console.log(`Processing job ${job.id} with data: ${job.data.jobData}`);
-}, { connection });
+const worker = new Worker(
+  'my-repeatable-jobs',
+  async job => {
+    console.log(`Processing job ${job.id} with data: ${job.data.jobData}`);
+  },
+  { connection },
+);
 ```
 
 ### "Cron" strategy
@@ -62,29 +70,41 @@ const { Queue, Worker } = require('bullmq');
 
 const connection = {
   host: 'localhost',
-  port: 6379
+  port: 6379,
 };
 
 const myQueue = new Queue('my-cron-jobs', { connection });
 
 // Upserting a job with a cron expression
-await myQueue.upsertJobScheduler('weekday-morning-job', {
-  cron: '0 0 9 * * 1-5'  // Runs at 9:00 AM every Monday to Friday
-}, {
-  name: 'cron-job',
-  data: { jobData: 'morning data' },
-  opts: {}  // Optional additional job options
-});
+await myQueue.upsertJobScheduler(
+  'weekday-morning-job',
+  {
+    cron: '0 0 9 * * 1-5', // Runs at 9:00 AM every Monday to Friday
+  },
+  {
+    name: 'cron-job',
+    data: { jobData: 'morning data' },
+    opts: {}, // Optional additional job options
+  },
+);
 
 // Worker to process the jobs
-const worker = new Worker('my-cron-jobs', async job => {
-  console.log(`Processing job ${job.id} at ${new Date()} with data: ${job.data.jobData}`);
-}, { connection });
+const worker = new Worker(
+  'my-cron-jobs',
+  async job => {
+    console.log(
+      `Processing job ${job.id} at ${new Date()} with data: ${
+        job.data.jobData
+      }`,
+    );
+  },
+  { connection },
+);
 ```
 
 ### Custom Strategy
 
-It is possible to define a different strategy to schedule repeatable jobs. The idea is that the repeat strategy, based on a pattern and the latest job's milliseconds, return the next desired timestamp. Although not used in the following example,  you could have different behaviours on your repeat strategies based on the current job's name if you want to. However not that **only** **one** repeatStrategy can be defined for a given queue.
+It is possible to define a different strategy to schedule repeatable jobs. The idea is that the repeat strategy, based on a pattern and the latest job's milliseconds, return the next desired timestamp. Although not used in the following example, you could have different behaviours on your repeat strategies based on the current job's name if you want to. However not that **only** **one** repeatStrategy can be defined for a given queue.
 
 For example we can create a custom one for [RRULE](https://jkbrzt.github.io/rrule/) like this:
 
@@ -98,9 +118,9 @@ const settings = {
       opts.startDate && new Date(opts.startDate) > new Date(millis)
         ? new Date(opts.startDate)
         : new Date(millis);
-    
+
     const rrule = rrulestr(opts.pattern);
-    
+
     if (rrule.origOptions.count && !rrule.origOptions.dtstart) {
       throw new Error('DTSTART must be defined to use COUNT with rrule');
     }
@@ -130,7 +150,7 @@ await myQueue.upsertJobScheduler(
     pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=20;WKST=MO',
   },
   {
-    data: { color: 'gray' }
+    data: { color: 'gray' },
   },
 );
 

@@ -9,7 +9,9 @@ The removeJobScheduler method is designed to delete a specific job scheduler fro
 ```typescript
 // Remove a job scheduler with ID 'scheduler-123'
 const result = await queue.removeJobScheduler('scheduler-123');
-console.log(result ? 'Scheduler removed successfully' : 'Failed to remove scheduler');
+console.log(
+  result ? 'Scheduler removed successfully' : 'Failed to remove scheduler',
+);
 ```
 
 #### Get Job Schedulers
@@ -23,4 +25,3 @@ console.log('Current job schedulers:', schedulers);
 ```
 
 This method can be particularly useful for generating reports or dashboards that provide insights into when jobs are scheduled to run, aiding in system monitoring and troubleshooting.
-
