@@ -30,7 +30,7 @@
   - [LIFO](guide/jobs/lifo.md)
   - [Job Ids](guide/jobs/job-ids.md)
   - [Job Data](guide/jobs/job-data.md)
-  - [Debouncing](guide/jobs/debouncing.md)
+  - [Deduplication](guide/jobs/deduplication.md)
   - [Delayed](guide/jobs/delayed.md)
   - [Repeatable](guide/jobs/repeatable.md)
   - [Prioritized](guide/jobs/prioritized.md)

@@ -188,7 +188,7 @@ export class Scripts {
       parentOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
-      job.debounceId ? `${queueKeys.de}:${job.debounceId}` : null,
+      job.deduplicationId ? `${queueKeys.de}:${job.deduplicationId}` : null,
     ];
 
     let encodedOpts;
