@@ -1,8 +1,7 @@
-import { parseExpression } from 'cron-parser';
 import { RedisClient, RepeatBaseOptions, RepeatOptions } from '../interfaces';
 import { JobsOptions, RepeatStrategy } from '../types';
+import { getNextMillis } from '../utils';
 import { Job } from './job';
-import { Scripts } from './scripts';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
@@ -64,7 +63,7 @@ export class JobScheduler extends QueueBase {
     const hasImmediately = Boolean(
       (every || pattern) && repeatOpts.immediately,
     );
-    const offset = hasImmediately && every ? now - nextMillis : undefined;
+    //const offset = hasImmediately && every ? now - nextMillis : undefined;
     if (nextMillis) {
       if (override) {
         await this.scripts.addJobScheduler(jobSchedulerId, nextMillis, {
@@ -87,7 +86,7 @@ export class JobScheduler extends QueueBase {
         jobName,
         nextMillis,
         jobSchedulerId,
-        { ...opts, repeat: { offset, ...filteredRepeatOpts } },
+        { ...opts, repeat: { ...filteredRepeatOpts } },
         jobData,
         iterationCount,
         hasImmediately,
@@ -210,41 +209,3 @@ export class JobScheduler extends QueueBase {
     return `repeat:${jobSchedulerId}:${nextMillis}`;
   }
 }
-
-export const getNextMillis = (
-  millis: number,
-  opts: RepeatOptions,
-): number | undefined => {
-  const pattern = opts.pattern;
-  if (pattern && opts.every) {
-    throw new Error(
-      'Both .pattern and .every options are defined for this repeatable job',
-    );
-  }
-
-  if (opts.every) {
-    return (
-      Math.floor(millis / opts.every) * opts.every +
-      (opts.immediately ? 0 : opts.every)
-    );
-  }
-
-  const currentDate =
-    opts.startDate && new Date(opts.startDate) > new Date(millis)
-      ? new Date(opts.startDate)
-      : new Date(millis);
-  const interval = parseExpression(pattern, {
-    ...opts,
-    currentDate,
-  });
-
-  try {
-    if (opts.immediately) {
-      return new Date().getTime();
-    } else {
-      return interval.next().getTime();
-    }
-  } catch (e) {
-    // Ignore error
-  }
-};

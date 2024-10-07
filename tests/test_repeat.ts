@@ -4,16 +4,13 @@ import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { rrulestr } from 'rrule';
-import {
-  Job,
-  Queue,
-  QueueEvents,
-  Repeat,
-  getNextMillis,
-  Worker,
-} from '../src/classes';
+import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { removeAllQueueData, finishedErrors } from '../src/utils';
+import {
+  removeAllQueueData,
+  finishedErrors,
+  getNextMillis,
+} from '../src/utils';
 import {
   createRepeatableJobKey,
   extractRepeatableJobChecksumFromRedisKey,

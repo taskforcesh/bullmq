@@ -38,6 +38,9 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
    */
   count?: number;
   prevMillis?: number;
+  /**
+   * @deprecated
+   */
   offset?: number;
   jobId?: string;
 }

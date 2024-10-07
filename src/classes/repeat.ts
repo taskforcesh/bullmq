@@ -1,4 +1,3 @@
-import { parseExpression } from 'cron-parser';
 import { createHash } from 'crypto';
 import {
   RedisClient,
@@ -10,6 +9,7 @@ import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
+import { getNextMillis } from '../utils';
 
 export class Repeat extends QueueBase {
   private repeatStrategy: RepeatStrategy;
@@ -65,7 +65,7 @@ export class Repeat extends QueueBase {
     const hasImmediately = Boolean(
       (every || pattern) && repeatOpts.immediately,
     );
-    const offset = hasImmediately && every ? now - nextMillis : undefined;
+    //const offset = hasImmediately && every ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
       if (!prevMillis && opts.jobId) {
@@ -106,7 +106,7 @@ export class Repeat extends QueueBase {
         name,
         nextMillis,
         repeatJobKey,
-        { ...opts, repeat: { offset, ...filteredRepeatOpts } },
+        { ...opts, repeat: { ...filteredRepeatOpts } },
         data,
         iterationCount,
         hasImmediately,
@@ -129,8 +129,7 @@ export class Repeat extends QueueBase {
     const jobId = this.getRepeatJobKey(name, nextMillis, repeatJobKey, data);
 
     const now = Date.now();
-    const delay =
-      nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
+    const delay = nextMillis - now;
 
     const mergedOpts = {
       ...opts,
@@ -310,38 +309,3 @@ function getRepeatConcatOptions(name: string, repeat: RepeatOptions) {
 
   return `${name}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
-
-export const getNextMillis = (
-  millis: number,
-  opts: RepeatOptions,
-): number | undefined => {
-  const pattern = opts.pattern;
-  if (pattern && opts.every) {
-    throw new Error(
-      'Both .pattern and .every options are defined for this repeatable job',
-    );
-  }
-
-  if (opts.immediately) {
-    return new Date().getTime();
-  }
-
-  if (opts.every) {
-    return Math.floor(millis / opts.every) * opts.every + opts.every;
-  }
-
-  const currentDate =
-    opts.startDate && new Date(opts.startDate) > new Date(millis)
-      ? new Date(opts.startDate)
-      : new Date(millis);
-  const interval = parseExpression(pattern, {
-    ...opts,
-    currentDate,
-  });
-
-  try {
-    return interval.next().getTime();
-  } catch (e) {
-    // Ignore error
-  }
-};
