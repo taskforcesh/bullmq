@@ -13,7 +13,7 @@ import {
   Worker,
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { removeAllQueueData, delay, finishedErrors } from '../src/utils';
+import { removeAllQueueData, finishedErrors } from '../src/utils';
 import {
   createRepeatableJobKey,
   extractRepeatableJobChecksumFromRedisKey,

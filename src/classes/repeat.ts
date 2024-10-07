@@ -322,11 +322,12 @@ export const getNextMillis = (
     );
   }
 
+  if (opts.immediately) {
+    return new Date().getTime();
+  }
+
   if (opts.every) {
-    return (
-      Math.floor(millis / opts.every) * opts.every +
-      (opts.immediately ? 0 : opts.every)
-    );
+    return Math.floor(millis / opts.every) * opts.every + opts.every;
   }
 
   const currentDate =
@@ -339,11 +340,7 @@ export const getNextMillis = (
   });
 
   try {
-    if (opts.immediately) {
-      return new Date().getTime();
-    } else {
-      return interval.next().getTime();
-    }
+    return interval.next().getTime();
   } catch (e) {
     // Ignore error
   }
