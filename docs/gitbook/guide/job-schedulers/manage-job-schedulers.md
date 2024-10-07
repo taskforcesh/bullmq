@@ -10,9 +10,11 @@ The removeJobScheduler method is designed to delete a specific job scheduler fro
 // Remove a job scheduler with ID 'scheduler-123'
 const result = await queue.removeJobScheduler('scheduler-123');
 console.log(
-  result ? 'Scheduler removed successfully' : 'Failed to remove scheduler',
+  result ? 'Scheduler removed successfully' : 'Missing Job Scheduler',
 );
 ```
+
+The method will return true if there was a Job Scheduler to remove with the given ID, or false if there wasn't any.
 
 #### Get Job Schedulers
 
