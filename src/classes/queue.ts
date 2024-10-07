@@ -485,12 +485,21 @@ export class Queue<
    *
    * @param id - identifier
    */
-    async removeDeduplicationKey(id: string): Promise<number> {
-      const client = await this.client;
-  
-      return client.del(`${this.keys.de}:${id}`);
-    }
-  
+  async removeDeduplicationKey(id: string): Promise<number> {
+    const client = await this.client;
+
+    return client.del(`${this.keys.de}:${id}`);
+  }
+
+  /**
+   * Removes rate limit key.
+   */
+  async removeRateLimitKey(): Promise<number> {
+    const client = await this.client;
+
+    return client.del(this.keys.limiter);
+  }
+
   /**
    * Removes a repeatable job by its key. Note that the key is the one used
    * to store the repeatable job metadata and not one of the job iterations
