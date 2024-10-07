@@ -295,18 +295,13 @@ export const getNextMillis = (
   millis: number,
   opts: RepeatOptions,
 ): number | undefined => {
-  const pattern = opts.pattern;
-  if (pattern && opts.every) {
-    throw new Error(
-      'Both .pattern and .every options are defined for this repeatable job',
-    );
-  }
+  const { every, pattern } = opts;
 
   if (opts.immediately) {
     return new Date().getTime();
   }
 
-  if (opts.every) {
+  if (every) {
     return Math.floor(millis / opts.every) * opts.every + opts.every;
   }
 
