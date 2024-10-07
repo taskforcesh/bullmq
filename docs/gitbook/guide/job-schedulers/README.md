@@ -12,16 +12,18 @@ To create a scheduler, simply use the "upsertJobScheduler" method as demonstrate
 
 ```typescript
 // Creates a new Job Scheduler that generates a job every 1000 milliseconds (1 second)
-const firstJob = await queue.upsertJobScheduler("my-scheduler-id", { every: 1000 });
+const firstJob = await queue.upsertJobScheduler('my-scheduler-id', {
+  every: 1000,
+});
 ```
 
 This example will create a new Job Scheduler that will produce a new job every second. It will also return the first job created for this Job Scheduler, which will be in "delayed" status waiting to be processed after 1 second.
 
 Now there are also a few important considerations that need to be explained here.:
 
-* **Upsert vs. Add:** the 'upsert' is used instead of 'add' to simplify management of recurring jobs, especially in production deployments. It ensures the scheduler is updated or created without duplications.
-* **Job Production Rate:** The scheduler will only generate new jobs when the last job begins processing. Therefore, if your queue is very busy, or if you do not have enough workers or concurrency, it is possible that you will get the jobs less frequently than the specified  repetition interval.
-* **Job Status:**  As long as a Job Scheduler is producing jobs, there will be always one job associated to the scheduler in the "Delayed" status.
+- **Upsert vs. Add:** the 'upsert' is used instead of 'add' to simplify management of recurring jobs, especially in production deployments. It ensures the scheduler is updated or created without duplications.
+- **Job Production Rate:** The scheduler will only generate new jobs when the last job begins processing. Therefore, if your queue is very busy, or if you do not have enough workers or concurrency, it is possible that you will get the jobs less frequently than the specified repetition interval.
+- **Job Status:** As long as a Job Scheduler is producing jobs, there will be always one job associated to the scheduler in the "Delayed" status.
 
 ### Using Job Templates
 
@@ -30,21 +32,21 @@ You can also define a template with standard names, data, and options for jobs a
 ```typescript
 // Create jobs every day at 3:15 (am)
 const firstJob = await queue.upsertJobScheduler(
-  "my-scheduler-id",
+  'my-scheduler-id',
   { pattern: '0 15 3 * * *' },
   {
-    name: "my-job-name",
-    data: { foo: "bar" },
+    name: 'my-job-name',
+    data: { foo: 'bar' },
     opts: {
       backoff: 3,
       attempts: 5,
-      removeOnFail: 1000
+      removeOnFail: 1000,
     },
-  });
- 
+  },
+);
 ```
 
-All jobs produced by this scheduler will use the given settings. Note that in the future you could call "upsertJobScheduler" again  with the given "my-scheduler-id" in order to update any settings of this particular job scheduler, such as the repeat options or/and the job's template settings.
+All jobs produced by this scheduler will use the given settings. Note that in the future you could call "upsertJobScheduler" again with the given "my-scheduler-id" in order to update any settings of this particular job scheduler, such as the repeat options or/and the job's template settings.
 
 {% hint style="info" %}
 Since jobs produced by the Job Scheduler will get a special job ID in order to guarantee that jobs will never be created more often than the given repeat settings, you cannot choose a custom job id. However you can use the job's name if you need to discriminate these jobs from other jobs.
