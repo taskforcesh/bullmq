@@ -1365,8 +1365,6 @@ describe('Job Scheduler', function () {
     const job = delayed[0];
     try {
       await job.remove();
-      const delayed = await queue.getDelayed();
-      console.log({ delayed });
       expect.fail(
         'Should not be able to remove a delayed job that belongs to a repeatable job',
       );
@@ -1546,6 +1544,69 @@ describe('Job Scheduler', function () {
     delayStub.restore();
   });
 
+  it('should repeat every 2 seconds with a startDate in the future', async function () {
+    this.timeout(10000);
+
+    // Set the initial system time
+    const initialDate = new Date('2024-01-01 10:00:00');
+    this.clock.setSystemTime(initialDate);
+
+    // Set the next tick (repeat interval) and the startDate in the future
+    const nextTick = 2 * ONE_SECOND + 500;
+    const startDate = new Date('2024-01-01 10:00:10'); // 10 seconds in the future
+
+    const worker = new Worker(
+      queueName,
+      async () => {
+        this.clock.tick(nextTick);
+      },
+      { autorun: false, connection, prefix },
+    );
+    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
+
+    // Schedule the job with the 'every' interval and a future startDate
+    await queue.upsertJobScheduler(
+      'test',
+      {
+        every: 2000, // every 2 seconds
+        startDate,
+      },
+      { data: { foo: 'bar' } },
+    );
+
+    // Simulate the passage of time up to the startDate
+    const startDateDelay = startDate.getTime() - initialDate.getTime();
+    this.clock.tick(startDateDelay + nextTick);
+
+    let prev: Job;
+    let counter = 0;
+
+    // Promise to resolve when 5 iterations of the job are completed
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.on('completed', async job => {
+        try {
+          if (prev) {
+            expect(prev.timestamp).to.be.lt(job.timestamp);
+            expect(job.timestamp - prev.timestamp).to.be.gte(2000); // Ensure it's repeating every 2 seconds
+          }
+          prev = job;
+          counter++;
+          if (counter == 5) {
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    worker.run();
+
+    await completing;
+    await worker.close();
+    delayStub.restore();
+  });
+
   it('should throw an error when using .pattern and .every simultaneously', async function () {
     await expect(
       queue.upsertJobScheduler('repeat', {
@@ -1554,6 +1615,18 @@ describe('Job Scheduler', function () {
       }),
     ).to.be.rejectedWith(
       'Both .pattern and .every options are defined for this repeatable job',
+    );
+  });
+
+  it('should throw an error when using .immediately and .startDate simultaneously', async function () {
+    await expect(
+      queue.upsertJobScheduler('repeat', {
+        every: 5000,
+        immediately: true,
+        startDate: new Date(),
+      }),
+    ).to.be.rejectedWith(
+      'Both .immediately and .startDate options are defined for this repeatable job',
     );
   });
 
