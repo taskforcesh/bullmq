@@ -29,6 +29,7 @@ import {
   lengthInUtf8Bytes,
   parseObjectValues,
   tryCatch,
+  finishedErrors,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts, raw2NextJobData } from './scripts';
@@ -38,12 +39,15 @@ import type { QueueEvents } from './queue-events';
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
-  de: 'debounce',
+  de: 'deduplication',
   ocf: 'onChildFailure',
+  fpof: 'failParentOnFailure',
+  idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
 };
 
 const optsEncodeMap = invertObject(optsDecodeMap);
+optsEncodeMap.debounce = 'de';
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -137,8 +141,14 @@ export class Job<
 
   /**
    * Debounce identifier.
+   * @deprecated use deduplicationId
    */
   debounceId?: string;
+
+  /**
+   * Deduplication identifier.
+   */
+  deduplicationId?: string;
 
   /**
    * Base repeat job key.
@@ -204,6 +214,7 @@ export class Job<
       : undefined;
 
     this.debounceId = opts.debounce ? opts.debounce.id : undefined;
+    this.deduplicationId = opts.deduplication ? opts.deduplication.id : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
     this.setScripts();
@@ -330,6 +341,7 @@ export class Job<
 
     if (json.deid) {
       job.debounceId = json.deid;
+      job.deduplicationId = json.deid;
     }
 
     job.failedReason = json.failedReason;
@@ -456,6 +468,7 @@ export class Job<
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
       debounceId: this.debounceId,
+      deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     };
@@ -724,7 +737,7 @@ export class Job<
 
     const result = results[results.length - 1][1] as number;
     if (result < 0) {
-      throw this.scripts.finishedErrors({
+      throw finishedErrors({
         code: result,
         jobId: this.id,
         command,

@@ -62,19 +62,20 @@ export class Repeat extends QueueBase {
     const hasImmediately = Boolean(
       (every || pattern) && repeatOpts.immediately,
     );
-    const offset = (hasImmediately && every) ? now - nextMillis : undefined;
+    const offset = hasImmediately && every ? now - nextMillis : undefined;
     if (nextMillis) {
       // We store the undecorated opts.jobId into the repeat options
       if (!prevMillis && opts.jobId) {
         repeatOpts.jobId = opts.jobId;
       }
 
-      const repeatConcatOptions = getRepeatConcatOptions(name, repeatOpts);
+      const legacyRepeatKey = getRepeatConcatOptions(name, repeatOpts);
+      const newRepeatKey = opts.repeat.key ?? this.hash(legacyRepeatKey);
 
       let repeatJobKey;
       if (override) {
         repeatJobKey = await this.scripts.addRepeatableJob(
-          opts.repeat.key ?? this.hash(repeatConcatOptions),
+          newRepeatKey,
           nextMillis,
           {
             name,
@@ -83,32 +84,30 @@ export class Repeat extends QueueBase {
             pattern,
             every,
           },
-          repeatConcatOptions,
+          legacyRepeatKey,
         );
       } else {
         const client = await this.client;
 
         repeatJobKey = await this.scripts.updateRepeatableJobMillis(
           client,
-          opts.repeat.key ?? this.hash(repeatConcatOptions),
+          newRepeatKey,
           nextMillis,
-          repeatConcatOptions,
+          legacyRepeatKey,
         );
       }
 
-      if (repeatJobKey) {
-        const { immediately, ...filteredRepeatOpts } = repeatOpts;
+      const { immediately, ...filteredRepeatOpts } = repeatOpts;
 
-        return this.createNextJob<T, R, N>(
-          name,
-          nextMillis,
-          repeatJobKey,
-          { ...opts, repeat: { offset, ...filteredRepeatOpts } },
-          data,
-          iterationCount,
-          hasImmediately,
-        );
-      }
+      return this.createNextJob<T, R, N>(
+        name,
+        nextMillis,
+        repeatJobKey,
+        { ...opts, repeat: { offset, ...filteredRepeatOpts } },
+        data,
+        iterationCount,
+        hasImmediately,
+      );
     }
   }
 
@@ -337,7 +336,7 @@ export const getNextMillis = (
   });
 
   try {
-    if(opts.immediately){
+    if (opts.immediately) {
       return new Date().getTime();
     } else {
       return interval.next().getTime();
