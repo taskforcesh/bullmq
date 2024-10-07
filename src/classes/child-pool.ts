@@ -27,7 +27,7 @@ export class ChildPool {
     };
   }
 
-  async retain(processFile: string): Promise<Child> {
+  async retain(processFile: string, exitHandler: any): Promise<Child> {
     let child = this.getFree(processFile).pop();
 
     if (child) {
@@ -40,7 +40,8 @@ export class ChildPool {
       workerForkOptions: this.opts.workerForkOptions,
       workerThreadsOptions: this.opts.workerThreadsOptions,
     });
-    child.on('exit', this.remove.bind(this, child));
+
+    child.on('exit', exitHandler);
 
     try {
       await child.init();

@@ -77,6 +77,44 @@ describe('Sandboxed process using child processes', () => {
 
       await worker.close();
     });
+
+    it('should allow to pass workerForkOptions with timeout', async function () {
+      const processFile = __dirname + '/fixtures/fixture_processor.js';
+
+      const workerForkOptions = {
+        timeout: 50,
+      } as any;
+      const worker = new Worker(queueName, processFile, {
+        autorun: false,
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads: false,
+        workerForkOptions,
+      });
+
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, error) => {
+          try {
+            expect([
+              'Unexpected exit code: null signal: SIGTERM',
+              'Unexpected exit code: 0 signal: null',
+            ]).to.include(error.message);
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      worker.run();
+
+      await failing;
+
+      await worker.close();
+    });
   });
 });
 
@@ -1019,12 +1057,20 @@ function sandboxProcessTests(
         useWorkerThreads,
       });
 
-      const job = await queue.add('test', { exitCode: 1 });
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, error) => {
+          try {
+            expect(error.message).to.be.equal('Broken file processor');
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
 
-      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
-        'Broken file processor',
-      );
+      await queue.add('test', { exitCode: 1 });
 
+      await failing;
       await worker.close();
     });
 
@@ -1050,7 +1096,7 @@ function sandboxProcessTests(
       });
     });
 
-    it('should remove exited process', async () => {
+    it('should release exited process', async () => {
       const processFile = __dirname + '/fixtures/fixture_processor_exit.js';
 
       const worker = new Worker(queueName, processFile, {
@@ -1072,7 +1118,7 @@ function sandboxProcessTests(
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               0,
             );
-            expect(worker['childPool'].getAllFree()).to.have.lengthOf(0);
+            expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
             resolve();
           } catch (err) {
             reject(err);
@@ -1097,7 +1143,10 @@ function sandboxProcessTests(
       });
 
       // acquire and release a child here so we know it has it's full termination handler setup
-      const initializedChild = await worker['childPool'].retain(processFile);
+      const initializedChild = await worker['childPool'].retain(
+        processFile,
+        () => {},
+      );
       await worker['childPool'].release(initializedChild);
 
       // await this After we've added the job
