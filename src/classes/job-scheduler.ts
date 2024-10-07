@@ -131,8 +131,7 @@ export class JobScheduler extends QueueBase {
     });
 
     const now = Date.now();
-    const delay =
-      nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
+    const delay = nextMillis - now;
 
     const mergedOpts = {
       ...opts,
