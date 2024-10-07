@@ -751,6 +751,77 @@ describe('Job Scheduler', function () {
     delayStub.restore();
   });
 
+  it('should start immediately even after removing the job scheduler and adding it again', async function () {
+    const date = new Date('2017-02-07 9:24:00');
+    this.clock.setSystemTime(date);
+    const nextTick = 2 * ONE_SECOND;
+
+    let worker: Worker;
+    const processing1 = new Promise<void>((resolve, reject) => {
+      worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          this.clock.tick(nextTick);
+
+          try {
+            expect(job.opts.delay).to.be.eq(0);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        },
+        { connection, prefix },
+      );
+    });
+
+    await queue.upsertJobScheduler(
+      'repeat',
+      {
+        every: 2000,
+        immediately: true,
+      },
+      { data: { foo: 'bar' } },
+    );
+
+    this.clock.tick(1265);
+
+    await processing1;
+
+    await worker!.close();
+
+    await queue.removeJobScheduler('repeat');
+
+    const processing2 = new Promise<void>((resolve, reject) => {
+      worker = new Worker(
+        queueName,
+        async (job: Job) => {
+          this.clock.tick(nextTick);
+
+          try {
+            expect(job.opts.delay).to.be.eq(0);
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        },
+        { connection, prefix },
+      );
+    });
+
+    await queue.upsertJobScheduler(
+      'repeat',
+      {
+        every: 2000,
+        immediately: true,
+      },
+      { data: { foo: 'bar' } },
+    );
+
+    await processing2;
+
+    await worker!.close();
+  });
+
   it('should repeat once a day for 5 days and start immediately using endDate', async function () {
     this.timeout(8000);
 
