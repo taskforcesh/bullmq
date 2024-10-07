@@ -38,6 +38,20 @@ export class JobScheduler extends QueueBase {
     opts: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>,
     { override }: { override: boolean },
   ): Promise<Job<T, R, N> | undefined> {
+    const { every, pattern } = repeatOpts;
+
+    if (pattern && every) {
+      throw new Error(
+        'Both .pattern and .every options are defined for this repeatable job',
+      );
+    }
+
+    if (repeatOpts.immediately && repeatOpts.startDate) {
+      throw new Error(
+        'Both .immediately and .startDate options are defined for this repeatable job',
+      );
+    }
+
     // Check if we reached the limit of the repeatable job's iterations
     const iterationCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
     if (
@@ -57,8 +71,14 @@ export class JobScheduler extends QueueBase {
     const prevMillis = opts.prevMillis || 0;
     now = prevMillis < now ? now : prevMillis;
 
+    // Check if we have a start date for the repeatable job
+    const { startDate } = repeatOpts;
+    if (startDate) {
+      const startMillis = new Date(startDate).getTime();
+      now = startMillis > now ? startMillis : now;
+    }
+
     const nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
-    const { every, pattern } = repeatOpts;
 
     const hasImmediately = Boolean(
       (every || pattern) && repeatOpts.immediately,
