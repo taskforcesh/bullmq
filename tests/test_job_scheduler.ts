@@ -1136,11 +1136,8 @@ describe('Job Scheduler', function () {
         counter++;
         try {
           if (counter == numJobs) {
-            const removed = await queue.removeJobScheduler('remove');
-            //expect(removed).to.be.true;
+            await queue.removeJobScheduler('remove');
             this.clock.tick(nextTick);
-            //const delayed = await queue.getDelayed();
-            //expect(delayed).to.be.empty;
             resolve();
           } else if (counter > numJobs) {
             reject(Error(`should not repeat more than ${numJobs} times`));

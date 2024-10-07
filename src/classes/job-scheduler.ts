@@ -63,7 +63,6 @@ export class JobScheduler extends QueueBase {
     const hasImmediately = Boolean(
       (every || pattern) && repeatOpts.immediately,
     );
-    //const offset = hasImmediately && every ? now - nextMillis : undefined;
     if (nextMillis) {
       if (override) {
         await this.scripts.addJobScheduler(jobSchedulerId, nextMillis, {
