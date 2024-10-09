@@ -1103,7 +1103,7 @@ describe('Job Scheduler', function () {
         try {
           if (prev) {
             expect(prev.timestamp).to.be.lt(job.timestamp);
-            const diff = moment(job.timestamp).diff(
+            const diff = moment(job.processedOn!).diff(
               moment(prev.timestamp),
               'months',
               true,
