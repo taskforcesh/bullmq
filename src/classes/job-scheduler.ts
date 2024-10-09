@@ -2,7 +2,6 @@ import { parseExpression } from 'cron-parser';
 import { RedisClient, RepeatBaseOptions, RepeatOptions } from '../interfaces';
 import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
-import { Scripts } from './scripts';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 
@@ -39,6 +38,20 @@ export class JobScheduler extends QueueBase {
     opts: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>,
     { override }: { override: boolean },
   ): Promise<Job<T, R, N> | undefined> {
+    const { every, pattern } = repeatOpts;
+
+    if (pattern && every) {
+      throw new Error(
+        'Both .pattern and .every options are defined for this repeatable job',
+      );
+    }
+
+    if (repeatOpts.immediately && repeatOpts.startDate) {
+      throw new Error(
+        'Both .immediately and .startDate options are defined for this repeatable job',
+      );
+    }
+
     // Check if we reached the limit of the repeatable job's iterations
     const iterationCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
     if (
@@ -58,8 +71,14 @@ export class JobScheduler extends QueueBase {
     const prevMillis = opts.prevMillis || 0;
     now = prevMillis < now ? now : prevMillis;
 
+    // Check if we have a start date for the repeatable job
+    const { startDate } = repeatOpts;
+    if (startDate) {
+      const startMillis = new Date(startDate).getTime();
+      now = startMillis > now ? startMillis : now;
+    }
+
     const nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
-    const { every, pattern } = repeatOpts;
 
     const hasImmediately = Boolean(
       (every || pattern) && repeatOpts.immediately,
@@ -215,24 +234,13 @@ export const getNextMillis = (
   millis: number,
   opts: RepeatOptions,
 ): number | undefined => {
-  const pattern = opts.pattern;
-  if (pattern && opts.every) {
-    throw new Error(
-      'Both .pattern and .every options are defined for this repeatable job',
-    );
+  const { every, pattern } = opts;
+
+  if (every) {
+    return Math.floor(millis / every) * every + (opts.immediately ? 0 : every);
   }
 
-  if (opts.every) {
-    return (
-      Math.floor(millis / opts.every) * opts.every +
-      (opts.immediately ? 0 : opts.every)
-    );
-  }
-
-  const currentDate =
-    opts.startDate && new Date(opts.startDate) > new Date(millis)
-      ? new Date(opts.startDate)
-      : new Date(millis);
+  const currentDate = new Date(millis);
   const interval = parseExpression(pattern, {
     ...opts,
     currentDate,
