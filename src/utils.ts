@@ -213,13 +213,7 @@ export const parseObjectValues = (obj: {
 };
 
 export const errorToJSON = (value: any): Record<string, any> => {
-  const error: Record<string, any> = {};
-
-  Object.getOwnPropertyNames(value).forEach(function (propName: string) {
-    error[propName] = value[propName];
-  });
-
-  return error;
+  return JSON.parse(JSON.stringify(value, Object.getOwnPropertyNames(value)));
 };
 
 const INFINITY = 1 / 0;
