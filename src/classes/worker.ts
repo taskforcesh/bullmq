@@ -36,6 +36,7 @@ import {
   WaitingChildrenError,
 } from './errors';
 import { SpanKind, TelemetryAttributes } from '../enums';
+import { JobScheduler } from './job-scheduler';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
 const maximumBlockTimeout = 10;
@@ -185,7 +186,9 @@ export class Worker<
   private resumeWorker: () => void;
   private stalledCheckTimer: NodeJS.Timeout;
   private waiting: Promise<number> | null = null;
-  private _repeat: Repeat;
+  private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
+
+  private _jobScheduler: JobScheduler;
 
   protected paused: Promise<void>;
   protected processFn: Processor<DataType, ResultType, NameType>;
@@ -288,6 +291,8 @@ export class Worker<
         this.childPool = new ChildPool({
           mainFile: mainFilePath,
           useWorkerThreads: this.opts.useWorkerThreads,
+          workerForkOptions: this.opts.workerForkOptions,
+          workerThreadsOptions: this.opts.workerThreadsOptions,
         });
 
         this.processFn = sandbox<DataType, ResultType, NameType>(
@@ -399,6 +404,20 @@ export class Worker<
         this._repeat.on('error', e => this.emit.bind(this, e));
       }
       resolve(this._repeat);
+    });
+  }
+
+  get jobScheduler(): Promise<JobScheduler> {
+    return new Promise<JobScheduler>(async resolve => {
+      if (!this._jobScheduler) {
+        const connection = await this.client;
+        this._jobScheduler = new JobScheduler(this.name, {
+          ...this.opts,
+          connection,
+        });
+        this._jobScheduler.on('error', e => this.emit.bind(this, e));
+      }
+      resolve(this._jobScheduler);
     });
   }
 
@@ -767,11 +786,26 @@ will never work with more accuracy than 1ms. */
       this.drained = false;
       const job = this.createJob(jobData, jobId);
       job.token = token;
+
+      // Add next scheduled job if necessary.
       if (job.opts.repeat) {
-        const repeat = await this.repeat;
-        await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
-          override: false,
-        });
+        // Use new job scheduler if possible
+        if (job.repeatJobKey) {
+          const jobScheduler = await this.jobScheduler;
+          await jobScheduler.upsertJobScheduler(
+            job.repeatJobKey,
+            job.opts.repeat,
+            job.name,
+            job.data,
+            job.opts,
+            { override: false },
+          );
+        } else {
+          const repeat = await this.repeat;
+          await repeat.updateRepeatableJob(job.name, job.data, job.opts, {
+            override: false,
+          });
+        }
       }
       return job;
     }

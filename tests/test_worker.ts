@@ -588,13 +588,8 @@ describe('workers', function () {
     await anotherWorker.waitUntilReady();
 
     await new Promise<void>((resolve, reject) => {
-      worker.once('completed', async () => {
-        try {
-          await anotherWorker.close();
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
+      worker.on('completed', async () => {
+        resolve();
       });
     });
 

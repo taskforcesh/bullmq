@@ -252,6 +252,103 @@ describe('flows', () => {
     }).timeout(8000);
   });
 
+  describe('when child is debounced when added again with same debounce id', function () {
+    describe('when ttl is not provided', function () {
+      it('waits until job is finished before removing debounce key', async function () {
+        const parentQueueName = `parent-queue-${v4()}`;
+
+        const flow = new FlowProducer({ connection, prefix });
+        const queueEvents = new QueueEvents(queueName, { connection, prefix });
+        await queueEvents.waitUntilReady();
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            await delay(100);
+
+            const jobIdFromDebounceKey = await queue.getDebounceJobId(
+              'debounce_id',
+            );
+            expect(jobIdFromDebounceKey).to.be.equal(job.id);
+
+            await flow.add({
+              name: 'parent',
+              data: {},
+              queueName: parentQueueName,
+              children: [
+                {
+                  queueName,
+                  name: 'child0',
+                  data: {},
+                  opts: {
+                    debounce: {
+                      id: 'debounce_id',
+                    },
+                  },
+                },
+              ],
+            });
+
+            await delay(100);
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+          },
+        );
+        await worker.waitUntilReady();
+
+        const { children } = await flow.add({
+          name: 'parent',
+          data: {},
+          queueName: parentQueueName,
+          children: [
+            {
+              queueName,
+              name: 'child0',
+              data: {},
+              opts: {
+                debounce: {
+                  id: 'debounce_id',
+                },
+              },
+            },
+          ],
+        });
+
+        let debouncedCounter = 0;
+
+        const completing = new Promise<void>(resolve => {
+          queueEvents.once('completed', ({ jobId }) => {
+            expect(children![0].job.id).to.be.equal(jobId);
+            resolve();
+          });
+
+          queueEvents.on('debounced', ({ jobId }) => {
+            debouncedCounter++;
+          });
+        });
+
+        worker.run();
+
+        await completing;
+
+        const jobIdFromDebounceKey = await queue.getDebounceJobId(
+          'debounce_id',
+        );
+        expect(jobIdFromDebounceKey).to.be.null;
+
+        expect(debouncedCounter).to.be.equal(1);
+
+        await worker.close();
+        await queueEvents.close();
+        await flow.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
+    });
+  });
+
   it('should process children before the parent', async () => {
     const name = 'child-job';
     const values = [

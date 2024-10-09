@@ -6,4 +6,5 @@ export enum ErrorCode {
   ParentJobNotExist = -5,
   JobLockMismatch = -6,
   ParentJobCannotBeReplaced = -7,
+  JobBelongsToJobScheduler = -8,
 }

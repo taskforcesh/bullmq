@@ -22,5 +22,6 @@ export * from './repeatable-options';
 export * from './repeat-options';
 export * from './sandboxed-job-processor';
 export * from './sandboxed-job';
+export * from './sandboxed-options';
 export * from './worker-options';
 export * from './telemetry';

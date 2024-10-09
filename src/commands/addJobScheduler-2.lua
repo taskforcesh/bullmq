@@ -1,5 +1,5 @@
 --[[
-  Adds a repeatable job
+  Adds a job scheduler, i.e. a job factory that creates jobs based on a given schedule (repeat options).
 
     Input:
       KEYS[1] 'repeat' key
@@ -12,9 +12,8 @@
             [3]  patten?
             [4]  endDate?
             [5]  every?
-      ARGV[3] legacy custom key TODO: remove this logic in next breaking change
-      ARGV[4] custom key
-      ARGV[5] prefix key
+      ARGV[3] jobs scheduler id
+      ARGV[4] prefix key
 
       Output:
         repeatableKey  - OK
@@ -24,15 +23,14 @@ local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
 
 local nextMillis = ARGV[1]
-local legacyCustomKey = ARGV[3]
-local customKey = ARGV[4]
-local prefixKey = ARGV[5]
+local jobSchedulerId = ARGV[3]
+local prefixKey = ARGV[4]
 
 -- Includes
 --- @include "includes/removeJob"
 
-local function storeRepeatableJob(repeatKey, customKey, nextMillis, rawOpts)
-  rcall("ZADD", repeatKey, nextMillis, customKey)
+local function storeRepeatableJob(repeatKey, nextMillis, rawOpts)
+  rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
   local opts = cmsgpack.unpack(rawOpts)
 
   local optionalValues = {}
@@ -56,18 +54,16 @@ local function storeRepeatableJob(repeatKey, customKey, nextMillis, rawOpts)
     table.insert(optionalValues, opts['every'])
   end
 
-  rcall("HMSET", repeatKey .. ":" .. customKey, "name", opts['name'],
+  rcall("HMSET", repeatKey .. ":" .. jobSchedulerId, "name", opts['name'],
     unpack(optionalValues))
-
-  return customKey
 end
 
 -- If we are overriding a repeatable job we must delete the delayed job for
 -- the next iteration.
-local prevMillis = rcall("ZSCORE", repeatKey, customKey)
+local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
-  local delayedJobId =  "repeat:" .. customKey .. ":" .. prevMillis
-  local nextDelayedJobId =  repeatKey .. ":" .. customKey .. ":" .. nextMillis
+  local delayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
+  local nextDelayedJobId =  repeatKey .. ":" .. jobSchedulerId .. ":" .. nextMillis
 
   if rcall("ZSCORE", delayedKey, delayedJobId) ~= false
    and rcall("EXISTS", nextDelayedJobId) ~= 1 then
@@ -76,9 +72,4 @@ if prevMillis ~= false then
   end
 end
 
--- Keep backwards compatibility with old repeatable jobs (<= 3.0.0)
-if rcall("ZSCORE", repeatKey, legacyCustomKey) ~= false then
-  return storeRepeatableJob(repeatKey, legacyCustomKey, nextMillis, ARGV[2])
-end
-
-return storeRepeatableJob(repeatKey, customKey, nextMillis, ARGV[2])
+return storeRepeatableJob(repeatKey, nextMillis, ARGV[2])

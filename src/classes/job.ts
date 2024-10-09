@@ -38,7 +38,7 @@ import type { QueueEvents } from './queue-events';
 const logger = debuglog('bull');
 
 const optsDecodeMap = {
-  de: 'debounce',
+  de: 'deduplication',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
@@ -47,6 +47,7 @@ const optsDecodeMap = {
 };
 
 const optsEncodeMap = invertObject(optsDecodeMap);
+optsEncodeMap.debounce = 'de';
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -94,7 +95,15 @@ export class Job<
    * An amount of milliseconds to wait until this job can be processed.
    * @defaultValue 0
    */
-  delay: number;
+  delay = 0;
+
+  /**
+   * Ranges from 0 (highest priority) to 2 097 152 (lowest priority). Note that
+   * using priorities has a slight impact on performance,
+   * so do not use it if not required.
+   * @defaultValue 0
+   */
+  priority = 0;
 
   /**
    * Timestamp when the job was created (unless overridden with job options).
@@ -140,8 +149,14 @@ export class Job<
 
   /**
    * Debounce identifier.
+   * @deprecated use deduplicationId
    */
   debounceId?: string;
+
+  /**
+   * Deduplication identifier.
+   */
+  deduplicationId?: string;
 
   /**
    * Base repeat job key.
@@ -194,6 +209,8 @@ export class Job<
 
     this.delay = this.opts.delay;
 
+    this.priority = this.opts.priority || 0;
+
     this.repeatJobKey = repeatJobKey;
 
     this.timestamp = opts.timestamp ? opts.timestamp : Date.now();
@@ -207,6 +224,9 @@ export class Job<
       : undefined;
 
     this.debounceId = opts.debounce ? opts.debounce.id : undefined;
+    this.deduplicationId = opts.deduplication
+      ? opts.deduplication.id
+      : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
     this.setScripts();
@@ -333,6 +353,7 @@ export class Job<
 
     if (json.deid) {
       job.debounceId = json.deid;
+      job.deduplicationId = json.deid;
     }
 
     job.failedReason = json.failedReason;
@@ -459,6 +480,7 @@ export class Job<
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
       debounceId: this.debounceId,
+      deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     };
@@ -830,6 +852,7 @@ export class Job<
   /**
    * Change job priority.
    *
+   * @param opts - options containing priority and lifo values.
    * @returns void
    */
   async changePriority(opts: {
@@ -837,6 +860,7 @@ export class Job<
     lifo?: boolean;
   }): Promise<void> {
     await this.scripts.changePriority(this.id, opts.priority, opts.lifo);
+    this.priority = opts.priority || 0;
   }
 
   /**

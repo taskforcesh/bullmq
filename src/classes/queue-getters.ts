@@ -114,6 +114,29 @@ export class QueueGetters<
   }
 
   /**
+   * Get jobId that starts debounced state.
+   * @deprecated use getDeduplicationJobId method
+   *
+   * @param id - debounce identifier
+   */
+  async getDebounceJobId(id: string): Promise<string | null> {
+    const client = await this.client;
+
+    return client.get(`${this.keys.de}:${id}`);
+  }
+
+  /**
+   * Get jobId from deduplicated state.
+   *
+   * @param id - deduplication identifier
+   */
+  async getDeduplicationJobId(id: string): Promise<string | null> {
+    const client = await this.client;
+
+    return client.get(`${this.keys.de}:${id}`);
+  }
+
+  /**
    * Job counts by type
    *
    * Queue#getJobCountByTypes('completed') => completed count

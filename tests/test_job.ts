@@ -1053,10 +1053,14 @@ describe('Job', function () {
             { priority: 16 },
           );
 
+          expect(job.priority).to.be.eql(16);
+
           await job.changePriority({
             priority: 0,
             lifo: true,
           });
+
+          expect(job.priority).to.be.eql(0);
 
           const worker = new Worker(
             queueName,
@@ -1360,6 +1364,100 @@ describe('Job', function () {
       await expect(job.promote()).to.be.rejectedWith(
         `Job ${job.id} is not in the delayed state. promote`,
       );
+    });
+
+    describe('when a repeatable job is promoted', () => {
+      it('add next delayed job after promoted job completion', async () => {
+        const job = await queue.add(
+          'test',
+          { foo: 'bar' },
+          {
+            repeat: {
+              pattern: '0 0 7 * * *',
+            },
+          },
+        );
+        const isDelayed = await job.isDelayed();
+        expect(isDelayed).to.be.equal(true);
+        await job.promote();
+        expect(job.delay).to.be.equal(0);
+
+        const worker = new Worker(queueName, null, { connection, prefix });
+
+        const currentJob1 = (await worker.getNextJob('token')) as Job;
+        expect(currentJob1).to.not.be.undefined;
+
+        await currentJob1.moveToCompleted('succeeded', 'token', true);
+
+        const delayedCount = await queue.getDelayedCount();
+        expect(delayedCount).to.be.equal(1);
+
+        const isDelayedAfterPromote = await job.isDelayed();
+        expect(isDelayedAfterPromote).to.be.equal(false);
+        const isCompleted = await job.isCompleted();
+        expect(isCompleted).to.be.equal(true);
+      });
+
+      describe('when re-adding same repeatable job after previous delayed one is promoted', () => {
+        it('keep one delayed job', async () => {
+          const job = await queue.add(
+            'test',
+            { foo: 'bar' },
+            {
+              repeat: {
+                pattern: '0 0 7 * * *',
+              },
+            },
+          );
+          const isDelayed = await job.isDelayed();
+          expect(isDelayed).to.be.equal(true);
+
+          await queue.add(
+            'test',
+            { foo: 'bar' },
+            {
+              repeat: {
+                pattern: '0 0 7 * * *',
+              },
+            },
+          );
+          const delayedCount = await queue.getDelayedCount();
+          expect(delayedCount).to.be.equal(1);
+
+          await job.promote();
+          expect(job.delay).to.be.equal(0);
+
+          const worker = new Worker(queueName, null, { connection, prefix });
+          const currentJob1 = (await worker.getNextJob('token')) as Job;
+          expect(currentJob1).to.not.be.undefined;
+
+          await currentJob1.moveToCompleted('succeeded', 'token', true);
+          const completedCount = await queue.getCompletedCount();
+          const delayedCountAfterPromote = await queue.getDelayedCount();
+          expect(completedCount).to.be.equal(1);
+          expect(delayedCountAfterPromote).to.be.equal(1);
+
+          const completedCountAfterRestart = await queue.getCompletedCount();
+          const delayedCountAfterRestart = await queue.getDelayedCount();
+          expect(completedCountAfterRestart).to.be.equal(1);
+          expect(delayedCountAfterRestart).to.be.equal(1);
+
+          await queue.add(
+            'test',
+            { foo: 'bar' },
+            {
+              repeat: {
+                pattern: '0 0 7 * * *',
+              },
+            },
+          );
+
+          const completedCountAfterReAddition = await queue.getCompletedCount();
+          const delayedCountAfterReAddition = await queue.getDelayedCount();
+          expect(completedCountAfterReAddition).to.be.equal(1);
+          expect(delayedCountAfterReAddition).to.be.equal(1);
+        });
+      });
     });
 
     describe('when queue is paused', () => {
