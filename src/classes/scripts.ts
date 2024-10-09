@@ -596,7 +596,7 @@ export class Scripts {
     }
   }
 
-  finishedErrors = ({
+  finishedErrors({
     code,
     jobId,
     parentKey,
@@ -608,7 +608,7 @@ export class Scripts {
     parentKey?: string;
     command: string;
     state?: string;
-  }): Error => {
+  }): Error {
     switch (code) {
       case ErrorCode.JobNotExist:
         return new Error(`Missing key for job ${jobId}. ${command}`);
@@ -637,7 +637,7 @@ export class Scripts {
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
-  };
+  }
 
   private drainArgs(delayed: boolean): (string | number)[] {
     const queueKeys = this.queue.keys;
