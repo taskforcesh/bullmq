@@ -99,7 +99,6 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   skipLockRenewal?: boolean;
 
   /**
-   *
    * Number of seconds to long poll for jobs when the queue is empty.
    *
    * @default 5
@@ -107,7 +106,6 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   drainDelay?: number;
 
   /**
-   *
    * Duration of the lock for the job in milliseconds. The lock represents that
    * a worker is processing the job. If the lock is lost, the job will be eventually
    * be picked up by the stalled checker and move back to wait so that another worker
