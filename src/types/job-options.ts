@@ -1,4 +1,4 @@
-import { BaseJobOptions, DebounceOptions } from '../interfaces';
+import { BaseJobOptions, Carrier, DebounceOptions } from '../interfaces';
 
 export type JobsOptions = BaseJobOptions & {
   /**
@@ -54,5 +54,5 @@ export type RedisJobOptions = BaseJobOptions & {
   /**
    * TelemetryMetadata, provide for context propagation.
    */
-  tm?: Record<string, string>;
+  tm?: Carrier;
 };

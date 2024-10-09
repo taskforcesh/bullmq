@@ -1,13 +1,10 @@
 import { EventEmitter } from 'events';
 import {
+  Carrier,
   QueueBaseOptions,
   RedisClient,
   Span,
   Tracer,
-  SetSpan,
-  ContextManager,
-  Propagation,
-  Context,
 } from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
@@ -209,45 +206,46 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   protected async trace<T>(
     spanKind: SpanKind,
     getSpanName: () => string,
-    callback: (
-      span?: Span,
-      dstPropagationMetadata?: Record<string, string>,
-    ) => Promise<T> | T,
-    srcPropagationMetadata?: Record<string, string>,
+    callback: (span?: Span, dstPropagationMetadata?: Carrier) => Promise<T> | T,
+    srcPropagationMetadata?: Carrier,
   ) {
     if (!this.tracer) {
       return callback();
     }
 
-    const span = this.tracer.startSpan(getSpanName(), {
-      kind: spanKind,
-    });
+    let currentContext;
+    if (srcPropagationMetadata) {
+      currentContext = this.opts.telemetry.contextManager.fromMetadata(
+        this.opts.telemetry.contextManager.active(),
+        srcPropagationMetadata,
+      );
+    }
+
+    const span = this.tracer.startSpan(
+      getSpanName(),
+      {
+        kind: spanKind,
+      },
+      currentContext,
+    );
 
     try {
       span.setAttributes({
         [TelemetryAttributes.QueueName]: this.name,
       });
 
-      let activeContext = this.opts.telemetry.contextManager.active();
-      if (srcPropagationMetadata) {
-        activeContext = this.opts.telemetry.contextManager.fromMetadata(
-          activeContext,
-          srcPropagationMetadata,
-        );
-      }
-
-      let dstPropagationMetadata: undefined | Record<string, string>;
+      let dstPropagationMetadata: undefined | Carrier;
       if (spanKind === SpanKind.PRODUCER) {
+        currentContext = this.opts.telemetry.trace.setSpan(
+          this.opts.telemetry.contextManager.active(),
+          span,
+        );
+
         dstPropagationMetadata =
-          this.opts.telemetry.contextManager.getMetadata(activeContext);
+          this.opts.telemetry.contextManager.getMetadata(currentContext);
       }
 
-      const messageContext = this.opts.telemetry.trace.setSpan(
-        activeContext,
-        span,
-      );
-
-      return await this.opts.telemetry.contextManager.with(messageContext, () =>
+      return await this.opts.telemetry.contextManager.with(currentContext, () =>
         callback(span, dstPropagationMetadata),
       );
     } catch (err) {

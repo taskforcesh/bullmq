@@ -1,13 +1,12 @@
 import { SpanKind } from '../enums';
 
-export interface Telemetry {
+export interface Telemetry<Context = any> {
   trace: Trace;
   contextManager: ContextManager;
   tracerName: string;
-  propagation: Propagation;
 }
 
-export interface ContextManager {
+export interface ContextManager<Context = any> {
   /**
    * Creates a new context and sets it as active for the fn passed as last argument
    *
@@ -19,26 +18,27 @@ export interface ContextManager {
     fn: A,
   ): ReturnType<A>;
   active(): Context;
-  getMetadata(context: Context): Record<string, string>;
-  fromMetadata(
-    activeContext: Context,
-    metadata: Record<string, string>,
-  ): Context;
+  getMetadata(context: Context): Carrier;
+  fromMetadata(activeContext: Context, metadata: Carrier): Context;
 }
 
-export interface Trace {
+export interface Carrier {
+  traceparent?: string;
+  tracestate?: string;
+}
+
+export interface Trace<Span = any, Context = any> {
   getTracer(name: string, version?: string): Tracer;
   setSpan: SetSpan;
 }
 
-export type SetSpan = (context: Context, span: Span) => Context;
+export type SetSpan<Context = any, Span = any> = (
+  context: Context,
+  span: Span,
+) => Context;
 
-export interface Context {
-  [key: string]: Function;
-}
-
-export interface Tracer {
-  startSpan(name: string, options?: SpanOptions): Span;
+export interface Tracer<Context = any> {
+  startSpan(name: string, options?: SpanOptions, context?: Context): Span;
 }
 
 export interface SpanOptions {
@@ -98,8 +98,3 @@ interface NameException {
 export type Time = HighResolutionTime | number | Date;
 
 type HighResolutionTime = [number, number];
-
-export interface Propagation {
-  inject<T>(context: Context, carrier: T): void;
-  extract<T>(context: Context, carrier: T): Context;
-}
