@@ -14,8 +14,7 @@ import {
   Worker,
 } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { removeAllQueueData, delay, finishedErrors } from '../src/utils';
-import { ErrorCode } from '../src/enums';
+import { removeAllQueueData } from '../src/utils';
 
 const moment = require('moment');
 
@@ -1104,7 +1103,7 @@ describe('Job Scheduler', function () {
         try {
           if (prev) {
             expect(prev.timestamp).to.be.lt(job.timestamp);
-            const diff = moment(job.timestamp).diff(
+            const diff = moment(job.processedOn!).diff(
               moment(prev.timestamp),
               'months',
               true,
@@ -1434,20 +1433,9 @@ describe('Job Scheduler', function () {
 
     // Try to remove the delayed job
     const job = delayed[0];
-    try {
-      await job.remove();
-      expect.fail(
-        'Should not be able to remove a delayed job that belongs to a repeatable job',
-      );
-    } catch (err) {
-      const expectedErrMessage = finishedErrors({
-        code: ErrorCode.JobBelongsToJobScheduler,
-        jobId: job.id,
-        command: 'remove',
-      }).message;
-
-      expect(err.message).to.be.eql(expectedErrMessage);
-    }
+    await expect(job.remove()).to.be.rejectedWith(
+      `Job ${job.id} belongs to a job scheduler and cannot be removed directly. remove`,
+    );
   });
 
   it('should not remove delayed jobs if they belong to a repeatable job when using drain', async function () {
