@@ -8,8 +8,7 @@ import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
 import {
   removeAllQueueData,
-  finishedErrors,
-  getNextMillis,
+  getNextMillis
 } from '../src/utils';
 import {
   createRepeatableJobKey,
@@ -17,7 +16,6 @@ import {
   getRepeatableJobKeyPrefix,
   getRepeatJobIdCheckum,
 } from './utils/repeat_utils';
-import { ErrorCode } from '../src/enums';
 
 const moment = require('moment');
 
@@ -1777,22 +1775,9 @@ describe('repeat', function () {
 
     // Try to remove the delayed job
     const job = delayed[0];
-    try {
-      await job.remove();
-      const delayed = await queue.getDelayed();
-      console.log({ delayed });
-      expect.fail(
-        'Should not be able to remove a delayed job that belongs to a repeatable job',
-      );
-    } catch (err) {
-      const expectedErrMessage = finishedErrors({
-        code: ErrorCode.JobBelongsToJobScheduler,
-        jobId: job.id,
-        command: 'remove',
-      }).message;
-
-      expect(err.message).to.be.eql(expectedErrMessage);
-    }
+    await expect(job.remove()).to.be.rejectedWith(
+      `Job ${job.id} belongs to a job scheduler and cannot be removed directly. remove`,
+    );
   });
 
   it('should not repeat more than 5 times', async function () {

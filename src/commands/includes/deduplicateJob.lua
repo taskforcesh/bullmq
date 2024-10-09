@@ -22,4 +22,3 @@ local function deduplicateJob(prefixKey, deduplicationOpts, jobId, deduplication
     end
   end
 end
-  
