@@ -1,4 +1,4 @@
-import { BaseJobOptions, DebounceOptions } from '../interfaces';
+import { BaseJobOptions, Carrier, DebounceOptions } from '../interfaces';
 
 export type JobsOptions = BaseJobOptions & {
   /**
@@ -56,4 +56,9 @@ export type RedisJobOptions = BaseJobOptions & {
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
   rdof?: boolean;
+
+  /**
+   * TelemetryMetadata, provide for context propagation.
+   */
+  tm?: Carrier;
 };

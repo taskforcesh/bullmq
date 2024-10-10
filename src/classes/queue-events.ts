@@ -58,7 +58,10 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * This event is triggered when a job is deduplicated because deduplicatedId still existed.
    */
-  deduplicated: (args: { jobId: string; deduplicationId: string }, id: string) => void;
+  deduplicated: (
+    args: { jobId: string; deduplicationId: string },
+    id: string,
+  ) => void;
 
   /**
    * Listen to 'delayed' event.
