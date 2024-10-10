@@ -713,24 +713,27 @@ describe('Job Scheduler', function () {
       },
       { connection, prefix },
     );
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     let prev: Job;
     let counter = 0;
 
-    const completing = new Promise<void>(resolve => {
+    const completing = new Promise<void>((resolve, reject) => {
       worker.on('completed', async job => {
-        if (prev && counter === 1) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(100);
-        } else if (prev) {
-          expect(prev.timestamp).to.be.lt(job.timestamp);
-          expect(job.timestamp - prev.timestamp).to.be.gte(2000);
-        }
-        prev = job;
-        counter++;
-        if (counter === 5) {
-          resolve();
+        try {
+          if (prev && counter === 1) {
+            expect(prev.timestamp).to.be.lt(job.timestamp);
+            expect(job.timestamp - prev.timestamp).to.be.gte(100);
+          } else if (prev) {
+            expect(prev.timestamp).to.be.lt(job.timestamp);
+            expect(job.timestamp - prev.timestamp).to.be.gte(2000);
+          }
+          prev = job;
+          counter++;
+          if (counter === 5) {
+            resolve();
+          }
+        } catch (err) {
+          reject(err);
         }
       });
     });
@@ -744,11 +747,11 @@ describe('Job Scheduler', function () {
       { data: { foo: 'bar' } },
     );
 
-    this.clock.tick(100);
+    this.clock.tick(nextTick);
 
     await completing;
+
     await worker.close();
-    delayStub.restore();
   });
 
   it('should start immediately even after removing the job scheduler and adding it again', async function () {
@@ -783,7 +786,7 @@ describe('Job Scheduler', function () {
       { data: { foo: 'bar' } },
     );
 
-    this.clock.tick(1265);
+    this.clock.tick(nextTick);
 
     await processing1;
 
@@ -1623,31 +1626,43 @@ describe('Job Scheduler', function () {
     this.clock.setSystemTime(initialDate);
 
     // Set the next tick (repeat interval) and the startDate in the future
-    const nextTick = 2 * ONE_SECOND + 500;
+    const nextTick = ONE_DAY;
     const startDate = new Date('2024-01-01 10:00:10'); // 10 seconds in the future
+
+    const expectedDates = [
+      new Date('2024-01-01 10:00:10'),
+      new Date('2024-01-02 10:00:10'),
+      new Date('2024-01-03 10:00:10'),
+      new Date('2024-01-04 10:00:10'),
+      new Date('2024-01-05 10:00:10'),
+    ];
+
+    let jobIteration = 0;
 
     const worker = new Worker(
       queueName,
-      async () => {
+      async _job => {
         this.clock.tick(nextTick);
       },
       { autorun: false, connection, prefix },
     );
-    const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
     // Schedule the job with the 'every' interval and a future startDate
-    await queue.upsertJobScheduler(
+    const job = await queue.upsertJobScheduler(
       'test',
       {
-        every: 2000, // every 2 seconds
+        every: ONE_DAY,
         startDate,
       },
       { data: { foo: 'bar' } },
     );
 
+    expect(job).to.be.ok;
+    expect(job?.delay).to.be.eql(10000);
+
     // Simulate the passage of time up to the startDate
     const startDateDelay = startDate.getTime() - initialDate.getTime();
-    this.clock.tick(startDateDelay + nextTick);
+    this.clock.tick(startDateDelay);
 
     let prev: Job;
     let counter = 0;
@@ -1658,6 +1673,11 @@ describe('Job Scheduler', function () {
         try {
           if (prev) {
             expect(prev.timestamp).to.be.lt(job.timestamp);
+
+            expect(new Date(job.processedOn!)).to.be.eql(
+              expectedDates[++jobIteration],
+            );
+
             expect(job.timestamp - prev.timestamp).to.be.gte(2000); // Ensure it's repeating every 2 seconds
           }
           prev = job;
@@ -1675,7 +1695,6 @@ describe('Job Scheduler', function () {
 
     await completing;
     await worker.close();
-    delayStub.restore();
   });
 
   it('should throw an error when using .pattern and .every simultaneously', async function () {

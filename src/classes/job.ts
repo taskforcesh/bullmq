@@ -194,7 +194,6 @@ export class Job<
     this.opts = Object.assign(
       {
         attempts: 0,
-        delay: 0,
       },
       restOpts,
     );
@@ -214,7 +213,9 @@ export class Job<
       : undefined;
 
     this.debounceId = opts.debounce ? opts.debounce.id : undefined;
-    this.deduplicationId = opts.deduplication ? opts.deduplication.id : this.debounceId;
+    this.deduplicationId = opts.deduplication
+      ? opts.deduplication.id
+      : this.debounceId;
 
     this.toKey = queue.toKey.bind(queue);
     this.setScripts();
