@@ -1,6 +1,6 @@
-import { parseExpression } from 'cron-parser';
 import { RedisClient, RepeatBaseOptions, RepeatOptions } from '../interfaces';
 import { JobsOptions, RepeatStrategy } from '../types';
+import { getNextMillis } from '../utils';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
@@ -83,7 +83,6 @@ export class JobScheduler extends QueueBase {
     const hasImmediately = Boolean(
       (every || pattern) && repeatOpts.immediately,
     );
-    const offset = hasImmediately && every ? now - nextMillis : undefined;
     if (nextMillis) {
       if (override) {
         await this.scripts.addJobScheduler(jobSchedulerId, nextMillis, {
@@ -106,7 +105,7 @@ export class JobScheduler extends QueueBase {
         jobName,
         nextMillis,
         jobSchedulerId,
-        { ...opts, repeat: { offset, ...filteredRepeatOpts } },
+        { ...opts, repeat: { ...filteredRepeatOpts } },
         jobData,
         iterationCount,
         hasImmediately,
@@ -132,8 +131,7 @@ export class JobScheduler extends QueueBase {
     });
 
     const now = Date.now();
-    const delay =
-      nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
+    const delay = nextMillis - now;
 
     const mergedOpts = {
       ...opts,
@@ -229,30 +227,3 @@ export class JobScheduler extends QueueBase {
     return `repeat:${jobSchedulerId}:${nextMillis}`;
   }
 }
-
-export const getNextMillis = (
-  millis: number,
-  opts: RepeatOptions,
-): number | undefined => {
-  const { every, pattern } = opts;
-
-  if (every) {
-    return Math.floor(millis / every) * every + (opts.immediately ? 0 : every);
-  }
-
-  const currentDate = new Date(millis);
-  const interval = parseExpression(pattern, {
-    ...opts,
-    currentDate,
-  });
-
-  try {
-    if (opts.immediately) {
-      return new Date().getTime();
-    } else {
-      return interval.next().getTime();
-    }
-  } catch (e) {
-    // Ignore error
-  }
-};

@@ -5,16 +5,12 @@ import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { rrulestr } from 'rrule';
-import {
-  Job,
-  Queue,
-  QueueEvents,
-  Repeat,
-  getNextMillis,
-  Worker,
-} from '../src/classes';
+import { Job, Queue, QueueEvents, Repeat, Worker } from '../src/classes';
 import { JobsOptions } from '../src/types';
-import { removeAllQueueData } from '../src/utils';
+import {
+  removeAllQueueData,
+  getNextMillis,
+} from '../src/utils';
 
 const moment = require('moment');
 
@@ -1209,11 +1205,8 @@ describe('Job Scheduler', function () {
         counter++;
         try {
           if (counter == numJobs) {
-            const removed = await queue.removeJobScheduler('remove');
-            //expect(removed).to.be.true;
+            await queue.removeJobScheduler('remove');
             this.clock.tick(nextTick);
-            //const delayed = await queue.getDelayed();
-            //expect(delayed).to.be.empty;
             resolve();
           } else if (counter > numJobs) {
             reject(Error(`should not repeat more than ${numJobs} times`));

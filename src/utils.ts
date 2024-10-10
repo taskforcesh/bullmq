@@ -1,3 +1,4 @@
+import { parseExpression } from 'cron-parser';
 import { Cluster, Redis } from 'ioredis';
 
 // Note: this Polyfill is only needed for Node versions < 15.4.0
@@ -6,7 +7,7 @@ import { AbortController } from 'node-abort-controller';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { ChildMessage, RedisClient } from './interfaces';
+import { ChildMessage, RedisClient, RepeatOptions } from './interfaces';
 import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
@@ -247,3 +248,33 @@ export const toString = (value: any): string => {
 };
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
+
+export const getNextMillis = (
+  millis: number,
+  opts: RepeatOptions,
+): number | undefined => {
+  const { every, pattern } = opts;
+
+  if (opts.immediately) {
+    return new Date().getTime();
+  }
+
+  if (every) {
+    return Math.floor(millis / opts.every) * opts.every + opts.every;
+  }
+
+  const currentDate =
+    opts.startDate && new Date(opts.startDate) > new Date(millis)
+      ? new Date(opts.startDate)
+      : new Date(millis);
+  const interval = parseExpression(pattern, {
+    ...opts,
+    currentDate,
+  });
+
+  try {
+    return interval.next().getTime();
+  } catch (e) {
+    // Ignore error
+  }
+};

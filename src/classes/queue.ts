@@ -243,6 +243,14 @@ export class Queue<
         }
       }
 
+      const { every, pattern } = opts.repeat;
+
+      if (pattern && every) {
+        throw new Error(
+          'Both .pattern and .every options are defined for this repeatable job',
+        );
+      }
+
       return (await this.repeat).updateRepeatableJob<
         DataType,
         ResultType,
