@@ -35,10 +35,7 @@ export class Repeat extends QueueBase {
     opts: JobsOptions,
     { override }: { override: boolean },
   ): Promise<Job<T, R, N> | undefined> {
-    // Backwards compatibility for repeatable jobs for versions <= 3.0.0
-    const repeatOpts: RepeatOptions & { cron?: string } = { ...opts.repeat };
-    repeatOpts.pattern ??= repeatOpts.cron;
-    delete repeatOpts.cron;
+    const repeatOpts: RepeatOptions = { ...opts.repeat };
 
     // Check if we reached the limit of the repeatable job's iterations
     const iterationCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
