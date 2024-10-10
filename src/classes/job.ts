@@ -201,7 +201,6 @@ export class Job<
     this.opts = Object.assign(
       {
         attempts: 0,
-        delay: 0,
       },
       restOpts,
     );
