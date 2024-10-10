@@ -969,6 +969,7 @@ function sandboxProcessTests(
               'fixture_processor_fail_with_circular_reference.js',
             );
             expect(err.reference).to.equal('[Circular]');
+            expect(err.custom).to.deep.equal({ ref: '[Circular]' });
             expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
               0,
             );
