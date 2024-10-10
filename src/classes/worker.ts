@@ -817,6 +817,10 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
+    if (!job || this.closing || this.paused) {
+      return;
+    }
+
     const { telemetryMetadata: srcPropagationMedatada } = job.opts;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
@@ -828,10 +832,6 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.WorkerToken]: token,
           [TelemetryAttributes.JobId]: job.id,
         });
-
-        if (!job || this.closing || this.paused) {
-          return;
-        }
 
         const handleCompleted = async (result: ResultType) => {
           if (!this.connection.closing) {
@@ -891,7 +891,15 @@ will never work with more accuracy than 1ms. */
           const result = await this.callProcessJob(job, token);
           return await handleCompleted(result);
         } catch (err) {
-          return handleFailed(<Error>err);
+          const failed = await handleFailed(<Error>err);
+
+          span?.setAttributes({
+            [TelemetryAttributes.JobFinishedTimestamp]: job.finishedOn,
+            [TelemetryAttributes.JobProcessedTimestamp]: job.processedOn,
+            [TelemetryAttributes.JobFailedReason]: job.failedReason,
+          });
+
+          return failed;
         } finally {
           jobsInProgress.delete(inProgressItem);
         }
@@ -934,20 +942,20 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    this.trace<void>(
-      SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.resume`,
-      span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-        });
+    if (this.resumeWorker) {
+      this.trace<void>(
+        SpanKind.INTERNAL,
+        () => `${this.name} ${this.id} Worker.resume`,
+        span => {
+          span?.setAttributes({
+            [TelemetryAttributes.WorkerId]: this.id,
+          });
 
-        if (this.resumeWorker) {
           this.resumeWorker();
           this.emit('resumed');
-        }
-      },
-    );
+        },
+      );
+    }
   }
 
   /**
@@ -982,6 +990,10 @@ will never work with more accuracy than 1ms. */
    * @returns Promise that resolves when the worker has been closed.
    */
   async close(force = false): Promise<void> {
+    if (this.closing) {
+      return this.closing;
+    }
+
     await this.trace<void>(
       SpanKind.INTERNAL,
       () => `${this.name} ${this.id} Worker.close`,
@@ -991,9 +1003,6 @@ will never work with more accuracy than 1ms. */
           [TelemetryAttributes.WorkerForceClose]: force,
         });
 
-        if (this.closing) {
-          return this.closing;
-        }
         this.closing = (async () => {
           this.emit('closing', 'closing queue');
           this.abortDelayController?.abort();
@@ -1044,18 +1053,18 @@ will never work with more accuracy than 1ms. */
    * @see {@link https://docs.bullmq.io/patterns/manually-fetching-jobs}
    */
   async startStalledCheckTimer(): Promise<void> {
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.startStalledCheckTimer`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-        });
+    if (!this.opts.skipStalledCheck) {
+      clearTimeout(this.stalledCheckTimer);
 
-        if (!this.opts.skipStalledCheck) {
-          clearTimeout(this.stalledCheckTimer);
+      if (!this.closing) {
+        await this.trace<void>(
+          SpanKind.INTERNAL,
+          () => `${this.name} ${this.id} Worker.startStalledCheckTimer`,
+          async span => {
+            span?.setAttributes({
+              [TelemetryAttributes.WorkerId]: this.id,
+            });
 
-          if (!this.closing) {
             try {
               await this.checkConnectionError(() =>
                 this.moveStalledJobsToWait(),
@@ -1066,10 +1075,10 @@ will never work with more accuracy than 1ms. */
             } catch (err) {
               this.emit('error', <Error>err);
             }
-          }
-        }
-      },
-    );
+          },
+        );
+      }
+    }
   }
 
   private startLockExtenderTimer(

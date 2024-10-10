@@ -22,6 +22,9 @@ export enum TelemetryAttributes {
   WorkerForceClose = 'bullmq.worker.force.close',
   WorkerStalledJobs = 'bullmq.worker.stalled.jobs',
   WorkerJobsToExtendLocks = 'bullmq.worker.jobs.to.extend.locks',
+  JobFinishedTimestamp = 'bullmq.job.finished.timestamp',
+  JobProcessedTimestamp = 'bullmq.job.processed.timestamp',
+  JobFailedReason = 'bullmq.job.failed.reason',
 }
 
 export enum SpanKind {
