@@ -211,7 +211,7 @@ export class Scripts {
 
     if (parentOpts.waitChildrenKey) {
       result = await this.addParentJob(client, job, encodedOpts, args);
-    } else if (opts.delay) {
+    } else if (typeof opts.delay == 'number') {
       result = await this.addDelayedJob(client, job, encodedOpts, args);
     } else if (opts.priority) {
       result = await this.addPrioritizedJob(client, job, encodedOpts, args);
