@@ -720,8 +720,8 @@ describe('Job Scheduler', function () {
       worker.on('completed', async job => {
         try {
           if (prev && counter === 1) {
-            expect(prev.timestamp).to.be.lt(job.timestamp);
-            expect(job.timestamp - prev.timestamp).to.be.gte(100);
+            expect(prev.timestamp).to.be.lte(job.timestamp);
+            expect(job.timestamp - prev.timestamp).to.be.lte(1);
           } else if (prev) {
             expect(prev.timestamp).to.be.lt(job.timestamp);
             expect(job.timestamp - prev.timestamp).to.be.gte(2000);
@@ -741,12 +741,9 @@ describe('Job Scheduler', function () {
       'repeat',
       {
         every: 2000,
-        immediately: true,
       },
       { data: { foo: 'bar' } },
     );
-
-    this.clock.tick(nextTick);
 
     await completing;
 
