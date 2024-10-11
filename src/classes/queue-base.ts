@@ -213,10 +213,12 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       return callback();
     }
 
-    let currentContext;
+    const currentContext = this.opts.telemetry.contextManager.active();
+
+    let parentContext;
     if (srcPropagationMetadata) {
-      currentContext = this.opts.telemetry.contextManager.fromMetadata(
-        this.opts.telemetry.contextManager.active(),
+      parentContext = this.opts.telemetry.contextManager.fromMetadata(
+        currentContext,
         srcPropagationMetadata,
       );
     }
@@ -226,7 +228,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       {
         kind: spanKind,
       },
-      currentContext,
+      parentContext,
     );
 
     try {
@@ -234,18 +236,27 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
         [TelemetryAttributes.QueueName]: this.name,
       });
 
+      let messageContext;
       let dstPropagationMetadata: undefined | Carrier;
+
       if (spanKind === SpanKind.PRODUCER) {
-        currentContext = this.opts.telemetry.trace.setSpan(
-          this.opts.telemetry.contextManager.active(),
+        messageContext = this.opts.telemetry.trace.setSpan(
+          currentContext,
           span,
         );
 
         dstPropagationMetadata =
-          this.opts.telemetry.contextManager.getMetadata(currentContext);
+          this.opts.telemetry.contextManager.getMetadata(messageContext);
+      } else if (spanKind === SpanKind.INTERNAL) {
+        messageContext = this.opts.telemetry.trace.setSpan(
+          currentContext,
+          span,
+        );
+      } else if (spanKind === SpanKind.CONSUMER) {
+        messageContext = this.opts.telemetry.trace.setSpan(parentContext, span);
       }
 
-      return await this.opts.telemetry.contextManager.with(currentContext, () =>
+      return await this.opts.telemetry.contextManager.with(messageContext, () =>
         callback(span, dstPropagationMetadata),
       );
     } catch (err) {
