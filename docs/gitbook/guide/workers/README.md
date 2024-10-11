@@ -106,7 +106,7 @@ worker.on('error', err => {
 ```
 
 {% hint style="danger" %}
-If the error handler is missing, your worker may stop processing jobs when an error is emitted! Find more info [here](https://nodejs.org/api/events.html#events_error_events).
+If the error handler is missing, your worker may stop processing jobs when an error is emitted! Find more info [here](https://nodejs.org/api/events.html#events\_error\_events).
 {% endhint %}
 
 ## Typescript typings
@@ -119,5 +119,5 @@ const worker = new Worker<MyData, MyReturn>(queueName, async (job: Job) => {});
 
 ## Read more:
 
-- 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
-- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
+* 💡 [Worker API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html)
+* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
