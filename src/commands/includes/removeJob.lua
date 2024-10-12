@@ -3,15 +3,15 @@
 ]]
 
 -- Includes
---- @include "removeDebounceKey"
+--- @include "removeDeduplicationKey"
 --- @include "removeJobKeys"
 --- @include "removeParentDependencyKey"
 
-local function removeJob(jobId, hard, baseKey, shouldRemoveDebounceKey)
+local function removeJob(jobId, hard, baseKey, shouldRemoveDeduplicationKey)
   local jobKey = baseKey .. jobId
   removeParentDependencyKey(jobKey, hard, nil, baseKey)
-  if shouldRemoveDebounceKey then
-    removeDebounceKey(baseKey, jobKey)
+  if shouldRemoveDeduplicationKey then
+    removeDeduplicationKey(baseKey, jobKey)
   end
   removeJobKeys(jobKey)
 end

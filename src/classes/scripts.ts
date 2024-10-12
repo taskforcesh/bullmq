@@ -398,21 +398,32 @@ export class Scripts {
     return (<any>client).removeJobScheduler(keys.concat(args));
   }
 
-  async remove(jobId: string, removeChildren: boolean): Promise<number> {
-    const client = await this.queue.client;
-
+  protected removeArgs(jobId: string, removeChildren: boolean): (string | number)[] {
     const keys: (string | number)[] = ['', 'meta'].map(name =>
       this.queue.toKey(name),
     );
-    const result = await (<any>client).removeJob(
-      keys.concat([jobId, removeChildren ? 1 : 0]),
+    
+    const args = [jobId, removeChildren ? 1 : 0];
+
+    return keys.concat(args);
+  }
+
+  async remove(jobId: string, removeChildren: boolean): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.removeArgs(
+      jobId, removeChildren
     );
 
-    if (result == ErrorCode.JobBelongsToJobScheduler) {
+    const result = await (<any>client).removeJob(
+      args,
+    );
+
+    if (result < 0) {
       throw this.finishedErrors({
-        code: ErrorCode.JobBelongsToJobScheduler,
+        code: result,
         jobId,
-        command: 'remove',
+        command: 'removeJob',
       });
     }
 
