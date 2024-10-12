@@ -300,7 +300,7 @@ export const finishedErrors = ({
       );
     case ErrorCode.JobBelongsToJobScheduler:
       return new Error(
-        `Job ${jobId} belongs to a job scheduler and cannot be removed directly`,
+        `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
       );
     default:
       return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
