@@ -29,6 +29,7 @@ import {
   lengthInUtf8Bytes,
   parseObjectValues,
   tryCatch,
+  finishedErrors,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts, raw2NextJobData } from './scripts';
@@ -747,7 +748,7 @@ export class Job<
 
     const result = results[results.length - 1][1] as number;
     if (result < 0) {
-      throw this.scripts.finishedErrors({
+      throw finishedErrors({
         code: result,
         jobId: this.id,
         command,
