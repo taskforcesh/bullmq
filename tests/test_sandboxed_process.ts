@@ -947,6 +947,48 @@ function sandboxProcessTests(
       await worker.close();
     });
 
+    it('should process and fail when circular reference', async () => {
+      const processFile =
+        __dirname +
+        '/fixtures/fixture_processor_fail_with_circular_reference.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const failing = new Promise<void>((resolve, reject) => {
+        worker.on('failed', async (job, err) => {
+          try {
+            expect(job.data).eql({ foo: 'bar' });
+            expect(job.failedReason).eql('error');
+            expect(err.message).eql('error');
+            expect(err.stack).include(
+              'fixture_processor_fail_with_circular_reference.js',
+            );
+            expect(err.reference).to.equal('[Circular]');
+            expect(err.custom).to.deep.equal({ ref: '[Circular]' });
+            expect(Object.keys(worker['childPool'].retained)).to.have.lengthOf(
+              0,
+            );
+            expect(worker['childPool'].getAllFree()).to.have.lengthOf(1);
+
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        });
+      });
+
+      await queue.add('test', { foo: 'bar' });
+
+      await failing;
+
+      await worker.close();
+    });
+
     it('should error if processor file is missing', async () => {
       let worker;
       let didThrow = false;

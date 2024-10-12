@@ -59,7 +59,7 @@ Below is the supported format for cron expressions in cron-parser:
 
 This format includes the optional second field, which is not typically available in standard cron schedules, allowing for even more precise scheduling.
 
-Cron expressions are quite powerful as in they support seemless handling timezone differences and daylight saving time transitions, crucial for tasks that depend on local times. And also because of the use of special characters to denote specific days or things like the last day of the month, providing flexibility for monthly and weekly tasks.&#x20;
+Cron expressions are quite powerful as in they support seemless handling timezone differences and daylight saving time transitions, crucial for tasks that depend on local times. And also because of the use of special characters to denote specific days or things like the last day of the month, providing flexibility for monthly and weekly tasks.
 
 If you are new to Cron expressions, [Wikipedia](https://en.wikipedia.org/wiki/Cron) is an excelent starting point to learn how to use them.
 
@@ -79,7 +79,7 @@ const myQueue = new Queue('my-cron-jobs', { connection });
 await myQueue.upsertJobScheduler(
   'weekday-morning-job',
   {
-    cron: '0 0 9 * * 1-5', // Runs at 9:00 AM every Monday to Friday
+    pattern: '0 0 9 * * 1-5', // Runs at 9:00 AM every Monday to Friday
   },
   {
     name: 'cron-job',

@@ -1014,10 +1014,14 @@ describe('Job', function () {
             { priority: 16 },
           );
 
+          expect(job.priority).to.be.eql(16);
+
           await job.changePriority({
             priority: 0,
             lifo: true,
           });
+
+          expect(job.priority).to.be.eql(0);
 
           const worker = new Worker(
             queueName,
@@ -1328,9 +1332,11 @@ describe('Job', function () {
         const job = await queue.add(
           'test',
           { foo: 'bar' },
-          { repeat: {
-            pattern: '0 0 7 * * *'
-          }, },
+          {
+            repeat: {
+              pattern: '0 0 7 * * *',
+            },
+          },
         );
         const isDelayed = await job.isDelayed();
         expect(isDelayed).to.be.equal(true);
@@ -1338,7 +1344,7 @@ describe('Job', function () {
         expect(job.delay).to.be.equal(0);
 
         const worker = new Worker(queueName, null, { connection, prefix });
-      
+
         const currentJob1 = (await worker.getNextJob('token')) as Job;
         expect(currentJob1).to.not.be.undefined;
 
@@ -1366,7 +1372,7 @@ describe('Job', function () {
           );
           const isDelayed = await job.isDelayed();
           expect(isDelayed).to.be.equal(true);
-  
+
           await queue.add(
             'test',
             { foo: 'bar' },
@@ -1378,25 +1384,25 @@ describe('Job', function () {
           );
           const delayedCount = await queue.getDelayedCount();
           expect(delayedCount).to.be.equal(1);
-  
+
           await job.promote();
           expect(job.delay).to.be.equal(0);
-  
+
           const worker = new Worker(queueName, null, { connection, prefix });
           const currentJob1 = (await worker.getNextJob('token')) as Job;
           expect(currentJob1).to.not.be.undefined;
-  
+
           await currentJob1.moveToCompleted('succeeded', 'token', true);
           const completedCount = await queue.getCompletedCount();
           const delayedCountAfterPromote = await queue.getDelayedCount();
           expect(completedCount).to.be.equal(1);
           expect(delayedCountAfterPromote).to.be.equal(1);
-  
+
           const completedCountAfterRestart = await queue.getCompletedCount();
           const delayedCountAfterRestart = await queue.getDelayedCount();
           expect(completedCountAfterRestart).to.be.equal(1);
           expect(delayedCountAfterRestart).to.be.equal(1);
-  
+
           await queue.add(
             'test',
             { foo: 'bar' },
@@ -1412,7 +1418,7 @@ describe('Job', function () {
           expect(completedCountAfterReAddition).to.be.equal(1);
           expect(delayedCountAfterReAddition).to.be.equal(1);
         });
-      });  
+      });
     });
 
     describe('when queue is paused', () => {

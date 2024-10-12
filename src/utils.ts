@@ -9,7 +9,6 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import { ChildMessage, RedisClient } from './interfaces';
 import { EventEmitter } from 'events';
 import * as semver from 'semver';
-import { ErrorCode } from './enums';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -213,6 +212,20 @@ export const parseObjectValues = (obj: {
   return accumulator;
 };
 
+const getCircularReplacer = (rootReference: any) => {
+  const references = new WeakSet();
+  references.add(rootReference);
+  return (_: string, value: any) => {
+    if (typeof value === 'object' && value !== null) {
+      if (references.has(value)) {
+        return '[Circular]';
+      }
+      references.add(value);
+    }
+    return value;
+  };
+};
+
 export const errorToJSON = (value: any): Record<string, any> => {
   const error: Record<string, any> = {};
 
@@ -220,7 +233,7 @@ export const errorToJSON = (value: any): Record<string, any> => {
     error[propName] = value[propName];
   });
 
-  return error;
+  return JSON.parse(JSON.stringify(error, getCircularReplacer(value)));
 };
 
 const INFINITY = 1 / 0;
@@ -248,44 +261,3 @@ export const toString = (value: any): string => {
 };
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
-
-export const finishedErrors = ({
-  code,
-  jobId,
-  parentKey,
-  command,
-  state,
-}: {
-  code: number;
-  jobId?: string;
-  parentKey?: string;
-  command: string;
-  state?: string;
-}): Error => {
-  switch (code) {
-    case ErrorCode.JobNotExist:
-      return new Error(`Missing key for job ${jobId}. ${command}`);
-    case ErrorCode.JobLockNotExist:
-      return new Error(`Missing lock for job ${jobId}. ${command}`);
-    case ErrorCode.JobNotInState:
-      return new Error(`Job ${jobId} is not in the ${state} state. ${command}`);
-    case ErrorCode.JobPendingDependencies:
-      return new Error(`Job ${jobId} has pending dependencies. ${command}`);
-    case ErrorCode.ParentJobNotExist:
-      return new Error(`Missing key for parent job ${parentKey}. ${command}`);
-    case ErrorCode.JobLockMismatch:
-      return new Error(
-        `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
-      );
-    case ErrorCode.ParentJobCannotBeReplaced:
-      return new Error(
-        `The parent job ${parentKey} cannot be replaced. ${command}`,
-      );
-    case ErrorCode.JobBelongsToJobScheduler:
-      return new Error(
-        `Job ${jobId} belongs to a job scheduler and cannot be removed directly`,
-      );
-    default:
-      return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
-  }
-};
