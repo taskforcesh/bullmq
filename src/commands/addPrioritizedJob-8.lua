@@ -24,7 +24,7 @@
             [7]  parent dependencies key.
             [8]  parent? {id, queueKey}
             [9]  repeat job key
-            [10] debounce key
+            [10] deduplication key
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -54,12 +54,12 @@ local opts = cmsgpack.unpack(ARGV[3])
 local parentKey = args[5]
 local parent = args[8]
 local repeatJobKey = args[9]
-local debounceKey = args[10]
+local deduplicationKey = args[10]
 local parentData
 
 -- Includes
 --- @include "includes/addJobWithPriority"
---- @include "includes/debounceJob"
+--- @include "includes/deduplicateJob"
 --- @include "includes/storeJob"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/handleDuplicatedJob"
@@ -90,10 +90,10 @@ else
     end
 end
 
-local debouncedJobId = debounceJob(args[1], opts['de'],
-  jobId, debounceKey, eventsKey, maxEvents)
-if debouncedJobId then
-  return debouncedJobId
+local deduplicationJobId = deduplicateJob(args[1], opts['de'],
+  jobId, deduplicationKey, eventsKey, maxEvents)
+if deduplicationJobId then
+  return deduplicationJobId
 end
 
 -- Store the job.

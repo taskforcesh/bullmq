@@ -12,6 +12,7 @@ import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
+import { JobScheduler } from './job-scheduler';
 
 export interface ObliterateOpts {
   /**
@@ -96,7 +97,9 @@ export class Queue<
   token = v4();
   jobsOpts: BaseJobOptions;
   opts: QueueOptions;
-  private _repeat?: Repeat;
+  private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
+
+  private _jobScheduler?: JobScheduler;
 
   constructor(
     name: string,
@@ -180,6 +183,19 @@ export class Queue<
         this._repeat.on('error', e => this.emit.bind(this, e));
       }
       resolve(this._repeat);
+    });
+  }
+
+  get jobScheduler(): Promise<JobScheduler> {
+    return new Promise<JobScheduler>(async resolve => {
+      if (!this._jobScheduler) {
+        this._jobScheduler = new JobScheduler(this.name, {
+          ...this.opts,
+          connection: await this.client,
+        });
+        this._jobScheduler.on('error', e => this.emit.bind(this, e));
+      }
+      resolve(this._jobScheduler);
     });
   }
 
@@ -278,6 +294,49 @@ export class Queue<
   }
 
   /**
+   * Upserts a scheduler.
+   *
+   * A scheduler is a job factory that creates jobs at a given interval.
+   * Upserting a scheduler will create a new job scheduler or update an existing one.
+   * It will also create the first job based on the repeat options and delayed accordingly.
+   *
+   * @param key - Unique key for the repeatable job meta.
+   * @param repeatOpts - Repeat options
+   * @param jobTemplate - Job template. If provided it will be used for all the jobs
+   * created by the scheduler.
+   *
+   * @returns The next job to be scheduled (would normally be in delayed state).
+   */
+  async upsertJobScheduler(
+    jobSchedulerId: NameType,
+    repeatOpts: Omit<RepeatOptions, 'key'>,
+    jobTemplate?: {
+      name?: NameType;
+      data?: DataType;
+      opts?: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>;
+    },
+  ) {
+    if (repeatOpts.endDate) {
+      if (+new Date(repeatOpts.endDate) < Date.now()) {
+        throw new Error('End date must be greater than current timestamp');
+      }
+    }
+
+    return (await this.jobScheduler).upsertJobScheduler<
+      DataType,
+      ResultType,
+      NameType
+    >(
+      jobSchedulerId,
+      repeatOpts,
+      jobTemplate?.name ?? jobSchedulerId,
+      jobTemplate?.data ?? <DataType>{},
+      { ...this.jobsOpts, ...jobTemplate?.opts },
+      { override: true },
+    );
+  }
+
+  /**
    * Pauses the processing of this queue globally.
    *
    * We use an atomic RENAME operation on the wait queue. Since
@@ -335,6 +394,9 @@ export class Queue<
   /**
    * Get all repeatable meta jobs.
    *
+   *
+   * @deprecated This method is deprecated and will be removed in v6. Use getJobSchedulers instead.
+   *
    * @param start - Offset of first job to return.
    * @param end - Offset of last job to return.
    * @param asc - Determine the order in which jobs are returned based on their
@@ -349,10 +411,28 @@ export class Queue<
   }
 
   /**
+   * Get all Job Schedulers
+   *
+   * @param start - Offset of first scheduler to return.
+   * @param end - Offset of last scheduler to return.
+   * @param asc - Determine the order in which schedulers are returned based on their
+   * next execution time.
+   */
+  async getJobSchedulers(
+    start?: number,
+    end?: number,
+    asc?: boolean,
+  ): Promise<RepeatableJob[]> {
+    return (await this.jobScheduler).getJobSchedulers(start, end, asc);
+  }
+
+  /**
    * Removes a repeatable job.
    *
    * Note: you need to use the exact same repeatOpts when deleting a repeatable job
    * than when adding it.
+   *
+   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
    *
    * @see removeRepeatableByKey
    *
@@ -373,11 +453,38 @@ export class Queue<
   }
 
   /**
+   *
+   * Removes a job scheduler.
+   *
+   * @param jobSchedulerId
+   *
+   * @returns
+   */
+  async removeJobScheduler(jobSchedulerId: string): Promise<boolean> {
+    const jobScheduler = await this.jobScheduler;
+    const removed = await jobScheduler.removeJobScheduler(jobSchedulerId);
+
+    return !removed;
+  }
+
+  /**
    * Removes a debounce key.
+   * @deprecated use removeDeduplicationKey
    *
    * @param id - identifier
    */
   async removeDebounceKey(id: string): Promise<number> {
+    const client = await this.client;
+
+    return client.del(`${this.keys.de}:${id}`);
+  }
+
+  /**
+   * Removes a deduplication key.
+   *
+   * @param id - identifier
+   */
+  async removeDeduplicationKey(id: string): Promise<number> {
     const client = await this.client;
 
     return client.del(`${this.keys.de}:${id}`);
@@ -389,6 +496,8 @@ export class Queue<
    * themselves. You can use "getRepeatableJobs" in order to get the keys.
    *
    * @see getRepeatableJobs
+   *
+   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
    *
    * @param repeatJobKey - To the repeatable job.
    * @returns

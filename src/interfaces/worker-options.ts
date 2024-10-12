@@ -4,6 +4,7 @@ import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
 import { KeepJobs } from './keep-jobs';
+import { SandboxedOptions } from './sandboxed-options';
 
 /**
  * An async function that receives `Job`s and handles them.
@@ -13,7 +14,7 @@ export type Processor<T = any, R = any, N extends string = string> = (
   token?: string,
 ) => Promise<R>;
 
-export interface WorkerOptions extends QueueBaseOptions {
+export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
   /**
    * Optional worker name. The name will be stored on every job
    * processed by this worker instance, and can be used to monitor
@@ -135,15 +136,6 @@ export interface WorkerOptions extends QueueBaseOptions {
    * More advanced options.
    */
   settings?: AdvancedOptions;
-
-  /**
-   * Use Worker Threads instead of Child Processes.
-   * Note: This option can only be used when specifying
-   * a file for the processor argument.
-   *
-   * @default false
-   */
-  useWorkerThreads?: boolean;
 }
 
 export interface GetNextJobOptions {

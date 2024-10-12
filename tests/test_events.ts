@@ -602,6 +602,218 @@ describe('events', function () {
     });
   });
 
+  describe('when job is deduplicated when added again with same debounce id', function () {
+    describe('when ttl is provided', function () {
+      it('used a fixed time period and emits debounced event', async function () {
+        const testName = 'test';
+
+        const job = await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1', ttl: 2000 } },
+        );
+
+        let deduplicatedCounter = 0;
+        let secondJob;
+        queueEvents.on('deduplicated', ({ jobId, deduplicationId }) => {
+          if (deduplicatedCounter > 1) {
+            expect(jobId).to.be.equal(secondJob.id);
+            expect(deduplicationId).to.be.equal('a1');
+          } else {
+            expect(jobId).to.be.equal(job.id);
+            expect(deduplicationId).to.be.equal('a1');
+          }
+          deduplicatedCounter++;
+        });
+
+        await delay(1000);
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1', ttl: 2000 } },
+        );
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1', ttl: 2000 } },
+        );
+        await delay(1100);
+        secondJob = await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1', ttl: 2000 } },
+        );
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1', ttl: 2000 } },
+        );
+        await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1', ttl: 2000 } },
+        );
+        await delay(100);
+
+        expect(deduplicatedCounter).to.be.equal(4);
+      });
+
+      describe('when removing deduplicated job', function () {
+        it('removes deduplication key', async function () {
+          const testName = 'test';
+
+          const job = await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1', ttl: 2000 } },
+          );
+
+          let deduplicatedCounter = 0;
+          queueEvents.on('deduplicated', ({ jobId }) => {
+            deduplicatedCounter++;
+          });
+          await job.remove();
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1', ttl: 2000 } },
+          );
+          await delay(1000);
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1', ttl: 2000 } },
+          );
+          await delay(1100);
+          const secondJob = await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1', ttl: 2000 } },
+          );
+          await secondJob.remove();
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1', ttl: 2000 } },
+          );
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1', ttl: 2000 } },
+          );
+          await delay(100);
+
+          expect(deduplicatedCounter).to.be.equal(2);
+        });
+      });
+    });
+
+    describe('when ttl is not provided', function () {
+      it('waits until job is finished before removing debounce key', async function () {
+        const testName = 'test';
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await delay(100);
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { deduplication: { id: 'a1' } },
+            );
+            await delay(100);
+            await queue.add(
+              testName,
+              { foo: 'bar' },
+              { deduplication: { id: 'a1' } },
+            );
+            await delay(100);
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+          },
+        );
+        await worker.waitUntilReady();
+
+        let deduplicatedCounter = 0;
+
+        const completing = new Promise<void>(resolve => {
+          queueEvents.once('completed', ({ jobId }) => {
+            expect(jobId).to.be.equal('1');
+            resolve();
+          });
+
+          queueEvents.on('deduplicated', ({ jobId }) => {
+            deduplicatedCounter++;
+          });
+        });
+
+        worker.run();
+
+        await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
+
+        await completing;
+
+        const secondJob = await queue.add(
+          testName,
+          { foo: 'bar' },
+          { deduplication: { id: 'a1' } },
+        );
+
+        const count = await queue.getJobCountByTypes();
+
+        expect(count).to.be.eql(2);
+
+        expect(deduplicatedCounter).to.be.equal(2);
+        expect(secondJob.id).to.be.equal('4');
+        await worker.close();
+      });
+
+      describe('when removing deduplicated job', function () {
+        it('removes deduplication key', async function () {
+          const testName = 'test';
+
+          const job = await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1' } },
+          );
+
+          let deduplicatedCounter = 0;
+          queueEvents.on('deduplicated', ({ jobId }) => {
+            deduplicatedCounter++;
+          });
+          await job.remove();
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1' } },
+          );
+
+          await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1' } },
+          );
+          await delay(100);
+          const secondJob = await queue.add(
+            testName,
+            { foo: 'bar' },
+            { deduplication: { id: 'a1' } },
+          );
+          await secondJob.remove();
+
+          expect(deduplicatedCounter).to.be.equal(2);
+        });
+      });
+    });
+  });
+
   it('should emit an event when a job becomes active', async () => {
     const worker = new Worker(queueName, async job => {}, {
       connection,

@@ -19,12 +19,12 @@ local rcall = redis.call
 --- @include "includes/destructureJobKey"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isLocked"
---- @include "includes/removeDebounceKey"
+--- @include "includes/removeDeduplicationKey"
 --- @include "includes/removeJobFromAnyState"
 --- @include "includes/removeJobKeys"
 --- @include "includes/removeParentDependencyKey"
 
-local function removeJob( prefix, jobId, parentKey, removeChildren)
+local function removeJob(prefix, jobId, parentKey, removeChildren)
     local jobKey = prefix .. jobId;
 
     removeParentDependencyKey(jobKey, false, parentKey, nil)
@@ -33,14 +33,14 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
         -- Check if this job has children
         -- If so, we are going to try to remove the children recursively in deep first way because
         -- if some job is locked we must exit with and error.
-        --local countProcessed = rcall("HLEN", jobKey .. ":processed")
+        -- local countProcessed = rcall("HLEN", jobKey .. ":processed")
         local processed = rcall("HGETALL", jobKey .. ":processed")
 
         if (#processed > 0) then
             for i = 1, #processed, 2 do
                 local childJobId = getJobIdFromKey(processed[i])
                 local childJobPrefix = getJobKeyPrefix(processed[i], childJobId)
-                removeJob( childJobPrefix, childJobId, jobKey, removeChildren )
+                removeJob(childJobPrefix, childJobId, jobKey, removeChildren)
             end
         end
 
@@ -50,7 +50,7 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
                 -- We need to get the jobId for this job.
                 local childJobId = getJobIdFromKey(childJobKey)
                 local childJobPrefix = getJobKeyPrefix(childJobKey, childJobId)
-                removeJob( childJobPrefix, childJobId, jobKey, removeChildren )
+                removeJob(childJobPrefix, childJobId, jobKey, removeChildren)
             end
         end
 
@@ -60,25 +60,33 @@ local function removeJob( prefix, jobId, parentKey, removeChildren)
             for i = 1, #failed, 2 do
                 local childJobId = getJobIdFromKey(failed[i])
                 local childJobPrefix = getJobKeyPrefix(failed[i], childJobId)
-                removeJob( childJobPrefix, childJobId, jobKey, removeChildren )
+                removeJob(childJobPrefix, childJobId, jobKey, removeChildren)
             end
         end
     end
 
     local prev = removeJobFromAnyState(prefix, jobId)
 
-    removeDebounceKey(prefix, jobKey)
+    removeDeduplicationKey(prefix, jobKey)
     if removeJobKeys(jobKey) > 0 then
         local maxEvents = getOrSetMaxEvents(KEYS[2])
-        rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed",
-            "jobId", jobId, "prev", prev)
+        rcall("XADD", prefix .. "events", "MAXLEN", "~", maxEvents, "*", "event", "removed", "jobId", jobId, "prev",
+            prev)
     end
 end
 
 local prefix = KEYS[1]
+local jobId = ARGV[1]
+local shouldRemoveChildren = ARGV[2]
+local jobKey = prefix .. jobId
 
-if not isLocked(prefix, ARGV[1], ARGV[2]) then
-    removeJob(prefix, ARGV[1], nil, ARGV[2])
+-- Check if the job belongs to a job scheduler and it is in delayed state.
+if rcall("ZSCORE", prefix .. "delayed", jobId) and rcall("HGET", jobKey, "rjk") then
+    return -8 -- Return error code as the job is part of a job scheduler and is in delayed state.
+end
+
+if not isLocked(prefix, jobId, shouldRemoveChildren) then
+    removeJob(prefix, jobId, nil, shouldRemoveChildren)
     return 1
 end
 return 0

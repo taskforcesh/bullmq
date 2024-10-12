@@ -43,7 +43,7 @@ class Scripts:
             "addParentJob": self.redisClient.register_script(self.getScript("addParentJob-4.lua")),
             "addPrioritizedJob": self.redisClient.register_script(self.getScript("addPrioritizedJob-8.lua")),
             "changePriority": self.redisClient.register_script(self.getScript("changePriority-6.lua")),
-            "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-2.lua")),
+            "cleanJobsInSet": self.redisClient.register_script(self.getScript("cleanJobsInSet-3.lua")),
             "extendLock": self.redisClient.register_script(self.getScript("extendLock-2.lua")),
             "getCounts": self.redisClient.register_script(self.getScript("getCounts-1.lua")),
             "getCountsPerPriority": self.redisClient.register_script(self.getScript("getCountsPerPriority-4.lua")),
@@ -173,7 +173,8 @@ class Scripts:
 
     def cleanJobsInSetArgs(self, set: str, grace: int, limit:int = 0):
         keys = [self.toKey(set),
-                self.keys['events']]
+                self.keys['events'],
+                self.keys['repeat']]
         args = [self.keys[''], round(time.time() * 1000) - grace, limit, set]
 
         return (keys, args)

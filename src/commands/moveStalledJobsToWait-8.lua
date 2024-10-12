@@ -41,7 +41,7 @@ local stalledCheckKey = KEYS[5]
 local metaKey = KEYS[6]
 local markerKey = KEYS[7]
 local eventStreamKey = KEYS[8]
-local maxStalledJobCount = ARGV[1]
+local maxStalledJobCount = tonumber(ARGV[1])
 local queueKeyPrefix = ARGV[2]
 local timestamp = ARGV[3]
 local maxCheckTime = ARGV[4]
@@ -60,8 +60,6 @@ local failed = {}
 if (#stalling > 0) then
     rcall('DEL', stalledKey)
 
-    local MAX_STALLED_JOB_COUNT = tonumber(maxStalledJobCount)
-
     -- Remove from active list
     for i, jobId in ipairs(stalling) do
         local jobKey = queueKeyPrefix .. jobId
@@ -75,7 +73,7 @@ if (#stalling > 0) then
                 -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
                 local stalledCount =
                     rcall("HINCRBY", jobKey, "stalledCounter", 1)
-                if (stalledCount > MAX_STALLED_JOB_COUNT) then
+                if (stalledCount > maxStalledJobCount) then
                     local jobAttributes = rcall("HMGET", jobKey, "opts", "parent", "deid")
                     local rawOpts = jobAttributes[1]
                     local rawParentData = jobAttributes[2]

@@ -188,7 +188,7 @@ export class Scripts {
       parentOpts.parentDependenciesKey || null,
       parent,
       job.repeatJobKey,
-      job.debounceId ? `${queueKeys.de}:${job.debounceId}` : null,
+      job.deduplicationId ? `${queueKeys.de}:${job.deduplicationId}` : null,
     ];
 
     let encodedOpts;
@@ -216,7 +216,7 @@ export class Scripts {
 
     if (parentOpts.waitChildrenKey) {
       result = await this.addParentJob(client, job, encodedOpts, args);
-    } else if (opts.delay) {
+    } else if (typeof opts.delay == 'number') {
       result = await this.addDelayedJob(client, job, encodedOpts, args);
     } else if (opts.priority) {
       result = await this.addPrioritizedJob(client, job, encodedOpts, args);
@@ -307,6 +307,23 @@ export class Scripts {
     return (<any>client).addRepeatableJob(args);
   }
 
+  async addJobScheduler(
+    jobSchedulerId: string,
+    nextMillis: number,
+    opts: RepeatableOptions,
+  ): Promise<string> {
+    const queueKeys = this.queue.keys;
+    const client = await this.queue.client;
+
+    const keys: (string | number | Buffer)[] = [
+      queueKeys.repeat,
+      queueKeys.delayed,
+    ];
+    const args = [nextMillis, pack(opts), jobSchedulerId, queueKeys['']];
+
+    return (<any>client).addJobScheduler(keys.concat(args));
+  }
+
   async updateRepeatableJobMillis(
     client: RedisClient,
     customKey: string,
@@ -320,6 +337,15 @@ export class Scripts {
       legacyCustomKey,
     ];
     return (<any>client).updateRepeatableJobMillis(args);
+  }
+
+  async updateJobSchedulerNextMillis(
+    jobSchedulerId: string,
+    nextMillis: number,
+  ): Promise<number> {
+    const client = await this.queue.client;
+
+    return client.zadd(this.queue.keys.repeat, nextMillis, jobSchedulerId);
   }
 
   private removeRepeatableArgs(
@@ -365,15 +391,48 @@ export class Scripts {
     return (<any>client).removeRepeatable(args);
   }
 
-  async remove(jobId: string, removeChildren: boolean): Promise<number> {
+  async removeJobScheduler(jobSchedulerId: string): Promise<number> {
     const client = await this.queue.client;
 
+    const queueKeys = this.queue.keys;
+
+    const keys = [queueKeys.repeat, queueKeys.delayed, queueKeys.events];
+
+    const args = [jobSchedulerId, queueKeys['']];
+
+    return (<any>client).removeJobScheduler(keys.concat(args));
+  }
+
+  protected removeArgs(jobId: string, removeChildren: boolean): (string | number)[] {
     const keys: (string | number)[] = ['', 'meta'].map(name =>
       this.queue.toKey(name),
     );
-    return (<any>client).removeJob(
-      keys.concat([jobId, removeChildren ? 1 : 0]),
+    
+    const args = [jobId, removeChildren ? 1 : 0];
+
+    return keys.concat(args);
+  }
+
+  async remove(jobId: string, removeChildren: boolean): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.removeArgs(
+      jobId, removeChildren
     );
+
+    const result = await (<any>client).removeJob(
+      args,
+    );
+
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'removeJob',
+      });
+    }
+
+    return result;
   }
 
   async extendLock(
@@ -584,6 +643,10 @@ export class Scripts {
         return new Error(
           `The parent job ${parentKey} cannot be replaced. ${command}`,
         );
+      case ErrorCode.JobBelongsToJobScheduler:
+        return new Error(
+          `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
+        );
       default:
         return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
@@ -597,6 +660,7 @@ export class Scripts {
       queueKeys.paused,
       delayed ? queueKeys.delayed : '',
       queueKeys.prioritized,
+      queueKeys.repeat,
     ];
 
     const args = [queueKeys['']];
@@ -885,12 +949,7 @@ export class Scripts {
       this.queue.keys.marker,
     ];
 
-    return keys.concat([
-      priority,
-      this.queue.toKey(''),
-      jobId,
-      lifo ? 1 : 0,
-    ]);
+    return keys.concat([priority, this.queue.toKey(''), jobId, lifo ? 1 : 0]);
   }
 
   moveToDelayedArgs(
@@ -1058,6 +1117,7 @@ export class Scripts {
     return (<any>client).cleanJobsInSet([
       this.queue.toKey(set),
       this.queue.toKey('events'),
+      this.queue.toKey('repeat'),
       this.queue.toKey(''),
       timestamp,
       limit,
