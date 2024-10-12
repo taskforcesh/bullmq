@@ -34,12 +34,7 @@ import {
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
-import {
-  array2obj,
-  finishedErrors,
-  getParentKey,
-  isRedisVersionLowerThan,
-} from '../utils';
+import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { ChainableCommander } from 'ioredis';
 
 export type JobData = [JobJsonRaw | number, string?];
@@ -225,7 +220,7 @@ export class Scripts {
     }
 
     if (<number>result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: <number>result,
         parentKey: parentOpts.parentKey,
         command: 'addJob',
@@ -424,7 +419,7 @@ export class Scripts {
     const result = await (<any>client).removeJob(args);
 
     if (result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: result,
         jobId,
         command: 'removeJob',
@@ -463,7 +458,7 @@ export class Scripts {
     const result = await (<any>client).updateData(keys.concat([dataJson]));
 
     if (result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: result,
         jobId: job.id,
         command: 'updateData',
@@ -489,7 +484,7 @@ export class Scripts {
     );
 
     if (result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: result,
         jobId,
         command: 'updateProgress',
@@ -514,7 +509,7 @@ export class Scripts {
     );
 
     if (result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: result,
         jobId,
         command: 'addLog',
@@ -598,7 +593,7 @@ export class Scripts {
 
     const result = await (<any>client).moveToFinished(args);
     if (result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: result,
         jobId,
         command: 'moveToFinished',
@@ -662,7 +657,7 @@ export class Scripts {
       case 1:
         return false;
       default:
-        throw finishedErrors({
+        throw this.finishedErrors({
           code: result,
           jobId,
           parentKey,
@@ -826,7 +821,7 @@ export class Scripts {
     const args = this.changeDelayArgs(jobId, delay);
     const result = await (<any>client).changeDelay(args);
     if (result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: result,
         jobId,
         command: 'changeDelay',
@@ -863,7 +858,7 @@ export class Scripts {
     const args = this.changePriorityArgs(jobId, priority, lifo);
     const result = await (<any>client).changePriority(args);
     if (result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: result,
         jobId,
         command: 'changePriority',
@@ -981,7 +976,7 @@ export class Scripts {
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
     const result = await (<any>client).moveToDelayed(args);
     if (result < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code: result,
         jobId,
         command: 'moveToDelayed',
@@ -1017,7 +1012,7 @@ export class Scripts {
       case 1:
         return false;
       default:
-        throw finishedErrors({
+        throw this.finishedErrors({
           code: result,
           jobId,
           command: 'moveToWaitingChildren',
@@ -1176,7 +1171,7 @@ export class Scripts {
       case 1:
         return;
       default:
-        throw finishedErrors({
+        throw this.finishedErrors({
           code: result,
           jobId: job.id,
           command: 'reprocessJob',
@@ -1240,7 +1235,7 @@ export class Scripts {
 
     const code = await (<any>client).promote(keys.concat(args));
     if (code < 0) {
-      throw finishedErrors({
+      throw this.finishedErrors({
         code,
         jobId,
         command: 'promote',
@@ -1422,6 +1417,49 @@ export class Scripts {
         total,
         jobs,
       };
+    }
+  }
+
+  finishedErrors({
+    code,
+    jobId,
+    parentKey,
+    command,
+    state,
+  }: {
+    code: number;
+    jobId?: string;
+    parentKey?: string;
+    command: string;
+    state?: string;
+  }): Error {
+    switch (code) {
+      case ErrorCode.JobNotExist:
+        return new Error(`Missing key for job ${jobId}. ${command}`);
+      case ErrorCode.JobLockNotExist:
+        return new Error(`Missing lock for job ${jobId}. ${command}`);
+      case ErrorCode.JobNotInState:
+        return new Error(
+          `Job ${jobId} is not in the ${state} state. ${command}`,
+        );
+      case ErrorCode.JobPendingDependencies:
+        return new Error(`Job ${jobId} has pending dependencies. ${command}`);
+      case ErrorCode.ParentJobNotExist:
+        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
+      case ErrorCode.JobLockMismatch:
+        return new Error(
+          `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
+        );
+      case ErrorCode.ParentJobCannotBeReplaced:
+        return new Error(
+          `The parent job ${parentKey} cannot be replaced. ${command}`,
+        );
+      case ErrorCode.JobBelongsToJobScheduler:
+        return new Error(
+          `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
+        );
+      default:
+        return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
   }
 }
