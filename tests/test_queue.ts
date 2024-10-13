@@ -44,6 +44,15 @@ describe('queues', function () {
     return queue.close();
   });
 
+  it('should return default library version when using skipMetasUpdate', async () => {
+    const exQueueName = `test-${v4()}`;
+    const queue = new Queue(exQueueName, { connection, skipMetasUpdate: true });
+    const version = await queue.getVersion();
+    expect(version).to.be.equal(null);
+    await queue.close();
+    await removeAllQueueData(new IORedis(redisHost), exQueueName);
+  });
+
   describe('.add', () => {
     describe('when jobId is provided as integer', () => {
       it('throws error', async function () {
