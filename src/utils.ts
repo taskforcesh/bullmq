@@ -10,7 +10,6 @@ import { ChildMessage, RedisClient } from './interfaces';
 import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
-import { ErrorCode } from './enums';
 import { join } from 'path';
 import { readFileSync } from 'fs';
 
