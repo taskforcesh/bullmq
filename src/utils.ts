@@ -215,6 +215,20 @@ export const parseObjectValues = (obj: {
   return accumulator;
 };
 
+const getCircularReplacer = (rootReference: any) => {
+  const references = new WeakSet();
+  references.add(rootReference);
+  return (_: string, value: any) => {
+    if (typeof value === 'object' && value !== null) {
+      if (references.has(value)) {
+        return '[Circular]';
+      }
+      references.add(value);
+    }
+    return value;
+  };
+};
+
 export const errorToJSON = (value: any): Record<string, any> => {
   const error: Record<string, any> = {};
 
@@ -222,7 +236,7 @@ export const errorToJSON = (value: any): Record<string, any> => {
     error[propName] = value[propName];
   });
 
-  return error;
+  return JSON.parse(JSON.stringify(error, getCircularReplacer(value)));
 };
 
 const INFINITY = 1 / 0;
