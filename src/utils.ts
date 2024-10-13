@@ -10,6 +10,9 @@ import { ChildMessage, RedisClient } from './interfaces';
 import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
+import { join } from 'path';
+import { readFileSync } from 'fs';
+
 export const errorObject: { [index: string]: any } = { value: null };
 
 export function tryCatch(
@@ -261,3 +264,24 @@ export const toString = (value: any): string => {
 };
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
+
+export const readPackageJson: () => { name: string; version: string } = () => {
+  const packageJsonPossiblePaths = [
+    join(__dirname, '../package.json'),
+    join(__dirname, '../../package.json'),
+    join(__dirname, '../../../package.json'),
+  ];
+
+  for (const path of packageJsonPossiblePaths) {
+    try {
+      return JSON.parse(readFileSync(path, 'utf-8'));
+    } catch (err) {
+      if ((<any>err).code === 'ENOENT') {
+        continue;
+      }
+      console.log(err);
+    }
+  }
+
+  return { name: 'bullmq', version: '0.0.0' };
+};
