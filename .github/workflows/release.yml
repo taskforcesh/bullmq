@@ -2,7 +2,7 @@ name: Release
 on:
   push:
     branches:
-      - master
+      - v4.x
 
 env:
   HUSKY: 0
