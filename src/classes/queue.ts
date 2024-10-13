@@ -120,8 +120,8 @@ export class Queue<
 
     this.waitUntilReady()
       .then(client => {
-        if (!this.closing) {
-          client.hmset(this.keys.meta, this.metaValues);
+        if (!this.closing && !opts?.skipMetasUpdate) {
+          return client.hmset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
