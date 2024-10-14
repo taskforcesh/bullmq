@@ -172,15 +172,15 @@
       "master",
       {
         "name": "v5.x",
-        "range": ">=5.0.0 <6.0.0"
+        "range": "5.x"
       },
       {
         "name": "v4.x",
-        "range": ">=4.0.0 <5.0.0"
+        "range": "4.x"
       },
       {
         "name": "v3.x",
-        "range": ">=3.0.0 <4.0.0"
+        "range": "3.x"
       }
     ],
     "plugins": [
