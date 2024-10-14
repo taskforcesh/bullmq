@@ -8,7 +8,7 @@ import {
   RepeatOptions,
 } from '../interfaces';
 import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
-import { isRedisInstance } from '../utils';
+import { isRedisInstance, readPackageJson } from '../utils';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
@@ -96,6 +96,7 @@ export class Queue<
 > extends QueueGetters<DataType, ResultType, NameType> {
   token = v4();
   jobsOpts: BaseJobOptions;
+  opts: QueueOptions;
   private _repeat?: Repeat;
 
   constructor(
@@ -117,12 +118,8 @@ export class Queue<
 
     this.waitUntilReady()
       .then(client => {
-        if (!this.closing) {
-          client.hset(
-            this.keys.meta,
-            'opts.maxLenEvents',
-            get(opts, 'streams.events.maxLen', 10000),
-          );
+        if (!this.closing && !opts?.skipMetasUpdate) {
+          return client.hmset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
@@ -167,6 +164,25 @@ export class Queue<
    */
   get defaultJobOptions(): JobsOptions {
     return { ...this.jobsOpts };
+  }
+
+  get metaValues(): Record<string, string | number> {
+    const { name, version } = readPackageJson();
+
+    return {
+      'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
+      version: `${name}:${version}`,
+    };
+  }
+
+  /**
+   * Get library version.
+   *
+   * @returns the content of the meta.library field.
+   */
+  async getVersion(): Promise<string> {
+    const client = await this.client;
+    return await client.hget(this.keys.meta, 'version');
   }
 
   get repeat(): Promise<Repeat> {

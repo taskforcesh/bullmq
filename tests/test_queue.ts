@@ -78,6 +78,7 @@ import { delay, removeAllQueueData } from '../src/utils';
 
 describe('queues', function () {
   const sandbox = sinon.createSandbox();
+  const redisHost = process.env.REDIS_HOST || 'localhost';
 
   let queue: Queue;
   let queueName: string;
@@ -94,6 +95,23 @@ describe('queues', function () {
     sandbox.restore();
     await queue.close();
     await removeAllQueueData(new IORedis(), queueName);
+  });
+
+  it('should return the queue version', async () => {
+    const queue = new Queue(queueName, { connection });
+    const version = await queue.getVersion();
+    const { version: pkgJsonVersion, name } = require('../package.json');
+    expect(version).to.be.equal(`${name}:${pkgJsonVersion}`);
+    return queue.close();
+  });
+
+  it('should return default library version when using skipMetasUpdate', async () => {
+    const exQueueName = `test-${v4()}`;
+    const queue = new Queue(exQueueName, { connection, skipMetasUpdate: true });
+    const version = await queue.getVersion();
+    expect(version).to.be.equal(null);
+    await queue.close();
+    await removeAllQueueData(new IORedis(redisHost), exQueueName);
   });
 
   //TODO: restore this tests in next breaking change
