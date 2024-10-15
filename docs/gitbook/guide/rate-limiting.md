@@ -126,6 +126,8 @@ const queue = new Queue('myQueue', { connection });
 await queue.removeRateLimitKey();
 ```
 
+By removing rate limit key, workers will be able to pick jobs again and your rate limit counter is reset to zero.
+
 ## Read more:
 
 - 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#rateLimit)
