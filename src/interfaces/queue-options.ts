@@ -54,6 +54,19 @@ export interface QueueOptions extends QueueBaseOptions {
     };
   };
 
+  /**
+   * Skip Meta update.
+   *
+   * If true, the queue will not update the metadata of the queue.
+   * Useful for read-only systems that do should not update the metadata.
+   *
+   * @defaultValue false
+   */
+  skipMetasUpdate?: boolean;
+
+  /**
+   * Advanced options for the repeatable jobs.
+   */
   settings?: AdvancedRepeatOptions;
 }
 
