@@ -1,3 +1,10 @@
+# [3.16.0](https://github.com/taskforcesh/bullmq/compare/v3.15.8...v3.16.0) (2024-10-15)
+
+
+### Features
+
+* **queue:** add get version ([d5409f7](https://github.com/taskforcesh/bullmq/commit/d5409f765db4b508c2675ef252cce2670599ddbc))
+
 ## [3.15.8](https://github.com/taskforcesh/bullmq/compare/v3.15.7...v3.15.8) (2023-06-16)
 
 
