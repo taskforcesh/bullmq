@@ -135,7 +135,7 @@ export class QueueGetters<
 
     return client.get(`${this.keys.de}:${id}`);
   }
-  
+
   /**
    * Job counts by type
    *
