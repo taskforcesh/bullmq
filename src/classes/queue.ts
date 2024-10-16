@@ -715,12 +715,10 @@ export class Queue<
    *
    * @param maxCount - Max quantity of jobs to be moved to wait per iteration.
    */
-  async migrateDeprecatedPausedKey(maxCount: number = 1000): Promise<void> {
+  async migrateDeprecatedPausedKey(maxCount = 1000): Promise<void> {
     let cursor = 0;
     do {
-      cursor = await this.scripts.migrateDeprecatedPausedKey(
-        maxCount
-      );
+      cursor = await this.scripts.migrateDeprecatedPausedKey(maxCount);
     } while (cursor);
   }
 }
