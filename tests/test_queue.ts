@@ -36,6 +36,14 @@ describe('queues', function () {
     await connection.quit();
   });
 
+  it('should return the queue version', async () => {
+    const queue = new Queue(queueName, { connection });
+    const version = await queue.getVersion();
+    const { version: pkgJsonVersion, name } = require('../package.json');
+    expect(version).to.be.equal(`${name}:${pkgJsonVersion}`);
+    return queue.close();
+  });
+
   describe('.add', () => {
     describe('when jobId is provided as integer', () => {
       it('throws error', async function () {
