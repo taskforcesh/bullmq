@@ -13,6 +13,7 @@ import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { JobScheduler } from './job-scheduler';
+import { readPackageJson } from '../utils';
 
 export interface ObliterateOpts {
   /**
@@ -168,9 +169,22 @@ export class Queue<
   }
 
   get metaValues(): Record<string, string | number> {
+    const { name, version } = readPackageJson();
+
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
+      version: `${name}:${version}`,
     };
+  }
+
+  /**
+   * Get library version.
+   *
+   * @returns the content of the meta.library field.
+   */
+  async getVersion(): Promise<string> {
+    const client = await this.client;
+    return await client.hget(this.keys.meta, 'version');
   }
 
   get repeat(): Promise<Repeat> {

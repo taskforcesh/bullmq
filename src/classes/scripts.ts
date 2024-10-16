@@ -403,11 +403,14 @@ export class Scripts {
     return (<any>client).removeJobScheduler(keys.concat(args));
   }
 
-  protected removeArgs(jobId: string, removeChildren: boolean): (string | number)[] {
+  protected removeArgs(
+    jobId: string,
+    removeChildren: boolean,
+  ): (string | number)[] {
     const keys: (string | number)[] = ['', 'meta'].map(name =>
       this.queue.toKey(name),
     );
-    
+
     const args = [jobId, removeChildren ? 1 : 0];
 
     return keys.concat(args);
@@ -416,13 +419,9 @@ export class Scripts {
   async remove(jobId: string, removeChildren: boolean): Promise<number> {
     const client = await this.queue.client;
 
-    const args = this.removeArgs(
-      jobId, removeChildren
-    );
+    const args = this.removeArgs(jobId, removeChildren);
 
-    const result = await (<any>client).removeJob(
-      args,
-    );
+    const result = await (<any>client).removeJob(args);
 
     if (result < 0) {
       throw this.finishedErrors({
@@ -606,49 +605,6 @@ export class Scripts {
       if (typeof result !== 'undefined') {
         return raw2NextJobData(result);
       }
-    }
-  }
-
-  finishedErrors({
-    code,
-    jobId,
-    parentKey,
-    command,
-    state,
-  }: {
-    code: number;
-    jobId?: string;
-    parentKey?: string;
-    command: string;
-    state?: string;
-  }): Error {
-    switch (code) {
-      case ErrorCode.JobNotExist:
-        return new Error(`Missing key for job ${jobId}. ${command}`);
-      case ErrorCode.JobLockNotExist:
-        return new Error(`Missing lock for job ${jobId}. ${command}`);
-      case ErrorCode.JobNotInState:
-        return new Error(
-          `Job ${jobId} is not in the ${state} state. ${command}`,
-        );
-      case ErrorCode.JobPendingDependencies:
-        return new Error(`Job ${jobId} has pending dependencies. ${command}`);
-      case ErrorCode.ParentJobNotExist:
-        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
-      case ErrorCode.JobLockMismatch:
-        return new Error(
-          `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
-        );
-      case ErrorCode.ParentJobCannotBeReplaced:
-        return new Error(
-          `The parent job ${parentKey} cannot be replaced. ${command}`,
-        );
-      case ErrorCode.JobBelongsToJobScheduler:
-        return new Error(
-          `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
-        );
-      default:
-        return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
     }
   }
 
@@ -1510,6 +1466,49 @@ export class Scripts {
     const args = this.executeMigrationsArgs(currentMigrationExecution);
 
     return (<any>client).executeMigrations(args);
+  }
+
+  finishedErrors({
+    code,
+    jobId,
+    parentKey,
+    command,
+    state,
+  }: {
+    code: number;
+    jobId?: string;
+    parentKey?: string;
+    command: string;
+    state?: string;
+  }): Error {
+    switch (code) {
+      case ErrorCode.JobNotExist:
+        return new Error(`Missing key for job ${jobId}. ${command}`);
+      case ErrorCode.JobLockNotExist:
+        return new Error(`Missing lock for job ${jobId}. ${command}`);
+      case ErrorCode.JobNotInState:
+        return new Error(
+          `Job ${jobId} is not in the ${state} state. ${command}`,
+        );
+      case ErrorCode.JobPendingDependencies:
+        return new Error(`Job ${jobId} has pending dependencies. ${command}`);
+      case ErrorCode.ParentJobNotExist:
+        return new Error(`Missing key for parent job ${parentKey}. ${command}`);
+      case ErrorCode.JobLockMismatch:
+        return new Error(
+          `Lock mismatch for job ${jobId}. Cmd ${command} from ${state}`,
+        );
+      case ErrorCode.ParentJobCannotBeReplaced:
+        return new Error(
+          `The parent job ${parentKey} cannot be replaced. ${command}`,
+        );
+      case ErrorCode.JobBelongsToJobScheduler:
+        return new Error(
+          `Job ${jobId} belongs to a job scheduler and cannot be removed directly. ${command}`,
+        );
+      default:
+        return new Error(`Unknown code ${code} error for ${jobId}. ${command}`);
+    }
   }
 }
 
