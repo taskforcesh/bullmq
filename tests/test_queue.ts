@@ -108,11 +108,18 @@ describe('queues', function () {
 
       const client = await queue.client;
       const keys = await client.keys(`${prefix}:${queue.name}:*`);
-      expect(keys.length).to.be.eql(5);
+      expect(keys.length).to.be.eql(6);
 
       for (const key of keys) {
         const type = key.split(':')[2];
-        expect(['marker', 'events', 'meta', 'pc', 'id']).to.include(type);
+        expect([
+          'marker',
+          'migrations',
+          'events',
+          'meta',
+          'pc',
+          'id',
+        ]).to.include(type);
       }
     }).timeout(10000);
 
@@ -143,10 +150,16 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).to.be.eql(5);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['events', 'meta', 'id', 'marker']).to.include(type);
+              expect([
+                'events',
+                'meta',
+                'migrations',
+                'id',
+                'marker',
+              ]).to.include(type);
             }
 
             const countAfterEmpty = await queue.count();
@@ -177,10 +190,16 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).to.be.eql(5);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['id', 'meta', 'marker', 'events']).to.include(type);
+              expect([
+                'id',
+                'meta',
+                'marker',
+                'migrations',
+                'events',
+              ]).to.include(type);
             }
 
             const countAfterEmpty = await queue.count();
@@ -223,7 +242,7 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(6);
+            expect(keys.length).to.be.eql(7);
 
             const countAfterEmpty = await queue.count();
             expect(countAfterEmpty).to.be.eql(1);
@@ -265,10 +284,16 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).to.be.eql(5);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['id', 'meta', 'events', 'marker']).to.include(type);
+              expect([
+                'id',
+                'meta',
+                'migrations',
+                'events',
+                'marker',
+              ]).to.include(type);
             }
 
             const countAfterEmpty = await queue.count();
@@ -316,10 +341,16 @@ describe('queues', function () {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            expect(keys.length).to.be.eql(4);
+            expect(keys.length).to.be.eql(5);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect(['id', 'meta', 'events', 'marker']).to.include(type);
+              expect([
+                'id',
+                'meta',
+                'migrations',
+                'events',
+                'marker',
+              ]).to.include(type);
             }
 
             const countAfterEmpty = await queue.count();
@@ -397,7 +428,7 @@ describe('queues', function () {
     describe('when queue is paused', () => {
       it('clean queue including paused jobs', async () => {
         const maxJobs = 50;
-        const added:Promise<Job>[] = [];
+        const added: Promise<Job>[] = [];
 
         await queue.pause();
         for (let i = 1; i <= maxJobs; i++) {

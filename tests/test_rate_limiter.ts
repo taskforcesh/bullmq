@@ -28,6 +28,7 @@ describe('Rate Limiter', function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
+    await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
 
@@ -690,6 +691,8 @@ describe('Rate Limiter', function () {
             },
           },
         );
+
+        await worker.waitUntilReady();
 
         const result = new Promise<void>((resolve, reject) => {
           queueEvents.on(

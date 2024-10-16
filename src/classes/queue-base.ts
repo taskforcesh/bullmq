@@ -11,7 +11,7 @@ import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
-import { checkPendingMigrations } from './migrations';
+import { checkPendingMigrations, runMigrations } from './migrations';
 
 /**
  * @class QueueBase
@@ -96,9 +96,13 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
           queueName: this.name,
         }).then(hasPendingMigrations => {
           if (hasPendingMigrations) {
-            throw new Error(
-              'Queue has pending migrations. See https://docs.bullmq.io/guide/migrations',
-            );
+            return runMigrations(client, {
+              prefix: this.opts.prefix,
+              queueName: this.name,
+            }).then(() => {
+              this.checkedPendingMigrations = true;
+              return client;
+            });
           }
           this.checkedPendingMigrations = true;
           return client;

@@ -436,7 +436,6 @@ export class Worker<
         return;
       }
 
-      await this.executeMigrations();
       await this.startStalledCheckTimer();
 
       const jobsInProgress = new Set<{ job: Job; ts: number }>();
@@ -1120,34 +1119,5 @@ will never work with more accuracy than 1ms. */
     token: string,
   ) {
     return this.scripts.moveJobFromActiveToWait(job.id, token);
-  }
-
-  /**
-   * Execute migration scripts while migrating to breaking changes.
-   */
-  async executeMigrations(
-  ): Promise<void> {
-    let currentMigrationExecution=1;
-
-    while (currentMigrationExecution > 0) {
-      currentMigrationExecution = await this.scripts.executeMigrations(
-        currentMigrationExecution
-      );
-      switch (currentMigrationExecution) {
-        case 2:{
-          await this.scripts.removeLegacyMarkers();
-          currentMigrationExecution++;
-          break;
-        }
-        case 3:{
-          let cursor = 0;
-          do {
-            cursor = await this.scripts.migrateDeprecatedPausedKey(5000);
-          } while (cursor);
-          currentMigrationExecution++;
-          break;
-        }
-      }
-    }
   }
 }

@@ -27,41 +27,39 @@ export const migrations: {
   version: string;
   migrate: MigrationFunction;
 }[] = [
-  /*
-   * Example migration function
-   *
+  {
+    name: 'remove-legacy-markers',
+    version: '6.0.0',
+    migrate: async (client: RedisClient, opts: MigrationOptions) => {
+      const keys: (string | number)[] = [
+        getRedisKeyFromOpts(opts, 'wait'),
+        getRedisKeyFromOpts(opts, 'paused'),
+        getRedisKeyFromOpts(opts, 'meta'),
+        getRedisKeyFromOpts(opts, 'completed'),
+        getRedisKeyFromOpts(opts, 'failed'),
+      ];
+      const args = [getRedisKeyFromOpts(opts, '')];
+
+      await (<any>client).removeLegacyMarkers(keys.concat(args));
+    },
+  },
   {
     name: 'migrate-paused-jobs',
     version: '6.0.0',
     migrate: async (client: RedisClient, opts: MigrationOptions) => {
-      let cursor: number = 0;
+      let cursor = 0;
       do {
-        cursor = (await client.eval(
-          `
-        local maxCount = tonumber(ARGV[1])
-        local rcall = redis.call
-
-        local hasJobs = rcall("EXISTS", KEYS[1]) == 1
-
-        if hasJobs then
-            local jobs = rcall('LRANGE', KEYS[1], 0, maxCount - 1)
-            rcall("RPUSH", KEYS[2], unpack(jobs))
-            rcall("LTRIM", KEYS[1], #jobs, -1)
-
-            if (maxCount - #jobs) <= 0 then
-                return 1
-            end
-        end
-
-        return 0`,
-          2,
-          getRedisKeyFromOpts(opts, "paused"),
-          getRedisKeyFromOpts(opts, "wait"),
-        )) as number;
+        const keys: (string | number)[] = [
+          getRedisKeyFromOpts(opts, 'paused'),
+          getRedisKeyFromOpts(opts, 'wait'),
+        ];
+        const args = [1000];
+        cursor = await (<any>client).migrateDeprecatedPausedKey(
+          keys.concat(args),
+        );
       } while (cursor);
     },
   },
-  */
 ];
 
 /**

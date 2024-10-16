@@ -40,6 +40,7 @@ describe('workers', function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
+    await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
 
@@ -47,7 +48,7 @@ describe('workers', function () {
     sandbox.restore();
     await queue.close();
     await queueEvents.close();
-    //await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
@@ -543,7 +544,7 @@ describe('workers', function () {
 
     // Check moveToActive was called only concurrency times
     expect(spy.callCount).to.be.equal(concurrency + 1);
-    expect(bclientSpy.callCount).to.be.equal(2);
+    expect(bclientSpy.callCount).to.be.equal(3);
 
     await worker.close();
   });
@@ -573,7 +574,7 @@ describe('workers', function () {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
     }
-  
+
     await new Promise<void>((resolve, reject) => {
       worker.on('completed', (job: Job, result: any) => {
         completedJobs++;
@@ -4527,60 +4528,5 @@ describe('workers', function () {
     await allStalled;
 
     await worker.close();
-  });
-
-  describe('.executeMigrations', () => {
-    describe('.removeLegacyMarkers', () => {
-      it('removes old markers', async () => {
-        const client = await queue.client;
-        await client.zadd(`${prefix}:${queue.name}:completed`, 1, '0:2');
-        await client.zadd(`${prefix}:${queue.name}:completed`, 1, '0:2');
-        await client.zadd(`${prefix}:${queue.name}:failed`, 2, '0:1');
-        await client.rpush(`${prefix}:${queue.name}:wait`, '0:0');
-
-        const worker = new Worker(
-          queueName,
-          async () => {
-          },
-          { connection, prefix },
-        );
-        await worker.waitUntilReady();
-
-        await delay(500);
-
-        const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-        // meta key, stalled-check, migrations
-        expect(keys.length).to.be.eql(3);
-        await worker.close();
-      });
-    });
-
-    describe('.migrateDeprecatedPausedKey', () => {
-      it('moves jobs from paused to wait', async () => {
-        const client = await queue.client;
-        await client.lpush(`${prefix}:${queue.name}:paused`, 'a', 'b', 'c');
-        await client.lpush(`${prefix}:${queue.name}:wait`, 'd', 'e', 'f');
-
-        const worker = new Worker(
-          queueName,
-          async () => {
-          },
-          { connection, prefix, autorun:false },
-        );
-        await worker.waitUntilReady();
-        await worker.pause();
-        worker.run();
-
-        await delay(500);
-
-        const jobs = await client.lrange(
-          `${prefix}:${queue.name}:wait`, 0, -1
-        );
-
-        expect(jobs).to.be.eql(['f', 'e', 'd', 'c', 'b', 'a']);
-        await worker.close();
-      });
-    });  
   });
 });
