@@ -81,7 +81,7 @@ if(maxCount <= 0) then
   return 1
 end
 
-local waitKey = baseKey .. 'paused'
+local waitKey = baseKey .. 'wait'
 maxCount = removeListJobs(waitKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1

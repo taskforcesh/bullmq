@@ -8,10 +8,9 @@
     KEYS[2] events stream
     KEYS[3] state key (failed, completed, delayed)
     KEYS[4] 'wait'
-    KEYS[5] 'paused'
-    KEYS[6] 'meta'
-    KEYS[7] 'active'
-    KEYS[8] 'marker'
+    KEYS[5] 'meta'
+    KEYS[6] 'active'
+    KEYS[7] 'marker'
 
     ARGV[1] count
     ARGV[2] timestamp
@@ -30,10 +29,10 @@ local rcall = redis.call;
 --- @include "includes/addBaseMarkerIfNeeded"
 --- @include "includes/batches"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 
-local metaKey = KEYS[6]
-local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[7], KEYS[4], KEYS[5])
+local metaKey = KEYS[5]
+local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[6])
 
 local jobs = rcall('ZRANGEBYSCORE', KEYS[3], 0, timestamp, 'LIMIT', 0, maxCount)
 if (#jobs > 0) then
@@ -60,10 +59,10 @@ if (#jobs > 0) then
 
     for from, to in batches(#jobs, 7000) do
         rcall("ZREM", KEYS[3], unpack(jobs, from, to))
-        rcall("LPUSH", target, unpack(jobs, from, to))
+        rcall("LPUSH", KEYS[4], unpack(jobs, from, to))
     end
 
-    addBaseMarkerIfNeeded(KEYS[8], isPausedOrMaxed)
+    addBaseMarkerIfNeeded(KEYS[7], isPausedOrMaxed)
 end
 
 maxCount = maxCount - #jobs

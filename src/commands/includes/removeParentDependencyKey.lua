@@ -7,13 +7,12 @@
 -- Includes
 --- @include "addJobInTargetList"
 --- @include "destructureJobKey"
---- @include "getTargetQueueList"
+--- @include "isQueuePausedOrMaxed"
 --- @include "removeJobKeys"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
-  local parentTarget, isPausedOrMaxed = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "active",
-    parentPrefix .. "wait", parentPrefix .. "paused")
-  addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
+  local isPausedOrMaxed = isQueuePausedOrMaxed(parentPrefix .. "meta", parentPrefix .. "active")
+  addJobInTargetList(parentPrefix .. "wait", parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
 
   if emitEvent then
     local parentEventStream = parentPrefix .. "events"

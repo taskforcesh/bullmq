@@ -265,8 +265,8 @@ export class Queue<
     } else {
       const jobId = opts?.jobId;
 
-      if (jobId == '0' || jobId?.startsWith('0:')) {
-        throw new Error("JobId cannot be '0' or start with 0:");
+      if (jobId == '0' || jobId?.includes(':')) {
+        throw new Error("JobId cannot be '0' or contain :");
       }
 
       const job = await this.Job.create<DataType, ResultType, NameType>(
@@ -276,7 +276,6 @@ export class Queue<
         {
           ...this.jobsOpts,
           ...opts,
-          jobId,
         },
       );
       this.emit('waiting', job);
@@ -579,6 +578,13 @@ export class Queue<
   }
 
   /**
+   * Remove legacy markers before v5
+   */
+  removeLegacyMarkers(): Promise<void> {
+    return this.scripts.removeLegacyMarkers();
+  }
+
+  /**
    * Cleans jobs from a queue. Similar to drain but keeps jobs within a certain
    * grace period.
    *
@@ -702,5 +708,17 @@ export class Queue<
   async removeDeprecatedPriorityKey(): Promise<number> {
     const client = await this.client;
     return client.del(this.toKey('priority'));
+  }
+
+  /**
+   * Migrate deprecated paused key
+   *
+   * @param maxCount - Max quantity of jobs to be moved to wait per iteration.
+   */
+  async migrateDeprecatedPausedKey(maxCount = 1000): Promise<void> {
+    let cursor = 0;
+    do {
+      cursor = await this.scripts.migrateDeprecatedPausedKey(maxCount);
+    } while (cursor);
   }
 }

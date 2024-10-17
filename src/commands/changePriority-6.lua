@@ -2,12 +2,11 @@
   Change job priority
   Input:
     KEYS[1] 'wait',
-    KEYS[2] 'paused'
-    KEYS[3] 'meta'
-    KEYS[4] 'prioritized'
-    KEYS[5] 'active'
-    KEYS[6] 'pc' priority counter
-    KEYS[7] 'marker'
+    KEYS[2] 'meta'
+    KEYS[3] 'prioritized'
+    KEYS[4] 'active'
+    KEYS[5] 'pc' priority counter
+    KEYS[6] 'marker'
 
     ARGV[1] priority value
     ARGV[2] prefix key
@@ -26,14 +25,14 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/pushBackJobWithPriority"
 
-local function reAddJobWithNewPriority( prioritizedKey, markerKey, targetKey,
+local function reAddJobWithNewPriority( prioritizedKey, markerKey, waitKey,
     priorityCounter, lifo, priority, jobId, isPausedOrMaxed)
     if priority == 0 then
         local pushCmd = lifo and 'RPUSH' or 'LPUSH'
-        addJobInTargetList(targetKey, markerKey, pushCmd, isPausedOrMaxed, jobId)
+        addJobInTargetList(waitKey, markerKey, pushCmd, isPausedOrMaxed, jobId)
     else
         if lifo then
             pushBackJobWithPriority(prioritizedKey, priority, jobId)
@@ -45,18 +44,18 @@ local function reAddJobWithNewPriority( prioritizedKey, markerKey, targetKey,
 end
 
 if rcall("EXISTS", jobKey) == 1 then
-    local metaKey = KEYS[3]
-    local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[5], KEYS[1], KEYS[2])
-    local prioritizedKey = KEYS[4]
-    local priorityCounterKey = KEYS[6]
-    local markerKey = KEYS[7]
+    local metaKey = KEYS[2]
+    local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[4])
+    local prioritizedKey = KEYS[3]
+    local priorityCounterKey = KEYS[5]
+    local markerKey = KEYS[6]
     
     -- Re-add with the new priority
     if rcall("ZREM", prioritizedKey, jobId) > 0 then
-        reAddJobWithNewPriority( prioritizedKey, markerKey, target,
+        reAddJobWithNewPriority( prioritizedKey, markerKey, KEYS[1],
             priorityCounterKey, ARGV[4] == '1', priority, jobId, isPausedOrMaxed)
-    elseif rcall("LREM", target, -1, jobId) > 0 then
-        reAddJobWithNewPriority( prioritizedKey, markerKey, target,
+    elseif rcall("LREM", KEYS[1], -1, jobId) > 0 then
+        reAddJobWithNewPriority( prioritizedKey, markerKey, KEYS[1],
             priorityCounterKey, ARGV[4] == '1', priority, jobId, isPausedOrMaxed)
     end
 

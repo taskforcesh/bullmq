@@ -32,10 +32,9 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
 
   /**
    * Repeated job should start right now
-   * ( work only with every settings)
+   * (work only with every settings)
    *
    * @deprecated
-   *
    */
   immediately?: boolean;
 

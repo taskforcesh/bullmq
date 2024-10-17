@@ -11,6 +11,7 @@ import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
+import { checkPendingMigrations, runMigrations } from './migrations';
 
 /**
  * @class QueueBase
@@ -21,6 +22,8 @@ import { Scripts } from './scripts';
  *
  */
 export class QueueBase extends EventEmitter implements MinimalQueue {
+  public readonly qualifiedName: string;
+
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
@@ -28,7 +31,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   protected closed: boolean = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
-  public readonly qualifiedName: string;
+
+  private checkedPendingMigrations: boolean = false;
 
   /**
    *
@@ -80,9 +84,40 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   /**
    * Returns a promise that resolves to a redis client. Normally used only by subclasses.
+   * This method will also check if there are pending migrations, if so it will throw an error.
    */
   get client(): Promise<RedisClient> {
-    return this.connection.client;
+    if (this.checkedPendingMigrations) {
+      return this.connection.client;
+    } else {
+      return this.connection.client.then(client => {
+        return checkPendingMigrations(client, {
+          prefix: this.opts.prefix,
+          queueName: this.name,
+        }).then(hasPendingMigrations => {
+          if (hasPendingMigrations) {
+            if (
+              this.opts.skipMigrationsExecution ||
+              typeof this.opts.skipMigrationsExecution === 'undefined'
+            ) {
+              console.error(
+                'Queue has pending migrations. See https://docs.bullmq.io/guide/migrations',
+              );
+            } else {
+              return runMigrations(client, {
+                prefix: this.opts.prefix,
+                queueName: this.name,
+              }).then(() => {
+                this.checkedPendingMigrations = true;
+                return client;
+              });
+            }
+          }
+          this.checkedPendingMigrations = true;
+          return client;
+        });
+      });
+    }
   }
 
   protected setScripts() {
