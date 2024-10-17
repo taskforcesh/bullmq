@@ -546,7 +546,7 @@ describe('workers', function () {
 
     // Check moveToActive was called numJobs + 2 times
     expect(spy.callCount).to.be.equal(numJobs + 2);
-    expect(bclientSpy.callCount).to.be.equal(2);
+    expect(bclientSpy.callCount).to.be.equal(3);
 
     await worker.close();
   });
