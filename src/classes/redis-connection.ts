@@ -11,6 +11,7 @@ import {
   isRedisCluster,
   isRedisInstance,
   isRedisVersionLowerThan,
+  readPackageJson,
 } from '../utils';
 import * as scripts from '../scripts';
 
@@ -195,13 +196,17 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(providedScripts?: Record<string, RawCommand>): void {
+  protected loadCommands(
+    version: string,
+    providedScripts?: Record<string, RawCommand>,
+  ): void {
     const finalScripts =
       providedScripts || (scripts as Record<string, RawCommand>);
     for (const property in finalScripts as Record<string, RawCommand>) {
       // Only define the command if not already defined
-      if (!(<any>this._client)[finalScripts[property].name]) {
-        (<any>this._client).defineCommand(finalScripts[property].name, {
+      const commandName = `${finalScripts[property].name}:${version}`;
+      if (!(<any>this._client)[commandName]) {
+        (<any>this._client).defineCommand(commandName, {
           numberOfKeys: finalScripts[property].keys,
           lua: finalScripts[property].content,
         });
@@ -223,9 +228,11 @@ export class RedisConnection extends EventEmitter {
 
     this._client.on('ready', this.handleClientReady);
 
+    const { version } = readPackageJson();
+
     await RedisConnection.waitUntilReady(this._client);
 
-    this.loadCommands();
+    this.loadCommands(version);
 
     if (this._client['status'] !== 'end') {
       this.version = await this.getRedisVersion();
