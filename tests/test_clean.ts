@@ -269,12 +269,10 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(5);
+          expect(keys.length).to.be.eql(4);
           for (const key of keys) {
             const type = key.split(':')[2];
-            expect(['meta', 'events', 'marker', 'migrations', 'id']).to.include(
-              type,
-            );
+            expect(['meta', 'events', 'marker', 'id']).to.include(type);
           }
 
           const countAfterEmpty = await queue.count();
@@ -322,17 +320,13 @@ describe('Cleaner', () => {
             const client = await queue.client;
             const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-            // Expected keys: meta, id, stalled-check, migrations and events
-            expect(keys.length).to.be.eql(5);
+            // Expected keys: meta, id, stalled-check and events
+            expect(keys.length).to.be.eql(4);
             for (const key of keys) {
               const type = key.split(':')[2];
-              expect([
-                'meta',
-                'id',
-                'stalled-check',
-                'migrations',
-                'events',
-              ]).to.include(type);
+              expect(['meta', 'id', 'stalled-check', 'events']).to.include(
+                type,
+              );
             }
 
             const jobs = await queue.getJobCountByTypes('completed');
@@ -452,8 +446,8 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          // Expected keys: meta, id, stalled-check, migrations, events, failed and 2 jobs
-          expect(keys.length).to.be.eql(8);
+          // Expected keys: meta, id, stalled-check, events, failed and 2 jobs
+          expect(keys.length).to.be.eql(7);
 
           const jobs = await queue.getJobCountByTypes('completed');
           expect(jobs).to.be.equal(2);
@@ -498,7 +492,7 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(7);
+          expect(keys.length).to.be.eql(6);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(1);
@@ -639,12 +633,10 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(5);
+          expect(keys.length).to.be.eql(4);
           for (const key of keys) {
             const type = key.split(':')[2];
-            expect(['meta', 'migrations', 'events', 'marker', 'id']).to.include(
-              type,
-            );
+            expect(['meta', 'events', 'marker', 'id']).to.include(type);
           }
 
           const eventsCount = await client.xlen(
@@ -703,7 +695,7 @@ describe('Cleaner', () => {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(6);
+          expect(keys.length).to.be.eql(5);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);

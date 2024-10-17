@@ -463,6 +463,7 @@ function sandboxProcessTests(
             resolve();
           });
         });
+        await worker.waitUntilReady();
         const inspect = stderr.inspect();
 
         await queue.add('test', { foo: 'bar' });

@@ -31,6 +31,12 @@ export interface QueueBaseOptions {
    * @defaultValue false
    */
   skipVersionCheck?: boolean;
+
+  /**
+   * Avoid migrations execution.
+   * @defaultValue true
+   */
+  skipMigrationsExecution?: boolean;
 }
 
 /**

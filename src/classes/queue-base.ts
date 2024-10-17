@@ -96,13 +96,22 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
           queueName: this.name,
         }).then(hasPendingMigrations => {
           if (hasPendingMigrations) {
-            return runMigrations(client, {
-              prefix: this.opts.prefix,
-              queueName: this.name,
-            }).then(() => {
-              this.checkedPendingMigrations = true;
-              return client;
-            });
+            if (
+              this.opts.skipMigrationsExecution ||
+              typeof this.opts.skipMigrationsExecution === 'undefined'
+            ) {
+              console.error(
+                'Queue has pending migrations. See https://docs.bullmq.io/guide/migrations',
+              );
+            } else {
+              return runMigrations(client, {
+                prefix: this.opts.prefix,
+                queueName: this.name,
+              }).then(() => {
+                this.checkedPendingMigrations = true;
+                return client;
+              });
+            }
           }
           this.checkedPendingMigrations = true;
           return client;

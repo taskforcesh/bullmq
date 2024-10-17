@@ -44,7 +44,7 @@ describe('Obliterate', function () {
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-    expect(keys.length).to.be.eql(1);
+    expect(keys.length).to.be.eql(0);
   });
 
   it('should obliterate a queue with jobs in different statuses', async () => {
@@ -74,8 +74,8 @@ describe('Obliterate', function () {
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    // only migration key should be kept
-    expect(keys.length).to.be.eql(1);
+
+    expect(keys.length).to.be.eql(0);
 
     await worker.close();
   });
@@ -107,7 +107,7 @@ describe('Obliterate', function () {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(1);
+          expect(keys.length).to.be.eql(0);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);
@@ -165,8 +165,7 @@ describe('Obliterate', function () {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          // only migration key should be kept
-          expect(keys.length).to.be.eql(1);
+          expect(keys.length).to.be.eql(0);
 
           await worker.close();
           await flow.close();
@@ -206,7 +205,7 @@ describe('Obliterate', function () {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(4);
+          expect(keys.length).to.be.eql(3);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(1);
@@ -248,7 +247,7 @@ describe('Obliterate', function () {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queueName}:*`);
 
-          expect(keys.length).to.be.eql(1);
+          expect(keys.length).to.be.eql(0);
 
           const eventsCount = await client.xlen(
             `${prefix}:${parentQueueName}:events`,
@@ -297,7 +296,7 @@ describe('Obliterate', function () {
           const client = await queue.client;
           const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
-          expect(keys.length).to.be.eql(1);
+          expect(keys.length).to.be.eql(0);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(0);
@@ -378,7 +377,7 @@ describe('Obliterate', function () {
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
     // only migration key should be kept
-    expect(keys.length).to.be.eql(1);
+    expect(keys.length).to.be.eql(0);
 
     await worker.close();
   });
@@ -402,7 +401,7 @@ describe('Obliterate', function () {
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
-    expect(keys.length).to.be.eql(1);
+    expect(keys.length).to.be.eql(0);
   });
 
   it('should remove job logs', async () => {
@@ -478,7 +477,6 @@ describe('Obliterate', function () {
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}*`);
-    // only migration key should be kept
-    expect(keys.length).to.be.eql(1);
+    expect(keys.length).to.be.eql(0);
   });
 });

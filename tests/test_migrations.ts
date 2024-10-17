@@ -49,7 +49,11 @@ describe('migrations', function () {
         await client.zadd(failedKey, 2, '0:1');
         await client.rpush(waitingKey, '0:0');
 
-        const queue2 = new Queue(queueName2, { connection, prefix });
+        const queue2 = new Queue(queueName2, {
+          connection,
+          prefix,
+          skipMigrationsExecution: false,
+        });
 
         await queue2.waitUntilReady();
 
@@ -81,7 +85,11 @@ describe('migrations', function () {
         await client.lpush(`${prefix}:${queueName2}:paused`, 'a', 'b', 'c');
         await client.lpush(`${prefix}:${queueName2}:wait`, 'd', 'e', 'f');
 
-        const queue2 = new Queue(queueName2, { connection, prefix });
+        const queue2 = new Queue(queueName2, {
+          connection,
+          prefix,
+          skipMigrationsExecution: false,
+        });
 
         await queue2.waitUntilReady();
 
