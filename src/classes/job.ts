@@ -39,10 +39,10 @@ const logger = debuglog('bull');
 
 const optsDecodeMap = {
   de: 'deduplication',
+  ocf: 'onChildFailure',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
-  rdof: 'removeDependencyOnFailure',
 };
 
 const optsEncodeMap = invertObject(optsDecodeMap);
@@ -1234,27 +1234,6 @@ export class Job<
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
       throw new Error(`Delay and repeat options could not be used together`);
-    }
-
-    if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {
-      throw new Error(
-        `RemoveDependencyOnFailure and failParentOnFailure options can not be used together`,
-      );
-    }
-
-    if (
-      this.opts.removeDependencyOnFailure &&
-      this.opts.ignoreDependencyOnFailure
-    ) {
-      throw new Error(
-        `RemoveDependencyOnFailure and ignoreDependencyOnFailure options can not be used together`,
-      );
-    }
-
-    if (this.opts.failParentOnFailure && this.opts.ignoreDependencyOnFailure) {
-      throw new Error(
-        `FailParentOnFailure and ignoreDependencyOnFailure options can not be used together`,
-      );
     }
 
     if (`${parseInt(this.id, 10)}` === this.id) {
