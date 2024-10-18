@@ -86,7 +86,7 @@ export class Scripts {
     const client = await this.queue.client;
     let result;
     if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
-      result = this.execCommand(client, 'isJobInList', [listKey, jobId]);
+      result = await this.execCommand(client, 'isJobInList', [listKey, jobId]);
     } else {
       result = await client.lpos(listKey, jobId);
     }
