@@ -644,11 +644,13 @@ export class Job<
           token,
           delay,
         );
-        (<any>multi).moveToDelayed(args);
+        this.scripts.execCommand(multi, 'moveToDelayed', args);
         command = 'delayed';
       } else {
         // Retry immediately
-        (<any>multi).retryJob(
+        this.scripts.execCommand(
+          multi,
+          'retryJob',
           this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
         );
         command = 'retryJob';
@@ -666,7 +668,7 @@ export class Job<
         token,
         fetchNext,
       );
-      (<any>multi).moveToFinished(args);
+      this.scripts.execCommand(multi, 'moveToFinished', args);
       finishedOn = args[14];
       command = 'failed';
     }
@@ -1170,8 +1172,7 @@ export class Job<
       JSON.stringify(this.stacktrace),
       err?.message,
     );
-
-    (<any>multi).saveStacktrace(args);
+    this.scripts.execCommand(multi, 'saveStacktrace', args);
   }
 }
 

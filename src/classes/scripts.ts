@@ -32,16 +32,25 @@ import {
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
-import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
+import {
+  array2obj,
+  getParentKey,
+  isRedisVersionLowerThan,
+  readPackageJson,
+} from '../utils';
 import { ChainableCommander } from 'ioredis';
 
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
+  protected version;
+
   moveToFinishedKeys: (string | undefined)[];
 
   constructor(protected queue: MinimalQueue) {
     const queueKeys = this.queue.keys;
+
+    this.version = readPackageJson().version;
 
     this.moveToFinishedKeys = [
       queueKeys.wait,
@@ -60,13 +69,22 @@ export class Scripts {
     ];
   }
 
+  public execCommand(
+    client: RedisClient | ChainableCommander,
+    commandName: string,
+    args: any[],
+  ) {
+    const commandNameWithVersion = `${commandName}:${this.version}`;
+    return (<any>client)[commandNameWithVersion](args);
+  }
+
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
     let result;
     if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
-      result = await (<any>client).isJobInList([listKey, jobId]);
+      result = await this.execCommand(client, 'isJobInList', [listKey, jobId]);
     } else {
-      result = await (<any>client).lpos(listKey, jobId);
+      result = await client.lpos(listKey, jobId);
     }
     return Number.isInteger(result);
   }
@@ -89,8 +107,7 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-
-    return (<any>client).addDelayedJob(keys);
+    return this.execCommand(client, 'addDelayedJob', keys);
   }
 
   private async addPrioritizedJob(
@@ -113,7 +130,7 @@ export class Scripts {
 
     keys.push(pack(args), job.data, encodedOpts);
 
-    return (<any>client).addPrioritizedJob(keys);
+    return this.execCommand(client, 'addPrioritizedJob', keys);
   }
 
   private async addParentJob(
@@ -132,7 +149,7 @@ export class Scripts {
 
     keys.push(pack(args), job.data, encodedOpts);
 
-    return (<any>client).addParentJob(keys);
+    return this.execCommand(client, 'addParentJob', keys);
   }
 
   async addJob(
@@ -199,7 +216,7 @@ export class Scripts {
         queueKeys.events,
       ];
       keys.push(pack(args), job.data, encodedOpts);
-      result = await (<any>client).addStandardJob(keys);
+      result = await this.execCommand(client, 'addStandardJob', keys);
     }
 
     if (result < 0) {
@@ -225,7 +242,11 @@ export class Scripts {
 
     keys.push(this.queue.keys.events);
 
-    return (<any>client).pause(keys.concat([pause ? 'paused' : 'resumed']));
+    return this.execCommand(
+      client,
+      'pause',
+      keys.concat([pause ? 'paused' : 'resumed']),
+    );
   }
 
   private removeRepeatableArgs(
@@ -248,14 +269,16 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.removeRepeatableArgs(repeatJobId, repeatJobKey);
 
-    return (<any>client).removeRepeatable(args);
+    return this.execCommand(client, 'removeRepeatable', args);
   }
 
   async remove(jobId: string, removeChildren: boolean): Promise<number> {
     const client = await this.queue.client;
 
     const keys: (string | number)[] = [''].map(name => this.queue.toKey(name));
-    return (<any>client).removeJob(
+    return this.execCommand(
+      client,
+      'removeJob',
       keys.concat([jobId, removeChildren ? 1 : 0]),
     );
   }
@@ -274,7 +297,7 @@ export class Scripts {
       duration,
       jobId,
     ];
-    return (<any>client).extendLock(args);
+    return this.execCommand(client, 'extendLock', args);
   }
 
   async updateData<T = any, R = any, N extends string = string>(
@@ -286,7 +309,11 @@ export class Scripts {
     const keys = [this.queue.toKey(job.id)];
     const dataJson = JSON.stringify(data);
 
-    const result = await (<any>client).updateData(keys.concat([dataJson]));
+    const result = await this.execCommand(
+      client,
+      'updateData',
+      keys.concat([dataJson]),
+    );
 
     if (result < 0) {
       throw this.finishedErrors(result, job.id, 'updateData');
@@ -306,7 +333,9 @@ export class Scripts {
     ];
     const progressJson = JSON.stringify(progress);
 
-    const result = await (<any>client).updateProgress(
+    const result = await this.execCommand(
+      client,
+      'updateProgress',
       keys.concat([jobId, progressJson]),
     );
 
@@ -387,7 +416,7 @@ export class Scripts {
   ) {
     const client = await this.queue.client;
 
-    const result = await (<any>client).moveToFinished(args);
+    const result = await this.execCommand(client, 'moveToFinished', args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToFinished', 'active');
     } else {
@@ -444,7 +473,7 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.drainArgs(delayed);
 
-    return (<any>client).drain(args);
+    return this.execCommand(client, 'drain', args);
   }
 
   private getRangesArgs(
@@ -474,7 +503,7 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.getRangesArgs(types, start, end, asc);
 
-    return (<any>client).getRanges(args);
+    return this.execCommand(client, 'getRanges', args);
   }
 
   private getCountsArgs(types: JobType[]): (string | number)[] {
@@ -494,7 +523,7 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.getCountsArgs(types);
 
-    return (<any>client).getCounts(args);
+    return this.execCommand(client, 'getCounts', args);
   }
 
   moveToCompletedArgs<T = any, R = any, N extends string = string>(
@@ -547,7 +576,9 @@ export class Scripts {
       return this.queue.toKey(key);
     });
 
-    return (<any>client).isFinished(
+    return this.execCommand(
+      client,
+      'isFinished',
       keys.concat([jobId, returnValue ? '1' : '']),
     );
   }
@@ -569,16 +600,16 @@ export class Scripts {
     });
 
     if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
-      return (<any>client).getState(keys.concat([jobId]));
+      return this.execCommand(client, 'getState', keys.concat([jobId]));
     }
-    return (<any>client).getStateV2(keys.concat([jobId]));
+    return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
   }
 
   async changeDelay(jobId: string, delay: number): Promise<void> {
     const client = await this.queue.client;
 
     const args = this.changeDelayArgs(jobId, delay);
-    const result = await (<any>client).changeDelay(args);
+    const result = await this.execCommand(client, 'changeDelay', args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'changeDelay', 'delayed');
     }
@@ -614,7 +645,7 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.changePriorityArgs(jobId, priority, lifo);
-    const result = await (<any>client).changePriority(args);
+    const result = await this.execCommand(client, 'changePriority', args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'changePriority');
     }
@@ -728,7 +759,7 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay);
-    const result = await (<any>client).moveToDelayed(args);
+    const result = await this.execCommand(client, 'moveToDelayed', args);
     if (result < 0) {
       throw this.finishedErrors(result, jobId, 'moveToDelayed', 'active');
     }
@@ -753,7 +784,11 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.moveToWaitingChildrenArgs(jobId, token, opts);
-    const result = await (<any>client).moveToWaitingChildren(args);
+    const result = await this.execCommand(
+      client,
+      'moveToWaitingChildren',
+      args,
+    );
 
     switch (result) {
       case 0:
@@ -782,7 +817,7 @@ export class Scripts {
   ): Promise<string[]> {
     const client = await this.queue.client;
 
-    return (<any>client).cleanJobsInSet([
+    return this.execCommand(client, 'cleanJobsInSet', [
       this.queue.toKey(set),
       this.queue.toKey('events'),
       this.queue.toKey(''),
@@ -853,7 +888,7 @@ export class Scripts {
 
     const args = this.moveJobsToWaitArgs(state, count, timestamp);
 
-    return (<any>client).moveJobsToWait(args);
+    return this.execCommand(client, 'moveJobsToWait', args);
   }
 
   async promoteJobs(count = 1000): Promise<number> {
@@ -861,7 +896,7 @@ export class Scripts {
 
     const args = this.moveJobsToWaitArgs('delayed', count, Number.MAX_VALUE);
 
-    return (<any>client).moveJobsToWait(args);
+    return this.execCommand(client, 'moveJobsToWait', args);
   }
 
   /**
@@ -899,7 +934,11 @@ export class Scripts {
       state,
     ];
 
-    const result = await (<any>client).reprocessJob(keys.concat(args));
+    const result = await this.execCommand(
+      client,
+      'reprocessJob',
+      keys.concat(args),
+    );
 
     switch (result) {
       case 1:
@@ -937,7 +976,9 @@ export class Scripts {
       }),
     ];
 
-    const result = await (<any>client).moveToActive(
+    const result = await this.execCommand(
+      client,
+      'moveToActive',
       (<(string | number | boolean | Buffer)[]>keys).concat(args),
     );
 
@@ -959,7 +1000,7 @@ export class Scripts {
 
     const args = [this.queue.toKey(''), jobId];
 
-    const code = await (<any>client).promote(keys.concat(args));
+    const code = await this.execCommand(client, 'promote', keys.concat(args));
     if (code < 0) {
       throw this.finishedErrors(code, jobId, 'promote', 'delayed');
     }
@@ -994,7 +1035,7 @@ export class Scripts {
       Date.now(),
       opts.stalledInterval,
     ];
-    return (<any>client).moveStalledJobsToWait(keys.concat(args));
+    return this.execCommand(client, 'moveStalledJobsToWait', keys.concat(args));
   }
 
   /**
@@ -1024,7 +1065,11 @@ export class Scripts {
 
     const args = [jobId, token, this.queue.toKey(jobId)];
 
-    const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
+    const pttl = await this.execCommand(
+      client,
+      'moveJobFromActiveToWait',
+      keys.concat(args),
+    );
 
     return pttl < 0 ? 0 : pttl;
   }
@@ -1038,7 +1083,11 @@ export class Scripts {
     ];
     const args = [opts.count, opts.force ? 'force' : null];
 
-    const result = await (<any>client).obliterate(keys.concat(args));
+    const result = await this.execCommand(
+      client,
+      'obliterate',
+      keys.concat(args),
+    );
     if (result < 0) {
       switch (result) {
         case -1:
@@ -1092,7 +1141,9 @@ export class Scripts {
         args.push(1);
       }
 
-      [cursor, offset, items, total, rawJobs] = await (<any>client).paginate(
+      [cursor, offset, items, total, rawJobs] = await this.execCommand(
+        client,
+        'paginate',
         keys.concat(args),
       );
       page = page.concat(items);
