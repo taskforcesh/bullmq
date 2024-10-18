@@ -320,7 +320,10 @@ export class Job<
     json: JobJsonRaw,
     jobId?: string,
   ): Job<T, R, N> {
-    const data = JSON.parse(json.data || '{}');
+    const rawData = json.data || '{}';
+    const { deserializer } = queue.opts;
+    const parsedData = JSON.parse(rawData);
+    const data = deserializer ? deserializer(parsedData) : parsedData;
     const opts = Job.optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
@@ -462,10 +465,15 @@ export class Job<
    * @returns
    */
   asJSON(): JobJson {
+    const { serializer } = this.queue.opts;
+
+    const rawData = typeof this.data === 'undefined' ? {} : this.data;
+    const data = serializer ? serializer(rawData) : rawData;
+
     return {
       id: this.id,
       name: this.name,
-      data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
+      data: JSON.stringify(data),
       opts: this.optsAsJSON(this.opts),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
