@@ -39,10 +39,11 @@ const logger = debuglog('bull');
 
 const optsDecodeMap = {
   de: 'deduplication',
-  ocf: 'onChildFailure',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
+  ocf: 'onChildFailure',
+  rdof: 'removeDependencyOnFailure',
 };
 
 const optsEncodeMap = invertObject(optsDecodeMap);

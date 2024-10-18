@@ -112,7 +112,14 @@ describe('queues', function () {
 
       for (const key of keys) {
         const type = key.split(':')[2];
-        expect(['marker', 'events', 'meta', 'pc', 'id']).to.include(type);
+        expect([
+          'marker',
+          'migrations',
+          'events',
+          'meta',
+          'pc',
+          'id',
+        ]).to.include(type);
       }
     }).timeout(10000);
 
@@ -397,7 +404,7 @@ describe('queues', function () {
     describe('when queue is paused', () => {
       it('clean queue including paused jobs', async () => {
         const maxJobs = 50;
-        const added = [];
+        const added: Promise<Job>[] = [];
 
         await queue.pause();
         for (let i = 1; i <= maxJobs; i++) {
@@ -407,8 +414,8 @@ describe('queues', function () {
         await Promise.all(added);
         const count = await queue.count();
         expect(count).to.be.eql(maxJobs);
-        const count2 = await queue.getJobCounts('paused');
-        expect(count2.paused).to.be.eql(maxJobs);
+        const count2 = await queue.getJobCounts('wait');
+        expect(count2.wait).to.be.eql(maxJobs);
         await queue.drain();
         const countAfterEmpty = await queue.count();
         expect(countAfterEmpty).to.be.eql(0);
@@ -433,22 +440,6 @@ describe('queues', function () {
       );
 
       expect(updatedCount).to.be.eql(0);
-    });
-  });
-
-  describe('.removeLegacyMarkers', () => {
-    it('removes old markers', async () => {
-      const client = await queue.client;
-      await client.zadd(`${prefix}:${queue.name}:completed`, 1, '0:2');
-      await client.zadd(`${prefix}:${queue.name}:failed`, 2, '0:1');
-      await client.rpush(`${prefix}:${queue.name}:wait`, '0:0');
-
-      await queue.removeLegacyMarkers();
-
-      const keys = await client.keys(`${prefix}:${queue.name}:*`);
-
-      // meta key
-      expect(keys.length).to.be.eql(1);
     });
   });
 
@@ -626,7 +617,7 @@ describe('queues', function () {
     });
 
     describe('when queue is paused', () => {
-      it('moves retried jobs to paused', async () => {
+      it('moves retried jobs to wait', async () => {
         await queue.waitUntilReady();
         const jobCount = 8;
 
@@ -669,8 +660,8 @@ describe('queues', function () {
         await queue.pause();
         await queue.retryJobs({ count: 2 });
 
-        const pausedCount = await queue.getJobCounts('paused');
-        expect(pausedCount.paused).to.be.equal(jobCount);
+        const pausedCount = await queue.getJobCounts('wait');
+        expect(pausedCount.wait).to.be.equal(jobCount);
 
         await worker.close();
       });

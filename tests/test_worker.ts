@@ -40,6 +40,7 @@ describe('workers', function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
+    await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
 
@@ -97,46 +98,6 @@ describe('workers', function () {
     await processing;
 
     await worker.close();
-  });
-
-  describe('when legacy marker is present', () => {
-    it('does not get stuck', async () => {
-      const client = await queue.client;
-      await client.rpush(`${prefix}:${queue.name}:wait`, '0:0');
-
-      const worker = new Worker(
-        queueName,
-        async () => {
-          await delay(200);
-        },
-        { autorun: false, connection, prefix },
-      );
-      await worker.waitUntilReady();
-
-      const secondJob = await queue.add('test', { foo: 'bar' });
-
-      const completing = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async job => {
-          try {
-            if (job.id === secondJob.id) {
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
-      });
-
-      worker.run();
-
-      await completing;
-
-      const completedCount = await queue.getCompletedCount();
-
-      expect(completedCount).to.be.equal(2);
-
-      await worker.close();
-    });
   });
 
   it('process several jobs serially', async () => {
@@ -532,8 +493,6 @@ describe('workers', function () {
       expect(job.data.foo).to.be.eql('bar');
     }
 
-    expect(bclientSpy.callCount).to.be.equal(1);
-
     await new Promise<void>((resolve, reject) => {
       worker.on('completed', (_job: Job, _result: any) => {
         completedJobs++;
@@ -575,8 +534,6 @@ describe('workers', function () {
       expect(job.id).to.be.ok;
       expect(job.data.foo).to.be.eql('bar');
     }
-
-    expect(bclientSpy.callCount).to.be.equal(1);
 
     await new Promise<void>((resolve, reject) => {
       worker.on('completed', (job: Job, result: any) => {
@@ -1854,7 +1811,7 @@ describe('workers', function () {
   });
 
   describe('when queue is paused and retry a job', () => {
-    it('moves job to paused', async () => {
+    it('moves job to wait', async () => {
       const worker = new Worker(
         queueName,
         async () => {
@@ -1884,7 +1841,7 @@ describe('workers', function () {
       await queue.pause();
       await job.retry('completed');
 
-      const pausedJobsCount = await queue.getJobCountByTypes('paused');
+      const pausedJobsCount = await queue.getJobCountByTypes('wait');
       expect(pausedJobsCount).to.be.equal(1);
 
       await worker.close();

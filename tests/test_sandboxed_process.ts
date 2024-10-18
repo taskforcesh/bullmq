@@ -28,6 +28,7 @@ describe('Sandboxed process using child processes', () => {
       queueName = `test-${v4()}`;
       queue = new Queue(queueName, { connection, prefix });
       queueEvents = new QueueEvents(queueName, { connection, prefix });
+      await queue.waitUntilReady();
       await queueEvents.waitUntilReady();
     });
 
@@ -462,6 +463,7 @@ function sandboxProcessTests(
             resolve();
           });
         });
+        await worker.waitUntilReady();
         const inspect = stderr.inspect();
 
         await queue.add('test', { foo: 'bar' });
@@ -696,6 +698,7 @@ function sandboxProcessTests(
         drainDelay: 1,
         useWorkerThreads,
       });
+      await worker.waitUntilReady();
 
       const completing = new Promise<void>((resolve, reject) => {
         worker.on('completed', async (job: Job, value: any) => {
