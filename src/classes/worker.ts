@@ -1085,6 +1085,9 @@ will never work with more accuracy than 1ms. */
 
     stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
 
+    // It is possible that a failed job has been removed from the queue
+    // before we are able to notify the worker about it (if using the removeOnFail option).
+    // In this case the job will be undefined.
     const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
     for (let i = 0; i < failed.length; i++) {
       jobPromises.push(
