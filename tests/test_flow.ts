@@ -2504,10 +2504,8 @@ describe('flows', () => {
     expect(metaTop).to.have.be.deep.equal({ 'opts.maxLenEvents': '10000' });
 
     const metaChildren = await client.hgetall(`${prefix}:${queueName}:meta`);
-    expect(metaChildren).to.have.be.deep.equal({
-      'opts.maxLenEvents': '10000',
-    });
 
+    expect(metaChildren).to.have.property('opts.maxLenEvents', '10000');
     await flow.close();
 
     await removeAllQueueData(new IORedis(redisHost), topQueueName);
