@@ -4,6 +4,7 @@ import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
 import { KeepJobs } from './keep-jobs';
+import { Telemetry } from './telemetry';
 import { SandboxedOptions } from './sandboxed-options';
 
 /**
@@ -136,6 +137,20 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * More advanced options.
    */
   settings?: AdvancedOptions;
+
+  /**
+   * Use Worker Threads instead of Child Processes.
+   * Note: This option can only be used when specifying
+   * a file for the processor argument.
+   *
+   * @default false
+   */
+  useWorkerThreads?: boolean;
+
+  /**
+   * Telemetry Addon
+   */
+  telemetry?: Telemetry;
 }
 
 export interface GetNextJobOptions {
