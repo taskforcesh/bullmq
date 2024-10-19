@@ -35,6 +35,7 @@
             [8]  parent? {id, queueKey}
             [9]  repeat job key
             [10] deduplication key
+            [11] marker count
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -58,6 +59,7 @@ local parentKey = args[5]
 local parent = args[8]
 local repeatJobKey = args[9]
 local deduplicationKey = args[10]
+local markerCount = args[11]
 local parentData
 
 -- Includes
@@ -108,7 +110,7 @@ local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[1], KE
 
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-addJobInTargetList(target, KEYS[8], pushCmd, isPausedOrMaxed, jobId)
+addJobInTargetList(target, KEYS[8], pushCmd, isPausedOrMaxed, jobId, jobCounter, markerCount)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",

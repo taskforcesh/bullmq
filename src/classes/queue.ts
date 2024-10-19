@@ -104,6 +104,7 @@ export class Queue<
 
   private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   private _jobScheduler?: JobScheduler;
+  private markerCount: number;
 
   constructor(
     name: string,
@@ -120,6 +121,7 @@ export class Queue<
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
 
+    this.markerCount = opts?.markerCount || 1;
     this.waitUntilReady()
       .then(client => {
         if (!this.closing && !opts?.skipMetasUpdate) {
