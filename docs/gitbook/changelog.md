@@ -1,3 +1,10 @@
+## [3.16.1](https://github.com/taskforcesh/bullmq/compare/v3.16.0...v3.16.1) (2024-10-19)
+
+
+### Bug Fixes
+
+* use-versions-for-lua-commands ([9ea19b7](https://github.com/taskforcesh/bullmq/commit/9ea19b7f48bbb1758cbdf1b3aff75c2c5ccd1b34))
+
 # [3.16.0](https://github.com/taskforcesh/bullmq/compare/v3.15.8...v3.16.0) (2024-10-15)
 
 
