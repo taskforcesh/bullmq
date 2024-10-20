@@ -3,7 +3,14 @@ import { v4 } from 'uuid';
 import { expect } from 'chai';
 import { after } from 'lodash';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
-import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  Queue,
+  QueueEvents,
+  QueueEventsListener,
+  QueueEventsProducer,
+  Worker,
+} from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('events', function () {
@@ -1252,5 +1259,50 @@ describe('events', function () {
 
     await trimmedQueue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  describe('when publishing custom events', function () {
+    it('emits waiting when a job has been added', async () => {
+      const queueName2 = `test-${v4()}`;
+      const queueEventsProducer = new QueueEventsProducer(queueName2, {
+        connection,
+        prefix,
+      });
+      const queueEvents2 = new QueueEvents(queueName2, {
+        autorun: false,
+        connection,
+        prefix,
+        lastEventId: '0-0',
+      });
+      await queueEvents2.waitUntilReady();
+
+      interface CustomListener extends QueueEventsListener {
+        example: (args: { custom: string }, id: string) => void;
+      }
+      const customEvent = new Promise<void>(resolve => {
+        queueEvents2.on<CustomListener>('example', async ({ custom }) => {
+          await delay(250);
+          await expect(custom).to.be.equal('value');
+          resolve();
+        });
+      });
+
+      interface CustomEventPayload {
+        eventName: string;
+        custom: string;
+      }
+
+      await queueEventsProducer.publishEvent<CustomEventPayload>({
+        eventName: 'example',
+        custom: 'value',
+      });
+
+      queueEvents2.run();
+      await customEvent;
+
+      await queueEventsProducer.close();
+      await queueEvents2.close();
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
+    });
   });
 });
