@@ -43,7 +43,11 @@ export interface ConsumerOptions extends QueueBaseOptions {
 
   batchSize?: number;
 
-  blockTime?: number;
+  blockTimeMs?: number;
 
   startStreamId?: string;
+
+  maxRetentionMs?: number;
+
+  trimIntervalMs?: number;
 }

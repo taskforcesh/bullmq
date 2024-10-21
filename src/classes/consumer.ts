@@ -3,6 +3,7 @@ import { QueueBase } from './queue-base';
 import { v4 } from 'uuid';
 import { ConsumerOptions } from '../interfaces/consumer-options';
 import { RedisClient } from '../interfaces';
+import { delay } from '../utils';
 
 type XReadGroupResult = [string, [string, string[]][]];
 
@@ -27,7 +28,7 @@ export class Consumer<DataType = any> extends QueueBase {
 
     this.waitUntilReady()
       .then(client => {
-        // Nothing to do here atm
+        this.trimStream();
       })
       .catch(err => {
         // We ignore this error to avoid warnings. The error can still
@@ -69,14 +70,20 @@ export class Consumer<DataType = any> extends QueueBase {
               'COUNT',
               this.consumerOpts.batchSize || 1,
               'BLOCK',
-              this.consumerOpts.blockTime || 1000,
+              this.consumerOpts.blockTimeMs || 1000,
               'STREAMS',
               streamName,
               '0', // Read all pending messages
             )) as XReadGroupResult[] | null;
 
             if (pendingResult && pendingResult.length > 0) {
-              await this.processMessages(client, streamName, consumerGroup, pendingResult, cb);
+              await this.processMessages(
+                client,
+                streamName,
+                consumerGroup,
+                pendingResult,
+                cb,
+              );
               continue; // Continue to the next loop to check for more pending messages
             }
 
@@ -88,16 +95,21 @@ export class Consumer<DataType = any> extends QueueBase {
               'COUNT',
               this.consumerOpts.batchSize || 1,
               'BLOCK',
-              this.consumerOpts.blockTime || 1000,
+              this.consumerOpts.blockTimeMs || 1000,
               'STREAMS',
               streamName,
               '>', // Read new messages
             )) as XReadGroupResult[] | null;
 
             if (newResult && newResult.length > 0) {
-              await this.processMessages(client, streamName, consumerGroup, newResult, cb);
+              await this.processMessages(
+                client,
+                streamName,
+                consumerGroup,
+                newResult,
+                cb,
+              );
             }
-
           } catch (e) {
             this.emit('error', e);
           }
@@ -111,7 +123,7 @@ export class Consumer<DataType = any> extends QueueBase {
     streamName: string,
     consumerGroup: string,
     messages: XReadGroupResult[],
-    cb: (data: DataType) => Promise<void>
+    cb: (data: DataType) => Promise<void>,
   ): Promise<void> {
     const [, entries] = messages[0];
     for (const [id, fields] of entries) {
@@ -128,5 +140,33 @@ export class Consumer<DataType = any> extends QueueBase {
         this.emit('error', e);
       }
     }
+  }
+
+  trimStream(): void {
+    const streamName = this.name;
+    this.client.then(async client => {
+      while (!this.closing) {
+        const now = Date.now();
+        const cutoffTime =
+          now - this.consumerOpts.maxRetentionMs || 1000 * 60 * 60 * 24;
+        const oldestMessages = await client.xrange(
+          streamName,
+          '-',
+          '+',
+          'COUNT',
+          1,
+        );
+
+        if (oldestMessages.length > 0) {
+          const oldestMessageId = oldestMessages[0][0];
+          const [oldestTimestamp] = oldestMessageId.split('-').map(Number);
+
+          if (oldestTimestamp < cutoffTime) {
+            await client.xtrim(streamName, 'MINID', `${cutoffTime}-0`);
+          }
+        }
+        await delay(this.consumerOpts.trimIntervalMs || 60000);
+      }
+    });
   }
 }
