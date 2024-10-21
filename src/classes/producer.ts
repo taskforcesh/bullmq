@@ -4,12 +4,12 @@ import { ProducerOptions } from '@src/interfaces/producer-options';
 
 export class Producer<DataType = any> extends QueueBase {
   constructor(
-    name: string,
+    streamName: string,
     opts?: ProducerOptions,
     Connection?: typeof RedisConnection,
   ) {
     super(
-      name,
+      streamName,
       {
         blockingConnection: false,
         ...opts,

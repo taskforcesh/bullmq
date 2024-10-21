@@ -1,22 +1,29 @@
-import { RedisConnection } from '@src/classes/redis-connection';
-import { QueueBase } from '@src/classes/queue-base';
-import { ProducerOptions } from '@src/interfaces/producer-options';
+import { RedisConnection } from './redis-connection';
+import { QueueBase } from './queue-base';
 import { v4 } from 'uuid';
+import { ConsumerOptions } from '../interfaces/consumer-options';
+import { RedisClient } from '../interfaces';
+
+type XReadGroupResult = [string, [string, string[]][]];
 
 export class Consumer<DataType = any> extends QueueBase {
+  protected consumerOpts: ConsumerOptions;
+
   constructor(
-    name: string,
-    opts?: ProducerOptions,
+    streamName: string,
+    opts?: ConsumerOptions,
     Connection?: typeof RedisConnection,
   ) {
     super(
-      name,
+      streamName,
       {
         blockingConnection: false,
         ...opts,
       },
       Connection,
     );
+
+    this.consumerOpts = opts || { connection: {} };
 
     this.waitUntilReady()
       .then(client => {
@@ -31,50 +38,95 @@ export class Consumer<DataType = any> extends QueueBase {
   consume(consumerGroup: string, cb: (data: DataType) => Promise<void>): void {
     this.waitUntilReady()
       .then(async () => {
-        const streamName = `${this.name}`;
+        const streamName = this.name;
         const consumerName = v4();
 
         const client = await this.client;
-        await client.xgroup(
-          'CREATE',
-          streamName,
-          consumerGroup,
-          '0',
-          'MKSTREAM',
-        );
+
+        try {
+          // Create the consumer group if it doesn't already exist
+          await client.xgroup(
+            'CREATE',
+            streamName,
+            consumerGroup,
+            '0',
+            'MKSTREAM',
+          );
+        } catch (error) {
+          if (!(error as Error).message.includes('BUSYGROUP')) {
+            // If the group already exists, ignore the error
+            throw error;
+          }
+        }
 
         while (!this.closing) {
-          const result = (await client.xreadgroup(
-            'GROUP',
-            consumerGroup,
-            consumerName,
-            'COUNT',
-            this.opts.pubsub.batchSize || 1,
-            'BLOCK',
-            this.opts.pubsub.blockTime || 1000,
-            'STREAMS',
-            streamName,
-            '>',
-          )) as XReadGroupResult[] | null;
+          try {
+            // First, read pending messages (PEL)
+            const pendingResult = (await client.xreadgroup(
+              'GROUP',
+              consumerGroup,
+              consumerName,
+              'COUNT',
+              this.consumerOpts.batchSize || 1,
+              'BLOCK',
+              this.consumerOpts.blockTime || 1000,
+              'STREAMS',
+              streamName,
+              '0', // Read all pending messages
+            )) as XReadGroupResult[] | null;
 
-          if (result && result.length > 0) {
-            const [, messages] = result[0];
-            for (const [id, fields] of messages) {
-              const jobData: Record<string, string> = {};
-              for (let i = 0; i < fields.length; i += 2) {
-                const key = fields[i];
-                jobData[key] = fields[i + 1];
-              }
-              await queue.add(
-                'default',
-                JSON.parse(jobData['data']),
-                JSON.parse(jobData['opts']),
-              );
-              await client.xack(streamName, consumerGroup, id);
+            if (pendingResult && pendingResult.length > 0) {
+              await this.processMessages(client, streamName, consumerGroup, pendingResult, cb);
+              continue; // Continue to the next loop to check for more pending messages
             }
+
+            // Then read new messages if no pending messages are left
+            const newResult = (await client.xreadgroup(
+              'GROUP',
+              consumerGroup,
+              consumerName,
+              'COUNT',
+              this.consumerOpts.batchSize || 1,
+              'BLOCK',
+              this.consumerOpts.blockTime || 1000,
+              'STREAMS',
+              streamName,
+              '>', // Read new messages
+            )) as XReadGroupResult[] | null;
+
+            if (newResult && newResult.length > 0) {
+              await this.processMessages(client, streamName, consumerGroup, newResult, cb);
+            }
+
+          } catch (e) {
+            this.emit('error', e);
           }
         }
       })
       .catch(error => this.emit('error', error));
+  }
+
+  private async processMessages(
+    client: RedisClient,
+    streamName: string,
+    consumerGroup: string,
+    messages: XReadGroupResult[],
+    cb: (data: DataType) => Promise<void>
+  ): Promise<void> {
+    const [, entries] = messages[0];
+    for (const [id, fields] of entries) {
+      const jobData: Record<string, string> = {};
+      for (let i = 0; i < fields.length; i += 2) {
+        const key = fields[i];
+        jobData[key] = fields[i + 1];
+      }
+      const data = JSON.parse(jobData['data']);
+      try {
+        await cb(data);
+        await client.xack(streamName, consumerGroup, id);
+      } catch (e) {
+        this.emit('error', e);
+      }
+    }
   }
 }
