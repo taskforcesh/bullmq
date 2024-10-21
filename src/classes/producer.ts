@@ -1,6 +1,6 @@
-import { RedisConnection } from '@src/classes/redis-connection';
-import { QueueBase } from '@src/classes/queue-base';
-import { ProducerOptions } from '@src/interfaces/producer-options';
+import { RedisConnection } from './redis-connection';
+import { QueueBase } from './queue-base';
+import { ProducerOptions } from '../interfaces/producer-options';
 
 export class Producer<DataType = any> extends QueueBase {
   constructor(

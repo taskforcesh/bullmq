@@ -1,8 +1,8 @@
-import { RedisConnection } from '@src/classes/redis-connection';
-import { ConsumerOptions } from '@src/interfaces/consumer-options';
-import { JobsOptions } from '@src/types';
-import { Consumer } from '@src/classes/consumer';
-import { Queue } from '@src/classes/queue';
+import { RedisConnection } from './redis-connection';
+import { ConsumerOptions } from '../interfaces/consumer-options';
+import { JobsOptions } from '../types';
+import { Consumer } from './consumer';
+import { Queue } from './queue';
 
 export class Fanout<DataType = any> {
   private consumer: Consumer;
