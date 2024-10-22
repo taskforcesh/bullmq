@@ -112,7 +112,6 @@ export class Queue<
     super(
       name,
       {
-        blockingConnection: false,
         ...opts,
       },
       Connection,

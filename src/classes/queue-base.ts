@@ -26,6 +26,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   closing: Promise<void> | undefined;
 
   protected closed: boolean = false;
+  protected hasBlockingConnection: boolean = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
   public readonly qualifiedName: string;
@@ -41,9 +42,11 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     public readonly name: string,
     public opts: QueueBaseOptions = { connection: {} },
     Connection: typeof RedisConnection = RedisConnection,
+    hasBlockingConnection = false,
   ) {
     super();
 
+    this.hasBlockingConnection = hasBlockingConnection;
     this.opts = {
       prefix: 'bull',
       ...opts,
@@ -60,7 +63,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.connection = new Connection(
       opts.connection,
       isRedisInstance(opts.connection),
-      opts.blockingConnection,
+      hasBlockingConnection,
       opts.skipVersionCheck,
     );
 

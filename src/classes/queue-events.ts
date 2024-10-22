@@ -58,7 +58,10 @@ export interface QueueEventsListener extends IoredisListener {
    *
    * This event is triggered when a job is deduplicated because deduplicatedId still existed.
    */
-  deduplicated: (args: { jobId: string; deduplicationId: string }, id: string) => void;
+  deduplicated: (
+    args: { jobId: string; deduplicationId: string },
+    id: string,
+  ) => void;
 
   /**
    * Listen to 'delayed' event.
@@ -193,9 +196,9 @@ export class QueueEvents extends QueueBase {
         connection: isRedisInstance(connection)
           ? (<RedisClient>connection).duplicate()
           : connection,
-        blockingConnection: true,
       },
       Connection,
+      true,
     );
 
     this.opts = Object.assign(
@@ -307,7 +310,9 @@ export class QueueEvents extends QueueBase {
             this.emit(event, id);
           } else {
             this.emit(event as any, restArgs, id);
-            this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);
+            if (restArgs.jobId) {
+              this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);
+            }
           }
         }
       }
