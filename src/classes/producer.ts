@@ -27,7 +27,7 @@ export class Producer<DataType = any> extends QueueBase {
       });
   }
 
-  async producer(data: DataType): Promise<void> {
+  async produce(data: DataType): Promise<void> {
     const client = await this.client;
     await client.xadd(this.name, '*', 'data', JSON.stringify(data));
   }

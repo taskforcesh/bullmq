@@ -18,6 +18,5 @@ export * from './sandbox';
 export * from './scripts';
 export * from './worker';
 export * from './producer';
-export * from './consumer';
 export * from './fanout';
 

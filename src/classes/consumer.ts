@@ -3,7 +3,6 @@ import { QueueBase } from './queue-base';
 import { v4 } from 'uuid';
 import { ConsumerOptions } from '../interfaces/consumer-options';
 import { RedisClient } from '../interfaces';
-import { delay } from '../utils';
 
 type XReadGroupResult = [string, [string, string[]][]];
 
@@ -28,7 +27,7 @@ export class Consumer<DataType = any> extends QueueBase {
 
     this.waitUntilReady()
       .then(client => {
-        this.trimStream();
+        // Nothing to do here atm
       })
       .catch(err => {
         // We ignore this error to avoid warnings. The error can still
@@ -76,16 +75,39 @@ export class Consumer<DataType = any> extends QueueBase {
               '0', // Read all pending messages
             )) as XReadGroupResult[] | null;
 
-            if (pendingResult && pendingResult.length > 0) {
-              await this.processMessages(
-                client,
-                streamName,
-                consumerGroup,
-                pendingResult,
-                cb,
-              );
-              continue; // Continue to the next loop to check for more pending messages
+            if (
+              pendingResult &&
+              pendingResult.length > 1 &&
+              pendingResult[1].length > 0
+            ) {
+              if (
+                pendingResult &&
+                pendingResult.length > 1 &&
+                pendingResult[1].length > 0
+              ) {
+                const now = Date.now();
+                const maxRetentionMs =
+                  this.consumerOpts.maxRetentionMs || 1000 * 60 * 60 * 24;
+                const [, entries] = pendingResult[0];
+                for (const [id] of entries) {
+                  const [timestamp] = id.split('-').map(Number);
+                  if (now - timestamp <= maxRetentionMs) {
+                    await this.processMessages(
+                      client,
+                      streamName,
+                      consumerGroup,
+                      pendingResult,
+                      cb,
+                    );
+                  } else {
+                    await client.xack(streamName, consumerGroup, id);
+                  }
+                }
+                continue; // Continue to the next loop to check for more pending messages
+              }
             }
+
+            await this.trimStream();
 
             // Then read new messages if no pending messages are left
             const newResult = (await client.xreadgroup(
@@ -101,7 +123,7 @@ export class Consumer<DataType = any> extends QueueBase {
               '>', // Read new messages
             )) as XReadGroupResult[] | null;
 
-            if (newResult && newResult.length > 0) {
+            if (newResult && newResult.length > 0 && newResult[0].length > 0) {
               await this.processMessages(
                 client,
                 streamName,
@@ -142,31 +164,32 @@ export class Consumer<DataType = any> extends QueueBase {
     }
   }
 
-  trimStream(): void {
+  async trimStream(): Promise<void> {
     const streamName = this.name;
-    this.client.then(async client => {
-      while (!this.closing) {
-        const now = Date.now();
-        const cutoffTime =
-          now - this.consumerOpts.maxRetentionMs || 1000 * 60 * 60 * 24;
-        const oldestMessages = await client.xrange(
-          streamName,
-          '-',
-          '+',
-          'COUNT',
-          1,
-        );
+    const client = await this.client;
+    const now = Date.now();
+    const cutoffTime =
+      now - this.consumerOpts.maxRetentionMs || 1000 * 60 * 60 * 24;
+    const oldestMessages = await client.xrange(
+      streamName,
+      '-',
+      '+',
+      'COUNT',
+      1,
+    );
 
-        if (oldestMessages.length > 0) {
-          const oldestMessageId = oldestMessages[0][0];
-          const [oldestTimestamp] = oldestMessageId.split('-').map(Number);
+    if (oldestMessages.length > 0) {
+      const oldestMessageId = oldestMessages[0][0];
+      const [oldestTimestamp] = oldestMessageId.split('-').map(Number);
 
-          if (oldestTimestamp < cutoffTime) {
-            await client.xtrim(streamName, 'MINID', `${cutoffTime}-0`);
-          }
-        }
-        await delay(this.consumerOpts.trimIntervalMs || 60000);
+      if (oldestTimestamp < cutoffTime) {
+        await client.xtrim(streamName, 'MINID', `${cutoffTime}-0`);
       }
-    });
+    }
+  }
+
+  async getLength(): Promise<number> {
+    const client = await this.client;
+    return client.xlen(this.name);
   }
 }
