@@ -809,20 +809,25 @@ describe('Jobs getters', function () {
         });
       });
 
+      await queue.add('test', {});
       const flow = new FlowProducer({ connection, prefix });
       await flow.add({
         name: 'parent-job',
         queueName,
         data: {},
         children: [
-          { name: 'child-1', data: { idx: 0, foo: 'bar' }, queueName },
+          {
+            name: 'child-1',
+            data: { idx: 0, foo: 'bar' },
+            queueName,
+            opts: { delay: 6000 },
+          },
           { name: 'child-2', data: { idx: 1, foo: 'baz' }, queueName },
           { name: 'child-3', data: { idx: 2, foo: 'bac' }, queueName },
           { name: 'child-4', data: { idx: 3, foo: 'bad' }, queueName },
         ],
       });
 
-      await queue.add('test', { idx: 2 }, { delay: 5000 });
       await queue.add('test', { idx: 3 }, { priority: 5 });
 
       await completing;

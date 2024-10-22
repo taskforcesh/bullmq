@@ -36,12 +36,7 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
     local metaKey = KEYS[4]
     local markerKey = KEYS[9]
 
-    -- Remove delayed "marker" from the wait list if there is any.
-    -- Since we are adding a job we do not need the marker anymore.
-    -- Markers in waitlist DEPRECATED in v5: Remove in v6.
     local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[2], KEYS[3])
-    local marker = rcall("LINDEX", target, 0)
-    if marker and string.sub(marker, 1, 2) == "0:" then rcall("LPOP", target) end
 
     if priority == 0 then
         -- LIFO or FIFO

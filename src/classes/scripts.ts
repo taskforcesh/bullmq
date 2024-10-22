@@ -39,6 +39,13 @@ import { ChainableCommander } from 'ioredis';
 import { version } from '../version';
 export type JobData = [JobJsonRaw | number, string?];
 
+const onChildFailureMap = {
+  fail: 'f',
+  ignore: 'i',
+  remove: 'r',
+  wait: 'w',
+};
+
 export class Scripts {
   protected version;
 
@@ -179,7 +186,7 @@ export class Scripts {
     const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
+      ? { ...job.parent, ocf: onChildFailureMap[opts.ocf] }
       : null;
 
     const args = [
@@ -573,9 +580,6 @@ export class Scripts {
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
-        fpof: !!job.opts?.failParentOnFailure,
-        idof: !!job.opts?.ignoreDependencyOnFailure,
-        rdof: !!job.opts?.removeDependencyOnFailure,
       }),
     ];
 
@@ -639,6 +643,29 @@ export class Scripts {
     const args = this.drainArgs(delayed);
 
     return this.execCommand(client, 'drain', args);
+  }
+
+  private removeLegacyMarkersArgs(): (string | number)[] {
+    const queueKeys = this.queue.keys;
+
+    const keys: string[] = [
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.completed,
+      queueKeys.failed,
+    ];
+
+    const args = [queueKeys['']];
+
+    return keys.concat(args);
+  }
+
+  async removeLegacyMarkers(): Promise<void> {
+    const client = await this.queue.client;
+    const args = this.removeLegacyMarkersArgs();
+
+    return (<any>client).removeLegacyMarkers(args);
   }
 
   private removeChildDependencyArgs(

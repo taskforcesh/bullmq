@@ -531,7 +531,7 @@ describe('Cleaner', () => {
                           id: job.id!,
                           queue: job.queueQualifiedName,
                         },
-                        removeDependencyOnFailure: true,
+                        onChildFailure: 'remove',
                       },
                     );
                     await delay(1000);
