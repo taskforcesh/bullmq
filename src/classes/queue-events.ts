@@ -316,8 +316,9 @@ export class QueueEvents extends QueueBase {
             this.emit(event, id);
           } else {
             this.emit(event as any, restArgs, id);
-            if (restArgs.jobId)
-              {this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);}
+            if (restArgs.jobId) {
+              this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);
+            }
           }
         }
       }
