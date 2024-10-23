@@ -7,7 +7,7 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master, next]
+    branches: [master, next, v3.x]
 
 concurrency:
   group: test-${{ github.ref }}

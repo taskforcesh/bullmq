@@ -8,7 +8,8 @@ import {
   RepeatOptions,
 } from '../interfaces';
 import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
-import { isRedisInstance, readPackageJson } from '../utils';
+import { isRedisInstance } from '../utils';
+import { version } from '../version';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
@@ -98,6 +99,7 @@ export class Queue<
   jobsOpts: BaseJobOptions;
   opts: QueueOptions;
   private _repeat?: Repeat;
+  protected libName = 'bullmq';
 
   constructor(
     name: string,
@@ -167,11 +169,9 @@ export class Queue<
   }
 
   get metaValues(): Record<string, string | number> {
-    const { name, version } = readPackageJson();
-
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
-      version: `${name}:${version}`,
+      version: `${this.libName}:${version}`,
     };
   }
 
