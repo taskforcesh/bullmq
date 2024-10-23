@@ -32,14 +32,10 @@ import {
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
-import {
-  array2obj,
-  getParentKey,
-  isRedisVersionLowerThan,
-  readPackageJson,
-} from '../utils';
+import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { ChainableCommander } from 'ioredis';
 
+import { version } from '../version';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
@@ -50,7 +46,7 @@ export class Scripts {
   constructor(protected queue: MinimalQueue) {
     const queueKeys = this.queue.keys;
 
-    this.version = readPackageJson().version;
+    this.version = version;
 
     this.moveToFinishedKeys = [
       queueKeys.wait,

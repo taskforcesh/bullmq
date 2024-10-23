@@ -185,24 +185,3 @@ export const errorToJSON = (value: any): Record<string, any> => {
 export const WORKER_SUFFIX = '';
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
-
-export const readPackageJson: () => { name: string; version: string } = () => {
-  const packageJsonPossiblePaths = [
-    join(__dirname, '../package.json'),
-    join(__dirname, '../../package.json'),
-    join(__dirname, '../../../package.json'),
-  ];
-
-  for (const path of packageJsonPossiblePaths) {
-    try {
-      return JSON.parse(readFileSync(path, 'utf-8'));
-    } catch (err) {
-      if ((<any>err).code === 'ENOENT') {
-        continue;
-      }
-      console.log(err);
-    }
-  }
-
-  return { name: 'bullmq', version: '0.0.0' };
-};
