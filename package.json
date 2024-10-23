@@ -35,7 +35,7 @@
     "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
     "eslint:fix": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore --fix",
-    "generate:raw:scripts": "ts-node --project tsconfig-cjs.json generateRawScripts.ts",
+    "generate:raw:scripts": "ts-node --project tsconfig-cjs.json scripts/generateRawScripts.ts",
     "lint": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore",
     "lint:staged": "lint-staged",
     "prepublishOnly": "yarn build",
@@ -47,7 +47,7 @@
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "ts-mocha -p tsconfig-cjs.json --config ./.mocharc.js",
     "test:watch": "ts-mocha -p tsconfig-cjs.json --paths 'tests/test_*.ts' -w --watch-extensions ts",
-    "transform:commands": "node ./commandTransform.js ./rawScripts ./src/scripts",
+    "transform:commands": "node ./scripts/commandTransform.js ./rawScripts ./src/scripts",
     "tsc": "tsc",
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
@@ -68,6 +68,7 @@
     "@istanbuljs/nyc-config-typescript": "^0.1.3",
     "@semantic-release/changelog": "^6.0.1",
     "@semantic-release/commit-analyzer": "^9.0.2",
+    "@semantic-release/exec": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^8.0.5",
     "@semantic-release/npm": "^9.0.1",
@@ -203,6 +204,12 @@
         }
       ],
       [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "node scripts/updateVersion.js ${nextRelease.version} && yarn build"
+        }
+      ],
+      [
         "@semantic-release/npm",
         {
           "npmPublish": true
@@ -215,6 +222,7 @@
           "assets": [
             "package.json",
             "yarn.lock",
+            "src/version.ts",
             "docs/gitbook/changelog.md",
             "docs/gitbook/api/**"
           ],

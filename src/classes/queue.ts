@@ -13,7 +13,7 @@ import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
-import { readPackageJson } from '../utils';
+import { version } from '../version';
 
 export interface ObliterateOpts {
   /**
@@ -100,6 +100,8 @@ export class Queue<
   opts: QueueOptions;
   private _repeat?: Repeat;
 
+  protected libName = 'bullmq';
+
   constructor(
     name: string,
     opts?: QueueOptions,
@@ -167,11 +169,9 @@ export class Queue<
   }
 
   get metaValues(): Record<string, string | number> {
-    const { name, version } = readPackageJson();
-
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
-      version: `${name}:${version}`,
+      version: `${this.libName}:${version}`,
     };
   }
 
