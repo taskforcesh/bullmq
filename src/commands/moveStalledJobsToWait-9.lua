@@ -29,7 +29,7 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/moveParentToWaitIfNeeded"
---- @include "includes/removeDebounceKeyIfNeeded"
+--- @include "includes/removeDeduplicationKeyIfNeeded"
 --- @include "includes/removeJob"
 --- @include "includes/removeJobsByMaxAge"
 --- @include "includes/removeJobsByMaxCount"
@@ -88,7 +88,7 @@ if (#stalling > 0) then
                         local opts = cjson.decode(rawOpts)
                         local removeOnFailType = type(opts["removeOnFail"])
                         rcall("ZADD", failedKey, timestamp, jobId)
-                        removeDebounceKeyIfNeeded(queueKeyPrefix, jobAttributes[3])
+                        removeDeduplicationKeyIfNeeded(queueKeyPrefix, jobAttributes[3])
 
                         local failedReason =
                             "job stalled more than allowable limit"
