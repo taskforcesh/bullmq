@@ -4,6 +4,7 @@ import { after as afterAll, before, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, FanoutWorker, Queue, StreamProducer } from '../src';
 import { Consumer } from '../src/classes/consumer';
+import { QueueToStreamWorker } from '../src/classes/QueueToStreamWorker';
 
 describe('streams', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -273,6 +274,37 @@ describe('streams', function () {
         );
       }
       await laterFanout.close();
+    }).timeout(10000);
+  });
+
+  describe('when attaching QueueToStreamWorker to a queue', () => {
+    it('should produce from queue to stream', async () => {
+      const streamName = `test-${v4()}`;
+      const consumerGroup = `test-${v4()}`;
+      const queueName = `test-${v4()}`;
+      const queue = new Queue(queueName, { connection: generalConnection });
+      const consumer = new Consumer(streamName, {
+        connection: consumerConnection,
+      });
+      new QueueToStreamWorker(queueName, streamName, {
+        connection: generalConnection,
+      });
+      const jobs = 10;
+      const processed: any[] = [];
+      consumer.consume(consumerGroup, async job => {
+        processed.push(job);
+      });
+      for (let i = 1; i <= jobs; i++) {
+        await queue.add('default', { idx: i });
+      }
+      while (processed.length < jobs) {
+        await delay(50);
+      }
+      expect(processed.length).to.be.eql(jobs);
+      expect(processed.map(job => job.idx)).to.be.eql(
+        Array.from(Array(jobs).keys()).map(i => i + 1),
+      );
+      await consumer.close();
     }).timeout(10000);
   });
 });
