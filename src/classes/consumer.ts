@@ -8,6 +8,7 @@ type XReadGroupResult = [string, [string, string[]][]];
 
 export class Consumer<DataType = any> extends QueueBase {
   protected consumerOpts: ConsumerOptions;
+  private lastTrim = 0;
 
   constructor(
     streamName: string,
@@ -165,6 +166,13 @@ export class Consumer<DataType = any> extends QueueBase {
   }
 
   async trimStream(): Promise<void> {
+    if (
+      this.lastTrim + (this.consumerOpts.trimIntervalMs || 60000) >
+      Date.now()
+    ) {
+      return;
+    }
+    this.lastTrim = Date.now();
     const streamName = this.name;
     const client = await this.client;
     const now = Date.now();
