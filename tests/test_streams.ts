@@ -4,7 +4,7 @@ import { after as afterAll, before, describe, it } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, FanoutWorker, Queue, StreamProducer } from '../src';
 import { Consumer } from '../src/classes/consumer';
-import { QueueToStreamWorker } from '../src/classes/QueueToStreamWorker';
+import { QueueToStreamWorker } from '../src/classes/queue-to-stream-worker';
 
 describe('streams', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
