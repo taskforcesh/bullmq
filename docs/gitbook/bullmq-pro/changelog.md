@@ -1,3 +1,18 @@
+## [7.17.2](https://github.com/taskforcesh/bullmq-pro/compare/v7.17.1...v7.17.2) (2024-10-23)
+
+
+### Bug Fixes
+
+* **repeatable:** export RepeatOptions ([#261](https://github.com/taskforcesh/bullmq-pro/issues/261)) ([b620bdf](https://github.com/taskforcesh/bullmq-pro/commit/b620bdf4f7449ad20f0ffd07786880115ec77fd9))
+* **sandbox:** fix serialization of error with circular references are present ([#2815](https://github.com/taskforcesh/bullmq/issues/2815)) fix [#2813](https://github.com/taskforcesh/bullmq/issues/2813) ([a384d92](https://github.com/taskforcesh/bullmq/commit/a384d926bee15bffa84178a8fad7b94a6a08b572))
+
+## [7.17.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.17.0...v7.17.1) (2024-10-18)
+
+
+### Bug Fixes
+
+* **worker-pro:** use JobPro as part of WorkerProListener events ([#260](https://github.com/taskforcesh/bullmq-pro/issues/260)) ([966ac9c](https://github.com/taskforcesh/bullmq-pro/commit/966ac9cb41088c13a917450814ed9f6b48b79a9b))
+
 # [7.17.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.16.0...v7.17.0) (2024-10-12)
 
 
