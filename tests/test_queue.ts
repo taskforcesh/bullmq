@@ -6,7 +6,7 @@ import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
-import {version as currentPackageVersion} from '../src/version';
+import { version as currentPackageVersion } from '../src/version';
 
 describe('queues', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
