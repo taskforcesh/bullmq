@@ -208,7 +208,7 @@
           "assets": [
             "package.json",
             "yarn.lock",
-            "src/version",
+            "src/version.ts",
             "docs/gitbook/changelog.md",
             "docs/gitbook/api/**"
           ],
