@@ -13,7 +13,7 @@ import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { JobScheduler } from './job-scheduler';
-import { readPackageJson } from '../utils';
+import { version } from '../version';
 
 export interface ObliterateOpts {
   /**
@@ -98,8 +98,10 @@ export class Queue<
   token = v4();
   jobsOpts: BaseJobOptions;
   opts: QueueOptions;
-  private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
 
+  protected libName = 'bullmq';
+
+  private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   private _jobScheduler?: JobScheduler;
 
   constructor(
@@ -169,11 +171,9 @@ export class Queue<
   }
 
   get metaValues(): Record<string, string | number> {
-    const { name, version } = readPackageJson();
-
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
-      version: `${name}:${version}`,
+      version: `${this.libName}:${version}`,
     };
   }
 
