@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after as afterAll, before, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { delay, FanoutWorker, Producer, Queue } from '../src';
+import { delay, FanoutWorker, Queue, StreamProducer } from '../src';
 import { Consumer } from '../src/classes/consumer';
 
 describe('streams', function () {
@@ -24,7 +24,7 @@ describe('streams', function () {
     it('trim to retention', async () => {
       const streamName = `test-${v4()}`;
       const consumerGroup = `test-${v4()}`;
-      const producer = new Producer(streamName, {
+      const producer = new StreamProducer(streamName, {
         connection: generalConnection,
       });
       const consumer = new Consumer(streamName, {
@@ -55,7 +55,7 @@ describe('streams', function () {
     it('should process the jobs', async () => {
       const streamName = `test-${v4()}`;
       const consumerGroup = `test-${v4()}`;
-      const producer = new Producer(streamName, {
+      const producer = new StreamProducer(streamName, {
         connection: generalConnection,
       });
       const consumer = new Consumer(streamName, {
@@ -85,7 +85,7 @@ describe('streams', function () {
     it('should process the jobs', async () => {
       const streamName = `test-${v4()}`;
       const consumerGroup = `test-${v4()}`;
-      const producer = new Producer(streamName, {
+      const producer = new StreamProducer(streamName, {
         connection: generalConnection,
       });
       const consumer = new Consumer(streamName, {
@@ -117,7 +117,7 @@ describe('streams', function () {
   describe('when jobs produced with an active fanout', () => {
     it('should fanout to defined queues', async () => {
       const streamName = `test-${v4()}`;
-      const producer = new Producer(streamName, {
+      const producer = new StreamProducer(streamName, {
         connection: generalConnection,
       });
       const fanout = new FanoutWorker(streamName, {
@@ -150,7 +150,7 @@ describe('streams', function () {
   describe('when jobs consumed with job options', () => {
     it('options should be set on jobs', async () => {
       const streamName = `test-${v4()}`;
-      const producer = new Producer(streamName, {
+      const producer = new StreamProducer(streamName, {
         connection: generalConnection,
       });
       const fanout = new FanoutWorker(streamName, {
@@ -188,7 +188,7 @@ describe('streams', function () {
   describe('when jobs produced with a late fanout', () => {
     it('should fanout to defined queues', async () => {
       const streamName = `test-${v4()}`;
-      const producer = new Producer(streamName, {
+      const producer = new StreamProducer(streamName, {
         connection: generalConnection,
       });
       const fanout = new FanoutWorker(streamName, {
@@ -226,7 +226,7 @@ describe('streams', function () {
   describe('when fanout is stopped and restarted', () => {
     it('should not consume acked messages', async () => {
       const streamName = `test-${v4()}`;
-      const producer = new Producer(streamName, {
+      const producer = new StreamProducer(streamName, {
         connection: generalConnection,
       });
       const fanout = new FanoutWorker(streamName, {

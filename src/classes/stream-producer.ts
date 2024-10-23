@@ -2,7 +2,7 @@ import { RedisConnection } from './redis-connection';
 import { QueueBase } from './queue-base';
 import { ProducerOptions } from '../interfaces/producer-options';
 
-export class Producer<DataType = any> extends QueueBase {
+export class StreamProducer<DataType = any> extends QueueBase {
   constructor(
     streamName: string,
     opts?: ProducerOptions,

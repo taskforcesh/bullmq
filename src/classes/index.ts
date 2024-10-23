@@ -17,5 +17,5 @@ export * from './repeat';
 export * from './sandbox';
 export * from './scripts';
 export * from './worker';
-export * from './producer';
+export * from './stream-producer';
 export * from './fanout-worker';
