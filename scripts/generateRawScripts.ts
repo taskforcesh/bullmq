@@ -1,4 +1,4 @@
-import { ScriptLoader } from './src/commands/index';
+import { ScriptLoader } from '../src/commands/index';
 import * as path from 'path';
 import * as fs from 'fs';
 import { promisify } from 'util';
@@ -39,6 +39,6 @@ export class RawScriptLoader extends ScriptLoader {
 const scriptLoader = new RawScriptLoader();
 
 scriptLoader.transpileScripts(
-  path.join(__dirname, './src/commands'),
-  path.join(__dirname, './rawScripts'),
+  path.join(__dirname, '../src/commands'),
+  path.join(__dirname, '../rawScripts'),
 );
