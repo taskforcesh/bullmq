@@ -4,7 +4,7 @@ import { JobsOptions } from '../types';
 import { Consumer } from './consumer';
 import { Queue } from './queue';
 
-export class Fanout<DataType = any> {
+export class FanoutWorker<DataType = any> {
   private consumer: Consumer;
   private closed: Promise<void>;
 
@@ -40,7 +40,7 @@ export class Fanout<DataType = any> {
   }
 
   async fanout(
-    queues: Queue[],
+    queues: Queue<DataType>[],
     opts?: (data: DataType) => JobsOptions,
   ): Promise<void> {
     for (const queue of queues) {

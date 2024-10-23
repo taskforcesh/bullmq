@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after as afterAll, before, describe, it } from 'mocha';
 import { v4 } from 'uuid';
-import { delay, Fanout, Producer, Queue } from '../src';
+import { delay, FanoutWorker, Producer, Queue } from '../src';
 import { Consumer } from '../src/classes/consumer';
 
 describe('streams', function () {
@@ -120,7 +120,9 @@ describe('streams', function () {
       const producer = new Producer(streamName, {
         connection: generalConnection,
       });
-      const fanout = new Fanout(streamName, { connection: consumerConnection });
+      const fanout = new FanoutWorker(streamName, {
+        connection: consumerConnection,
+      });
       const queues = [
         new Queue(`test-${v4()}`, { connection: generalConnection }),
         new Queue(`test-${v4()}`, { connection: generalConnection }),
@@ -151,7 +153,9 @@ describe('streams', function () {
       const producer = new Producer(streamName, {
         connection: generalConnection,
       });
-      const fanout = new Fanout(streamName, { connection: consumerConnection });
+      const fanout = new FanoutWorker(streamName, {
+        connection: consumerConnection,
+      });
       const queue = new Queue(`test-${v4()}`, {
         connection: generalConnection,
       });
@@ -187,7 +191,9 @@ describe('streams', function () {
       const producer = new Producer(streamName, {
         connection: generalConnection,
       });
-      const fanout = new Fanout(streamName, { connection: consumerConnection });
+      const fanout = new FanoutWorker(streamName, {
+        connection: consumerConnection,
+      });
       const queues = [
         new Queue(`test-${v4()}`, { connection: generalConnection }),
         new Queue(`test-${v4()}`, { connection: generalConnection }),
@@ -223,12 +229,14 @@ describe('streams', function () {
       const producer = new Producer(streamName, {
         connection: generalConnection,
       });
-      const fanout = new Fanout(streamName, { connection: consumerConnection });
+      const fanout = new FanoutWorker(streamName, {
+        connection: consumerConnection,
+      });
       const queues = [
         new Queue(`test-${v4()}`, { connection: generalConnection }),
         new Queue(`test-${v4()}`, { connection: generalConnection }),
       ];
-      const laterFanout = new Fanout(streamName, {
+      const laterFanout = new FanoutWorker(streamName, {
         connection: consumerConnection,
       });
       const jobs = 10;
