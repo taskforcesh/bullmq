@@ -28,7 +28,6 @@ jobs:
           cache: 'yarn'
       - name: Install dependencies Node
         run: yarn install --frozen-lockfile --non-interactive
-      - run: yarn build
       - name: Release Node
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

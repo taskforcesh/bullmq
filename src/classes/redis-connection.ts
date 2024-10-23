@@ -11,8 +11,8 @@ import {
   isRedisCluster,
   isRedisInstance,
   isRedisVersionLowerThan,
-  readPackageJson,
 } from '../utils';
+import { version } from '../version';
 import * as scripts from '../scripts';
 
 const overrideMessage = [
@@ -208,8 +208,6 @@ export class RedisConnection extends EventEmitter {
     this._client.on('close', this.handleClientClose);
 
     this._client.on('ready', this.handleClientReady);
-
-    const { version } = readPackageJson();
 
     await RedisConnection.waitUntilReady(this._client);
     this.loadCommands(version);
