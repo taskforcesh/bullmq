@@ -1,3 +1,10 @@
+## [3.16.2](https://github.com/taskforcesh/bullmq/compare/v3.16.1...v3.16.2) (2024-10-24)
+
+
+### Bug Fixes
+
+* proper way to get version ([cef204b](https://github.com/taskforcesh/bullmq/commit/cef204bc2c7b97310fe5eadb808f4ec04827ee27))
+
 ## [3.16.1](https://github.com/taskforcesh/bullmq/compare/v3.16.0...v3.16.1) (2024-10-19)
 
 
