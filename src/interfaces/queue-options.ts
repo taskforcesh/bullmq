@@ -40,6 +40,13 @@ export interface QueueOptions extends QueueBaseOptions {
   defaultJobOptions?: DefaultJobOptions;
 
   /**
+   * Max quantity of base markers to be added. It's recommend to be the same
+   * as the quantity of worker instances for this specific queue
+   * @default 1
+   */
+  markerCount?: number;
+
+  /**
    * Options for the streams used internally in BullMQ.
    */
   streams?: {
