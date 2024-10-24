@@ -10,11 +10,11 @@ The concurrency factor is configured as follows:
 import { WorkerPro } from '@taskforcesh/bullmq-pro';
 
 const worker = new WorkerPro('myQueue', processFn, {
-    group: {
-      concurrency: 3 // Limit to max 3 parallel jobs per group
-    },
-    concurrency: 100,
-    connection
+  group: {
+    concurrency: 3, // Limit to max 3 parallel jobs per group
+  },
+  concurrency: 100,
+  connection,
 });
 ```
 
