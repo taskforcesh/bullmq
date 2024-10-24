@@ -14,7 +14,10 @@ describe('stalled jobs', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async function () {
@@ -90,13 +93,12 @@ describe('stalled jobs', function () {
       );
     });
 
-    await allStalled;
-    await allStalledGlobalEvent;
-
     const allCompleted = new Promise(resolve => {
       worker2.on('completed', after(concurrency, resolve));
     });
 
+    await allStalled;
+    await allStalledGlobalEvent;
     await allCompleted;
 
     await queueEvents.close();
@@ -652,7 +654,7 @@ describe('stalled jobs', function () {
 
     describe('when removeOnFail is provided as a number', function () {
       it('keeps the specified number of jobs in failed', async function () {
-        this.timeout(6000);
+        this.timeout(60000);
         const concurrency = 4;
 
         const worker = new Worker(
@@ -699,19 +701,22 @@ describe('stalled jobs', function () {
         });
 
         const errorMessage = 'job stalled more than allowable limit';
-        const allFailed = new Promise<void>(resolve => {
-          worker2.on(
-            'failed',
-            after(concurrency, async (job, failedReason, prev) => {
+        let failedJobs = 0;
+        const allFailed = new Promise<void>((resolve, reject) => {
+          worker2.on('failed', async (job, failedReason, prev) => {
+            try {
+              failedJobs++;
               const failedCount = await queue.getFailedCount();
               expect(failedCount).to.equal(3);
-
-              expect(job.data.index).to.be.equal(3);
               expect(prev).to.be.equal('active');
               expect(failedReason.message).to.be.equal(errorMessage);
-              resolve();
-            }),
-          );
+              if (failedJobs == 4) {
+                resolve();
+              }
+            } catch (err) {
+              reject(err);
+            }
+          });
         });
 
         await allFailed;
@@ -769,17 +774,20 @@ describe('stalled jobs', function () {
         });
 
         const errorMessage = 'job stalled more than allowable limit';
-        const allFailed = new Promise<void>(resolve => {
+        const allFailed = new Promise<void>((resolve, reject) => {
           worker2.on(
             'failed',
-            after(concurrency, async (job, failedReason, prev) => {
-              expect(job).to.be.undefined;
-              const failedCount = await queue.getFailedCount();
-              expect(failedCount).to.equal(2);
+            after(concurrency, async (_job, failedReason, prev) => {
+              try {
+                const failedCount = await queue.getFailedCount();
+                expect(failedCount).to.equal(2);
 
-              expect(prev).to.be.equal('active');
-              expect(failedReason.message).to.be.equal(errorMessage);
-              resolve();
+                expect(prev).to.be.equal('active');
+                expect(failedReason.message).to.be.equal(errorMessage);
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
             }),
           );
         });

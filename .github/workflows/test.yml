@@ -143,26 +143,29 @@ jobs:
       - run: yarn build
       - run: BULLMQ_TEST_PREFIX={b} yarn test
 
-  # node-upstash:
-  #   runs-on: ubuntu-latest
-  #   continue-on-error: true
+  node-upstash:
+    runs-on: ubuntu-latest
+    continue-on-error: true
 
-  #   env:
-  #     node-version: lts/*
-  #     REDIS_HOST: ${{ secrets.REDIS_HOST }}
+    env:
+      node-version: lts/*
 
-  #   name: testing node@lts/*, upstash@latest
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v3 # v3
-  #     - name: Use Node.js ${{ env.node-version }}
-  #       uses: actions/setup-node@v3 # v3
-  #       with:
-  #         node-version: lts/*
-  #         cache: 'yarn'
-  #     - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
-  #     - run: yarn build
-  #     - run: yarn test
+    name: testing node@lts/*, upstash@latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3 # v3
+      - name: Use Node.js ${{ env.node-version }}
+        uses: actions/setup-node@v3 # v3
+        with:
+          node-version: lts/*
+          cache: 'yarn'
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - name: Run tests using upstash
+        run: REDIS_HOST=${{ secrets.UPSTASH_HOST }} yarn test
+        env:
+          REDIS_HOST: ${{ secrets.UPSTASH_HOST }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   python:
     runs-on: ubuntu-latest

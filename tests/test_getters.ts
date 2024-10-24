@@ -17,7 +17,10 @@ describe('Jobs getters', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async function () {
@@ -187,8 +190,7 @@ describe('Jobs getters', function () {
     describe('when sharing connection', () => {
       // Test is very flaky on CI, so we skip it for now.
       it('gets all workers for a given queue', async function () {
-        const ioredisConnection = new IORedis({
-          host: redisHost,
+        const ioredisConnection = new IORedis(redisHost, {
           maxRetriesPerRequest: null,
         });
 

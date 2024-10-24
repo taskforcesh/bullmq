@@ -16,7 +16,10 @@ describe('Obliterate', function () {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async () => {
@@ -429,7 +432,7 @@ describe('Obliterate', function () {
   });
 
   it('should obliterate a queue with high number of jobs in different statuses', async function () {
-    this.timeout(6000);
+    this.timeout(60000);
     const arr1: Promise<Job<any, any, string>>[] = [];
     for (let i = 0; i < 300; i++) {
       arr1.push(queue.add('test', { foo: `barLoop${i}` }));

@@ -20,7 +20,10 @@ describe('connection', () => {
 
   let connection;
   before(async function () {
-    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+    connection = new IORedis(redisHost, {
+      maxRetriesPerRequest: null,
+      disconnectTimeout: 0,
+    });
   });
 
   beforeEach(async function () {
@@ -103,8 +106,7 @@ describe('connection', () => {
 
   describe('prefix', () => {
     it('should throw exception if using prefix with ioredis', async () => {
-      const connection = new IORedis({
-        host: redisHost,
+      const connection = new IORedis(redisHost, {
         keyPrefix: 'bullmq',
       });
 
