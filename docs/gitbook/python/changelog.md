@@ -11,40 +11,18 @@
 * **job:** Expose priority value ([#2804](https://github.com/taskforcesh/bullmq/issues/2804)) ([`9abec3d`](https://github.com/taskforcesh/bullmq/commit/9abec3dbc4c69f2496c5ff6b5d724f4d1a5ca62f))
 * **job:** Add deduplication logic ([#2796](https://github.com/taskforcesh/bullmq/issues/2796)) ([`0a4982d`](https://github.com/taskforcesh/bullmq/commit/0a4982d05d27c066248290ab9f59349b802d02d5))
 * **queue:** Add new upsertJobScheduler, getJobSchedulers and removeJobSchedulers methods ([`dd6b6b2`](https://github.com/taskforcesh/bullmq/commit/dd6b6b2263badd8f29db65d1fa6bcdf5a1e9f6e2))
-* **worker-fork:** Allow passing fork options ([#2795](https://github.com/taskforcesh/bullmq/issues/2795)) ([`f7a4292`](https://github.com/taskforcesh/bullmq/commit/f7a4292e064b41236f4489b3d7785a4c599a6435))
-* **worker-thread:** Allow passing Worker options (#2791) ref #1555 ([`6a1f7a9`](https://github.com/taskforcesh/bullmq/commit/6a1f7a9f0303561d6ec7b2005ba0227132b89e07))
 * **queue:** Add getDebounceJobId method ([#2717](https://github.com/taskforcesh/bullmq/issues/2717)) ([`a68ead9`](https://github.com/taskforcesh/bullmq/commit/a68ead95f32a7d9dabba602895d05c22794b2c02))
 
 ### Fix
 * Proper way to get version ([`b4e25c1`](https://github.com/taskforcesh/bullmq/commit/b4e25c13cafc001748ee6eb590133feb8ee24d7b))
-* **scripts:** Add missing wait in isJobInList ([`9ef865c`](https://github.com/taskforcesh/bullmq/commit/9ef865c7de6086cb3c906721fd046aeed1e0d27f))
 * **redis:** Use version for naming loaded lua scripts ([`fe73f6d`](https://github.com/taskforcesh/bullmq/commit/fe73f6d4d776dc9f99ad3a094e5c59c5fafc96f1))
-* **sandbox:** Fix serialization of error with circular references are present (#2815) fix #2813 ([`a384d92`](https://github.com/taskforcesh/bullmq/commit/a384d926bee15bffa84178a8fad7b94a6a08b572))
 * **repeat:** Also consider startDate when using "every" ([`25bbaa8`](https://github.com/taskforcesh/bullmq/commit/25bbaa81af87f9944a64bc4fb7e0c76ef223ada4))
-* **sandbox:** Catch exit errors ([#2800](https://github.com/taskforcesh/bullmq/issues/2800)) ([`6babb9e`](https://github.com/taskforcesh/bullmq/commit/6babb9e2f355feaf9bd1a8ed229c1001e6de7144))
 * **repeatable:** Avoid delayed job deletion if next job already existed ([#2778](https://github.com/taskforcesh/bullmq/issues/2778)) ([`6a851c1`](https://github.com/taskforcesh/bullmq/commit/6a851c1140b336f0e458b6dfe1022470ac41fceb))
-* **connection:** Allow passing connection string into IORedis ([#2746](https://github.com/taskforcesh/bullmq/issues/2746)) ([`73005e8`](https://github.com/taskforcesh/bullmq/commit/73005e8583110f43914df879aef3481b42f3b3af))
-
-### Documentation
-* **bullmq-pro:** Update changelog to v7.17.2 ([#2856](https://github.com/taskforcesh/bullmq/issues/2856)) ([`a615c6d`](https://github.com/taskforcesh/bullmq/commit/a615c6d692b5a113b2c03836a76feb03b736e6cf))
-* **connection:** Fix broken link to commonRedisOptions keyPrefix ([#2843](https://github.com/taskforcesh/bullmq/issues/2843)) ([`d1eb1bb`](https://github.com/taskforcesh/bullmq/commit/d1eb1bba5eedccfa80a0e3f1a91f9d2d7db914f5))
-* Min instead of max in attempts made or truncate in custom backoff ([#2830](https://github.com/taskforcesh/bullmq/issues/2830)) ([`9307fef`](https://github.com/taskforcesh/bullmq/commit/9307fef3e5f9e5f929fd8755078913a33c2dc783))
-* **bullmq-pro:** Update changelog to v7.19.0 ([#2821](https://github.com/taskforcesh/bullmq/issues/2821)) ([`3980e75`](https://github.com/taskforcesh/bullmq/commit/3980e75cc4749d1c7cbdec5dbf24929ab92655a0))
-* **worker:** Correct typings on event failed ([#2818](https://github.com/taskforcesh/bullmq/issues/2818)) ([`4b80451`](https://github.com/taskforcesh/bullmq/commit/4b8045101fa05f289dde469e10f6233c1b10fad9))
-* **flows:** Add missing word in flows guide ([#2788](https://github.com/taskforcesh/bullmq/issues/2788)) ([`4cbfb8d`](https://github.com/taskforcesh/bullmq/commit/4cbfb8d38c77b930a70852843cbcc1bc823484a1))
-* **readme:** Replace gitter with slack ([#2784](https://github.com/taskforcesh/bullmq/issues/2784)) ([`50178ec`](https://github.com/taskforcesh/bullmq/commit/50178ec31b4275ed906f08b22e05d46faeadba6e))
-* **queue:** Update clean tsdoc description ([#2781](https://github.com/taskforcesh/bullmq/issues/2781)) ([`6e9c5be`](https://github.com/taskforcesh/bullmq/commit/6e9c5bee096b7566ebcf8cbdc19414a85d604426))
-* **pro:** Update changelog to v7.16.0 ([#2779](https://github.com/taskforcesh/bullmq/issues/2779)) ([`c8cafe6`](https://github.com/taskforcesh/bullmq/commit/c8cafe61608d50ac5876421aa3f7c90415ec9cb2))
-* **groups:** Add warning when local concurrency is set ([#2762](https://github.com/taskforcesh/bullmq/issues/2762)) ([`f6546fb`](https://github.com/taskforcesh/bullmq/commit/f6546fb57d82a1002d4f59b9792d04603de96e3a))
 
 ## v2.9.4 (2024-09-10)
 ### Fix
 * **metrics:** Differentiate points in different minutes to be more accurate (#2766) (python) ([`7cb670e`](https://github.com/taskforcesh/bullmq/commit/7cb670e1bf9560a24de3da52427b4f6b6152a59a))
-* **pattern:** Do not save offset when immediately is provided ([#2756](https://github.com/taskforcesh/bullmq/issues/2756)) ([`a8cb8a2`](https://github.com/taskforcesh/bullmq/commit/a8cb8a21ea52437ac507097994ef0fde058c5433))
 * **repeat:** Replace delayed job when updating repeat key ([`88029bb`](https://github.com/taskforcesh/bullmq/commit/88029bbeab2a58768f9c438318f540010cd286a7))
-
-### Documentation
-* **bullmq-pro:** Add get group rate limit ttl section ([#2761](https://github.com/taskforcesh/bullmq/issues/2761)) ([`3dc13d1`](https://github.com/taskforcesh/bullmq/commit/3dc13d107c81519ee9ceab1f8d6d2a614b005384))
 
 ### Performance
 * **metrics:** Save zeros as much as max data points ([#2758](https://github.com/taskforcesh/bullmq/issues/2758)) ([`3473054`](https://github.com/taskforcesh/bullmq/commit/347305451a9f5d7f2c16733eb139b5de96ea4b9c))
@@ -52,7 +30,6 @@
 ## v2.9.3 (2024-08-31)
 ### Fix
 * **flows:** Throw error when queueName contains colon (#2719) fixes #2718 ([`9ef97c3`](https://github.com/taskforcesh/bullmq/commit/9ef97c37663e209f03c501a357b6b1a662b24d99))
-* **sandboxed:** Properly update data on wrapped job (#2739) fixes #2731 ([`9c4b245`](https://github.com/taskforcesh/bullmq/commit/9c4b2454025a14459de47b0586a09130d7a93cae))
 * **flow:** Remove debounce key when parent is moved to fail ([#2720](https://github.com/taskforcesh/bullmq/issues/2720)) ([`d51aabe`](https://github.com/taskforcesh/bullmq/commit/d51aabe999a489c285f871d21e36c3c84e2bef33))
 * **flow:** Recursive ignoreDependencyOnFailure option ([#2712](https://github.com/taskforcesh/bullmq/issues/2712)) ([`53bc9eb`](https://github.com/taskforcesh/bullmq/commit/53bc9eb68b5bb0a470a8fe64ef78ece5cde44632))
 * **job:** Throw error if removeDependencyOnFailure and ignoreDependencyOnFailure are used together ([#2711](https://github.com/taskforcesh/bullmq/issues/2711)) ([`967632c`](https://github.com/taskforcesh/bullmq/commit/967632c9ef8468aab59f0b36d1d828bcde1fbd70))
@@ -61,21 +38,9 @@
 * **connection:** Remove unnecessary process.env.CI reference ([#2705](https://github.com/taskforcesh/bullmq/issues/2705)) ([`53de304`](https://github.com/taskforcesh/bullmq/commit/53de3049493ef79e02af40e8e450e2056c134155))
 * **worker:** Fix close sequence to reduce risk for open handlers ([#2656](https://github.com/taskforcesh/bullmq/issues/2656)) ([`8468e44`](https://github.com/taskforcesh/bullmq/commit/8468e44e5e9e39c7b65691945c26688a9e5d2275))
 
-### Documentation
-* **connection:** Add decode_responses warning [python] (#2745) fixes #2695 ([`188192c`](https://github.com/taskforcesh/bullmq/commit/188192c1b15e77013ad78a4904f099cd314b4b86))
-* Update README.md sponsors ([`e7e7193`](https://github.com/taskforcesh/bullmq/commit/e7e7193bacf048162d7095ba003169ee81a3766e))
-* Update copyright holder ([`13516c6`](https://github.com/taskforcesh/bullmq/commit/13516c6f5a982b44f3bb49024ec8d11a90c6c9ab))
-* **debouncing:** Add remove debounce key sub-section ([#2724](https://github.com/taskforcesh/bullmq/issues/2724)) ([`b8d8886`](https://github.com/taskforcesh/bullmq/commit/b8d8886999dca42165c83ae1951edd293e8187dd))
-
-### Performance
-* **fifo-queue:** Use linked list structure for queue ([#2629](https://github.com/taskforcesh/bullmq/issues/2629)) ([`df74578`](https://github.com/taskforcesh/bullmq/commit/df7457844a769e5644eb11d31d1a05a9d5b4e084))
-
 ## v2.9.2 (2024-08-10)
 ### Fix
 * **flow:** Validate parentData before ignoreDependencyOnFailure when stalled check happens (#2702) (python) ([`9416501`](https://github.com/taskforcesh/bullmq/commit/9416501551b1ad464e59bdba1045a5a9955e2ea4))
-
-### Documentation
-* **bullmq-pro:** Update changelog to v7.14.1 ([#2698](https://github.com/taskforcesh/bullmq/issues/2698)) ([`8260582`](https://github.com/taskforcesh/bullmq/commit/826058207f8b75fa77432df9e3a9c3b0b31ffc69))
 
 ### Performance
 * **worker:** Promote delayed jobs while queue is rate limited (#2697) ref #2582 ([`f3290ac`](https://github.com/taskforcesh/bullmq/commit/f3290ace2f117e26357f9fae611a255af26b950b))
@@ -83,10 +48,6 @@
 ## v2.9.1 (2024-08-08)
 ### Fix
 * **job:** Consider passing stackTraceLimit as 0 (#2692) ref #2487 ([`509a36b`](https://github.com/taskforcesh/bullmq/commit/509a36baf8d8cf37176e406fd28e33f712229d27))
-
-### Documentation
-* Update example in introduction [python] ([#2677](https://github.com/taskforcesh/bullmq/issues/2677)) ([`c67ce33`](https://github.com/taskforcesh/bullmq/commit/c67ce331e31c1312e85dfde46bc92a7985b0d493))
-* **guide:** Clarify example in retrying failing jobs section (#2690) ref #2602 ([`5e6154f`](https://github.com/taskforcesh/bullmq/commit/5e6154f220bf89dc1dd9d3f0a49ff5c35200557b))
 
 ## v2.9.0 (2024-08-02)
 ### Feature
@@ -101,13 +62,6 @@
 * **repeatable:** Keep legacy repeatables if it exists instead of creating one with new structure ([#2665](https://github.com/taskforcesh/bullmq/issues/2665)) ([`93fad41`](https://github.com/taskforcesh/bullmq/commit/93fad41a9520961d0e6814d82454bc916a039501))
 * **repeatable:** Consider removing legacy repeatable job (#2658) fixes #2661 ([`a6764ae`](https://github.com/taskforcesh/bullmq/commit/a6764aecb557fb918d061f5e5c2e26e4afa3e8ee))
 * **repeatable:** Pass custom key as an args in addRepeatableJob to prevent CROSSSLOT issue (#2662) fixes #2660 ([`9d8f874`](https://github.com/taskforcesh/bullmq/commit/9d8f874b959e09662985f38c4614b95ab4d5e89c))
-
-### Documentation
-* **pro:** Update changelog to v7.12.0 ([#2675](https://github.com/taskforcesh/bullmq/issues/2675)) ([`45fa04e`](https://github.com/taskforcesh/bullmq/commit/45fa04e74b90ee9b331aed1b7aaa81ca1e0219c7))
-* **repeatable:** Fix examples when passing repeat.key ([#2669](https://github.com/taskforcesh/bullmq/issues/2669)) ([`e99fc2d`](https://github.com/taskforcesh/bullmq/commit/e99fc2d6435704c407e4c4bdeaeda580dd20bf8b))
-* **guide:** Add queue global concurrency section ([#2667](https://github.com/taskforcesh/bullmq/issues/2667)) ([`c905d62`](https://github.com/taskforcesh/bullmq/commit/c905d6206aa3d1b0a8f315da220cbc27f6a397c3))
-* **changelog:** Remove documentation section ([`b5500c4`](https://github.com/taskforcesh/bullmq/commit/b5500c4b24fefb2f0646839331f242642a4adcb8))
-* **metrics:** Fix markdown typo in metrics.md ([#2655](https://github.com/taskforcesh/bullmq/issues/2655)) ([`3e071fa`](https://github.com/taskforcesh/bullmq/commit/3e071fa17c8cf9c96003293d75ffd961b22e750c))
 
 ### Performance
 * **worker:** Fetch next job on failure ([#2342](https://github.com/taskforcesh/bullmq/issues/2342)) ([`f917b80`](https://github.com/taskforcesh/bullmq/commit/f917b8090f306c0580aac12f6bd4394fd9ef003d))
@@ -145,10 +99,6 @@
 * **connection:** Use async Retry (#2555) [python] ([`d6dd21d`](https://github.com/taskforcesh/bullmq/commit/d6dd21d3ac28660bbfa7825bba0b586328769709))
 * **worker:** Make sure clearTimeout is always called after bzpopmin ([`782382e`](https://github.com/taskforcesh/bullmq/commit/782382e599218024bb9912ff0572c4aa9b1f22a3))
 * **worker:** Force timeout on bzpopmin command ([#2543](https://github.com/taskforcesh/bullmq/issues/2543)) ([`ae7cb6c`](https://github.com/taskforcesh/bullmq/commit/ae7cb6caefdbfa5ca0d28589cef4b896ffcce2db))
-
-### Documentation
-* **changelog:** Update bullmq-pro to v7.7.1 ([#2550](https://github.com/taskforcesh/bullmq/issues/2550)) ([`b37edfe`](https://github.com/taskforcesh/bullmq/commit/b37edfedb53ab8a6811dcd7d37c2e55e61ed65c3))
-* Update README.md ([`7ab5a9b`](https://github.com/taskforcesh/bullmq/commit/7ab5a9bff29af0eb6c3dc487f65f8b74f02b70f4))
 
 ## v2.7.5 (2024-04-28)
 
@@ -552,10 +502,6 @@
 
 - **queue:** Pass right params to trimEvents method ([#2004](https://github.com/taskforcesh/bullmq/issues/2004)) ([`a55fd77`](https://github.com/taskforcesh/bullmq/commit/a55fd777655f7d4bb7af9e4fa2f7b4f48f559189))
 
-### Documentation
-
-- **update:** Add job data section ([#1999](https://github.com/taskforcesh/bullmq/issues/1999)) ([`854b1ca`](https://github.com/taskforcesh/bullmq/commit/854b1cabd082c1df4d55e7973f0e0b0cd4aefb79))
-
 ## v0.5.5 (2023-06-16)
 
 ### Fix
@@ -574,10 +520,6 @@
 ### Fix
 
 - **worker:** Use timeout as integer for redis lower than v6.0.0 (python) ([#1981](https://github.com/taskforcesh/bullmq/issues/1981)) ([`0df6afa`](https://github.com/taskforcesh/bullmq/commit/0df6afad5e71a693b721ba52ffa6be733ee45ccb))
-
-### Documentation
-
-- **changelog:** Add missing version sections ([#1974](https://github.com/taskforcesh/bullmq/issues/1974)) ([`77b4de7`](https://github.com/taskforcesh/bullmq/commit/77b4de7c3b41ae63e311a2c373e0d2fc787f2f53))
 
 ## v0.5.2 (2023-06-11)
 
