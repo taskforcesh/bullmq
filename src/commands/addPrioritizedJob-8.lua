@@ -25,6 +25,7 @@
             [8]  parent? {id, queueKey}
             [9]  repeat job key
             [10] deduplication key
+            [11] marker count
 
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
@@ -55,6 +56,7 @@ local parentKey = args[5]
 local parent = args[8]
 local repeatJobKey = args[9]
 local deduplicationKey = args[10]
+local markerCount = args[11]
 local parentData
 
 -- Includes
@@ -103,7 +105,8 @@ local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
 
 -- Add the job to the prioritized set
 local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)
-addJobWithPriority( KEYS[1], priorityKey, priority, jobId, priorityCounterKey, isPausedOrMaxed)
+local markerScore = (jobCounter or 1) % (markerCount or 1)
+addJobWithPriority( KEYS[1], priorityKey, priority, jobId, priorityCounterKey, isPausedOrMaxed, markerScore)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",

@@ -25,10 +25,10 @@ local function promoteDelayedJobs(delayedKey, markerKey, targetKey, prioritizedK
 
             if priority == 0 then
                 -- LIFO or FIFO
-                addJobInTargetList(targetKey, markerKey, "LPUSH", isPaused, jobId)
+                addJobInTargetList(targetKey, markerKey, "LPUSH", isPaused, jobId, '0')
             else
                 addJobWithPriority(markerKey, prioritizedKey, priority,
-                  jobId, priorityCounterKey, isPaused)
+                  jobId, priorityCounterKey, isPaused, '0')
             end
 
             -- Emit waiting event

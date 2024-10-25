@@ -40,12 +40,12 @@ local function moveParentToWaitIfNeeded(parentQueueKey, parentDependenciesKey,
                     getTargetQueueList(parentMetaKey, parentActiveKey, parentWaitKey,
                                        parentPausedKey)
                 addJobInTargetList(parentTarget, parentMarkerKey, "RPUSH", isParentPausedOrMaxed,
-                    parentId)
+                    parentId, '0')
             else
                 local isPausedOrMaxed = isQueuePausedOrMaxed(parentMetaKey, parentActiveKey)
                 addJobWithPriority(parentMarkerKey,
                                    parentQueueKey .. ":prioritized", priority,
-                                   parentId, parentQueueKey .. ":pc", isPausedOrMaxed)
+                                   parentId, parentQueueKey .. ":pc", isPausedOrMaxed, '0')
             end
 
             rcall("XADD", parentQueueKey .. ":events", "*", "event", "waiting",

@@ -34,7 +34,7 @@ if rcall("EXISTS", KEYS[1]) == 1 then
     rcall("HDEL", KEYS[1], "finishedOn", "processedOn", ARGV[3])
 
     local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[7], KEYS[4], KEYS[6])
-    addJobInTargetList(target, KEYS[8], ARGV[2], isPausedOrMaxed, jobId)
+    addJobInTargetList(target, KEYS[8], ARGV[2], isPausedOrMaxed, jobId, '0')
 
     local maxEvents = getOrSetMaxEvents(KEYS[5])
     -- Emit waiting event

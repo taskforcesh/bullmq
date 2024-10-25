@@ -13,7 +13,7 @@
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
   local parentTarget, isPausedOrMaxed = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "active",
     parentPrefix .. "wait", parentPrefix .. "paused")
-  addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
+  addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId, '0')
 
   if emitEvent then
     local parentEventStream = parentPrefix .. "events"

@@ -153,7 +153,7 @@ if (#stalling > 0) then
                             getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                        addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)
+                        addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId, '0')
 
                         rcall("XADD", eventStreamKey, "*", "event",
                               "waiting", "jobId", jobId, 'prev', 'active')
