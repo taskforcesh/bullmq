@@ -2,6 +2,14 @@
 
 <!--next-version-placeholder-->
 
+## v2.10.1 (2024-10-26)
+### Fix
+* **commands:** Add missing build statement when releasing [python] (#2869) fixes #2868 ([`ff2a47b`](https://github.com/taskforcesh/bullmq/commit/ff2a47b37c6b36ee1a725f91de2c6e4bcf8b011a))
+
+### Documentation
+* **job:** Clarify per-queue scoping of job ids ([#2864](https://github.com/taskforcesh/bullmq/issues/2864)) ([`6c2b80f`](https://github.com/taskforcesh/bullmq/commit/6c2b80f490a0ab4afe502fc8415d6549e0022367))
+* **v4:** Update changelog with v4.18.2 ([#2867](https://github.com/taskforcesh/bullmq/issues/2867)) ([`7ba452e`](https://github.com/taskforcesh/bullmq/commit/7ba452ec3e6d4658e357b2ca810893172c1e0b25))
+
 ## v2.10.0 (2024-10-24)
 ### Feature
 * **job:** Add getChildrenValues method [python] ([#2853](https://github.com/taskforcesh/bullmq/issues/2853)) ([`0f25213`](https://github.com/taskforcesh/bullmq/commit/0f25213b28900a1c35922bd33611701629d83184))
