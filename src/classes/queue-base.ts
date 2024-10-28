@@ -1,11 +1,5 @@
 import { EventEmitter } from 'events';
-import {
-  Carrier,
-  QueueBaseOptions,
-  RedisClient,
-  Span,
-  Tracer,
-} from '../interfaces';
+import { QueueBaseOptions, RedisClient, Span, Tracer } from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
   delay,
@@ -92,7 +86,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.setScripts();
 
     if (opts?.telemetry) {
-      this.tracer = opts.telemetry.trace.getTracer(opts.telemetry.tracerName);
+      this.tracer = opts.telemetry.tracer;
     }
   }
 
@@ -203,11 +197,11 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * @param srcPropagationMedatada -
    * @returns
    */
-  protected async trace<T>(
+  async trace<T>(
     spanKind: SpanKind,
     getSpanName: () => string,
-    callback: (span?: Span, dstPropagationMetadata?: Carrier) => Promise<T> | T,
-    srcPropagationMetadata?: Carrier,
+    callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
+    srcPropagationMetadata?: string,
   ) {
     if (!this.tracer) {
       return callback();
@@ -223,8 +217,9 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       );
     }
 
+    const spanName = getSpanName();
     const span = this.tracer.startSpan(
-      getSpanName(),
+      spanName,
       {
         kind: spanKind,
       },
@@ -237,23 +232,17 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       });
 
       let messageContext;
-      let dstPropagationMetadata: undefined | Carrier;
+      let dstPropagationMetadata: undefined | string;
 
-      if (spanKind === SpanKind.PRODUCER) {
-        messageContext = this.opts.telemetry.trace.setSpan(
-          currentContext,
-          span,
-        );
+      if (spanKind === SpanKind.CONSUMER) {
+        messageContext = span.setSpanOnContext(parentContext);
+      } else {
+        messageContext = span.setSpanOnContext(currentContext);
+      }
 
+      if (callback.length == 2) {
         dstPropagationMetadata =
           this.opts.telemetry.contextManager.getMetadata(messageContext);
-      } else if (spanKind === SpanKind.INTERNAL) {
-        messageContext = this.opts.telemetry.trace.setSpan(
-          currentContext,
-          span,
-        );
-      } else if (spanKind === SpanKind.CONSUMER) {
-        messageContext = this.opts.telemetry.trace.setSpan(parentContext, span);
       }
 
       return await this.opts.telemetry.contextManager.with(messageContext, () =>

@@ -1,9 +1,8 @@
 import { SpanKind } from '../enums';
 
 export interface Telemetry<Context = any> {
-  trace: Trace;
+  tracer: Tracer<Context>;
   contextManager: ContextManager;
-  tracerName: string;
 }
 
 export interface ContextManager<Context = any> {
@@ -18,24 +17,9 @@ export interface ContextManager<Context = any> {
     fn: A,
   ): ReturnType<A>;
   active(): Context;
-  getMetadata(context: Context): Carrier;
-  fromMetadata(activeContext: Context, metadata: Carrier): Context;
+  getMetadata(context: Context): string;
+  fromMetadata(activeContext: Context, metadata: string): Context;
 }
-
-export interface Carrier {
-  traceparent?: string;
-  tracestate?: string;
-}
-
-export interface Trace<Span = any, Context = any> {
-  getTracer(name: string, version?: string): Tracer;
-  setSpan: SetSpan;
-}
-
-export type SetSpan<Context = any, Span = any> = (
-  context: Context,
-  span: Span,
-) => Context;
 
 export interface Tracer<Context = any> {
   startSpan(name: string, options?: SpanOptions, context?: Context): Span;
@@ -45,30 +29,26 @@ export interface SpanOptions {
   kind: SpanKind;
 }
 
-export interface Span {
-  setAttribute(key: string, value: Attribute): Span;
-  setAttributes(attributes: Attributes): Span;
+export interface Span<Context = any> {
+  setSpanOnContext(ctx: Context): void;
+  setAttribute(key: string, value: AttributeValue): void;
+  setAttributes(attributes: Attributes): void;
+  addEvent(name: string, attributes?: Attributes): void;
   recordException(exception: Exception, time?: Time): void;
-  spanContext(): SpanContext;
   end(): void;
 }
 
-export interface SpanContext {
-  traceId: string;
-  spanId: string;
-}
-
 export interface Attributes {
-  [attribute: string]: Attribute | undefined;
+  [attribute: string]: AttributeValue | undefined;
 }
 
-export type Attribute =
+export type AttributeValue =
   | string
   | number
   | boolean
-  | null
-  | undefined
-  | (null | undefined | string | number | boolean)[];
+  | Array<null | undefined | string>
+  | Array<null | undefined | number>
+  | Array<null | undefined | boolean>;
 
 export type Exception = string | ExceptionType;
 

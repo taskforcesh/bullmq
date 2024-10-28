@@ -1,4 +1,4 @@
-import { RepeatOptions, KeepJobs, BackoffOptions, Carrier } from './';
+import { RepeatOptions, KeepJobs, BackoffOptions } from './';
 
 export interface DefaultJobOptions {
   /**
@@ -116,5 +116,5 @@ export interface BaseJobOptions extends DefaultJobOptions {
   /**
    * TelemetryMetadata, provide for context propagation.
    */
-  telemetryMetadata?: Carrier;
+  telemetryMetadata?: string;
 }

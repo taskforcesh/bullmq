@@ -21,9 +21,11 @@ export enum TelemetryAttributes {
   WorkerDoNotWaitActive = 'bullmq.worker.do.not.wait.active',
   WorkerForceClose = 'bullmq.worker.force.close',
   WorkerStalledJobs = 'bullmq.worker.stalled.jobs',
+  WorkerFailedJobs = 'bullmq.worker.failed.jobs',
   WorkerJobsToExtendLocks = 'bullmq.worker.jobs.to.extend.locks',
   JobFinishedTimestamp = 'bullmq.job.finished.timestamp',
   JobProcessedTimestamp = 'bullmq.job.processed.timestamp',
+  JobResult = 'bullmq.job.result',
   JobFailedReason = 'bullmq.job.failed.reason',
 }
 

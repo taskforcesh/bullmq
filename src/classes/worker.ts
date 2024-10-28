@@ -184,7 +184,8 @@ export class Worker<
   private extendLocksTimer: NodeJS.Timeout | null = null;
   private limitUntil = 0;
   private resumeWorker: () => void;
-  private stalledCheckTimer: NodeJS.Timeout;
+
+  private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
 
@@ -424,11 +425,10 @@ export class Worker<
   async run() {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.run`,
+      () => this.getSpanName('run'),
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerOptions]: JSON.stringify(this.opts),
         });
 
         if (!this.processFn) {
@@ -553,7 +553,7 @@ export class Worker<
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
     return this.trace<Job<DataType, ResultType, NameType>>(
       SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.getNextJob`,
+      () => this.getSpanName('getNextJob'),
       async span => {
         const nextJob = await this._getNextJob(
           await this.client,
@@ -633,7 +633,7 @@ export class Worker<
   async rateLimit(expireTimeMs: number): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.rateLimit`,
+      () => this.getSpanName('rateLimit'),
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -825,7 +825,7 @@ will never work with more accuracy than 1ms. */
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
-      () => `${this.name} ${this.id} Worker.processJob`,
+      () => this.getSpanName('process'),
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -841,6 +841,11 @@ will never work with more accuracy than 1ms. */
               fetchNextCallback() && !(this.closing || this.paused),
             );
             this.emit('completed', job, result, 'active');
+
+            span?.addEvent('job completed', {
+              [TelemetryAttributes.JobResult]: JSON.stringify(result),
+            });
+
             const [jobData, jobId, limitUntil, delayUntil] = completed || [];
             this.updateDelays(limitUntil, delayUntil);
 
@@ -851,6 +856,7 @@ will never work with more accuracy than 1ms. */
         const handleFailed = async (err: Error) => {
           if (!this.connection.closing) {
             try {
+              // Check if the job was manually rate-limited
               if (err.message == RATE_LIMIT_ERROR) {
                 this.limitUntil = await this.moveLimitedBackToWait(job, token);
                 return;
@@ -868,6 +874,10 @@ will never work with more accuracy than 1ms. */
               const result = await job.moveToFailed(err, token, true);
               this.emit('failed', job, err, 'active');
 
+              span?.addEvent('job failed', {
+                [TelemetryAttributes.JobFailedReason]: err.message,
+              });
+
               if (result) {
                 const [jobData, jobId, limitUntil, delayUntil] = result;
                 this.updateDelays(limitUntil, delayUntil);
@@ -878,13 +888,15 @@ will never work with more accuracy than 1ms. */
               // It probably means that the job has lost the lock before completion
               // A worker will (or already has) moved the job back
               // to the waiting list (as stalled)
+              span?.recordException((<Error>err).message);
             }
           }
         };
 
         this.emit('active', job, 'waiting');
 
-        const inProgressItem = { job, ts: Date.now() };
+        const processedOn = Date.now();
+        const inProgressItem = { job, ts: processedOn };
 
         try {
           jobsInProgress.add(inProgressItem);
@@ -892,20 +904,22 @@ will never work with more accuracy than 1ms. */
           return await handleCompleted(result);
         } catch (err) {
           const failed = await handleFailed(<Error>err);
-
-          span?.setAttributes({
-            [TelemetryAttributes.JobFinishedTimestamp]: job.finishedOn,
-            [TelemetryAttributes.JobProcessedTimestamp]: job.processedOn,
-            [TelemetryAttributes.JobFailedReason]: job.failedReason,
-          });
-
           return failed;
         } finally {
+          span?.setAttributes({
+            [TelemetryAttributes.JobFinishedTimestamp]: Date.now(),
+            [TelemetryAttributes.JobProcessedTimestamp]: processedOn,
+          });
+
           jobsInProgress.delete(inProgressItem);
         }
       },
       srcPropagationMedatada,
     );
+  }
+
+  private getSpanName(operation: string): string {
+    return `${operation} ${this.name}.${this.opts.name || this.id}`;
   }
 
   /**
@@ -915,7 +929,7 @@ will never work with more accuracy than 1ms. */
   async pause(doNotWaitActive?: boolean): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.pause`,
+      () => this.getSpanName('pause'),
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -945,7 +959,7 @@ will never work with more accuracy than 1ms. */
     if (this.resumeWorker) {
       this.trace<void>(
         SpanKind.INTERNAL,
-        () => `${this.name} ${this.id} Worker.resume`,
+        () => this.getSpanName('resume'),
         span => {
           span?.setAttributes({
             [TelemetryAttributes.WorkerId]: this.id,
@@ -996,7 +1010,7 @@ will never work with more accuracy than 1ms. */
 
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.close`,
+      () => this.getSpanName('close'),
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1029,7 +1043,8 @@ will never work with more accuracy than 1ms. */
           }
 
           clearTimeout(this.extendLocksTimer);
-          clearTimeout(this.stalledCheckTimer);
+          //clearTimeout(this.stalledCheckTimer);
+          this.stalledCheckStopper?.();
 
           this.closed = true;
           this.emit('closed');
@@ -1054,30 +1069,39 @@ will never work with more accuracy than 1ms. */
    */
   async startStalledCheckTimer(): Promise<void> {
     if (!this.opts.skipStalledCheck) {
-      clearTimeout(this.stalledCheckTimer);
-
       if (!this.closing) {
         await this.trace<void>(
           SpanKind.INTERNAL,
-          () => `${this.name} ${this.id} Worker.startStalledCheckTimer`,
+          () => this.getSpanName('startStalledCheckTimer'),
           async span => {
             span?.setAttributes({
               [TelemetryAttributes.WorkerId]: this.id,
             });
 
-            try {
-              await this.checkConnectionError(() =>
-                this.moveStalledJobsToWait(),
-              );
-              this.stalledCheckTimer = setTimeout(async () => {
-                await this.startStalledCheckTimer();
-              }, this.opts.stalledInterval);
-            } catch (err) {
+            this.stalledChecker().catch(err => {
               this.emit('error', <Error>err);
-            }
+            });
           },
         );
       }
+    }
+  }
+
+  private async stalledChecker() {
+    while (!this.closing) {
+      try {
+        await this.checkConnectionError(() => this.moveStalledJobsToWait());
+      } catch (err) {
+        this.emit('error', <Error>err);
+      }
+
+      await new Promise<void>(resolve => {
+        const timeout = setTimeout(resolve, this.opts.stalledInterval);
+        this.stalledCheckStopper = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+      });
     }
   }
 
@@ -1162,7 +1186,7 @@ will never work with more accuracy than 1ms. */
   protected async extendLocks(jobs: Job[]) {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.extendLocks`,
+      () => this.getSpanName('extendLocks'),
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -1202,10 +1226,16 @@ will never work with more accuracy than 1ms. */
   private async moveStalledJobsToWait() {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `${this.name} ${this.id} Worker.moveStalledJobsToWait`,
+      () => this.getSpanName('moveStalledJobsToWait'),
       async span => {
         const chunkSize = 50;
         const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
+
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerStalledJobs]: stalled,
+          [TelemetryAttributes.WorkerFailedJobs]: failed,
+        });
 
         stalled.forEach((jobId: string) =>
           this.emit('stalled', jobId, 'active'),
@@ -1227,11 +1257,6 @@ will never work with more accuracy than 1ms. */
         }
 
         this.notifyFailedJobs(await Promise.all(jobPromises));
-
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerStalledJobs]: stalled,
-        });
       },
     );
   }
