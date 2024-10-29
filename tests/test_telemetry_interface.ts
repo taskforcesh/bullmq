@@ -6,7 +6,6 @@ import { Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
   Telemetry,
-  Trace,
   ContextManager,
   Tracer,
   Span,
@@ -14,7 +13,6 @@ import {
   Attributes,
   Exception,
   Time,
-  SpanContext,
 } from '../src/interfaces';
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes } from '../src/enums';
@@ -28,25 +26,18 @@ describe('Telemetry', () => {
   const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
 
   class MockTelemetry<Context = any> implements Telemetry<Context> {
-    public trace: Trace<Span>;
+    public tracer: Tracer<Context>;
     public contextManager: ContextManager<Context>;
-    public tracerName: string;
 
     constructor(name: string) {
-      this.trace = new MockTrace();
+      this.tracer = new MockTracer();
       this.contextManager = new MockContextManager();
-      this.tracerName = name;
     }
   }
 
-  class MockTrace<Span = any, Context = any> implements Trace<Span> {
-    getTracer(): Tracer {
-      return new MockTracer();
-    }
-
-    setSpan(context: Context, span: Span): Context {
-      context['getSpan'] = () => span;
-      return { ...context, getMetadata_span: span['name'] };
+  class MockTracer implements Tracer {
+    startSpan(name: string, options?: SpanOptions): Span {
+      return new MockSpan(name, options);
     }
   }
 
@@ -65,7 +56,10 @@ describe('Telemetry', () => {
       return this.activeContext;
     }
 
-    getMetadata(context: Context): Record<string, string> {
+    getMetadata(context: Context): string {
+      if (!context) {
+        return '';
+      }
       const metadata: Record<string, string> = {};
       Object.keys(context as object).forEach(key => {
         if (key.startsWith('getMetadata_')) {
@@ -73,24 +67,18 @@ describe('Telemetry', () => {
           metadata[key] = value;
         }
       });
-      return metadata;
+      return JSON.stringify(metadata);
     }
 
-    fromMetadata(
-      activeContext: Context,
-      metadata: Record<string, string>,
-    ): Context {
+    fromMetadata(activeContext: Context, metadataString: string): Context {
       const newContext = { ...activeContext };
-      Object.keys(metadata).forEach(key => {
-        newContext[key] = () => metadata[key];
-      });
+      if (metadataString) {
+        const metadata = JSON.parse(metadataString);
+        Object.keys(metadata).forEach(key => {
+          newContext[key] = () => metadata[key];
+        });
+      }
       return newContext;
-    }
-  }
-
-  class MockTracer implements Tracer {
-    startSpan(name: string, options?: SpanOptions): Span {
-      return new MockSpan(name, options);
     }
   }
 
@@ -105,22 +93,23 @@ describe('Telemetry', () => {
       this.options = options;
     }
 
-    setAttribute(key: string, value: any): Span {
-      this.attributes[key] = value;
-      return this;
+    setSpanOnContext(ctx: any): any {
+      context['getSpan'] = () => this;
+      return { ...context, getMetadata_span: this['name'] };
     }
 
-    setAttributes(attributes: Attributes): Span {
+    addEvent(name: string, attributes?: Attributes): void {}
+
+    setAttribute(key: string, value: any): void {
+      this.attributes[key] = value;
+    }
+
+    setAttributes(attributes: Attributes): void {
       this.attributes = { ...this.attributes, ...attributes };
-      return this;
     }
 
     recordException(exception: ExtendedException, time?: Time): void {
       this.exception = exception;
-    }
-
-    spanContext(): SpanContext {
-      return { traceId: 'mock-trace-id', spanId: 'mock-span-id' };
     }
 
     end(): void {}
@@ -139,6 +128,7 @@ describe('Telemetry', () => {
   beforeEach(async function () {
     queueName = `test-${v4()}`;
     telemetryClient = new MockTelemetry('mockTracer');
+
     queue = new Queue(queueName, {
       connection,
       prefix,
@@ -160,9 +150,10 @@ describe('Telemetry', () => {
       await queue.add('testJob', { foo: 'bar' });
 
       const activeContext = telemetryClient.contextManager.active();
+
       const span = activeContext.getSpan?.() as MockSpan;
       expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`${queueName}.testJob Queue.add`);
+      expect(span.name).to.equal(`add ${queueName}.testJob`);
       expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
       expect(span.attributes[TelemetryAttributes.QueueName]).to.equal(
         queueName,
@@ -208,7 +199,7 @@ describe('Telemetry', () => {
       const activeContext = telemetryClient.contextManager.active();
       const span = activeContext.getSpan?.() as MockSpan;
       expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`${queueName} Queue.addBulk`);
+      expect(span.name).to.equal(`addBulk ${queueName}`);
       expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
       expect(span.attributes[TelemetryAttributes.BulkNames]).to.deep.equal(
         jobs.map(job => job.name),
@@ -255,7 +246,7 @@ describe('Telemetry', () => {
       await worker.waitUntilReady();
       const moveToCompletedStub = sinon.stub(job, 'moveToCompleted').resolves();
 
-      const startSpanSpy = sinon.spy(worker.tracer, 'startSpan');
+      const startSpanSpy = sinon.spy(<any>worker['tracer'], 'startSpan');
 
       const token = 'some-token';
 
@@ -264,7 +255,7 @@ describe('Telemetry', () => {
       const span = startSpanSpy.returnValues[0] as MockSpan;
 
       expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`${queueName} ${worker.id} Worker.processJob`);
+      expect(span.name).to.equal(`process ${queueName}.${worker.id}`);
       expect(span.options?.kind).to.equal(SpanKind.CONSUMER);
       expect(span.attributes[TelemetryAttributes.WorkerId]).to.equal(worker.id);
       expect(span.attributes[TelemetryAttributes.WorkerToken]).to.equal(token);
