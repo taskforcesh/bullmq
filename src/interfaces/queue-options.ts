@@ -1,6 +1,7 @@
 import { AdvancedRepeatOptions } from './advanced-options';
 import { DefaultJobOptions } from './base-job-options';
 import { ConnectionOptions } from './redis-options';
+import { DeserializeFn, SerializeFn } from './serialize';
 
 export enum ClientType {
   blocking = 'blocking',
@@ -31,6 +32,16 @@ export interface QueueBaseOptions {
    * @defaultValue false
    */
   skipVersionCheck?: boolean;
+
+  /**
+   * Pass a custom serializer to serialize job data into Redis
+   */
+  serializer?: SerializeFn;
+
+  /**
+   * Pass a custom deserializer to deserialize job data
+   */
+  deserializer?: DeserializeFn;
 }
 
 /**
