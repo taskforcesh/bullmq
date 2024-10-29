@@ -739,7 +739,7 @@ export class Job<
       command = 'moveToFinished';
     }
 
-    await this.queue.trace<Promise<void | any[]>>(
+    return this.queue.trace<Promise<void | any[]>>(
       SpanKind.INTERNAL,
       () => this.getSpanName(command),
       async (span, srcPropagationMedatada) => {
