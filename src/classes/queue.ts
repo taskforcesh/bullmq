@@ -14,6 +14,7 @@ import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
+import { version } from '../version';
 
 export interface ObliterateOpts {
   /**
@@ -98,8 +99,10 @@ export class Queue<
   token = v4();
   jobsOpts: BaseJobOptions;
   opts: QueueOptions;
-  private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
 
+  protected libName = 'bullmq';
+
+  private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   private _jobScheduler?: JobScheduler;
 
   constructor(
@@ -120,8 +123,8 @@ export class Queue<
 
     this.waitUntilReady()
       .then(client => {
-        if (!this.closing) {
-          client.hmset(this.keys.meta, this.metaValues);
+        if (!this.closing && !opts?.skipMetasUpdate) {
+          return client.hmset(this.keys.meta, this.metaValues);
         }
       })
       .catch(err => {
@@ -171,7 +174,18 @@ export class Queue<
   get metaValues(): Record<string, string | number> {
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
+      version: `${this.libName}:${version}`,
     };
+  }
+
+  /**
+   * Get library version.
+   *
+   * @returns the content of the meta.library field.
+   */
+  async getVersion(): Promise<string> {
+    const client = await this.client;
+    return await client.hget(this.keys.meta, 'version');
   }
 
   get repeat(): Promise<Repeat> {

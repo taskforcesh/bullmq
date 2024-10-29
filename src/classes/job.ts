@@ -203,7 +203,6 @@ export class Job<
     this.opts = Object.assign(
       {
         attempts: 0,
-        delay: 0,
       },
       restOpts,
     );
@@ -717,11 +716,13 @@ export class Job<
           token,
           retryDelay,
         );
-        (<any>multi).moveToDelayed(args);
+        this.scripts.execCommand(multi, 'moveToDelayed', args);
         command = 'moveToDelayed';
       } else {
         // Retry immediately
-        (<any>multi).retryJob(
+        this.scripts.execCommand(
+          multi,
+          'retryJob',
           this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
         );
         command = 'retryJob';
@@ -734,7 +735,8 @@ export class Job<
         token,
         fetchNext,
       );
-      (<any>multi).moveToFinished(args);
+
+      this.scripts.execCommand(multi, 'moveToFinished', args);
       finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
       command = 'moveToFinished';
     }
@@ -1319,7 +1321,7 @@ export class Job<
       err?.message,
     );
 
-    (<any>multi).saveStacktrace(args);
+    this.scripts.execCommand(multi, 'saveStacktrace', args);
   }
 }
 

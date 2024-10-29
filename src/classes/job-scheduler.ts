@@ -27,12 +27,12 @@ export class JobScheduler extends QueueBase {
     super(name, opts, Connection);
 
     this.repeatStrategy =
-      (opts.settings && opts.settings.repeatStrategy) || getNextMillis;
+      (opts.settings && opts.settings.repeatStrategy) || defaultRepeatStrategy;
   }
 
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
-    repeatOpts: Omit<RepeatOptions, 'key'>,
+    repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis' | 'offset'>,
     jobName: N,
     jobData: T,
     opts: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>,
@@ -69,21 +69,26 @@ export class JobScheduler extends QueueBase {
     }
 
     const prevMillis = opts.prevMillis || 0;
-    now = prevMillis < now ? now : prevMillis;
 
     // Check if we have a start date for the repeatable job
-    const { startDate } = repeatOpts;
+    const { startDate, ...filteredRepeatOpts } = repeatOpts;
     if (startDate) {
       const startMillis = new Date(startDate).getTime();
       now = startMillis > now ? startMillis : now;
     }
 
-    const nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
+    let nextMillis;
+    if (every) {
+      nextMillis = prevMillis + every;
 
-    const hasImmediately = Boolean(
-      (every || pattern) && repeatOpts.immediately,
-    );
-    const offset = hasImmediately && every ? now - nextMillis : undefined;
+      if (nextMillis < now) {
+        nextMillis = now;
+      }
+    } else if (pattern) {
+      now = prevMillis < now ? now : prevMillis;
+      nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
+    }
+
     if (nextMillis) {
       if (override) {
         await this.scripts.addJobScheduler(jobSchedulerId, nextMillis, {
@@ -100,16 +105,13 @@ export class JobScheduler extends QueueBase {
         );
       }
 
-      const { immediately, ...filteredRepeatOpts } = repeatOpts;
-
       return this.createNextJob<T, R, N>(
         jobName,
         nextMillis,
         jobSchedulerId,
-        { ...opts, repeat: { offset, ...filteredRepeatOpts } },
+        { ...opts, repeat: filteredRepeatOpts },
         jobData,
         iterationCount,
-        hasImmediately,
       );
     }
   }
@@ -121,24 +123,22 @@ export class JobScheduler extends QueueBase {
     opts: JobsOptions,
     data: T,
     currentCount: number,
-    hasImmediately: boolean,
   ) {
     //
     // Generate unique job id for this iteration.
     //
     const jobId = this.getSchedulerNextJobId({
-      jobSchedulerId: jobSchedulerId,
+      jobSchedulerId,
       nextMillis,
     });
 
     const now = Date.now();
-    const delay =
-      nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
+    const delay = nextMillis - now;
 
     const mergedOpts = {
       ...opts,
       jobId,
-      delay: delay < 0 || hasImmediately ? 0 : delay,
+      delay: delay < 0 ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
       repeatJobKey: jobSchedulerId,
@@ -230,15 +230,11 @@ export class JobScheduler extends QueueBase {
   }
 }
 
-export const getNextMillis = (
+export const defaultRepeatStrategy = (
   millis: number,
   opts: RepeatOptions,
 ): number | undefined => {
-  const { every, pattern } = opts;
-
-  if (every) {
-    return Math.floor(millis / every) * every + (opts.immediately ? 0 : every);
-  }
+  const { pattern } = opts;
 
   const currentDate = new Date(millis);
   const interval = parseExpression(pattern, {
