@@ -30,7 +30,7 @@ export interface SpanOptions {
 }
 
 export interface Span<Context = any> {
-  setSpanOnContext(ctx: Context): void;
+  setSpanOnContext(ctx: Context): Context;
   setAttribute(key: string, value: AttributeValue): void;
   setAttributes(attributes: Attributes): void;
   addEvent(name: string, attributes?: Attributes): void;
