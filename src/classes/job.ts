@@ -744,12 +744,12 @@ export class Job<
     return this.queue.trace<Promise<void | any[]>>(
       SpanKind.INTERNAL,
       () => this.getSpanName(command),
-      async (span, srcPropagationMedatada) => {
-        if (srcPropagationMedatada) {
+      async (span, dstPropagationMedatadata) => {
+        if (dstPropagationMedatadata) {
           (<any>multi).updateJobOption([
             this.toKey(this.id),
             'tm',
-            srcPropagationMedatada,
+            dstPropagationMedatadata,
           ]);
         }
 
