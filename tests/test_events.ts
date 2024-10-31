@@ -47,13 +47,14 @@ describe('events', function () {
         connection,
         prefix,
       });
-      await queueEvents2.waitUntilReady();
 
       const waiting = new Promise(resolve => {
         queue2.on('waiting', resolve);
       });
 
       const running = queueEvents2.run();
+
+      await queueEvents2.waitUntilReady();
 
       await queue2.add('test', { foo: 'bar' });
 
@@ -74,9 +75,10 @@ describe('events', function () {
           connection,
           prefix,
         });
-        await queueEvents2.waitUntilReady();
 
         const running = queueEvents2.run();
+
+        await queueEvents2.waitUntilReady();
 
         await queue2.add('test', { foo: 'bar' });
 

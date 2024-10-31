@@ -178,6 +178,9 @@ export interface QueueEventsListener extends IoredisListener {
  */
 export class QueueEvents extends QueueBase {
   private running = false;
+  private clientReadyPromise: Promise<RedisClient>;
+  private resolveClientReady!: (client: RedisClient) => void;
+  private clientReadyResolved = false;
 
   constructor(
     name: string,
@@ -204,6 +207,11 @@ export class QueueEvents extends QueueBase {
       },
       this.opts,
     );
+
+    this.clientReadyPromise = new Promise(resolve => {
+      this.resolveClientReady = resolve;
+    });
+
 
     if (autorun) {
       this.run().catch(error => this.emit('error', error));
@@ -242,6 +250,15 @@ export class QueueEvents extends QueueBase {
   }
 
   /**
+   * Wait until the queueEvent is ready.
+   *
+   * @returns {Promise<RedisClient>}
+   */
+  async waitUntilReady(): Promise<RedisClient> {
+    return this.clientReadyPromise; // consumeEvents 실행 전까지 대기
+  }
+
+  /**
    * Manually starts running the event consumming loop. This shall be used if you do not
    * use the default "autorun" option on the constructor.
    */
@@ -275,12 +292,25 @@ export class QueueEvents extends QueueBase {
 
     const key = this.keys.events;
     let id = opts.lastEventId || '$';
+    let isFirstAttempt = true;
+
 
     while (!this.closing) {
+
+      const timeout = isFirstAttempt ? 20 : opts.blockingTimeout!;
+      isFirstAttempt = false;
+
       // Cast to actual return type, see: https://github.com/DefinitelyTyped/DefinitelyTyped/issues/44301
-      const data: StreamReadRaw = await this.checkConnectionError(() =>
-        client.xread('BLOCK', opts.blockingTimeout!, 'STREAMS', key, id),
+      const data: StreamReadRaw | null = await this.checkConnectionError(async () =>
+        client.xread('BLOCK', timeout, 'STREAMS', key, id)
       );
+
+      // if first attempt and no data, but no error, connection is still alive, continue with longer timeout
+      if (!this.clientReadyResolved) {
+        this.resolveClientReady(client);
+        this.clientReadyResolved = true;
+      }
+
       if (data) {
         const stream = data[0];
         const events = stream[1];
