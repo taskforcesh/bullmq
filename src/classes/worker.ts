@@ -13,6 +13,7 @@ import {
   JobJsonRaw,
   Processor,
   RedisClient,
+  Span,
   WorkerOptions,
 } from '../interfaces';
 import { MinimalQueue } from '../types';
@@ -423,126 +424,116 @@ export class Worker<
   }
 
   async run() {
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      () => this.getSpanName('run'),
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-        });
+    if (!this.processFn) {
+      throw new Error('No process function is defined.');
+    }
 
-        if (!this.processFn) {
-          throw new Error('No process function is defined.');
-        }
+    if (this.running) {
+      throw new Error('Worker is already running.');
+    }
 
-        if (this.running) {
-          throw new Error('Worker is already running.');
-        }
+    try {
+      this.running = true;
 
-        try {
-          this.running = true;
+      if (this.closing) {
+        return;
+      }
 
-          if (this.closing) {
-            return;
+      await this.startStalledCheckTimer();
+
+      const jobsInProgress = new Set<{ job: Job; ts: number }>();
+      this.startLockExtenderTimer(jobsInProgress);
+
+      const asyncFifoQueue = (this.asyncFifoQueue =
+        new AsyncFifoQueue<void | Job<DataType, ResultType, NameType>>());
+
+      let tokenPostfix = 0;
+
+      const client = await this.client;
+      const bclient = await this.blockingConnection.client;
+
+      /**
+       * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
+       * as efficiently as possible, providing concurrency and minimal unnecessary calls
+       * to Redis.
+       */
+      while (!this.closing) {
+        let numTotal = asyncFifoQueue.numTotal();
+
+        /**
+         * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
+         * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
+         */
+        while (
+          !this.waiting &&
+          numTotal < this.opts.concurrency &&
+          (!this.limitUntil || numTotal == 0)
+        ) {
+          const token = `${this.id}:${tokenPostfix++}`;
+
+          const fetchedJob = this.retryIfFailed<void | Job<
+            DataType,
+            ResultType,
+            NameType
+          >>(
+            () => this._getNextJob(client, bclient, token, { block: true }),
+            this.opts.runRetryDelay,
+          );
+          asyncFifoQueue.add(fetchedJob);
+
+          numTotal = asyncFifoQueue.numTotal();
+
+          if (this.waiting && numTotal > 1) {
+            // We are waiting for jobs but we have others that we could start processing already
+            break;
           }
 
-          await this.startStalledCheckTimer();
+          // We await here so that we fetch jobs in sequence, this is important to avoid unnecessary calls
+          // to Redis in high concurrency scenarios.
+          const job = await fetchedJob;
 
-          const jobsInProgress = new Set<{ job: Job; ts: number }>();
-          this.startLockExtenderTimer(jobsInProgress);
+          // No more jobs waiting but we have others that could start processing already
+          if (!job && numTotal > 1) {
+            break;
+          }
 
-          const asyncFifoQueue = (this.asyncFifoQueue =
-            new AsyncFifoQueue<void | Job<DataType, ResultType, NameType>>());
+          // If there are potential jobs to be processed and blockUntil is set, we should exit to avoid waiting
+          // for processing this job.
+          if (this.blockUntil) {
+            break;
+          }
+        }
 
-          let tokenPostfix = 0;
+        // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
+        // we iterate until we find a job.
+        let job: Job<DataType, ResultType, NameType> | void;
+        do {
+          job = await asyncFifoQueue.fetch();
+        } while (!job && asyncFifoQueue.numQueued() > 0);
 
-          const client = await this.client;
-          const bclient = await this.blockingConnection.client;
-
-          /**
-           * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
-           * as efficiently as possible, providing concurrency and minimal unnecessary calls
-           * to Redis.
-           */
-          while (!this.closing) {
-            let numTotal = asyncFifoQueue.numTotal();
-
-            /**
-             * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
-             * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
-             */
-            while (
-              !this.waiting &&
-              numTotal < this.opts.concurrency &&
-              (!this.limitUntil || numTotal == 0)
-            ) {
-              const token = `${this.id}:${tokenPostfix++}`;
-
-              const fetchedJob = this.retryIfFailed<void | Job<
-                DataType,
-                ResultType,
-                NameType
-              >>(
-                () => this._getNextJob(client, bclient, token, { block: true }),
-                this.opts.runRetryDelay,
-              );
-              asyncFifoQueue.add(fetchedJob);
-
-              numTotal = asyncFifoQueue.numTotal();
-
-              if (this.waiting && numTotal > 1) {
-                // We are waiting for jobs but we have others that we could start processing already
-                break;
-              }
-
-              // We await here so that we fetch jobs in sequence, this is important to avoid unnecessary calls
-              // to Redis in high concurrency scenarios.
-              const job = await fetchedJob;
-
-              // No more jobs waiting but we have others that could start processing already
-              if (!job && numTotal > 1) {
-                break;
-              }
-
-              // If there are potential jobs to be processed and blockUntil is set, we should exit to avoid waiting
-              // for processing this job.
-              if (this.blockUntil) {
-                break;
-              }
-            }
-
-            // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
-            // we iterate until we find a job.
-            let job: Job<DataType, ResultType, NameType> | void;
-            do {
-              job = await asyncFifoQueue.fetch();
-            } while (!job && asyncFifoQueue.numQueued() > 0);
-
-            if (job) {
-              const token = job.token;
-              asyncFifoQueue.add(
-                this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-                  () =>
-                    this.processJob(
-                      <Job<DataType, ResultType, NameType>>job,
-                      token,
-                      () => asyncFifoQueue.numTotal() <= this.opts.concurrency,
-                      jobsInProgress,
-                    ),
-                  this.opts.runRetryDelay,
+        if (job) {
+          const token = job.token;
+          asyncFifoQueue.add(
+            this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
+              () =>
+                this.processJob(
+                  <Job<DataType, ResultType, NameType>>job,
+                  token,
+                  () => asyncFifoQueue.numTotal() <= this.opts.concurrency,
+                  jobsInProgress,
                 ),
-              );
-            }
-          }
-
-          this.running = false;
-          return await asyncFifoQueue.waitAll();
-        } catch (error) {
-          this.running = false;
-          throw error;
+              this.opts.runRetryDelay,
+            ),
+          );
         }
-      },
-    );
+      }
+
+      this.running = false;
+      return await asyncFifoQueue.waitAll();
+    } catch (error) {
+      this.running = false;
+      throw error;
+    }
   }
 
   /**
@@ -551,26 +542,29 @@ export class Worker<
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
+    const nextJob = await this._getNextJob(
+      await this.client,
+      await this.blockingConnection.client,
+      token,
+      { block },
+    );
+
     return this.trace<Job<DataType, ResultType, NameType>>(
       SpanKind.INTERNAL,
-      () => this.getSpanName('getNextJob'),
+      'getNextJob',
+      this.name,
       async span => {
-        const nextJob = await this._getNextJob(
-          await this.client,
-          await this.blockingConnection.client,
-          token,
-          { block },
-        );
-
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerToken]: token,
+          [TelemetryAttributes.QueueName]: this.name,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.WorkerOptions]: JSON.stringify({ block }),
           [TelemetryAttributes.JobId]: nextJob?.id,
         });
 
         return nextJob;
       },
+      nextJob?.opts.telemetryMetadata,
     );
   }
 
@@ -633,7 +627,8 @@ export class Worker<
   async rateLimit(expireTimeMs: number): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => this.getSpanName('rateLimit'),
+      'rateLimit',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
@@ -825,11 +820,12 @@ will never work with more accuracy than 1ms. */
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
-      () => this.getSpanName('process'),
+      'process',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerToken]: token,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.JobId]: job.id,
         });
 
@@ -918,10 +914,6 @@ will never work with more accuracy than 1ms. */
     );
   }
 
-  private getSpanName(operation: string): string {
-    return `${operation} ${this.name}.${this.opts.name || this.id}`;
-  }
-
   /**
    *
    * Pauses the processing of this queue only for this worker.
@@ -929,10 +921,12 @@ will never work with more accuracy than 1ms. */
   async pause(doNotWaitActive?: boolean): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => this.getSpanName('pause'),
+      'pause',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.WorkerDoNotWaitActive]: doNotWaitActive,
         });
 
@@ -957,18 +951,15 @@ will never work with more accuracy than 1ms. */
    */
   resume(): void {
     if (this.resumeWorker) {
-      this.trace<void>(
-        SpanKind.INTERNAL,
-        () => this.getSpanName('resume'),
-        span => {
-          span?.setAttributes({
-            [TelemetryAttributes.WorkerId]: this.id,
-          });
+      this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+        });
 
-          this.resumeWorker();
-          this.emit('resumed');
-        },
-      );
+        this.resumeWorker();
+        this.emit('resumed');
+      });
     }
   }
 
@@ -1010,10 +1001,12 @@ will never work with more accuracy than 1ms. */
 
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => this.getSpanName('close'),
+      'close',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.WorkerForceClose]: force,
         });
 
@@ -1072,10 +1065,12 @@ will never work with more accuracy than 1ms. */
       if (!this.closing) {
         await this.trace<void>(
           SpanKind.INTERNAL,
-          () => this.getSpanName('startStalledCheckTimer'),
+          'startStalledCheckTimer',
+          this.name,
           async span => {
             span?.setAttributes({
               [TelemetryAttributes.WorkerId]: this.id,
+              [TelemetryAttributes.WorkerName]: this.opts.name,
             });
 
             this.stalledChecker().catch(err => {
@@ -1186,10 +1181,12 @@ will never work with more accuracy than 1ms. */
   protected async extendLocks(jobs: Job[]) {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => this.getSpanName('extendLocks'),
+      'extendLocks',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.WorkerJobsToExtendLocks]: jobs.map(
             job => job.id,
           ),
@@ -1226,20 +1223,25 @@ will never work with more accuracy than 1ms. */
   private async moveStalledJobsToWait() {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => this.getSpanName('moveStalledJobsToWait'),
+      'moveStalledJobsToWait',
+      this.name,
       async span => {
         const chunkSize = 50;
         const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
 
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
           [TelemetryAttributes.WorkerStalledJobs]: stalled,
           [TelemetryAttributes.WorkerFailedJobs]: failed,
         });
 
-        stalled.forEach((jobId: string) =>
-          this.emit('stalled', jobId, 'active'),
-        );
+        stalled.forEach((jobId: string) => {
+          span?.addEvent('job stalled', {
+            [TelemetryAttributes.JobId]: jobId,
+          });
+          this.emit('stalled', jobId, 'active');
+        });
 
         const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
         for (let i = 0; i < failed.length; i++) {
@@ -1261,15 +1263,20 @@ will never work with more accuracy than 1ms. */
     );
   }
 
-  private notifyFailedJobs(failedJobs: Job<DataType, ResultType, NameType>[]) {
-    failedJobs.forEach((job: Job<DataType, ResultType, NameType>) =>
-      this.emit(
-        'failed',
-        job,
-        new Error('job stalled more than allowable limit'),
-        'active',
-      ),
-    );
+  private notifyFailedJobs(
+    failedJobs: Job<DataType, ResultType, NameType>[],
+    span?: Span,
+  ) {
+    const failedReason = 'job stalled more than allowable limit';
+
+    failedJobs.forEach((job: Job<DataType, ResultType, NameType>) => {
+      span?.addEvent('job failed', {
+        [TelemetryAttributes.JobId]: job.id,
+        [TelemetryAttributes.JobName]: job.name,
+        [TelemetryAttributes.JobFailedReason]: failedReason,
+      });
+      this.emit('failed', job, new Error(failedReason), 'active');
+    });
   }
 
   private moveLimitedBackToWait(

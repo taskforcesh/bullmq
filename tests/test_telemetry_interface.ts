@@ -241,6 +241,7 @@ describe('Telemetry', () => {
       const worker = new Worker(queueName, async () => 'some result', {
         connection,
         telemetry: telemetryClient,
+        name: 'testWorker',
       });
 
       await worker.waitUntilReady();
@@ -255,10 +256,12 @@ describe('Telemetry', () => {
       const span = startSpanSpy.returnValues[0] as MockSpan;
 
       expect(span).to.be.an.instanceOf(MockSpan);
-      expect(span.name).to.equal(`process ${queueName}.${worker.id}`);
+      expect(span.name).to.equal(`process ${queueName}`);
       expect(span.options?.kind).to.equal(SpanKind.CONSUMER);
       expect(span.attributes[TelemetryAttributes.WorkerId]).to.equal(worker.id);
-      expect(span.attributes[TelemetryAttributes.WorkerToken]).to.equal(token);
+      expect(span.attributes[TelemetryAttributes.WorkerName]).to.equal(
+        'testWorker',
+      );
       expect(span.attributes[TelemetryAttributes.JobId]).to.equal(job.id);
 
       moveToCompletedStub.restore();

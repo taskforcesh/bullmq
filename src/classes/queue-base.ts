@@ -192,14 +192,16 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * Wraps the code with telemetry and provides a span for configuration.
    *
    * @param spanKind - kind of the span: Producer, Consumer, Internal
-   * @param getSpanName - name of the span
+   * @param operation - operation name (such as add, process, etc)
+   * @param destination - destination name (normally the queue name)
    * @param callback - code to wrap with telemetry
    * @param srcPropagationMedatada -
    * @returns
    */
   async trace<T>(
     spanKind: SpanKind,
-    getSpanName: () => string,
+    operation: string,
+    destination: string,
     callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
     srcPropagationMetadata?: string,
   ) {
@@ -217,7 +219,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       );
     }
 
-    const spanName = getSpanName();
+    const spanName = `${operation} ${destination}`;
     const span = this.tracer.startSpan(
       spanName,
       {
@@ -229,6 +231,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     try {
       span.setAttributes({
         [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueOperation]: operation,
       });
 
       let messageContext;

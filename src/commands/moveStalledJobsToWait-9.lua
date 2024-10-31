@@ -149,7 +149,7 @@ if (#stalling > 0) then
 
                         table.insert(failed, jobId)
                     else
-                        local target, isPausedOrMaxed=
+                        local target, isPausedOrMaxed =
                             getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.

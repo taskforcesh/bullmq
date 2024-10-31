@@ -743,10 +743,11 @@ export class Job<
 
     return this.queue.trace<Promise<void | any[]>>(
       SpanKind.INTERNAL,
-      () => this.getSpanName(command),
+      this.getSpanOperation(command),
+      this.queue.name,
       async (span, dstPropagationMedatadata) => {
         if (dstPropagationMedatadata) {
-          (<any>multi).updateJobOption([
+          this.scripts.execCommand(multi, 'updateJobOption', [
             this.toKey(this.id),
             'tm',
             dstPropagationMedatadata,
@@ -788,20 +789,15 @@ export class Job<
     );
   }
 
-  private getSpanName(command: string) {
-    let operation;
+  private getSpanOperation(command: string) {
     switch (command) {
       case 'moveToDelayed':
-        operation = 'delay';
-        break;
+        return 'delay';
       case 'retryJob':
-        operation = 'retry';
-        break;
+        return 'retry';
       case 'moveToFinished':
-        operation = 'fail';
-        break;
+        return 'fail';
     }
-    return `${operation} ${this.queue.name}`;
   }
 
   /**

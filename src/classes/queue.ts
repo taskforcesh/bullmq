@@ -253,7 +253,8 @@ export class Queue<
   ): Promise<Job<DataType, ResultType, NameType>> {
     return this.trace<Job<DataType, ResultType, NameType>>(
       SpanKind.PRODUCER,
-      () => `add ${this.name}.${name}`,
+      'add',
+      `${this.name}.${name}`,
       async (span, srcPropagationMedatada) => {
         if (srcPropagationMedatada) {
           opts = { ...opts, telemetryMetadata: srcPropagationMedatada };
@@ -314,12 +315,15 @@ export class Queue<
   ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.trace<Job<DataType, ResultType, NameType>[]>(
       SpanKind.PRODUCER,
-      () => `addBulk ${this.name}`,
+      'addBulk',
+      this.name,
       async (span, srcPropagationMedatada) => {
-        span?.setAttributes({
-          [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
-          [TelemetryAttributes.BulkCount]: jobs.length,
-        });
+        if (span) {
+          span.setAttributes({
+            [TelemetryAttributes.BulkNames]: jobs.map(job => job.name),
+            [TelemetryAttributes.BulkCount]: jobs.length,
+          });
+        }
 
         return await this.Job.createBulk<DataType, ResultType, NameType>(
           this as MinimalQueue,
@@ -393,15 +397,11 @@ export class Queue<
    * and in that case it will add it there instead of the wait list.
    */
   async pause(): Promise<void> {
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      () => `pause ${this.name}`,
-      async () => {
-        await this.scripts.pause(true);
+    await this.trace<void>(SpanKind.INTERNAL, 'pause', this.name, async () => {
+      await this.scripts.pause(true);
 
-        this.emit('paused');
-      },
-    );
+      this.emit('paused');
+    });
   }
 
   /**
@@ -409,19 +409,15 @@ export class Queue<
    *
    */
   async close(): Promise<void> {
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      () => `close ${this.name}`,
-      async () => {
-        if (!this.closing) {
-          if (this._repeat) {
-            await this._repeat.close();
-          }
+    await this.trace<void>(SpanKind.INTERNAL, 'close', this.name, async () => {
+      if (!this.closing) {
+        if (this._repeat) {
+          await this._repeat.close();
         }
+      }
 
-        await super.close();
-      },
-    );
+      await super.close();
+    });
   }
   /**
    * Resumes the processing of this queue globally.
@@ -430,15 +426,11 @@ export class Queue<
    * queue.
    */
   async resume(): Promise<void> {
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      () => `resume ${this.name}`,
-      async () => {
-        await this.scripts.pause(false);
+    await this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, async () => {
+      await this.scripts.pause(false);
 
-        this.emit('resumed');
-      },
-    );
+      this.emit('resumed');
+    });
   }
 
   /**
@@ -514,8 +506,14 @@ export class Queue<
   ): Promise<boolean> {
     return this.trace<boolean>(
       SpanKind.INTERNAL,
-      () => `.removeRepeatable ${this.name}.${name}`,
-      async () => {
+      'removeRepeatable',
+      `${this.name}.${name}`,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobName]: name,
+          [TelemetryAttributes.JobId]: jobId,
+        });
+
         const repeat = await this.repeat;
         const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
 
@@ -548,8 +546,13 @@ export class Queue<
   async removeDebounceKey(id: string): Promise<number> {
     return this.trace<number>(
       SpanKind.INTERNAL,
-      () => `removeDebounceKey ${this.name}.${id}`,
-      async () => {
+      'removeDebounceKey',
+      `${this.name}`,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.JobKey]: id,
+        });
+
         const client = await this.client;
 
         return await client.del(`${this.keys.de}:${id}`);
@@ -563,9 +566,19 @@ export class Queue<
    * @param id - identifier
    */
   async removeDeduplicationKey(id: string): Promise<number> {
-    const client = await this.client;
+    return this.trace<number>(
+      SpanKind.INTERNAL,
+      'removeDeduplicationKey',
+      `${this.name}`,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.DeduplicationKey]: id,
+        });
 
-    return client.del(`${this.keys.de}:${id}`);
+        const client = await this.client;
+        return client.del(`${this.keys.de}:${id}`);
+      },
+    );
   }
 
   /**
@@ -583,7 +596,8 @@ export class Queue<
   async removeRepeatableByKey(key: string): Promise<boolean> {
     return this.trace<boolean>(
       SpanKind.INTERNAL,
-      () => `removeRepeatableByKey ${this.name}.${key} `,
+      'removeRepeatableByKey',
+      `${this.name}`,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.JobKey]: key,
@@ -609,7 +623,8 @@ export class Queue<
   async remove(jobId: string, { removeChildren = true } = {}): Promise<number> {
     return this.trace<number>(
       SpanKind.INTERNAL,
-      () => `remove ${this.name}.${jobId}`,
+      'remove',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.JobId]: jobId,
@@ -635,7 +650,8 @@ export class Queue<
   ): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `updateJobProgress ${this.name}`,
+      'updateJobProgress',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.JobId]: jobId,
@@ -674,7 +690,8 @@ export class Queue<
   async drain(delayed = false): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `drain ${this.name}`,
+      'drain',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.QueueDrainDelay]: delayed,
@@ -709,7 +726,8 @@ export class Queue<
   ): Promise<string[]> {
     return this.trace<string[]>(
       SpanKind.INTERNAL,
-      () => `clean ${this.name}`,
+      'clean',
+      this.name,
       async span => {
         const maxCount = limit || Infinity;
         const maxCountPerCall = Math.min(10000, maxCount);
@@ -737,8 +755,7 @@ export class Queue<
           [TelemetryAttributes.QueueGrace]: grace,
           [TelemetryAttributes.JobType]: type,
           [TelemetryAttributes.QueueCleanLimit]: maxCount,
-          [TelemetryAttributes.JobTimestamp]: timestamp,
-          [TelemetryAttributes.JobId]: deletedJobsIds,
+          [TelemetryAttributes.JobIds]: deletedJobsIds,
         });
 
         return deletedJobsIds;
@@ -760,7 +777,8 @@ export class Queue<
   async obliterate(opts?: ObliterateOpts): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `obliterate ${this.name}`,
+      'obliterate',
+      this.name,
       async () => {
         await this.pause();
 
@@ -791,7 +809,8 @@ export class Queue<
   ): Promise<void> {
     await this.trace<void>(
       SpanKind.PRODUCER,
-      () => `retryJobs ${this.name}`,
+      'retryJobs',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.QueueOptions]: JSON.stringify(opts),
@@ -820,7 +839,8 @@ export class Queue<
   async promoteJobs(opts: { count?: number } = {}): Promise<void> {
     await this.trace<void>(
       SpanKind.INTERNAL,
-      () => `promoteJobs ${this.name}`,
+      'promoteJobs',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.QueueOptions]: JSON.stringify(opts),
@@ -842,7 +862,8 @@ export class Queue<
   async trimEvents(maxLength: number): Promise<number> {
     return this.trace<number>(
       SpanKind.INTERNAL,
-      () => `trimEvents ${this.name}`,
+      'trimEvents',
+      this.name,
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.QueueEventMaxLength]: maxLength,
