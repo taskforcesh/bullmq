@@ -469,6 +469,15 @@ export class Queue<
   }
 
   /**
+   * Get Job Scheduler by id
+   *
+   * @param id - identifier of scheduler.
+   */
+  async getJobScheduler(id: string): Promise<RepeatableJob> {
+    return (await this.jobScheduler).getJobScheduler(id);
+  }
+
+  /**
    * Get all Job Schedulers
    *
    * @param start - Offset of first scheduler to return.
