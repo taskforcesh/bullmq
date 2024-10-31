@@ -105,7 +105,7 @@ local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
 
 -- Add the job to the prioritized set
 local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)
-local markerScore = (jobCounter or 1) % (markerCount or 1)
+local markerScore = jobCounter % (markerCount or 1)
 addJobWithPriority( KEYS[1], priorityKey, priority, jobId, priorityCounterKey, isPausedOrMaxed, markerScore)
 
 -- Emit waiting event
