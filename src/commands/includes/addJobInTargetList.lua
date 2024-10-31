@@ -5,7 +5,7 @@
 -- Includes
 --- @include "addBaseMarkerIfNeeded"
 
-local function addJobInTargetList(targetKey, markerKey, pushCmd, isPausedOrMaxed, jobId, markerScore)
+local function addJobInTargetList(targetKey, markerKey, pushCmd, isPausedOrMaxed, jobId, markerMember)
   rcall(pushCmd, targetKey, jobId)
-  addBaseMarkerIfNeeded(markerKey, isPausedOrMaxed, markerScore)
+  addBaseMarkerIfNeeded(markerKey, isPausedOrMaxed, markerMember)
 end

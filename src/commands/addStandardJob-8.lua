@@ -110,8 +110,8 @@ local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[6], KEYS[1], KE
 
 -- LIFO or FIFO
 local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-local markerScore = jobCounter % (markerCount or 1)
-addJobInTargetList(target, KEYS[8], pushCmd, isPausedOrMaxed, jobId, markerScore)
+local markerMember = jobCounter % (markerCount or 1)
+addJobInTargetList(target, KEYS[8], pushCmd, isPausedOrMaxed, jobId, markerMember)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",

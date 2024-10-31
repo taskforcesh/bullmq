@@ -105,8 +105,8 @@ local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
 
 -- Add the job to the prioritized set
 local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, activeKey)
-local markerScore = jobCounter % (markerCount or 1)
-addJobWithPriority( KEYS[1], priorityKey, priority, jobId, priorityCounterKey, isPausedOrMaxed, markerScore)
+local markerMember = jobCounter % (markerCount or 1)
+addJobWithPriority( KEYS[1], priorityKey, priority, jobId, priorityCounterKey, isPausedOrMaxed, markerMember)
 
 -- Emit waiting event
 rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event", "waiting",
