@@ -56,4 +56,9 @@ export type RedisJobOptions = BaseJobOptions & {
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
   rdof?: boolean;
+
+  /**
+   * TelemetryMetadata, provide for context propagation.
+   */
+  tm?: string;
 };

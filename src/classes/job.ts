@@ -34,6 +34,7 @@ import { Backoffs } from './backoffs';
 import { Scripts, raw2NextJobData } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
+import { SpanKind } from '../enums';
 
 const logger = debuglog('bull');
 
@@ -43,6 +44,7 @@ const optsDecodeMap = {
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
+  tm: 'telemetryMetadata',
 };
 
 const optsEncodeMap = invertObject(optsDecodeMap);
@@ -656,6 +658,28 @@ export class Job<
     return result;
   }
 
+  private async shouldRetryJob(err: Error): Promise<[boolean, number]> {
+    if (
+      this.attemptsMade + 1 < this.opts.attempts &&
+      !this.discarded &&
+      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
+    ) {
+      const opts = this.queue.opts as WorkerOptions;
+
+      const delay = await Backoffs.calculate(
+        <BackoffOptions>this.opts.backoff,
+        this.attemptsMade + 1,
+        err,
+        this,
+        opts.settings && opts.settings.backoffStrategy,
+      );
+
+      return [delay == -1 ? false : true, delay == -1 ? 0 : delay];
+    } else {
+      return [false, 0];
+    }
+  }
+
   /**
    * Moves a job to the failed queue.
    *
@@ -672,7 +696,6 @@ export class Job<
     const client = await this.queue.client;
     const message = err?.message;
 
-    const queue = this.queue;
     this.failedReason = message;
 
     let command: string;
@@ -683,32 +706,15 @@ export class Job<
     //
     // Check if an automatic retry should be performed
     //
-    let moveToFailed = false;
-    let finishedOn, delay;
-    if (
-      this.attemptsMade + 1 < this.opts.attempts &&
-      !this.discarded &&
-      !(err instanceof UnrecoverableError || err.name == 'UnrecoverableError')
-    ) {
-      const opts = queue.opts as WorkerOptions;
-
-      // Check if backoff is needed
-      delay = await Backoffs.calculate(
-        <BackoffOptions>this.opts.backoff,
-        this.attemptsMade + 1,
-        err,
-        this,
-        opts.settings && opts.settings.backoffStrategy,
-      );
-
-      if (delay === -1) {
-        moveToFailed = true;
-      } else if (delay) {
+    let finishedOn: number;
+    const [shouldRetry, retryDelay] = await this.shouldRetryJob(err);
+    if (shouldRetry) {
+      if (retryDelay) {
         const args = this.scripts.moveToDelayedArgs(
           this.id,
           Date.now(),
           token,
-          delay,
+          retryDelay,
         );
         this.scripts.execCommand(multi, 'moveToDelayed', args);
         command = 'moveToDelayed';
@@ -722,11 +728,6 @@ export class Job<
         command = 'retryJob';
       }
     } else {
-      // If not, move to failed
-      moveToFailed = true;
-    }
-
-    if (moveToFailed) {
       const args = this.scripts.moveToFailedArgs(
         this,
         message,
@@ -740,36 +741,62 @@ export class Job<
       command = 'moveToFinished';
     }
 
-    const results = await multi.exec();
-    const anyError = results.find(result => result[0]);
-    if (anyError) {
-      throw new Error(
-        `Error "moveToFailed" with command ${command}: ${anyError}`,
-      );
-    }
+    return this.queue.trace<Promise<void | any[]>>(
+      SpanKind.INTERNAL,
+      this.getSpanOperation(command),
+      this.queue.name,
+      async (span, dstPropagationMedatadata) => {
+        if (dstPropagationMedatadata) {
+          this.scripts.execCommand(multi, 'updateJobOption', [
+            this.toKey(this.id),
+            'tm',
+            dstPropagationMedatadata,
+          ]);
+        }
 
-    const result = results[results.length - 1][1] as number;
-    if (result < 0) {
-      throw this.scripts.finishedErrors({
-        code: result,
-        jobId: this.id,
-        command,
-        state: 'active',
-      });
-    }
+        const results = await multi.exec();
+        const anyError = results.find(result => result[0]);
+        if (anyError) {
+          throw new Error(
+            `Error "moveToFailed" with command ${command}: ${anyError}`,
+          );
+        }
 
-    if (finishedOn && typeof finishedOn === 'number') {
-      this.finishedOn = finishedOn;
-    }
+        const result = results[results.length - 1][1] as number;
+        if (result < 0) {
+          throw this.scripts.finishedErrors({
+            code: result,
+            jobId: this.id,
+            command,
+            state: 'active',
+          });
+        }
 
-    if (delay && typeof delay === 'number') {
-      this.delay = delay;
-    }
+        if (finishedOn && typeof finishedOn === 'number') {
+          this.finishedOn = finishedOn;
+        }
 
-    this.attemptsMade += 1;
+        if (retryDelay && typeof retryDelay === 'number') {
+          this.delay = retryDelay;
+        }
 
-    if (Array.isArray(result)) {
-      return raw2NextJobData(result);
+        this.attemptsMade += 1;
+
+        if (Array.isArray(result)) {
+          return raw2NextJobData(result);
+        }
+      },
+    );
+  }
+
+  private getSpanOperation(command: string) {
+    switch (command) {
+      case 'moveToDelayed':
+        return 'delay';
+      case 'retryJob':
+        return 'retry';
+      case 'moveToFinished':
+        return 'fail';
     }
   }
 

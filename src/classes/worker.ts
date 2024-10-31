@@ -13,6 +13,7 @@ import {
   JobJsonRaw,
   Processor,
   RedisClient,
+  Span,
   WorkerOptions,
 } from '../interfaces';
 import { MinimalQueue } from '../types';
@@ -35,6 +36,7 @@ import {
   RATE_LIMIT_ERROR,
   WaitingChildrenError,
 } from './errors';
+import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 
 // 10 seconds is the maximum time a BRPOPLPUSH can block.
@@ -183,7 +185,8 @@ export class Worker<
   private extendLocksTimer: NodeJS.Timeout | null = null;
   private limitUntil = 0;
   private resumeWorker: () => void;
-  private stalledCheckTimer: NodeJS.Timeout;
+
+  private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
 
@@ -526,7 +529,7 @@ export class Worker<
       }
 
       this.running = false;
-      return asyncFifoQueue.waitAll();
+      return await asyncFifoQueue.waitAll();
     } catch (error) {
       this.running = false;
       throw error;
@@ -539,11 +542,29 @@ export class Worker<
    * @returns a Job or undefined if no job was available in the queue.
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
-    return this._getNextJob(
+    const nextJob = await this._getNextJob(
       await this.client,
       await this.blockingConnection.client,
       token,
       { block },
+    );
+
+    return this.trace<Job<DataType, ResultType, NameType>>(
+      SpanKind.INTERNAL,
+      'getNextJob',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.QueueName]: this.name,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+          [TelemetryAttributes.WorkerOptions]: JSON.stringify({ block }),
+          [TelemetryAttributes.JobId]: nextJob?.id,
+        });
+
+        return nextJob;
+      },
+      nextJob?.opts.telemetryMetadata,
     );
   }
 
@@ -604,13 +625,25 @@ export class Worker<
    * @param expireTimeMs - expire time in ms of this rate limit.
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
-    await this.client.then(client =>
-      client.set(
-        this.keys.limiter,
-        Number.MAX_SAFE_INTEGER,
-        'PX',
-        expireTimeMs,
-      ),
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'rateLimit',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerRateLimit]: expireTimeMs,
+        });
+
+        await this.client.then(client =>
+          client.set(
+            this.keys.limiter,
+            Number.MAX_SAFE_INTEGER,
+            'PX',
+            expireTimeMs,
+          ),
+        );
+      },
     );
   }
 
@@ -783,68 +816,102 @@ will never work with more accuracy than 1ms. */
       return;
     }
 
-    const handleCompleted = async (result: ResultType) => {
-      if (!this.connection.closing) {
-        const completed = await job.moveToCompleted(
-          result,
-          token,
-          fetchNextCallback() && !(this.closing || this.paused),
-        );
-        this.emit('completed', job, result, 'active');
-        const [jobData, jobId, limitUntil, delayUntil] = completed || [];
-        this.updateDelays(limitUntil, delayUntil);
+    const { telemetryMetadata: srcPropagationMedatada } = job.opts;
 
-        return this.nextJobFromJobData(jobData, jobId, token);
-      }
-    };
+    return this.trace<void | Job<DataType, ResultType, NameType>>(
+      SpanKind.CONSUMER,
+      'process',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+          [TelemetryAttributes.JobId]: job.id,
+        });
 
-    const handleFailed = async (err: Error) => {
-      if (!this.connection.closing) {
-        try {
-          if (err.message == RATE_LIMIT_ERROR) {
-            this.limitUntil = await this.moveLimitedBackToWait(job, token);
-            return;
-          }
+        const handleCompleted = async (result: ResultType) => {
+          if (!this.connection.closing) {
+            const completed = await job.moveToCompleted(
+              result,
+              token,
+              fetchNextCallback() && !(this.closing || this.paused),
+            );
+            this.emit('completed', job, result, 'active');
 
-          if (
-            err instanceof DelayedError ||
-            err.name == 'DelayedError' ||
-            err instanceof WaitingChildrenError ||
-            err.name == 'WaitingChildrenError'
-          ) {
-            return;
-          }
+            span?.addEvent('job completed', {
+              [TelemetryAttributes.JobResult]: JSON.stringify(result),
+            });
 
-          const result = await job.moveToFailed(err, token, true);
-          this.emit('failed', job, err, 'active');
-
-          if (result) {
-            const [jobData, jobId, limitUntil, delayUntil] = result;
+            const [jobData, jobId, limitUntil, delayUntil] = completed || [];
             this.updateDelays(limitUntil, delayUntil);
+
             return this.nextJobFromJobData(jobData, jobId, token);
           }
+        };
+
+        const handleFailed = async (err: Error) => {
+          if (!this.connection.closing) {
+            try {
+              // Check if the job was manually rate-limited
+              if (err.message == RATE_LIMIT_ERROR) {
+                this.limitUntil = await this.moveLimitedBackToWait(job, token);
+                return;
+              }
+
+              if (
+                err instanceof DelayedError ||
+                err.name == 'DelayedError' ||
+                err instanceof WaitingChildrenError ||
+                err.name == 'WaitingChildrenError'
+              ) {
+                return;
+              }
+
+              const result = await job.moveToFailed(err, token, true);
+              this.emit('failed', job, err, 'active');
+
+              span?.addEvent('job failed', {
+                [TelemetryAttributes.JobFailedReason]: err.message,
+              });
+
+              if (result) {
+                const [jobData, jobId, limitUntil, delayUntil] = result;
+                this.updateDelays(limitUntil, delayUntil);
+                return this.nextJobFromJobData(jobData, jobId, token);
+              }
+            } catch (err) {
+              this.emit('error', <Error>err);
+              // It probably means that the job has lost the lock before completion
+              // A worker will (or already has) moved the job back
+              // to the waiting list (as stalled)
+              span?.recordException((<Error>err).message);
+            }
+          }
+        };
+
+        this.emit('active', job, 'waiting');
+
+        const processedOn = Date.now();
+        const inProgressItem = { job, ts: processedOn };
+
+        try {
+          jobsInProgress.add(inProgressItem);
+          const result = await this.callProcessJob(job, token);
+          return await handleCompleted(result);
         } catch (err) {
-          this.emit('error', <Error>err);
-          // It probably means that the job has lost the lock before completion
-          // A worker will (or already has) moved the job back
-          // to the waiting list (as stalled)
+          const failed = await handleFailed(<Error>err);
+          return failed;
+        } finally {
+          span?.setAttributes({
+            [TelemetryAttributes.JobFinishedTimestamp]: Date.now(),
+            [TelemetryAttributes.JobProcessedTimestamp]: processedOn,
+          });
+
+          jobsInProgress.delete(inProgressItem);
         }
-      }
-    };
-
-    this.emit('active', job, 'waiting');
-
-    const inProgressItem = { job, ts: Date.now() };
-
-    try {
-      jobsInProgress.add(inProgressItem);
-      const result = await this.callProcessJob(job, token);
-      return await handleCompleted(result);
-    } catch (err) {
-      return handleFailed(<Error>err);
-    } finally {
-      jobsInProgress.delete(inProgressItem);
-    }
+      },
+      srcPropagationMedatada,
+    );
   }
 
   /**
@@ -852,17 +919,30 @@ will never work with more accuracy than 1ms. */
    * Pauses the processing of this queue only for this worker.
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
-    if (!this.paused) {
-      this.paused = new Promise(resolve => {
-        this.resumeWorker = function () {
-          resolve();
-          this.paused = null; // Allow pause to be checked externally for paused state.
-          this.resumeWorker = null;
-        };
-      });
-      await (!doNotWaitActive && this.whenCurrentJobsFinished());
-      this.emit('paused');
-    }
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'pause',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+          [TelemetryAttributes.WorkerDoNotWaitActive]: doNotWaitActive,
+        });
+
+        if (!this.paused) {
+          this.paused = new Promise(resolve => {
+            this.resumeWorker = function () {
+              resolve();
+              this.paused = null; // Allow pause to be checked externally for paused state.
+              this.resumeWorker = null;
+            };
+          });
+          await (!doNotWaitActive && this.whenCurrentJobsFinished());
+          this.emit('paused');
+        }
+      },
+    );
   }
 
   /**
@@ -871,8 +951,15 @@ will never work with more accuracy than 1ms. */
    */
   resume(): void {
     if (this.resumeWorker) {
-      this.resumeWorker();
-      this.emit('resumed');
+      this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+        });
+
+        this.resumeWorker();
+        this.emit('resumed');
+      });
     }
   }
 
@@ -907,42 +994,58 @@ will never work with more accuracy than 1ms. */
    *
    * @returns Promise that resolves when the worker has been closed.
    */
-  close(force = false): Promise<void> {
+  async close(force = false): Promise<void> {
     if (this.closing) {
       return this.closing;
     }
-    this.closing = (async () => {
-      this.emit('closing', 'closing queue');
-      this.abortDelayController?.abort();
 
-      this.resume();
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'close',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+          [TelemetryAttributes.WorkerForceClose]: force,
+        });
 
-      // Define the async cleanup functions
-      const asyncCleanups = [
-        () => {
-          return force || this.whenCurrentJobsFinished(false);
-        },
-        () => this.childPool?.clean(),
-        () => this.blockingConnection.close(force),
-        () => this.connection.close(force),
-      ];
+        this.closing = (async () => {
+          this.emit('closing', 'closing queue');
+          this.abortDelayController?.abort();
 
-      // Run cleanup functions sequentially and make sure all are run despite any errors
-      for (const cleanup of asyncCleanups) {
-        try {
-          await cleanup();
-        } catch (err) {
-          this.emit('error', <Error>err);
-        }
-      }
+          this.resume();
 
-      clearTimeout(this.extendLocksTimer);
-      clearTimeout(this.stalledCheckTimer);
+          // Define the async cleanup functions
+          const asyncCleanups = [
+            () => {
+              return force || this.whenCurrentJobsFinished(false);
+            },
+            () => this.childPool?.clean(),
+            () => this.blockingConnection.close(force),
+            () => this.connection.close(force),
+          ];
 
-      this.closed = true;
-      this.emit('closed');
-    })();
-    return this.closing;
+          // Run cleanup functions sequentially and make sure all are run despite any errors
+          for (const cleanup of asyncCleanups) {
+            try {
+              await cleanup();
+            } catch (err) {
+              this.emit('error', <Error>err);
+            }
+          }
+
+          clearTimeout(this.extendLocksTimer);
+          //clearTimeout(this.stalledCheckTimer);
+          this.stalledCheckStopper?.();
+
+          this.closed = true;
+          this.emit('closed');
+        })();
+
+        return await this.closing;
+      },
+    );
   }
 
   /**
@@ -959,18 +1062,41 @@ will never work with more accuracy than 1ms. */
    */
   async startStalledCheckTimer(): Promise<void> {
     if (!this.opts.skipStalledCheck) {
-      clearTimeout(this.stalledCheckTimer);
-
       if (!this.closing) {
-        try {
-          await this.checkConnectionError(() => this.moveStalledJobsToWait());
-          this.stalledCheckTimer = setTimeout(async () => {
-            await this.startStalledCheckTimer();
-          }, this.opts.stalledInterval);
-        } catch (err) {
-          this.emit('error', <Error>err);
-        }
+        await this.trace<void>(
+          SpanKind.INTERNAL,
+          'startStalledCheckTimer',
+          this.name,
+          async span => {
+            span?.setAttributes({
+              [TelemetryAttributes.WorkerId]: this.id,
+              [TelemetryAttributes.WorkerName]: this.opts.name,
+            });
+
+            this.stalledChecker().catch(err => {
+              this.emit('error', <Error>err);
+            });
+          },
+        );
       }
+    }
+  }
+
+  private async stalledChecker() {
+    while (!this.closing) {
+      try {
+        await this.checkConnectionError(() => this.moveStalledJobsToWait());
+      } catch (err) {
+        this.emit('error', <Error>err);
+      }
+
+      await new Promise<void>(resolve => {
+        const timeout = setTimeout(resolve, this.opts.stalledInterval);
+        this.stalledCheckStopper = () => {
+          clearTimeout(timeout);
+          resolve();
+        };
+      });
     }
   }
 
@@ -1053,65 +1179,104 @@ will never work with more accuracy than 1ms. */
   }
 
   protected async extendLocks(jobs: Job[]) {
-    try {
-      const pipeline = (await this.client).pipeline();
-      for (const job of jobs) {
-        await this.scripts.extendLock(
-          job.id,
-          job.token,
-          this.opts.lockDuration,
-          pipeline,
-        );
-      }
-      const result = (await pipeline.exec()) as [Error, string][];
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'extendLocks',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+          [TelemetryAttributes.WorkerJobsToExtendLocks]: jobs.map(
+            job => job.id,
+          ),
+        });
 
-      for (const [err, jobId] of result) {
-        if (err) {
-          // TODO: signal process function that the job has been lost.
-          this.emit(
-            'error',
-            new Error(`could not renew lock for job ${jobId}`),
-          );
+        try {
+          const pipeline = (await this.client).pipeline();
+          for (const job of jobs) {
+            await this.scripts.extendLock(
+              job.id,
+              job.token,
+              this.opts.lockDuration,
+              pipeline,
+            );
+          }
+          const result = (await pipeline.exec()) as [Error, string][];
+
+          for (const [err, jobId] of result) {
+            if (err) {
+              // TODO: signal process function that the job has been lost.
+              this.emit(
+                'error',
+                new Error(`could not renew lock for job ${jobId}`),
+              );
+            }
+          }
+        } catch (err) {
+          this.emit('error', <Error>err);
         }
-      }
-    } catch (err) {
-      this.emit('error', <Error>err);
-    }
+      },
+    );
   }
 
   private async moveStalledJobsToWait() {
-    const chunkSize = 50;
-    const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'moveStalledJobsToWait',
+      this.name,
+      async span => {
+        const chunkSize = 50;
+        const [failed, stalled] = await this.scripts.moveStalledJobsToWait();
 
-    stalled.forEach((jobId: string) => this.emit('stalled', jobId, 'active'));
+        span?.setAttributes({
+          [TelemetryAttributes.WorkerId]: this.id,
+          [TelemetryAttributes.WorkerName]: this.opts.name,
+          [TelemetryAttributes.WorkerStalledJobs]: stalled,
+          [TelemetryAttributes.WorkerFailedJobs]: failed,
+        });
 
-    const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
-    for (let i = 0; i < failed.length; i++) {
-      jobPromises.push(
-        Job.fromId<DataType, ResultType, NameType>(
-          this as MinimalQueue,
-          failed[i],
-        ),
-      );
+        stalled.forEach((jobId: string) => {
+          span?.addEvent('job stalled', {
+            [TelemetryAttributes.JobId]: jobId,
+          });
+          this.emit('stalled', jobId, 'active');
+        });
 
-      if ((i + 1) % chunkSize === 0) {
+        const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
+        for (let i = 0; i < failed.length; i++) {
+          jobPromises.push(
+            Job.fromId<DataType, ResultType, NameType>(
+              this as MinimalQueue,
+              failed[i],
+            ),
+          );
+
+          if ((i + 1) % chunkSize === 0) {
+            this.notifyFailedJobs(await Promise.all(jobPromises));
+            jobPromises.length = 0;
+          }
+        }
+
         this.notifyFailedJobs(await Promise.all(jobPromises));
-        jobPromises.length = 0;
-      }
-    }
-
-    this.notifyFailedJobs(await Promise.all(jobPromises));
+      },
+    );
   }
 
-  private notifyFailedJobs(failedJobs: Job<DataType, ResultType, NameType>[]) {
-    failedJobs.forEach((job: Job<DataType, ResultType, NameType>) =>
-      this.emit(
-        'failed',
-        job,
-        new Error('job stalled more than allowable limit'),
-        'active',
-      ),
-    );
+  private notifyFailedJobs(
+    failedJobs: Job<DataType, ResultType, NameType>[],
+    span?: Span,
+  ) {
+    const failedReason = 'job stalled more than allowable limit';
+
+    failedJobs.forEach((job: Job<DataType, ResultType, NameType>) => {
+      span?.addEvent('job failed', {
+        [TelemetryAttributes.JobId]: job.id,
+        [TelemetryAttributes.JobName]: job.name,
+        [TelemetryAttributes.JobFailedReason]: failedReason,
+      });
+      this.emit('failed', job, new Error(failedReason), 'active');
+    });
   }
 
   private moveLimitedBackToWait(
