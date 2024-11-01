@@ -456,6 +456,7 @@ export class FlowProducer extends EventEmitter {
       emit: this.emit.bind(this) as any,
       on: this.on.bind(this) as any,
       redisVersion: this.connection.redisVersion,
+      trace: async (): Promise<any> => {},
     };
   }
 

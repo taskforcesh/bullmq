@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { QueueBaseOptions, RedisClient, Span, Tracer } from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
   delay,
@@ -11,6 +11,7 @@ import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
+import { TelemetryAttributes, SpanKind } from '../enums';
 
 /**
  * @class QueueBase
@@ -29,6 +30,13 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   protected scripts: Scripts;
   protected connection: RedisConnection;
   public readonly qualifiedName: string;
+
+  /**
+   * Instance of a telemetry client
+   * To use it wrap the code with trace helper
+   * It will check if tracer is provided and if not it will continue as is
+   */
+  private tracer: Tracer | undefined;
 
   /**
    *
@@ -76,6 +84,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
     this.setScripts();
+
+    if (opts?.telemetry) {
+      this.tracer = opts.telemetry.tracer;
+    }
   }
 
   /**
@@ -173,6 +185,77 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       } else {
         return;
       }
+    }
+  }
+
+  /**
+   * Wraps the code with telemetry and provides a span for configuration.
+   *
+   * @param spanKind - kind of the span: Producer, Consumer, Internal
+   * @param operation - operation name (such as add, process, etc)
+   * @param destination - destination name (normally the queue name)
+   * @param callback - code to wrap with telemetry
+   * @param srcPropagationMedatada -
+   * @returns
+   */
+  async trace<T>(
+    spanKind: SpanKind,
+    operation: string,
+    destination: string,
+    callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
+    srcPropagationMetadata?: string,
+  ) {
+    if (!this.tracer) {
+      return callback();
+    }
+
+    const currentContext = this.opts.telemetry.contextManager.active();
+
+    let parentContext;
+    if (srcPropagationMetadata) {
+      parentContext = this.opts.telemetry.contextManager.fromMetadata(
+        currentContext,
+        srcPropagationMetadata,
+      );
+    }
+
+    const spanName = `${operation} ${destination}`;
+    const span = this.tracer.startSpan(
+      spanName,
+      {
+        kind: spanKind,
+      },
+      parentContext,
+    );
+
+    try {
+      span.setAttributes({
+        [TelemetryAttributes.QueueName]: this.name,
+        [TelemetryAttributes.QueueOperation]: operation,
+      });
+
+      let messageContext;
+      let dstPropagationMetadata: undefined | string;
+
+      if (spanKind === SpanKind.CONSUMER) {
+        messageContext = span.setSpanOnContext(parentContext);
+      } else {
+        messageContext = span.setSpanOnContext(currentContext);
+      }
+
+      if (callback.length == 2) {
+        dstPropagationMetadata =
+          this.opts.telemetry.contextManager.getMetadata(messageContext);
+      }
+
+      return await this.opts.telemetry.contextManager.with(messageContext, () =>
+        callback(span, dstPropagationMetadata),
+      );
+    } catch (err) {
+      span.recordException(err as Error);
+      throw err;
+    } finally {
+      span.end();
     }
   }
 }
