@@ -13,7 +13,7 @@ export interface JobSchedulerJson {
   tz: string | null;
   pattern: string | null;
   every?: string | null;
-  next: number;
+  next?: number;
 }
 
 export class JobScheduler extends QueueBase {
@@ -188,6 +188,22 @@ export class JobScheduler extends QueueBase {
       pattern,
       next,
     };
+  }
+
+  async getJobScheduler(id: string): Promise<JobSchedulerJson> {
+    const client = await this.client;
+    const jobData = await client.hgetall(this.toKey('repeat:' + id));
+
+    if (jobData) {
+      return {
+        key: id,
+        name: jobData.name,
+        endDate: parseInt(jobData.endDate) || null,
+        tz: jobData.tz || null,
+        pattern: jobData.pattern || null,
+        every: jobData.every || null,
+      };
+    }
   }
 
   async getJobSchedulers(
