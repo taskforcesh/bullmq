@@ -218,7 +218,7 @@ export class FlowProducer extends EventEmitter {
           [TelemetryAttributes.FlowName]: flow.name,
         });
 
-        const jobsTree = this.addNode({
+        const jobsTree = await this.addNode({
           multi,
           node: flow,
           queuesOpts: opts?.queuesOptions,
@@ -293,7 +293,7 @@ export class FlowProducer extends EventEmitter {
             .join(','),
         });
 
-        const jobsTrees = this.addNodes(multi, flows);
+        const jobsTrees = await this.addNodes(multi, flows);
 
         await multi.exec();
 
