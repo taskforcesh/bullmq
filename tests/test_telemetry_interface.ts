@@ -2,7 +2,7 @@ import { expect, assert } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
-import { Queue, Worker } from '../src/classes';
+import { FlowProducer, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
   Telemetry,
@@ -287,6 +287,174 @@ describe('Telemetry', () => {
 
       moveToCompletedStub.restore();
       await worker.close();
+    });
+  });
+
+  describe('Flows', () => {
+    it('should correctly interact with telemetry when adding a flow', async () => {
+      const flowProducer = new FlowProducer({
+        connection,
+        telemetry: telemetryClient,
+      });
+
+      const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+      const testFlow = {
+        name: 'parentJob',
+        queueName,
+        data: { foo: 'bar' },
+        children: [
+          {
+            name: 'childJob',
+            queueName,
+            data: { baz: 'qux' },
+          },
+        ],
+      };
+
+      const jobNode = await flowProducer.add(testFlow);
+      const parentJob = jobNode.job;
+
+      const span = traceSpy.returnValues[0] as MockSpan;
+
+      expect(span).to.be.an.instanceOf(MockSpan);
+      expect(span.name).to.equal(`addFlow ${queueName}`);
+      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.FlowName]).to.equal(
+        testFlow.name,
+      );
+
+      traceSpy.restore();
+      await flowProducer.close();
+    });
+
+    it('should correctly handle errors and record them in telemetry for flows', async () => {
+      const flowProducer = new FlowProducer({
+        connection,
+        telemetry: telemetryClient,
+      });
+
+      const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+      const recordExceptionSpy = sinon.spy(
+        MockSpan.prototype,
+        'recordException',
+      );
+
+      try {
+        await flowProducer.add({
+          name: 'errorJob',
+          queueName,
+          data: { foo: 'bar' },
+          opts: { parent: { id: 'invalidParentId', queue: 'invalidQueue' } },
+        });
+      } catch (e) {
+        assert(recordExceptionSpy.calledOnce);
+        const recordedError = recordExceptionSpy.firstCall.args[0];
+        assert.equal(
+          recordedError.message,
+          'Failed to add flow due to invalid parent configuration',
+        );
+      } finally {
+        traceSpy.restore();
+        recordExceptionSpy.restore();
+        await flowProducer.close();
+      }
+    });
+  });
+
+  describe('Flows - addBulk', () => {
+    it('should correctly interact with telemetry when adding multiple flows', async () => {
+      const flowProducer = new FlowProducer({
+        connection,
+        telemetry: telemetryClient,
+      });
+
+      const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+      const testFlows = [
+        {
+          name: 'parentJob1',
+          queueName,
+          data: { foo: 'bar1' },
+          children: [
+            {
+              name: 'childJob1',
+              queueName,
+              data: { baz: 'qux1' },
+            },
+          ],
+        },
+        {
+          name: 'parentJob2',
+          queueName,
+          data: { foo: 'bar2' },
+          children: [
+            {
+              name: 'childJob2',
+              queueName,
+              data: { baz: 'qux2' },
+            },
+          ],
+        },
+      ];
+
+      const jobNodes = await flowProducer.addBulk(testFlows);
+
+      const span = traceSpy.returnValues[0] as MockSpan;
+
+      expect(span).to.be.an.instanceOf(MockSpan);
+      expect(span.name).to.equal('addBulkFlows');
+      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.BulkNames]).to.equal(
+        testFlows.map(flow => flow.name).join(','),
+      );
+      expect(span.attributes[TelemetryAttributes.BulkCount]).to.equal(
+        testFlows.length,
+      );
+
+      traceSpy.restore();
+      await flowProducer.close();
+    });
+
+    it('should correctly handle errors and record them in telemetry for addBulk', async () => {
+      const flowProducer = new FlowProducer({
+        connection,
+        telemetry: telemetryClient,
+      });
+
+      const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
+      const recordExceptionSpy = sinon.spy(
+        MockSpan.prototype,
+        'recordException',
+      );
+
+      const invalidFlows = [
+        {
+          name: 'errorJob1',
+          queueName,
+          data: { foo: 'bar1' },
+          opts: { parent: { id: 'invalidParentId', queue: 'invalidQueue' } },
+        },
+        {
+          name: 'errorJob2',
+          queueName,
+          data: { foo: 'bar2' },
+          opts: { parent: { id: 'invalidParentId', queue: 'invalidQueue' } },
+        },
+      ];
+
+      try {
+        await flowProducer.addBulk(invalidFlows);
+      } catch (e) {
+        assert(recordExceptionSpy.calledOnce);
+        const recordedError = recordExceptionSpy.firstCall.args[0];
+        assert.equal(
+          recordedError.message,
+          'Failed to add bulk flows due to invalid parent configuration',
+        );
+      } finally {
+        traceSpy.restore();
+        recordExceptionSpy.restore();
+        await flowProducer.close();
+      }
     });
   });
 });

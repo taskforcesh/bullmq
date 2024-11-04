@@ -29,6 +29,7 @@ export enum TelemetryAttributes {
   JobProcessedTimestamp = 'bullmq.job.processed.timestamp',
   JobResult = 'bullmq.job.result',
   JobFailedReason = 'bullmq.job.failed.reason',
+  FlowName = 'bullmq.flow.name',
 }
 
 export enum SpanKind {

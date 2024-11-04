@@ -6,6 +6,7 @@ import {
   DELAY_TIME_5,
   isNotConnectionError,
   isRedisInstance,
+  trace,
 } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
@@ -205,57 +206,14 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
     srcPropagationMetadata?: string,
   ) {
-    if (!this.tracer) {
-      return callback();
-    }
-
-    const currentContext = this.opts.telemetry.contextManager.active();
-
-    let parentContext;
-    if (srcPropagationMetadata) {
-      parentContext = this.opts.telemetry.contextManager.fromMetadata(
-        currentContext,
-        srcPropagationMetadata,
-      );
-    }
-
-    const spanName = `${operation} ${destination}`;
-    const span = this.tracer.startSpan(
-      spanName,
-      {
-        kind: spanKind,
-      },
-      parentContext,
+    return trace<Promise<T> | T>(
+      this.name,
+      this.opts.telemetry,
+      spanKind,
+      operation,
+      destination,
+      callback,
+      srcPropagationMetadata,
     );
-
-    try {
-      span.setAttributes({
-        [TelemetryAttributes.QueueName]: this.name,
-        [TelemetryAttributes.QueueOperation]: operation,
-      });
-
-      let messageContext;
-      let dstPropagationMetadata: undefined | string;
-
-      if (spanKind === SpanKind.CONSUMER) {
-        messageContext = span.setSpanOnContext(parentContext);
-      } else {
-        messageContext = span.setSpanOnContext(currentContext);
-      }
-
-      if (callback.length == 2) {
-        dstPropagationMetadata =
-          this.opts.telemetry.contextManager.getMetadata(messageContext);
-      }
-
-      return await this.opts.telemetry.contextManager.with(messageContext, () =>
-        callback(span, dstPropagationMetadata),
-      );
-    } catch (err) {
-      span.recordException(err as Error);
-      throw err;
-    } finally {
-      span.end();
-    }
   }
 }
