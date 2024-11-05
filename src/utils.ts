@@ -311,7 +311,7 @@ export async function trace<T>(
       );
     }
 
-    const spanName = `${operation} ${destination}`;
+    const spanName = destination ? `${operation} ${destination}` : operation;
     const span = tracer.startSpan(
       spanName,
       {
