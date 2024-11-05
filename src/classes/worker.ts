@@ -395,6 +395,10 @@ export class Worker<
     this.opts.concurrency = concurrency;
   }
 
+  get concurrency() {
+    return this.opts.concurrency;
+  }
+
   get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
