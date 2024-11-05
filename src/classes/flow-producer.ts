@@ -208,9 +208,9 @@ export class FlowProducer extends EventEmitter {
       : undefined;
 
     return trace<Promise<JobNode>>(
-      flow.queueName,
       this.telemetry,
       SpanKind.PRODUCER,
+      flow.queueName,
       'addFlow',
       flow.queueName,
       async span => {
@@ -280,9 +280,9 @@ export class FlowProducer extends EventEmitter {
     const multi = client.multi();
 
     return trace<Promise<JobNode[]>>(
-      '',
       this.telemetry,
       SpanKind.PRODUCER,
+      '',
       'addBulkFlows',
       '',
       async span => {
@@ -327,9 +327,9 @@ export class FlowProducer extends EventEmitter {
     const jobId = node.opts?.jobId || v4();
 
     return trace<Promise<JobNode>>(
-      node.name,
       this.telemetry,
       SpanKind.PRODUCER,
+      node.name,
       'addNode',
       node.queueName,
       async (span, dstPropagationMetadata) => {

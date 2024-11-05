@@ -273,7 +273,9 @@ export const QUEUE_EVENT_SUFFIX = ':qe';
 /**
  * Wraps the code with telemetry and provides a span for configuration.
  *
+ * @param telemetry - telemetry configuration. If undefined, the callback will be executed without telemetry.
  * @param spanKind - kind of the span: Producer, Consumer, Internal
+ * @param queueName - queue name
  * @param operation - operation name (such as add, process, etc)
  * @param destination - destination name (normally the queue name)
  * @param callback - code to wrap with telemetry
@@ -281,7 +283,6 @@ export const QUEUE_EVENT_SUFFIX = ':qe';
  * @returns
  */
 export async function trace<T>(
-  queueName: string,
   telemetry:
     | {
         tracer: Tracer;
@@ -289,61 +290,63 @@ export async function trace<T>(
       }
     | undefined,
   spanKind: SpanKind,
+  queueName: string,
   operation: string,
   destination: string,
-  callback: (span?: Span, dstPropagationMetadata?: string) => T,
+  callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
   srcPropagationMetadata?: string,
 ) {
   if (!telemetry) {
     return callback();
-  }
+  } else {
+    const { tracer, contextManager } = telemetry;
 
-  const { tracer, contextManager } = telemetry;
-  const currentContext = contextManager.active();
+    const currentContext = contextManager.active();
 
-  let parentContext;
-  if (srcPropagationMetadata) {
-    parentContext = contextManager.fromMetadata(
-      currentContext,
-      srcPropagationMetadata,
-    );
-  }
-
-  const spanName = destination ? `${operation} ${destination}` : operation;
-  const span = tracer.startSpan(
-    spanName,
-    {
-      kind: spanKind,
-    },
-    parentContext,
-  );
-
-  try {
-    span.setAttributes({
-      [TelemetryAttributes.QueueName]: queueName,
-      [TelemetryAttributes.QueueOperation]: operation,
-    });
-
-    let messageContext;
-    let dstPropagationMetadata: undefined | string;
-
-    if (spanKind === SpanKind.CONSUMER) {
-      messageContext = span.setSpanOnContext(parentContext);
-    } else {
-      messageContext = span.setSpanOnContext(currentContext);
+    let parentContext;
+    if (srcPropagationMetadata) {
+      parentContext = contextManager.fromMetadata(
+        currentContext,
+        srcPropagationMetadata,
+      );
     }
 
-    if (callback.length == 2) {
-      dstPropagationMetadata = contextManager.getMetadata(messageContext);
-    }
-
-    return await contextManager.with(messageContext, () =>
-      callback(span, dstPropagationMetadata),
+    const spanName = `${operation} ${destination}`;
+    const span = tracer.startSpan(
+      spanName,
+      {
+        kind: spanKind,
+      },
+      parentContext,
     );
-  } catch (err) {
-    span.recordException(err as Error);
-    throw err;
-  } finally {
-    span.end();
+
+    try {
+      span.setAttributes({
+        [TelemetryAttributes.QueueName]: queueName,
+        [TelemetryAttributes.QueueOperation]: operation,
+      });
+
+      let messageContext;
+      let dstPropagationMetadata: undefined | string;
+
+      if (spanKind === SpanKind.CONSUMER) {
+        messageContext = span.setSpanOnContext(parentContext);
+      } else {
+        messageContext = span.setSpanOnContext(currentContext);
+      }
+
+      if (callback.length == 2) {
+        dstPropagationMetadata = contextManager.getMetadata(messageContext);
+      }
+
+      return await contextManager.with(messageContext, () =>
+        callback(span, dstPropagationMetadata),
+      );
+    } catch (err) {
+      span.recordException(err as Error);
+      throw err;
+    } finally {
+      span.end();
+    }
   }
 }

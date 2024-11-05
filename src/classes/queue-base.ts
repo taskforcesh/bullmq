@@ -33,13 +33,6 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   public readonly qualifiedName: string;
 
   /**
-   * Instance of a telemetry client
-   * To use it wrap the code with trace helper
-   * It will check if tracer is provided and if not it will continue as is
-   */
-  private tracer: Tracer | undefined;
-
-  /**
    *
    * @param name - The name of the queue.
    * @param opts - Options for the queue.
@@ -85,10 +78,6 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
     this.setScripts();
-
-    if (opts?.telemetry) {
-      this.tracer = opts.telemetry.tracer;
-    }
   }
 
   /**
@@ -199,7 +188,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * @param srcPropagationMedatada -
    * @returns
    */
-  async trace<T>(
+  trace<T>(
     spanKind: SpanKind,
     operation: string,
     destination: string,
@@ -207,9 +196,9 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     srcPropagationMetadata?: string,
   ) {
     return trace<Promise<T> | T>(
-      this.name,
       this.opts.telemetry,
       spanKind,
+      this.name,
       operation,
       destination,
       callback,
