@@ -247,7 +247,7 @@ describe('Telemetry', () => {
       await worker.waitUntilReady();
       const moveToCompletedStub = sinon.stub(job, 'moveToCompleted').resolves();
 
-      const startSpanSpy = sinon.spy(<any>worker['tracer'], 'startSpan');
+      const startSpanSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
 
       const token = 'some-token';
 
