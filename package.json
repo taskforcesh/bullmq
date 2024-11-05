@@ -55,7 +55,7 @@
   "dependencies": {
     "cron-parser": "^4.6.0",
     "ioredis": "^5.4.1",
-    "msgpackr": "^1.10.1",
+    "msgpackr": "^1.11.2",
     "node-abort-controller": "^3.1.1",
     "semver": "^7.5.4",
     "tslib": "^2.0.0",
