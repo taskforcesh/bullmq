@@ -307,6 +307,17 @@ describe('Job Scheduler', function () {
       { data: { foo: 'bar' } },
     );
 
+    const scheduler = await queue.getJobScheduler('test');
+
+    expect(scheduler).to.deep.equal({
+      key: 'test',
+      name: 'test',
+      endDate: null,
+      tz: null,
+      pattern: '*/2 * * * * *',
+      every: null,
+    });
+
     this.clock.tick(nextTick);
 
     let prev: any;
