@@ -1,3 +1,10 @@
+## [5.25.1](https://github.com/taskforcesh/bullmq/compare/v5.25.0...v5.25.1) (2024-11-07)
+
+
+### Bug Fixes
+
+* **connection:** set packageVersion as protected attribute for extension ([#2884](https://github.com/taskforcesh/bullmq/issues/2884)) ([411ccae](https://github.com/taskforcesh/bullmq/commit/411ccae9419e008d916be6cf71c4d57dd2a07b2b))
+
 # [5.25.0](https://github.com/taskforcesh/bullmq/compare/v5.24.0...v5.25.0) (2024-11-06)
 
 
