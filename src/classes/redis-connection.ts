@@ -12,7 +12,7 @@ import {
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';
-import { version } from '../version';
+import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
 
 const overrideMessage = [
@@ -52,6 +52,7 @@ export class RedisConnection extends EventEmitter {
   private readonly initializing: Promise<RedisClient>;
 
   private version: string;
+  protected packageVersion: string;
   private skipVersionCheck: boolean;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
@@ -64,7 +65,7 @@ export class RedisConnection extends EventEmitter {
     skipVersionCheck = false,
   ) {
     super();
-
+    this.packageVersion = packageVersion;
     if (!isRedisInstance(opts)) {
       this.checkBlockingOptions(overrideMessage, opts);
 
@@ -197,14 +198,14 @@ export class RedisConnection extends EventEmitter {
   }
 
   protected loadCommands(
-    version: string,
+    packageVersion: string,
     providedScripts?: Record<string, RawCommand>,
   ): void {
     const finalScripts =
       providedScripts || (scripts as Record<string, RawCommand>);
     for (const property in finalScripts as Record<string, RawCommand>) {
       // Only define the command if not already defined
-      const commandName = `${finalScripts[property].name}:${version}`;
+      const commandName = `${finalScripts[property].name}:${packageVersion}`;
       if (!(<any>this._client)[commandName]) {
         (<any>this._client).defineCommand(commandName, {
           numberOfKeys: finalScripts[property].keys,
@@ -230,7 +231,7 @@ export class RedisConnection extends EventEmitter {
 
     await RedisConnection.waitUntilReady(this._client);
 
-    this.loadCommands(version);
+    this.loadCommands(this.packageVersion);
 
     if (this._client['status'] !== 'end') {
       this.version = await this.getRedisVersion();
