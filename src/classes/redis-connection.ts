@@ -52,7 +52,7 @@ export class RedisConnection extends EventEmitter {
   private readonly initializing: Promise<RedisClient>;
 
   private version: string;
-  protected packageVersion: string;
+  protected packageVersion = packageVersion;
   private skipVersionCheck: boolean;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
@@ -65,7 +65,6 @@ export class RedisConnection extends EventEmitter {
     skipVersionCheck = false,
   ) {
     super();
-    this.packageVersion = packageVersion;
     if (!isRedisInstance(opts)) {
       this.checkBlockingOptions(overrideMessage, opts);
 

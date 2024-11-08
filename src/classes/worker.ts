@@ -39,7 +39,7 @@ import {
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 
-// 10 seconds is the maximum time a BRPOPLPUSH can block.
+// 10 seconds is the maximum time a BZPOPMIN can block.
 const maximumBlockTimeout = 10;
 
 // 30 seconds is the maximum limit until.
