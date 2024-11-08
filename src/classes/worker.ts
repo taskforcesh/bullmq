@@ -180,6 +180,7 @@ export class Worker<
   >>;
   private blockingConnection: RedisConnection;
   private blockUntil = 0;
+  private _concurrency: number;
   private childPool: ChildPool;
   private drained: boolean = false;
   private extendLocksTimer: NodeJS.Timeout | null = null;
@@ -392,7 +393,11 @@ export class Worker<
     ) {
       throw new Error('concurrency must be a finite number greater than 0');
     }
-    this.opts.concurrency = concurrency;
+    this._concurrency = concurrency;
+  }
+
+  get concurrency() {
+    return this._concurrency;
   }
 
   get repeat(): Promise<Repeat> {
@@ -466,7 +471,7 @@ export class Worker<
          */
         while (
           !this.waiting &&
-          numTotal < this.opts.concurrency &&
+          numTotal < this._concurrency &&
           (!this.limitUntil || numTotal == 0)
         ) {
           const token = `${this.id}:${tokenPostfix++}`;
@@ -519,7 +524,7 @@ export class Worker<
                 this.processJob(
                   <Job<DataType, ResultType, NameType>>job,
                   token,
-                  () => asyncFifoQueue.numTotal() <= this.opts.concurrency,
+                  () => asyncFifoQueue.numTotal() <= this._concurrency,
                   jobsInProgress,
                 ),
               this.opts.runRetryDelay,
