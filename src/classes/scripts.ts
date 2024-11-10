@@ -310,12 +310,12 @@ export class Scripts {
   }
 
   async addJobScheduler(
+    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
     opts: RepeatableOptions,
   ): Promise<string> {
     const queueKeys = this.queue.keys;
-    const client = await this.queue.client;
 
     const keys: (string | number | Buffer)[] = [
       queueKeys.repeat,
@@ -341,11 +341,10 @@ export class Scripts {
   }
 
   async updateJobSchedulerNextMillis(
+    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
   ): Promise<number> {
-    const client = await this.queue.client;
-
     return client.zadd(this.queue.keys.repeat, nextMillis, jobSchedulerId);
   }
 
