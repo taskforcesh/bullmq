@@ -6,12 +6,17 @@ import { AbortController } from 'node-abort-controller';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
-import { ChildMessage, RedisClient } from './interfaces';
+import {
+  ChildMessage,
+  ContextManager,
+  RedisClient,
+  Span,
+  Tracer,
+} from './interfaces';
 import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
-import { join } from 'path';
-import { readFileSync } from 'fs';
+import { SpanKind, TelemetryAttributes } from './enums';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -275,4 +280,85 @@ export function removeUndefinedFields<T extends Record<string, any>>(
     }
   }
   return newObj as T;
+}
+
+/**
+ * Wraps the code with telemetry and provides a span for configuration.
+ *
+ * @param telemetry - telemetry configuration. If undefined, the callback will be executed without telemetry.
+ * @param spanKind - kind of the span: Producer, Consumer, Internal
+ * @param queueName - queue name
+ * @param operation - operation name (such as add, process, etc)
+ * @param destination - destination name (normally the queue name)
+ * @param callback - code to wrap with telemetry
+ * @param srcPropagationMedatada -
+ * @returns
+ */
+export async function trace<T>(
+  telemetry:
+    | {
+        tracer: Tracer;
+        contextManager: ContextManager;
+      }
+    | undefined,
+  spanKind: SpanKind,
+  queueName: string,
+  operation: string,
+  destination: string,
+  callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
+  srcPropagationMetadata?: string,
+) {
+  if (!telemetry) {
+    return callback();
+  } else {
+    const { tracer, contextManager } = telemetry;
+
+    const currentContext = contextManager.active();
+
+    let parentContext;
+    if (srcPropagationMetadata) {
+      parentContext = contextManager.fromMetadata(
+        currentContext,
+        srcPropagationMetadata,
+      );
+    }
+
+    const spanName = destination ? `${operation} ${destination}` : operation;
+    const span = tracer.startSpan(
+      spanName,
+      {
+        kind: spanKind,
+      },
+      parentContext,
+    );
+
+    try {
+      span.setAttributes({
+        [TelemetryAttributes.QueueName]: queueName,
+        [TelemetryAttributes.QueueOperation]: operation,
+      });
+
+      let messageContext;
+      let dstPropagationMetadata: undefined | string;
+
+      if (spanKind === SpanKind.CONSUMER) {
+        messageContext = span.setSpanOnContext(parentContext);
+      } else {
+        messageContext = span.setSpanOnContext(currentContext);
+      }
+
+      if (callback.length == 2) {
+        dstPropagationMetadata = contextManager.getMetadata(messageContext);
+      }
+
+      return await contextManager.with(messageContext, () =>
+        callback(span, dstPropagationMetadata),
+      );
+    } catch (err) {
+      span.recordException(err as Error);
+      throw err;
+    } finally {
+      span.end();
+    }
+  }
 }

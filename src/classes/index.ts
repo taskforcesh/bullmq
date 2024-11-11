@@ -9,6 +9,7 @@ export * from './job';
 // export * from './main-worker'; this file must not be exported
 export * from './queue-base';
 export * from './queue-events';
+export * from './queue-events-producer';
 export * from './queue-getters';
 export * from './queue-keys';
 export * from './queue';

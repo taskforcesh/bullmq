@@ -36,18 +36,16 @@ import {
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { ChainableCommander } from 'ioredis';
-import { version } from '../version';
+import { version as packageVersion } from '../version';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
-  protected version;
+  protected version = packageVersion;
 
   moveToFinishedKeys: (string | undefined)[];
 
   constructor(protected queue: MinimalQueue) {
     const queueKeys = this.queue.keys;
-
-    this.version = version;
 
     this.moveToFinishedKeys = [
       queueKeys.wait,
