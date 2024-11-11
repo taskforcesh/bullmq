@@ -270,6 +270,18 @@ export const toString = (value: any): string => {
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
 
+export function removeUndefinedFields<T extends Record<string, any>>(
+  obj: Record<string, any>,
+) {
+  const newObj: any = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      newObj[key] = obj[key];
+    }
+  }
+  return newObj as T;
+}
+
 /**
  * Wraps the code with telemetry and provides a span for configuration.
  *

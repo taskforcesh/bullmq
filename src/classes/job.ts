@@ -29,6 +29,7 @@ import {
   lengthInUtf8Bytes,
   parseObjectValues,
   tryCatch,
+  removeUndefinedFields,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts, raw2NextJobData } from './scripts';
@@ -464,11 +465,11 @@ export class Job<
    * @returns
    */
   asJSON(): JobJson {
-    return {
+    return removeUndefinedFields<JobJson>({
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: this.optsAsJSON(this.opts),
+      opts: removeUndefinedFields<RedisJobOptions>(this.optsAsJSON(this.opts)),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
       progress: this.progress,
@@ -483,7 +484,7 @@ export class Job<
       deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
-    };
+    });
   }
 
   private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {

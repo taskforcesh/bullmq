@@ -199,6 +199,47 @@ describe('Job Scheduler', function () {
     });
   });
 
+  describe('when clocks are slightly out of sync', function () {
+    it('should create only one delayed job', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+
+      const scheduler1 = queue.upsertJobScheduler(
+        'test-scheduler1',
+        {
+          every: 100,
+        },
+        { opts: { prevMillis: Date.now() } },
+      );
+
+      this.clock.tick(1);
+      const scheduler2 = queue.upsertJobScheduler(
+        'test-scheduler1',
+        {
+          every: 100,
+        },
+        { opts: { prevMillis: Date.now() } },
+      );
+
+      this.clock.tick(1);
+      const scheduler3 = queue.upsertJobScheduler(
+        'test-scheduler1',
+        {
+          every: 100,
+        },
+        { opts: { prevMillis: Date.now() } },
+      );
+
+      await Promise.all([scheduler1, scheduler2, scheduler3]);
+
+      const repeatableJobs = await queue.getJobSchedulers();
+      expect(repeatableJobs.length).to.be.eql(1);
+
+      const delayed = await queue.getDelayed();
+      expect(delayed).to.have.length(1);
+    });
+  });
+
   it('should create job schedulers with different cron patterns', async function () {
     const crons = [
       '10 * * * * *',

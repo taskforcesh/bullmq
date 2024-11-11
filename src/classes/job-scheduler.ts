@@ -89,23 +89,31 @@ export class JobScheduler extends QueueBase {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
     }
 
+    const multi = (await this.client).multi();
     if (nextMillis) {
       if (override) {
-        await this.scripts.addJobScheduler(jobSchedulerId, nextMillis, {
-          name: jobName,
-          endDate: endDate ? new Date(endDate).getTime() : undefined,
-          tz: repeatOpts.tz,
-          pattern,
-          every,
-        });
+        await this.scripts.addJobScheduler(
+          (<unknown>multi) as RedisClient,
+          jobSchedulerId,
+          nextMillis,
+          {
+            name: jobName,
+            endDate: endDate ? new Date(endDate).getTime() : undefined,
+            tz: repeatOpts.tz,
+            pattern,
+            every,
+          },
+        );
       } else {
         await this.scripts.updateJobSchedulerNextMillis(
+          (<unknown>multi) as RedisClient,
           jobSchedulerId,
           nextMillis,
         );
       }
 
-      return this.createNextJob<T, R, N>(
+      const job = this.createNextJob<T, R, N>(
+        (<unknown>multi) as RedisClient,
         jobName,
         nextMillis,
         jobSchedulerId,
@@ -113,10 +121,26 @@ export class JobScheduler extends QueueBase {
         jobData,
         iterationCount,
       );
+
+      const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
+
+      // Check if there are any errors
+      const erroredResult = results.find(result => result[0]);
+      if (erroredResult) {
+        throw new Error(
+          `Error upserting job scheduler ${jobSchedulerId} - ${erroredResult[0]}`,
+        );
+      }
+
+      // Get last result with the job id
+      const lastResult = results.pop();
+      job.id = lastResult[1] as string;
+      return job;
     }
   }
 
-  private async createNextJob<T = any, R = any, N extends string = string>(
+  private createNextJob<T = any, R = any, N extends string = string>(
+    client: RedisClient,
     name: N,
     nextMillis: number,
     jobSchedulerId: string,
@@ -146,7 +170,10 @@ export class JobScheduler extends QueueBase {
 
     mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
-    return this.Job.create<T, R, N>(this, name, data, mergedOpts);
+    const job = new Job<T, R, N>(this, name, data, mergedOpts, jobId);
+    job.addJob(client);
+
+    return job;
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
@@ -268,3 +295,13 @@ export const defaultRepeatStrategy = (
     // Ignore error
   }
 };
+
+function removeUndefinedFields(obj: Record<string, any>) {
+  const newObj: Record<string, any> = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      newObj[key] = obj[key];
+    }
+  }
+  return newObj;
+}
