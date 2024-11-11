@@ -1,3 +1,10 @@
+## [5.25.6](https://github.com/taskforcesh/bullmq/compare/v5.25.5...v5.25.6) (2024-11-11)
+
+
+### Bug Fixes
+
+* **job-scheculer:** avoid hazards when upserting job schedulers concurrently ([022f7b7](https://github.com/taskforcesh/bullmq/commit/022f7b7d0a0ce14387ed2b9fed791e1f56e34770))
+
 ## [5.25.5](https://github.com/taskforcesh/bullmq/compare/v5.25.4...v5.25.5) (2024-11-11)
 
 
