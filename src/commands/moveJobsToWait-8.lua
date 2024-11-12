@@ -63,7 +63,7 @@ if (#jobs > 0) then
         rcall("LPUSH", target, unpack(jobs, from, to))
     end
 
-    addBaseMarkerIfNeeded(KEYS[8], isPausedOrMaxed, '0')
+    addBaseMarkerIfNeeded(KEYS[8], isPausedOrMaxed)
 end
 
 maxCount = maxCount - #jobs

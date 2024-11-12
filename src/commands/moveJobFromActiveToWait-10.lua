@@ -44,7 +44,7 @@ if lockToken == token then
     if priority > 0 then
       pushBackJobWithPriority(KEYS[8], priority, jobId)
     else
-      addJobInTargetList(target, KEYS[9], "RPUSH", isPausedOrMaxed, jobId, '0')
+      addJobInTargetList(target, KEYS[9], "RPUSH", isPausedOrMaxed, jobId)
     end
 
     rcall("DEL", lockKey)

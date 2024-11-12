@@ -63,9 +63,9 @@ if rcall("EXISTS", KEYS[4]) == 1 then
 
   -- Standard or priority add
   if priority == 0 then
-    addJobInTargetList(target, markerKey, ARGV[3], isPausedOrMaxed, ARGV[4], '0')
+    addJobInTargetList(target, markerKey, ARGV[3], isPausedOrMaxed, ARGV[4])
   else
-    addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], isPausedOrMaxed, '0')
+    addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], isPausedOrMaxed)
   end
 
   rcall("HINCRBY", KEYS[4], "atm", 1)

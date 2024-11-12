@@ -175,7 +175,6 @@ export class Scripts {
     parentOpts: ParentOpts = {},
   ): Promise<string> {
     const queueKeys = this.queue.keys;
-    const markerCount = (this.queue as any).markerCount as number;
 
     const parent: Record<string, any> = job.parent
       ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
@@ -192,7 +191,6 @@ export class Scripts {
       parent,
       job.repeatJobKey,
       job.deduplicationId ? `${queueKeys.de}:${job.deduplicationId}` : null,
-      markerCount || 1,
     ];
 
     let encodedOpts;

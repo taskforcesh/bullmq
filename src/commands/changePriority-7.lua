@@ -33,13 +33,13 @@ local function reAddJobWithNewPriority( prioritizedKey, markerKey, targetKey,
     priorityCounter, lifo, priority, jobId, isPausedOrMaxed)
     if priority == 0 then
         local pushCmd = lifo and 'RPUSH' or 'LPUSH'
-        addJobInTargetList(targetKey, markerKey, pushCmd, isPausedOrMaxed, jobId, '0')
+        addJobInTargetList(targetKey, markerKey, pushCmd, isPausedOrMaxed, jobId)
     else
         if lifo then
             pushBackJobWithPriority(prioritizedKey, priority, jobId)
         else
             addJobWithPriority(markerKey, prioritizedKey, priority, jobId,
-                priorityCounter, isPausedOrMaxed, '0')
+                priorityCounter, isPausedOrMaxed)
         end
     end
 end

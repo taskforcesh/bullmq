@@ -6,9 +6,9 @@
 --- @include "addBaseMarkerIfNeeded"
 
 local function addJobWithPriority(markerKey, prioritizedKey, priority, jobId, priorityCounterKey,
-  isPausedOrMaxed, markerMember)
+  isPausedOrMaxed)
   local prioCounter = rcall("INCR", priorityCounterKey)
   local score = priority * 0x100000000 + prioCounter % 0x100000000
   rcall("ZADD", prioritizedKey, score, jobId)
-  addBaseMarkerIfNeeded(markerKey, isPausedOrMaxed, markerMember)
+  addBaseMarkerIfNeeded(markerKey, isPausedOrMaxed)
 end

@@ -45,9 +45,9 @@ if rcall("ZREM", KEYS[1], jobId) == 1 then
 
     if priority == 0 then
         -- LIFO or FIFO
-        addJobInTargetList(target, markerKey, "LPUSH", isPausedOrMaxed, jobId, '0')
+        addJobInTargetList(target, markerKey, "LPUSH", isPausedOrMaxed, jobId)
     else
-        addJobWithPriority(markerKey, KEYS[5], priority, jobId, KEYS[7], isPausedOrMaxed, '0')
+        addJobWithPriority(markerKey, KEYS[5], priority, jobId, KEYS[7], isPausedOrMaxed)
     end
 
     -- Emit waiting event (wait..ing@token)

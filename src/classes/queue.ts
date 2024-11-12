@@ -3,6 +3,7 @@ import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  JobBulkOptions,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
@@ -104,7 +105,6 @@ export class Queue<
 
   private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   private _jobScheduler?: JobScheduler;
-  private markerCount: number;
 
   constructor(
     name: string,
@@ -121,7 +121,6 @@ export class Queue<
 
     this.jobsOpts = opts?.defaultJobOptions ?? {};
 
-    this.markerCount = opts?.markerCount || 1;
     this.waitUntilReady()
       .then(client => {
         if (!this.closing && !opts?.skipMetasUpdate) {
@@ -310,9 +309,11 @@ export class Queue<
    *
    * @param jobs - The array of jobs to add to the queue. Each job is defined by 3
    * properties, 'name', 'data' and 'opts'. They follow the same signature as 'Queue.add'.
+   * @param opts -
    */
   async addBulk(
     jobs: { name: NameType; data: DataType; opts?: BulkJobOptions }[],
+    opts: JobBulkOptions = { markerCount: 1 },
   ): Promise<Job<DataType, ResultType, NameType>[]> {
     return this.trace<Job<DataType, ResultType, NameType>[]>(
       SpanKind.PRODUCER,
@@ -338,6 +339,7 @@ export class Queue<
               tm: span && srcPropagationMedatada,
             },
           })),
+          opts,
         );
       },
     );

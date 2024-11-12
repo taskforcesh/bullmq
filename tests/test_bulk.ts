@@ -153,7 +153,9 @@ describe('bulk jobs', () => {
       data: { index },
     }));
 
-    await queue2.addBulk(jobs);
+    await queue2.addBulk(jobs, {
+      markerCount: 2,
+    });
 
     await completed;
     await queue2.close();

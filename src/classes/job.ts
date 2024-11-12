@@ -4,6 +4,7 @@ import {
   BackoffOptions,
   BulkJobOptions,
   DependenciesOpts,
+  JobBulkOptions,
   JobJson,
   JobJsonRaw,
   MinimalJob,
@@ -278,6 +279,7 @@ export class Job<
       data: T;
       opts?: BulkJobOptions;
     }[],
+    opts: JobBulkOptions,
   ): Promise<Job<T, R, N>[]> {
     const client = await queue.client;
 
@@ -297,8 +299,18 @@ export class Job<
       });
     }
 
+    if (opts.markerCount > 1) {
+      const markers: (number | string)[] = [];
+      Array.from(Array(opts.markerCount - 1).keys()).forEach(index => {
+        markers.push(0, index + 1);
+      });
+      pipeline.zadd(queue.toKey('marker'), ...markers);
+    }
+
     const results = (await pipeline.exec()) as [null | Error, string][];
-    for (let index = 0; index < results.length; ++index) {
+    const jobResultLength =
+      opts.markerCount > 1 ? results.length - 1 : results.length;
+    for (let index = 0; index < jobResultLength; ++index) {
       const [err, id] = results[index];
       if (err) {
         throw err;
