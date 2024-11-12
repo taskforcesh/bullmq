@@ -626,7 +626,7 @@ export class Worker<
 
   /**
    * Overrides the rate limit to be active for the next jobs.
-   *
+   * @deprecated This method is deprecated and will be removed in v6. Use queue.rateLimit method instead.
    * @param expireTimeMs - expire time in ms of this rate limit.
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
