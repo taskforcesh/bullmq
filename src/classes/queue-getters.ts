@@ -14,17 +14,9 @@ import { JobJsonRaw, Metrics } from '../interfaces';
  *
  * @description Provides different getters for different aspects of a queue.
  */
-export class QueueGetters<
-  DataType,
-  ResultType,
-  NameType extends string,
-> extends QueueBase {
-  getJob(
-    jobId: string,
-  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
-    return this.Job.fromId(this, jobId) as Promise<
-      Job<DataType, ResultType, NameType>
-    >;
+export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
+  getJob(jobId: string): Promise<JobBase | undefined> {
+    return this.Job.fromId(this, jobId) as Promise<JobBase>;
   }
 
   private commandByType(
@@ -51,13 +43,6 @@ export class QueueGetters<
           return callback(key, count ? 'llen' : 'lrange');
       }
     });
-  }
-
-  /**
-   * Helper to easily extend Job class calls.
-   */
-  protected get Job(): typeof Job {
-    return Job;
   }
 
   private sanitizeJobTypes(types: JobType[] | JobType | undefined): JobType[] {
@@ -251,10 +236,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getWaiting(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getWaiting(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['waiting'], start, end, true);
   }
 
@@ -264,10 +246,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getWaitingChildren(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getWaitingChildren(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['waiting-children'], start, end, true);
   }
 
@@ -276,10 +255,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getActive(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getActive(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['active'], start, end, true);
   }
 
@@ -288,10 +264,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getDelayed(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getDelayed(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['delayed'], start, end, true);
   }
 
@@ -300,10 +273,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getPrioritized(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getPrioritized(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['prioritized'], start, end, true);
   }
 
@@ -312,10 +282,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getCompleted(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getCompleted(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['completed'], start, end, false);
   }
 
@@ -324,10 +291,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getFailed(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getFailed(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['failed'], start, end, false);
   }
 
@@ -422,18 +386,13 @@ export class QueueGetters<
     start = 0,
     end = -1,
     asc = false,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  ): Promise<JobBase[]> {
     const currentTypes = this.sanitizeJobTypes(types);
 
     const jobIds = await this.getRanges(currentTypes, start, end, asc);
 
     return Promise.all(
-      jobIds.map(
-        jobId =>
-          this.Job.fromId(this, jobId) as Promise<
-            Job<DataType, ResultType, NameType>
-          >,
-      ),
+      jobIds.map(jobId => this.Job.fromId(this, jobId) as Promise<JobBase>),
     );
   }
 

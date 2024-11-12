@@ -12,7 +12,7 @@ import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
-import { TelemetryAttributes, SpanKind } from '../enums';
+import { SpanKind } from '../enums';
 
 /**
  * @class QueueBase

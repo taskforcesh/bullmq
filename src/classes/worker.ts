@@ -191,7 +191,7 @@ export class Worker<
   private waiting: Promise<number> | null = null;
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
 
-  private _jobScheduler: JobScheduler;
+  protected _jobScheduler: JobScheduler;
 
   protected paused: Promise<void>;
   protected processFn: Processor<DataType, ResultType, NameType>;
@@ -626,7 +626,7 @@ export class Worker<
 
   /**
    * Overrides the rate limit to be active for the next jobs.
-   *
+   * @deprecated This method is deprecated and will be removed in v6. Use queue.rateLimit method instead.
    * @param expireTimeMs - expire time in ms of this rate limit.
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
@@ -995,7 +995,8 @@ will never work with more accuracy than 1ms. */
    * This method waits for current jobs to finalize before returning.
    *
    * @param force - Use force boolean parameter if you do not want to wait for
-   * current jobs to be processed.
+   * current jobs to be processed. When using telemetry, be mindful that it can
+   * interfere with the proper closure of spans, potentially preventing them from being exported.
    *
    * @returns Promise that resolves when the worker has been closed.
    */

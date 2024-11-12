@@ -13,6 +13,7 @@ export enum TelemetryAttributes {
   QueueDrainDelay = 'bullmq.queue.drain.delay',
   QueueGrace = 'bullmq.queue.grace',
   QueueCleanLimit = 'bullmq.queue.clean.limit',
+  QueueRateLimit = 'bullmq.queue.rate.limit',
   JobType = 'bullmq.job.type',
   QueueOptions = 'bullmq.queue.options',
   QueueEventMaxLength = 'bullmq.queue.event.max.length',
@@ -30,6 +31,7 @@ export enum TelemetryAttributes {
   JobResult = 'bullmq.job.result',
   JobFailedReason = 'bullmq.job.failed.reason',
   FlowName = 'bullmq.flow.name',
+  JobSchedulerId = 'bullmq.job.scheduler.id',
 }
 
 export enum SpanKind {

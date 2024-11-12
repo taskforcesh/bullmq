@@ -7,8 +7,11 @@
     opts - limiter
 ]]
 
+-- Includes
+--- @include "addBaseMarkerIfNeeded"
+
 local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey,
-    jobId, processedOn, maxJobs, opts)
+    jobId, processedOn, maxJobs, markerKey, opts)
   local jobKey = keyPrefix .. jobId
 
   -- Check if we need to perform rate limiting.
@@ -40,6 +43,8 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
   rcall("XADD", eventStreamKey, "*", "event", "active", "jobId", jobId, "prev", "waiting")
   rcall("HMSET", jobKey, "processedOn", processedOn, unpack(optionalValues))
   rcall("HINCRBY", jobKey, "ats", 1)
+
+  addBaseMarkerIfNeeded(markerKey, false)
 
   return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data
 end

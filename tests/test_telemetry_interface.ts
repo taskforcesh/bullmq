@@ -2,7 +2,7 @@ import { expect, assert } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, Worker } from '../src/classes';
+import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
   Telemetry,
@@ -228,6 +228,60 @@ describe('Telemetry', () => {
         assert(recordExceptionSpy.calledOnce);
         const recordedError = recordExceptionSpy.firstCall.args[0];
         assert.equal(recordedError.message, 'Custom Ids cannot be integers');
+      } finally {
+        recordExceptionSpy.restore();
+      }
+    });
+  });
+
+  describe('Queue.upsertJobScheduler', async () => {
+    it('should correctly interact with telemetry when adding a job scheduler', async () => {
+      const jobSchedulerId = 'testJobScheduler';
+      const data = { foo: 'bar' };
+
+      await queue.upsertJobScheduler(
+        jobSchedulerId,
+        { every: 1000, endDate: Date.now() + 1000 },
+        { name: 'repeatable-job', data },
+      );
+
+      const activeContext = telemetryClient.contextManager.active();
+      const span = activeContext.getSpan?.() as MockSpan;
+      expect(span).to.be.an.instanceOf(MockSpan);
+      expect(span.name).to.equal(`add ${queueName}.repeatable-job`);
+      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.JobSchedulerId]).to.equal(
+        jobSchedulerId,
+      );
+      expect(span.attributes[TelemetryAttributes.JobId]).to.be.a('string');
+      expect(span.attributes[TelemetryAttributes.JobId]).to.include(
+        `repeat:${jobSchedulerId}:`,
+      );
+    });
+
+    it('should correctly handle errors and record them in telemetry for upsertJobScheduler', async () => {
+      const recordExceptionSpy = sinon.spy(
+        MockSpan.prototype,
+        'recordException',
+      );
+
+      const errMessage = 'Error creating job';
+
+      // Force an exception on the job schedulers private method createNextJob
+      (<any>JobScheduler).prototype.createNextJob = () => {
+        throw new Error(errMessage);
+      };
+
+      try {
+        await queue.upsertJobScheduler(
+          'testJobScheduler',
+          { every: 1000 },
+          { data: { foo: 'bar' } },
+        );
+      } catch (e) {
+        assert(recordExceptionSpy.calledOnce);
+        const recordedError = recordExceptionSpy.firstCall.args[0];
+        assert.equal(recordedError.message, errMessage);
       } finally {
         recordExceptionSpy.restore();
       }
