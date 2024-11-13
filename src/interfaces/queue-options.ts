@@ -84,11 +84,9 @@ export interface QueueOptions extends QueueBaseOptions {
 
 export interface JobBulkOptions {
   /**
-   * Max quantity of base markers to be added. It's recommend to be the same
-   * as the quantity of worker instances for this specific queue
-   * @default 1
+   * Max quantity of base markers to be added.
    */
-  markerCount: number;
+  markerCount?: number;
 }
 
 /**

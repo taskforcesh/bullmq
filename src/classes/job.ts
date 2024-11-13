@@ -299,11 +299,18 @@ export class Job<
       });
     }
 
-    if (opts.markerCount > 1) {
+    // minus 1 base marker that is added when calling addJob scripts
+    const markerCount =
+      (opts.markerCount
+        ? Math.min(jobInstances.length, opts.markerCount)
+        : jobInstances.length) - 1;
+    if (markerCount > 0) {
       const markers: (number | string)[] = [];
-      Array.from(Array(opts.markerCount - 1).keys()).forEach(index => {
-        markers.push(0, index + 1);
-      });
+      Array(markerCount)
+        .fill(0)
+        .forEach(index => {
+          markers.push(0, index + 1);
+        });
       pipeline.zadd(queue.toKey('marker'), ...markers);
     }
 
