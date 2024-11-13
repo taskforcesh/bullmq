@@ -1,6 +1,7 @@
 import { AdvancedRepeatOptions } from './advanced-options';
 import { DefaultJobOptions } from './base-job-options';
 import { ConnectionOptions } from './redis-options';
+import { Telemetry } from './telemetry';
 
 export enum ClientType {
   blocking = 'blocking',
@@ -18,6 +19,7 @@ export interface QueueBaseOptions {
 
   /**
    * Denotes commands should retry indefinitely.
+   * @deprecated
    */
   blockingConnection?: boolean;
 
@@ -31,6 +33,11 @@ export interface QueueBaseOptions {
    * @defaultValue false
    */
   skipVersionCheck?: boolean;
+
+  /**
+   * Telemetry client
+   */
+  telemetry?: Telemetry;
 }
 
 /**
@@ -54,7 +61,25 @@ export interface QueueOptions extends QueueBaseOptions {
     };
   };
 
+  /**
+   * Skip Meta update.
+   *
+   * If true, the queue will not update the metadata of the queue.
+   * Useful for read-only systems that do should not update the metadata.
+   *
+   * @defaultValue false
+   */
+  skipMetasUpdate?: boolean;
+
+  /**
+   * Advanced options for the repeatable jobs.
+   */
   settings?: AdvancedRepeatOptions;
+
+  /**
+   * Telemetry client
+   */
+  telemetry?: Telemetry;
 }
 
 /**

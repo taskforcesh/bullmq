@@ -97,7 +97,7 @@ enum Step {
 
 const worker = new Worker(
   'queueName',
-  async (job: Job, token: string) => {
+  async (job: Job, token?: string) => {
     let step = job.data.step;
     while (step !== Step.Finish) {
       switch (step) {
@@ -147,7 +147,7 @@ enum Step {
 
 const worker = new Worker(
   'parentQueueName',
-  async (job: Job, token: string) => {
+  async (job: Job, token?: string) => {
     let step = job.data.step;
     while (step !== Step.Finish) {
       switch (step) {

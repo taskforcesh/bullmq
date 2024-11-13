@@ -37,4 +37,9 @@ export type RedisJobOptions = BaseJobOptions & {
    * Maximum amount of log entries that will be preserved
    */
   kl?: number;
+
+  /**
+   * TelemetryMetadata, provide for context propagation.
+   */
+  tm?: string;
 };

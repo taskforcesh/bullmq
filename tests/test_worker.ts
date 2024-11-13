@@ -4532,4 +4532,16 @@ describe('workers', function () {
 
     await worker.close();
   });
+
+  it('should retrieve concurrency from getter', async () => {
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      concurrency: 100,
+    });
+    worker.concurrency = 10;
+
+    expect(worker.concurrency).to.equal(10);
+
+    await worker.close();
+  });
 });

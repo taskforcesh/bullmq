@@ -1,6 +1,6 @@
 {
   "name": "bullmq",
-  "version": "5.20.0",
+  "version": "5.25.6",
   "description": "Queue for messages and jobs based on Redis",
   "homepage": "https://bullmq.io/",
   "main": "./dist/cjs/index.js",
@@ -36,7 +36,7 @@
     "dc:down": "docker-compose -f docker-compose.yml down",
     "dry-run": "npm publish --dry-run",
     "eslint:fix": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore --fix",
-    "generate:raw:scripts": "ts-node --project tsconfig-cjs.json generateRawScripts.ts",
+    "generate:raw:scripts": "ts-node --project tsconfig-cjs.json scripts/generateRawScripts.ts",
     "lint": "./node_modules/.bin/eslint . --ignore-path ./.eslintignore",
     "lint:staged": "lint-staged",
     "prepublishOnly": "npm run build",
@@ -48,14 +48,14 @@
     "semantic-release-prepare": "ts-node tools/semantic-release-prepare",
     "test": "ts-mocha -p tsconfig-cjs.json --config ./.mocharc.js",
     "test:watch": "ts-mocha -p tsconfig-cjs.json --paths 'tests/test_*.ts' -w --watch-extensions ts",
-    "transform:commands": "node ./commandTransform.js ./rawScripts ./src/scripts",
+    "transform:commands": "node ./scripts/commandTransform.js ./rawScripts ./src/scripts",
     "tsc": "tsc",
     "tsc:all": "tsc && tsc -p tsconfig-cjs.json"
   },
   "dependencies": {
     "cron-parser": "^4.6.0",
     "ioredis": "^5.4.1",
-    "msgpackr": "^1.10.1",
+    "msgpackr": "^1.11.2",
     "node-abort-controller": "^3.1.1",
     "semver": "^7.5.4",
     "tslib": "^2.0.0",
@@ -67,6 +67,7 @@
     "@istanbuljs/nyc-config-typescript": "^0.1.3",
     "@semantic-release/changelog": "^6.0.1",
     "@semantic-release/commit-analyzer": "^9.0.2",
+    "@semantic-release/exec": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
     "@semantic-release/github": "^8.1.0",
     "@semantic-release/npm": "^9.0.1",
@@ -189,6 +190,12 @@
         }
       ],
       [
+        "@semantic-release/exec",
+        {
+          "prepareCmd": "node scripts/updateVersion.js ${nextRelease.version} && yarn build"
+        }
+      ],
+      [
         "@semantic-release/npm",
         {
           "npmPublish": true
@@ -201,6 +208,7 @@
           "assets": [
             "package.json",
             "yarn.lock",
+            "src/version.ts",
             "docs/gitbook/changelog.md",
             "docs/gitbook/api/**"
           ],

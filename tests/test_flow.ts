@@ -1064,7 +1064,7 @@ describe('flows', () => {
 
       const worker = new Worker(
         queueName,
-        async (job, token) => {
+        async (job: Job, token?: string) => {
           let step = job.data.step;
           while (step !== Step.Finish) {
             switch (step) {
@@ -1087,7 +1087,7 @@ describe('flows', () => {
                   ],
                   opts: {
                     parent: {
-                      id: job.id,
+                      id: job.id!,
                       queue: job.queueQualifiedName,
                     },
                   },
@@ -1106,7 +1106,7 @@ describe('flows', () => {
                 break;
               }
               case Step.Third: {
-                const shouldWait = await job.moveToWaitingChildren(token);
+                const shouldWait = await job.moveToWaitingChildren(token!);
                 if (!shouldWait) {
                   await job.updateData({
                     step: Step.Finish,
