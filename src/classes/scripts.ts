@@ -36,18 +36,16 @@ import {
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { ChainableCommander } from 'ioredis';
-import { version } from '../version';
+import { version as packageVersion } from '../version';
 export type JobData = [JobJsonRaw | number, string?];
 
 export class Scripts {
-  protected version;
+  protected version = packageVersion;
 
   moveToFinishedKeys: (string | undefined)[];
 
   constructor(protected queue: MinimalQueue) {
     const queueKeys = this.queue.keys;
-
-    this.version = version;
 
     this.moveToFinishedKeys = [
       queueKeys.wait,
@@ -310,12 +308,12 @@ export class Scripts {
   }
 
   async addJobScheduler(
+    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
     opts: RepeatableOptions,
   ): Promise<string> {
     const queueKeys = this.queue.keys;
-    const client = await this.queue.client;
 
     const keys: (string | number | Buffer)[] = [
       queueKeys.repeat,
@@ -341,11 +339,10 @@ export class Scripts {
   }
 
   async updateJobSchedulerNextMillis(
+    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
   ): Promise<number> {
-    const client = await this.queue.client;
-
     return client.zadd(this.queue.keys.repeat, nextMillis, jobSchedulerId);
   }
 

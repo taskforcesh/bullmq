@@ -39,7 +39,7 @@ import {
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 
-// 10 seconds is the maximum time a BRPOPLPUSH can block.
+// 10 seconds is the maximum time a BZPOPMIN can block.
 const maximumBlockTimeout = 10;
 
 // 30 seconds is the maximum limit until.
@@ -180,6 +180,7 @@ export class Worker<
   >>;
   private blockingConnection: RedisConnection;
   private blockUntil = 0;
+  private _concurrency: number;
   private childPool: ChildPool;
   private drained: boolean = false;
   private extendLocksTimer: NodeJS.Timeout | null = null;
@@ -392,7 +393,11 @@ export class Worker<
     ) {
       throw new Error('concurrency must be a finite number greater than 0');
     }
-    this.opts.concurrency = concurrency;
+    this._concurrency = concurrency;
+  }
+
+  get concurrency() {
+    return this._concurrency;
   }
 
   get repeat(): Promise<Repeat> {
@@ -466,7 +471,7 @@ export class Worker<
          */
         while (
           !this.waiting &&
-          numTotal < this.opts.concurrency &&
+          numTotal < this._concurrency &&
           (!this.limitUntil || numTotal == 0)
         ) {
           const token = `${this.id}:${tokenPostfix++}`;
@@ -519,7 +524,7 @@ export class Worker<
                 this.processJob(
                   <Job<DataType, ResultType, NameType>>job,
                   token,
-                  () => asyncFifoQueue.numTotal() <= this.opts.concurrency,
+                  () => asyncFifoQueue.numTotal() <= this._concurrency,
                   jobsInProgress,
                 ),
               this.opts.runRetryDelay,
@@ -990,7 +995,8 @@ will never work with more accuracy than 1ms. */
    * This method waits for current jobs to finalize before returning.
    *
    * @param force - Use force boolean parameter if you do not want to wait for
-   * current jobs to be processed.
+   * current jobs to be processed. When using telemetry, be mindful that it can 
+   * interfere with the proper closure of spans, potentially preventing them from being exported.
    *
    * @returns Promise that resolves when the worker has been closed.
    */
