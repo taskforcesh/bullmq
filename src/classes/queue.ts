@@ -95,7 +95,7 @@ export class Queue<
   DataType = any,
   ResultType = any,
   NameType extends string = string,
-> extends QueueGetters<DataType, ResultType, NameType> {
+> extends QueueGetters<Job<DataType, ResultType, NameType>> {
   token = v4();
   jobsOpts: BaseJobOptions;
   opts: QueueOptions;
