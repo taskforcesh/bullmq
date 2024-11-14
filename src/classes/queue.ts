@@ -276,8 +276,8 @@ export class Queue<
         } else {
           const jobId = opts?.jobId;
 
-          if (jobId == '0' || jobId?.startsWith('0:')) {
-            throw new Error("JobId cannot be '0' or start with 0:");
+          if (jobId == '0' || jobId?.includes(':')) {
+            throw new Error("JobId cannot be '0' or contain :");
           }
 
           const job = await this.Job.create<DataType, ResultType, NameType>(
@@ -708,13 +708,6 @@ export class Queue<
         await this.scripts.drain(delayed);
       },
     );
-  }
-
-  /**
-   * Remove legacy markers before v5
-   */
-  removeLegacyMarkers(): Promise<void> {
-    return this.scripts.removeLegacyMarkers();
   }
 
   /**
