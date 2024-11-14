@@ -39,6 +39,10 @@ jobs = await queue.addBulk([
 
 This call can only succeed or fail, and all or none of the jobs will be added.
 
+{% hint style="warning" %}
+A new marker will be added per each job in the array, unless you provide **markerCount** option as the maximum quantity.
+{% endhint %}
+
 ## Read more:
 
 - 💡 [Add Bulk API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#addBulk)
