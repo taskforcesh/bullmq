@@ -295,13 +295,3 @@ export const defaultRepeatStrategy = (
     // Ignore error
   }
 };
-
-function removeUndefinedFields(obj: Record<string, any>) {
-  const newObj: Record<string, any> = {};
-  for (const key in obj) {
-    if (obj[key] !== undefined) {
-      newObj[key] = obj[key];
-    }
-  }
-  return newObj;
-}
