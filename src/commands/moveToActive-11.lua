@@ -77,12 +77,12 @@ end
 
 if jobId then
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
-                                   maxJobs, opts)
+                                   maxJobs, markerKey, opts)
 else
     jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
     if jobId then
         return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
-                                       maxJobs, opts)
+                                       maxJobs, markerKey, opts)
     end
 end
 
