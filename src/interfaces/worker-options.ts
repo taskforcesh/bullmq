@@ -72,14 +72,14 @@ export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
    * age and/or count to keep.
    * Default behavior is to keep the job in the completed set.
    */
-  removeOnComplete?: KeepJobs;
+  removeOnComplete?: KeepJobs | boolean;
 
   /**
    * You can provide an object specifying max
    * age and/or count to keep.
    * Default behavior is to keep the job in the failed set.
    */
-  removeOnFail?: KeepJobs;
+  removeOnFail?: KeepJobs | boolean;
 
   /**
    *  Skip stalled check for this worker. Note that other workers could still
