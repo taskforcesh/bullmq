@@ -3348,7 +3348,7 @@ describe('flows', () => {
             data: { idx: 0, foo: 'bar' },
             queueName,
             opts: {
-              delay: 3000,
+              delay: 2000,
             },
           },
         ],
