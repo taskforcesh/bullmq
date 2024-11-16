@@ -1,3 +1,24 @@
+## [4.18.2](https://github.com/taskforcesh/bullmq/compare/v4.18.1...v4.18.2) (2024-10-24)
+
+
+### Bug Fixes
+
+* proper way to get version ([1a433d2](https://github.com/taskforcesh/bullmq/commit/1a433d2a17b58ba8d30f0ecf52d9091f8377978f))
+
+## [4.18.1](https://github.com/taskforcesh/bullmq/compare/v4.18.0...v4.18.1) (2024-10-19)
+
+
+### Bug Fixes
+
+* use versions for lua commands ([b0a216d](https://github.com/taskforcesh/bullmq/commit/b0a216deacb0295e77b039ea67c100e57b045037))
+
+# [4.18.0](https://github.com/taskforcesh/bullmq/compare/v4.17.0...v4.18.0) (2024-10-14)
+
+
+### Features
+
+* **queue:** add version support ([a600463](https://github.com/taskforcesh/bullmq/commit/a6004639612118ce5adc2a87f0402386ba8e1c2f))
+
 # [4.17.0](https://github.com/taskforcesh/bullmq/compare/v4.16.0...v4.17.0) (2023-12-21)
 
 

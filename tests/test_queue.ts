@@ -1,11 +1,12 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
+import { after } from 'lodash';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 import { FlowProducer, Job, Queue, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
-import { after } from 'lodash';
+import { version as currentPackageVersion } from '../src/version';
 
 describe('queues', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -39,9 +40,18 @@ describe('queues', function () {
   it('should return the queue version', async () => {
     const queue = new Queue(queueName, { connection });
     const version = await queue.getVersion();
-    const { version: pkgJsonVersion, name } = require('../package.json');
-    expect(version).to.be.equal(`${name}:${pkgJsonVersion}`);
+    expect(version.startsWith('bullmq')).to.be.true;
+    expect(version.endsWith(`:${currentPackageVersion}`)).to.be.true;
     return queue.close();
+  });
+
+  it('should return default library version when using skipMetasUpdate', async () => {
+    const exQueueName = `test-${v4()}`;
+    const queue = new Queue(exQueueName, { connection, skipMetasUpdate: true });
+    const version = await queue.getVersion();
+    expect(version).to.be.equal(null);
+    await queue.close();
+    await removeAllQueueData(new IORedis(redisHost), exQueueName);
   });
 
   describe('.add', () => {

@@ -1,5 +1,6 @@
 import semver
 import traceback
+import json
 
 
 def isRedisVersionLowerThan(current_version, minimum_version):
@@ -18,3 +19,6 @@ def extract_result(job_task, emit_callback):
 def get_parent_key(opts: dict):
     if opts:
         return f"{opts.get('queue')}:{opts.get('id')}"
+
+def parse_json_string_values(input_dict: dict[str, str]) -> dict[str, dict]:
+    return {key: json.loads(value) for key, value in input_dict.items()}

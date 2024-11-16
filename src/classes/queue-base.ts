@@ -1,17 +1,19 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { QueueBaseOptions, RedisClient, Span, Tracer } from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
   delay,
   DELAY_TIME_5,
   isNotConnectionError,
   isRedisInstance,
+  trace,
 } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
 import { checkPendingMigrations, runMigrations } from './migrations';
+import { TelemetryAttributes, SpanKind } from '../enums';
 
 /**
  * @class QueueBase
@@ -29,6 +31,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   closing: Promise<void> | undefined;
 
   protected closed: boolean = false;
+  protected hasBlockingConnection: boolean = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
 
@@ -45,9 +48,11 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     public readonly name: string,
     public opts: QueueBaseOptions = { connection: {} },
     Connection: typeof RedisConnection = RedisConnection,
+    hasBlockingConnection = false,
   ) {
     super();
 
+    this.hasBlockingConnection = hasBlockingConnection;
     this.opts = {
       prefix: 'bull',
       ...opts,
@@ -64,7 +69,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.connection = new Connection(
       opts.connection,
       isRedisInstance(opts.connection),
-      opts.blockingConnection,
+      hasBlockingConnection,
       opts.skipVersionCheck,
     );
 
@@ -209,5 +214,33 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
         return;
       }
     }
+  }
+
+  /**
+   * Wraps the code with telemetry and provides a span for configuration.
+   *
+   * @param spanKind - kind of the span: Producer, Consumer, Internal
+   * @param operation - operation name (such as add, process, etc)
+   * @param destination - destination name (normally the queue name)
+   * @param callback - code to wrap with telemetry
+   * @param srcPropagationMedatada -
+   * @returns
+   */
+  trace<T>(
+    spanKind: SpanKind,
+    operation: string,
+    destination: string,
+    callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
+    srcPropagationMetadata?: string,
+  ) {
+    return trace<Promise<T> | T>(
+      this.opts.telemetry,
+      spanKind,
+      this.name,
+      operation,
+      destination,
+      callback,
+      srcPropagationMetadata,
+    );
   }
 }

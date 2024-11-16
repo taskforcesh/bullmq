@@ -5,7 +5,7 @@ from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
 from bullmq.types import JobOptions
-from bullmq.utils import get_parent_key
+from bullmq.utils import get_parent_key, parse_json_string_values
 
 import json
 import time
@@ -208,6 +208,10 @@ class Job:
 
     def moveToWaitingChildren(self, token, opts:dict):
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
+
+    async def getChildrenValues(self):
+        results = await self.queue.client.hgetall(f"{self.queue.prefix}:{self.queue.name}:{self.id}:processed")
+        return parse_json_string_values(results)
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):

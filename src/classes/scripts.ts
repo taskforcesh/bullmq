@@ -36,7 +36,7 @@ import {
 import { ErrorCode } from '../enums';
 import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
 import { ChainableCommander } from 'ioredis';
-
+import { version as packageVersion } from '../version';
 export type JobData = [JobJsonRaw | number, string?];
 
 const onChildFailureMap = {
@@ -47,6 +47,8 @@ const onChildFailureMap = {
 };
 
 export class Scripts {
+  protected version = packageVersion;
+
   moveToFinishedKeys: (string | undefined)[];
 
   constructor(protected queue: MinimalQueue) {
@@ -69,13 +71,22 @@ export class Scripts {
     ];
   }
 
+  public execCommand(
+    client: RedisClient | ChainableCommander,
+    commandName: string,
+    args: any[],
+  ) {
+    const commandNameWithVersion = `${commandName}:${this.version}`;
+    return (<any>client)[commandNameWithVersion](args);
+  }
+
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
     let result;
     if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
-      result = await (<any>client).isJobInList([listKey, jobId]);
+      result = await this.execCommand(client, 'isJobInList', [listKey, jobId]);
     } else {
-      result = await (<any>client).lpos(listKey, jobId);
+      result = await client.lpos(listKey, jobId);
     }
     return Number.isInteger(result);
   }
@@ -97,8 +108,7 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-
-    return (<any>client).addDelayedJob(keys);
+    return this.execCommand(client, 'addDelayedJob', keys);
   }
 
   protected addPrioritizedJob(
@@ -120,8 +130,7 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-
-    return (<any>client).addPrioritizedJob(keys);
+    return this.execCommand(client, 'addPrioritizedJob', keys);
   }
 
   protected addParentJob(
@@ -139,8 +148,7 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-
-    return (<any>client).addParentJob(keys);
+    return this.execCommand(client, 'addParentJob', keys);
   }
 
   protected addStandardJob(
@@ -161,8 +169,7 @@ export class Scripts {
     ];
 
     keys.push(pack(args), job.data, encodedOpts);
-
-    return (<any>client).addStandardJob(keys);
+    return this.execCommand(client, 'addStandardJob', keys);
   }
 
   async addJob(
@@ -262,8 +269,7 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.pauseArgs(pause);
-
-    return (<any>client).pause(args);
+    return this.execCommand(client, 'pause', args);
   }
 
   protected addRepeatableJobArgs(
@@ -303,25 +309,23 @@ export class Scripts {
       opts,
       legacyCustomKey,
     );
-
-    return (<any>client).addRepeatableJob(args);
+    return this.execCommand(client, 'addRepeatableJob', args);
   }
 
   async addJobScheduler(
+    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
     opts: RepeatableOptions,
   ): Promise<string> {
     const queueKeys = this.queue.keys;
-    const client = await this.queue.client;
 
     const keys: (string | number | Buffer)[] = [
       queueKeys.repeat,
       queueKeys.delayed,
     ];
     const args = [nextMillis, pack(opts), jobSchedulerId, queueKeys['']];
-
-    return (<any>client).addJobScheduler(keys.concat(args));
+    return this.execCommand(client, 'addJobScheduler', keys.concat(args));
   }
 
   async updateRepeatableJobMillis(
@@ -336,15 +340,14 @@ export class Scripts {
       customKey,
       legacyCustomKey,
     ];
-    return (<any>client).updateRepeatableJobMillis(args);
+    return this.execCommand(client, 'updateRepeatableJobMillis', args);
   }
 
   async updateJobSchedulerNextMillis(
+    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
   ): Promise<number> {
-    const client = await this.queue.client;
-
     return client.zadd(this.queue.keys.repeat, nextMillis, jobSchedulerId);
   }
 
@@ -387,8 +390,7 @@ export class Scripts {
       repeatConcatOptions,
       repeatJobKey,
     );
-
-    return (<any>client).removeRepeatable(args);
+    return this.execCommand(client, 'removeRepeatable', args);
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
@@ -400,7 +402,7 @@ export class Scripts {
 
     const args = [jobSchedulerId, queueKeys['']];
 
-    return (<any>client).removeJobScheduler(keys.concat(args));
+    return this.execCommand(client, 'removeJobScheduler', keys.concat(args));
   }
 
   protected removeArgs(
@@ -420,8 +422,7 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.removeArgs(jobId, removeChildren);
-
-    const result = await (<any>client).removeJob(args);
+    const result = await this.execCommand(client, 'removeJob', args);
 
     if (result < 0) {
       throw this.finishedErrors({
@@ -448,7 +449,7 @@ export class Scripts {
       duration,
       jobId,
     ];
-    return (<any>client).extendLock(args);
+    return this.execCommand(client, 'extendLock', args);
   }
 
   async updateData<T = any, R = any, N extends string = string>(
@@ -460,7 +461,11 @@ export class Scripts {
     const keys = [this.queue.toKey(job.id)];
     const dataJson = JSON.stringify(data);
 
-    const result = await (<any>client).updateData(keys.concat([dataJson]));
+    const result = await this.execCommand(
+      client,
+      'updateData',
+      keys.concat([dataJson]),
+    );
 
     if (result < 0) {
       throw this.finishedErrors({
@@ -484,7 +489,9 @@ export class Scripts {
     ];
     const progressJson = JSON.stringify(progress);
 
-    const result = await (<any>client).updateProgress(
+    const result = await this.execCommand(
+      client,
+      'updateProgress',
       keys.concat([jobId, progressJson]),
     );
 
@@ -509,7 +516,9 @@ export class Scripts {
       this.queue.toKey(jobId) + ':logs',
     ];
 
-    const result = await (<any>client).addLog(
+    const result = await this.execCommand(
+      client,
+      'addLog',
       keys.concat([jobId, logRow, keepLogs ? keepLogs : '']),
     );
 
@@ -593,7 +602,7 @@ export class Scripts {
   ) {
     const client = await this.queue.client;
 
-    const result = await (<any>client).moveToFinished(args);
+    const result = await this.execCommand(client, 'moveToFinished', args);
     if (result < 0) {
       throw this.finishedErrors({
         code: result,
@@ -628,7 +637,7 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.drainArgs(delayed);
 
-    return (<any>client).drain(args);
+    return this.execCommand(client, 'drain', args);
   }
 
   private removeLegacyMarkersArgs(): (string | number)[] {
@@ -674,7 +683,11 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.removeChildDependencyArgs(jobId, parentKey);
 
-    const result = await (<any>client).removeChildDependency(args);
+    const result = await this.execCommand(
+      client,
+      'removeChildDependency',
+      args,
+    );
 
     switch (result) {
       case 0:
@@ -718,7 +731,7 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.getRangesArgs(types, start, end, asc);
 
-    return (<any>client).getRanges(args);
+    return await this.execCommand(client, 'getRanges', args);
   }
 
   private getCountsArgs(types: JobType[]): (string | number)[] {
@@ -738,7 +751,7 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.getCountsArgs(types);
 
-    return (<any>client).getCounts(args);
+    return await this.execCommand(client, 'getCounts', args);
   }
 
   protected getCountsPerPriorityArgs(
@@ -760,7 +773,7 @@ export class Scripts {
     const client = await this.queue.client;
     const args = this.getCountsPerPriorityArgs(priorities);
 
-    return (<any>client).getCountsPerPriority(args);
+    return await this.execCommand(client, 'getCountsPerPriority', args);
   }
 
   moveToCompletedArgs<T = any, R = any, N extends string = string>(
@@ -813,7 +826,9 @@ export class Scripts {
       return this.queue.toKey(key);
     });
 
-    return (<any>client).isFinished(
+    return this.execCommand(
+      client,
+      'isFinished',
       keys.concat([jobId, returnValue ? '1' : '']),
     );
   }
@@ -835,16 +850,16 @@ export class Scripts {
     });
 
     if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
-      return (<any>client).getState(keys.concat([jobId]));
+      return this.execCommand(client, 'getState', keys.concat([jobId]));
     }
-    return (<any>client).getStateV2(keys.concat([jobId]));
+    return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
   }
 
   async changeDelay(jobId: string, delay: number): Promise<void> {
     const client = await this.queue.client;
 
     const args = this.changeDelayArgs(jobId, delay);
-    const result = await (<any>client).changeDelay(args);
+    const result = await this.execCommand(client, 'changeDelay', args);
     if (result < 0) {
       throw this.finishedErrors({
         code: result,
@@ -881,7 +896,8 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.changePriorityArgs(jobId, priority, lifo);
-    const result = await (<any>client).changePriority(args);
+
+    const result = await this.execCommand(client, 'changePriority', args);
     if (result < 0) {
       throw this.finishedErrors({
         code: result,
@@ -985,7 +1001,7 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.isMaxedArgs();
-    return !!(await (<any>client).isMaxed(args));
+    return !!(await this.execCommand(client, 'isMaxed', args));
   }
 
   async moveToDelayed(
@@ -998,7 +1014,8 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.moveToDelayedArgs(jobId, timestamp, token, delay, opts);
-    const result = await (<any>client).moveToDelayed(args);
+
+    const result = await this.execCommand(client, 'moveToDelayed', args);
     if (result < 0) {
       throw this.finishedErrors({
         code: result,
@@ -1028,7 +1045,11 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.moveToWaitingChildrenArgs(jobId, token, opts);
-    const result = await (<any>client).moveToWaitingChildren(args);
+    const result = await this.execCommand(
+      client,
+      'moveToWaitingChildren',
+      args,
+    );
 
     switch (result) {
       case 0:
@@ -1055,7 +1076,7 @@ export class Scripts {
     const client = await this.queue.client;
 
     const args = this.getRateLimitTtlArgs(maxJobs);
-    return (<any>client).getRateLimitTtl(args);
+    return this.execCommand(client, 'getRateLimitTtl', args);
   }
 
   /**
@@ -1070,7 +1091,7 @@ export class Scripts {
   ): Promise<string[]> {
     const client = await this.queue.client;
 
-    return (<any>client).cleanJobsInSet([
+    return this.execCommand(client, 'cleanJobsInSet', [
       this.queue.toKey(set),
       this.queue.toKey('events'),
       this.queue.toKey('repeat'),
@@ -1139,7 +1160,7 @@ export class Scripts {
 
     const args = this.moveJobsToWaitArgs(state, count, timestamp);
 
-    return (<any>client).moveJobsToWait(args);
+    return this.execCommand(client, 'moveJobsToWait', args);
   }
 
   async promoteJobs(count = 1000): Promise<number> {
@@ -1147,7 +1168,7 @@ export class Scripts {
 
     const args = this.moveJobsToWaitArgs('delayed', count, Number.MAX_VALUE);
 
-    return (<any>client).moveJobsToWait(args);
+    return this.execCommand(client, 'moveJobsToWait', args);
   }
 
   /**
@@ -1186,7 +1207,11 @@ export class Scripts {
       state,
     ];
 
-    const result = await (<any>client).reprocessJob(keys.concat(args));
+    const result = await this.execCommand(
+      client,
+      'reprocessJob',
+      keys.concat(args),
+    );
 
     switch (result) {
       case 1:
@@ -1229,7 +1254,9 @@ export class Scripts {
       }),
     ];
 
-    const result = await (<any>client).moveToActive(
+    const result = await this.execCommand(
+      client,
+      'moveToActive',
       (<(string | number | boolean | Buffer)[]>keys).concat(args),
     );
 
@@ -1252,7 +1279,7 @@ export class Scripts {
 
     const args = [this.queue.toKey(''), jobId];
 
-    const code = await (<any>client).promote(keys.concat(args));
+    const code = await this.execCommand(client, 'promote', keys.concat(args));
     if (code < 0) {
       throw this.finishedErrors({
         code,
@@ -1299,7 +1326,7 @@ export class Scripts {
 
     const args = this.moveStalledJobsToWaitArgs();
 
-    return (<any>client).moveStalledJobsToWait(args);
+    return this.execCommand(client, 'moveStalledJobsToWait', args);
   }
 
   /**
@@ -1329,7 +1356,11 @@ export class Scripts {
 
     const args = [jobId, token, this.queue.toKey(jobId)];
 
-    const pttl = await (<any>client).moveJobFromActiveToWait(keys.concat(args));
+    const pttl = await this.execCommand(
+      client,
+      'moveJobFromActiveToWait',
+      keys.concat(args),
+    );
 
     return pttl < 0 ? 0 : pttl;
   }
@@ -1343,7 +1374,11 @@ export class Scripts {
     ];
     const args = [opts.count, opts.force ? 'force' : null];
 
-    const result = await (<any>client).obliterate(keys.concat(args));
+    const result = await this.execCommand(
+      client,
+      'obliterate',
+      keys.concat(args),
+    );
     if (result < 0) {
       switch (result) {
         case -1:
@@ -1397,9 +1432,12 @@ export class Scripts {
         args.push(1);
       }
 
-      [cursor, offset, items, total, rawJobs] = await (<any>client).paginate(
+      [cursor, offset, items, total, rawJobs] = await this.execCommand(
+        client,
+        'paginate',
         keys.concat(args),
       );
+
       page = page.concat(items);
 
       if (rawJobs && rawJobs.length) {

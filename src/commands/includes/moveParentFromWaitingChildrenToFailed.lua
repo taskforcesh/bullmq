@@ -4,7 +4,7 @@
 ]]
 
 -- Includes
---- @include "removeDebounceKeyIfNeeded"
+--- @include "removeDeduplicationKeyIfNeeded"
 
 local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey, parentId, jobIdKey, timestamp)
   if rcall("ZREM", parentQueueKey .. ":waiting-children", parentId) == 1 then
@@ -16,7 +16,7 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
 
     local jobAttributes = rcall("HMGET", parentKey, "parent", "deid")
 
-    removeDebounceKeyIfNeeded(parentQueueKey .. ":", jobAttributes[2])
+    removeDeduplicationKeyIfNeeded(parentQueueKey .. ":", jobAttributes[2])
 
     if jobAttributes[1] then
       return cjson.decode(jobAttributes[1]), failedReason
