@@ -198,17 +198,6 @@ class Queue(EventEmitter):
         """
         return self.client.delete(self.toKey("priority"))
 
-    async def migrateDeprecatedPausedKey(self, maxCount: int = 1000):
-        """
-        Migrate deprecated paused key.
-
-        @param maxCount: Max quantity of jobs to be moved to wait per iteration.
-        """
-        while True:
-            cursor = await self.scripts.migrateDeprecatedPausedKey(maxCount)
-            if cursor is None or cursor == 0 or cursor == "0":
-                break
-
     async def getJobCountByTypes(self, *types):
         result = await self.getJobCounts(*types)
         sum = 0

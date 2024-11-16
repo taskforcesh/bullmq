@@ -40,26 +40,17 @@ describe('migrations', function () {
     describe('removeLegacyMarkers', () => {
       it('removes old markers', async () => {
         const client = await queue.client;
-        const queueName2 = `test-${v4()}`;
-        const completedKey = `${prefix}:${queueName2}:completed`;
-        const failedKey = `${prefix}:${queueName2}:failed`;
-        const waitingKey = `${prefix}:${queueName2}:wait`;
+        const completedKey = `${prefix}:${queueName}:completed`;
+        const failedKey = `${prefix}:${queueName}:failed`;
+        const waitingKey = `${prefix}:${queueName}:wait`;
         await client.zadd(completedKey, 1, '0:2');
         await client.zadd(completedKey, 1, '0:2');
         await client.zadd(failedKey, 2, '0:1');
         await client.rpush(waitingKey, '0:0');
 
-        const queue2 = new Queue(queueName2, {
-          connection,
-          prefix,
-          skipMigrationsExecution: false,
-        });
+        await queue.runMigrations();
 
-        await queue2.waitUntilReady();
-
-        await queue2.waitUntilReady();
-
-        const keys = await client.keys(`${prefix}:${queueName2}:*`);
+        const keys = await client.keys(`${prefix}:${queueName}:*`);
 
         // meta key, migrations
         expect(keys.length).to.be.eql(2);
@@ -72,32 +63,27 @@ describe('migrations', function () {
 
         const waitingCount = await client.llen(waitingKey);
         expect(waitingCount).to.be.eql(0);
-
-        await queue2.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName2);
       });
     });
 
     describe('migratePausedKey', () => {
       it('moves jobs from paused to wait', async () => {
         const client = await queue.client;
-        const queueName2 = `test-${v4()}`;
-        await client.lpush(`${prefix}:${queueName2}:paused`, 'a', 'b', 'c');
-        await client.lpush(`${prefix}:${queueName2}:wait`, 'd', 'e', 'f');
+        await client.lpush(
+          `${prefix}:${queueName}:paused`,
+          '1',
+          '2',
+          '3',
+          '4',
+          '5',
+          '6',
+        );
 
-        const queue2 = new Queue(queueName2, {
-          connection,
-          prefix,
-          skipMigrationsExecution: false,
-        });
+        await queue.runMigrations();
 
-        await queue2.waitUntilReady();
+        const jobs = await client.lrange(`${prefix}:${queueName}:wait`, 0, -1);
 
-        const jobs = await client.lrange(`${prefix}:${queueName2}:wait`, 0, -1);
-
-        expect(jobs).to.be.eql(['f', 'e', 'd', 'c', 'b', 'a']);
-        await queue2.close();
-        await removeAllQueueData(new IORedis(redisHost), queueName2);
+        expect(jobs).to.be.eql(['6', '5', '4', '3', '2', '1']);
       });
     });
   });

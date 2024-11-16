@@ -13,7 +13,8 @@ import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
 import { checkPendingMigrations, runMigrations } from './migrations';
-import { TelemetryAttributes, SpanKind } from '../enums';
+import { SpanKind } from '../enums';
+import { version as packageVersion } from '../version';
 
 /**
  * @class QueueBase
@@ -35,7 +36,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   protected scripts: Scripts;
   protected connection: RedisConnection;
 
-  private checkedPendingMigrations: boolean = false;
+  protected checkedPendingMigrations: boolean = false;
+  protected packageVersion = packageVersion;
 
   /**
    *
@@ -101,28 +103,25 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
           queueName: this.name,
         }).then(hasPendingMigrations => {
           if (hasPendingMigrations) {
-            if (
-              this.opts.skipMigrationsExecution ||
-              typeof this.opts.skipMigrationsExecution === 'undefined'
-            ) {
-              console.error(
-                'Queue has pending migrations. See https://docs.bullmq.io/guide/migrations',
-              );
-            } else {
-              return runMigrations(client, {
-                prefix: this.opts.prefix,
-                queueName: this.name,
-              }).then(() => {
-                this.checkedPendingMigrations = true;
-                return client;
-              });
-            }
+            throw new Error(
+              'Queue has pending migrations. See https://docs.bullmq.io/guide/migrations',
+            );
           }
           this.checkedPendingMigrations = true;
           return client;
         });
       });
     }
+  }
+
+  async runMigrations() {
+    const client = await this.client;
+    await runMigrations(client, {
+      prefix: this.opts.prefix,
+      queueName: this.name,
+      packageVersion: this.packageVersion,
+    });
+    this.checkedPendingMigrations = true;
   }
 
   protected setScripts() {

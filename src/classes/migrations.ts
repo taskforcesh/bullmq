@@ -1,8 +1,10 @@
 import { RedisClient } from '../interfaces';
+import { isVersionLowerThan } from '../utils';
 
 export interface MigrationOptions {
   prefix: string;
   queueName: string;
+  packageVersion?: string;
 }
 
 export type MigrationFunction = (
@@ -14,13 +16,28 @@ export const checkPendingMigrations = async (
   client: RedisClient,
   opts: MigrationOptions,
 ) => {
-  const migrationsKey = getRedisKeyFromOpts(opts, 'migrations');
-  const existingMigrations = await client.zrange(migrationsKey, 0, -1);
-  return migrations.some(
-    migration =>
-      !existingMigrations.includes(`${migration.version}-${migration.name}`),
-  );
+  const metaKey = getRedisKeyFromOpts(opts, 'meta');
+  const currentVersion = await client.hget(metaKey, 'version');
+
+  // If version is not set yet, it means it's an enterily new user
+  if (!currentVersion) {
+    return false;
+  }
+
+  if (isVersionLowerThan(currentVersion, '6.0.0')) {
+    const migrationsKey = getRedisKeyFromOpts(opts, 'migrations');
+    const existingMigrations = await client.zrange(migrationsKey, 0, -1);
+    return migrations.some(
+      migration =>
+        !existingMigrations.includes(`${migration.version}-${migration.name}`),
+    );
+  }
+
+  return false;
 };
+
+const getCommandName = (commandName: string, packageVersion: string) =>
+  `${commandName}:${packageVersion}`;
 
 export const migrations: {
   name: string;
@@ -40,24 +57,22 @@ export const migrations: {
       ];
       const args = [getRedisKeyFromOpts(opts, '')];
 
-      await (<any>client).removeLegacyMarkers(keys.concat(args));
+      await (<any>client)[
+        getCommandName('removeLegacyMarkers', opts.packageVersion)
+      ](keys.concat(args));
     },
   },
   {
     name: 'migrate-paused-jobs',
     version: '6.0.0',
     migrate: async (client: RedisClient, opts: MigrationOptions) => {
-      let cursor = 0;
-      do {
-        const keys: (string | number)[] = [
-          getRedisKeyFromOpts(opts, 'paused'),
-          getRedisKeyFromOpts(opts, 'wait'),
-        ];
-        const args = [1000];
-        cursor = await (<any>client).migrateDeprecatedPausedKey(
-          keys.concat(args),
-        );
-      } while (cursor);
+      const keys: (string | number)[] = [
+        getRedisKeyFromOpts(opts, 'paused'),
+        getRedisKeyFromOpts(opts, 'wait'),
+      ];
+      await (<any>client)[
+        getCommandName('migrateDeprecatedPausedKey', opts.packageVersion)
+      ](keys);
     },
   },
 ];
@@ -81,6 +96,7 @@ export const runMigrations = async (
   opts: {
     prefix?: string;
     queueName: string;
+    packageVersion: string;
   },
 ) => {
   const prefix = opts.prefix || 'bull';
@@ -101,6 +117,7 @@ export const runMigrations = async (
       await migration.migrate(redisClient, {
         prefix,
         queueName: opts.queueName,
+        packageVersion: opts.packageVersion,
       });
       await redisClient.zadd(migrationsKey, Date.now(), migrationId);
     } catch (err) {

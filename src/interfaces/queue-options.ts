@@ -35,12 +35,6 @@ export interface QueueBaseOptions {
   skipVersionCheck?: boolean;
 
   /**
-   * Avoid migrations execution.
-   * @defaultValue true
-   */
-  skipMigrationsExecution?: boolean;
-
-  /**
    * Telemetry client
    */
   telemetry?: Telemetry;

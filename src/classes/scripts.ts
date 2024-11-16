@@ -34,7 +34,7 @@ import {
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
-import { array2obj, getParentKey, isRedisVersionLowerThan } from '../utils';
+import { array2obj, getParentKey, isVersionLowerThan } from '../utils';
 import { ChainableCommander } from 'ioredis';
 import { version as packageVersion } from '../version';
 export type JobData = [JobJsonRaw | number, string?];
@@ -83,7 +83,7 @@ export class Scripts {
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
     let result;
-    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
+    if (isVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
       result = await this.execCommand(client, 'isJobInList', [listKey, jobId]);
     } else {
       result = await client.lpos(listKey, jobId);
@@ -640,29 +640,6 @@ export class Scripts {
     return this.execCommand(client, 'drain', args);
   }
 
-  private removeLegacyMarkersArgs(): (string | number)[] {
-    const queueKeys = this.queue.keys;
-
-    const keys: string[] = [
-      queueKeys.wait,
-      queueKeys.paused,
-      queueKeys.meta,
-      queueKeys.completed,
-      queueKeys.failed,
-    ];
-
-    const args = [queueKeys['']];
-
-    return keys.concat(args);
-  }
-
-  async removeLegacyMarkers(): Promise<void> {
-    const client = await this.queue.client;
-    const args = this.removeLegacyMarkersArgs();
-
-    return (<any>client).removeLegacyMarkers(args);
-  }
-
   private removeChildDependencyArgs(
     jobId: string,
     parentKey: string,
@@ -849,7 +826,7 @@ export class Scripts {
       return this.queue.toKey(key);
     });
 
-    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
+    if (isVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
       return this.execCommand(client, 'getState', keys.concat([jobId]));
     }
     return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
@@ -1487,7 +1464,9 @@ export class Scripts {
     return (<any>client).migrateDeprecatedPausedKey(keys.concat(args));
   }
 
-  protected executeMigrationsArgs(currentMigrationExecution = 1): (string | number)[] {
+  protected executeMigrationsArgs(
+    currentMigrationExecution = 1,
+  ): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.meta,
       this.queue.keys.migrations,

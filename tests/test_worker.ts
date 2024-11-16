@@ -15,11 +15,7 @@ import {
 } from '../src/classes';
 import { KeepJobs, MinimalJob } from '../src/interfaces';
 import { JobsOptions } from '../src/types';
-import {
-  delay,
-  isRedisVersionLowerThan,
-  removeAllQueueData,
-} from '../src/utils';
+import { delay, isVersionLowerThan, removeAllQueueData } from '../src/utils';
 
 describe('workers', function () {
   const redisHost = process.env.REDIS_HOST || 'localhost';
@@ -825,7 +821,7 @@ describe('workers', function () {
       });
       await worker.waitUntilReady();
       const client = await worker.client;
-      if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+      if (isVersionLowerThan(worker.redisVersion, '7.0.8')) {
         await client.bzpopmin(`key`, 0.002);
       } else {
         await client.bzpopmin(`key`, 0.001);
@@ -939,7 +935,7 @@ describe('workers', function () {
           });
           await worker.waitUntilReady();
 
-          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+          if (isVersionLowerThan(worker.redisVersion, '7.0.8')) {
             expect(worker['getBlockTimeout'](0)).to.be.equal(0.002);
           } else {
             expect(worker['getBlockTimeout'](0)).to.be.equal(0.001);
@@ -975,7 +971,7 @@ describe('workers', function () {
           });
           await worker.waitUntilReady();
 
-          if (isRedisVersionLowerThan(worker.redisVersion, '7.0.8')) {
+          if (isVersionLowerThan(worker.redisVersion, '7.0.8')) {
             expect(
               worker['getBlockTimeout'](Date.now() + 100),
             ).to.be.greaterThan(0.002);
@@ -4319,7 +4315,7 @@ describe('workers', function () {
           },
         });
 
-      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+      if (isVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
         expect(unprocessed1!.length).to.be.greaterThanOrEqual(50);
         expect(nextCursor1).to.not.be.equal(0);
       } else {
@@ -4335,7 +4331,7 @@ describe('workers', function () {
           },
         });
 
-      if (isRedisVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
+      if (isVersionLowerThan(childrenWorker.redisVersion, '7.2.0')) {
         expect(unprocessed2!.length).to.be.lessThanOrEqual(15);
         expect(nextCursor2).to.be.equal(0);
       } else {

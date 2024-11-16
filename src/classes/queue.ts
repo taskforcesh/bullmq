@@ -14,7 +14,6 @@ import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
-import { version } from '../version';
 
 export interface ObliterateOpts {
   /**
@@ -173,7 +172,7 @@ export class Queue<
   get metaValues(): Record<string, string | number> {
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
-      version: `${this.libName}:${version}`,
+      version: `${this.libName}:${this.packageVersion}`,
     };
   }
 
@@ -889,17 +888,5 @@ export class Queue<
   async removeDeprecatedPriorityKey(): Promise<number> {
     const client = await this.client;
     return client.del(this.toKey('priority'));
-  }
-
-  /**
-   * Migrate deprecated paused key
-   *
-   * @param maxCount - Max quantity of jobs to be moved to wait per iteration.
-   */
-  async migrateDeprecatedPausedKey(maxCount = 1000): Promise<void> {
-    let cursor = 0;
-    do {
-      cursor = await this.scripts.migrateDeprecatedPausedKey(maxCount);
-    } while (cursor);
   }
 }
