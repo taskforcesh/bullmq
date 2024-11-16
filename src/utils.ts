@@ -341,7 +341,7 @@ export async function trace<T>(
       let messageContext;
       let dstPropagationMetadata: undefined | string;
 
-      if (spanKind === SpanKind.CONSUMER) {
+      if (spanKind === SpanKind.CONSUMER && parentContext) {
         messageContext = span.setSpanOnContext(parentContext);
       } else {
         messageContext = span.setSpanOnContext(currentContext);
