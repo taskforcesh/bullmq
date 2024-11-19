@@ -463,15 +463,6 @@ class Scripts:
         result = await self.commands["moveJobsToWait"](keys=keys, args=args)
         return result
 
-    async def migrateDeprecatedPausedKey(self, maxCount: int):
-        keys = self.getKeys(
-            ['paused', 'wait'])
-
-        args = [maxCount]
-
-        result = await self.commands["migrateDeprecatedPausedKey"](keys=keys, args=args)
-        return result
-
     async def promoteJobs(self, count: int):
         """
         Promote jobs in delayed state

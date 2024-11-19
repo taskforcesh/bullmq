@@ -1452,18 +1452,6 @@ export class Scripts {
     }
   }
 
-  async migrateDeprecatedPausedKey(maxCount: number): Promise<number> {
-    const client = await this.queue.client;
-
-    const keys: (string | number)[] = [
-      this.queue.keys.paused,
-      this.queue.keys.wait,
-    ];
-    const args = [maxCount];
-
-    return (<any>client).migrateDeprecatedPausedKey(keys.concat(args));
-  }
-
   protected executeMigrationsArgs(
     currentMigrationExecution = 1,
   ): (string | number)[] {
