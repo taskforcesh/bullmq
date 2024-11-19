@@ -14,7 +14,6 @@ import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
-import { version } from '../version';
 
 export interface ObliterateOpts {
   /**
@@ -225,7 +224,7 @@ export class Queue<
   get metaValues(): Record<string, string | number> {
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
-      version: `${this.libName}:${version}`,
+      version: `${this.libName}:${this.packageVersion}`,
     };
   }
 

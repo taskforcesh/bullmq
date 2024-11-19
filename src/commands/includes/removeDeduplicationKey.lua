@@ -9,4 +9,3 @@ local function removeDeduplicationKey(prefixKey, jobKey)
     rcall("DEL", deduplicationKey)
   end
 end
-  

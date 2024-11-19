@@ -1433,7 +1433,7 @@ describe('Job', function () {
         await queue.pause();
         await delayedJob.promote();
 
-        const pausedJobsCount = await queue.getJobCountByTypes('paused');
+        const pausedJobsCount = await queue.getWaitingCount();
         expect(pausedJobsCount).to.be.equal(2);
         await queue.resume();
 
@@ -1455,7 +1455,7 @@ describe('Job', function () {
         await queue.pause();
         await delayedJob.promote();
 
-        const pausedJobsCount = await queue.getJobCountByTypes('paused');
+        const pausedJobsCount = await queue.getWaitingCount();
         expect(pausedJobsCount).to.be.equal(1);
         await queue.resume();
 

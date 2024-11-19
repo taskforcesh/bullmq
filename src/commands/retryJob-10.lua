@@ -4,15 +4,14 @@
     Input:
       KEYS[1]  'active',
       KEYS[2]  'wait'
-      KEYS[3]  'paused'
-      KEYS[4]  job key
-      KEYS[5]  'meta'
-      KEYS[6]  events stream
-      KEYS[7]  delayed key
-      KEYS[8]  prioritized key
-      KEYS[9]  'pc' priority counter
+      KEYS[3]  job key
+      KEYS[4]  'meta'
+      KEYS[5]  events stream
+      KEYS[6]  delayed key
+      KEYS[7]  prioritized key
+      KEYS[8]  'pc' priority counter
+      KEYS[9] 'stalled'
       KEYS[10] 'marker'
-      KEYS[11] 'stalled'
 
       ARGV[1]  key prefix
       ARGV[2]  timestamp
@@ -35,20 +34,21 @@ local rcall = redis.call
 --- @include "includes/addJobInTargetList"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/getTargetQueueList"
 --- @include "includes/promoteDelayedJobs"
 --- @include "includes/removeLock"
 --- @include "includes/isQueuePausedOrMaxed"
 
-local target, isPausedOrMaxed = getTargetQueueList(KEYS[5], KEYS[1], KEYS[2], KEYS[3])
+local jobKey = KEYS[3]
+local metaKey = KEYS[4]
+local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[1])
 local markerKey = KEYS[10]
 
 -- Check if there are delayed jobs that we can move to wait.
 -- test example: when there are delayed jobs between retries
-promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[8], KEYS[6], ARGV[1], ARGV[2], KEYS[9], isPausedOrMaxed)
+promoteDelayedJobs(KEYS[6], markerKey, KEYS[2], KEYS[7], KEYS[5], ARGV[1], ARGV[2], KEYS[8], isPausedOrMaxed)
 
-if rcall("EXISTS", KEYS[4]) == 1 then
-  local errorCode = removeLock(KEYS[4], KEYS[11], ARGV[5], ARGV[4]) 
+if rcall("EXISTS", jobKey) == 1 then
+  local errorCode = removeLock(jobKey, KEYS[9], ARGV[5], ARGV[4]) 
   if errorCode < 0 then
     return errorCode
   end
@@ -56,24 +56,24 @@ if rcall("EXISTS", KEYS[4]) == 1 then
   local numRemovedElements = rcall("LREM", KEYS[1], -1, ARGV[4])
   if (numRemovedElements < 1) then return -3 end
 
-  local priority = tonumber(rcall("HGET", KEYS[4], "priority")) or 0
+  local priority = tonumber(rcall("HGET", jobKey, "priority")) or 0
 
   --need to re-evaluate after removing job from active
-  isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[5], KEYS[1])
+  isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[1])
 
   -- Standard or priority add
   if priority == 0 then
-    addJobInTargetList(target, markerKey, ARGV[3], isPausedOrMaxed, ARGV[4])
+    addJobInTargetList(KEYS[2], markerKey, ARGV[3], isPausedOrMaxed, ARGV[4])
   else
-    addJobWithPriority(markerKey, KEYS[8], priority, ARGV[4], KEYS[9], isPausedOrMaxed)
+    addJobWithPriority(markerKey, KEYS[7], priority, ARGV[4], KEYS[8], isPausedOrMaxed)
   end
 
-  rcall("HINCRBY", KEYS[4], "atm", 1)
+  rcall("HINCRBY", jobKey, "atm", 1)
 
-  local maxEvents = getOrSetMaxEvents(KEYS[5])
+  local maxEvents = getOrSetMaxEvents(metaKey)
 
   -- Emit waiting event
-  rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
+  rcall("XADD", KEYS[5], "MAXLEN", "~", maxEvents, "*", "event", "waiting",
     "jobId", ARGV[4], "prev", "failed")
 
   return 0

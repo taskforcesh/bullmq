@@ -15,14 +15,13 @@
       KEYS[6] rate limiter key
       KEYS[7] delayed key
 
-      KEYS[8] paused key
-      KEYS[9] meta key
-      KEYS[10] pc priority counter
+      KEYS[8] meta key
+      KEYS[9] pc priority counter
 
-      KEYS[11] completed/failed key
-      KEYS[12] jobId key
-      KEYS[13] metrics key
-      KEYS[14] marker key
+      KEYS[10] completed/failed key
+      KEYS[11] jobId key
+      KEYS[12] metrics key
+      KEYS[13] marker key
 
       ARGV[1]  jobId
       ARGV[2]  timestamp
@@ -56,7 +55,7 @@ local rcall = redis.call
 --- @include "includes/collectMetrics"
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/moveParentIfNeeded"
 --- @include "includes/prepareJobForProcessing"
@@ -70,7 +69,7 @@ local rcall = redis.call
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
 
-local jobIdKey = KEYS[12]
+local jobIdKey = KEYS[11]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local opts = cmsgpack.unpack(ARGV[8])
 
@@ -101,7 +100,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     if (numRemovedElements < 1) then return -3 end
 
     local eventStreamKey = KEYS[4]
-    local metaKey = KEYS[9]
+    local metaKey = KEYS[8]
     -- Trim events before emiting them to avoid trimming events emitted in this script
     trimEvents(metaKey, eventStreamKey)
 
@@ -137,7 +136,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     -- Remove job?
     if maxCount ~= 0 then
-        local targetSet = KEYS[11]
+        local targetSet = KEYS[10]
         -- Add to complete/failed set
         rcall("ZADD", targetSet, timestamp, jobId)
         rcall("HMSET", jobIdKey, ARGV[3], ARGV[4], "finishedOn", timestamp)
@@ -173,19 +172,19 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
     -- Collect metrics
     if maxMetricsSize ~= "" then
-        collectMetrics(KEYS[13], KEYS[13] .. ':data', maxMetricsSize, timestamp)
+        collectMetrics(KEYS[12], KEYS[12] .. ':data', maxMetricsSize, timestamp)
     end
 
     -- Try to get next job to avoid an extra roundtrip if the queue is not closing,
     -- and not rate limited.
     if (ARGV[6] == "1") then
 
-        local target, isPausedOrMaxed = getTargetQueueList(metaKey, KEYS[2], KEYS[1], KEYS[8])
+        local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[2])
 
-        local markerKey = KEYS[14]
+        local markerKey = KEYS[13]
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], markerKey, target, KEYS[3], eventStreamKey, prefix,
-                           timestamp, KEYS[10], isPausedOrMaxed)
+        promoteDelayedJobs(KEYS[7], markerKey, KEYS[1], KEYS[3], eventStreamKey, prefix,
+                           timestamp, KEYS[9], isPausedOrMaxed)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
         -- Check if we are rate limited first.
@@ -202,7 +201,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
                                             timestamp, maxJobs, markerKey, opts)
         else
-            jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[10])
+            jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[9])
             if jobId then
                 return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
                                                timestamp, maxJobs, markerKey,

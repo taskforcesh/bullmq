@@ -28,6 +28,7 @@ describe('Rate Limiter', function () {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
+    await queue.waitUntilReady();
     await queueEvents.waitUntilReady();
   });
 
@@ -137,7 +138,7 @@ describe('Rate Limiter', function () {
   });
 
   describe('when queue is paused between rate limit', () => {
-    it('should add active jobs to paused', async function () {
+    it('should add active jobs to wait', async function () {
       this.timeout(20000);
 
       const numJobs = 4;
@@ -184,10 +185,9 @@ describe('Rate Limiter', function () {
 
       await delay(500);
 
-      const counts = await queue.getJobCounts('paused', 'completed', 'wait');
-      expect(counts).to.have.property('paused', numJobs - 1);
+      const counts = await queue.getJobCounts('completed', 'wait');
       expect(counts).to.have.property('completed', 1);
-      expect(counts).to.have.property('wait', 0);
+      expect(counts).to.have.property('wait', numJobs - 1);
 
       await worker1.close();
       await worker2.close();
@@ -692,6 +692,8 @@ describe('Rate Limiter', function () {
           },
         );
 
+        await worker.waitUntilReady();
+
         const result = new Promise<void>((resolve, reject) => {
           queueEvents.on(
             'completed',
@@ -797,7 +799,7 @@ describe('Rate Limiter', function () {
     });
 
     describe('when queue is paused', () => {
-      it('moves job to paused', async function () {
+      it('moves job to wait', async function () {
         const dynamicLimit = 250;
         const duration = 100;
 
@@ -839,7 +841,7 @@ describe('Rate Limiter', function () {
 
         await result;
 
-        const pausedCount = await queue.getJobCountByTypes('paused');
+        const pausedCount = await queue.getJobCountByTypes('wait');
         expect(pausedCount).to.equal(1);
 
         await worker.close();

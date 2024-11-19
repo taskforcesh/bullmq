@@ -156,6 +156,7 @@ describe('Concurrency', () => {
       });
       const queueEvents = new QueueEvents(queueName, { connection, prefix });
       await queueEvents.waitUntilReady();
+      await queue.waitUntilReady();
       await queue.setGlobalConcurrency(1);
 
       const worker = new Worker(
@@ -239,6 +240,7 @@ describe('Concurrency', () => {
           prefix,
         });
         const queueEvents = new QueueEvents(queueName, { connection, prefix });
+        await queue.waitUntilReady();
         await queueEvents.waitUntilReady();
         await queue.setGlobalConcurrency(1);
 

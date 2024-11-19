@@ -200,7 +200,7 @@ export const childSend = (
   msg: ChildMessage,
 ): Promise<void> => asyncSend<NodeJS.Process>(proc, msg);
 
-export const isRedisVersionLowerThan = (
+export const isVersionLowerThan = (
   currentVersion: string,
   minimumVersion: string,
 ): boolean => {
