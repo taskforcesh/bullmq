@@ -234,6 +234,56 @@ describe('Telemetry', () => {
     });
   });
 
+  describe('Queue.upsertJobScheduler', async () => {
+    it('should correctly interact with telemetry when adding a job scheduler', async () => {
+      const jobSchedulerId = 'testJobScheduler';
+      const data = { foo: 'bar' };
+
+      await queue.upsertJobScheduler(
+        jobSchedulerId,
+        { every: 1000, endDate: Date.now() + 1000 },
+        { name: 'repeatable-job', data },
+      );
+
+      const activeContext = telemetryClient.contextManager.active();
+      const span = activeContext.getSpan?.() as MockSpan;
+      expect(span).to.be.an.instanceOf(MockSpan);
+      expect(span.name).to.equal(`add ${queueName}.repeatable-job`);
+      expect(span.options?.kind).to.equal(SpanKind.PRODUCER);
+      expect(span.attributes[TelemetryAttributes.JobSchedulerId]).to.equal(
+        jobSchedulerId,
+      );
+      expect(span.attributes[TelemetryAttributes.JobId]).to.be.a('string');
+      expect(span.attributes[TelemetryAttributes.JobId]).to.include(
+        `repeat:${jobSchedulerId}:`,
+      );
+    });
+
+    it('should correctly handle errors and record them in telemetry for upsertJobScheduler', async () => {
+      const recordExceptionSpy = sinon.spy(
+        MockSpan.prototype,
+        'recordException',
+      );
+
+      try {
+        await queue.upsertJobScheduler(
+          'testJobScheduler',
+          { endDate: 0 },
+          { data: { foo: 'bar' } },
+        );
+      } catch (e) {
+        assert(recordExceptionSpy.calledOnce);
+        const recordedError = recordExceptionSpy.firstCall.args[0];
+        assert.equal(
+          recordedError.message,
+          'End date must be greater than current timestamp',
+        );
+      } finally {
+        recordExceptionSpy.restore();
+      }
+    });
+  });
+
   describe('Worker.processJob', async () => {
     it('should correctly interact with telemetry when processing a job', async () => {
       const job = await queue.add('testJob', { foo: 'bar' });

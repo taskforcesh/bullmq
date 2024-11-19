@@ -1809,6 +1809,12 @@ describe('Job Scheduler', function () {
     );
   });
 
+  it('should throw an error when not specifying .pattern or .every', async function () {
+    await expect(queue.upsertJobScheduler('repeat', {})).to.be.rejectedWith(
+      'Either .pattern or .every options must be defined for this repeatable job',
+    );
+  });
+
   it('should throw an error when using .immediately and .startDate simultaneously', async function () {
     await expect(
       queue.upsertJobScheduler('repeat', {
