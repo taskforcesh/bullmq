@@ -642,6 +642,15 @@ export class Queue<
   }
 
   /**
+   * Removes rate limit key.
+   */
+  async removeRateLimitKey(): Promise<number> {
+    const client = await this.client;
+
+    return client.del(this.keys.limiter);
+  }
+
+  /**
    * Removes a repeatable job by its key. Note that the key is the one used
    * to store the repeatable job metadata and not one of the job iterations
    * themselves. You can use "getRepeatableJobs" in order to get the keys.
