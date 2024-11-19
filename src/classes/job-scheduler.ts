@@ -4,6 +4,7 @@ import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
+import { SpanKind, TelemetryAttributes } from '../enums';
 
 export interface JobSchedulerJson {
   key: string; // key is actually the job scheduler id
@@ -24,6 +25,7 @@ export class JobScheduler extends QueueBase {
     opts: RepeatBaseOptions,
     Connection?: typeof RedisConnection,
   ) {
+    console.log('JobScheduler constructor', name, opts);
     super(name, opts, Connection);
 
     this.repeatStrategy =
@@ -43,6 +45,12 @@ export class JobScheduler extends QueueBase {
     if (pattern && every) {
       throw new Error(
         'Both .pattern and .every options are defined for this repeatable job',
+      );
+    }
+
+    if (!pattern && !every) {
+      throw new Error(
+        'Either .pattern or .every options must be defined for this repeatable job',
       );
     }
 
@@ -77,7 +85,7 @@ export class JobScheduler extends QueueBase {
       now = startMillis > now ? startMillis : now;
     }
 
-    let nextMillis;
+    let nextMillis: number;
     if (every) {
       nextMillis = prevMillis + every;
 
@@ -92,7 +100,7 @@ export class JobScheduler extends QueueBase {
     const multi = (await this.client).multi();
     if (nextMillis) {
       if (override) {
-        await this.scripts.addJobScheduler(
+        this.scripts.addJobScheduler(
           (<unknown>multi) as RedisClient,
           jobSchedulerId,
           nextMillis,
@@ -105,37 +113,54 @@ export class JobScheduler extends QueueBase {
           },
         );
       } else {
-        await this.scripts.updateJobSchedulerNextMillis(
+        this.scripts.updateJobSchedulerNextMillis(
           (<unknown>multi) as RedisClient,
           jobSchedulerId,
           nextMillis,
         );
       }
 
-      const job = this.createNextJob<T, R, N>(
-        (<unknown>multi) as RedisClient,
-        jobName,
-        nextMillis,
-        jobSchedulerId,
-        { ...opts, repeat: filteredRepeatOpts },
-        jobData,
-        iterationCount,
+      return this.trace<Job<T, R, N>>(
+        SpanKind.PRODUCER,
+        'add',
+        `${this.name}.${jobName}`,
+        async (span, srcPropagationMedatada) => {
+          const job = this.createNextJob<T, R, N>(
+            (<unknown>multi) as RedisClient,
+            jobName,
+            nextMillis,
+            jobSchedulerId,
+            {
+              ...opts,
+              repeat: filteredRepeatOpts,
+              telemetryMetadata: srcPropagationMedatada,
+            },
+            jobData,
+            iterationCount,
+          );
+
+          const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
+
+          // Check if there are any errors
+          const erroredResult = results.find(result => result[0]);
+          if (erroredResult) {
+            throw new Error(
+              `Error upserting job scheduler ${jobSchedulerId} - ${erroredResult[0]}`,
+            );
+          }
+
+          // Get last result with the job id
+          const lastResult = results.pop();
+          job.id = lastResult[1] as string;
+
+          span?.setAttributes({
+            [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+            [TelemetryAttributes.JobId]: job.id,
+          });
+
+          return job;
+        },
       );
-
-      const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
-
-      // Check if there are any errors
-      const erroredResult = results.find(result => result[0]);
-      if (erroredResult) {
-        throw new Error(
-          `Error upserting job scheduler ${jobSchedulerId} - ${erroredResult[0]}`,
-        );
-      }
-
-      // Get last result with the job id
-      const lastResult = results.pop();
-      job.id = lastResult[1] as string;
-      return job;
     }
   }
 
