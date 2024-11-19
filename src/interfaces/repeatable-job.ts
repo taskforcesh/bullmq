@@ -1,3 +1,4 @@
+// TODO: remove this type in favor of JobSchedulerJson in next breaking change
 export type RepeatableJob = {
   key: string;
   name: string;
@@ -6,5 +7,5 @@ export type RepeatableJob = {
   tz: string | null;
   pattern: string | null;
   every?: string | null;
-  next: number;
+  next?: number;
 };

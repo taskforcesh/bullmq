@@ -12,6 +12,7 @@ import {
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';
+import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
 
 const overrideMessage = [
@@ -51,6 +52,7 @@ export class RedisConnection extends EventEmitter {
   private readonly initializing: Promise<RedisClient>;
 
   private version: string;
+  protected packageVersion = packageVersion;
   private skipVersionCheck: boolean;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
@@ -63,7 +65,6 @@ export class RedisConnection extends EventEmitter {
     skipVersionCheck = false,
   ) {
     super();
-
     if (!isRedisInstance(opts)) {
       this.checkBlockingOptions(overrideMessage, opts);
 
@@ -195,13 +196,17 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(providedScripts?: Record<string, RawCommand>): void {
+  protected loadCommands(
+    packageVersion: string,
+    providedScripts?: Record<string, RawCommand>,
+  ): void {
     const finalScripts =
       providedScripts || (scripts as Record<string, RawCommand>);
     for (const property in finalScripts as Record<string, RawCommand>) {
       // Only define the command if not already defined
-      if (!(<any>this._client)[finalScripts[property].name]) {
-        (<any>this._client).defineCommand(finalScripts[property].name, {
+      const commandName = `${finalScripts[property].name}:${packageVersion}`;
+      if (!(<any>this._client)[commandName]) {
+        (<any>this._client).defineCommand(commandName, {
           numberOfKeys: finalScripts[property].keys,
           lua: finalScripts[property].content,
         });
@@ -225,7 +230,7 @@ export class RedisConnection extends EventEmitter {
 
     await RedisConnection.waitUntilReady(this._client);
 
-    this.loadCommands();
+    this.loadCommands(this.packageVersion);
 
     if (this._client['status'] !== 'end') {
       this.version = await this.getRedisVersion();

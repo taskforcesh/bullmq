@@ -23,6 +23,9 @@
     <a href="https://github.com/semantic-release/semantic-release">
       <img src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg"/>
     </a>
+    <a href="https://gurubase.io/g/bullmq">
+      <img src="https://img.shields.io/badge/Gurubase-Ask%20BullMQ%20Guru-006BFF"/>
+    </a>
   </p>
   <p>
     <em>Follow <a href="https://twitter.com/manast">@manast</a> for *important* Bull/BullMQ/BullMQ-Pro news and updates!</em>
@@ -217,27 +220,27 @@ This is just scratching the surface, check all the features and more in the offi
 
 Since there are a few job queue solutions, here is a table comparing them:
 
-| Feature                   |   [BullMQ-Pro](https://bullmq.io/#bullmq-pro)    |     [BullMQ](https://bullmq.io)      |      Bull       |  Kue  | Bee      | Agenda |
-| :------------------------ | :-------------: | :-------------: | :-------------: | :---: | -------- | ------ |
-| Backend                   |      redis      |      redis      |      redis      | redis | redis    | mongo  |
-| Observables               |        ✓        |                 |                 |       |          |        |
-| Group Rate Limit          |        ✓        |                 |                 |       |          |        |
-| Group Support             |        ✓        |                 |                 |       |          |        |
-| Batches Support           |        ✓        |                 |                 |       |          |        |
-| Parent/Child Dependencies |        ✓        |        ✓        |                 |       |          |        |
-| Debouncing               |        ✓        |        ✓        |        ✓        |       |          |        |
-| Priorities                |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Concurrency               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
-| Delayed jobs              |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Global events             |        ✓        |        ✓        |        ✓        |   ✓   |          |        |
-| Rate Limiter              |        ✓        |        ✓        |        ✓        |       |          |        |
-| Pause/Resume              |        ✓        |        ✓        |        ✓        |   ✓   |          |        |
-| Sandboxed worker          |        ✓        |        ✓        |        ✓        |       |          |        |
-| Repeatable jobs           |        ✓        |        ✓        |        ✓        |       |          | ✓      |
-| Atomic ops                |        ✓        |        ✓        |        ✓        |       | ✓        |        |
-| Persistence               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
-| UI                        |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Optimized for             | Jobs / Messages | Jobs / Messages | Jobs / Messages | Jobs  | Messages | Jobs   |
+| Feature                   | [BullMQ-Pro](https://bullmq.io/#bullmq-pro) | [BullMQ](https://bullmq.io) |      Bull       |  Kue  | Bee      | Agenda |
+| :------------------------ | :-----------------------------------------: | :-------------------------: | :-------------: | :---: | -------- | ------ |
+| Backend                   |                    redis                    |            redis            |      redis      | redis | redis    | mongo  |
+| Observables               |                      ✓                      |                             |                 |       |          |        |
+| Group Rate Limit          |                      ✓                      |                             |                 |       |          |        |
+| Group Support             |                      ✓                      |                             |                 |       |          |        |
+| Batches Support           |                      ✓                      |                             |                 |       |          |        |
+| Parent/Child Dependencies |                      ✓                      |              ✓              |                 |       |          |        |
+| Debouncing                |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Priorities                |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Concurrency               |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
+| Delayed jobs              |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Global events             |                      ✓                      |              ✓              |        ✓        |   ✓   |          |        |
+| Rate Limiter              |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Pause/Resume              |                      ✓                      |              ✓              |        ✓        |   ✓   |          |        |
+| Sandboxed worker          |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Repeatable jobs           |                      ✓                      |              ✓              |        ✓        |       |          | ✓      |
+| Atomic ops                |                      ✓                      |              ✓              |        ✓        |       | ✓        |        |
+| Persistence               |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
+| UI                        |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Optimized for             |               Jobs / Messages               |       Jobs / Messages       | Jobs / Messages | Jobs  | Messages | Jobs   |
 
 ## Contributing
 

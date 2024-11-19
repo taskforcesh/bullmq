@@ -149,11 +149,10 @@ describe('connection', () => {
 
   describe('non-blocking', () => {
     it('should not override any redis options', async () => {
-      connection = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
+      const connection2 = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
 
-      const queue = new QueueBase(queueName, {
-        connection,
-        blockingConnection: false,
+      const queue = new Queue(queueName, {
+        connection: connection2,
       });
 
       const options = <RedisOptions>(await queue.client).options;
@@ -161,6 +160,7 @@ describe('connection', () => {
       expect(options.maxRetriesPerRequest).to.be.equal(20);
 
       await queue.close();
+      await connection2.quit();
     });
   });
 

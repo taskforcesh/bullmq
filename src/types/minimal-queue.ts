@@ -14,4 +14,5 @@ export type MinimalQueue = Pick<
   | 'emit'
   | 'on'
   | 'redisVersion'
+  | 'trace'
 >;

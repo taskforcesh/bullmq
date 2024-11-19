@@ -13,7 +13,7 @@ export interface JobSchedulerJson {
   tz: string | null;
   pattern: string | null;
   every?: string | null;
-  next: number;
+  next?: number;
 }
 
 export class JobScheduler extends QueueBase {
@@ -27,12 +27,12 @@ export class JobScheduler extends QueueBase {
     super(name, opts, Connection);
 
     this.repeatStrategy =
-      (opts.settings && opts.settings.repeatStrategy) || getNextMillis;
+      (opts.settings && opts.settings.repeatStrategy) || defaultRepeatStrategy;
   }
 
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
-    repeatOpts: Omit<RepeatOptions, 'key'>,
+    repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis' | 'offset'>,
     jobName: N,
     jobData: T,
     opts: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>,
@@ -69,76 +69,100 @@ export class JobScheduler extends QueueBase {
     }
 
     const prevMillis = opts.prevMillis || 0;
-    now = prevMillis < now ? now : prevMillis;
 
     // Check if we have a start date for the repeatable job
-    const { startDate } = repeatOpts;
+    const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
     if (startDate) {
       const startMillis = new Date(startDate).getTime();
       now = startMillis > now ? startMillis : now;
     }
 
-    const nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
+    let nextMillis;
+    if (every) {
+      nextMillis = prevMillis + every;
 
-    const hasImmediately = Boolean(
-      (every || pattern) && repeatOpts.immediately,
-    );
-    const offset = hasImmediately && every ? now - nextMillis : undefined;
+      if (nextMillis < now) {
+        nextMillis = now;
+      }
+    } else if (pattern) {
+      now = prevMillis < now ? now : prevMillis;
+      nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
+    }
+
+    const multi = (await this.client).multi();
     if (nextMillis) {
       if (override) {
-        await this.scripts.addJobScheduler(jobSchedulerId, nextMillis, {
-          name: jobName,
-          endDate: endDate ? new Date(endDate).getTime() : undefined,
-          tz: repeatOpts.tz,
-          pattern,
-          every,
-        });
+        await this.scripts.addJobScheduler(
+          (<unknown>multi) as RedisClient,
+          jobSchedulerId,
+          nextMillis,
+          {
+            name: jobName,
+            endDate: endDate ? new Date(endDate).getTime() : undefined,
+            tz: repeatOpts.tz,
+            pattern,
+            every,
+          },
+        );
       } else {
         await this.scripts.updateJobSchedulerNextMillis(
+          (<unknown>multi) as RedisClient,
           jobSchedulerId,
           nextMillis,
         );
       }
 
-      const { immediately, ...filteredRepeatOpts } = repeatOpts;
-
-      return this.createNextJob<T, R, N>(
+      const job = this.createNextJob<T, R, N>(
+        (<unknown>multi) as RedisClient,
         jobName,
         nextMillis,
         jobSchedulerId,
-        { ...opts, repeat: { offset, ...filteredRepeatOpts } },
+        { ...opts, repeat: filteredRepeatOpts },
         jobData,
         iterationCount,
-        hasImmediately,
       );
+
+      const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
+
+      // Check if there are any errors
+      const erroredResult = results.find(result => result[0]);
+      if (erroredResult) {
+        throw new Error(
+          `Error upserting job scheduler ${jobSchedulerId} - ${erroredResult[0]}`,
+        );
+      }
+
+      // Get last result with the job id
+      const lastResult = results.pop();
+      job.id = lastResult[1] as string;
+      return job;
     }
   }
 
-  private async createNextJob<T = any, R = any, N extends string = string>(
+  private createNextJob<T = any, R = any, N extends string = string>(
+    client: RedisClient,
     name: N,
     nextMillis: number,
     jobSchedulerId: string,
     opts: JobsOptions,
     data: T,
     currentCount: number,
-    hasImmediately: boolean,
   ) {
     //
     // Generate unique job id for this iteration.
     //
     const jobId = this.getSchedulerNextJobId({
-      jobSchedulerId: jobSchedulerId,
+      jobSchedulerId,
       nextMillis,
     });
 
     const now = Date.now();
-    const delay =
-      nextMillis + (opts.repeat.offset ? opts.repeat.offset : 0) - now;
+    const delay = nextMillis - now;
 
     const mergedOpts = {
       ...opts,
       jobId,
-      delay: delay < 0 || hasImmediately ? 0 : delay,
+      delay: delay < 0 ? 0 : delay,
       timestamp: now,
       prevMillis: nextMillis,
       repeatJobKey: jobSchedulerId,
@@ -146,7 +170,10 @@ export class JobScheduler extends QueueBase {
 
     mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
-    return this.Job.create<T, R, N>(this, name, data, mergedOpts);
+    const job = new Job<T, R, N>(this, name, data, mergedOpts, jobId);
+    job.addJob(client);
+
+    return job;
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
@@ -190,6 +217,22 @@ export class JobScheduler extends QueueBase {
     };
   }
 
+  async getJobScheduler(id: string): Promise<JobSchedulerJson> {
+    const client = await this.client;
+    const jobData = await client.hgetall(this.toKey('repeat:' + id));
+
+    if (jobData) {
+      return {
+        key: id,
+        name: jobData.name,
+        endDate: parseInt(jobData.endDate) || null,
+        tz: jobData.tz || null,
+        pattern: jobData.pattern || null,
+        every: jobData.every || null,
+      };
+    }
+  }
+
   async getJobSchedulers(
     start = 0,
     end = -1,
@@ -230,15 +273,11 @@ export class JobScheduler extends QueueBase {
   }
 }
 
-export const getNextMillis = (
+export const defaultRepeatStrategy = (
   millis: number,
   opts: RepeatOptions,
 ): number | undefined => {
-  const { every, pattern } = opts;
-
-  if (every) {
-    return Math.floor(millis / every) * every + (opts.immediately ? 0 : every);
-  }
+  const { pattern } = opts;
 
   const currentDate = new Date(millis);
   const interval = parseExpression(pattern, {
