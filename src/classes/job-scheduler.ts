@@ -25,7 +25,6 @@ export class JobScheduler extends QueueBase {
     opts: RepeatBaseOptions,
     Connection?: typeof RedisConnection,
   ) {
-    console.log('JobScheduler constructor', name, opts);
     super(name, opts, Connection);
 
     this.repeatStrategy =
