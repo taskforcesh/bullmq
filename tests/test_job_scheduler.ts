@@ -1827,6 +1827,20 @@ describe('Job Scheduler', function () {
     );
   });
 
+  it("should return a valid job with the job's options and data passed as the job template", async function () {
+    const repeatOpts = {
+      every: 1000,
+    };
+
+    const job = await queue.upsertJobScheduler('test', repeatOpts, {
+      data: { foo: 'bar' },
+    });
+
+    expect(job).to.be.ok;
+    expect(job!.data.foo).to.be.eql('bar');
+    expect(job!.opts.repeat!.every).to.be.eql(1000);
+  });
+
   it('should emit a waiting event when adding a repeatable job to the waiting list', async function () {
     const date = new Date('2017-02-07 9:24:00');
     this.clock.setSystemTime(date);
