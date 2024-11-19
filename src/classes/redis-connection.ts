@@ -10,7 +10,7 @@ import {
   isNotConnectionError,
   isRedisCluster,
   isRedisInstance,
-  isRedisVersionLowerThan,
+  isVersionLowerThan,
 } from '../utils';
 import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
@@ -235,9 +235,7 @@ export class RedisConnection extends EventEmitter {
     if (this._client['status'] !== 'end') {
       this.version = await this.getRedisVersion();
       if (this.skipVersionCheck !== true && !this.closing) {
-        if (
-          isRedisVersionLowerThan(this.version, RedisConnection.minimumVersion)
-        ) {
+        if (isVersionLowerThan(this.version, RedisConnection.minimumVersion)) {
           throw new Error(
             `Redis version needs to be greater or equal than ${RedisConnection.minimumVersion} ` +
               `Current: ${this.version}`,
@@ -245,7 +243,7 @@ export class RedisConnection extends EventEmitter {
         }
 
         if (
-          isRedisVersionLowerThan(
+          isVersionLowerThan(
             this.version,
             RedisConnection.recommendedMinimumVersion,
           )
@@ -258,8 +256,8 @@ export class RedisConnection extends EventEmitter {
       }
 
       this.capabilities = {
-        canDoubleTimeout: !isRedisVersionLowerThan(this.version, '6.0.0'),
-        canBlockFor1Ms: !isRedisVersionLowerThan(this.version, '7.0.8'),
+        canDoubleTimeout: !isVersionLowerThan(this.version, '6.0.0'),
+        canBlockFor1Ms: !isVersionLowerThan(this.version, '7.0.8'),
       };
 
       this.status = 'ready';

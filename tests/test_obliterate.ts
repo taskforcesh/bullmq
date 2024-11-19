@@ -74,6 +74,7 @@ describe('Obliterate', function () {
     await queue.obliterate();
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
+
     expect(keys.length).to.be.eql(0);
 
     await worker.close();
@@ -375,6 +376,7 @@ describe('Obliterate', function () {
     await queue.obliterate({ force: true });
     const client = await queue.client;
     const keys = await client.keys(`${prefix}:${queue.name}:*`);
+    // only migration key should be kept
     expect(keys.length).to.be.eql(0);
 
     await worker.close();

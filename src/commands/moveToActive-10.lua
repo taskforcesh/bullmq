@@ -18,12 +18,11 @@
     KEYS[7] delayed key
 
     -- Delayed jobs
-    KEYS[8] paused key
-    KEYS[9] meta key
-    KEYS[10] pc priority counter
+    KEYS[8]  meta key
+    KEYS[9]  pc priority counter
 
     -- Marker
-    KEYS[11] marker key
+    KEYS[10] marker key
 
     -- Arguments
     ARGV[1] key prefix
@@ -45,17 +44,17 @@ local opts = cmsgpack.unpack(ARGV[3])
 -- Includes
 --- @include "includes/getNextDelayedTimestamp"
 --- @include "includes/getRateLimitTTL"
---- @include "includes/getTargetQueueList"
+--- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveJobFromPriorityToActive"
 --- @include "includes/prepareJobForProcessing"
 --- @include "includes/promoteDelayedJobs"
 
-local target, isPausedOrMaxed = getTargetQueueList(KEYS[9], activeKey, waitKey, KEYS[8])
+local isPausedOrMaxed = isQueuePausedOrMaxed(KEYS[8], activeKey)
 
 -- Check if there are delayed jobs that we can move to wait.
-local markerKey = KEYS[11]
-promoteDelayedJobs(delayedKey, markerKey, target, KEYS[3], eventStreamKey, ARGV[1],
-                   ARGV[2], KEYS[10], isPausedOrMaxed)
+local markerKey = KEYS[10]
+promoteDelayedJobs(delayedKey, markerKey, KEYS[1], KEYS[3], eventStreamKey, ARGV[1],
+                   ARGV[2], KEYS[9], isPausedOrMaxed)
 
 local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
 local expireTime = getRateLimitTTL(maxJobs, rateLimiterKey)
@@ -69,17 +68,11 @@ if isPausedOrMaxed then return {0, 0, 0, 0} end
 -- no job ID, try non-blocking move from wait to active
 local jobId = rcall("RPOPLPUSH", waitKey, activeKey)
 
--- Markers in waitlist DEPRECATED in v5: Will be completely removed in v6.
-if jobId and string.sub(jobId, 1, 2) == "0:" then
-    rcall("LREM", activeKey, 1, jobId)
-    jobId = rcall("RPOPLPUSH", waitKey, activeKey)
-end
-
 if jobId then
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                    maxJobs, markerKey, opts)
 else
-    jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[10])
+    jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[9])
     if jobId then
         return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
                                        maxJobs, markerKey, opts)

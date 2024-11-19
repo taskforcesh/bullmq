@@ -12,7 +12,9 @@ import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
-import { TelemetryAttributes, SpanKind } from '../enums';
+import { checkPendingMigrations, runMigrations } from './migrations';
+import { SpanKind } from '../enums';
+import { version as packageVersion } from '../version';
 
 /**
  * @class QueueBase
@@ -23,6 +25,8 @@ import { TelemetryAttributes, SpanKind } from '../enums';
  *
  */
 export class QueueBase extends EventEmitter implements MinimalQueue {
+  public readonly qualifiedName: string;
+
   toKey: (type: string) => string;
   keys: KeysMap;
   closing: Promise<void> | undefined;
@@ -31,7 +35,9 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   protected hasBlockingConnection: boolean = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
-  public readonly qualifiedName: string;
+
+  protected checkedPendingMigrations: boolean = false;
+  protected packageVersion = packageVersion;
 
   /**
    *
@@ -85,9 +91,37 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   /**
    * Returns a promise that resolves to a redis client. Normally used only by subclasses.
+   * This method will also check if there are pending migrations, if so it will throw an error.
    */
   get client(): Promise<RedisClient> {
-    return this.connection.client;
+    if (this.checkedPendingMigrations) {
+      return this.connection.client;
+    } else {
+      return this.connection.client.then(client => {
+        return checkPendingMigrations(client, {
+          prefix: this.opts.prefix,
+          queueName: this.name,
+        }).then(hasPendingMigrations => {
+          if (hasPendingMigrations) {
+            throw new Error(
+              'Queue has pending migrations. See https://docs.bullmq.io/guide/migrations',
+            );
+          }
+          this.checkedPendingMigrations = true;
+          return client;
+        });
+      });
+    }
+  }
+
+  async runMigrations() {
+    const client = await this.client;
+    await runMigrations(client, {
+      prefix: this.opts.prefix,
+      queueName: this.name,
+      packageVersion: this.packageVersion,
+    });
+    this.checkedPendingMigrations = true;
   }
 
   protected setScripts() {
