@@ -1,5 +1,11 @@
 import { default as IORedis } from 'ioredis';
-import { FlowProducer, QueueEvents, Queue, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  QueueEvents,
+  Queue,
+  Worker,
+  RateLimitError,
+} from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 import { beforeEach, describe, it, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
@@ -157,8 +163,8 @@ describe('Concurrency', () => {
         queueName,
         async job => {
           if (job.attemptsStarted === 1) {
-            await worker.rateLimit(dynamicLimit);
-            throw Worker.RateLimitError();
+            await queue.rateLimit(dynamicLimit);
+            throw new RateLimitError();
           }
         },
         {
@@ -242,8 +248,8 @@ describe('Concurrency', () => {
           queueName,
           async job => {
             if (job.attemptsStarted === 1) {
-              await worker.rateLimit(dynamicLimit);
-              throw Worker.RateLimitError();
+              await queue.rateLimit(dynamicLimit);
+              throw new RateLimitError();
             }
           },
           {

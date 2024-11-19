@@ -70,12 +70,12 @@ local jobId = rcall("RPOPLPUSH", waitKey, activeKey)
 
 if jobId then
     return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
-                                   maxJobs, opts)
+                                   maxJobs, markerKey, opts)
 else
     jobId = moveJobFromPriorityToActive(KEYS[3], activeKey, KEYS[9])
     if jobId then
         return prepareJobForProcessing(ARGV[1], rateLimiterKey, eventStreamKey, jobId, ARGV[2],
-                                       maxJobs, opts)
+                                       maxJobs, markerKey, opts)
     end
 end
 

@@ -181,8 +181,9 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         local isPausedOrMaxed = isQueuePausedOrMaxed(metaKey, KEYS[2])
 
+        local markerKey = KEYS[13]
         -- Check if there are delayed jobs that can be promoted
-        promoteDelayedJobs(KEYS[7], KEYS[13], KEYS[1], KEYS[3], eventStreamKey, prefix,
+        promoteDelayedJobs(KEYS[7], markerKey, KEYS[1], KEYS[3], eventStreamKey, prefix,
                            timestamp, KEYS[9], isPausedOrMaxed)
 
         local maxJobs = tonumber(opts['limiter'] and opts['limiter']['max'])
@@ -198,12 +199,12 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
 
         if jobId then
             return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
-                                            timestamp, maxJobs, opts)
+                                            timestamp, maxJobs, markerKey, opts)
         else
             jobId = moveJobFromPriorityToActive(KEYS[3], KEYS[2], KEYS[9])
             if jobId then
                 return prepareJobForProcessing(prefix, KEYS[6], eventStreamKey, jobId,
-                                               timestamp, maxJobs,
+                                               timestamp, maxJobs, markerKey,
                                                opts)
             end
         end

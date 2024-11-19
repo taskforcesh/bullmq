@@ -469,6 +469,34 @@ export class Queue<
       await super.close();
     });
   }
+
+  /**
+   * Overrides the rate limit to be active for the next jobs.
+   *
+   * @param expireTimeMs - expire time in ms of this rate limit.
+   */
+  async rateLimit(expireTimeMs: number): Promise<void> {
+    await this.trace<void>(
+      SpanKind.INTERNAL,
+      'rateLimit',
+      this.name,
+      async span => {
+        span?.setAttributes({
+          [TelemetryAttributes.QueueRateLimit]: expireTimeMs,
+        });
+
+        await this.client.then(client =>
+          client.set(
+            this.keys.limiter,
+            Number.MAX_SAFE_INTEGER,
+            'PX',
+            expireTimeMs,
+          ),
+        );
+      },
+    );
+  }
+
   /**
    * Resumes the processing of this queue globally.
    *
@@ -638,6 +666,15 @@ export class Queue<
         return client.del(`${this.keys.de}:${id}`);
       },
     );
+  }
+
+  /**
+   * Removes rate limit key.
+   */
+  async removeRateLimitKey(): Promise<number> {
+    const client = await this.client;
+
+    return client.del(this.keys.limiter);
   }
 
   /**
