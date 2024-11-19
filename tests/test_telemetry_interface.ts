@@ -16,6 +16,7 @@ import {
 } from '../src/interfaces';
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes } from '../src/enums';
+import { JobScheduler } from '../src/classes/job-scheduler';
 
 describe('Telemetry', () => {
   type ExtendedException = Exception & {
@@ -265,19 +266,23 @@ describe('Telemetry', () => {
         'recordException',
       );
 
+      const errMessage = 'Error creating job';
+
+      // Force an exception on the job schedulers private method createNextJob
+      (<any>JobScheduler).prototype.createNextJob = () => {
+        throw new Error(errMessage);
+      };
+
       try {
         await queue.upsertJobScheduler(
           'testJobScheduler',
-          { endDate: 0 },
+          { every: 1000 },
           { data: { foo: 'bar' } },
         );
       } catch (e) {
         assert(recordExceptionSpy.calledOnce);
         const recordedError = recordExceptionSpy.firstCall.args[0];
-        assert.equal(
-          recordedError.message,
-          'End date must be greater than current timestamp',
-        );
+        assert.equal(recordedError.message, errMessage);
       } finally {
         recordExceptionSpy.restore();
       }
