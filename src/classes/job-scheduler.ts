@@ -194,7 +194,7 @@ export class JobScheduler extends QueueBase {
 
     mergedOpts.repeat = { ...opts.repeat, count: currentCount };
 
-    const job = new Job<T, R, N>(this, name, data, mergedOpts, jobId);
+    const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
     job.addJob(client);
 
     return job;
