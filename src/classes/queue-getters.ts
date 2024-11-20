@@ -45,13 +45,6 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     });
   }
 
-  /**
-   * Helper to easily extend Job class calls.
-   */
-  protected get Job(): typeof Job {
-    return Job;
-  }
-
   private sanitizeJobTypes(types: JobType[] | JobType | undefined): JobType[] {
     const currentTypes = typeof types === 'string' ? [types] : types;
 
