@@ -995,7 +995,7 @@ will never work with more accuracy than 1ms. */
    * This method waits for current jobs to finalize before returning.
    *
    * @param force - Use force boolean parameter if you do not want to wait for
-   * current jobs to be processed. When using telemetry, be mindful that it can 
+   * current jobs to be processed. When using telemetry, be mindful that it can
    * interfere with the proper closure of spans, potentially preventing them from being exported.
    *
    * @returns Promise that resolves when the worker has been closed.

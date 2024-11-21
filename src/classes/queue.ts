@@ -311,47 +311,66 @@ export class Queue<
           opts = { ...opts, telemetryMetadata: srcPropagationMedatada };
         }
 
-        if (opts && opts.repeat) {
-          if (opts.repeat.endDate) {
-            if (+new Date(opts.repeat.endDate) < Date.now()) {
-              throw new Error(
-                'End date must be greater than current timestamp',
-              );
-            }
-          }
+        const job = await this.addJob(name, data, opts);
 
-          return (await this.repeat).updateRepeatableJob<
-            DataType,
-            ResultType,
-            NameType
-          >(name, data, { ...this.jobsOpts, ...opts }, { override: true });
-        } else {
-          const jobId = opts?.jobId;
+        span?.setAttributes({
+          [TelemetryAttributes.JobName]: name,
+          [TelemetryAttributes.JobId]: job.id,
+        });
 
-          if (jobId == '0' || jobId?.startsWith('0:')) {
-            throw new Error("JobId cannot be '0' or start with 0:");
-          }
-
-          const job = await this.Job.create<DataType, ResultType, NameType>(
-            this as MinimalQueue,
-            name,
-            data,
-            {
-              ...this.jobsOpts,
-              ...opts,
-              jobId,
-            },
-          );
-          this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
-
-          span?.setAttributes({
-            [TelemetryAttributes.JobId]: job.id,
-          });
-
-          return job;
-        }
+        return job;
       },
     );
+  }
+
+  /**
+   * addJob is a telemetry free version of the add method, useful in order to wrap it
+   * with custom telemetry on subclasses.
+   *
+   * @param name
+   * @param data
+   * @param opts
+   *
+   * @returns Job
+   */
+  protected async addJob(
+    name: NameType,
+    data: DataType,
+    opts?: JobsOptions,
+  ): Promise<Job<DataType, ResultType, NameType>> {
+    if (opts && opts.repeat) {
+      if (opts.repeat.endDate) {
+        if (+new Date(opts.repeat.endDate) < Date.now()) {
+          throw new Error('End date must be greater than current timestamp');
+        }
+      }
+
+      return (await this.repeat).updateRepeatableJob<
+        DataType,
+        ResultType,
+        NameType
+      >(name, data, { ...this.jobsOpts, ...opts }, { override: true });
+    } else {
+      const jobId = opts?.jobId;
+
+      if (jobId == '0' || jobId?.startsWith('0:')) {
+        throw new Error("JobId cannot be '0' or start with 0:");
+      }
+
+      const job = await this.Job.create<DataType, ResultType, NameType>(
+        this as MinimalQueue,
+        name,
+        data,
+        {
+          ...this.jobsOpts,
+          ...opts,
+          jobId,
+        },
+      );
+      this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
+
+      return job;
+    }
   }
 
   /**
