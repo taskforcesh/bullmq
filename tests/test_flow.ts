@@ -254,9 +254,9 @@ describe('flows', () => {
     }).timeout(8000);
   });
 
-  describe('when child is debounced when added again with same debounce id', function () {
+  describe('when child is deduplicated when added again with same deduplication id', function () {
     describe('when ttl is not provided', function () {
-      it('waits until job is finished before removing debounce key', async function () {
+      it('waits until job is finished before removing deduplication key', async function () {
         const parentQueueName = `parent-queue-${v4()}`;
 
         const flow = new FlowProducer({ connection, prefix });
@@ -268,10 +268,10 @@ describe('flows', () => {
           async job => {
             await delay(100);
 
-            const jobIdFromDebounceKey = await queue.getDebounceJobId(
-              'debounce_id',
+            const jobIdFromDeduplicationKey = await queue.getDeduplicationJobId(
+              'deduplication_id',
             );
-            expect(jobIdFromDebounceKey).to.be.equal(job.id);
+            expect(jobIdFromDeduplicationKey).to.be.equal(job.id);
 
             await flow.add({
               name: 'parent',
@@ -283,8 +283,8 @@ describe('flows', () => {
                   name: 'child0',
                   data: {},
                   opts: {
-                    debounce: {
-                      id: 'debounce_id',
+                    deduplication: {
+                      id: 'deduplication_id',
                     },
                   },
                 },
@@ -311,15 +311,15 @@ describe('flows', () => {
               name: 'child0',
               data: {},
               opts: {
-                debounce: {
-                  id: 'debounce_id',
+                deduplication: {
+                  id: 'deduplication_id',
                 },
               },
             },
           ],
         });
 
-        let debouncedCounter = 0;
+        let deduplicatedCounter = 0;
 
         const completing = new Promise<void>(resolve => {
           queueEvents.once('completed', ({ jobId }) => {
@@ -327,8 +327,8 @@ describe('flows', () => {
             resolve();
           });
 
-          queueEvents.on('debounced', ({ jobId }) => {
-            debouncedCounter++;
+          queueEvents.on('deduplicated', ({ jobId }) => {
+            deduplicatedCounter++;
           });
         });
 
@@ -336,12 +336,12 @@ describe('flows', () => {
 
         await completing;
 
-        const jobIdFromDebounceKey = await queue.getDebounceJobId(
-          'debounce_id',
+        const jobIdFromDeduplicationKey = await queue.getDeduplicationJobId(
+          'deduplication_id',
         );
-        expect(jobIdFromDebounceKey).to.be.null;
+        expect(jobIdFromDeduplicationKey).to.be.null;
 
-        expect(debouncedCounter).to.be.equal(1);
+        expect(deduplicatedCounter).to.be.equal(1);
 
         await worker.close();
         await queueEvents.close();

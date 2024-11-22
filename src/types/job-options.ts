@@ -1,16 +1,10 @@
-import { BaseJobOptions, DebounceOptions } from '../interfaces';
+import { BaseJobOptions, DeduplicationOptions } from '../interfaces';
 
 export type JobsOptions = BaseJobOptions & {
   /**
-   * Debounce options.
-   * @deprecated use deduplication option
-   */
-  debounce?: DebounceOptions;
-
-  /**
    * Deduplication options.
    */
-  deduplication?: DebounceOptions;
+  deduplication?: DeduplicationOptions;
 
   /**
    * Modes when a child fails: fail, ignore, remove, wait.
@@ -24,7 +18,7 @@ export type JobsOptions = BaseJobOptions & {
  */
 export type RedisJobOptions = BaseJobOptions & {
   /**
-   * Debounce identifier.
+   * Deduplication identifier.
    */
   deid?: string;
 
