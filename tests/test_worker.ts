@@ -505,9 +505,17 @@ describe('workers', function () {
     await worker.close();
   });
 
-  it('do not call moveToActive more than number of jobs + 1', async () => {
+  it('do not call moveToActive more than number of jobs + 2', async () => {
     const numJobs = 50;
     let completedJobs = 0;
+
+    const jobs: Promise<Job>[] = [];
+    for (let i = 0; i < numJobs; i++) {
+      jobs.push(queue.add('test', { foo: 'bar' }));
+    }
+
+    await Promise.all(jobs);
+
     const worker = new Worker(
       queueName,
       async job => {
@@ -516,7 +524,6 @@ describe('workers', function () {
       },
       { connection, prefix, concurrency: 100 },
     );
-    await worker.waitUntilReady();
 
     // Add spy to worker.moveToActive
     const spy = sinon.spy(worker, 'moveToActive');
@@ -524,12 +531,9 @@ describe('workers', function () {
       await (worker as any).blockingConnection.client,
       'bzpopmin',
     );
+    await worker.waitUntilReady();
 
-    for (let i = 0; i < numJobs; i++) {
-      const job = await queue.add('test', { foo: 'bar' });
-      expect(job.id).to.be.ok;
-      expect(job.data.foo).to.be.eql('bar');
-    }
+    expect(bclientSpy.callCount).to.be.equal(0);
 
     await new Promise<void>((resolve, reject) => {
       worker.on('completed', (job: Job, result: any) => {
@@ -540,9 +544,11 @@ describe('workers', function () {
       });
     });
 
+    expect(completedJobs).to.be.equal(numJobs);
+    expect(bclientSpy.callCount).to.be.equal(2);
+
     // Check moveToActive was called numJobs + 2 times
     expect(spy.callCount).to.be.equal(numJobs + 2);
-    expect(bclientSpy.callCount).to.be.equal(3);
 
     await worker.close();
   });
