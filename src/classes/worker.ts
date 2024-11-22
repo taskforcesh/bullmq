@@ -197,10 +197,6 @@ export class Worker<
   protected processFn: Processor<DataType, ResultType, NameType>;
   protected running = false;
 
-  static RateLimitError(): Error {
-    return new RateLimitError();
-  }
-
   constructor(
     name: string,
     processor?: string | URL | null | Processor<DataType, ResultType, NameType>,
@@ -622,34 +618,6 @@ export class Worker<
       }
       return this.moveToActive(client, token, this.opts.name);
     }
-  }
-
-  /**
-   * Overrides the rate limit to be active for the next jobs.
-   * @deprecated This method is deprecated and will be removed in v6. Use queue.rateLimit method instead.
-   * @param expireTimeMs - expire time in ms of this rate limit.
-   */
-  async rateLimit(expireTimeMs: number): Promise<void> {
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      'rateLimit',
-      this.name,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerRateLimit]: expireTimeMs,
-        });
-
-        await this.client.then(client =>
-          client.set(
-            this.keys.limiter,
-            Number.MAX_SAFE_INTEGER,
-            'PX',
-            expireTimeMs,
-          ),
-        );
-      },
-    );
   }
 
   get minimumBlockTimeout(): number {
