@@ -479,7 +479,7 @@ describe('workers', function () {
     // Add spy to worker.moveToActive
     const spy = sinon.spy(worker, 'moveToActive');
     const bclientSpy = sinon.spy(
-      await worker.blockingConnection.client,
+      await (worker as any).blockingConnection.client,
       'bzpopmin',
     );
 
@@ -521,7 +521,7 @@ describe('workers', function () {
     // Add spy to worker.moveToActive
     const spy = sinon.spy(worker, 'moveToActive');
     const bclientSpy = sinon.spy(
-      await worker.blockingConnection.client,
+      await (worker as any).blockingConnection.client,
       'bzpopmin',
     );
 
