@@ -102,7 +102,7 @@ if (#stalling > 0) then
                     elseif removeOnFailType == "boolean" then
                         if opts["removeOnFail"] then
                             removeJob(jobId, false, queueKeyPrefix,
-                                false --[[remove debounce key]])
+                                false --[[remove deduplication key]])
                             rcall("ZREM", failedKey, jobId)
                         end
                     elseif removeOnFailType ~= "nil" then

@@ -625,29 +625,6 @@ export class Queue<
   }
 
   /**
-   * Removes a debounce key.
-   * @deprecated use removeDeduplicationKey
-   *
-   * @param id - identifier
-   */
-  async removeDebounceKey(id: string): Promise<number> {
-    return this.trace<number>(
-      SpanKind.INTERNAL,
-      'removeDebounceKey',
-      `${this.name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobKey]: id,
-        });
-
-        const client = await this.client;
-
-        return await client.del(`${this.keys.de}:${id}`);
-      },
-    );
-  }
-
-  /**
    * Removes a deduplication key.
    *
    * @param id - identifier

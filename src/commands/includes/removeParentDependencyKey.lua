@@ -20,7 +20,7 @@ local function moveParentToWait(parentPrefix, parentId, emitEvent)
   end
 end
 
-local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debounceId)
+local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, deduplicationId)
   if parentKey then
     local parentDependenciesKey = parentKey .. ":dependencies"
     local result = rcall("SREM", parentDependenciesKey, jobKey)
@@ -37,8 +37,8 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
             if parentPrefix == baseKey then
               removeParentDependencyKey(parentKey, hard, nil, baseKey, nil)
               removeJobKeys(parentKey)
-              if debounceId then
-                rcall("DEL", parentPrefix .. "de:" .. debounceId)
+              if deduplicationId then
+                rcall("DEL", parentPrefix .. "de:" .. deduplicationId)
               end
             else
               moveParentToWait(parentPrefix, parentId)

@@ -6,7 +6,7 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
     local jsonOpts = cjson.encode(opts)
     local delay = opts['delay'] or 0
     local priority = opts['priority'] or 0
-    local debounceId = opts['de'] and opts['de']['id']
+    local deduplicationId = opts['de'] and opts['de']['id']
     
     local optionalValues = {}
     if parentKey ~= nil then
@@ -21,9 +21,9 @@ local function storeJob(eventsKey, jobIdKey, jobId, name, data, opts, timestamp,
         table.insert(optionalValues, repeatJobKey)
     end
 
-    if debounceId then
+    if deduplicationId then
         table.insert(optionalValues, "deid")
-        table.insert(optionalValues, debounceId)
+        table.insert(optionalValues, deduplicationId)
     end
 
     rcall("HMSET", jobIdKey, "name", name, "data", data, "opts", jsonOpts,
