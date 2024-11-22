@@ -25,21 +25,23 @@ await queue.add(
 When a job is rate limited using `Worker.RateLimitError` and tried again, the `attempts` check is ignored, as rate limiting is not considered a real error. However, if you want to manually check the attempts and avoid retrying the job, you can do the following:
 
 ```typescript
-import { Worker, UnrecoverableError } from 'bullmq';
+import { Queue, RateLimitError, Worker, UnrecoverableError } from 'bullmq';
+
+const queue = new Queue('myQueue', { connection });
 
 const worker = new Worker(
   'myQueue',
   async job => {
     const [isRateLimited, duration] = await doExternalCall();
     if (isRateLimited) {
-      await worker.rateLimit(duration);
+      await queue.rateLimit(duration);
       if (job.attemptsMade >= job.opts.attempts) {
         throw new UnrecoverableError('Unrecoverable');
       }
       // Do not forget to throw this special exception,
       // since we must differentiate this case from a failure
       // in order to move the job to wait again.
-      throw Worker.RateLimitError();
+      throw new RateLimitError();
     }
   },
   {
@@ -54,4 +56,4 @@ const worker = new Worker(
 
 ## Read more:
 
-- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#rateLimit)
+- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#rateLimit)

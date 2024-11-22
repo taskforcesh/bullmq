@@ -7,6 +7,7 @@ import {
   FlowProducer,
   Queue,
   QueueEvents,
+  RateLimitError,
   Worker,
   UnrecoverableError,
 } from '../src/classes';
@@ -370,11 +371,11 @@ describe('Rate Limiter', function () {
         queueName,
         async job => {
           if (job.attemptsStarted === 1) {
-            await worker.rateLimit(dynamicLimit);
+            await queue.rateLimit(dynamicLimit);
             const currentTtl = await queue.getRateLimitTtl();
             expect(currentTtl).to.be.lessThanOrEqual(250);
             expect(currentTtl).to.be.greaterThan(100);
-            throw Worker.RateLimitError();
+            throw new RateLimitError();
           }
         },
         {
@@ -439,10 +440,10 @@ describe('Rate Limiter', function () {
           async job => {
             if (job.attemptsStarted === 1) {
               delay(50);
-              await worker.rateLimit(dynamicLimit);
+              await queue.rateLimit(dynamicLimit);
               const currentTtl = await queue.getRateLimitTtl();
               expect(currentTtl).to.be.lessThanOrEqual(dynamicLimit);
-              throw Worker.RateLimitError();
+              throw new RateLimitError();
             }
           },
           {
@@ -616,11 +617,11 @@ describe('Rate Limiter', function () {
         const worker = new Worker(
           queueName,
           async job => {
-            await worker.rateLimit(dynamicLimit);
+            await queue.rateLimit(dynamicLimit);
             if (job.attemptsStarted >= job.opts.attempts!) {
               throw new UnrecoverableError('Unrecoverable');
             }
-            throw Worker.RateLimitError();
+            throw new RateLimitError();
           },
           {
             connection,
@@ -678,8 +679,8 @@ describe('Rate Limiter', function () {
                 priority -= 1;
                 extraCount -= 1;
               }
-              await worker.rateLimit(dynamicLimit);
-              throw Worker.RateLimitError();
+              await queue.rateLimit(dynamicLimit);
+              throw new RateLimitError();
             }
           },
           {
@@ -733,8 +734,8 @@ describe('Rate Limiter', function () {
           const worker = new Worker(
             queueName,
             async () => {
-              await worker.rateLimit(dynamicLimit);
-              throw Worker.RateLimitError();
+              await queue.rateLimit(dynamicLimit);
+              throw new RateLimitError();
             },
             {
               connection,
@@ -771,8 +772,8 @@ describe('Rate Limiter', function () {
           const worker = new Worker(
             queueName,
             async () => {
-              await worker.rateLimit(dynamicLimit);
-              throw Worker.RateLimitError();
+              await queue.rateLimit(dynamicLimit);
+              throw new RateLimitError();
             },
             {
               connection,
@@ -809,8 +810,8 @@ describe('Rate Limiter', function () {
             if (job.attemptsMade === 0) {
               await queue.pause();
               await delay(150);
-              await worker.rateLimit(dynamicLimit);
-              throw Worker.RateLimitError();
+              await queue.rateLimit(dynamicLimit);
+              throw new RateLimitError();
             }
           },
           {
@@ -869,7 +870,7 @@ describe('Rate Limiter', function () {
           },
         });
 
-        await worker.rateLimit(dynamicLimit);
+        await queue.rateLimit(dynamicLimit);
 
         await queue.removeRateLimitKey();
         const result = new Promise<void>((resolve, reject) => {

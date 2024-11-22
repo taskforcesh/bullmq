@@ -152,7 +152,7 @@ export class Queue<
   protected libName = 'bullmq';
 
   private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
-  private _jobScheduler?: JobScheduler;
+  protected _jobScheduler?: JobScheduler;
 
   constructor(
     name: string,

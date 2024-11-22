@@ -1809,6 +1809,12 @@ describe('Job Scheduler', function () {
     );
   });
 
+  it('should throw an error when not specifying .pattern or .every', async function () {
+    await expect(queue.upsertJobScheduler('repeat', {})).to.be.rejectedWith(
+      'Either .pattern or .every options must be defined for this repeatable job',
+    );
+  });
+
   it('should throw an error when using .immediately and .startDate simultaneously', async function () {
     await expect(
       queue.upsertJobScheduler('repeat', {
@@ -1819,6 +1825,20 @@ describe('Job Scheduler', function () {
     ).to.be.rejectedWith(
       'Both .immediately and .startDate options are defined for this repeatable job',
     );
+  });
+
+  it("should return a valid job with the job's options and data passed as the job template", async function () {
+    const repeatOpts = {
+      every: 1000,
+    };
+
+    const job = await queue.upsertJobScheduler('test', repeatOpts, {
+      data: { foo: 'bar' },
+    });
+
+    expect(job).to.be.ok;
+    expect(job!.data.foo).to.be.eql('bar');
+    expect(job!.opts.repeat!.every).to.be.eql(1000);
   });
 
   it('should emit a waiting event when adding a repeatable job to the waiting list', async function () {
