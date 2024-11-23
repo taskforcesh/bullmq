@@ -191,7 +191,7 @@ export class Worker<
   private waiting: Promise<number> | null = null;
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
 
-  private _jobScheduler: JobScheduler;
+  protected _jobScheduler: JobScheduler;
 
   protected paused: Promise<void>;
   protected processFn: Processor<DataType, ResultType, NameType>;

@@ -2,7 +2,7 @@ import { expect, assert } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, Worker } from '../src/classes';
+import { FlowProducer, JobScheduler, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
   Telemetry,
@@ -16,7 +16,6 @@ import {
 } from '../src/interfaces';
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes } from '../src/enums';
-import { JobScheduler } from '../src/classes/job-scheduler';
 
 describe('Telemetry', () => {
   type ExtendedException = Exception & {
