@@ -3,6 +3,7 @@ import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  JobJsonRaw,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
@@ -237,6 +238,17 @@ export class Queue<
   async getVersion(): Promise<string> {
     const client = await this.client;
     return await client.hget(this.keys.meta, 'version');
+  }
+
+  protected createJob(
+    data: JobJsonRaw,
+    jobId: string,
+  ): Job<DataType, ResultType, NameType> {
+    return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
+      DataType,
+      ResultType,
+      NameType
+    >;
   }
 
   get repeat(): Promise<Repeat> {
@@ -573,6 +585,21 @@ export class Queue<
    */
   async getJobScheduler(id: string): Promise<RepeatableJob> {
     return (await this.jobScheduler).getJobScheduler(id);
+  }
+
+  /**
+   * Get Job Scheduler template by id
+   *
+   * @param id - identifier of scheduler.
+   */
+  async getJobSchedulerTemplate(
+    id: string,
+  ): Promise<Job<DataType, ResultType, NameType>> {
+    const jobScheduler = await this.jobScheduler;
+    const [jobData, jobId] = await jobScheduler.getJobSchedulerTemplate(id);
+
+    console.log('gg', jobData, jobId);
+    return this.createJob(jobData, jobId);
   }
 
   /**

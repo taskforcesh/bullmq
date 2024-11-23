@@ -362,6 +362,13 @@ describe('Job Scheduler', function () {
       every: null,
     });
 
+    const jobSchedulerTemplate = await queue.getJobSchedulerTemplate('test');
+
+    expect(jobSchedulerTemplate.id?.startsWith('repeat:test')).to.be.true;
+    expect(jobSchedulerTemplate.data).to.deep.equal({
+      foo: 'bar',
+    });
+
     this.clock.tick(nextTick);
 
     let prev: any;
