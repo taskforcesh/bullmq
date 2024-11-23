@@ -7,13 +7,12 @@
 -- Includes
 --- @include "addJobInTargetList"
 --- @include "destructureJobKey"
---- @include "getTargetQueueList"
+--- @include "isQueuePausedOrMaxed"
 --- @include "removeJobKeys"
 
 local function moveParentToWait(parentPrefix, parentId, emitEvent)
-  local parentTarget, isPausedOrMaxed = getTargetQueueList(parentPrefix .. "meta", parentPrefix .. "active",
-    parentPrefix .. "wait", parentPrefix .. "paused")
-  addJobInTargetList(parentTarget, parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
+  local isPausedOrMaxed = isQueuePausedOrMaxed(parentPrefix .. "meta", parentPrefix .. "active")
+  addJobInTargetList(parentPrefix .. "wait", parentPrefix .. "marker", "RPUSH", isPausedOrMaxed, parentId)
 
   if emitEvent then
     local parentEventStream = parentPrefix .. "events"
@@ -21,7 +20,7 @@ local function moveParentToWait(parentPrefix, parentId, emitEvent)
   end
 end
 
-local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debounceId)
+local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, deduplicationId)
   if parentKey then
     local parentDependenciesKey = parentKey .. ":dependencies"
     local result = rcall("SREM", parentDependenciesKey, jobKey)
@@ -38,8 +37,8 @@ local function removeParentDependencyKey(jobKey, hard, parentKey, baseKey, debou
             if parentPrefix == baseKey then
               removeParentDependencyKey(parentKey, hard, nil, baseKey, nil)
               removeJobKeys(parentKey)
-              if debounceId then
-                rcall("DEL", parentPrefix .. "de:" .. debounceId)
+              if deduplicationId then
+                rcall("DEL", parentPrefix .. "de:" .. deduplicationId)
               end
             else
               moveParentToWait(parentPrefix, parentId)

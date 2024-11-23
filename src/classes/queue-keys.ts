@@ -21,6 +21,7 @@ export class QueueKeys {
       'repeat',
       'limiter',
       'meta',
+      'migrations',
       'events',
       'pc', // priority counter key
       'marker', // marker key

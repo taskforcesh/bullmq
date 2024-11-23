@@ -16,7 +16,6 @@ export class QueueEventsProducer extends QueueBase {
     super(
       name,
       {
-        blockingConnection: false,
         ...opts,
       },
       Connection,

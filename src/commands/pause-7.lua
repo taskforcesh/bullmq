@@ -19,19 +19,27 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
+--- @include "includes/getWaitPlusPrioritizedCount"
 
 local markerKey = KEYS[7]
-local hasJobs = rcall("EXISTS", KEYS[1]) == 1
---TODO: check this logic to be reused when changing a delay
-if hasJobs then rcall("RENAME", KEYS[1], KEYS[2]) end
 
 if ARGV[1] == "paused" then
     rcall("HSET", KEYS[3], "paused", 1)
     rcall("DEL", markerKey)
 else
     rcall("HDEL", KEYS[3], "paused")
+    --jobs in paused key
+    local hasJobs = rcall("EXISTS", KEYS[1]) == 1
 
-    if hasJobs or rcall("ZCARD", KEYS[4]) > 0 then
+    if hasJobs then
+        --move a maximum of 7000 per resumed call in order to not block
+        --if users have more jobs in paused state, call resumed multiple times
+        local jobs = rcall('LRANGE', KEYS[1], 0, 6999)
+        rcall("RPUSH", KEYS[2], unpack(jobs))
+        rcall("LTRIM", KEYS[1], #jobs, -1)
+    end
+
+    if getWaitPlusPrioritizedCount(KEYS[2], KEYS[4]) > 0 then
         -- Add marker if there are waiting or priority jobs
         rcall("ZADD", markerKey, 0, "0")
     else

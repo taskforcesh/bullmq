@@ -18,7 +18,6 @@ export interface JobJson {
   parent?: ParentKeys;
   parentKey?: string;
   repeatJobKey?: string;
-  debounceId?: string;
   deduplicationId?: string;
   processedBy?: string;
 }

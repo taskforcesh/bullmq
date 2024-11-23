@@ -44,12 +44,12 @@ const optsDecodeMap = {
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
+  ocf: 'onChildFailure',
   rdof: 'removeDependencyOnFailure',
   tm: 'telemetryMetadata',
 };
 
 const optsEncodeMap = invertObject(optsDecodeMap);
-optsEncodeMap.debounce = 'de';
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -150,12 +150,6 @@ export class Job<
   parent?: ParentKeys;
 
   /**
-   * Debounce identifier.
-   * @deprecated use deduplicationId
-   */
-  debounceId?: string;
-
-  /**
    * Deduplication identifier.
    */
   deduplicationId?: string;
@@ -224,10 +218,9 @@ export class Job<
       ? { id: opts.parent.id, queueKey: opts.parent.queue }
       : undefined;
 
-    this.debounceId = opts.debounce ? opts.debounce.id : undefined;
     this.deduplicationId = opts.deduplication
       ? opts.deduplication.id
-      : this.debounceId;
+      : undefined;
 
     this.toKey = queue.toKey.bind(queue);
     this.setScripts();
@@ -353,7 +346,6 @@ export class Job<
     }
 
     if (json.deid) {
-      job.debounceId = json.deid;
       job.deduplicationId = json.deid;
     }
 
@@ -480,7 +472,6 @@ export class Job<
       timestamp: this.timestamp,
       failedReason: JSON.stringify(this.failedReason),
       stacktrace: JSON.stringify(this.stacktrace),
-      debounceId: this.debounceId,
       deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
@@ -1262,27 +1253,6 @@ export class Job<
 
     if (this.opts.delay && this.opts.repeat && !this.opts.repeat?.count) {
       throw new Error(`Delay and repeat options could not be used together`);
-    }
-
-    if (this.opts.removeDependencyOnFailure && this.opts.failParentOnFailure) {
-      throw new Error(
-        `RemoveDependencyOnFailure and failParentOnFailure options can not be used together`,
-      );
-    }
-
-    if (
-      this.opts.removeDependencyOnFailure &&
-      this.opts.ignoreDependencyOnFailure
-    ) {
-      throw new Error(
-        `RemoveDependencyOnFailure and ignoreDependencyOnFailure options can not be used together`,
-      );
-    }
-
-    if (this.opts.failParentOnFailure && this.opts.ignoreDependencyOnFailure) {
-      throw new Error(
-        `FailParentOnFailure and ignoreDependencyOnFailure options can not be used together`,
-      );
     }
 
     if (`${parseInt(this.id, 10)}` === this.id) {

@@ -77,11 +77,6 @@ export interface DefaultJobOptions {
 
 export interface BaseJobOptions extends DefaultJobOptions {
   /**
-   * Repeat this job, for example based on a `cron` schedule.
-   */
-  repeat?: RepeatOptions;
-
-  /**
    * Internal property used by repeatable jobs to save base repeat job key.
    */
   repeatJobKey?: string;

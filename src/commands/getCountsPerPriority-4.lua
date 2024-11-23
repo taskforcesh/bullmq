@@ -21,10 +21,10 @@ local prioritizedKey = KEYS[4]
 for i = 1, #ARGV do
   local priority = tonumber(ARGV[i])
   if priority == 0 then
-    if isQueuePaused(KEYS[3]) then
-      results[#results+1] = rcall("LLEN", pausedKey)
+    results[#results+1] = rcall("LLEN", waitKey)
+    if isQueuePaused(KEYS[3]) then -- TODO: remove in next breaking change
+      results[#results] = results[#results] + rcall("LLEN", pausedKey)
     else
-      results[#results+1] = rcall("LLEN", waitKey)
     end
   else
     results[#results+1] = rcall("ZCOUNT", prioritizedKey,

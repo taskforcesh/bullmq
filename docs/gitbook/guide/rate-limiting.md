@@ -62,21 +62,23 @@ await queue.add('rate limited paint', { customerId: 'my-customer-id' });
 
 Sometimes is useful to rate-limit a queue manually instead of based on some static options. For example, you may have an API that returns `429 Too Many Requests`, and you want to rate-limit the queue based on that response.
 
-For this purpose, you can use the worker method **`rateLimit`** like this:
+For this purpose, you can use the queue method **`rateLimit`** like this:
 
 ```typescript
-import { Worker } from 'bullmq';
+import { Queue, RateLimitError, Worker } from 'bullmq';
+
+const queue = new Queue('myQueue', { connection });
 
 const worker = new Worker(
   'myQueue',
   async () => {
     const [isRateLimited, duration] = await doExternalCall();
     if (isRateLimited) {
-      await worker.rateLimit(duration);
+      await queue.rateLimit(duration);
       // Do not forget to throw this special exception,
       // since we must differentiate this case from a failure
       // in order to move the job to wait again.
-      throw Worker.RateLimitError();
+      throw new RateLimitError();
     }
   },
   {
@@ -130,6 +132,6 @@ By removing rate limit key, workers will be able to pick jobs again and your rat
 
 ## Read more:
 
-- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#rateLimit)
+- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#rateLimit)
 - 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getRateLimitTtl)
 - 💡 [Remove Rate Limit Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRateLimitKey)

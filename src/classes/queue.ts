@@ -10,11 +10,9 @@ import {
 import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
-import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
-import { version } from '../version';
 
 export interface ObliterateOpts {
   /**
@@ -152,7 +150,6 @@ export class Queue<
 
   protected libName = 'bullmq';
 
-  private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   protected _jobScheduler?: JobScheduler;
 
   constructor(
@@ -225,7 +222,7 @@ export class Queue<
   get metaValues(): Record<string, string | number> {
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
-      version: `${this.libName}:${version}`,
+      version: `${this.libName}:${this.packageVersion}`,
     };
   }
 
@@ -237,19 +234,6 @@ export class Queue<
   async getVersion(): Promise<string> {
     const client = await this.client;
     return await client.hget(this.keys.meta, 'version');
-  }
-
-  get repeat(): Promise<Repeat> {
-    return new Promise<Repeat>(async resolve => {
-      if (!this._repeat) {
-        this._repeat = new Repeat(this.name, {
-          ...this.opts,
-          connection: await this.client,
-        });
-        this._repeat.on('error', e => this.emit.bind(this, e));
-      }
-      resolve(this._repeat);
-    });
   }
 
   get jobScheduler(): Promise<JobScheduler> {
@@ -338,39 +322,25 @@ export class Queue<
     data: DataType,
     opts?: JobsOptions,
   ): Promise<Job<DataType, ResultType, NameType>> {
-    if (opts && opts.repeat) {
-      if (opts.repeat.endDate) {
-        if (+new Date(opts.repeat.endDate) < Date.now()) {
-          throw new Error('End date must be greater than current timestamp');
-        }
-      }
+    const jobId = opts?.jobId;
 
-      return (await this.repeat).updateRepeatableJob<
-        DataType,
-        ResultType,
-        NameType
-      >(name, data, { ...this.jobsOpts, ...opts }, { override: true });
-    } else {
-      const jobId = opts?.jobId;
-
-      if (jobId == '0' || jobId?.startsWith('0:')) {
-        throw new Error("JobId cannot be '0' or start with 0:");
-      }
-
-      const job = await this.Job.create<DataType, ResultType, NameType>(
-        this as MinimalQueue,
-        name,
-        data,
-        {
-          ...this.jobsOpts,
-          ...opts,
-          jobId,
-        },
-      );
-      this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
-
-      return job;
+    if (jobId == '0' || jobId?.includes(':')) {
+      throw new Error("JobId cannot be '0' or contain :");
     }
+
+    const job = await this.Job.create<DataType, ResultType, NameType>(
+      this as MinimalQueue,
+      name,
+      data,
+      {
+        ...this.jobsOpts,
+        ...opts,
+        jobId,
+      },
+    );
+    this.emit('waiting', job as JobBase<DataType, ResultType, NameType>);
+
+    return job;
   }
 
   /**
@@ -480,12 +450,6 @@ export class Queue<
    */
   async close(): Promise<void> {
     await this.trace<void>(SpanKind.INTERNAL, 'close', this.name, async () => {
-      if (!this.closing) {
-        if (this._repeat) {
-          await this._repeat.close();
-        }
-      }
-
       await super.close();
     });
   }
@@ -548,25 +512,6 @@ export class Queue<
   }
 
   /**
-   * Get all repeatable meta jobs.
-   *
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use getJobSchedulers instead.
-   *
-   * @param start - Offset of first job to return.
-   * @param end - Offset of last job to return.
-   * @param asc - Determine the order in which jobs are returned based on their
-   * next execution time.
-   */
-  async getRepeatableJobs(
-    start?: number,
-    end?: number,
-    asc?: boolean,
-  ): Promise<RepeatableJob[]> {
-    return (await this.repeat).getRepeatableJobs(start, end, asc);
-  }
-
-  /**
    * Get Job Scheduler by id
    *
    * @param id - identifier of scheduler.
@@ -592,44 +537,6 @@ export class Queue<
   }
 
   /**
-   * Removes a repeatable job.
-   *
-   * Note: you need to use the exact same repeatOpts when deleting a repeatable job
-   * than when adding it.
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
-   *
-   * @see removeRepeatableByKey
-   *
-   * @param name - Job name
-   * @param repeatOpts -
-   * @param jobId -
-   * @returns
-   */
-  async removeRepeatable(
-    name: NameType,
-    repeatOpts: RepeatOptions,
-    jobId?: string,
-  ): Promise<boolean> {
-    return this.trace<boolean>(
-      SpanKind.INTERNAL,
-      'removeRepeatable',
-      `${this.name}.${name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobName]: name,
-          [TelemetryAttributes.JobId]: jobId,
-        });
-
-        const repeat = await this.repeat;
-        const removed = await repeat.removeRepeatable(name, repeatOpts, jobId);
-
-        return !removed;
-      },
-    );
-  }
-
-  /**
    *
    * Removes a job scheduler.
    *
@@ -642,29 +549,6 @@ export class Queue<
     const removed = await jobScheduler.removeJobScheduler(jobSchedulerId);
 
     return !removed;
-  }
-
-  /**
-   * Removes a debounce key.
-   * @deprecated use removeDeduplicationKey
-   *
-   * @param id - identifier
-   */
-  async removeDebounceKey(id: string): Promise<number> {
-    return this.trace<number>(
-      SpanKind.INTERNAL,
-      'removeDebounceKey',
-      `${this.name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobKey]: id,
-        });
-
-        const client = await this.client;
-
-        return await client.del(`${this.keys.de}:${id}`);
-      },
-    );
   }
 
   /**
@@ -695,36 +579,6 @@ export class Queue<
     const client = await this.client;
 
     return client.del(this.keys.limiter);
-  }
-
-  /**
-   * Removes a repeatable job by its key. Note that the key is the one used
-   * to store the repeatable job metadata and not one of the job iterations
-   * themselves. You can use "getRepeatableJobs" in order to get the keys.
-   *
-   * @see getRepeatableJobs
-   *
-   * @deprecated This method is deprecated and will be removed in v6. Use removeJobScheduler instead.
-   *
-   * @param repeatJobKey - To the repeatable job.
-   * @returns
-   */
-  async removeRepeatableByKey(key: string): Promise<boolean> {
-    return this.trace<boolean>(
-      SpanKind.INTERNAL,
-      'removeRepeatableByKey',
-      `${this.name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobKey]: key,
-        });
-
-        const repeat = await this.repeat;
-        const removed = await repeat.removeRepeatableByKey(key);
-
-        return !removed;
-      },
-    );
   }
 
   /**

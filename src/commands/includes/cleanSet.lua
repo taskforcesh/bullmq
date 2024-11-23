@@ -41,14 +41,14 @@ local function cleanSet(
         if not isJobSchedulerJob(job, jobSchedulersKey) then
             local jobKey = jobKeyPrefix .. job
             if isFinished then
-                removeJob(job, true, jobKeyPrefix, true --[[remove debounce key]] )
+                removeJob(job, true, jobKeyPrefix, true --[[remove deduplication key]] )
                 deletedCount = deletedCount + 1
                 table.insert(deleted, job)
             else
                 -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
                 jobTS = getTimestamp(jobKey, attributes)
                 if (not jobTS or jobTS <= timestamp) then
-                    removeJob(job, true, jobKeyPrefix, true --[[remove debounce key]] )
+                    removeJob(job, true, jobKeyPrefix, true --[[remove deduplication key]] )
                     deletedCount = deletedCount + 1
                     table.insert(deleted, job)
                 end

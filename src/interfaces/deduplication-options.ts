@@ -1,7 +1,7 @@
 /**
- * Debounce options
+ * Deduplication options
  */
-export interface DebounceOptions {
+export interface DeduplicationOptions {
   /**
    * ttl in milliseconds
    */
