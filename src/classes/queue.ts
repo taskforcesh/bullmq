@@ -598,7 +598,6 @@ export class Queue<
     const jobScheduler = await this.jobScheduler;
     const [jobData, jobId] = await jobScheduler.getJobSchedulerTemplate(id);
 
-    console.log('gg', jobData, jobId);
     return this.createJob(jobData, jobId);
   }
 
