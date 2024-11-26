@@ -54,7 +54,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
     async def test_add_job_with_options(self):
         queue = Queue(queueName)
         data = {"foo": "bar"}
-        attempts = 3,
+        attempts = 3
         delay = 1000
         job = await queue.add("test-job", data=data, opts={"attempts": attempts, "delay": delay})
 
@@ -131,6 +131,18 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(events_length, 0)
 
         await queue.obliterate()
+        await queue.close()
+
+    async def test_get_delayed_count(self):
+        queue = Queue(queueName)
+        data = {"foo": "bar"}
+        delay = 1000
+        await queue.add("test-job", data=data, opts={"delay": delay})
+        await queue.add("test-job", data=data, opts={"delay": delay * 2})
+
+        count = await queue.getDelayedCount()
+        self.assertEqual(count, 2)
+
         await queue.close()
 
     async def test_retry_failed_jobs(self):
