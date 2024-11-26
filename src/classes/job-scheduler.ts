@@ -257,8 +257,8 @@ export class JobScheduler extends QueueBase {
     }
   }
 
-  async getJobSchedulerTemplate(id: string): Promise<any[]> {
-    return this.scripts.getJobSchedulerTemplate(id);
+  async getJobTemplate(schedulerId: string): Promise<any[]> {
+    return this.scripts.getJobSchedulerTemplate(schedulerId);
   }
 
   async getJobSchedulers(

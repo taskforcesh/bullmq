@@ -388,7 +388,7 @@ export class Job<
     this.scripts = new Scripts(this.queue);
   }
 
-  private static optsFromJSON(rawOpts?: string): JobsOptions {
+  static optsFromJSON(rawOpts?: string): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
 
     const optionEntries = Object.entries(opts) as Array<

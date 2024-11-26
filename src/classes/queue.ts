@@ -594,11 +594,16 @@ export class Queue<
    */
   async getJobSchedulerTemplate(
     id: string,
-  ): Promise<Job<DataType, ResultType, NameType>> {
+  ): Promise<{ data: DataType; opts: JobsOptions }> {
     const jobScheduler = await this.jobScheduler;
-    const [jobData, jobId] = await jobScheduler.getJobSchedulerTemplate(id);
+    const [jobData] = await jobScheduler.getJobTemplate(id);
 
-    return this.createJob(jobData, jobId);
+    const data = JSON.parse(jobData.data || '{}');
+    const opts = this.Job.optsFromJSON(jobData.opts);
+    return {
+      data,
+      opts,
+    };
   }
 
   /**

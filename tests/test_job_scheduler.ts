@@ -362,11 +362,21 @@ describe('Job Scheduler', function () {
       every: null,
     });
 
-    const jobSchedulerTemplate = await queue.getJobSchedulerTemplate('test');
+    const { data, opts } = await queue.getJobSchedulerTemplate('test');
 
-    expect(jobSchedulerTemplate.id?.startsWith('repeat:test')).to.be.true;
-    expect(jobSchedulerTemplate.data).to.deep.equal({
+    expect(data).to.deep.equal({
       foo: 'bar',
+    });
+    expect(opts).to.deep.equal({
+      attempts: 0,
+      delay: 2000,
+      jobId: 'repeat:test:1486481042000',
+      prevMillis: 1486481042000,
+      repeat: {
+        count: 1,
+        pattern: '*/2 * * * * *',
+      },
+      timestamp: 1486481040000,
     });
 
     this.clock.tick(nextTick);
