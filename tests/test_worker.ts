@@ -482,15 +482,19 @@ describe('workers', function () {
     // Add spy to worker.moveToActive
     const spy = sinon.spy(worker, 'moveToActive');
     const bclientSpy = sinon.spy(
-      await worker.blockingConnection.client,
+      await (worker as any).blockingConnection.client,
       'bzpopmin',
     );
 
-    for (let i = 0; i < numJobs; i++) {
-      const job = await queue.add('test', { foo: 'bar' });
-      expect(job.id).to.be.ok;
-      expect(job.data.foo).to.be.eql('bar');
+    const jobsData: { name: string; data: any }[] = [];
+    for (let j = 0; j < numJobs; j++) {
+      jobsData.push({
+        name: 'test',
+        data: { foo: 'bar' },
+      });
     }
+
+    await queue.addBulk(jobsData);
 
     expect(bclientSpy.callCount).to.be.equal(1);
 

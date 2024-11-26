@@ -2,23 +2,24 @@
 
 <!--next-version-placeholder-->
 
+## v2.11.0 (2024-11-26)
+### Feature
+* **queue:** Add getDelayedCount method [python] ([#2934](https://github.com/taskforcesh/bullmq/issues/2934)) ([`71ce75c`](https://github.com/taskforcesh/bullmq/commit/71ce75c04b096b5593da0986c41a771add1a81ce))
+
+### Performance
+* **marker:** Add base markers while consuming jobs to get workers busy (#2904) fixes #2842 ([`1759c8b`](https://github.com/taskforcesh/bullmq/commit/1759c8bc111cab9e43d5fccb4d8d2dccc9c39fb4))
+
 ## v2.10.1 (2024-10-26)
 ### Fix
 * **commands:** Add missing build statement when releasing [python] (#2869) fixes #2868 ([`ff2a47b`](https://github.com/taskforcesh/bullmq/commit/ff2a47b37c6b36ee1a725f91de2c6e4bcf8b011a))
-
-### Documentation
-* **job:** Clarify per-queue scoping of job ids ([#2864](https://github.com/taskforcesh/bullmq/issues/2864)) ([`6c2b80f`](https://github.com/taskforcesh/bullmq/commit/6c2b80f490a0ab4afe502fc8415d6549e0022367))
-* **v4:** Update changelog with v4.18.2 ([#2867](https://github.com/taskforcesh/bullmq/issues/2867)) ([`7ba452e`](https://github.com/taskforcesh/bullmq/commit/7ba452ec3e6d4658e357b2ca810893172c1e0b25))
 
 ## v2.10.0 (2024-10-24)
 ### Feature
 * **job:** Add getChildrenValues method [python] ([#2853](https://github.com/taskforcesh/bullmq/issues/2853)) ([`0f25213`](https://github.com/taskforcesh/bullmq/commit/0f25213b28900a1c35922bd33611701629d83184))
 * **queue:** Add option to skip metas update ([`b7dd925`](https://github.com/taskforcesh/bullmq/commit/b7dd925e7f2a4468c98a05f3a3ca1a476482b6c0))
 * **queue:** Add queue version support ([#2822](https://github.com/taskforcesh/bullmq/issues/2822)) ([`3a4781b`](https://github.com/taskforcesh/bullmq/commit/3a4781bf7cadf04f6a324871654eed8f01cdadae))
-* **repeat:** Deprecate immediately on job scheduler ([`ed047f7`](https://github.com/taskforcesh/bullmq/commit/ed047f7ab69ebdb445343b6cb325e90b95ee9dc5))
 * **job:** Expose priority value ([#2804](https://github.com/taskforcesh/bullmq/issues/2804)) ([`9abec3d`](https://github.com/taskforcesh/bullmq/commit/9abec3dbc4c69f2496c5ff6b5d724f4d1a5ca62f))
 * **job:** Add deduplication logic ([#2796](https://github.com/taskforcesh/bullmq/issues/2796)) ([`0a4982d`](https://github.com/taskforcesh/bullmq/commit/0a4982d05d27c066248290ab9f59349b802d02d5))
-* **queue:** Add new upsertJobScheduler, getJobSchedulers and removeJobSchedulers methods ([`dd6b6b2`](https://github.com/taskforcesh/bullmq/commit/dd6b6b2263badd8f29db65d1fa6bcdf5a1e9f6e2))
 * **queue:** Add getDebounceJobId method ([#2717](https://github.com/taskforcesh/bullmq/issues/2717)) ([`a68ead9`](https://github.com/taskforcesh/bullmq/commit/a68ead95f32a7d9dabba602895d05c22794b2c02))
 
 ### Fix
