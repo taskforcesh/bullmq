@@ -2,6 +2,43 @@
 
 <!--next-version-placeholder-->
 
+## v2.11.0 (2024-11-26)
+### Feature
+* **queue:** Add getDelayedCount method [python] ([#2934](https://github.com/taskforcesh/bullmq/issues/2934)) ([`71ce75c`](https://github.com/taskforcesh/bullmq/commit/71ce75c04b096b5593da0986c41a771add1a81ce))
+* **queue:** Refactor a protected addJob method allowing telemetry extensions ([`09f2571`](https://github.com/taskforcesh/bullmq/commit/09f257196f6d5a6690edbf55f12d585cec86ee8f))
+* **job-scheduler:** Add telemetry support to the job scheduler ([`72ea950`](https://github.com/taskforcesh/bullmq/commit/72ea950ea251aa12f879ba19c0b5dfeb6a093da2))
+* **queue:** Add rateLimit method ([#2896](https://github.com/taskforcesh/bullmq/issues/2896)) ([`db84ad5`](https://github.com/taskforcesh/bullmq/commit/db84ad51a945c754c3cd03e5e718cd8d0341a8b4))
+* **queue:** Add removeRateLimitKey method ([#2806](https://github.com/taskforcesh/bullmq/issues/2806)) ([`ff70613`](https://github.com/taskforcesh/bullmq/commit/ff706131bf642fb7544b9d15994d75b1edcb27dc))
+* Improve queue getters to use generic job type ([#2905](https://github.com/taskforcesh/bullmq/issues/2905)) ([`c9531ec`](https://github.com/taskforcesh/bullmq/commit/c9531ec7a49126a017611eb2fd2eaea8fcb5ada5))
+* **queue-events:** Add QueueEventsProducer for publishing custom events ([#2844](https://github.com/taskforcesh/bullmq/issues/2844)) ([`5eb03cd`](https://github.com/taskforcesh/bullmq/commit/5eb03cd7f27027191eb4bc4ed7386755fd9be1fb))
+* **flows:** Add telemetry support ([#2879](https://github.com/taskforcesh/bullmq/issues/2879)) ([`5ed154b`](https://github.com/taskforcesh/bullmq/commit/5ed154ba240dbe9eb5c22e27ad02e851c0f3cf69))
+* **scheduler:** Add getJobScheduler method (#2877) ref #2875 ([`956d98c`](https://github.com/taskforcesh/bullmq/commit/956d98c6890484742bb080919c70692234f28c69))
+* **queue:** Add a telemetry interface ([#2721](https://github.com/taskforcesh/bullmq/issues/2721)) ([`273b574`](https://github.com/taskforcesh/bullmq/commit/273b574e6b5628680990eb02e1930809c9cba5bb))
+
+### Fix
+* **scheduler:** Remove deprecation warning on immediately option ([#2923](https://github.com/taskforcesh/bullmq/issues/2923)) ([`14ca7f4`](https://github.com/taskforcesh/bullmq/commit/14ca7f44f31a393a8b6d0ce4ed244e0063198879))
+* **queue:** Change _jobScheduler from private to protected for extension ([#2920](https://github.com/taskforcesh/bullmq/issues/2920)) ([`34c2348`](https://github.com/taskforcesh/bullmq/commit/34c23485bcb32b3c69046b2fb37e5db8927561ce))
+* **scheduler:** Use Job class from getter for extension ([#2917](https://github.com/taskforcesh/bullmq/issues/2917)) ([`5fbb075`](https://github.com/taskforcesh/bullmq/commit/5fbb075dd4abd51cc84a59575261de84e56633d8))
+* **telemetry:** Do not set span on parent context if undefined ([`c417a23`](https://github.com/taskforcesh/bullmq/commit/c417a23bb28d9effa42115e954b18cc41c1fc043))
+* **queue:** Fix generics to be able to properly be extended ([`f2495e5`](https://github.com/taskforcesh/bullmq/commit/f2495e5ee9ecdb26492da510dc38730718cb28c5))
+* **job-scheculer:** Avoid hazards when upserting job schedulers concurrently ([`022f7b7`](https://github.com/taskforcesh/bullmq/commit/022f7b7d0a0ce14387ed2b9fed791e1f56e34770))
+* **connection:** Do not allow to set blockingConnection option ([#2851](https://github.com/taskforcesh/bullmq/issues/2851)) ([`9391cc2`](https://github.com/taskforcesh/bullmq/commit/9391cc22200914ecc8958972ebc580862a70f63c))
+* **repeatable:** Only apply immediately in the first iteration ([`f69cfbc`](https://github.com/taskforcesh/bullmq/commit/f69cfbcbc5516a854adbbc29b259d08e65a19705))
+* **scripts:** Set package version by default for extension ([#2887](https://github.com/taskforcesh/bullmq/issues/2887)) ([`b955340`](https://github.com/taskforcesh/bullmq/commit/b955340b940e4c1e330445526cd572e0ab25daa9))
+* **worker:** Allow retrieving concurrency value (#2883) fixes #2880 ([`52f6317`](https://github.com/taskforcesh/bullmq/commit/52f6317ecd2080a5c9684a4fe384e20d86f21de4))
+* **connection:** Set packageVersion as protected attribute for extension ([#2884](https://github.com/taskforcesh/bullmq/issues/2884)) ([`411ccae`](https://github.com/taskforcesh/bullmq/commit/411ccae9419e008d916be6cf71c4d57dd2a07b2b))
+* **deps:** Bump msgpackr to 1.1.2 to resolve ERR_BUFFER_OUT_OF_BOUNDS error (#2882) ref #2747 ([`4d2136c`](https://github.com/taskforcesh/bullmq/commit/4d2136cc6ba340e511a539c130c9a739fe1055d0))
+
+### Documentation
+* **pro:** Update changelog to v7.20.1 ([#2903](https://github.com/taskforcesh/bullmq/issues/2903)) ([`d23bbef`](https://github.com/taskforcesh/bullmq/commit/d23bbef253f732500a4438e3390372dd02117ffc))
+* Add minimum redis version #227 ([`88fff2c`](https://github.com/taskforcesh/bullmq/commit/88fff2c957d6d4b58ef6399ec56123b6da825d88))
+* Telemetry note on close force in worker ([`bf72d3f`](https://github.com/taskforcesh/bullmq/commit/bf72d3fc0ec3bbf73457a7024d8853a78293facd))
+* Add  BullMQ Guru (Gurubase.io) badge ([#2888](https://github.com/taskforcesh/bullmq/issues/2888)) ([`b70dbdf`](https://github.com/taskforcesh/bullmq/commit/b70dbdf8e4e8f5b69868f10e98a7c8abd5b2fb23))
+* **patterns:** Fix token type in process-step-jobs ([#2881](https://github.com/taskforcesh/bullmq/issues/2881)) ([`974d096`](https://github.com/taskforcesh/bullmq/commit/974d0960c5990c725a0f13483ab7a8e7e5403949))
+
+### Performance
+* **marker:** Add base markers while consuming jobs to get workers busy (#2904) fixes #2842 ([`1759c8b`](https://github.com/taskforcesh/bullmq/commit/1759c8bc111cab9e43d5fccb4d8d2dccc9c39fb4))
+
 ## v2.10.1 (2024-10-26)
 ### Fix
 * **commands:** Add missing build statement when releasing [python] (#2869) fixes #2868 ([`ff2a47b`](https://github.com/taskforcesh/bullmq/commit/ff2a47b37c6b36ee1a725f91de2c6e4bcf8b011a))
