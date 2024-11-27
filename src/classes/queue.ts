@@ -14,7 +14,7 @@ import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { JobScheduler } from './job-scheduler';
+import { JobScheduler, JobSchedulerJson } from './job-scheduler';
 import { version } from '../version';
 import { optsFromJSON } from '../utils';
 
@@ -584,32 +584,8 @@ export class Queue<
    *
    * @param id - identifier of scheduler.
    */
-  async getJobScheduler(id: string): Promise<RepeatableJob> {
+  async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
     return (await this.jobScheduler).getJobScheduler(id);
-  }
-
-  /**
-   * Get Job Scheduler template by id
-   *
-   * @param id - identifier of scheduler.
-   */
-  async getJobSchedulerTemplate(
-    id: string,
-  ): Promise<{ data: DataType; opts: JobsOptions }> {
-    const client = await this.client;
-
-    const [templateData, templateOpts] = await client.hmget(
-      `${this.keys.repeat}:${id}`,
-      'data',
-      'opts',
-    );
-
-    const data = JSON.parse(templateData || '{}');
-    const opts = optsFromJSON(templateOpts);
-    return {
-      data,
-      opts,
-    };
   }
 
   /**

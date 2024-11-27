@@ -360,14 +360,13 @@ describe('Job Scheduler', function () {
       tz: null,
       pattern: '*/2 * * * * *',
       every: null,
+      template: {
+        data: {
+          foo: 'bar',
+        },
+        opts: {},
+      },
     });
-
-    const { data, opts } = await queue.getJobSchedulerTemplate('test');
-
-    expect(data).to.deep.equal({
-      foo: 'bar',
-    });
-    expect(opts).to.deep.equal({});
 
     this.clock.tick(nextTick);
 

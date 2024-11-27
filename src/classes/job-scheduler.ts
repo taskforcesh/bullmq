@@ -5,9 +5,9 @@ import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { optsAsJSON } from '../utils';
+import { optsAsJSON, optsFromJSON } from '../utils';
 
-export interface JobSchedulerJson {
+export interface JobSchedulerJson<D = any> {
   key: string; // key is actually the job scheduler id
   name: string;
   id?: string | null;
@@ -16,6 +16,10 @@ export interface JobSchedulerJson {
   pattern: string | null;
   every?: string | null;
   next?: number;
+  template?: {
+    data: D;
+    opts: JobsOptions;
+  };
 }
 
 export class JobScheduler extends QueueBase {
@@ -244,18 +248,28 @@ export class JobScheduler extends QueueBase {
     };
   }
 
-  async getJobScheduler(id: string): Promise<JobSchedulerJson> {
+  async getJobScheduler<D = any>(id: string): Promise<JobSchedulerJson<D>> {
     const client = await this.client;
-    const jobData = await client.hgetall(this.toKey('repeat:' + id));
+    const schedulerAttributes = await client.hgetall(
+      this.toKey('repeat:' + id),
+    );
 
-    if (jobData) {
+    if (schedulerAttributes) {
       return {
         key: id,
-        name: jobData.name,
-        endDate: parseInt(jobData.endDate) || null,
-        tz: jobData.tz || null,
-        pattern: jobData.pattern || null,
-        every: jobData.every || null,
+        name: schedulerAttributes.name,
+        endDate: parseInt(schedulerAttributes.endDate) || null,
+        tz: schedulerAttributes.tz || null,
+        pattern: schedulerAttributes.pattern || null,
+        every: schedulerAttributes.every || null,
+        ...(schedulerAttributes.data
+          ? {
+              template: {
+                data: JSON.parse(schedulerAttributes.data || '{}'),
+                opts: optsFromJSON(schedulerAttributes.opts),
+              },
+            }
+          : {}),
       };
     }
   }
