@@ -450,7 +450,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: removeUndefinedFields<RedisJobOptions>(optsAsJSON(this.opts)),
+      opts: optsAsJSON(this.opts),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
       progress: this.progress,

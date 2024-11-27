@@ -5,7 +5,7 @@ import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { optsAsJSON, removeUndefinedFields } from '../utils';
+import { optsAsJSON } from '../utils';
 
 export interface JobSchedulerJson {
   key: string; // key is actually the job scheduler id
