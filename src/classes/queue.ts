@@ -241,17 +241,6 @@ export class Queue<
     return await client.hget(this.keys.meta, 'version');
   }
 
-  protected createJob(
-    data: JobJsonRaw,
-    jobId: string,
-  ): Job<DataType, ResultType, NameType> {
-    return this.Job.fromJSON(this as MinimalQueue, data, jobId) as Job<
-      DataType,
-      ResultType,
-      NameType
-    >;
-  }
-
   get repeat(): Promise<Repeat> {
     return new Promise<Repeat>(async resolve => {
       if (!this._repeat) {
