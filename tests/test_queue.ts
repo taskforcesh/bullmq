@@ -37,6 +37,19 @@ describe('queues', function () {
     await connection.quit();
   });
 
+  describe('use generics', function () {
+    it('should be able to use generics', async function () {
+      const queue = new Queue<{ foo: string; bar: number }>('test', {
+        connection,
+      });
+      const job = await queue.add('test', { foo: 'bar', bar: 1 });
+      const job2 = await queue.getJob(job.id!);
+      expect(job2?.data.foo).to.be.eql('bar');
+      expect(job2?.data.bar).to.be.eql(1);
+      await queue.close();
+    });
+  });
+
   it('should return the queue version', async () => {
     const queue = new Queue(queueName, { connection });
     const version = await queue.getVersion();

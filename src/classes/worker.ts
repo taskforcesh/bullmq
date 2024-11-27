@@ -1042,7 +1042,6 @@ will never work with more accuracy than 1ms. */
           }
 
           clearTimeout(this.extendLocksTimer);
-          //clearTimeout(this.stalledCheckTimer);
           this.stalledCheckStopper?.();
 
           this.closed = true;
@@ -1249,6 +1248,7 @@ will never work with more accuracy than 1ms. */
           this.emit('stalled', jobId, 'active');
         });
 
+        // Todo: check if there any listeners on failed event
         const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
         for (let i = 0; i < failed.length; i++) {
           jobPromises.push(
