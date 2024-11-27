@@ -267,29 +267,6 @@ export class Scripts {
     return this.execCommand(client, 'pause', args);
   }
 
-  protected getJobSchedulerTemplateArgs(id: string) {
-    const queueKeys = this.queue.keys;
-    const keys: string[] = [queueKeys.repeat, queueKeys['']];
-
-    const args = [id];
-
-    return keys.concat(args);
-  }
-
-  async getJobSchedulerTemplate(id: string): Promise<any[]> {
-    const client = await this.queue.client;
-
-    const args = this.getJobSchedulerTemplateArgs(id);
-
-    const result = await this.execCommand(
-      client,
-      'getJobSchedulerTemplate',
-      args,
-    );
-
-    return raw2NextJobData(result);
-  }
-
   protected addRepeatableJobArgs(
     customKey: string,
     nextMillis: number,
@@ -334,6 +311,8 @@ export class Scripts {
     client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
+    templateData: string,
+    templateOpts: RedisJobOptions,
     opts: RepeatableOptions,
   ): Promise<string> {
     const queueKeys = this.queue.keys;
@@ -342,7 +321,15 @@ export class Scripts {
       queueKeys.repeat,
       queueKeys.delayed,
     ];
-    const args = [nextMillis, pack(opts), jobSchedulerId, queueKeys['']];
+
+    const args = [
+      nextMillis,
+      pack(opts),
+      jobSchedulerId,
+      templateData,
+      pack(templateOpts),
+      queueKeys[''],
+    ];
     return this.execCommand(client, 'addJobScheduler', keys.concat(args));
   }
 

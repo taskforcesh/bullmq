@@ -5,6 +5,7 @@ import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
+import { optsAsJSON, removeUndefinedFields } from '../utils';
 
 export interface JobSchedulerJson {
   key: string; // key is actually the job scheduler id
@@ -103,6 +104,8 @@ export class JobScheduler extends QueueBase {
           (<unknown>multi) as RedisClient,
           jobSchedulerId,
           nextMillis,
+          JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
+          optsAsJSON(opts),
           {
             name: jobName,
             endDate: endDate ? new Date(endDate).getTime() : undefined,
@@ -255,10 +258,6 @@ export class JobScheduler extends QueueBase {
         every: jobData.every || null,
       };
     }
-  }
-
-  async getJobTemplate(schedulerId: string): Promise<any[]> {
-    return this.scripts.getJobSchedulerTemplate(schedulerId);
   }
 
   async getJobSchedulers(

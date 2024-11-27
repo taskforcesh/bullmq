@@ -16,6 +16,7 @@ import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
+import { optsFromJSON } from '../utils';
 
 export interface ObliterateOpts {
   /**
@@ -595,11 +596,16 @@ export class Queue<
   async getJobSchedulerTemplate(
     id: string,
   ): Promise<{ data: DataType; opts: JobsOptions }> {
-    const jobScheduler = await this.jobScheduler;
-    const [jobData] = await jobScheduler.getJobTemplate(id);
+    const client = await this.client;
 
-    const data = JSON.parse(jobData.data || '{}');
-    const opts = this.Job.optsFromJSON(jobData.opts);
+    const [templateData, templateOpts] = await client.hmget(
+      `${this.keys.repeat}:${id}`,
+      'data',
+      'opts',
+    );
+
+    const data = JSON.parse(templateData || '{}');
+    const opts = optsFromJSON(templateOpts);
     return {
       data,
       opts,

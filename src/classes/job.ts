@@ -30,6 +30,8 @@ import {
   parseObjectValues,
   tryCatch,
   removeUndefinedFields,
+  optsAsJSON,
+  optsFromJSON,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts, raw2NextJobData } from './scripts';
@@ -324,7 +326,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = Job.optsFromJSON(json.opts);
+    const opts = optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
       queue,
@@ -388,27 +390,6 @@ export class Job<
     this.scripts = new Scripts(this.queue);
   }
 
-  static optsFromJSON(rawOpts?: string): JobsOptions {
-    const opts = JSON.parse(rawOpts || '{}');
-
-    const optionEntries = Object.entries(opts) as Array<
-      [keyof RedisJobOptions, any]
-    >;
-
-    const options: Partial<Record<string, any>> = {};
-    for (const item of optionEntries) {
-      const [attributeName, value] = item;
-      if ((optsDecodeMap as Record<string, any>)[<string>attributeName]) {
-        options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
-          value;
-      } else {
-        options[<string>attributeName] = value;
-      }
-    }
-
-    return options as JobsOptions;
-  }
-
   /**
    * Fetches a Job from the queue given the passed job id.
    *
@@ -469,7 +450,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: removeUndefinedFields<RedisJobOptions>(this.optsAsJSON(this.opts)),
+      opts: removeUndefinedFields<RedisJobOptions>(optsAsJSON(this.opts)),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
       progress: this.progress,
@@ -485,24 +466,6 @@ export class Job<
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
     });
-  }
-
-  private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
-    const optionEntries = Object.entries(opts) as Array<
-      [keyof JobsOptions, any]
-    >;
-    const options: Partial<Record<string, any>> = {};
-    for (const item of optionEntries) {
-      const [attributeName, value] = item;
-      if ((optsEncodeMap as Record<string, any>)[<string>attributeName]) {
-        options[(optsEncodeMap as Record<string, any>)[<string>attributeName]] =
-          value;
-      } else {
-        options[<string>attributeName] = value;
-      }
-    }
-
-    return options as RedisJobOptions;
   }
 
   /**

@@ -13,7 +13,9 @@
             [4]  endDate?
             [5]  every?
       ARGV[3] jobs scheduler id
-      ARGV[4] prefix key
+      ARGV[4] Json stringified template data
+      ARGV[5] mspacked template opts
+      ARGV[6] prefix key
 
       Output:
         repeatableKey  - OK
@@ -24,13 +26,14 @@ local delayedKey = KEYS[2]
 
 local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[3]
-local prefixKey = ARGV[4]
+local templateOpts = cmsgpack.unpack(ARGV[5])
+local prefixKey = ARGV[6]
 
 -- Includes
 --- @include "includes/removeJob"
 
-local function storeRepeatableJob(repeatKey, nextMillis, rawOpts)
-  rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
+local function storeRepeatableJob(schedulerId, repeatKey, nextMillis, rawOpts, templateData, templateOpts)
+  rcall("ZADD", repeatKey, nextMillis, schedulerId)
   local opts = cmsgpack.unpack(rawOpts)
 
   local optionalValues = {}
@@ -54,8 +57,9 @@ local function storeRepeatableJob(repeatKey, nextMillis, rawOpts)
     table.insert(optionalValues, opts['every'])
   end
 
-  rcall("HMSET", repeatKey .. ":" .. jobSchedulerId, "name", opts['name'],
-    unpack(optionalValues))
+  local jsonTemplateOpts = cjson.encode(templateOpts)
+  rcall("HMSET", repeatKey .. ":" .. schedulerId, "name", opts['name'], "data", templateData,
+    "opts", jsonTemplateOpts, unpack(optionalValues))
 end
 
 -- If we are overriding a repeatable job we must delete the delayed job for
@@ -74,4 +78,4 @@ if prevMillis ~= false then
   end
 end
 
-return storeRepeatableJob(repeatKey, nextMillis, ARGV[2])
+return storeRepeatableJob(jobSchedulerId, repeatKey, nextMillis, ARGV[2], ARGV[4], templateOpts)
