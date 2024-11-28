@@ -39,10 +39,11 @@ describe('queues', function () {
 
   describe('use generics', function () {
     it('should be able to use generics', async function () {
-      const queue = new Queue<{ foo: string; bar: number }>('test', {
+      const queue = new Queue<{ foo: string; bar: number }>(queueName, {
         connection,
       });
-      const job = await queue.add('{test}', { foo: 'bar', bar: 1 });
+
+      const job = await queue.add(queueName, { foo: 'bar', bar: 1 });
       const job2 = await queue.getJob(job.id!);
       expect(job2?.data.foo).to.be.eql('bar');
       expect(job2?.data.bar).to.be.eql(1);

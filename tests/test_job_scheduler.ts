@@ -1403,7 +1403,7 @@ describe('Job Scheduler', function () {
     });
   });
 
-  describe('when repeatable job fails', async function () {
+  describe('when repeatable job fails', function () {
     it('should continue repeating', async function () {
       const repeatOpts = {
         pattern: '0 * 1 * *',
@@ -1439,14 +1439,11 @@ describe('Job Scheduler', function () {
       const delayedCount2 = await queue.getDelayedCount();
       expect(delayedCount2).to.be.equal(1);
 
-      const configs = await repeat.getRepeatableJobs(0, -1, true);
-
-      expect(delayedCount).to.be.equal(1);
+      const jobSchedulers = await queue.getJobSchedulers();
 
       const count = await queue.count();
-
       expect(count).to.be.equal(1);
-      expect(configs).to.have.length(1);
+      expect(jobSchedulers).to.have.length(1);
       await worker.close();
     });
 
@@ -1498,11 +1495,17 @@ describe('Job Scheduler', function () {
         every: 477,
       };
 
+      let isFirstRun = true;
+
       const worker = new Worker(
         queueName,
         async () => {
           this.clock.tick(177);
-          throw new Error('failed');
+
+          if (isFirstRun) {
+            isFirstRun = false;
+            throw new Error('failed');
+          }
         },
         {
           connection,
@@ -1585,10 +1588,10 @@ describe('Job Scheduler', function () {
 
       // force remove the lock
       const client = await queue.client;
-      const lockKey = `bull:${queueName}:${repeatableJob!.id}:lock`;
+      const lockKey = `${prefix}:${queueName}:${repeatableJob!.id}:lock`;
       await client.del(lockKey);
 
-      const stalledCheckerKey = `bull:${queueName}:stalled-check`;
+      const stalledCheckerKey = `${prefix}:${queueName}:stalled-check`;
       await client.del(stalledCheckerKey);
 
       const scripts = (<any>worker!).scripts;
