@@ -1896,4 +1896,42 @@ describe('Job Scheduler', function () {
     await processing;
     await worker.close();
   });
+
+  it('should schedule next repeatable job after promote', async function () {
+    const worker = new Worker(queueName, async () => {}, { connection });
+    await worker.waitUntilReady();
+    await queue.upsertJobScheduler('scheduler-test', { every: 50000 });
+
+    await queue.promoteJobs();
+
+    expect(
+      (await queue.getDelayedCount()) == 1 ||
+        (await queue.getWaitingCount()) == 1 ||
+        (await queue.getActiveCount()) == 1,
+    ).to.be.true;
+    await queue.removeJobScheduler('scheduler-test');
+    await worker.close();
+  });
+
+  it('worker should start processing repeatable jobs after drain', async function () {
+    await queue.upsertJobScheduler('scheduler-test', {
+      every: 50000,
+      immediately: true,
+    });
+    const worker = new Worker(queueName, async () => {}, { connection });
+    await worker.waitUntilReady();
+
+    await queue.drain(true);
+
+    await queue.upsertJobScheduler('scheduler-test', {
+      every: 50000,
+      immediately: true,
+    });
+
+    expect(worker.isRunning()).to.be.true;
+    expect(await queue.getDelayedCount()).to.equal(1);
+
+    await queue.removeJobScheduler('scheduler-test');
+    await worker.close();
+  });
 });
