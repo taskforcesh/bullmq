@@ -11,6 +11,7 @@ import {
   ContextManager,
   RedisClient,
   Span,
+  TelemetryOptions,
   Tracer,
 } from './interfaces';
 import { EventEmitter } from 'events';
@@ -299,6 +300,7 @@ export async function trace<T>(
     | {
         tracer: Tracer;
         contextManager: ContextManager;
+        options?: TelemetryOptions;
       }
     | undefined,
   spanKind: SpanKind,
@@ -311,12 +313,12 @@ export async function trace<T>(
   if (!telemetry) {
     return callback();
   } else {
-    const { tracer, contextManager } = telemetry;
+    const { tracer, contextManager, options } = telemetry;
 
     const currentContext = contextManager.active();
 
     let parentContext;
-    if (srcPropagationMetadata) {
+    if (!options?.omitContext && srcPropagationMetadata) {
       parentContext = contextManager.fromMetadata(
         currentContext,
         srcPropagationMetadata,

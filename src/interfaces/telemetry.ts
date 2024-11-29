@@ -24,6 +24,22 @@ export interface Telemetry<Context = any> {
    * it across the application.
    */
   contextManager: ContextManager;
+
+  /**
+   * Telemetry options
+   */
+  options?: TelemetryOptions;
+}
+
+/**
+ * Telemetry options
+ */
+export interface TelemetryOptions {
+  /**
+   * If `true` telemetry will omit the context propagation
+   * @defaultValue false
+   */
+  omitContext?: boolean;
 }
 
 /**
