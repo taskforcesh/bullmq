@@ -183,6 +183,9 @@ describe('Job Scheduler', function () {
 
       const delayed = await queue.getDelayed();
       expect(delayed).to.have.length(3);
+
+      const jobSchedulersCount = await queue.getJobSchedulersCount();
+      expect(jobSchedulersCount).to.be.eql(3);
     });
   });
 
