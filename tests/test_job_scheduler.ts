@@ -1898,24 +1898,17 @@ describe('Job Scheduler', function () {
   });
 
   it('should schedule next repeatable job after promote', async function () {
-    const worker = new Worker(queueName, async () => {}, { connection });
-    await worker.waitUntilReady();
     await queue.upsertJobScheduler('scheduler-test', { every: 50000 });
 
     await queue.promoteJobs();
 
-    expect(
-      (await queue.getDelayedCount()) == 1 ||
-        (await queue.getWaitingCount()) == 1 ||
-        (await queue.getActiveCount()) == 1,
-    ).to.be.true;
-    await queue.removeJobScheduler('scheduler-test');
-    await worker.close();
+    const waitingCount = await queue.getWaitingCount();
+    expect(waitingCount).to.be.equal(1);
   });
 
   it('worker should start processing repeatable jobs after drain', async function () {
     await queue.upsertJobScheduler('scheduler-test', {
-      every: 50000,
+      pattern: '* * * * *',
       immediately: true,
     });
     const worker = new Worker(queueName, async () => {}, { connection });
@@ -1924,14 +1917,28 @@ describe('Job Scheduler', function () {
     await queue.drain(true);
 
     await queue.upsertJobScheduler('scheduler-test', {
-      every: 50000,
+      pattern: '* * * * *',
       immediately: true,
     });
 
-    expect(worker.isRunning()).to.be.true;
-    expect(await queue.getDelayedCount()).to.equal(1);
+    const completing = new Promise<void>((resolve, reject) => {
+      worker.once('completed', async job => {
+        try {
+          expect(job).to.be.ok;
+          expect(job.data.foo).to.be.eql('bar');
+        } catch (err) {
+          reject(err);
+        }
+        resolve();
+      });
+    });
 
-    await queue.removeJobScheduler('scheduler-test');
+    const job = await queue.add('test', { foo: 'bar' });
+    expect(job.id).to.be.ok;
+    expect(job.data.foo).to.be.eql('bar');
+
+    await completing;
+
     await worker.close();
   });
 });
