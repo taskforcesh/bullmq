@@ -39,6 +39,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         completed_events = Future()
 
         job_count = 1
+
         def completing(job: Job, result):
             nonlocal job_count
             if job_count == 2:

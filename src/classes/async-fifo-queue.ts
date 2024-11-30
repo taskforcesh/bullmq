@@ -1,22 +1,74 @@
+class Node<T> {
+  value: T | undefined = undefined;
+  next: Node<T> | null = null;
+
+  constructor(value: T) {
+    this.value = value;
+  }
+}
+
+class LinkedList<T> {
+  length: number = 0;
+  private head: Node<T> | null;
+  private tail: Node<T> | null;
+
+  constructor() {
+    this.head = null;
+    this.tail = null;
+  }
+
+  push(value: T) {
+    const newNode = new Node(value);
+    if (!this.length) {
+      this.head = newNode;
+    } else {
+      this.tail.next = newNode;
+    }
+
+    this.tail = newNode;
+    this.length += 1;
+    return newNode;
+  }
+
+  shift() {
+    if (!this.length) {
+      return null;
+    } else {
+      const head = this.head;
+      this.head = this.head.next;
+      this.length -= 1;
+
+      return head;
+    }
+  }
+}
+
 /**
  * AsyncFifoQueue
  *
  * A minimal FIFO queue for asynchronous operations. Allows adding asynchronous operations
  * and consume them in the order they are resolved.
- *
- *  TODO: Optimize using a linked list for the queue instead of an array.
- *  Current implementation requires memory copies when shifting the queue.
- *  For a linked linked implementation, we can exploit the fact that the
- *  maximum number of elements in the list will never exceen the concurrency factor
- *  of the worker, so the nodes of the list could be pre-allocated.
  */
 export class AsyncFifoQueue<T> {
-  private queue: (T | undefined)[] = [];
+  /**
+   * A queue of completed promises. As the pending
+   * promises are resolved, they are added to this queue.
+   */
+  private queue: LinkedList<T> = new LinkedList();
 
+  /**
+   * A set of pending promises.
+   */
+  private pending = new Set<Promise<T>>();
+
+  /**
+   * The next promise to be resolved. As soon as a pending promise
+   * is resolved, this promise is resolved with the result of the
+   * pending promise.
+   */
   private nextPromise: Promise<T | undefined> | undefined;
   private resolve: ((value: T | undefined) => void) | undefined;
   private reject: ((reason?: any) => void) | undefined;
-  private pending = new Set<Promise<T>>();
 
   constructor(private ignoreErrors = false) {
     this.newPromise();
@@ -26,13 +78,13 @@ export class AsyncFifoQueue<T> {
     this.pending.add(promise);
 
     promise
-      .then(job => {
+      .then(data => {
         this.pending.delete(promise);
 
         if (this.queue.length === 0) {
-          this.resolvePromise(job);
+          this.resolvePromise(data);
         }
-        this.queue.push(job);
+        this.queue.push(data);
       })
       .catch(err => {
         // Ignore errors
@@ -60,8 +112,8 @@ export class AsyncFifoQueue<T> {
     return this.queue.length;
   }
 
-  private resolvePromise(job: T) {
-    this.resolve!(job);
+  private resolvePromise(data: T) {
+    this.resolve!(data);
     this.newPromise();
   }
 
@@ -95,6 +147,6 @@ export class AsyncFifoQueue<T> {
         }
       }
     }
-    return this.queue.shift();
+    return this.queue.shift()?.value;
   }
 }

@@ -5,7 +5,7 @@ from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
 from bullmq.types import JobOptions
-from bullmq.utils import get_parent_key
+from bullmq.utils import get_parent_key, parse_json_string_values
 
 import json
 import time
@@ -14,6 +14,7 @@ import traceback
 
 optsDecodeMap = {
     'fpof': 'failParentOnFailure',
+    'idof': 'ignoreDependencyOnFailure',
     'kl': 'keepLogs',
 }
 
@@ -42,6 +43,7 @@ class Job:
         self.delay = opts.get("delay", 0)
         self.attempts = opts.get("attempts", 1)
         self.attemptsMade = 0
+        self.attemptsStarted = 0
         self.data = data
         self.removeOnComplete = opts.get("removeOnComplete", True)
         self.removeOnFail = opts.get("removeOnFail", False)
@@ -62,6 +64,10 @@ class Job:
         self.data = data
         return self.scripts.updateData(self.id, data)
 
+    async def promote(self):
+        await self.scripts.promote(self.id)
+        self.delay = 0
+
     def retry(self, state: str = "failed"):
         self.failedReason = None
         self.finishedOn = None
@@ -81,9 +87,50 @@ class Job:
 
     async def remove(self, opts: dict = {}):
         removed = await self.scripts.remove(self.id, opts.get("removeChildren", True))
-        
+
         if not removed:
             raise Exception(f"Job {self.id} could not be removed because it is locked by another worker")
+
+    def isCompleted(self):
+        """
+        Returns true if the job has completed.
+        """
+        return self.isInZSet('completed')
+
+    def isFailed(self):
+        """
+        Returns true if the job has failed.
+        """
+        return self.isInZSet('failed')
+
+    def isDelayed(self):
+        """
+        Returns true if the job is delayed.
+        """
+        return self.isInZSet('delayed')
+
+    def isWaitingChildren(self):
+        """
+        Returns true if the job is waiting for children.
+        """
+        return self.isInZSet('waiting-children')
+
+    def isActive(self):
+        """
+        Returns true if the job is active.
+        """
+        return self.isInList('active')
+
+    async def isWaiting(self):
+        return ( await self.isInList('wait') or await self.isInList('paused'))
+
+    async def isInZSet(self, set: str):
+        score = await self.queue.client.zscore(self.scripts.toKey(set), self.id)
+
+        return score is not None
+
+    def isInList(self, list_name: str):
+        return self.scripts.isJobInList(self.scripts.toKey(list_name), self.id)
 
     async def moveToFailed(self, err, token:str, fetchNext:bool = False):
         error_message = str(err)
@@ -91,13 +138,14 @@ class Job:
 
         move_to_failed = False
         finished_on = 0
+        delay = 0
         command = 'moveToFailed'
 
         async with self.queue.redisConnection.conn.pipeline(transaction=True) as pipe:
             await self.saveStacktrace(pipe, error_message)
-            if self.attemptsMade < self.opts['attempts'] and not self.discarded:
+            if (self.attemptsMade + 1) < self.opts.get('attempts') and not self.discarded:
                 delay = await Backoffs.calculate(
-                    self.opts.get('backoff'), self.attemptsMade,
+                    self.opts.get('backoff'), self.attemptsMade + 1,
                     err, self, self.queue.opts.get("settings") and self.queue.opts['settings'].get("backoffStrategy")
                     )
                 if delay == -1:
@@ -105,8 +153,9 @@ class Job:
                 elif delay:
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
-                        round(time.time() * 1000) + delay,
-                        token
+                        round(time.time() * 1000),
+                        token,
+                        delay
                     )
 
                     await self.scripts.commands["moveToDelayed"](keys=keys, args=args, client=pipe)
@@ -136,6 +185,14 @@ class Job:
         if finished_on and type(finished_on) == int:
             self.finishedOn = finished_on
 
+        if delay and type(delay) == int:
+            self.delay = delay
+
+        self.attemptsMade = self.attemptsMade + 1
+
+    def log(self, logRow: str):
+        return Job.addJobLog(self.queue, self.id, logRow, self.opts.get("keepLogs", 0))
+
     async def saveStacktrace(self, pipe, err:str):
         stacktrace = traceback.format_exc()
         stackTraceLimit = self.opts.get("stackTraceLimit")
@@ -146,12 +203,16 @@ class Job:
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
         keys, args = self.scripts.saveStacktraceArgs(
-            self.id, json.dumps(self.stacktrace, separators=(',', ':')), err)
+            self.id, json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False), err)
 
         await self.scripts.commands["saveStacktrace"](keys=keys, args=args, client=pipe)
 
     def moveToWaitingChildren(self, token, opts:dict):
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
+
+    async def getChildrenValues(self):
+        results = await self.queue.client.hgetall(f"{self.queue.prefix}:{self.queue.name}:{self.id}:processed")
+        return parse_json_string_values(results)
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
@@ -181,8 +242,11 @@ class Job:
         if rawData.get("rjk"):
             job.repeatJobKey = rawData.get("rjk")
 
+        if rawData.get("ats"):
+            job.attemptsStarted = int(rawData.get("ats"))
+
         job.failedReason = rawData.get("failedReason")
-        job.attemptsMade = int(rawData.get("attemptsMade", "0"))
+        job.attemptsMade = int(rawData.get("attemptsMade") or rawData.get("atm") or "0")
 
         returnvalue = rawData.get("returnvalue")
         if type(returnvalue) == str:
@@ -194,7 +258,7 @@ class Job:
             job.parentKey = rawData.get("parentKey")
 
         if rawData.get("parent"):
-           job.parent = json.loads(rawData.get("parent"))
+            job.parent = json.loads(rawData.get("parent"))
 
         return job
 
@@ -205,6 +269,19 @@ class Job:
         if len(raw_data):
             return Job.fromJSON(queue, raw_data, jobId)
 
+    @staticmethod
+    async def addJobLog(queue: Queue, jobId: str, logRow: str, keepLogs: int = 0):
+        logs_key = f"{queue.prefix}:{queue.name}:{jobId}:logs"
+        multi = await queue.client.pipeline()
+
+        multi.rpush(logs_key, logRow)
+
+        if keepLogs:
+            multi.ltrim(logs_key, -keepLogs, -1)
+
+        result = await multi.execute()
+
+        return min(keepLogs, result[0]) if keepLogs else result[0]
 
 def optsFromJSON(rawOpts: dict) -> dict:
     # opts = json.loads(rawOpts)

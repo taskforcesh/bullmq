@@ -10,8 +10,8 @@ export function createRepeatableJobKey(
   return `${jobName}:${jobId}:${endDate}:${tz}:${suffix}`;
 }
 
-export function getRepeatableJobKeyPrefix(queueName: string) {
-  return `bull:${queueName}:repeat:`;
+export function getRepeatableJobKeyPrefix(prefix: string, queueName: string) {
+  return `${prefix}:${queueName}:repeat:`;
 }
 
 export function extractRepeatableJobChecksumFromRedisKey(
@@ -25,11 +25,8 @@ export function hash(repeatKeyHashAlgorithm: string, payload: string) {
 }
 
 export function getRepeatJobIdCheckum(
-  name: string,
   repeatJobKey: string,
   repeatKeyHashAlgorithm: string,
-  jobId?: string,
 ) {
-  const namespace = hash(repeatKeyHashAlgorithm, repeatJobKey);
-  return hash(repeatKeyHashAlgorithm, `${name}${jobId || ''}${namespace}`);
+  return hash(repeatKeyHashAlgorithm, repeatJobKey);
 }

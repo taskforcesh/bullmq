@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
 import { v4 } from 'uuid';
 
@@ -13,13 +13,19 @@ const ONE_MINUTE = 60 * ONE_SECOND;
 const ONE_HOUR = 60 * ONE_MINUTE;
 
 describe('metrics', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   this.timeout(10000);
   let repeat: Repeat;
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
 
-  const connection = { host: 'localhost' };
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(function () {
     this.clock = sinon.useFakeTimers();
@@ -27,9 +33,9 @@ describe('metrics', function () {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    repeat = new Repeat(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    repeat = new Repeat(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
@@ -38,7 +44,11 @@ describe('metrics', function () {
     await queue.close();
     await repeat.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should gather metrics for completed jobs', async function () {
@@ -56,6 +66,8 @@ describe('metrics', function () {
       ONE_MINUTE,
       ONE_MINUTE,
       ONE_MINUTE * 3,
+      ONE_SECOND * 70,
+      ONE_SECOND * 50,
       ONE_HOUR,
       ONE_MINUTE,
     ];
@@ -122,6 +134,8 @@ describe('metrics', function () {
       '0',
       '0',
       '1',
+      '1',
+      '1',
       '0',
       '0',
       '1',
@@ -139,6 +153,7 @@ describe('metrics', function () {
       },
       {
         connection,
+        prefix,
         metrics: {
           maxDataPoints: MetricsTime.ONE_HOUR * 2,
         },
@@ -229,6 +244,7 @@ describe('metrics', function () {
       },
       {
         connection,
+        prefix,
         metrics: {
           maxDataPoints: MetricsTime.FIFTEEN_MINUTES,
         },
@@ -293,7 +309,9 @@ describe('metrics', function () {
         throw new Error('test');
       },
       {
+        autorun: false,
         connection,
+        prefix,
         metrics: {
           maxDataPoints: MetricsTime.ONE_HOUR * 2,
         },
@@ -316,11 +334,10 @@ describe('metrics', function () {
       await queue.add('test', { index: i });
     }
 
+    worker.run();
     await completing;
 
-    const closing = worker.close();
-
-    await closing;
+    await worker.close();
 
     const metrics = await queue.getMetrics('failed');
 
@@ -363,6 +380,7 @@ describe('metrics', function () {
       },
       {
         connection,
+        prefix,
         metrics: {
           maxDataPoints: MetricsTime.ONE_HOUR * 2,
         },

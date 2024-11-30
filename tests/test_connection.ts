@@ -3,25 +3,108 @@ import { default as IORedis, RedisOptions } from 'ioredis';
 import { v4 } from 'uuid';
 import { Queue, Job, Worker, QueueBase } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
+import {
+  before,
+  describe,
+  it,
+  beforeEach,
+  afterEach,
+  after as afterAll,
+} from 'mocha';
 
 describe('connection', () => {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection: { host: 'localhost' } });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
+  });
+
+  describe('establish ioredis connection', () => {
+    it('should connect with host:port', async () => {
+      const queue = new Queue('valid-host-port', {
+        connection: {
+          host: 'localhost',
+          port: 6379,
+          retryStrategy: () => null,
+        },
+      });
+
+      const client = await queue.waitUntilReady();
+      expect(client.status).to.be.eql('ready');
+
+      await queue.close();
+    });
+
+    it('should fail with invalid host:port', async () => {
+      const queue = new Queue('invalid-host-port', {
+        connection: {
+          host: 'localhost',
+          port: 9000,
+          retryStrategy: () => null,
+        },
+      });
+
+      await expect(queue.waitUntilReady()).to.be.eventually.rejectedWith(
+        'connect ECONNREFUSED 127.0.0.1:9000',
+      );
+    });
+
+    it('should connect with connection URL', async () => {
+      const queue = new Queue('valid-url', {
+        connection: {
+          url: 'redis://localhost:6379',
+          // Make sure defaults are not being used
+          host: '1.1.1.1',
+          port: 2222,
+          retryStrategy: () => null,
+        },
+      });
+
+      const client = await queue.waitUntilReady();
+      expect(client.status).to.be.eql('ready');
+
+      await queue.close();
+    });
+
+    it('should fail with invalid connection URL', async () => {
+      const queue = new Queue('invalid-url', {
+        connection: {
+          url: 'redis://localhost:9001',
+          // Make sure defaults are not being used
+          host: '1.1.1.1',
+          port: 2222,
+          retryStrategy: () => null,
+        },
+      });
+
+      await expect(queue.waitUntilReady()).to.be.eventually.rejectedWith(
+        'connect ECONNREFUSED 127.0.0.1:9001',
+      );
+    });
   });
 
   describe('prefix', () => {
     it('should throw exception if using prefix with ioredis', async () => {
       const connection = new IORedis({
+        host: redisHost,
         keyPrefix: 'bullmq',
       });
 
@@ -49,32 +132,35 @@ describe('connection', () => {
 
   describe('blocking', () => {
     it('should override maxRetriesPerRequest: null as redis options', async () => {
-      const queue = new QueueBase(queueName, {
-        connection: {
-          host: 'localhost',
-          maxRetriesPerRequest: 20,
-        },
-      });
+      if (redisHost === 'localhost') {
+        // We cannot currently test this behaviour for remote redis servers
+        const queue = new QueueBase(queueName, {
+          connection: { host: 'localhost' },
+        });
 
-      const options = <RedisOptions>(await queue.client).options;
+        const options = connection.options;
 
-      expect(options.maxRetriesPerRequest).to.be.equal(null);
+        expect(options.maxRetriesPerRequest).to.be.equal(null);
+
+        await queue.close();
+      }
     });
   });
 
   describe('non-blocking', () => {
     it('should not override any redis options', async () => {
-      const queue = new QueueBase(queueName, {
-        connection: {
-          host: 'localhost',
-          maxRetriesPerRequest: 20,
-        },
-        blockingConnection: false,
+      const connection2 = new IORedis(redisHost, { maxRetriesPerRequest: 20 });
+
+      const queue = new Queue(queueName, {
+        connection: connection2,
       });
 
       const options = <RedisOptions>(await queue.client).options;
 
       expect(options.maxRetriesPerRequest).to.be.equal(20);
+
+      await queue.close();
+      await connection2.quit();
     });
   });
 
@@ -96,6 +182,9 @@ describe('connection', () => {
         'Eviction policy is volatile-lru. It should be "noeviction"',
       );
       await client.config('SET', 'maxmemory-policy', 'noeviction');
+
+      await queue.close();
+      await queue2.close();
     });
   });
 
@@ -104,9 +193,33 @@ describe('connection', () => {
       const connection = new IORedis.Cluster(['redis://10.0.6.161:7379'], {
         natMap: {},
       });
-      const myQueue = new Queue('myqueue', { connection });
+      const queue = new Queue('myqueue', { connection });
       connection.disconnect();
     });
+  });
+
+  it('should close worker even if redis is down', async () => {
+    const connection = new IORedis('badhost', { maxRetriesPerRequest: null });
+    connection.on('error', () => {});
+
+    const worker = new Worker('test', async () => {}, { connection, prefix });
+
+    worker.on('error', err => {});
+    await worker.close();
+  });
+
+  it('should close underlying redis connection when closing fast', async () => {
+    const queue = new Queue('CALLS_JOB_QUEUE_NAME', {
+      connection: {
+        host: 'localhost',
+        port: 6379,
+      },
+    });
+
+    const client = queue['connection']['_client'];
+    await queue.close();
+
+    expect(client.status).to.be.eql('end');
   });
 
   it('should recover from a connection loss', async () => {
@@ -119,7 +232,7 @@ describe('connection', () => {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up
@@ -165,7 +278,7 @@ describe('connection', () => {
       };
     });
 
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
 
     worker.on('error', err => {
       // error event has to be observed or the exception will bubble up
@@ -291,10 +404,10 @@ describe('connection', () => {
       },
     });
 
-    await expect(queueFail.close()).to.be.eventually.equal(undefined);
-
     await expect(queueFail.waitUntilReady()).to.be.eventually.rejectedWith(
       'connect ECONNREFUSED 127.0.0.1:1234',
     );
+
+    await expect(queueFail.close()).to.be.eventually.equal(undefined);
   });
 });

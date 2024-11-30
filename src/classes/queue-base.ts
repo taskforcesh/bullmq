@@ -1,11 +1,18 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient } from '../interfaces';
+import { QueueBaseOptions, RedisClient, Span, Tracer } from '../interfaces';
 import { MinimalQueue } from '../types';
-import { delay, DELAY_TIME_5, isNotConnectionError } from '../utils';
+import {
+  delay,
+  DELAY_TIME_5,
+  isNotConnectionError,
+  isRedisInstance,
+  trace,
+} from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { Scripts } from './scripts';
+import { SpanKind } from '../enums';
 
 /**
  * @class QueueBase
@@ -20,6 +27,8 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
   keys: KeysMap;
   closing: Promise<void> | undefined;
 
+  protected closed: boolean = false;
+  protected hasBlockingConnection: boolean = false;
   protected scripts: Scripts;
   protected connection: RedisConnection;
   public readonly qualifiedName: string;
@@ -33,11 +42,13 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   constructor(
     public readonly name: string,
-    public opts: QueueBaseOptions = {},
+    public opts: QueueBaseOptions = { connection: {} },
     Connection: typeof RedisConnection = RedisConnection,
+    hasBlockingConnection = false,
   ) {
     super();
 
+    this.hasBlockingConnection = hasBlockingConnection;
     this.opts = {
       prefix: 'bull',
       ...opts,
@@ -47,20 +58,14 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       throw new Error('Queue name must be provided');
     }
 
-    if (!opts.connection) {
-      console.warn(
-        [
-          'BullMQ: DEPRECATION WARNING! Optional instantiation of Queue, Worker and QueueEvents',
-          'without providing explicitly a connection or connection options is deprecated. This behaviour will',
-          'be removed in the next major release',
-        ].join(' '),
-      );
+    if (name.includes(':')) {
+      throw new Error('Queue name cannot contain :');
     }
 
     this.connection = new Connection(
       opts.connection,
-      opts.sharedConnection,
-      opts.blockingConnection,
+      isRedisInstance(opts.connection),
+      hasBlockingConnection,
       opts.skipVersionCheck,
     );
 
@@ -75,7 +80,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     this.qualifiedName = queueKeys.getQueueQualifiedName(name);
     this.keys = queueKeys.getKeys(name);
     this.toKey = (type: string) => queueKeys.toKey(name, type);
-    this.scripts = new Scripts(this);
+    this.setScripts();
   }
 
   /**
@@ -83,6 +88,10 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    */
   get client(): Promise<RedisClient> {
     return this.connection.client;
+  }
+
+  protected setScripts() {
+    this.scripts = new Scripts(this);
   }
 
   /**
@@ -135,13 +144,14 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
 
   /**
    *
-   * @returns Closes the connection and returns a promise that resolves when the connection is closed.
+   * Closes the connection and returns a promise that resolves when the connection is closed.
    */
-  close(): Promise<void> {
+  async close(): Promise<void> {
     if (!this.closing) {
       this.closing = this.connection.close();
     }
-    return this.closing;
+    await this.closing;
+    this.closed = true;
   }
 
   /**
@@ -169,5 +179,33 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
         return;
       }
     }
+  }
+
+  /**
+   * Wraps the code with telemetry and provides a span for configuration.
+   *
+   * @param spanKind - kind of the span: Producer, Consumer, Internal
+   * @param operation - operation name (such as add, process, etc)
+   * @param destination - destination name (normally the queue name)
+   * @param callback - code to wrap with telemetry
+   * @param srcPropagationMedatada -
+   * @returns
+   */
+  trace<T>(
+    spanKind: SpanKind,
+    operation: string,
+    destination: string,
+    callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
+    srcPropagationMetadata?: string,
+  ) {
+    return trace<Promise<T> | T>(
+      this.opts.telemetry,
+      spanKind,
+      this.name,
+      operation,
+      destination,
+      callback,
+      srcPropagationMetadata,
+    );
   }
 }

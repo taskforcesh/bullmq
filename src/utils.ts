@@ -6,8 +6,17 @@ import { AbortController } from 'node-abort-controller';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
+import {
+  ChildMessage,
+  ContextManager,
+  RedisClient,
+  Span,
+  Tracer,
+} from './interfaces';
+import { EventEmitter } from 'events';
 import * as semver from 'semver';
-import { ChildMessage, RedisClient } from './interfaces';
+
+import { SpanKind, TelemetryAttributes } from './enums';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -66,6 +75,24 @@ export function delay(
   });
 }
 
+export function increaseMaxListeners(
+  emitter: EventEmitter,
+  count: number,
+): void {
+  const maxListeners = emitter.getMaxListeners();
+  emitter.setMaxListeners(maxListeners + count);
+}
+
+export const invertObject = (obj: Record<string, string>) => {
+  return Object.entries(obj).reduce<Record<string, string>>(
+    (encodeMap, [key, value]) => {
+      encodeMap[value] = key;
+      return encodeMap;
+    },
+    {},
+  );
+};
+
 export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
     return false;
@@ -78,10 +105,17 @@ export function isRedisCluster(obj: unknown): obj is Cluster {
   return isRedisInstance(obj) && (<Cluster>obj).isCluster;
 }
 
+export function decreaseMaxListeners(
+  emitter: EventEmitter,
+  count: number,
+): void {
+  increaseMaxListeners(emitter, -count);
+}
+
 export async function removeAllQueueData(
   client: RedisClient,
   queueName: string,
-  prefix = 'bull',
+  prefix = process.env.BULLMQ_TEST_PREFIX || 'bull',
 ): Promise<void | boolean> {
   if (client instanceof Cluster) {
     // todo compat with cluster ?
@@ -89,7 +123,7 @@ export async function removeAllQueueData(
     return Promise.resolve(false);
   }
   const pattern = `${prefix}:${queueName}:*`;
-  return new Promise<void>((resolve, reject) => {
+  const removing = await new Promise<void>((resolve, reject) => {
     const stream = client.scanStream({
       match: pattern,
     });
@@ -107,6 +141,8 @@ export async function removeAllQueueData(
     stream.on('end', () => resolve());
     stream.on('error', error => reject(error));
   });
+  await removing;
+  await client.quit();
 }
 
 export function getParentKey(opts: {
@@ -184,6 +220,20 @@ export const parseObjectValues = (obj: {
   return accumulator;
 };
 
+const getCircularReplacer = (rootReference: any) => {
+  const references = new WeakSet();
+  references.add(rootReference);
+  return (_: string, value: any) => {
+    if (typeof value === 'object' && value !== null) {
+      if (references.has(value)) {
+        return '[Circular]';
+      }
+      references.add(value);
+    }
+    return value;
+  };
+};
+
 export const errorToJSON = (value: any): Record<string, any> => {
   const error: Record<string, any> = {};
 
@@ -191,9 +241,124 @@ export const errorToJSON = (value: any): Record<string, any> => {
     error[propName] = value[propName];
   });
 
-  return error;
+  return JSON.parse(JSON.stringify(error, getCircularReplacer(value)));
 };
 
-export const WORKER_SUFFIX = '';
+const INFINITY = 1 / 0;
+
+export const toString = (value: any): string => {
+  if (value == null) {
+    return '';
+  }
+  // Exit early for strings to avoid a performance hit in some environments.
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    // Recursively convert values (susceptible to call stack limits).
+    return `${value.map(other => (other == null ? other : toString(other)))}`;
+  }
+  if (
+    typeof value == 'symbol' ||
+    Object.prototype.toString.call(value) == '[object Symbol]'
+  ) {
+    return value.toString();
+  }
+  const result = `${value}`;
+  return result === '0' && 1 / value === -INFINITY ? '-0' : result;
+};
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
+
+export function removeUndefinedFields<T extends Record<string, any>>(
+  obj: Record<string, any>,
+) {
+  const newObj: any = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      newObj[key] = obj[key];
+    }
+  }
+  return newObj as T;
+}
+
+/**
+ * Wraps the code with telemetry and provides a span for configuration.
+ *
+ * @param telemetry - telemetry configuration. If undefined, the callback will be executed without telemetry.
+ * @param spanKind - kind of the span: Producer, Consumer, Internal
+ * @param queueName - queue name
+ * @param operation - operation name (such as add, process, etc)
+ * @param destination - destination name (normally the queue name)
+ * @param callback - code to wrap with telemetry
+ * @param srcPropagationMedatada -
+ * @returns
+ */
+export async function trace<T>(
+  telemetry:
+    | {
+        tracer: Tracer;
+        contextManager: ContextManager;
+      }
+    | undefined,
+  spanKind: SpanKind,
+  queueName: string,
+  operation: string,
+  destination: string,
+  callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
+  srcPropagationMetadata?: string,
+) {
+  if (!telemetry) {
+    return callback();
+  } else {
+    const { tracer, contextManager } = telemetry;
+
+    const currentContext = contextManager.active();
+
+    let parentContext;
+    if (srcPropagationMetadata) {
+      parentContext = contextManager.fromMetadata(
+        currentContext,
+        srcPropagationMetadata,
+      );
+    }
+
+    const spanName = destination ? `${operation} ${destination}` : operation;
+    const span = tracer.startSpan(
+      spanName,
+      {
+        kind: spanKind,
+      },
+      parentContext,
+    );
+
+    try {
+      span.setAttributes({
+        [TelemetryAttributes.QueueName]: queueName,
+        [TelemetryAttributes.QueueOperation]: operation,
+      });
+
+      let messageContext;
+      let dstPropagationMetadata: undefined | string;
+
+      if (spanKind === SpanKind.CONSUMER && parentContext) {
+        messageContext = span.setSpanOnContext(parentContext);
+      } else {
+        messageContext = span.setSpanOnContext(currentContext);
+      }
+
+      if (callback.length == 2) {
+        dstPropagationMetadata = contextManager.getMetadata(messageContext);
+      }
+
+      return await contextManager.with(messageContext, () =>
+        callback(span, dstPropagationMetadata),
+      );
+    } catch (err) {
+      span.recordException(err as Error);
+      throw err;
+    } finally {
+      span.end();
+    }
+  }
+}

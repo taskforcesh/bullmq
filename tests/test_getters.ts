@@ -3,37 +3,47 @@
 
 import { expect } from 'chai';
 import { after } from 'lodash';
-import { describe, beforeEach, it } from 'mocha';
+import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Jobs getters', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
   let queue: Queue;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
   });
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   describe('.getQueueEvents', () => {
     it('gets all queueEvents for this queue', async function () {
-      const queueEvent = new QueueEvents(queueName, { connection });
+      const queueEvent = new QueueEvents(queueName, { connection, prefix });
       await queueEvent.waitUntilReady();
       await delay(10);
 
       const queueEvents = await queue.getQueueEvents();
       expect(queueEvents).to.have.length(1);
 
-      const queueEvent2 = new QueueEvents(queueName, { connection });
+      const queueEvent2 = new QueueEvents(queueName, { connection, prefix });
       await queueEvent2.waitUntilReady();
       await delay(10);
 
@@ -42,7 +52,7 @@ describe('Jobs getters', function () {
 
       await queueEvent.close();
       await queueEvent2.close();
-    });
+    }).timeout(8000);
   });
 
   describe('.getWorkers', () => {
@@ -50,6 +60,7 @@ describe('Jobs getters', function () {
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
+        prefix,
       });
       await new Promise<void>(resolve => {
         worker.on('ready', () => {
@@ -63,6 +74,7 @@ describe('Jobs getters', function () {
       const worker2 = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
+        prefix,
       });
       await new Promise<void>(resolve => {
         worker2.on('ready', () => {
@@ -73,16 +85,70 @@ describe('Jobs getters', function () {
       const nextWorkers = await queue.getWorkers();
       expect(nextWorkers).to.have.length(2);
 
+      const nextWorkersCount = await queue.getWorkersCount();
+      expect(nextWorkersCount).to.be.equal(2);
+
+      await worker.close();
+      await worker2.close();
+    });
+
+    it('gets all workers including their names', async function () {
+      const worker = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        name: 'worker1',
+      });
+      await new Promise<void>(resolve => {
+        worker.on('ready', () => {
+          resolve();
+        });
+      });
+
+      const workers = await queue.getWorkers();
+      expect(workers).to.have.length(1);
+
+      const workersCount = await queue.getWorkersCount();
+      expect(workersCount).to.be.equal(1);
+
+      const worker2 = new Worker(queueName, async () => {}, {
+        autorun: false,
+        connection,
+        prefix,
+        name: 'worker2',
+      });
+      await new Promise<void>(resolve => {
+        worker2.on('ready', () => {
+          resolve();
+        });
+      });
+
+      const nextWorkers = await queue.getWorkers();
+      expect(nextWorkers).to.have.length(2);
+
+      const nextWorkersCount = await queue.getWorkersCount();
+      expect(nextWorkersCount).to.be.equal(2);
+
+      const rawnames = nextWorkers.map(nextWorker => {
+        const workerValues = nextWorker.rawname.split(':');
+        return workerValues[workerValues.length - 1];
+      });
+
+      // Check that the worker names are included in the response on the rawname property
+      expect(rawnames).to.include('worker1');
+      expect(rawnames).to.include('worker2');
+
       await worker.close();
       await worker2.close();
     });
 
     it('gets only workers related only to one queue', async function () {
       const queueName2 = `${queueName}2`;
-      const queue2 = new Queue(queueName2, { connection });
+      const queue2 = new Queue(queueName2, { connection, prefix });
       const worker = new Worker(queueName, async () => {}, {
         autorun: false,
         connection,
+        prefix,
       });
       await new Promise<void>(resolve => {
         worker.on('ready', () => {
@@ -92,6 +158,7 @@ describe('Jobs getters', function () {
       const worker2 = new Worker(queueName2, async () => {}, {
         autorun: false,
         connection,
+        prefix,
       });
       await new Promise<void>(resolve => {
         worker2.on('ready', () => {
@@ -102,23 +169,33 @@ describe('Jobs getters', function () {
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
 
+      const workersCount = await queue.getWorkersCount();
+      expect(workersCount).to.be.equal(1);
+
       const workers2 = await queue2.getWorkers();
       expect(workers2).to.have.length(1);
+
+      const workersCount2 = await queue2.getWorkersCount();
+      expect(workersCount2).to.be.equal(1);
 
       await queue2.close();
       await worker.close();
       await worker2.close();
-      await removeAllQueueData(new IORedis(), queueName2);
+      await removeAllQueueData(new IORedis(redisHost), queueName2);
     });
 
     describe('when sharing connection', () => {
       // Test is very flaky on CI, so we skip it for now.
       it('gets all workers for a given queue', async function () {
-        const ioredisConnection = new IORedis({ maxRetriesPerRequest: null });
+        const ioredisConnection = new IORedis({
+          host: redisHost,
+          maxRetriesPerRequest: null,
+        });
 
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection: ioredisConnection,
+          prefix,
         });
         await new Promise<void>(async resolve => {
           worker.on('ready', () => {
@@ -133,6 +210,7 @@ describe('Jobs getters', function () {
 
         const worker2 = new Worker(queueName, async () => {}, {
           connection: ioredisConnection,
+          prefix,
         });
         await new Promise<void>(async resolve => {
           worker2.on('ready', () => {
@@ -156,6 +234,7 @@ describe('Jobs getters', function () {
         const worker = new Worker(queueName, async () => {}, {
           autorun: false,
           connection,
+          prefix,
         });
         await new Promise<void>(resolve => {
           worker.on('ready', () => {
@@ -187,7 +266,7 @@ describe('Jobs getters', function () {
     it('gets current job state', async function () {
       const job = await queue.add('test', { foo: 'bar' });
 
-      const jobState = await queue.getJobState(job.id);
+      const jobState = await queue.getJobState(job.id!);
 
       expect(jobState).to.be.equal('waiting');
     });
@@ -253,7 +332,7 @@ describe('Jobs getters', function () {
         resolve();
       };
     });
-    const worker = new Worker(queueName, processor, { connection });
+    const worker = new Worker(queueName, processor, { connection, prefix });
 
     await queue.add('test', { foo: 'bar' });
     await processing;
@@ -264,9 +343,9 @@ describe('Jobs getters', function () {
   it('should get a specific job', async () => {
     const data = { foo: 'sup!' };
     const job = await queue.add('test', data);
-    const returnedJob = await queue.getJob(job.id);
-    expect(returnedJob.data).to.eql(data);
-    expect(returnedJob.id).to.be.eql(job.id);
+    const returnedJob = await queue.getJob(job.id!);
+    expect(returnedJob!.data).to.eql(data);
+    expect(returnedJob!.id).to.be.eql(job.id);
   });
 
   it('should get undefined for nonexistent specific job', async () => {
@@ -275,7 +354,10 @@ describe('Jobs getters', function () {
   });
 
   it('should get completed jobs', async () => {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
     let counter = 2;
 
     const completed = new Promise<void>(resolve => {
@@ -306,7 +388,7 @@ describe('Jobs getters', function () {
       async () => {
         throw new Error('Forced error');
       },
-      { connection },
+      { connection, prefix },
     );
 
     let counter = 2;
@@ -382,7 +464,7 @@ describe('Jobs getters', function () {
       async () => {
         throw new Error('Forced error');
       },
-      { connection },
+      { connection, prefix },
     );
 
     const counter = 4;
@@ -440,7 +522,10 @@ describe('Jobs getters', function () {
   */
 
   it('should return all completed jobs when not setting start/end', function (done) {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
 
     worker.on(
       'completed',
@@ -476,7 +561,7 @@ describe('Jobs getters', function () {
       async () => {
         throw new Error('error');
       },
-      { connection },
+      { connection, prefix },
     );
 
     worker.on(
@@ -507,7 +592,10 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when setting positive range', function (done) {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
 
     worker.on(
       'completed',
@@ -535,7 +623,10 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when setting a negative range', function (done) {
-    const worker = new Worker(queueName, async () => {}, { connection });
+    const worker = new Worker(queueName, async () => {}, {
+      connection,
+      prefix,
+    });
 
     worker.on(
       'completed',
@@ -560,7 +651,10 @@ describe('Jobs getters', function () {
   });
 
   it('should return subset of jobs when range overflows', function (done) {
-    const worker = new Worker(queueName, async job => {}, { connection });
+    const worker = new Worker(queueName, async job => {}, {
+      connection,
+      prefix,
+    });
 
     worker.on(
       'completed',
@@ -595,7 +689,7 @@ describe('Jobs getters', function () {
           return queue.pause();
         }
       },
-      { connection },
+      { connection, prefix },
     );
 
     worker.on(
@@ -662,7 +756,7 @@ describe('Jobs getters', function () {
           return queue.pause();
         }
       },
-      { connection },
+      { connection, prefix },
     );
 
     worker.on(
@@ -705,7 +799,7 @@ describe('Jobs getters', function () {
             throw new Error('failed');
           }
         },
-        { connection },
+        { connection, prefix },
       );
       await worker.waitUntilReady();
 
@@ -715,7 +809,7 @@ describe('Jobs getters', function () {
         });
       });
 
-      const flow = new FlowProducer({ connection });
+      const flow = new FlowProducer({ connection, prefix });
       await flow.add({
         name: 'parent-job',
         queueName,
@@ -747,6 +841,174 @@ describe('Jobs getters', function () {
 
       await worker.close();
       await flow.close();
+    });
+  });
+
+  describe('.getCountsPerPriority', () => {
+    it('returns job counts per priority', async () => {
+      await queue.waitUntilReady();
+
+      const jobs = Array.from(Array(42).keys()).map(index => ({
+        name: 'test',
+        data: {},
+        opts: {
+          priority: index % 4,
+        },
+      }));
+      await queue.addBulk(jobs);
+
+      const counts = await queue.getCountsPerPriority([0, 1, 2, 3]);
+
+      expect(counts).to.be.eql({
+        '0': 11,
+        '1': 11,
+        '2': 10,
+        '3': 10,
+      });
+    });
+
+    describe('when queue is paused', () => {
+      it('returns job counts per priority', async () => {
+        await queue.waitUntilReady();
+
+        await queue.pause();
+        const jobs = Array.from(Array(42).keys()).map(index => ({
+          name: 'test',
+          data: {},
+          opts: {
+            priority: index % 4,
+          },
+        }));
+        await queue.addBulk(jobs);
+
+        const counts = await queue.getCountsPerPriority([0, 1, 2, 3]);
+
+        expect(counts).to.be.eql({
+          '0': 11,
+          '1': 11,
+          '2': 10,
+          '3': 10,
+        });
+      });
+    });
+  });
+
+  describe('.getDependencies', () => {
+    it('return unprocessed jobs that are dependencies of a given parent job', async () => {
+      const flowProducer = new FlowProducer({ connection, prefix });
+      const flow = await flowProducer.add({
+        name: 'parent-job',
+        queueName,
+        data: {},
+        children: [
+          { name: 'child-1', data: { idx: 0, foo: 'bar' }, queueName },
+          { name: 'child-2', data: { idx: 1, foo: 'baz' }, queueName },
+          { name: 'child-3', data: { idx: 2, foo: 'bac' }, queueName },
+          { name: 'child-4', data: { idx: 3, foo: 'bad' }, queueName },
+        ],
+      });
+
+      const result = await queue.getDependencies(
+        flow.job.id!,
+        'pending',
+        0,
+        -1,
+      );
+
+      expect(result.items).to.be.an('array').that.has.length(4);
+      expect(result.jobs).to.be.an('array').that.has.length(4);
+      expect(result.total).to.be.equal(4);
+
+      for (const job of result.jobs) {
+        expect(job).to.have.property('opts');
+        expect(job).to.have.property('data');
+        expect(job).to.have.property('delay');
+        expect(job).to.have.property('priority');
+        expect(job).to.have.property('parent');
+        expect(job).to.have.property('parentKey');
+        expect(job).to.have.property('name');
+        expect(job).to.have.property('timestamp');
+      }
+
+      const result2 = await queue.getDependencies(
+        flow.job.id!,
+        'pending',
+        0,
+        2,
+      );
+
+      expect(result2.items).to.be.an('array').that.has.length(3);
+      expect(result2.total).to.be.equal(4);
+
+      await flowProducer.close();
+    });
+
+    it('return processed jobs that are dependencies of a given parent job', async () => {
+      const flowProducer = new FlowProducer({ connection, prefix });
+
+      const flow = await flowProducer.add({
+        name: 'parent-job',
+        queueName,
+        data: {},
+        children: [
+          { name: 'child-1', data: { idx: 0, foo: 'bar' }, queueName },
+          { name: 'child-2', data: { idx: 1, foo: 'baz' }, queueName },
+          { name: 'child-3', data: { idx: 2, foo: 'bac' }, queueName },
+          { name: 'child-4', data: { idx: 3, foo: 'bad' }, queueName },
+        ],
+      });
+
+      const worker = new Worker(queueName, async () => {}, {
+        connection,
+        prefix,
+      });
+
+      let completedChildren = 0;
+      const complettingChildren = new Promise<void>(resolve => {
+        worker.on('completed', async () => {
+          completedChildren++;
+          if (completedChildren === 4) {
+            resolve();
+          }
+        });
+      });
+
+      await complettingChildren;
+
+      const result = await queue.getDependencies(
+        flow.job.id!,
+        'pending',
+        0,
+        -1,
+      );
+
+      expect(result.items).to.be.an('array').that.has.length(0);
+      expect(result.total).to.be.equal(0);
+
+      const result2 = await queue.getDependencies(
+        flow.job.id!,
+        'processed',
+        0,
+        -1,
+      );
+
+      expect(result2.items).to.be.an('array').that.has.length(4);
+      expect(result2.jobs).to.be.an('array').that.has.length(4);
+      expect(result2.total).to.be.equal(4);
+
+      for (const job of result2.jobs) {
+        expect(job).to.have.property('opts');
+        expect(job).to.have.property('data');
+        expect(job).to.have.property('delay');
+        expect(job).to.have.property('priority');
+        expect(job).to.have.property('parent');
+        expect(job).to.have.property('parentKey');
+        expect(job).to.have.property('name');
+        expect(job).to.have.property('timestamp');
+      }
+
+      await worker.close();
+      await flowProducer.close();
     });
   });
 });

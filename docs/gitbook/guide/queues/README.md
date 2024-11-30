@@ -2,7 +2,7 @@
 
 A Queue is nothing more than a list of jobs waiting to be processed. The jobs can be small, message like, so that the queue can be used as a message broker, or they can be larger long running jobs.
 
-Queues are controlled with the Queue class. As all classes in BullMQ this is a lightweight class with a handful of methods that gives you control over the queue:
+Queues are controlled with the `Queue` class. As all classes in BullMQ, this is a lightweight class with a handful of methods that gives you control over the queue:
 
 ```typescript
 const queue = new Queue('Cars');
@@ -12,9 +12,9 @@ const queue = new Queue('Cars');
 See [Connections](../connections.md) for details on how to pass Redis details to use by the queue.
 {% endhint %}
 
-When you instance a Queue, BullMQ will just _upsert_ a small "meta-key", so if the queue existed before it will just pick it up and you can continue adding jobs to it.
+When you instantiate a Queue, BullMQ will just _upsert_ a small "meta-key", so if the queue existed before it will just pick it up and you can continue adding jobs to it.
 
-The most important method is probably the [_**add**_](https://api.docs.bullmq.io/classes/v4.Queue.html#add) method. This method allows you to add jobs to the queue in different fashions:
+The most important method is probably the [_**add**_](https://api.docs.bullmq.io/classes/v5.Queue.html#add) method. This method allows you to add jobs to the queue in different fashions:
 
 ```typescript
 await queue.add('paint', { color: 'red' });
@@ -31,15 +31,13 @@ await queue.add('paint', { color: 'blue' }, { delay: 5000 });
 The job will now wait **at** **least** 5 seconds before it is processed.
 
 {% hint style="danger" %}
-In order for delay jobs to work you need to have at least one _QueueScheduler_ somewhere in your infrastructure. Read more [here](../queuescheduler.md).
-{% endhint %}
+Prior to BullMQ 2.0, in order for delay jobs to work you need to have at least one `QueueScheduler` somewhere in your infrastructure. Read more [here](../queuescheduler.md).
 
-{% hint style="danger" %}
-From BullMQ 2.0 and onwards, the QueueScheduler is not needed anymore.
+From BullMQ 2.0 and onwards, the `QueueScheduler` is not needed anymore.
 {% endhint %}
 
 There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remaining of this guide for more information regarding these options.
 
 ## Read more:
 
-* 💡 [Queue API Reference](https://api.docs.bullmq.io/classes/v4.Queue.html)
+* 💡 [Queue API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html)

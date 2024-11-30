@@ -1,28 +1,39 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { beforeEach, describe, it } from 'mocha';
+import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, FlowProducer, Worker, Job } from '../src/classes';
 import { delay, removeAllQueueData } from '../src/utils';
 
 describe('Obliterate', function () {
+  const redisHost = process.env.REDIS_HOST || 'localhost';
+  const prefix = process.env.BULLMQ_TEST_PREFIX || 'bull';
+
   let queue: Queue;
   let queueEvents: QueueEvents;
   let queueName: string;
-  const connection = { host: 'localhost' };
+
+  let connection;
+  before(async function () {
+    connection = new IORedis(redisHost, { maxRetriesPerRequest: null });
+  });
 
   beforeEach(async () => {
     queueName = `test-${v4()}`;
-    queue = new Queue(queueName, { connection });
-    queueEvents = new QueueEvents(queueName, { connection });
+    queue = new Queue(queueName, { connection, prefix });
+    queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
   });
 
   afterEach(async function () {
     await queue.close();
     await queueEvents.close();
-    await removeAllQueueData(new IORedis(), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
+  });
+
+  afterAll(async function () {
+    await connection.quit();
   });
 
   it('should obliterate an empty queue', async () => {
@@ -31,8 +42,21 @@ describe('Obliterate', function () {
     await queue.obliterate();
 
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}:*`);
+    const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
+    expect(keys.length).to.be.eql(0);
+  });
+
+  it('should obliterate a queue which is empty but has had jobs in the past', async () => {
+    await queue.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+    await job.remove();
+
+    await queue.obliterate();
+
+    const client = await queue.client;
+    const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).to.be.eql(0);
   });
 
@@ -54,7 +78,7 @@ describe('Obliterate', function () {
         }
         return delay(250);
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -62,7 +86,7 @@ describe('Obliterate', function () {
 
     await queue.obliterate();
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}:*`);
+    const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).to.be.eql(0);
 
     await worker.close();
@@ -75,7 +99,7 @@ describe('Obliterate', function () {
           await queue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName,
@@ -93,7 +117,7 @@ describe('Obliterate', function () {
           await queue.obliterate();
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(0);
 
@@ -122,7 +146,7 @@ describe('Obliterate', function () {
               }
               return delay(10);
             },
-            { connection },
+            { connection, prefix },
           );
           await worker.waitUntilReady();
 
@@ -134,7 +158,7 @@ describe('Obliterate', function () {
             worker.on('failed', resolve);
           });
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName,
@@ -151,7 +175,7 @@ describe('Obliterate', function () {
           await queue.obliterate();
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(0);
 
@@ -164,11 +188,14 @@ describe('Obliterate', function () {
         it('keeps parent in waiting-children', async () => {
           await queue.waitUntilReady();
           const childrenQueueName = `test-${v4()}`;
-          const childrenQueue = new Queue(childrenQueueName, { connection });
+          const childrenQueue = new Queue(childrenQueueName, {
+            connection,
+            prefix,
+          });
           await childrenQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName,
@@ -188,13 +215,13 @@ describe('Obliterate', function () {
           await queue.obliterate();
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(3);
 
           const countAfterEmpty = await queue.count();
           expect(countAfterEmpty).to.be.eql(1);
-
+          await childrenQueue.close();
           await flow.close();
         });
       });
@@ -205,11 +232,14 @@ describe('Obliterate', function () {
         it('deletes each children until trying to move parent to wait', async () => {
           await queue.waitUntilReady();
           const parentQueueName = `test-${v4()}`;
-          const parentQueue = new Queue(parentQueueName, { connection });
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
           await parentQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName: parentQueueName,
@@ -227,12 +257,12 @@ describe('Obliterate', function () {
           await queue.obliterate();
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queueName}:*`);
+          const keys = await client.keys(`${prefix}:${queueName}:*`);
 
           expect(keys.length).to.be.eql(0);
 
           const eventsCount = await client.xlen(
-            `bull:${parentQueueName}:events`,
+            `${prefix}:${parentQueueName}:events`,
           );
 
           expect(eventsCount).to.be.eql(2); // added and waiting-children events
@@ -247,7 +277,7 @@ describe('Obliterate', function () {
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
 
@@ -255,11 +285,14 @@ describe('Obliterate', function () {
         it('moves parent to wait to try to process it', async () => {
           await queue.waitUntilReady();
           const parentQueueName = `test-${v4()}`;
-          const parentQueue = new Queue(parentQueueName, { connection });
+          const parentQueue = new Queue(parentQueueName, {
+            connection,
+            prefix,
+          });
           await parentQueue.waitUntilReady();
           const name = 'child-job';
 
-          const flow = new FlowProducer({ connection });
+          const flow = new FlowProducer({ connection, prefix });
           await flow.add({
             name: 'parent-job',
             queueName: parentQueueName,
@@ -273,7 +306,7 @@ describe('Obliterate', function () {
           await queue.obliterate();
 
           const client = await queue.client;
-          const keys = await client.keys(`bull:${queue.name}:*`);
+          const keys = await client.keys(`${prefix}:${queue.name}:*`);
 
           expect(keys.length).to.be.eql(0);
 
@@ -287,7 +320,7 @@ describe('Obliterate', function () {
           expect(parentWaitCount).to.be.eql(1);
           await parentQueue.close();
           await flow.close();
-          await removeAllQueueData(new IORedis(), parentQueueName);
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
       });
     });
@@ -312,7 +345,7 @@ describe('Obliterate', function () {
         }
         return delay(250);
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -322,7 +355,7 @@ describe('Obliterate', function () {
       'Cannot obliterate queue with active jobs',
     );
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}:*`);
+    const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).to.be.not.eql(0);
 
     await worker.close();
@@ -347,14 +380,14 @@ describe('Obliterate', function () {
         }
         return delay(250);
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
     await job.waitUntilFinished(queueEvents);
     await queue.obliterate({ force: true });
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}:*`);
+    const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).to.be.eql(0);
 
     await worker.close();
@@ -378,12 +411,12 @@ describe('Obliterate', function () {
 
     await queue.obliterate();
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}:*`);
+    const keys = await client.keys(`${prefix}:${queue.name}:*`);
     expect(keys.length).to.be.eql(0);
   });
 
   it('should remove job logs', async () => {
-    const queueEvents = new QueueEvents(queue.name, { connection });
+    const queueEvents = new QueueEvents(queue.name, { connection, prefix });
 
     const worker = new Worker(
       queue.name,
@@ -391,7 +424,7 @@ describe('Obliterate', function () {
         await delay(100);
         return job.log('Lorem Ipsum Dolor Sit Amet');
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -403,6 +436,9 @@ describe('Obliterate', function () {
 
     const { logs } = await queue.getJobLogs(job.id!);
     expect(logs).to.have.length(0);
+
+    await queueEvents.close();
+    await worker.close();
   });
 
   it('should obliterate a queue with high number of jobs in different statuses', async function () {
@@ -422,7 +458,7 @@ describe('Obliterate', function () {
           throw new Error('failed job');
         }
       },
-      { connection },
+      { connection, prefix },
     );
     await worker.waitUntilReady();
 
@@ -451,7 +487,7 @@ describe('Obliterate', function () {
 
     await queue.obliterate();
     const client = await queue.client;
-    const keys = await client.keys(`bull:${queue.name}*`);
+    const keys = await client.keys(`${prefix}:${queue.name}*`);
     expect(keys.length).to.be.eql(0);
   });
 });

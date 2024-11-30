@@ -5,11 +5,11 @@
 -- Includes
 --- @include "getNextDelayedTimestamp"
 
-local function addDelayMarkerIfNeeded(targetKey, delayedKey)
-  if rcall("LLEN", targetKey) == 0 then
-    local nextTimestamp = getNextDelayedTimestamp(delayedKey)
-    if nextTimestamp ~= nil then
-      rcall("LPUSH", targetKey, "0:" .. nextTimestamp)
-    end
+local function addDelayMarkerIfNeeded(markerKey, delayedKey)
+  local nextTimestamp = getNextDelayedTimestamp(delayedKey)
+  if nextTimestamp ~= nil then
+    -- Replace the score of the marker with the newest known
+    -- next timestamp.
+    rcall("ZADD", markerKey, nextTimestamp, "1")
   end
 end

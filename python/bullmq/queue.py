@@ -1,21 +1,23 @@
 import asyncio
+from bullmq.event_emitter import EventEmitter
 from bullmq.redis_connection import RedisConnection
-from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions
+from bullmq.types import QueueBaseOptions, RetryJobsOptions, JobOptions, PromoteJobsOptions
 from bullmq.utils import extract_result
 from bullmq.scripts import Scripts
 from bullmq.job import Job
 
 
-class Queue:
+class Queue(EventEmitter):
     """
     Instantiate a Queue object
     """
 
-    def __init__(self, name: str, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
+    def __init__(self, name: str, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
         """
         self.name = name
+        redisOpts = opts.get("connection", {})
         self.redisConnection = RedisConnection(redisOpts)
         self.client = self.redisConnection.conn
         self.opts = opts
@@ -42,7 +44,7 @@ class Queue:
         job.id = job_id
         return job
 
-    async def addBulk(self, jobs: list[dict[str,dict | str]]):
+    async def addBulk(self, jobs: list[dict[str, dict | str]]):
         """
         Adds an array of jobs to the queue. This method may be faster than adding
         one job at a time in a sequence
@@ -52,7 +54,7 @@ class Queue:
             opts = {}
             opts.update(self.jobsOpts)
             opts.update(job.get("opts", {}))
-            
+
             jobs_data.append({
                 "name": job.get("name"),
                 "data": job.get("data"),
@@ -68,7 +70,7 @@ class Queue:
                     name=job_data.get("name"),
                     data=job_data.get("data"),
                     opts=current_job_opts,
-                    job_id = current_job_opts.get("jobId")
+                    job_id=current_job_opts.get("jobId")
                     )
                 job_id = await self.scripts.addJob(job, pipe)
                 job.id = job_id
@@ -109,6 +111,37 @@ class Queue:
         paused_key_exists = await self.client.hexists(self.keys["meta"], "paused")
         return paused_key_exists == 1
 
+    def getRateLimitTtl(self):
+        """
+        Returns the time to live for a rate limited key in milliseconds.
+        """
+        return self.client.pttl(self.keys["limiter"])
+
+    async def getJobLogs(self, job_id:str, start = 0, end = -1, asc = True):
+        """
+        Returns the logs for a given Job.
+
+        @param job_id: The id of the job to get the logs for.
+        @param start: Zero based index from where to start returning jobs.
+        @param end: Zero based index where to stop returning jobs.
+        @param asc: If true, the jobs will be returned in ascending order.
+        """
+
+        logs_key = self.toKey(job_id + ":logs")
+        pipe = self.redisConnection.conn.pipeline(transaction=True)
+        if asc:
+            pipe.lrange(logs_key, start, end)
+        else:
+            pipe.lrange(logs_key, -(end+1), -(start+1))
+        pipe.llen(logs_key)
+        result = await pipe.execute()
+        if not asc:
+            result[0].reverse()
+        return {
+            "logs": result[0],
+            "count": result[1]
+        }
+   
     async def obliterate(self, force: bool = False):
         """
         Completely destroys the queue and all of its contents irreversibly.
@@ -129,7 +162,7 @@ class Queue:
 
     async def retryJobs(self, opts: RetryJobsOptions = {}):
         """
-        Retry all the failed jobs.
+        Retry all the failed or completed jobs.
         """
         while True:
             cursor = await self.scripts.retryJobs(
@@ -140,13 +173,24 @@ class Queue:
             if cursor is None or cursor == 0 or cursor == "0":
                 break
 
+    async def promoteJobs(self, opts: PromoteJobsOptions = {}):
+        """
+        Retry all the delayed jobs.
+        """
+        while True:
+            cursor = await self.scripts.promoteJobs(
+                opts.get("count")
+            )
+            if cursor is None or cursor == 0 or cursor == "0":
+                break
+
     def trimEvents(self, maxLength: int):
         """
         Trim the event stream to an approximately maxLength.
 
         @param maxLength:
         """
-        return self.client.xtrim(self.keys["events"], maxlen = maxLength, approximate = "~")
+        return self.client.xtrim(self.keys["events"], maxlen=maxLength, approximate="~")
 
     def removeDeprecatedPriorityKey(self):
         """
@@ -155,11 +199,11 @@ class Queue:
         return self.client.delete(self.toKey("priority"))
 
     async def getJobCountByTypes(self, *types):
-      result = await self.getJobCounts(*types)
-      sum = 0
-      for attribute in result:
-        sum += result[attribute]
-      return sum
+        result = await self.getJobCounts(*types)
+        sum = 0
+        for attribute in result:
+            sum += result[attribute]
+        return sum
 
     async def getJobCounts(self, *types):
         """
@@ -174,6 +218,23 @@ class Queue:
 
         for index, val in enumerate(responses):
             counts[current_types[index]] = val or 0
+        return counts
+
+    async def getCountsPerPriority(self, priorities):
+        """
+        Returns the number of jobs per priority.
+
+        @returns: An object, key (priority) and value (count)
+        """
+        set_priorities = set(priorities)
+        unique_priorities = (list(set_priorities))
+
+        responses = await self.scripts.getCountsPerPriority(unique_priorities)
+
+        counts = {}
+
+        for index, val in enumerate(responses):
+            counts[f"{unique_priorities[index]}"] = val or 0
         return counts
 
     async def clean(self, grace: int, limit: int, type: str):
@@ -193,10 +254,13 @@ class Queue:
     def getCompletedCount(self):
         return self.getJobCountByTypes('completed')
 
+    def getDelayedCount(self):
+        return self.getJobCountByTypes('delayed')
+
     def getFailedCount(self):
         return self.getJobCountByTypes('failed')
 
-    def getActive(self, start = 0, end=-1):
+    def getActive(self, start=0, end=-1):
         return self.getJobs(['active'], start, end, True)
 
     def getCompleted(self, start = 0, end=-1):
@@ -220,9 +284,9 @@ class Queue:
     async def getJobs(self, types, start=0, end=-1, asc:bool=False):
         current_types = self.sanitizeJobTypes(types)
         job_ids = await self.scripts.getRanges(current_types, start, end, asc)
-        tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]   
+        tasks = [asyncio.create_task(Job.fromId(self, i)) for i in job_ids]
         job_set, _ = await asyncio.wait(tasks, return_when=asyncio.ALL_COMPLETED)
-        jobs = [extract_result(job_task) for job_task in job_set]
+        jobs = [extract_result(job_task, self.emit) for job_task in job_set]
         jobs_len = len(jobs)
 
         # we filter `None` out to remove:

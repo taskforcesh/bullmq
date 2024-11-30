@@ -2,20 +2,21 @@
   Moves job from active to delayed set.
 
   Input:
-    KEYS[1] wait key
+    KEYS[1] marker key
     KEYS[2] active key
     KEYS[3] prioritized key
     KEYS[4] delayed key
     KEYS[5] job key
     KEYS[6] events stream
-    KEYS[7] paused key
-    KEYS[8] meta key
+    KEYS[7] meta key
+    KEYS[8] stalled key
 
     ARGV[1] key prefix
     ARGV[2] timestamp
-    ARGV[3] delayedTimestamp
-    ARGV[4] the id of the job
-    ARGV[5] queue token
+    ARGV[3] the id of the job
+    ARGV[4] queue token
+    ARGV[5] delay value
+    ARGV[6] skip attempt
 
   Output:
     0 - OK
@@ -29,41 +30,44 @@ local rcall = redis.call
 
 -- Includes
 --- @include "includes/addDelayMarkerIfNeeded"
---- @include "includes/getTargetQueueList"
---- @include "includes/promoteDelayedJobs"
+--- @include "includes/getDelayedScore"
+--- @include "includes/getOrSetMaxEvents"
+--- @include "includes/removeLock"
 
 local jobKey = KEYS[5]
+local metaKey = KEYS[7]
+local token = ARGV[4] 
 if rcall("EXISTS", jobKey) == 1 then
-  local delayedKey = KEYS[4]
-  if ARGV[5] ~= "0" then
-    local lockKey = jobKey .. ':lock'
-    if rcall("GET", lockKey) == ARGV[5] then
-      rcall("DEL", lockKey)
-    else
-      return -2
+    local errorCode = removeLock(jobKey, KEYS[8], token, ARGV[3])
+    if errorCode < 0 then
+        return errorCode
     end
-  end
 
-  local jobId = ARGV[4]
-  local score = tonumber(ARGV[3])
-  local delayedTimestamp = (score / 0x1000)
+    local delayedKey = KEYS[4]
+    local jobId = ARGV[3]
+    local delay = tonumber(ARGV[5])
+    local score, delayedTimestamp = getDelayedScore(delayedKey, ARGV[2], delay)
 
-  local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
-  if numRemovedElements < 1 then
-    return -3
-  end
+    local numRemovedElements = rcall("LREM", KEYS[2], -1, jobId)
+    if numRemovedElements < 1 then return -3 end
 
-  local maxEvents = rcall("HGET", KEYS[8], "opts.maxLenEvents") or 10000
+    if ARGV[6] == "0" then
+        rcall("HINCRBY", jobKey, "atm", 1)
+    end
 
-  rcall("ZADD", delayedKey, score, jobId)
-  rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
-    "jobId", jobId, "delay", delayedTimestamp)
+    rcall("HSET", jobKey, "delay", ARGV[5])
 
-  -- Check if we need to push a marker job to wake up sleeping workers.
-  local target = getTargetQueueList(KEYS[8], KEYS[1], KEYS[7])
-  addDelayMarkerIfNeeded(target, delayedKey)
+    local maxEvents = getOrSetMaxEvents(metaKey)
 
-  return 0
+    rcall("ZADD", delayedKey, score, jobId)
+    rcall("XADD", KEYS[6], "MAXLEN", "~", maxEvents, "*", "event", "delayed",
+          "jobId", jobId, "delay", delayedTimestamp)
+
+    -- Check if we need to push a marker job to wake up sleeping workers.
+    local markerKey = KEYS[1]
+    addDelayMarkerIfNeeded(markerKey, delayedKey)
+
+    return 0
 else
-  return -1
+    return -1
 end

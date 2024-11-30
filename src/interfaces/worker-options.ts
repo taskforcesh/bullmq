@@ -4,6 +4,8 @@ import { QueueBaseOptions } from './queue-options';
 import { RateLimiterOptions } from './rate-limiter-options';
 import { MetricsOptions } from './metrics-options';
 import { KeepJobs } from './keep-jobs';
+import { Telemetry } from './telemetry';
+import { SandboxedOptions } from './sandboxed-options';
 
 /**
  * An async function that receives `Job`s and handles them.
@@ -13,7 +15,14 @@ export type Processor<T = any, R = any, N extends string = string> = (
   token?: string,
 ) => Promise<R>;
 
-export interface WorkerOptions extends QueueBaseOptions {
+export interface WorkerOptions extends QueueBaseOptions, SandboxedOptions {
+  /**
+   * Optional worker name. The name will be stored on every job
+   * processed by this worker instance, and can be used to monitor
+   * which worker is processing or has processed a given job.
+   */
+  name?: string;
+
   /**
    * Condition to start processor at instance creation.
    *
@@ -91,7 +100,6 @@ export interface WorkerOptions extends QueueBaseOptions {
   skipLockRenewal?: boolean;
 
   /**
-   *
    * Number of seconds to long poll for jobs when the queue is empty.
    *
    * @default 5
@@ -99,7 +107,6 @@ export interface WorkerOptions extends QueueBaseOptions {
   drainDelay?: number;
 
   /**
-   *
    * Duration of the lock for the job in milliseconds. The lock represents that
    * a worker is processing the job. If the lock is lost, the job will be eventually
    * be picked up by the stalled checker and move back to wait so that another worker
@@ -137,6 +144,11 @@ export interface WorkerOptions extends QueueBaseOptions {
    * @default false
    */
   useWorkerThreads?: boolean;
+
+  /**
+   * Telemetry Addon
+   */
+  telemetry?: Telemetry;
 }
 
 export interface GetNextJobOptions {

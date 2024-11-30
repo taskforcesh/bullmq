@@ -3,13 +3,9 @@
 
 import { QueueBase } from './queue-base';
 import { Job } from './job';
-import {
-  clientCommandMessageReg,
-  QUEUE_EVENT_SUFFIX,
-  WORKER_SUFFIX,
-} from '../utils';
+import { clientCommandMessageReg, QUEUE_EVENT_SUFFIX } from '../utils';
 import { JobState, JobType } from '../types';
-import { Metrics } from '../interfaces';
+import { JobJsonRaw, Metrics } from '../interfaces';
 
 /**
  *
@@ -18,17 +14,9 @@ import { Metrics } from '../interfaces';
  *
  * @description Provides different getters for different aspects of a queue.
  */
-export class QueueGetters<
-  DataType,
-  ResultType,
-  NameType extends string,
-> extends QueueBase {
-  getJob(
-    jobId: string,
-  ): Promise<Job<DataType, ResultType, NameType> | undefined> {
-    return this.Job.fromId(this, jobId) as Promise<
-      Job<DataType, ResultType, NameType>
-    >;
+export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
+  getJob(jobId: string): Promise<JobBase | undefined> {
+    return this.Job.fromId(this, jobId) as Promise<JobBase>;
   }
 
   private commandByType(
@@ -55,13 +43,6 @@ export class QueueGetters<
           return callback(key, count ? 'llen' : 'lrange');
       }
     });
-  }
-
-  /**
-   * Helper to easily extend Job class calls.
-   */
-  protected get Job(): typeof Job {
-    return Job;
   }
 
   private sanitizeJobTypes(types: JobType[] | JobType | undefined): JobType[] {
@@ -107,13 +88,37 @@ export class QueueGetters<
 
   /**
    * Returns the time to live for a rate limited key in milliseconds.
+   * @param maxJobs - max jobs to be considered in rate limit state. If not passed
+   * it will return the remaining ttl without considering if max jobs is excedeed.
    * @returns -2 if the key does not exist.
    * -1 if the key exists but has no associated expire.
    * @see {@link https://redis.io/commands/pttl/}
    */
-  async getRateLimitTtl(): Promise<number> {
+  async getRateLimitTtl(maxJobs?: number): Promise<number> {
+    return this.scripts.getRateLimitTtl(maxJobs);
+  }
+
+  /**
+   * Get jobId that starts debounced state.
+   * @deprecated use getDeduplicationJobId method
+   *
+   * @param id - debounce identifier
+   */
+  async getDebounceJobId(id: string): Promise<string | null> {
     const client = await this.client;
-    return client.pttl(this.keys.limiter);
+
+    return client.get(`${this.keys.de}:${id}`);
+  }
+
+  /**
+   * Get jobId from deduplicated state.
+   *
+   * @param id - deduplication identifier
+   */
+  async getDeduplicationJobId(id: string): Promise<string | null> {
+    const client = await this.client;
+
+    return client.get(`${this.keys.de}:${id}`);
   }
 
   /**
@@ -152,6 +157,7 @@ export class QueueGetters<
   /**
    * Get current job state.
    *
+   * @param jobId - job identifier.
    * @returns Returns one of these values:
    * 'completed', 'failed', 'delayed', 'active', 'waiting', 'waiting-children', 'unknown'.
    */
@@ -195,6 +201,23 @@ export class QueueGetters<
   }
 
   /**
+   * Returns the number of jobs per priority.
+   */
+  async getCountsPerPriority(priorities: number[]): Promise<{
+    [index: string]: number;
+  }> {
+    const uniquePriorities = [...new Set(priorities)];
+    const responses = await this.scripts.getCountsPerPriority(uniquePriorities);
+
+    const counts: { [index: string]: number } = {};
+    responses.forEach((res, index) => {
+      counts[`${uniquePriorities[index]}`] = res || 0;
+    });
+
+    return counts;
+  }
+
+  /**
    * Returns the number of jobs in waiting or paused statuses.
    */
   getWaitingCount(): Promise<number> {
@@ -213,22 +236,17 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getWaiting(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getWaiting(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['waiting'], start, end, true);
   }
 
   /**
-   * Returns the jobs that are in the "waiting" status.
+   * Returns the jobs that are in the "waiting-children" status.
+   * I.E. parent jobs that have at least one child that has not completed yet.
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getWaitingChildren(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getWaitingChildren(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['waiting-children'], start, end, true);
   }
 
@@ -237,10 +255,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getActive(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getActive(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['active'], start, end, true);
   }
 
@@ -249,10 +264,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getDelayed(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getDelayed(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['delayed'], start, end, true);
   }
 
@@ -261,10 +273,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getPrioritized(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getPrioritized(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['prioritized'], start, end, true);
   }
 
@@ -273,10 +282,7 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getCompleted(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getCompleted(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['completed'], start, end, false);
   }
 
@@ -285,11 +291,51 @@ export class QueueGetters<
    * @param start - zero based index from where to start returning jobs.
    * @param end - zero based index where to stop returning jobs.
    */
-  getFailed(
-    start = 0,
-    end = -1,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  getFailed(start = 0, end = -1): Promise<JobBase[]> {
     return this.getJobs(['failed'], start, end, false);
+  }
+
+  /**
+   * Returns the qualified job ids and the raw job data (if available) of the
+   * children jobs of the given parent job.
+   * It is possible to get either the already processed children, in this case
+   * an array of qualified job ids and their result values will be returned,
+   * or the pending children, in this case an array of qualified job ids will
+   * be returned.
+   * A qualified job id is a string representing the job id in a given queue,
+   * for example: "bull:myqueue:jobid".
+   *
+   * @param parentId The id of the parent job
+   * @param type "processed" | "pending"
+   * @param opts
+   *
+   * @returns  { items: { id: string, v?: any, err?: string } [], jobs: JobJsonRaw[], total: number}
+   */
+  async getDependencies(
+    parentId: string,
+    type: 'processed' | 'pending',
+    start: number,
+    end: number,
+  ): Promise<{
+    items: { id: string; v?: any; err?: string }[];
+    jobs: JobJsonRaw[];
+    total: number;
+  }> {
+    const key = this.toKey(
+      type == 'processed'
+        ? `${parentId}:processed`
+        : `${parentId}:dependencies`,
+    );
+    const { items, total, jobs } = await this.scripts.paginate(key, {
+      start,
+      end,
+      fetchJobs: true,
+    });
+    return {
+      items,
+      jobs,
+      total,
+    };
   }
 
   async getRanges(
@@ -340,18 +386,13 @@ export class QueueGetters<
     start = 0,
     end = -1,
     asc = false,
-  ): Promise<Job<DataType, ResultType, NameType>[]> {
+  ): Promise<JobBase[]> {
     const currentTypes = this.sanitizeJobTypes(types);
 
     const jobIds = await this.getRanges(currentTypes, start, end, asc);
 
     return Promise.all(
-      jobIds.map(
-        jobId =>
-          this.Job.fromId(this, jobId) as Promise<
-            Job<DataType, ResultType, NameType>
-          >,
-      ),
+      jobIds.map(jobId => this.Job.fromId(this, jobId) as Promise<JobBase>),
     );
   }
 
@@ -388,22 +429,22 @@ export class QueueGetters<
     };
   }
 
-  private async baseGetClients(suffix: string): Promise<
+  private async baseGetClients(matcher: (name: string) => boolean): Promise<
     {
       [index: string]: string;
     }[]
   > {
     const client = await this.client;
-    const clients = (await client.client('LIST')) as string;
     try {
-      const list = this.parseClientList(clients, suffix);
+      const clients = (await client.client('LIST')) as string;
+      const list = this.parseClientList(clients, matcher);
       return list;
     } catch (err) {
       if (!clientCommandMessageReg.test((<Error>err).message)) {
         throw err;
       }
 
-      return [];
+      return [{ name: 'GCP does not support client list' }];
     }
   }
 
@@ -419,12 +460,33 @@ export class QueueGetters<
       [index: string]: string;
     }[]
   > {
-    return this.baseGetClients(WORKER_SUFFIX);
+    const unnamedWorkerClientName = `${this.clientName()}`;
+    const namedWorkerClientName = `${this.clientName()}:w:`;
+
+    const matcher = (name: string) =>
+      name &&
+      (name === unnamedWorkerClientName ||
+        name.startsWith(namedWorkerClientName));
+
+    return this.baseGetClients(matcher);
+  }
+
+  /**
+   * Returns the current count of workers for the queue.
+   *
+   * getWorkersCount(): Promise<number>
+   *
+   */
+  async getWorkersCount(): Promise<number> {
+    const workers = await this.getWorkers();
+    return workers.length;
   }
 
   /**
    * Get queue events list related to the queue.
    * Note: GCP does not support SETNAME, so this call will not work
+   *
+   * @deprecated do not use this method, it will be removed in the future.
    *
    * @returns - Returns an array with queue events info.
    */
@@ -433,7 +495,8 @@ export class QueueGetters<
       [index: string]: string;
     }[]
   > {
-    return this.baseGetClients(QUEUE_EVENT_SUFFIX);
+    const clientName = `${this.clientName()}${QUEUE_EVENT_SUFFIX}`;
+    return this.baseGetClients((name: string) => name === clientName);
   }
 
   /**
@@ -487,7 +550,7 @@ export class QueueGetters<
     };
   }
 
-  private parseClientList(list: string, suffix = '') {
+  private parseClientList(list: string, matcher: (name: string) => boolean) {
     const lines = list.split('\n');
     const clients: { [index: string]: string }[] = [];
 
@@ -501,8 +564,9 @@ export class QueueGetters<
         client[key] = value;
       });
       const name = client['name'];
-      if (name && name === `${this.clientName()}${suffix ? `${suffix}` : ''}`) {
+      if (matcher(name)) {
         client['name'] = this.name;
+        client['rawname'] = name;
         clients.push(client);
       }
     });
