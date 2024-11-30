@@ -2239,7 +2239,142 @@ describe('flows', () => {
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
       await removeAllQueueData(new IORedis(redisHost), grandChildrenQueueName);
-    }).timeout(8000);
+    });
+
+    describe('when removeOnFail option is provided', async () => {
+      it('should remove parent when child is moved to failed', async () => {
+        const name = 'child-job';
+
+        const parentQueueName = `parent-queue-${v4()}`;
+        const grandChildrenQueueName = `grand-children-queue-${v4()}`;
+
+        const parentQueue = new Queue(parentQueueName, {
+          connection,
+          prefix,
+        });
+        const grandChildrenQueue = new Queue(grandChildrenQueueName, {
+          connection,
+          prefix,
+        });
+        const queueEvents = new QueueEvents(parentQueueName, {
+          connection,
+          prefix,
+        });
+        await queueEvents.waitUntilReady();
+
+        let grandChildrenProcessor,
+          processedGrandChildren = 0;
+        const processingChildren = new Promise<void>(resolve => {
+          grandChildrenProcessor = async () => {
+            processedGrandChildren++;
+
+            if (processedGrandChildren === 2) {
+              return resolve();
+            }
+
+            await delay(200);
+
+            throw new Error('failed');
+          };
+        });
+
+        const grandChildrenWorker = new Worker(
+          grandChildrenQueueName,
+          grandChildrenProcessor,
+          { connection, prefix },
+        );
+
+        await grandChildrenWorker.waitUntilReady();
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            {
+              name,
+              data: { foo: 'bar' },
+              queueName,
+            },
+            {
+              name,
+              data: { foo: 'qux' },
+              queueName,
+              opts: { failParentOnFailure: true, removeOnFail: true },
+              children: [
+                {
+                  name,
+                  data: { foo: 'bar' },
+                  queueName: grandChildrenQueueName,
+                  opts: { failParentOnFailure: true },
+                },
+                {
+                  name,
+                  data: { foo: 'baz' },
+                  queueName: grandChildrenQueueName,
+                },
+              ],
+            },
+          ],
+        });
+
+        const failed = new Promise<void>(resolve => {
+          queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
+            if (jobId === tree.job.id) {
+              expect(prev).to.be.equal('waiting-children');
+              expect(failedReason).to.be.equal(
+                `child ${prefix}:${queueName}:${tree.children[1].job.id} failed`,
+              );
+              resolve();
+            }
+          });
+        });
+
+        expect(tree).to.have.property('job');
+        expect(tree).to.have.property('children');
+
+        const { children, job } = tree;
+        const parentState = await job.getState();
+
+        expect(parentState).to.be.eql('waiting-children');
+
+        await processingChildren;
+        await failed;
+
+        const { children: grandChildren } = children[1];
+        const updatedGrandchildJob = await grandChildrenQueue.getJob(
+          grandChildren[0].job.id,
+        );
+        const grandChildState = await updatedGrandchildJob.getState();
+
+        expect(grandChildState).to.be.eql('failed');
+        expect(updatedGrandchildJob.failedReason).to.be.eql('failed');
+
+        const updatedParentJob = await queue.getJob(children[1].job.id);
+        expect(updatedParentJob).to.be.undefined;
+
+        const updatedGrandparentJob = await parentQueue.getJob(job.id);
+        const updatedGrandparentState = await updatedGrandparentJob.getState();
+
+        expect(updatedGrandparentState).to.be.eql('failed');
+        expect(updatedGrandparentJob.failedReason).to.be.eql(
+          `child ${prefix}:${queueName}:${children[1].job.id} failed`,
+        );
+
+        await parentQueue.close();
+        await grandChildrenQueue.close();
+        await grandChildrenWorker.close();
+        await flow.close();
+        await queueEvents.close();
+
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+        await removeAllQueueData(
+          new IORedis(redisHost),
+          grandChildrenQueueName,
+        );
+      });
+    });
 
     describe('when removeDependencyOnFailure is provided', async () => {
       it('moves parent to wait after children fail', async () => {
