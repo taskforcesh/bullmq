@@ -63,10 +63,12 @@ end
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
   local delayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
-  local nextDelayedJobId =  repeatKey .. ":" .. jobSchedulerId .. ":" .. nextMillis
+  local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
+  local nextDelayedJobKey =  repeatKey .. ":" .. jobSchedulerId .. ":" .. nextMillis
 
   if rcall("ZSCORE", delayedKey, delayedJobId) ~= false
-   and rcall("EXISTS", nextDelayedJobId) ~= 1 then
+    and (rcall("EXISTS", nextDelayedJobKey) ~= 1 
+    or delayedJobId == nextDelayedJobId) then
     removeJob(delayedJobId, true, prefixKey, true --[[remove debounce key]])
     rcall("ZREM", delayedKey, delayedJobId)
   end

@@ -278,12 +278,11 @@ export class JobScheduler extends QueueBase {
     return Promise.all(jobs);
   }
 
-  async getSchedulersCount(
-    client: RedisClient,
-    prefix: string,
-    queueName: string,
-  ): Promise<number> {
-    return client.zcard(`${prefix}:${queueName}:repeat`);
+  async getSchedulersCount(): Promise<number> {
+    const jobSchedulersKey = this.keys.repeat;
+    const client = await this.client;
+
+    return client.zcard(jobSchedulersKey);
   }
 
   private getSchedulerNextJobId({

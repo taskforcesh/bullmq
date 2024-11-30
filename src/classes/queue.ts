@@ -592,6 +592,16 @@ export class Queue<
   }
 
   /**
+   *
+   * Get the number of job schedulers.
+   *
+   * @returns The number of job schedulers.
+   */
+  async getJobSchedulersCount(): Promise<number> {
+    return (await this.jobScheduler).getSchedulersCount();
+  }
+
+  /**
    * Removes a repeatable job.
    *
    * Note: you need to use the exact same repeatOpts when deleting a repeatable job
