@@ -183,6 +183,9 @@ describe('Job Scheduler', function () {
 
       const delayed = await queue.getDelayed();
       expect(delayed).to.have.length(3);
+
+      const jobSchedulersCount = await queue.getJobSchedulersCount();
+      expect(jobSchedulersCount).to.be.eql(3);
     });
   });
 
@@ -1647,35 +1650,86 @@ describe('Job Scheduler', function () {
     });
   });
 
-  it('should keep only one delayed job if adding a new repeatable job with the same id', async function () {
-    const date = new Date('2017-02-07 9:24:00');
-    const key = 'mykey';
+  describe('when every option is provided', function () {
+    it('should keep only one delayed job if adding a new repeatable job with the same id', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      const key = 'mykey';
 
-    this.clock.setSystemTime(date);
+      this.clock.setSystemTime(date);
 
-    const nextTick = 2 * ONE_SECOND;
+      const nextTick = 2 * ONE_SECOND;
 
-    await queue.upsertJobScheduler(key, {
-      every: 10_000,
+      await queue.upsertJobScheduler(key, {
+        every: 10_000,
+      });
+
+      this.clock.tick(nextTick);
+
+      let jobs = await queue.getJobSchedulers();
+      expect(jobs).to.have.length(1);
+
+      let delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      await queue.upsertJobScheduler(key, {
+        every: 35_160,
+      });
+
+      jobs = await queue.getJobSchedulers();
+      expect(jobs).to.have.length(1);
+
+      delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
     });
+  });
 
-    this.clock.tick(nextTick);
+  describe('when pattern option is provided', function () {
+    it('should keep only one delayed job if adding a new repeatable job with the same id', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      const key = 'mykey';
 
-    let jobs = await queue.getJobSchedulers();
-    expect(jobs).to.have.length(1);
+      this.clock.setSystemTime(date);
 
-    let delayedJobs = await queue.getDelayed();
-    expect(delayedJobs).to.have.length(1);
+      const nextTick = 2 * ONE_SECOND;
 
-    await queue.upsertJobScheduler(key, {
-      every: 35_160,
+      await queue.upsertJobScheduler(
+        key,
+        {
+          pattern: '0 * 1 * *',
+        },
+        { name: 'test1', data: { foo: 'bar' }, opts: { priority: 1 } },
+      );
+
+      this.clock.tick(nextTick);
+
+      let jobs = await queue.getJobSchedulers();
+      expect(jobs).to.have.length(1);
+
+      let delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      await queue.upsertJobScheduler(
+        key,
+        {
+          pattern: '0 * 1 * *',
+        },
+        { name: 'test2', data: { foo: 'baz' }, opts: { priority: 2 } },
+      );
+
+      jobs = await queue.getJobSchedulers();
+      expect(jobs).to.have.length(1);
+
+      delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      expect(delayedJobs[0].name).to.be.equal('test2');
+      expect(delayedJobs[0].data).to.deep.equal({
+        foo: 'baz',
+      });
+      expect(delayedJobs[0].opts).to.deep.include({
+        priority: 2,
+      });
     });
-
-    jobs = await queue.getJobSchedulers();
-    expect(jobs).to.have.length(1);
-
-    delayedJobs = await queue.getDelayed();
-    expect(delayedJobs).to.have.length(1);
   });
 
   // This test is flaky and too complex we need something simpler that tests the same thing
