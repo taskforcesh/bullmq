@@ -40,6 +40,7 @@ describe('queues', function () {
   describe('use generics', function () {
     it('should be able to use generics', async function () {
       const queue = new Queue<{ foo: string; bar: number }>(queueName, {
+        prefix,
         connection,
       });
 
