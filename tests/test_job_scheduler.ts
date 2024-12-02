@@ -1455,11 +1455,16 @@ describe('Job Scheduler', function () {
         every: 579,
       };
 
+      let isFirstRun = true;
+
       const worker = new Worker(
         queueName,
         async () => {
           this.clock.tick(177);
-          throw new Error('failed');
+          if (isFirstRun) {
+            isFirstRun = false;
+            throw new Error('failed');
+          }
         },
         {
           connection,
