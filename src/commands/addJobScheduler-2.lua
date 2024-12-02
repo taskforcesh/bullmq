@@ -58,8 +58,18 @@ local function storeRepeatableJob(schedulerId, repeatKey, nextMillis, rawOpts, t
   end
 
   local jsonTemplateOpts = cjson.encode(templateOpts)
-  rcall("HMSET", repeatKey .. ":" .. schedulerId, "name", opts['name'], "data", templateData,
-    "opts", jsonTemplateOpts, unpack(optionalValues))
+  if jsonTemplateOpts and jsonTemplateOpts ~= '{}' then
+    table.insert(optionalValues, "opts")
+    table.insert(optionalValues, jsonTemplateOpts)
+  end
+
+  if templateData and templateData ~= '{}' then
+    table.insert(optionalValues, "data")
+    table.insert(optionalValues, templateData)
+  end
+
+  rcall("HMSET", repeatKey .. ":" .. schedulerId, "name", opts['name'],
+    unpack(optionalValues))
 end
 
 -- If we are overriding a repeatable job we must delete the delayed job for

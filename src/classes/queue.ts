@@ -3,7 +3,7 @@ import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
-  JobJsonRaw,
+  JobSchedulerJson,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
@@ -14,9 +14,8 @@ import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { JobScheduler, JobSchedulerJson } from './job-scheduler';
+import { JobScheduler } from './job-scheduler';
 import { version } from '../version';
-import { optsFromJSON } from '../utils';
 
 export interface ObliterateOpts {
   /**

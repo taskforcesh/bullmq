@@ -2,25 +2,11 @@ import { parseExpression } from 'cron-parser';
 import { RedisClient, RepeatBaseOptions, RepeatOptions } from '../interfaces';
 import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
+import { JobSchedulerJson, JobSchedulerTemplateJson } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { optsAsJSON, optsFromJSON } from '../utils';
-
-export interface JobSchedulerJson<D = any> {
-  key: string; // key is actually the job scheduler id
-  name: string;
-  id?: string | null;
-  endDate: number | null;
-  tz: string | null;
-  pattern: string | null;
-  every?: string | null;
-  next?: number;
-  template?: {
-    data: D;
-    opts: JobsOptions;
-  };
-}
 
 export class JobScheduler extends QueueBase {
   private repeatStrategy: RepeatStrategy;
@@ -262,16 +248,31 @@ export class JobScheduler extends QueueBase {
         tz: schedulerAttributes.tz || null,
         pattern: schedulerAttributes.pattern || null,
         every: schedulerAttributes.every || null,
-        ...(schedulerAttributes.data
+        ...(schedulerAttributes.data || schedulerAttributes.opts
           ? {
-              template: {
-                data: JSON.parse(schedulerAttributes.data || '{}'),
-                opts: optsFromJSON(schedulerAttributes.opts),
-              },
+              template: this.getTemplateFromJSON<D>(
+                schedulerAttributes.data,
+                schedulerAttributes.opts,
+              ),
             }
           : {}),
       };
     }
+  }
+
+  private getTemplateFromJSON<D = any>(
+    rawData?: string,
+    rawOpts?: string,
+  ): JobSchedulerTemplateJson<D> {
+    console.log(typeof rawOpts);
+    const template: JobSchedulerTemplateJson<D> = {};
+    if (rawData) {
+      template.data = JSON.parse(rawData);
+    }
+    if (rawOpts) {
+      template.opts = optsFromJSON(rawOpts);
+    }
+    return template;
   }
 
   async getJobSchedulers(
