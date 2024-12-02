@@ -30,9 +30,7 @@ local rcall = redis.call
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/moveParentToWaitIfNeeded"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
---- @include "includes/removeJob"
---- @include "includes/removeJobsByMaxAge"
---- @include "includes/removeJobsByMaxCount"
+--- @include "includes/removeJobsOnFail"
 --- @include "includes/trimEvents"
 
 local stalledKey = KEYS[1]
@@ -86,7 +84,6 @@ if (#stalling > 0) then
                         local rawOpts = jobAttributes[1]
                         local rawParentData = jobAttributes[2]
                         local opts = cjson.decode(rawOpts)
-                        local removeOnFailType = type(opts["removeOnFail"])
                         rcall("ZADD", failedKey, timestamp, jobId)
                         removeDeduplicationKeyIfNeeded(queueKeyPrefix, jobAttributes[3])
 
@@ -123,29 +120,7 @@ if (#stalling > 0) then
                             end
                         end
 
-                        if removeOnFailType == "number" then
-                            removeJobsByMaxCount(opts["removeOnFail"],
-                                                  failedKey, queueKeyPrefix)
-                        elseif removeOnFailType == "boolean" then
-                            if opts["removeOnFail"] then
-                                removeJob(jobId, false, queueKeyPrefix,
-                                  false --[[remove debounce key]])
-                                rcall("ZREM", failedKey, jobId)
-                            end
-                        elseif removeOnFailType ~= "nil" then
-                            local maxAge = opts["removeOnFail"]["age"]
-                            local maxCount = opts["removeOnFail"]["count"]
-
-                            if maxAge ~= nil then
-                                removeJobsByMaxAge(timestamp, maxAge,
-                                                    failedKey, queueKeyPrefix)
-                            end
-
-                            if maxCount ~= nil and maxCount > 0 then
-                                removeJobsByMaxCount(maxCount, failedKey,
-                                                      queueKeyPrefix)
-                            end
-                        end
+                        removeJobsOnFail(queueKeyPrefix, failedKey, jobId, opts, timestamp)
 
                         table.insert(failed, jobId)
                     else
