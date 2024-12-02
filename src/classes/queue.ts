@@ -3,6 +3,7 @@ import {
   BaseJobOptions,
   BulkJobOptions,
   IoredisListener,
+  JobSchedulerJson,
   QueueOptions,
   RepeatableJob,
   RepeatOptions,
@@ -571,7 +572,7 @@ export class Queue<
    *
    * @param id - identifier of scheduler.
    */
-  async getJobScheduler(id: string): Promise<RepeatableJob> {
+  async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
     return (await this.jobScheduler).getJobScheduler(id);
   }
 

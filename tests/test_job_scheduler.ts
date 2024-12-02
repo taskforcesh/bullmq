@@ -360,6 +360,11 @@ describe('Job Scheduler', function () {
       tz: null,
       pattern: '*/2 * * * * *',
       every: null,
+      template: {
+        data: {
+          foo: 'bar',
+        },
+      },
     });
 
     this.clock.tick(nextTick);
@@ -685,6 +690,17 @@ describe('Job Scheduler', function () {
         };
         await currentQueue.upsertJobScheduler('rrule', repeat, {
           name: 'rrule',
+        });
+
+        const scheduler = await queue.getJobScheduler('rrule');
+
+        expect(scheduler).to.deep.equal({
+          key: 'rrule',
+          name: 'rrule',
+          endDate: null,
+          tz: null,
+          pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
+          every: null,
         });
 
         this.clock.tick(nextTick);
