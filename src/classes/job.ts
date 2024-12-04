@@ -19,11 +19,9 @@ import {
   JobState,
   JobJsonSandbox,
   MinimalQueue,
-  RedisJobOptions,
 } from '../types';
 import {
   errorObject,
-  invertObject,
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
@@ -40,18 +38,6 @@ import type { QueueEvents } from './queue-events';
 import { SpanKind } from '../enums';
 
 const logger = debuglog('bull');
-
-const optsDecodeMap = {
-  de: 'deduplication',
-  fpof: 'failParentOnFailure',
-  idof: 'ignoreDependencyOnFailure',
-  kl: 'keepLogs',
-  rdof: 'removeDependencyOnFailure',
-  tm: 'telemetryMetadata',
-};
-
-const optsEncodeMap = invertObject(optsDecodeMap);
-optsEncodeMap.debounce = 'de';
 
 export const PRIORITY_LIMIT = 2 ** 21;
 

@@ -1,8 +1,13 @@
 import { parseExpression } from 'cron-parser';
-import { RedisClient, RepeatBaseOptions, RepeatOptions } from '../interfaces';
+import {
+  JobSchedulerJson,
+  JobSchedulerTemplateJson,
+  RedisClient,
+  RepeatBaseOptions,
+  RepeatOptions,
+} from '../interfaces';
 import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
-import { JobSchedulerJson, JobSchedulerTemplateJson } from '../interfaces';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';

@@ -1,4 +1,6 @@
-import { RepeatOptions, KeepJobs, BackoffOptions } from './';
+import { BackoffOptions } from './backoff-options';
+import { KeepJobs } from './keep-jobs';
+import { RepeatOptions } from './repeat-options';
 
 export interface DefaultJobOptions {
   /**
