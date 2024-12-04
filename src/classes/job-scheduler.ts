@@ -269,7 +269,6 @@ export class JobScheduler extends QueueBase {
     rawData?: string,
     rawOpts?: string,
   ): JobSchedulerTemplateJson<D> {
-    console.log(typeof rawOpts);
     const template: JobSchedulerTemplateJson<D> = {};
     if (rawData) {
       template.data = JSON.parse(rawData);
