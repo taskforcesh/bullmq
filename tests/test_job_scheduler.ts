@@ -1211,7 +1211,7 @@ describe('Job Scheduler', function () {
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {
-    this.timeout(15000);
+    this.timeout(8000);
 
     const date = new Date('2017-02-02 7:21:42');
     this.clock.setSystemTime(date);
@@ -1260,7 +1260,7 @@ describe('Job Scheduler', function () {
 
     worker.run();
 
-    await queue.upsertJobScheduler('repeat', { pattern: '* 25 9 7 * *' });
+    await queue.upsertJobScheduler('repeat', { pattern: '25 9 7 * *' });
     nextTick();
 
     await completing;
