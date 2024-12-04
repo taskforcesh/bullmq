@@ -3,13 +3,13 @@
     - Increases the job counter if needed.
     - Creates a new job key with the job data.
     - adds the job to the waiting-children zset
-    
+
     Input:
       KEYS[1] 'meta'
       KEYS[2] 'id'
       KEYS[3] 'completed'
       KEYS[4] events stream key
-      
+
       ARGV[1] msgpacked arguments array
             [1]  key prefix,
             [2]  custom id (will not generate one automatically)
@@ -21,7 +21,7 @@
             [8]  parent? {id, queueKey}
             [9]  repeat job key
             [10] deduplication key
-            
+
       ARGV[2] Json stringified job data
       ARGV[3] msgpacked options
 

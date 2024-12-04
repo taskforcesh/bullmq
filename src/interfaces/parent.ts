@@ -1,4 +1,5 @@
 import { JobsOptions } from '../types';
+
 /**
  * Describes the parent for a Job.
  */

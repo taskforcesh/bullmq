@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { QueueBaseOptions, RedisClient, Span, Tracer } from '../interfaces';
+import { QueueBaseOptions, RedisClient, Span } from '../interfaces';
 import { MinimalQueue } from '../types';
 import {
   delay,
