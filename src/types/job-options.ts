@@ -26,6 +26,22 @@ export type JobsOptions = BaseJobOptions & {
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
   removeDependencyOnFailure?: boolean;
+
+  /**
+   * Telemetry options
+   */
+  telemetry?: {
+    /**
+     * TelemetryMetadata, provide for context propagation.
+     */
+    metadata?: string;
+
+    /**
+     * If `true` telemetry will omit the context propagation
+     * @default false
+     */
+    omitContext?: boolean;
+  };
 };
 
 /**
@@ -61,4 +77,9 @@ export type RedisJobOptions = BaseJobOptions & {
    * TelemetryMetadata, provide for context propagation.
    */
   tm?: string;
+
+  /**
+   * Omit Context Propagation
+   */
+  omc?: boolean;
 };

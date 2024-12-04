@@ -11,13 +11,13 @@ import {
   ContextManager,
   RedisClient,
   Span,
-  TelemetryOptions,
   Tracer,
 } from './interfaces';
 import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from './enums';
+import { JobsOptions } from './types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -300,7 +300,6 @@ export async function trace<T>(
     | {
         tracer: Tracer;
         contextManager: ContextManager;
-        options?: TelemetryOptions;
       }
     | undefined,
   spanKind: SpanKind,
@@ -309,16 +308,17 @@ export async function trace<T>(
   destination: string,
   callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
   srcPropagationMetadata?: string,
+  jobsOptions?: JobsOptions['telemetry'],
 ) {
   if (!telemetry) {
     return callback();
   } else {
-    const { tracer, contextManager, options } = telemetry;
+    const { tracer, contextManager } = telemetry;
 
     const currentContext = contextManager.active();
 
     let parentContext;
-    if (!options?.omitContext && srcPropagationMetadata) {
+    if (!jobsOptions?.omitContext && srcPropagationMetadata) {
       parentContext = contextManager.fromMetadata(
         currentContext,
         srcPropagationMetadata,

@@ -117,4 +117,10 @@ export interface BaseJobOptions extends DefaultJobOptions {
    * TelemetryMetadata, provide for context propagation.
    */
   telemetryMetadata?: string;
+
+  /**
+   * If `true` telemetry will omit the context propagation
+   * @default false
+   */
+  omitContext?: boolean;
 }

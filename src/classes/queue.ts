@@ -320,6 +320,8 @@ export class Queue<
 
         return job;
       },
+      undefined,
+      opts?.telemetry,
     );
   }
 

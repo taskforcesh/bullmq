@@ -46,6 +46,7 @@ const optsDecodeMap = {
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
   tm: 'telemetryMetadata',
+  omc: 'omitContext',
 };
 
 const optsEncodeMap = invertObject(optsDecodeMap);
@@ -787,6 +788,8 @@ export class Job<
           return raw2NextJobData(result);
         }
       },
+      undefined,
+      this.opts?.telemetry,
     );
   }
 

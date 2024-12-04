@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { QueueBaseOptions, RedisClient, Span, Tracer } from '../interfaces';
-import { MinimalQueue } from '../types';
+import { JobsOptions, MinimalQueue } from '../types';
 import {
   delay,
   DELAY_TIME_5,
@@ -197,6 +197,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
     destination: string,
     callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
     srcPropagationMetadata?: string,
+    jobsOptions?: JobsOptions['telemetry'],
   ) {
     return trace<Promise<T> | T>(
       this.opts.telemetry,
@@ -206,6 +207,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       destination,
       callback,
       srcPropagationMetadata,
+      jobsOptions,
     );
   }
 }
