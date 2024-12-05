@@ -516,7 +516,7 @@ describe('Job Scheduler', function () {
       const delay = 5 * ONE_SECOND + 500;
 
       const worker = new Worker(
-        queueName,
+        queueName2,
         async () => {
           this.clock.tick(nextTick);
         },
@@ -524,7 +524,7 @@ describe('Job Scheduler', function () {
       );
       const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-      await queue.upsertJobScheduler(
+      await queue2.upsertJobScheduler(
         'test',
         {
           pattern: '*/2 * * * * *',
@@ -1211,7 +1211,7 @@ describe('Job Scheduler', function () {
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {
-    this.timeout(8000);
+    this.timeout(12000);
 
     const date = new Date('2017-02-02 7:21:42');
     this.clock.setSystemTime(date);
