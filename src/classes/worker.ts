@@ -916,7 +916,6 @@ will never work with more accuracy than 1ms. */
         }
       },
       srcPropagationMedatada,
-      job.opts?.telemetry,
     );
   }
 

@@ -132,7 +132,8 @@ export class JobScheduler extends QueueBase {
             {
               ...opts,
               repeat: filteredRepeatOpts,
-              telemetryMetadata: srcPropagationMedatada,
+              telemetryMetadata:
+                span && !opts?.telemetry?.omitContext && srcPropagationMedatada,
             },
             jobData,
             iterationCount,

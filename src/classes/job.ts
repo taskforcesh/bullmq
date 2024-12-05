@@ -748,7 +748,7 @@ export class Job<
       this.getSpanOperation(command),
       this.queue.name,
       async (span, dstPropagationMedatadata) => {
-        if (dstPropagationMedatadata) {
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
           this.scripts.execCommand(multi, 'updateJobOption', [
             this.toKey(this.id),
             'tm',
@@ -788,8 +788,6 @@ export class Job<
           return raw2NextJobData(result);
         }
       },
-      undefined,
-      this.opts?.telemetry,
     );
   }
 

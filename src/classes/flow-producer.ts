@@ -346,7 +346,10 @@ export class FlowProducer extends EventEmitter {
             ...jobsOpts,
             ...node.opts,
             parent: parent?.parentOpts,
-            telemetryMetadata: dstPropagationMetadata,
+            telemetryMetadata:
+              span &&
+              !node.opts?.telemetry?.omitContext &&
+              dstPropagationMetadata,
           },
           jobId,
         );

@@ -17,7 +17,6 @@ import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from './enums';
-import { JobsOptions } from './types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -308,7 +307,6 @@ export async function trace<T>(
   destination: string,
   callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
   srcPropagationMetadata?: string,
-  jobsOptions?: JobsOptions['telemetry'],
 ) {
   if (!telemetry) {
     return callback();
@@ -318,7 +316,7 @@ export async function trace<T>(
     const currentContext = contextManager.active();
 
     let parentContext;
-    if (!jobsOptions?.omitContext && srcPropagationMetadata) {
+    if (srcPropagationMetadata) {
       parentContext = contextManager.fromMetadata(
         currentContext,
         srcPropagationMetadata,

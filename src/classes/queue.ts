@@ -307,7 +307,7 @@ export class Queue<
       'add',
       `${this.name}.${name}`,
       async (span, srcPropagationMedatada) => {
-        if (srcPropagationMedatada) {
+        if (!opts?.telemetry?.omitContext && srcPropagationMedatada) {
           opts = { ...opts, telemetryMetadata: srcPropagationMedatada };
         }
 
@@ -320,8 +320,6 @@ export class Queue<
 
         return job;
       },
-      undefined,
-      opts?.telemetry,
     );
   }
 
@@ -406,7 +404,10 @@ export class Queue<
               ...this.jobsOpts,
               ...job.opts,
               jobId: job.opts?.jobId,
-              tm: span && srcPropagationMedatada,
+              tm:
+                span &&
+                !job.opts?.telemetry?.omitContext &&
+                srcPropagationMedatada,
             },
           })),
         );
