@@ -45,7 +45,7 @@ describe('repeat', function () {
   });
 
   beforeEach(async function () {
-    this.clock = sinon.useFakeTimers();
+    this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
