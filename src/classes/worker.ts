@@ -597,10 +597,10 @@ export class Worker<
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
-          return this.moveToActive(client, token, this.opts.name);
+          return await this.moveToActive(client, token, this.opts.name);
         }
       } catch (err) {
-        // Swallow error if locally paused or closing since we did force a disconnection
+        // Swallow error if locally not paused or not closing since we did not force a disconnection
         if (
           !(this.paused || this.closing) &&
           isNotConnectionError(<Error>err)

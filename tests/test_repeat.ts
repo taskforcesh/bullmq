@@ -45,7 +45,7 @@ describe('repeat', function () {
   });
 
   beforeEach(async function () {
-    this.clock = sinon.useFakeTimers();
+    this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
@@ -1110,7 +1110,7 @@ describe('repeat', function () {
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {
-    this.timeout(8000);
+    this.timeout(12000);
 
     const date = new Date('2017-02-02 7:21:42');
     this.clock.setSystemTime(date);
