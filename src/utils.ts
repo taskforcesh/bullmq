@@ -83,15 +83,20 @@ export function increaseMaxListeners(
   emitter.setMaxListeners(maxListeners + count);
 }
 
-export const invertObject = (obj: Record<string, string>) => {
-  return Object.entries(obj).reduce<Record<string, string>>(
-    (encodeMap, [key, value]) => {
-      encodeMap[value] = key;
-      return encodeMap;
-    },
-    {},
-  );
+type Invert<T extends Record<PropertyKey, PropertyKey>> = {
+  [V in T[keyof T]]: {
+    [K in keyof T]: T[K] extends V ? K : never;
+  }[keyof T];
 };
+
+export function invertObject<T extends Record<PropertyKey, PropertyKey>>(
+  obj: T,
+): Invert<T> {
+  return Object.entries(obj).reduce((result, [key, value]) => {
+    (result as Record<PropertyKey, PropertyKey>)[value] = key;
+    return result;
+  }, {} as Invert<T>);
+}
 
 export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {

@@ -1,6 +1,10 @@
 import { BaseJobOptions, DebounceOptions } from '../interfaces';
 
-export type JobsOptions = BaseJobOptions & {
+/**
+ * These options will be stored in Redis with smaller
+ * keys for compactness.
+ */
+export type CompressableJobOptions = {
   /**
    * Debounce options.
    * @deprecated use deduplication option
@@ -32,7 +36,7 @@ export type JobsOptions = BaseJobOptions & {
    */
   telemetry?: {
     /**
-     * TelemetryMetadata, provide for context propagation.
+     * Metadata, used for context propagation.
      */
     metadata?: string;
 
@@ -43,6 +47,8 @@ export type JobsOptions = BaseJobOptions & {
     omitContext?: boolean;
   };
 };
+
+export type JobsOptions = BaseJobOptions & CompressableJobOptions;
 
 /**
  * These fields are the ones stored in Redis with smaller keys for compactness.
@@ -82,4 +88,10 @@ export type RedisJobOptions = BaseJobOptions & {
    * Omit Context Propagation
    */
   omc?: boolean;
+
+  /**
+   * Deduplication identifier.
+   * @deprecated use deid
+   */
+  de?: string;
 };

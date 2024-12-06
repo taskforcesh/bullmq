@@ -527,11 +527,13 @@ describe('Telemetry', () => {
     afterEach(() => fromMetadataSpy.restore());
 
     it('should omit propagation on queue add', async () => {
-      const worker = new Worker(queueName, async () => 'some result', {
-        connection,
-        telemetry: telemetryClient,
+      let worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(queueName, async () => resolve(), {
+          connection,
+          telemetry: telemetryClient,
+        });
       });
-      await worker.waitUntilReady();
 
       const job = await queue.add(
         'testJob',
@@ -539,18 +541,20 @@ describe('Telemetry', () => {
         { telemetry: { omitContext: true } },
       );
 
-      await worker.processJob(job, 'some-token', () => false, new Set());
+      await processing;
 
       expect(fromMetadataSpy.callCount).to.equal(0);
       await worker.close();
     });
 
     it('should omit propagation on queue addBulk', async () => {
-      const worker = new Worker(queueName, async () => 'some result', {
-        connection,
-        telemetry: telemetryClient,
+      let worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(queueName, async () => resolve(), {
+          connection,
+          telemetry: telemetryClient,
+        });
       });
-      await worker.waitUntilReady();
 
       const jobs = [
         {
@@ -559,24 +563,23 @@ describe('Telemetry', () => {
           opts: { telemetry: { omitContext: true } },
         },
       ];
-      const jobArray = await queue.addBulk(jobs);
+      const addedJos = await queue.addBulk(jobs);
+      expect(addedJos).to.have.length(1);
 
-      await Promise.all(
-        jobArray.map(job =>
-          worker.processJob(job, 'some-token', () => false, new Set()),
-        ),
-      );
+      await processing;
 
       expect(fromMetadataSpy.callCount).to.equal(0);
       await worker.close();
     });
 
     it('should omit propagation on job scheduler', async () => {
-      const worker = new Worker(queueName, async () => 'some result', {
-        connection,
-        telemetry: telemetryClient,
+      let worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(queueName, async () => resolve(), {
+          connection,
+          telemetry: telemetryClient,
+        });
       });
-      await worker.waitUntilReady();
 
       const jobSchedulerId = 'testJobScheduler';
       const data = { foo: 'bar' };
@@ -591,18 +594,20 @@ describe('Telemetry', () => {
         },
       );
 
-      await worker.processJob(job, 'some-token', () => false, new Set());
+      await processing;
 
       expect(fromMetadataSpy.callCount).to.equal(0);
       await worker.close();
     });
 
     it('should omit propagation on flow producer', async () => {
-      const worker = new Worker(queueName, async () => 'some result', {
-        connection,
-        telemetry: telemetryClient,
+      let worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(queueName, async () => resolve(), {
+          connection,
+          telemetry: telemetryClient,
+        });
       });
-      await worker.waitUntilReady();
 
       const flowProducer = new FlowProducer({
         connection,
@@ -629,11 +634,7 @@ describe('Telemetry', () => {
         ? [jobNode.job, ...jobNode.children.map(c => c.job)]
         : [jobNode.job];
 
-      await Promise.all(
-        jobs.map(job =>
-          worker.processJob(job, 'some-token', () => false, new Set()),
-        ),
-      );
+      await processing;
 
       expect(fromMetadataSpy.callCount).to.equal(0);
       await flowProducer.close();

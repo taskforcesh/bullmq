@@ -20,6 +20,7 @@ import {
   JobJsonSandbox,
   MinimalQueue,
   RedisJobOptions,
+  CompressableJobOptions,
 } from '../types';
 import {
   errorObject,
@@ -39,18 +40,19 @@ import { SpanKind } from '../enums';
 
 const logger = debuglog('bull');
 
+// Simple options decode map.
 const optsDecodeMap = {
   de: 'deduplication',
   fpof: 'failParentOnFailure',
   idof: 'ignoreDependencyOnFailure',
   kl: 'keepLogs',
   rdof: 'removeDependencyOnFailure',
-  tm: 'telemetryMetadata',
-  omc: 'omitContext',
-};
+} as const;
 
-const optsEncodeMap = invertObject(optsDecodeMap);
-optsEncodeMap.debounce = 'de';
+const optsEncodeMap = {
+  ...invertObject(optsDecodeMap),
+  /*/ Legacy for backwards compatibility */ debounce: 'de',
+} as const;
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -403,7 +405,13 @@ export class Job<
         options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
           value;
       } else {
-        options[<string>attributeName] = value;
+        if (attributeName === 'tm') {
+          options.telemetry = { ...options.telemetry, metadata: value };
+        } else if (attributeName === 'omc') {
+          options.telemetry = { ...options.telemetry, omitContext: value };
+        } else {
+          options[<string>attributeName] = value;
+        }
       }
     }
 
@@ -492,17 +500,30 @@ export class Job<
     const optionEntries = Object.entries(opts) as Array<
       [keyof JobsOptions, any]
     >;
-    const options: Partial<Record<string, any>> = {};
-    for (const item of optionEntries) {
-      const [attributeName, value] = item;
-      if ((optsEncodeMap as Record<string, any>)[<string>attributeName]) {
-        options[(optsEncodeMap as Record<string, any>)[<string>attributeName]] =
-          value;
+    const options: Record<string, any> = {};
+
+    for (const [attributeName, value] of optionEntries) {
+      if (typeof value === 'undefined') {
+        continue;
+      }
+      if (attributeName in optsEncodeMap) {
+        const compressableAttribute = attributeName as keyof Omit<
+          CompressableJobOptions,
+          'debounce' | 'telemetry'
+        >;
+
+        const key = optsEncodeMap[compressableAttribute];
+        options[key] = value;
       } else {
-        options[<string>attributeName] = value;
+        // Handle complex compressable fields separately
+        if (attributeName === 'telemetry') {
+          options.tm = value.metadata;
+          options.omc = value.omitContext;
+        } else {
+          options[attributeName] = value;
+        }
       }
     }
-
     return options as RedisJobOptions;
   }
 

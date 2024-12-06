@@ -124,6 +124,22 @@ export class JobScheduler extends QueueBase {
         'add',
         `${this.name}.${jobName}`,
         async (span, srcPropagationMedatada) => {
+          let telemetry = opts.telemetry;
+
+          if (srcPropagationMedatada) {
+            const omitContext = opts.telemetry?.omitContext;
+            const telemetryMetadata =
+              opts.telemetry?.metadata ||
+              (!omitContext && srcPropagationMedatada);
+
+            if (telemetryMetadata || omitContext) {
+              telemetry = {
+                metadata: telemetryMetadata,
+                omitContext,
+              };
+            }
+          }
+
           const job = this.createNextJob<T, R, N>(
             (<unknown>multi) as RedisClient,
             jobName,
@@ -132,8 +148,7 @@ export class JobScheduler extends QueueBase {
             {
               ...opts,
               repeat: filteredRepeatOpts,
-              telemetryMetadata:
-                span && !opts?.telemetry?.omitContext && srcPropagationMedatada,
+              telemetry,
             },
             jobData,
             iterationCount,
@@ -279,12 +294,11 @@ export class JobScheduler extends QueueBase {
     return Promise.all(jobs);
   }
 
-  async getSchedulersCount(
-    client: RedisClient,
-    prefix: string,
-    queueName: string,
-  ): Promise<number> {
-    return client.zcard(`${prefix}:${queueName}:repeat`);
+  async getSchedulersCount(): Promise<number> {
+    const jobSchedulersKey = this.keys.repeat;
+    const client = await this.client;
+
+    return client.zcard(jobSchedulersKey);
   }
 
   private getSchedulerNextJobId({
