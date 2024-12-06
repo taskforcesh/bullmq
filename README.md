@@ -42,12 +42,6 @@ You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
 Do you need to work with BullMQ on platforms other than Node.js? If so, check out the [BullMQ Proxy](https://github.com/taskforcesh/bullmq-proxy)
 
-## 🌟 Rediscover Scale Conference 2024
-
-Discover the latest in in-memory and real-time data technologies at **Rediscover Scale 2024**. Ideal for engineers, architects, and technical leaders looking to push technological boundaries. Connect with experts and advance your skills at The Foundry SF, San Francisco.
-
-[Learn more and register here!](https://www.rediscoverscale.com/)
-
 # Official FrontEnd
 
 [<img src="http://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
