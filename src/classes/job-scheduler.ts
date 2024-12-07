@@ -202,11 +202,11 @@ export class JobScheduler extends QueueBase {
     return this.scripts.removeJobScheduler(jobSchedulerId);
   }
 
-  private async getSchedulerData(
+  private async getSchedulerData<D>(
     client: RedisClient,
     key: string,
     next?: number,
-  ): Promise<JobSchedulerJson> {
+  ): Promise<JobSchedulerJson<D>> {
     const jobData = await client.hgetall(this.toKey('repeat:' + key));
 
     if (jobData) {
@@ -217,6 +217,11 @@ export class JobScheduler extends QueueBase {
         tz: jobData.tz || null,
         pattern: jobData.pattern || null,
         every: jobData.every || null,
+        ...(jobData.data || jobData.opts
+          ? {
+              template: this.getTemplateFromJSON<D>(jobData.data, jobData.opts),
+            }
+          : {}),
         next,
       };
     }
@@ -279,11 +284,11 @@ export class JobScheduler extends QueueBase {
     return template;
   }
 
-  async getJobSchedulers(
+  async getJobSchedulers<D = any>(
     start = 0,
     end = -1,
     asc = false,
-  ): Promise<JobSchedulerJson[]> {
+  ): Promise<JobSchedulerJson<D>[]> {
     const client = await this.client;
     const jobSchedulersKey = this.keys.repeat;
 
@@ -294,7 +299,7 @@ export class JobScheduler extends QueueBase {
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
       jobs.push(
-        this.getSchedulerData(client, result[i], parseInt(result[i + 1])),
+        this.getSchedulerData<D>(client, result[i], parseInt(result[i + 1])),
       );
     }
     return Promise.all(jobs);
