@@ -33,7 +33,7 @@ This method can be particularly useful for generating reports or dashboards that
 The **getJobScheduler** method retrieves a job scheduler by id. This is invaluable for inspecting dedicated configurations.
 
 ```typescript
-const scheduler = await queue.getJobScheduler('test);
+const scheduler = await queue.getJobScheduler('test');
 console.log('Current job scheduler:', scheduler);
 ```
 
