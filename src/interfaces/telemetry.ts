@@ -36,8 +36,8 @@ export interface ContextManager<Context = any> {
   /**
    * Creates a new context and sets it as active for the fn passed as last argument
    *
-   * @param context
-   * @param fn
+   * @param context -
+   * @param fn -
    */
   with<A extends (...args: any[]) => any>(
     context: Context,
@@ -54,7 +54,7 @@ export interface ContextManager<Context = any> {
    * is the mechanism used to propagate the context across a distributed
    * application.
    *
-   * @param context
+   * @param context -
    */
   getMetadata(context: Context): string;
 
@@ -62,8 +62,8 @@ export interface ContextManager<Context = any> {
    * Creates a new context from a serialized version effectively
    * linking the new context to the parent context.
    *
-   * @param activeContext
-   * @param metadata
+   * @param activeContext -
+   * @param metadata -
    */
   fromMetadata(activeContext: Context, metadata: string): Context;
 }
@@ -78,9 +78,9 @@ export interface Tracer<Context = any> {
    * context. If the context is not provided, the current active context should be
    * used.
    *
-   * @param name
-   * @param options
-   * @param context
+   * @param name -
+   * @param options -
+   * @param context -
    */
   startSpan(name: string, options?: SpanOptions, context?: Context): Span;
 }

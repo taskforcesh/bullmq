@@ -1445,7 +1445,11 @@ describe('Job Scheduler', function () {
         });
       });
 
-      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
+      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts, {
+        name: 'a',
+        data: { foo: 'bar' },
+        opts: { priority: 1 },
+      });
       const delayedCount = await queue.getDelayedCount();
       expect(delayedCount).to.be.equal(1);
 
@@ -1463,6 +1467,25 @@ describe('Job Scheduler', function () {
       const count = await queue.count();
       expect(count).to.be.equal(1);
       expect(jobSchedulers).to.have.length(1);
+
+      expect(jobSchedulers[0]).to.deep.equal({
+        key: 'test',
+        name: 'a',
+        endDate: null,
+        tz: null,
+        pattern: '0 * 1 * *',
+        every: null,
+        next: 25200000,
+        template: {
+          data: {
+            foo: 'bar',
+          },
+          opts: {
+            priority: 1,
+          },
+        },
+      });
+
       await worker.close();
     });
 
