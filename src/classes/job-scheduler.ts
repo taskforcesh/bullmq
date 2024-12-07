@@ -11,7 +11,6 @@ import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { optsAsJSON, optsFromJSON } from '../utils';
 
 export class JobScheduler extends QueueBase {
   private repeatStrategy: RepeatStrategy;
@@ -100,7 +99,7 @@ export class JobScheduler extends QueueBase {
           jobSchedulerId,
           nextMillis,
           JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
-          optsAsJSON(opts),
+          Job.optsAsJSON(opts),
           {
             name: jobName,
             endDate: endDate ? new Date(endDate).getTime() : undefined,
@@ -290,7 +289,7 @@ export class JobScheduler extends QueueBase {
       template.data = JSON.parse(rawData);
     }
     if (rawOpts) {
-      template.opts = optsFromJSON(rawOpts);
+      template.opts = Job.optsFromJSON(rawOpts);
     }
     return template;
   }

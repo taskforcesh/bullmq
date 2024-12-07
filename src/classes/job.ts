@@ -30,8 +30,7 @@ import {
   parseObjectValues,
   tryCatch,
   removeUndefinedFields,
-  optsAsJSON,
-  optsFromJSON,
+  invertObject,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts, raw2NextJobData } from './scripts';
@@ -328,7 +327,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = optsFromJSON(json.opts);
+    const opts = Job.optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
       queue,
@@ -392,7 +391,7 @@ export class Job<
     this.scripts = new Scripts(this.queue);
   }
 
-  private static optsFromJSON(rawOpts?: string): JobsOptions {
+  static optsFromJSON(rawOpts?: string): JobsOptions {
     const opts = JSON.parse(rawOpts || '{}');
 
     const optionEntries = Object.entries(opts) as Array<
@@ -479,7 +478,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: optsAsJSON(this.opts),
+      opts: Job.optsAsJSON(this.opts),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
       progress: this.progress,
@@ -497,7 +496,7 @@ export class Job<
     });
   }
 
-  private optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+  static optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
     const optionEntries = Object.entries(opts) as Array<
       [keyof JobsOptions, any]
     >;
