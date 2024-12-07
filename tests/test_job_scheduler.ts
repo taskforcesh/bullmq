@@ -40,7 +40,7 @@ describe('Job Scheduler', function () {
   });
 
   beforeEach(async function () {
-    this.clock = sinon.useFakeTimers();
+    this.clock = sinon.useFakeTimers({ shouldClearNativeTimers: true });
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
@@ -183,6 +183,9 @@ describe('Job Scheduler', function () {
 
       const delayed = await queue.getDelayed();
       expect(delayed).to.have.length(3);
+
+      const jobSchedulersCount = await queue.getJobSchedulersCount();
+      expect(jobSchedulersCount).to.be.eql(3);
     });
   });
 
@@ -357,6 +360,11 @@ describe('Job Scheduler', function () {
       tz: null,
       pattern: '*/2 * * * * *',
       every: null,
+      template: {
+        data: {
+          foo: 'bar',
+        },
+      },
     });
 
     this.clock.tick(nextTick);
@@ -508,7 +516,7 @@ describe('Job Scheduler', function () {
       const delay = 5 * ONE_SECOND + 500;
 
       const worker = new Worker(
-        queueName,
+        queueName2,
         async () => {
           this.clock.tick(nextTick);
         },
@@ -516,7 +524,7 @@ describe('Job Scheduler', function () {
       );
       const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-      await queue.upsertJobScheduler(
+      await queue2.upsertJobScheduler(
         'test',
         {
           pattern: '*/2 * * * * *',
@@ -682,6 +690,17 @@ describe('Job Scheduler', function () {
         };
         await currentQueue.upsertJobScheduler('rrule', repeat, {
           name: 'rrule',
+        });
+
+        const scheduler = await queue.getJobScheduler('rrule');
+
+        expect(scheduler).to.deep.equal({
+          key: 'rrule',
+          name: 'rrule',
+          endDate: null,
+          tz: null,
+          pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
+          every: null,
         });
 
         this.clock.tick(nextTick);
@@ -1192,7 +1211,7 @@ describe('Job Scheduler', function () {
   });
 
   it('should repeat 7:th day every month at 9:25', async function () {
-    this.timeout(15000);
+    this.timeout(12000);
 
     const date = new Date('2017-02-02 7:21:42');
     this.clock.setSystemTime(date);
@@ -1241,7 +1260,7 @@ describe('Job Scheduler', function () {
 
     worker.run();
 
-    await queue.upsertJobScheduler('repeat', { pattern: '* 25 9 7 * *' });
+    await queue.upsertJobScheduler('repeat', { pattern: '25 9 7 * *' });
     nextTick();
 
     await completing;
@@ -1403,35 +1422,335 @@ describe('Job Scheduler', function () {
     });
   });
 
-  it('should keep only one delayed job if adding a new repeatable job with the same id', async function () {
-    const date = new Date('2017-02-07 9:24:00');
-    const key = 'mykey';
+  describe('when repeatable job fails', function () {
+    it('should continue repeating', async function () {
+      const repeatOpts = {
+        pattern: '0 * 1 * *',
+      };
 
-    this.clock.setSystemTime(date);
+      const worker = new Worker(
+        queueName,
+        async () => {
+          throw new Error('failed');
+        },
+        {
+          connection,
+          prefix,
+        },
+      );
 
-    const nextTick = 2 * ONE_SECOND;
+      const failing = new Promise<void>(resolve => {
+        worker.on('failed', () => {
+          resolve();
+        });
+      });
 
-    await queue.upsertJobScheduler(key, {
-      every: 10_000,
+      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
+      const delayedCount = await queue.getDelayedCount();
+      expect(delayedCount).to.be.equal(1);
+
+      await repeatableJob!.promote();
+      await failing;
+
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.be.equal(1);
+
+      const delayedCount2 = await queue.getDelayedCount();
+      expect(delayedCount2).to.be.equal(1);
+
+      const jobSchedulers = await queue.getJobSchedulers();
+
+      const count = await queue.count();
+      expect(count).to.be.equal(1);
+      expect(jobSchedulers).to.have.length(1);
+      await worker.close();
     });
 
-    this.clock.tick(nextTick);
+    it('should not create a new delayed job if the failed job is retried with retryJobs', async function () {
+      const repeatOpts = {
+        every: 579,
+      };
 
-    let jobs = await queue.getJobSchedulers();
-    expect(jobs).to.have.length(1);
+      let isFirstRun = true;
 
-    let delayedJobs = await queue.getDelayed();
-    expect(delayedJobs).to.have.length(1);
+      const worker = new Worker(
+        queueName,
+        async () => {
+          this.clock.tick(177);
+          if (isFirstRun) {
+            isFirstRun = false;
+            throw new Error('failed');
+          }
+        },
+        {
+          connection,
+          prefix,
+        },
+      );
 
-    await queue.upsertJobScheduler(key, {
-      every: 35_160,
+      const failing = new Promise<void>(resolve => {
+        worker.on('failed', async () => {
+          resolve();
+        });
+      });
+
+      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
+      const delayedCount = await queue.getDelayedCount();
+      expect(delayedCount).to.be.equal(1);
+
+      await repeatableJob!.promote();
+      await failing;
+
+      const failedCount = await queue.getFailedCount();
+      expect(failedCount).to.be.equal(1);
+
+      // Retry the failed job
+      this.clock.tick(1143);
+      await queue.retryJobs({ state: 'failed' });
+      const failedCountAfterRetry = await queue.getFailedCount();
+      expect(failedCountAfterRetry).to.be.equal(0);
+
+      const delayedCount2 = await queue.getDelayedCount();
+      expect(delayedCount2).to.be.equal(1);
     });
 
-    jobs = await queue.getJobSchedulers();
-    expect(jobs).to.have.length(1);
+    it('should not create a new delayed job if the failed job is retried with Job.retry()', async function () {
+      const repeatOpts = {
+        every: 477,
+      };
 
-    delayedJobs = await queue.getDelayed();
-    expect(delayedJobs).to.have.length(1);
+      let isFirstRun = true;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          this.clock.tick(177);
+
+          if (isFirstRun) {
+            isFirstRun = false;
+            throw new Error('failed');
+          }
+        },
+        {
+          connection,
+          prefix,
+        },
+      );
+
+      const failing = new Promise<void>(resolve => {
+        worker.on('failed', async () => {
+          resolve();
+        });
+      });
+
+      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
+      const delayedCount = await queue.getDelayedCount();
+      expect(delayedCount).to.be.equal(1);
+
+      await repeatableJob!.promote();
+
+      this.clock.tick(177);
+
+      await failing;
+
+      this.clock.tick(177);
+
+      const failedJobs = await queue.getFailed();
+      expect(failedJobs.length).to.be.equal(1);
+
+      // Retry the failed job
+      const failedJob = await queue.getJob(failedJobs[0].id);
+      await failedJob!.retry();
+      const failedCountAfterRetry = await queue.getFailedCount();
+      expect(failedCountAfterRetry).to.be.equal(0);
+
+      const delayedCount2 = await queue.getDelayedCount();
+      expect(delayedCount2).to.be.equal(1);
+    });
+
+    it('should not create a new delayed job if the failed job is stalled and moved back to wait', async function () {
+      // Note, this test is expected to throw an exception like this:
+      // "Error: Missing lock for job repeat:test:1486455840000. moveToFinished"
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+
+      const repeatOpts = {
+        every: 2000,
+      };
+
+      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
+      expect(repeatableJob).to.be.ok;
+
+      const delayedCount = await queue.getDelayedCount();
+      expect(delayedCount).to.be.equal(1);
+
+      await repeatableJob!.promote();
+
+      let resolveCompleting: () => void;
+      const complettingJob = new Promise<void>(resolve => {
+        resolveCompleting = resolve;
+      });
+
+      let worker: Worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(
+          queueName,
+          async () => {
+            resolve();
+            return complettingJob;
+          },
+          {
+            connection,
+            prefix,
+            skipLockRenewal: true,
+            skipStalledCheck: true,
+          },
+        );
+      });
+
+      await processing;
+
+      // force remove the lock
+      const client = await queue.client;
+      const lockKey = `${prefix}:${queueName}:${repeatableJob!.id}:lock`;
+      await client.del(lockKey);
+
+      const stalledCheckerKey = `${prefix}:${queueName}:stalled-check`;
+      await client.del(stalledCheckerKey);
+
+      const scripts = (<any>worker!).scripts;
+      let [failed, stalled] = await scripts.moveStalledJobsToWait();
+
+      await client.del(stalledCheckerKey);
+
+      [failed, stalled] = await scripts.moveStalledJobsToWait();
+
+      const waitingJobs = await queue.getWaiting();
+      expect(waitingJobs.length).to.be.equal(1);
+
+      await this.clock.tick(500);
+
+      resolveCompleting!();
+      await worker!.close();
+
+      await this.clock.tick(500);
+
+      const delayedCount2 = await queue.getDelayedCount();
+      expect(delayedCount2).to.be.equal(1);
+
+      let completedJobs = await queue.getCompleted();
+      expect(completedJobs.length).to.be.equal(0);
+
+      const processing2 = new Promise<void>(resolve => {
+        worker = new Worker(
+          queueName,
+          async () => {
+            resolve();
+          },
+          {
+            connection,
+            prefix,
+            skipLockRenewal: true,
+            skipStalledCheck: true,
+          },
+        );
+      });
+
+      await processing2;
+
+      await worker!.close();
+
+      completedJobs = await queue.getCompleted();
+      expect(completedJobs.length).to.be.equal(1);
+
+      const waitingJobs2 = await queue.getWaiting();
+      expect(waitingJobs2.length).to.be.equal(0);
+
+      const delayedCount3 = await queue.getDelayedCount();
+      expect(delayedCount3).to.be.equal(1);
+    });
+  });
+
+  describe('when every option is provided', function () {
+    it('should keep only one delayed job if adding a new repeatable job with the same id', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      const key = 'mykey';
+
+      this.clock.setSystemTime(date);
+
+      const nextTick = 2 * ONE_SECOND;
+
+      await queue.upsertJobScheduler(key, {
+        every: 10_000,
+      });
+
+      this.clock.tick(nextTick);
+
+      let jobs = await queue.getJobSchedulers();
+      expect(jobs).to.have.length(1);
+
+      let delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      await queue.upsertJobScheduler(key, {
+        every: 35_160,
+      });
+
+      jobs = await queue.getJobSchedulers();
+      expect(jobs).to.have.length(1);
+
+      delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+    });
+  });
+
+  describe('when pattern option is provided', function () {
+    it('should keep only one delayed job if adding a new repeatable job with the same id', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      const key = 'mykey';
+
+      this.clock.setSystemTime(date);
+
+      const nextTick = 2 * ONE_SECOND;
+
+      await queue.upsertJobScheduler(
+        key,
+        {
+          pattern: '0 * 1 * *',
+        },
+        { name: 'test1', data: { foo: 'bar' }, opts: { priority: 1 } },
+      );
+
+      this.clock.tick(nextTick);
+
+      let jobs = await queue.getJobSchedulers();
+      expect(jobs).to.have.length(1);
+
+      let delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      await queue.upsertJobScheduler(
+        key,
+        {
+          pattern: '0 * 1 * *',
+        },
+        { name: 'test2', data: { foo: 'baz' }, opts: { priority: 2 } },
+      );
+
+      jobs = await queue.getJobSchedulers();
+      expect(jobs).to.have.length(1);
+
+      delayedJobs = await queue.getDelayed();
+      expect(delayedJobs).to.have.length(1);
+
+      expect(delayedJobs[0].name).to.be.equal('test2');
+      expect(delayedJobs[0].data).to.deep.equal({
+        foo: 'baz',
+      });
+      expect(delayedJobs[0].opts).to.deep.include({
+        priority: 2,
+      });
+    });
   });
 
   // This test is flaky and too complex we need something simpler that tests the same thing

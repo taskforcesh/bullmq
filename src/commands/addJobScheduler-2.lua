@@ -13,7 +13,9 @@
             [4]  endDate?
             [5]  every?
       ARGV[3] jobs scheduler id
-      ARGV[4] prefix key
+      ARGV[4] Json stringified template data
+      ARGV[5] mspacked template opts
+      ARGV[6] prefix key
 
       Output:
         repeatableKey  - OK
@@ -24,13 +26,14 @@ local delayedKey = KEYS[2]
 
 local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[3]
-local prefixKey = ARGV[4]
+local templateOpts = cmsgpack.unpack(ARGV[5])
+local prefixKey = ARGV[6]
 
 -- Includes
 --- @include "includes/removeJob"
 
-local function storeRepeatableJob(repeatKey, nextMillis, rawOpts)
-  rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
+local function storeRepeatableJob(schedulerId, repeatKey, nextMillis, rawOpts, templateData, templateOpts)
+  rcall("ZADD", repeatKey, nextMillis, schedulerId)
   local opts = cmsgpack.unpack(rawOpts)
 
   local optionalValues = {}
@@ -54,7 +57,18 @@ local function storeRepeatableJob(repeatKey, nextMillis, rawOpts)
     table.insert(optionalValues, opts['every'])
   end
 
-  rcall("HMSET", repeatKey .. ":" .. jobSchedulerId, "name", opts['name'],
+  local jsonTemplateOpts = cjson.encode(templateOpts)
+  if jsonTemplateOpts and jsonTemplateOpts ~= '{}' then
+    table.insert(optionalValues, "opts")
+    table.insert(optionalValues, jsonTemplateOpts)
+  end
+
+  if templateData and templateData ~= '{}' then
+    table.insert(optionalValues, "data")
+    table.insert(optionalValues, templateData)
+  end
+
+  rcall("HMSET", repeatKey .. ":" .. schedulerId, "name", opts['name'],
     unpack(optionalValues))
 end
 
@@ -63,13 +77,15 @@ end
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
   local delayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
-  local nextDelayedJobId =  repeatKey .. ":" .. jobSchedulerId .. ":" .. nextMillis
+  local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
+  local nextDelayedJobKey =  repeatKey .. ":" .. jobSchedulerId .. ":" .. nextMillis
 
   if rcall("ZSCORE", delayedKey, delayedJobId) ~= false
-   and rcall("EXISTS", nextDelayedJobId) ~= 1 then
+    and (rcall("EXISTS", nextDelayedJobKey) ~= 1 
+    or delayedJobId == nextDelayedJobId) then
     removeJob(delayedJobId, true, prefixKey, true --[[remove debounce key]])
     rcall("ZREM", delayedKey, delayedJobId)
   end
 end
 
-return storeRepeatableJob(repeatKey, nextMillis, ARGV[2])
+return storeRepeatableJob(jobSchedulerId, repeatKey, nextMillis, ARGV[2], ARGV[4], templateOpts)

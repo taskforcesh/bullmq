@@ -311,6 +311,8 @@ export class Scripts {
     client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
+    templateData: string,
+    templateOpts: RedisJobOptions,
     opts: RepeatableOptions,
   ): Promise<string> {
     const queueKeys = this.queue.keys;
@@ -319,7 +321,15 @@ export class Scripts {
       queueKeys.repeat,
       queueKeys.delayed,
     ];
-    const args = [nextMillis, pack(opts), jobSchedulerId, queueKeys['']];
+
+    const args = [
+      nextMillis,
+      pack(opts),
+      jobSchedulerId,
+      templateData,
+      pack(templateOpts),
+      queueKeys[''],
+    ];
     return this.execCommand(client, 'addJobScheduler', keys.concat(args));
   }
 

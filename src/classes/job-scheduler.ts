@@ -1,21 +1,17 @@
 import { parseExpression } from 'cron-parser';
-import { RedisClient, RepeatBaseOptions, RepeatOptions } from '../interfaces';
+import {
+  JobSchedulerJson,
+  JobSchedulerTemplateJson,
+  RedisClient,
+  RepeatBaseOptions,
+  RepeatOptions,
+} from '../interfaces';
 import { JobsOptions, RepeatStrategy } from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
-
-export interface JobSchedulerJson {
-  key: string; // key is actually the job scheduler id
-  name: string;
-  id?: string | null;
-  endDate: number | null;
-  tz: string | null;
-  pattern: string | null;
-  every?: string | null;
-  next?: number;
-}
+import { optsAsJSON, optsFromJSON } from '../utils';
 
 export class JobScheduler extends QueueBase {
   private repeatStrategy: RepeatStrategy;
@@ -103,6 +99,8 @@ export class JobScheduler extends QueueBase {
           (<unknown>multi) as RedisClient,
           jobSchedulerId,
           nextMillis,
+          JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
+          optsAsJSON(opts),
           {
             name: jobName,
             endDate: endDate ? new Date(endDate).getTime() : undefined,
@@ -257,20 +255,44 @@ export class JobScheduler extends QueueBase {
     };
   }
 
-  async getJobScheduler(id: string): Promise<JobSchedulerJson> {
+  async getJobScheduler<D = any>(id: string): Promise<JobSchedulerJson<D>> {
     const client = await this.client;
-    const jobData = await client.hgetall(this.toKey('repeat:' + id));
+    const schedulerAttributes = await client.hgetall(
+      this.toKey('repeat:' + id),
+    );
 
-    if (jobData) {
+    if (schedulerAttributes) {
       return {
         key: id,
-        name: jobData.name,
-        endDate: parseInt(jobData.endDate) || null,
-        tz: jobData.tz || null,
-        pattern: jobData.pattern || null,
-        every: jobData.every || null,
+        name: schedulerAttributes.name,
+        endDate: parseInt(schedulerAttributes.endDate) || null,
+        tz: schedulerAttributes.tz || null,
+        pattern: schedulerAttributes.pattern || null,
+        every: schedulerAttributes.every || null,
+        ...(schedulerAttributes.data || schedulerAttributes.opts
+          ? {
+              template: this.getTemplateFromJSON<D>(
+                schedulerAttributes.data,
+                schedulerAttributes.opts,
+              ),
+            }
+          : {}),
       };
     }
+  }
+
+  private getTemplateFromJSON<D = any>(
+    rawData?: string,
+    rawOpts?: string,
+  ): JobSchedulerTemplateJson<D> {
+    const template: JobSchedulerTemplateJson<D> = {};
+    if (rawData) {
+      template.data = JSON.parse(rawData);
+    }
+    if (rawOpts) {
+      template.opts = optsFromJSON(rawOpts);
+    }
+    return template;
   }
 
   async getJobSchedulers(

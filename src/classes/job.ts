@@ -24,13 +24,14 @@ import {
 } from '../types';
 import {
   errorObject,
-  invertObject,
   isEmpty,
   getParentKey,
   lengthInUtf8Bytes,
   parseObjectValues,
   tryCatch,
   removeUndefinedFields,
+  optsAsJSON,
+  optsFromJSON,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts, raw2NextJobData } from './scripts';
@@ -327,7 +328,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = Job.optsFromJSON(json.opts);
+    const opts = optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
       queue,
@@ -478,7 +479,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: removeUndefinedFields<RedisJobOptions>(this.optsAsJSON(this.opts)),
+      opts: optsAsJSON(this.opts),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
       progress: this.progress,
