@@ -360,6 +360,7 @@ describe('Job Scheduler', function () {
       tz: null,
       pattern: '*/2 * * * * *',
       every: null,
+      next: 1486481042000,
       template: {
         data: {
           foo: 'bar',
@@ -698,6 +699,7 @@ describe('Job Scheduler', function () {
           key: 'rrule',
           name: 'rrule',
           endDate: null,
+          next: 1486481042000,
           tz: null,
           pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
           every: null,
@@ -1424,6 +1426,8 @@ describe('Job Scheduler', function () {
 
   describe('when repeatable job fails', function () {
     it('should continue repeating', async function () {
+      const date = new Date('2024-12-08 9:24:00');
+      this.clock.setSystemTime(date);
       const repeatOpts = {
         pattern: '0 * 1 * *',
       };
@@ -1475,7 +1479,7 @@ describe('Job Scheduler', function () {
         tz: null,
         pattern: '0 * 1 * *',
         every: null,
-        next: 25200000,
+        next: 1735714800000,
         template: {
           data: {
             foo: 'bar',
