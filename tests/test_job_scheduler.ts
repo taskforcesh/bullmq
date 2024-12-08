@@ -342,7 +342,7 @@ describe('Job Scheduler', function () {
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-    const date = new Date('2017-02-07 9:24:00');
+    const date = new Date('2017-02-07T15:24:00.000Z');
     this.clock.setSystemTime(date);
 
     await queue.upsertJobScheduler(
