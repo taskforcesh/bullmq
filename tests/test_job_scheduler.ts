@@ -683,7 +683,7 @@ describe('Job Scheduler', function () {
         );
         const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-        const date = new Date('2017-02-07 9:24:00');
+        const date = new Date('2017-02-07T15:24:00.000Z');
         this.clock.setSystemTime(date);
 
         const repeat = {
@@ -1426,7 +1426,7 @@ describe('Job Scheduler', function () {
 
   describe('when repeatable job fails', function () {
     it('should continue repeating', async function () {
-      const date = new Date('2024-12-08 9:24:00');
+      const date = new Date('2017-02-07T15:24:00.000Z');
       this.clock.setSystemTime(date);
       const repeatOpts = {
         pattern: '0 * 1 * *',
