@@ -1479,7 +1479,7 @@ describe('Job Scheduler', function () {
         tz: null,
         pattern: '0 * 1 * *',
         every: null,
-        next: 1735714800000,
+        next: 1488351600000,
         template: {
           data: {
             foo: 'bar',
