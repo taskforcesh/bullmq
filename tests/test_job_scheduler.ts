@@ -1430,6 +1430,7 @@ describe('Job Scheduler', function () {
       this.clock.setSystemTime(date);
       const repeatOpts = {
         pattern: '0 * 1 * *',
+        tz: 'Asia/Calcutta',
       };
 
       const worker = new Worker(
@@ -1476,10 +1477,10 @@ describe('Job Scheduler', function () {
         key: 'test',
         name: 'a',
         endDate: null,
-        tz: null,
+        tz: 'Asia/Calcutta',
         pattern: '0 * 1 * *',
         every: null,
-        next: 1488351600000,
+        next: 1488310200000,
         template: {
           data: {
             foo: 'bar',
