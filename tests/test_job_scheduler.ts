@@ -342,7 +342,7 @@ describe('Job Scheduler', function () {
     );
     const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-    const date = new Date('2017-02-07 9:24:00');
+    const date = new Date('2017-02-07T15:24:00.000Z');
     this.clock.setSystemTime(date);
 
     await queue.upsertJobScheduler(
@@ -360,6 +360,7 @@ describe('Job Scheduler', function () {
       tz: null,
       pattern: '*/2 * * * * *',
       every: null,
+      next: 1486481042000,
       template: {
         data: {
           foo: 'bar',
@@ -682,7 +683,7 @@ describe('Job Scheduler', function () {
         );
         const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {});
 
-        const date = new Date('2017-02-07 9:24:00');
+        const date = new Date('2017-02-07T15:24:00.000Z');
         this.clock.setSystemTime(date);
 
         const repeat = {
@@ -698,6 +699,7 @@ describe('Job Scheduler', function () {
           key: 'rrule',
           name: 'rrule',
           endDate: null,
+          next: 1486481042000,
           tz: null,
           pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
           every: null,
@@ -1424,8 +1426,11 @@ describe('Job Scheduler', function () {
 
   describe('when repeatable job fails', function () {
     it('should continue repeating', async function () {
+      const date = new Date('2017-02-07T15:24:00.000Z');
+      this.clock.setSystemTime(date);
       const repeatOpts = {
         pattern: '0 * 1 * *',
+        tz: 'Asia/Calcutta',
       };
 
       const worker = new Worker(
@@ -1445,7 +1450,11 @@ describe('Job Scheduler', function () {
         });
       });
 
-      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
+      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts, {
+        name: 'a',
+        data: { foo: 'bar' },
+        opts: { priority: 1 },
+      });
       const delayedCount = await queue.getDelayedCount();
       expect(delayedCount).to.be.equal(1);
 
@@ -1463,6 +1472,25 @@ describe('Job Scheduler', function () {
       const count = await queue.count();
       expect(count).to.be.equal(1);
       expect(jobSchedulers).to.have.length(1);
+
+      expect(jobSchedulers[0]).to.deep.equal({
+        key: 'test',
+        name: 'a',
+        endDate: null,
+        tz: 'Asia/Calcutta',
+        pattern: '0 * 1 * *',
+        every: null,
+        next: 1488310200000,
+        template: {
+          data: {
+            foo: 'bar',
+          },
+          opts: {
+            priority: 1,
+          },
+        },
+      });
+
       await worker.close();
     });
 
