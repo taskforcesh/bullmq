@@ -32,6 +32,7 @@
       ARGV[6]  fetch next?
       ARGV[7]  keys prefix
       ARGV[8]  opts
+      ARGV[9]  job fields to update
 
       opts - token - lock token
       opts - keepJobs
@@ -73,6 +74,7 @@ local rcall = redis.call
 --- @include "includes/removeParentDependencyKey"
 --- @include "includes/trimEvents"
 --- @include "includes/updateParentDepsIfNeeded"
+--- @include "includes/updateJobFields"
 
 local jobIdKey = KEYS[12]
 if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
@@ -84,6 +86,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     if errorCode < 0 then
         return errorCode
     end
+
+    updateJobFields(jobIdKey, ARGV[9]);
 
     local attempts = opts['attempts']
     local maxMetricsSize = opts['maxMetricsSize']

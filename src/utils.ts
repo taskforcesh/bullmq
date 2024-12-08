@@ -60,6 +60,20 @@ export function array2obj(arr: string[]): Record<string, string> {
   return obj;
 }
 
+export function objectToFlatArray(obj: Record<string, any>): string[] {
+  const arr = [];
+  for (const key in obj) {
+    if (
+      Object.prototype.hasOwnProperty.call(obj, key) &&
+      obj[key] !== undefined
+    ) {
+      arr[arr.length] = key;
+      arr[arr.length] = obj[key];
+    }
+  }
+  return arr;
+}
+
 export function delay(
   ms: number,
   abortController?: AbortController,

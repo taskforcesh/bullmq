@@ -1198,25 +1198,19 @@ will never work with more accuracy than 1ms. */
         });
 
         try {
-          const pipeline = (await this.client).pipeline();
-          for (const job of jobs) {
-            await this.scripts.extendLock(
-              job.id,
-              job.token,
-              this.opts.lockDuration,
-              pipeline,
-            );
-          }
-          const result = (await pipeline.exec()) as [Error, string][];
+          const erroredJobIds = await this.scripts.extendLocks(
+            jobs.map(job => job.id),
+            jobs.map(job => job.token),
+            this.opts.lockDuration,
+          );
 
-          for (const [err, jobId] of result) {
-            if (err) {
-              // TODO: signal process function that the job has been lost.
-              this.emit(
-                'error',
-                new Error(`could not renew lock for job ${jobId}`),
-              );
-            }
+          for (const jobId of erroredJobIds) {
+            // TODO: Send signal to process function that the job has been lost.
+
+            this.emit(
+              'error',
+              new Error(`could not renew lock for job ${jobId}`),
+            );
           }
         } catch (err) {
           this.emit('error', <Error>err);
