@@ -462,6 +462,23 @@ export class Scripts {
     return this.execCommand(client, 'extendLock', args);
   }
 
+  async extendLocks(
+    jobIds: string[],
+    tokens: string[],
+    duration: number,
+  ): Promise<string[]> {
+    const client = await this.queue.client;
+
+    const args = [
+      this.queue.keys.stalled,
+      this.queue.toKey(''),
+      pack(tokens),
+      pack(jobIds),
+      duration,
+    ];
+    return this.execCommand(client, 'extendLocks', args);
+  }
+
   async updateData<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     data: T,
