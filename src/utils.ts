@@ -11,6 +11,7 @@ import {
   ContextManager,
   RedisClient,
   Span,
+  Telemetry,
   Tracer,
 } from './interfaces';
 import { EventEmitter } from 'events';
@@ -361,7 +362,7 @@ export function removeUndefinedFields<T extends Record<string, any>>(
  * @returns
  */
 export async function trace<T>(
-  telemetry:
+  traces:
     | {
         tracer: Tracer;
         contextManager: ContextManager;
@@ -374,10 +375,10 @@ export async function trace<T>(
   callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
   srcPropagationMetadata?: string,
 ) {
-  if (!telemetry) {
+  if (!traces) {
     return callback();
   } else {
-    const { tracer, contextManager } = telemetry;
+    const { tracer, contextManager } = traces;
 
     const currentContext = contextManager.active();
 
@@ -426,5 +427,94 @@ export async function trace<T>(
     } finally {
       span.end();
     }
+  }
+}
+
+/**
+ * Wraps the code with metrics.
+ *
+ * @param metrics - metrics configuration. If undefined, the callback will be executed without metrics.
+ * @param queueName - queue name
+ * @param operation - operation name (such as add, process, etc)
+ * @param callback - code to wrap with metrics
+ * @returns
+ */
+export async function metric<T>(
+  metrics:
+    | {
+        meter: any;
+      }
+    | undefined,
+  queueName: string,
+  operation: string,
+  callback: () => Promise<T> | T,
+) {
+  if (!metrics) {
+    return callback();
+  } else {
+    const { meter } = metrics;
+
+    const start = Date.now();
+
+    let result;
+    try {
+      result = await callback();
+    } catch (err) {
+      const end = Date.now();
+      meter.histogram.record(end - start, {
+        description: `bullmq.${queueName}.${operation}.error`,
+        unit: 'ms',
+      });
+      meter.counter.add(1, {
+        description: `bullmq.${queueName}.${operation}.error.count`,
+      });
+      throw err;
+    } finally {
+      const end = Date.now();
+      meter.histogram.record(end - start, {
+        description: `bullmq.${queueName}.${operation}.success`,
+        unit: 'ms',
+      });
+      meter.counter.add(1, {
+        description: `bullmq.${queueName}.${operation}.success.count`,
+      });
+    }
+    return result;
+  }
+}
+
+export async function telemetry<T>(
+  callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
+  opts?: {
+    telemetry?: Telemetry;
+    spanKind: SpanKind;
+    queueName: string;
+    operation: string;
+    destination: string;
+    srcPropagationMetadata?: string;
+  },
+) {
+  if (opts) {
+    const {
+      telemetry,
+      spanKind,
+      queueName,
+      operation,
+      destination,
+      srcPropagationMetadata,
+    } = opts;
+    await metric(telemetry?.metrics, queueName, operation, async () => {
+      return await trace(
+        telemetry?.traces,
+        spanKind,
+        queueName,
+        operation,
+        destination,
+        callback,
+        srcPropagationMetadata,
+      );
+    });
+  } else {
+    return await callback();
   }
 }
