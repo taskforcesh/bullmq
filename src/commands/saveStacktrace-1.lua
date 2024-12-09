@@ -1,12 +1,9 @@
 --[[
   Save stacktrace and failedReason.
-
   Input:
     KEYS[1] job key
-
     ARGV[1]  stacktrace
     ARGV[2]  failedReason
-
   Output:
      0 - OK
     -1 - Missing key
