@@ -3,46 +3,46 @@
 In the same fashion we support telemetry in BullMQ open source edition, we also support telemetry for BullMQ Pro. It works basically the same, in fact you can just the same integrations available for BullMQ in the Pro version. So in order to enable it you would do something like this:
 
 ```typescript
-import { QueuePro } from "@taskforcesh/bullmq-pro";
-import { BullMQOtel } from "bullmq-otel";
+import { QueuePro } from '@taskforcesh/bullmq-pro';
+import { BullMQOtel } from 'bullmq-otel';
 
 // Initialize a Pro queue using BullMQ-Otel
-const queue = new QueuePro("myProQueue", {
+const queue = new QueuePro('myProQueue', {
   connection,
-  telemetry: new BullMQOtel("guide"),
+  telemetry: new BullMQOtel('guide'),
 });
 
 await queue.add(
-  "myJob",
-  { data: "myData" },
+  'myJob',
+  { data: 'myData' },
   {
     attempts: 2,
     backoff: 1000,
     group: {
-      id: "myGroupId",
+      id: 'myGroupId',
     },
-  }
+  },
 );
 ```
 
 For the Worker we will do it in a similar way:
 
 ```typescript
-import { WorkerPro } from "@taskforcesh/bullmq-pro";
-import { BullMQOtel } from "bullmq-otel";
+import { WorkerPro } from '@taskforcesh/bullmq-pro';
+import { BullMQOtel } from 'bullmq-otel';
 
 const worker = new WorkerPro(
-  "myProQueue",
-  async (job) => {
-    console.log("processing job", job.id);
+  'myProQueue',
+  async job => {
+    console.log('processing job', job.id);
   },
   {
-    name: "myWorker",
+    name: 'myWorker',
     connection,
-    telemetry: new BullMQOtel("guide"),
+    telemetry: new BullMQOtel('guide'),
     concurrency: 10,
     batch: { size: 10 },
-  }
+  },
 );
 ```
 

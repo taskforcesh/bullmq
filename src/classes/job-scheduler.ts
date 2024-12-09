@@ -11,7 +11,6 @@ import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
-import { array2obj, optsAsJSON, optsFromJSON } from '../utils';
 
 export class JobScheduler extends QueueBase {
   private repeatStrategy: RepeatStrategy;
@@ -100,7 +99,7 @@ export class JobScheduler extends QueueBase {
           jobSchedulerId,
           nextMillis,
           JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
-          optsAsJSON(opts),
+          Job.optsAsJSON(opts),
           {
             name: jobName,
             endDate: endDate ? new Date(endDate).getTime() : undefined,
@@ -122,6 +121,22 @@ export class JobScheduler extends QueueBase {
         'add',
         `${this.name}.${jobName}`,
         async (span, srcPropagationMedatada) => {
+          let telemetry = opts.telemetry;
+
+          if (srcPropagationMedatada) {
+            const omitContext = opts.telemetry?.omitContext;
+            const telemetryMetadata =
+              opts.telemetry?.metadata ||
+              (!omitContext && srcPropagationMedatada);
+
+            if (telemetryMetadata || omitContext) {
+              telemetry = {
+                metadata: telemetryMetadata,
+                omitContext,
+              };
+            }
+          }
+
           const job = this.createNextJob<T, R, N>(
             (<unknown>multi) as RedisClient,
             jobName,
@@ -130,7 +145,7 @@ export class JobScheduler extends QueueBase {
             {
               ...opts,
               repeat: filteredRepeatOpts,
-              telemetryMetadata: srcPropagationMedatada,
+              telemetry,
             },
             jobData,
             iterationCount,
@@ -271,7 +286,7 @@ export class JobScheduler extends QueueBase {
       template.data = JSON.parse(rawData);
     }
     if (rawOpts) {
-      template.opts = optsFromJSON(rawOpts);
+      template.opts = Job.optsFromJSON(rawOpts);
     }
     return template;
   }

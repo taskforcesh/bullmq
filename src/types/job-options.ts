@@ -1,6 +1,10 @@
 import { BaseJobOptions, DebounceOptions } from '../interfaces';
 
-export type JobsOptions = BaseJobOptions & {
+/**
+ * These options will be stored in Redis with smaller
+ * keys for compactness.
+ */
+export type CompressableJobOptions = {
   /**
    * Debounce options.
    * @deprecated use deduplication option
@@ -26,7 +30,25 @@ export type JobsOptions = BaseJobOptions & {
    * If true, removes the job from its parent dependencies when it fails after all attempts.
    */
   removeDependencyOnFailure?: boolean;
+
+  /**
+   * Telemetry options
+   */
+  telemetry?: {
+    /**
+     * Metadata, used for context propagation.
+     */
+    metadata?: string;
+
+    /**
+     * If `true` telemetry will omit the context propagation
+     * @default false
+     */
+    omitContext?: boolean;
+  };
 };
+
+export type JobsOptions = BaseJobOptions & CompressableJobOptions;
 
 /**
  * These fields are the ones stored in Redis with smaller keys for compactness.
@@ -61,4 +83,15 @@ export type RedisJobOptions = BaseJobOptions & {
    * TelemetryMetadata, provide for context propagation.
    */
   tm?: string;
+
+  /**
+   * Omit Context Propagation
+   */
+  omc?: boolean;
+
+  /**
+   * Deduplication identifier.
+   * @deprecated use deid
+   */
+  de?: string;
 };
