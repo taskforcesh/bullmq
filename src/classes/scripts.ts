@@ -1088,6 +1088,20 @@ export class Scripts {
     ]);
   }
 
+  getJobSchedulerArgs(id: string): string[] {
+    const keys: string[] = [this.queue.keys.repeat];
+
+    return keys.concat([id]);
+  }
+
+  async getJobScheduler(id: string): Promise<[any, string | null]> {
+    const client = await this.queue.client;
+
+    const args = this.getJobSchedulerArgs(id);
+
+    return this.execCommand(client, 'getJobScheduler', args);
+  }
+
   retryJobArgs(
     jobId: string,
     lifo: boolean,

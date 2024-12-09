@@ -593,7 +593,7 @@ export class Queue<
    * @param id - identifier of scheduler.
    */
   async getJobScheduler(id: string): Promise<JobSchedulerJson<DataType>> {
-    return (await this.jobScheduler).getJobScheduler(id);
+    return (await this.jobScheduler).getScheduler<DataType>(id);
   }
 
   /**
@@ -608,8 +608,12 @@ export class Queue<
     start?: number,
     end?: number,
     asc?: boolean,
-  ): Promise<RepeatableJob[]> {
-    return (await this.jobScheduler).getJobSchedulers(start, end, asc);
+  ): Promise<JobSchedulerJson<DataType>[]> {
+    return (await this.jobScheduler).getJobSchedulers<DataType>(
+      start,
+      end,
+      asc,
+    );
   }
 
   /**
