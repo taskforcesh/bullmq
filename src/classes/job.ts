@@ -645,7 +645,7 @@ export class Job<
   ): Promise<void | any[]> {
     this.failedReason = err?.message;
 
-    return this.queue.trace<Promise<void | any[]>>(
+    return this.queue.telemetry<Promise<void | any[]>>(
       SpanKind.INTERNAL,
       this.getSpanOperation('moveToFailed'),
       this.queue.name,

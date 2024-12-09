@@ -117,7 +117,7 @@ export class JobScheduler extends QueueBase {
         );
       }
 
-      return this.trace<Job<T, R, N>>(
+      return this.telemetry<Job<T, R, N>>(
         SpanKind.PRODUCER,
         'add',
         `${this.name}.${jobName}`,

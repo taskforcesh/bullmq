@@ -554,7 +554,7 @@ export class Worker<
       { block },
     );
 
-    return this.trace<Job<DataType, ResultType, NameType>>(
+    return this.telemetry<Job<DataType, ResultType, NameType>>(
       SpanKind.INTERNAL,
       'getNextJob',
       this.name,
@@ -630,7 +630,7 @@ export class Worker<
    * @param expireTimeMs - expire time in ms of this rate limit.
    */
   async rateLimit(expireTimeMs: number): Promise<void> {
-    await this.trace<void>(
+    await this.telemetry<void>(
       SpanKind.INTERNAL,
       'rateLimit',
       this.name,
@@ -823,7 +823,7 @@ will never work with more accuracy than 1ms. */
 
     const { telemetryMetadata: srcPropagationMedatada } = job.opts;
 
-    return this.trace<void | Job<DataType, ResultType, NameType>>(
+    return this.telemetry<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
       'process',
       this.name,
@@ -924,7 +924,7 @@ will never work with more accuracy than 1ms. */
    * Pauses the processing of this queue only for this worker.
    */
   async pause(doNotWaitActive?: boolean): Promise<void> {
-    await this.trace<void>(
+    await this.telemetry<void>(
       SpanKind.INTERNAL,
       'pause',
       this.name,
@@ -956,7 +956,7 @@ will never work with more accuracy than 1ms. */
    */
   resume(): void {
     if (this.resumeWorker) {
-      this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
+      this.telemetry<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
@@ -1005,7 +1005,7 @@ will never work with more accuracy than 1ms. */
       return this.closing;
     }
 
-    await this.trace<void>(
+    await this.telemetry<void>(
       SpanKind.INTERNAL,
       'close',
       this.name,
@@ -1068,7 +1068,7 @@ will never work with more accuracy than 1ms. */
   async startStalledCheckTimer(): Promise<void> {
     if (!this.opts.skipStalledCheck) {
       if (!this.closing) {
-        await this.trace<void>(
+        await this.telemetry<void>(
           SpanKind.INTERNAL,
           'startStalledCheckTimer',
           this.name,
@@ -1184,7 +1184,7 @@ will never work with more accuracy than 1ms. */
   }
 
   protected async extendLocks(jobs: Job[]) {
-    await this.trace<void>(
+    await this.telemetry<void>(
       SpanKind.INTERNAL,
       'extendLocks',
       this.name,
@@ -1220,7 +1220,7 @@ will never work with more accuracy than 1ms. */
   }
 
   private async moveStalledJobsToWait() {
-    await this.trace<void>(
+    await this.telemetry<void>(
       SpanKind.INTERNAL,
       'moveStalledJobsToWait',
       this.name,

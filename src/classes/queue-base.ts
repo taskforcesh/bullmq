@@ -6,7 +6,7 @@ import {
   DELAY_TIME_5,
   isNotConnectionError,
   isRedisInstance,
-  trace,
+  telemetry,
 } from '../utils';
 import { RedisConnection } from './redis-connection';
 import { Job } from './job';
@@ -191,21 +191,20 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
    * @param srcPropagationMedatada -
    * @returns
    */
-  trace<T>(
+  telemetry<T>(
     spanKind: SpanKind,
     operation: string,
     destination: string,
     callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
     srcPropagationMetadata?: string,
   ) {
-    return trace<Promise<T> | T>(
-      this.opts.telemetry,
+    return telemetry<Promise<T> | T>(callback, {
+      telemetry: this.opts.telemetry,
       spanKind,
-      this.name,
+      queueName: this.name,
       operation,
       destination,
-      callback,
       srcPropagationMetadata,
-    );
+    });
   }
 }
