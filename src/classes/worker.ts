@@ -569,7 +569,7 @@ export class Worker<
 
         return nextJob;
       },
-      nextJob?.opts.telemetryMetadata,
+      nextJob?.opts?.telemetry?.metadata,
     );
   }
 
@@ -821,7 +821,7 @@ will never work with more accuracy than 1ms. */
       return;
     }
 
-    const { telemetryMetadata: srcPropagationMedatada } = job.opts;
+    const srcPropagationMedatada = job.opts?.telemetry?.metadata;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
