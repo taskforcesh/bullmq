@@ -716,83 +716,68 @@ export class Job<
     token: string,
     fetchNext = false,
   ): Promise<void | any[]> {
-    const client = await this.queue.client;
-    const message = err?.message;
-
-    this.failedReason = message;
-
-    let command: string;
-    const multi = client.multi();
-
-    this.saveStacktrace(multi, err);
-
-    //
-    // Check if an automatic retry should be performed
-    //
-    let finishedOn: number;
-    const [shouldRetry, retryDelay] = await this.shouldRetryJob(err);
-    if (shouldRetry) {
-      if (retryDelay) {
-        const args = this.scripts.moveToDelayedArgs(
-          this.id,
-          Date.now(),
-          token,
-          retryDelay,
-        );
-        this.scripts.execCommand(multi, 'moveToDelayed', args);
-        command = 'moveToDelayed';
-      } else {
-        // Retry immediately
-        this.scripts.execCommand(
-          multi,
-          'retryJob',
-          this.scripts.retryJobArgs(this.id, this.opts.lifo, token),
-        );
-        command = 'retryJob';
-      }
-    } else {
-      const args = this.scripts.moveToFailedArgs(
-        this,
-        message,
-        this.opts.removeOnFail,
-        token,
-        fetchNext,
-      );
-
-      this.scripts.execCommand(multi, 'moveToFinished', args);
-      finishedOn = args[this.scripts.moveToFinishedKeys.length + 1] as number;
-      command = 'moveToFinished';
-    }
+    this.failedReason = err?.message;
 
     return this.queue.trace<Promise<void | any[]>>(
       SpanKind.INTERNAL,
-      this.getSpanOperation(command),
+      this.getSpanOperation('moveToFailed'),
       this.queue.name,
       async (span, dstPropagationMedatadata) => {
+        let tm;
         if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
-          this.scripts.execCommand(multi, 'updateJobOption', [
-            this.toKey(this.id),
-            'tm',
-            dstPropagationMedatadata,
-          ]);
+          tm = dstPropagationMedatadata;
         }
+        let result;
 
-        const results = await multi.exec();
-        const anyError = results.find(result => result[0]);
-        if (anyError) {
-          throw new Error(
-            `Error "moveToFailed" with command ${command}: ${anyError}`,
+        this.updateStacktrace(err);
+
+        const fieldsToUpdate = {
+          failedReason: this.failedReason,
+          stacktrace: JSON.stringify(this.stacktrace),
+          tm,
+        };
+
+        //
+        // Check if an automatic retry should be performed
+        //
+        let finishedOn: number;
+        const [shouldRetry, retryDelay] = await this.shouldRetryJob(err);
+
+        if (shouldRetry) {
+          if (retryDelay) {
+            // Retry with delay
+            result = await this.scripts.moveToDelayed(
+              this.id,
+              Date.now(),
+              retryDelay,
+              token,
+              { fieldsToUpdate },
+            );
+          } else {
+            // Retry immediately
+            result = await this.scripts.retryJob(
+              this.id,
+              this.opts.lifo,
+              token,
+              {
+                fieldsToUpdate,
+              },
+            );
+          }
+        } else {
+          const args = this.scripts.moveToFailedArgs(
+            this,
+            this.failedReason,
+            this.opts.removeOnFail,
+            token,
+            fetchNext,
+            fieldsToUpdate,
           );
-        }
 
-        const result = results[results.length - 1][1] as number;
-        if (result < 0) {
-          throw this.scripts.finishedErrors({
-            code: result,
-            jobId: this.id,
-            command,
-            state: 'active',
-          });
+          result = await this.scripts.moveToFinished(this.id, args);
+          finishedOn = args[
+            this.scripts.moveToFinishedKeys.length + 1
+          ] as number;
         }
 
         if (finishedOn && typeof finishedOn === 'number') {
@@ -805,9 +790,7 @@ export class Job<
 
         this.attemptsMade += 1;
 
-        if (Array.isArray(result)) {
-          return raw2NextJobData(result);
-        }
+        return result;
       },
     );
   }
@@ -1322,7 +1305,7 @@ export class Job<
     }
   }
 
-  protected saveStacktrace(multi: ChainableCommander, err: Error): void {
+  protected updateStacktrace(err: Error) {
     this.stacktrace = this.stacktrace || [];
 
     if (err?.stack) {
@@ -1333,14 +1316,6 @@ export class Job<
         this.stacktrace = this.stacktrace.slice(-this.opts.stackTraceLimit);
       }
     }
-
-    const args = this.scripts.saveStacktraceArgs(
-      this.id,
-      JSON.stringify(this.stacktrace),
-      err?.message,
-    );
-
-    this.scripts.execCommand(multi, 'saveStacktrace', args);
   }
 }
 
