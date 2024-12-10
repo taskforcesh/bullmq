@@ -6,7 +6,11 @@ import {
   RepeatBaseOptions,
   RepeatOptions,
 } from '../interfaces';
-import { JobsOptions, RepeatStrategy } from '../types';
+import {
+  JobSchedulerTemplateOptions,
+  JobsOptions,
+  RepeatStrategy,
+} from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
@@ -32,7 +36,7 @@ export class JobScheduler extends QueueBase {
     repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis' | 'offset'>,
     jobName: N,
     jobData: T,
-    opts: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>,
+    opts: JobSchedulerTemplateOptions,
     { override }: { override: boolean },
   ): Promise<Job<T, R, N> | undefined> {
     const { every, pattern } = repeatOpts;
