@@ -298,6 +298,7 @@ describe('Telemetry', () => {
         connection,
         telemetry: telemetryClient,
         name: 'testWorker',
+        prefix,
       });
 
       await worker.waitUntilReady();
@@ -330,6 +331,7 @@ describe('Telemetry', () => {
       const worker = new Worker(queueName, async () => 'some result', {
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
       await worker.waitUntilReady();
 
@@ -351,17 +353,20 @@ describe('Telemetry', () => {
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
       const testFlow = {
         name: 'parentJob',
         queueName,
+        prefix,
         data: { foo: 'bar' },
         children: [
           {
             name: 'childJob',
             queueName,
+            prefix,
             data: { baz: 'qux' },
           },
         ],
@@ -387,6 +392,7 @@ describe('Telemetry', () => {
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
@@ -422,6 +428,7 @@ describe('Telemetry', () => {
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
@@ -474,6 +481,7 @@ describe('Telemetry', () => {
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
@@ -532,6 +540,7 @@ describe('Telemetry', () => {
         worker = new Worker(queueName, async () => resolve(), {
           connection,
           telemetry: telemetryClient,
+          prefix,
         });
       });
 
@@ -553,6 +562,7 @@ describe('Telemetry', () => {
         worker = new Worker(queueName, async () => resolve(), {
           connection,
           telemetry: telemetryClient,
+          prefix,
         });
       });
 
@@ -578,6 +588,7 @@ describe('Telemetry', () => {
         worker = new Worker(queueName, async () => resolve(), {
           connection,
           telemetry: telemetryClient,
+          prefix,
         });
       });
 
@@ -606,12 +617,14 @@ describe('Telemetry', () => {
         worker = new Worker(queueName, async () => resolve(), {
           connection,
           telemetry: telemetryClient,
+          prefix,
         });
       });
 
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const testFlow = {
