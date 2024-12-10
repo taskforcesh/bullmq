@@ -8,7 +8,12 @@ import {
   RepeatableJob,
   RepeatOptions,
 } from '../interfaces';
-import { FinishedStatus, JobsOptions, MinimalQueue } from '../types';
+import {
+  FinishedStatus,
+  JobsOptions,
+  JobSchedulerTemplateOptions,
+  MinimalQueue,
+} from '../types';
 import { Job } from './job';
 import { QueueGetters } from './queue-getters';
 import { Repeat } from './repeat';
@@ -433,7 +438,7 @@ export class Queue<
     jobTemplate?: {
       name?: NameType;
       data?: DataType;
-      opts?: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>;
+      opts?: JobSchedulerTemplateOptions;
     },
   ) {
     if (repeatOpts.endDate) {
