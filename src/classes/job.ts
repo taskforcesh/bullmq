@@ -1147,7 +1147,7 @@ export class Job<
   /**
    * Moves the job to the delay set.
    *
-   * @param timestamp - timestamp where the job should be moved back to "wait"
+   * @param timestamp - timestamp when the job should be moved back to "wait"
    * @param token - token to check job is locked by current worker
    * @returns
    */
