@@ -11,6 +11,7 @@ import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
+import { array2obj } from '../utils';
 
 export class JobScheduler extends QueueBase {
   private repeatStrategy: RepeatStrategy;
