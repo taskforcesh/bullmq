@@ -9,6 +9,11 @@ import { SpanKind } from '../enums';
  *
  */
 export interface Telemetry<Context = any> {
+  traces?: Traces<Context>;
+  metrics?: MetricsTelemetry;
+}
+
+export interface Traces<Context = any> {
   /**
    * Tracer instance
    *
@@ -24,6 +29,10 @@ export interface Telemetry<Context = any> {
    * it across the application.
    */
   contextManager: ContextManager;
+}
+
+export interface MetricsTelemetry {
+  meter: any;
 }
 
 /**
