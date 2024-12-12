@@ -101,6 +101,9 @@ export class JobScheduler extends QueueBase {
       } else {
         nextMillis = now;
         newOffset = every - (nextSlot - now);
+
+        // newOffset should always be positive, but as an extra safety check
+        newOffset = newOffset < 0 ? 0 : newOffset;
       }
 
       if (nextMillis < now) {
