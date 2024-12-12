@@ -33,13 +33,13 @@ export class JobScheduler extends QueueBase {
 
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
-    repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis' | 'offset'>,
+    repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis'>,
     jobName: N,
     jobData: T,
     opts: JobSchedulerTemplateOptions,
     { override }: { override: boolean },
   ): Promise<Job<T, R, N> | undefined> {
-    const { every, pattern } = repeatOpts;
+    const { every, pattern, offset } = repeatOpts;
 
     if (pattern && every) {
       throw new Error(
@@ -59,6 +59,12 @@ export class JobScheduler extends QueueBase {
       );
     }
 
+    if (repeatOpts.immediately && repeatOpts.every) {
+      console.warn(
+        "Using option immediately with every does not affect the job's schedule. Job will run immediately anyway.",
+      );
+    }
+
     // Check if we reached the limit of the repeatable job's iterations
     const iterationCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
     if (
@@ -75,8 +81,6 @@ export class JobScheduler extends QueueBase {
       return;
     }
 
-    const prevMillis = opts.prevMillis || 0;
-
     // Check if we have a start date for the repeatable job
     const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
     if (startDate) {
@@ -84,15 +88,25 @@ export class JobScheduler extends QueueBase {
       now = startMillis > now ? startMillis : now;
     }
 
+    const prevMillis = opts.prevMillis || 0;
+    now = prevMillis < now ? now : prevMillis;
+
     let nextMillis: number;
+    let newOffset = offset;
+
     if (every) {
-      nextMillis = prevMillis + every;
+      const nextSlot = Math.floor(now / every) * every + every;
+      if (prevMillis || offset) {
+        nextMillis = nextSlot + (offset || 0);
+      } else {
+        nextMillis = now;
+        newOffset = every - (nextSlot - now);
+      }
 
       if (nextMillis < now) {
         nextMillis = now;
       }
     } else if (pattern) {
-      now = prevMillis < now ? now : prevMillis;
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
     }
 
@@ -149,7 +163,7 @@ export class JobScheduler extends QueueBase {
             jobSchedulerId,
             {
               ...opts,
-              repeat: filteredRepeatOpts,
+              repeat: { ...filteredRepeatOpts, offset: newOffset },
               telemetry,
             },
             jobData,
