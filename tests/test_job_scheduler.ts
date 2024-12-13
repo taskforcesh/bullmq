@@ -948,8 +948,6 @@ describe('Job Scheduler', function () {
         { data: { foo: 'bar' } },
       );
 
-      //this.clock.tick(1000);
-
       await completing;
 
       await worker.close();
