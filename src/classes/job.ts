@@ -169,6 +169,12 @@ export class Job<
   repeatJobKey?: string;
 
   /**
+   * Produced next repetable job Id.
+   *
+   */
+  nextRepeatableJobId?: string;
+
+  /**
    * The token used for locking this job.
    */
   token?: string;
@@ -384,6 +390,10 @@ export class Job<
       job.processedBy = json.pb;
     }
 
+    if (json.nrjid) {
+      job.nextRepeatableJobId = json.nrjid;
+    }
+
     return job;
   }
 
@@ -493,6 +503,7 @@ export class Job<
       deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
+      nrjid: this.nextRepeatableJobId,
     });
   }
 

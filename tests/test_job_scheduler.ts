@@ -1636,20 +1636,24 @@ describe('Job Scheduler', function () {
 
       let isFirstRun = true;
 
-      const worker = new Worker(
-        queueName,
-        async () => {
-          this.clock.tick(177);
-          if (isFirstRun) {
-            isFirstRun = false;
-            throw new Error('failed');
-          }
-        },
-        {
-          connection,
-          prefix,
-        },
-      );
+      let worker;
+      const processingAfterFailing = new Promise<void>(resolve => {
+        worker = new Worker(
+          queueName,
+          async () => {
+            this.clock.tick(177);
+            if (isFirstRun) {
+              isFirstRun = false;
+              throw new Error('failed');
+            }
+            resolve();
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+      });
 
       const failing = new Promise<void>(resolve => {
         worker.on('failed', async () => {
@@ -1658,14 +1662,19 @@ describe('Job Scheduler', function () {
       });
 
       const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
-      const delayedCount = await queue.getDelayedCount();
-      expect(delayedCount).to.be.equal(1);
 
       await repeatableJob!.promote();
+
+      const delayedCountBeforeFailing = await queue.getDelayedCount();
+      expect(delayedCountBeforeFailing).to.be.equal(0);
+
       await failing;
 
       const failedCount = await queue.getFailedCount();
       expect(failedCount).to.be.equal(1);
+
+      const delayedCountAfterFailing = await queue.getDelayedCount();
+      expect(delayedCountAfterFailing).to.be.equal(1);
 
       // Retry the failed job
       this.clock.tick(1143);
@@ -1673,11 +1682,20 @@ describe('Job Scheduler', function () {
       const failedCountAfterRetry = await queue.getFailedCount();
       expect(failedCountAfterRetry).to.be.equal(0);
 
+      await processingAfterFailing;
+
+      await worker.close();
+
       const delayedCount2 = await queue.getDelayedCount();
       expect(delayedCount2).to.be.equal(1);
+
+      const waitingCount = await queue.getWaitingCount();
+      expect(waitingCount).to.be.equal(0);
     });
 
     it('should not create a new delayed job if the failed job is retried with Job.retry()', async function () {
+      let expectError;
+
       const date = new Date('2017-02-07 9:24:00');
       this.clock.setSystemTime(date);
 
@@ -1691,6 +1709,13 @@ describe('Job Scheduler', function () {
         queueName,
         async () => {
           this.clock.tick(177);
+
+          try {
+            const delayedCount = await queue.getDelayedCount();
+            expect(delayedCount).to.be.equal(1);
+          } catch (error) {
+            expectError = error;
+          }
 
           if (isFirstRun) {
             isFirstRun = false;
@@ -1730,6 +1755,14 @@ describe('Job Scheduler', function () {
       await failedJob!.retry();
       const failedCountAfterRetry = await queue.getFailedCount();
       expect(failedCountAfterRetry).to.be.equal(0);
+
+      this.clock.tick(177);
+
+      await worker.close();
+
+      if (expectError) {
+        throw expectError;
+      }
 
       const delayedCount2 = await queue.getDelayedCount();
       expect(delayedCount2).to.be.equal(1);
