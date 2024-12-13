@@ -37,7 +37,7 @@ export class JobScheduler extends QueueBase {
     jobName: N,
     jobData: T,
     opts: JobSchedulerTemplateOptions,
-    { override }: { override: boolean },
+    { override, producerId }: { override: boolean; producerId?: string },
   ): Promise<Job<T, R, N> | undefined> {
     const { every, pattern, offset } = repeatOpts;
 
@@ -171,6 +171,7 @@ export class JobScheduler extends QueueBase {
             },
             jobData,
             iterationCount,
+            producerId,
           );
 
           const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
@@ -206,6 +207,8 @@ export class JobScheduler extends QueueBase {
     opts: JobsOptions,
     data: T,
     currentCount: number,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
   ) {
     //
     // Generate unique job id for this iteration.
@@ -231,6 +234,11 @@ export class JobScheduler extends QueueBase {
 
     const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
     job.addJob(client);
+
+    if (producerId) {
+      const producerJobKey = this.toKey(producerId);
+      client.hset(producerJobKey, 'nrjid', job.id);
+    }
 
     return job;
   }
