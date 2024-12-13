@@ -1710,10 +1710,11 @@ describe('Job Scheduler', function () {
       });
 
       const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
-      const delayedCount = await queue.getDelayedCount();
-      expect(delayedCount).to.be.equal(1);
 
       await repeatableJob!.promote();
+
+      const delayedCount = await queue.getDelayedCount();
+      expect(delayedCount).to.be.equal(0);
 
       this.clock.tick(177);
 
