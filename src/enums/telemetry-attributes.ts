@@ -41,3 +41,8 @@ export enum SpanKind {
   PRODUCER = 3,
   CONSUMER = 4,
 }
+
+export enum ValueType {
+  INT = 0,
+  DOUBLE = 1,
+}

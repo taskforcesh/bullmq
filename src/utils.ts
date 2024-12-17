@@ -9,6 +9,7 @@ import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import {
   ChildMessage,
   ContextManager,
+  Meter,
   RedisClient,
   Span,
   Telemetry,
@@ -362,24 +363,22 @@ export function removeUndefinedFields<T extends Record<string, any>>(
  * @returns
  */
 export async function trace<T>(
-  traces:
-    | {
-        tracer: Tracer;
-        contextManager: ContextManager;
-      }
-    | undefined,
+  tracer: Tracer | undefined,
+  contextManager: ContextManager | undefined,
   spanKind: SpanKind,
   queueName: string,
   operation: string,
   destination: string,
-  callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
+  callback: (
+    span?: Span,
+    dstPropagationMetadata?: string,
+    context?: any,
+  ) => Promise<T> | T,
   srcPropagationMetadata?: string,
 ) {
-  if (!traces) {
+  if (!tracer) {
     return callback();
   } else {
-    const { tracer, contextManager } = traces;
-
     const currentContext = contextManager.active();
 
     let parentContext;
@@ -405,7 +404,7 @@ export async function trace<T>(
         [TelemetryAttributes.QueueOperation]: operation,
       });
 
-      let messageContext;
+      let messageContext: any;
       let dstPropagationMetadata: undefined | string;
 
       if (spanKind === SpanKind.CONSUMER && parentContext) {
@@ -414,12 +413,12 @@ export async function trace<T>(
         messageContext = span.setSpanOnContext(currentContext);
       }
 
-      if (callback.length == 2) {
+      if (callback.length >= 2) {
         dstPropagationMetadata = contextManager.getMetadata(messageContext);
       }
 
       return await contextManager.with(messageContext, () =>
-        callback(span, dstPropagationMetadata),
+        callback(span, dstPropagationMetadata, messageContext),
       );
     } catch (err) {
       span.recordException(err as Error);
@@ -440,44 +439,57 @@ export async function trace<T>(
  * @returns
  */
 export async function metric<T>(
-  metrics:
-    | {
-        meter: any;
-      }
-    | undefined,
+  meter: Meter | undefined,
   queueName: string,
   operation: string,
-  callback: () => Promise<T> | T,
+  span: Span,
+  dstPropagationMetadata: string,
+  context: any,
+  callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
 ) {
-  if (!metrics) {
+  if (!meter && span) {
+    return callback(span, dstPropagationMetadata);
+  } else if (!meter) {
     return callback();
   } else {
-    const { meter } = metrics;
-
     const start = Date.now();
+
+    const histogram = meter.createHistogram(
+      `bullmq_histogram_${queueName}_${operation}`,
+      {
+        description: `histogram for the ${queueName} ${operation}`,
+        unit: 'ms',
+      },
+    );
+
+    const counter = meter.createCounter(
+      `bullmq_counter_${queueName}_${operation}`,
+      {
+        description: `counter for the ${queueName} ${operation}`,
+      },
+    );
+
+    const counterError = meter.createCounter(
+      `bullmq_counter_error_${queueName}_${operation}`,
+      {
+        description: `error counter for the ${queueName} ${operation}`,
+      },
+    );
 
     let result;
     try {
-      result = await callback();
+      result = await callback(span, dstPropagationMetadata);
     } catch (err) {
       const end = Date.now();
-      meter.histogram.record(end - start, {
-        description: `bullmq.${queueName}.${operation}.error`,
-        unit: 'ms',
-      });
-      meter.counter.add(1, {
-        description: `bullmq.${queueName}.${operation}.error.count`,
-      });
+      histogram.record(end - start, undefined, context);
+
+      counterError.add(1);
       throw err;
     } finally {
       const end = Date.now();
-      meter.histogram.record(end - start, {
-        description: `bullmq.${queueName}.${operation}.success`,
-        unit: 'ms',
-      });
-      meter.counter.add(1, {
-        description: `bullmq.${queueName}.${operation}.success.count`,
-      });
+      histogram.record(end - start, undefined, context);
+
+      counter.add(1);
     }
     return result;
   }
@@ -503,17 +515,26 @@ export async function telemetry<T>(
       destination,
       srcPropagationMetadata,
     } = opts;
-    await metric(telemetry?.metrics, queueName, operation, async () => {
-      return await trace(
-        telemetry?.traces,
-        spanKind,
-        queueName,
-        operation,
-        destination,
-        callback,
-        srcPropagationMetadata,
-      );
-    });
+    return await trace(
+      telemetry?.tracer,
+      telemetry?.contextManager,
+      spanKind,
+      queueName,
+      operation,
+      destination,
+      async (span, dstPropagationMetadata, context) => {
+        return await metric(
+          telemetry?.meter,
+          queueName,
+          operation,
+          span,
+          dstPropagationMetadata,
+          context,
+          callback,
+        );
+      },
+      srcPropagationMetadata,
+    );
   } else {
     return await callback();
   }

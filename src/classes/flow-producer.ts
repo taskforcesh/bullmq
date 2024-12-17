@@ -8,10 +8,9 @@ import {
   IoredisListener,
   QueueBaseOptions,
   RedisClient,
-  Tracer,
-  ContextManager,
+  Telemetry,
 } from '../interfaces';
-import { getParentKey, isRedisInstance, trace } from '../utils';
+import { getParentKey, isRedisInstance, telemetry } from '../utils';
 import { Job } from './job';
 import { KeysMap, QueueKeys } from './queue-keys';
 import { RedisConnection } from './redis-connection';
@@ -98,10 +97,7 @@ export class FlowProducer extends EventEmitter {
   queueKeys: QueueKeys;
 
   protected connection: RedisConnection;
-  protected telemetry: {
-    tracer: Tracer | undefined;
-    contextManager: ContextManager | undefined;
-  };
+  protected telemetry: Telemetry | undefined;
 
   constructor(
     public opts: QueueBaseOptions = { connection: {} },
@@ -207,12 +203,7 @@ export class FlowProducer extends EventEmitter {
       ? `${parentKey}:dependencies`
       : undefined;
 
-    return trace<Promise<JobNode>>(
-      this.telemetry,
-      SpanKind.PRODUCER,
-      flow.queueName,
-      'addFlow',
-      flow.queueName,
+    return telemetry<Promise<JobNode>>(
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.FlowName]: flow.name,
@@ -231,6 +222,13 @@ export class FlowProducer extends EventEmitter {
         await multi.exec();
 
         return jobsTree;
+      },
+      this.telemetry && {
+        telemetry: this.telemetry,
+        spanKind: SpanKind.PRODUCER,
+        queueName: flow.queueName,
+        operation: 'addFlow',
+        destination: flow.queueName,
       },
     );
   }
@@ -279,12 +277,7 @@ export class FlowProducer extends EventEmitter {
     const client = await this.connection.client;
     const multi = client.multi();
 
-    return trace<Promise<JobNode[]>>(
-      this.telemetry,
-      SpanKind.PRODUCER,
-      '',
-      'addBulkFlows',
-      '',
+    return telemetry<Promise<JobNode[]>>(
       async span => {
         span?.setAttributes({
           [TelemetryAttributes.BulkCount]: flows.length,
@@ -298,6 +291,13 @@ export class FlowProducer extends EventEmitter {
         await multi.exec();
 
         return jobsTrees;
+      },
+      this.telemetry && {
+        telemetry: this.telemetry,
+        spanKind: SpanKind.PRODUCER,
+        queueName: '',
+        operation: 'addBulkFlows',
+        destination: '',
       },
     );
   }
@@ -326,12 +326,7 @@ export class FlowProducer extends EventEmitter {
     const jobsOpts = queueOpts?.defaultJobOptions ?? {};
     const jobId = node.opts?.jobId || v4();
 
-    return trace<Promise<JobNode>>(
-      this.telemetry,
-      SpanKind.PRODUCER,
-      node.name,
-      'addNode',
-      node.queueName,
+    return telemetry<Promise<JobNode>>(
       async (span, dstPropagationMetadata) => {
         span?.setAttributes({
           [TelemetryAttributes.JobName]: node.name,
@@ -397,6 +392,13 @@ export class FlowProducer extends EventEmitter {
 
           return { job };
         }
+      },
+      this.telemetry && {
+        telemetry: this.telemetry,
+        spanKind: SpanKind.PRODUCER,
+        queueName: node.name,
+        operation: 'addNode',
+        destination: node.queueName,
       },
     );
   }
@@ -525,7 +527,7 @@ export class FlowProducer extends EventEmitter {
       emit: this.emit.bind(this) as any,
       on: this.on.bind(this) as any,
       redisVersion: this.connection.redisVersion,
-      trace: async (): Promise<any> => {},
+      telemetry: async (): Promise<any> => {},
     };
   }
 

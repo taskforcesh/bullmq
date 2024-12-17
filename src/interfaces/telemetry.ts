@@ -1,4 +1,19 @@
-import { SpanKind } from '../enums';
+import { SpanKind, ValueType } from '../enums';
+
+/**
+ * Configuration for bullmqOtel package.
+ * Used for tracing and metrics.
+ */
+export interface Configuration {
+  traces?: {
+    name: string;
+    version?: string;
+  };
+  metrics?: {
+    name: string;
+    version?: string;
+  };
+}
 
 /**
  * Telemetry interface
@@ -9,18 +24,13 @@ import { SpanKind } from '../enums';
  *
  */
 export interface Telemetry<Context = any> {
-  traces?: Traces<Context>;
-  metrics?: MetricsTelemetry;
-}
-
-export interface Traces<Context = any> {
   /**
    * Tracer instance
    *
    * The tracer is responsible for creating spans and propagating the context
    * across the application.
    */
-  tracer: Tracer<Context>;
+  tracer?: Tracer<Context>;
 
   /**
    * Context manager instance
@@ -28,11 +38,56 @@ export interface Traces<Context = any> {
    * The context manager is responsible for managing the context and propagating
    * it across the application.
    */
-  contextManager: ContextManager;
+  contextManager?: ContextManager;
+
+  /**
+   * Meter instance
+   *
+   * The meter is responsible for creating metrics
+   */
+  meter?: Meter<Context>;
 }
 
-export interface MetricsTelemetry {
-  meter: any;
+export interface Meter<Context = any> {
+  createHistogram(
+    name: string,
+    options?: MetricOptions,
+  ): MeasureHistogram<Context>;
+  createGauge(name: string, options?: MetricOptions): MeasureGauge<Context>;
+  createCounter(
+    name: string,
+    options?: MetricOptions,
+  ): IncrementCounter<Context>;
+  createUpDownCounter(
+    name: string,
+    options?: MetricOptions,
+  ): IncrementUpDownCounter<Context>;
+}
+
+export interface IncrementCounter<Context = any> {
+  // value cannot be negative
+  add(value: number, attributes?: Attributes, context?: Context): void;
+}
+
+export interface IncrementUpDownCounter<Context = any> {
+  // value can be negative
+  add(value: number, attributes?: Attributes, context?: Context): void;
+}
+
+export interface MeasureHistogram<Context = any> {
+  // value cannot be negative
+  record(value: number, attributes?: Attributes, context?: Context): void;
+}
+
+export interface MeasureGauge<Context = any> {
+  // value can be negative
+  record(value: number, attributes?: Attributes, context?: Context): void;
+}
+
+export interface MetricOptions {
+  description?: string;
+  unit?: string;
+  valueType?: ValueType;
 }
 
 /**
