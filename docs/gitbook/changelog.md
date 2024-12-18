@@ -1,3 +1,10 @@
+## [5.34.3](https://github.com/taskforcesh/bullmq/compare/v5.34.2...v5.34.3) (2024-12-18)
+
+
+### Bug Fixes
+
+* **sandboxed:** fix detecting special errors by sending default messages ([#2967](https://github.com/taskforcesh/bullmq/issues/2967)) fixes [#2962](https://github.com/taskforcesh/bullmq/issues/2962) ([52b0e34](https://github.com/taskforcesh/bullmq/commit/52b0e34f0a38ac71ebd0667a5fa116ecd73ae4d2))
+
 ## [5.34.2](https://github.com/taskforcesh/bullmq/compare/v5.34.1...v5.34.2) (2024-12-14)
 
 
