@@ -83,7 +83,7 @@ if prevMillis ~= false then
   if rcall("ZSCORE", delayedKey, delayedJobId) ~= false
     and (rcall("EXISTS", nextDelayedJobKey) ~= 1 
     or delayedJobId == nextDelayedJobId) then
-    removeJob(delayedJobId, true, prefixKey, true --[[remove debounce key]])
+    removeJob(delayedJobId, true, prefixKey, true --[[remove deduplication key]])
     rcall("ZREM", delayedKey, delayedJobId)
   end
 end

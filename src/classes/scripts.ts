@@ -34,15 +34,17 @@ import {
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
-import {
-  array2obj,
-  getParentKey,
-  isRedisVersionLowerThan,
-  objectToFlatArray,
-} from '../utils';
+import { array2obj, getParentKey, isVersionLowerThan, objectToFlatArray } from '../utils';
 import { ChainableCommander } from 'ioredis';
 import { version as packageVersion } from '../version';
 export type JobData = [JobJsonRaw | number, string?];
+
+const onChildFailureMap = {
+  fail: 'f',
+  ignore: 'i',
+  remove: 'r',
+  wait: 'w',
+};
 
 export class Scripts {
   protected version = packageVersion;
@@ -60,7 +62,6 @@ export class Scripts {
       queueKeys.stalled,
       queueKeys.limiter,
       queueKeys.delayed,
-      queueKeys.paused,
       queueKeys.meta,
       queueKeys.pc,
       undefined,
@@ -82,7 +83,7 @@ export class Scripts {
   async isJobInList(listKey: string, jobId: string): Promise<boolean> {
     const client = await this.queue.client;
     let result;
-    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
+    if (isVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
       result = await this.execCommand(client, 'isJobInList', [listKey, jobId]);
     } else {
       result = await client.lpos(listKey, jobId);
@@ -159,7 +160,6 @@ export class Scripts {
     const queueKeys = this.queue.keys;
     const keys: (string | Buffer)[] = [
       queueKeys.wait,
-      queueKeys.paused,
       queueKeys.meta,
       queueKeys.id,
       queueKeys.completed,
@@ -182,7 +182,7 @@ export class Scripts {
     const queueKeys = this.queue.keys;
 
     const parent: Record<string, any> = job.parent
-      ? { ...job.parent, fpof: opts.fpof, rdof: opts.rdof, idof: opts.idof }
+      ? { ...job.parent, ocf: onChildFailureMap[opts.ocf] }
       : null;
 
     const args = [
@@ -579,10 +579,10 @@ export class Scripts {
     const metricsKey = this.queue.toKey(`metrics:${target}`);
 
     const keys = this.moveToFinishedKeys;
-    keys[10] = queueKeys[target];
-    keys[11] = this.queue.toKey(job.id ?? '');
-    keys[12] = metricsKey;
-    keys[13] = this.queue.keys.marker;
+    keys[9] = queueKeys[target];
+    keys[10] = this.queue.toKey(job.id ?? '');
+    keys[11] = metricsKey;
+    keys[12] = this.queue.keys.marker;
 
     const keepJobs = this.getKeepJobs(shouldRemove, workerKeepJobs);
 
@@ -603,9 +603,6 @@ export class Scripts {
         maxMetricsSize: opts.metrics?.maxDataPoints
           ? opts.metrics?.maxDataPoints
           : '',
-        fpof: !!job.opts?.failParentOnFailure,
-        idof: !!job.opts?.ignoreDependencyOnFailure,
-        rdof: !!job.opts?.removeDependencyOnFailure,
       }),
       fieldsToUpdate ? pack(objectToFlatArray(fieldsToUpdate)) : void 0,
     ];
@@ -860,7 +857,7 @@ export class Scripts {
       return this.queue.toKey(key);
     });
 
-    if (isRedisVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
+    if (isVersionLowerThan(this.queue.redisVersion, '6.0.6')) {
       return this.execCommand(client, 'getState', keys.concat([jobId]));
     }
     return this.execCommand(client, 'getStateV2', keys.concat([jobId]));
@@ -925,7 +922,6 @@ export class Scripts {
   ): (string | number)[] {
     const keys: (string | number)[] = [
       this.queue.keys.wait,
-      this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
       this.queue.keys.active,
@@ -1130,15 +1126,14 @@ export class Scripts {
     const keys: (string | number | Buffer)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
-      this.queue.keys.paused,
       this.queue.toKey(jobId),
       this.queue.keys.meta,
       this.queue.keys.events,
       this.queue.keys.delayed,
       this.queue.keys.prioritized,
       this.queue.keys.pc,
-      this.queue.keys.marker,
       this.queue.keys.stalled,
+      this.queue.keys.marker,
     ];
 
     const pushCmd = (lifo ? 'R' : 'L') + 'PUSH';
@@ -1183,7 +1178,6 @@ export class Scripts {
       this.queue.keys.events,
       this.queue.toKey(state),
       this.queue.toKey('wait'),
-      this.queue.toKey('paused'),
       this.queue.keys.meta,
       this.queue.keys.active,
       this.queue.keys.marker,
@@ -1239,7 +1233,6 @@ export class Scripts {
       this.queue.toKey(state),
       this.queue.keys.wait,
       this.queue.keys.meta,
-      this.queue.keys.paused,
       this.queue.keys.active,
       this.queue.keys.marker,
     ];
@@ -1282,7 +1275,6 @@ export class Scripts {
       queueKeys.stalled,
       queueKeys.limiter,
       queueKeys.delayed,
-      queueKeys.paused,
       queueKeys.meta,
       queueKeys.pc,
       queueKeys.marker,
@@ -1314,7 +1306,6 @@ export class Scripts {
     const keys = [
       this.queue.keys.delayed,
       this.queue.keys.wait,
-      this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.prioritized,
       this.queue.keys.active,
@@ -1345,7 +1336,6 @@ export class Scripts {
       this.queue.keys.failed,
       this.queue.keys['stalled-check'],
       this.queue.keys.meta,
-      this.queue.keys.paused,
       this.queue.keys.marker,
       this.queue.keys.events,
     ];
@@ -1394,7 +1384,6 @@ export class Scripts {
       this.queue.keys.wait,
       this.queue.keys.stalled,
       lockKey,
-      this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.limiter,
       this.queue.keys.prioritized,
@@ -1521,6 +1510,27 @@ export class Scripts {
         jobs,
       };
     }
+  }
+
+  protected executeMigrationsArgs(
+    currentMigrationExecution = 1,
+  ): (string | number)[] {
+    const keys: (string | number)[] = [
+      this.queue.keys.meta,
+      this.queue.keys.migrations,
+      this.queue.toKey(''),
+    ];
+    const args = [6, Date.now(), currentMigrationExecution];
+
+    return keys.concat(args);
+  }
+
+  async executeMigrations(currentMigrationExecution: number): Promise<number> {
+    const client = await this.queue.client;
+
+    const args = this.executeMigrationsArgs(currentMigrationExecution);
+
+    return (<any>client).executeMigrations(args);
   }
 
   finishedErrors({

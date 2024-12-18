@@ -141,7 +141,7 @@ class Queue(EventEmitter):
             "logs": result[0],
             "count": result[1]
         }
-   
+
     async def obliterate(self, force: bool = False):
         """
         Completely destroys the queue and all of its contents irreversibly.

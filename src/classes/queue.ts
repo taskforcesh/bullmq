@@ -20,7 +20,6 @@ import { Repeat } from './repeat';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
 import { JobScheduler } from './job-scheduler';
-import { version } from '../version';
 
 export interface ObliterateOpts {
   /**
@@ -231,7 +230,7 @@ export class Queue<
   get metaValues(): Record<string, string | number> {
     return {
       'opts.maxLenEvents': this.opts?.streams?.events?.maxLen ?? 10000,
-      version: `${this.libName}:${version}`,
+      version: `${this.libName}:${this.packageVersion}`,
     };
   }
 
@@ -362,8 +361,8 @@ export class Queue<
     } else {
       const jobId = opts?.jobId;
 
-      if (jobId == '0' || jobId?.startsWith('0:')) {
-        throw new Error("JobId cannot be '0' or start with 0:");
+      if (jobId == '0' || jobId?.includes(':')) {
+        throw new Error("JobId cannot be '0' or contain :");
       }
 
       const job = await this.Job.create<DataType, ResultType, NameType>(
@@ -682,29 +681,6 @@ export class Queue<
     const removed = await jobScheduler.removeJobScheduler(jobSchedulerId);
 
     return !removed;
-  }
-
-  /**
-   * Removes a debounce key.
-   * @deprecated use removeDeduplicationKey
-   *
-   * @param id - identifier
-   */
-  async removeDebounceKey(id: string): Promise<number> {
-    return this.trace<number>(
-      SpanKind.INTERNAL,
-      'removeDebounceKey',
-      `${this.name}`,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.JobKey]: id,
-        });
-
-        const client = await this.client;
-
-        return await client.del(`${this.keys.de}:${id}`);
-      },
-    );
   }
 
   /**

@@ -28,8 +28,8 @@ describe('Cleaner', () => {
     queueName = `test-${v4()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
-    await queueEvents.waitUntilReady();
     await queue.waitUntilReady();
+    await queueEvents.waitUntilReady();
   });
 
   afterEach(async function () {
@@ -531,7 +531,7 @@ describe('Cleaner', () => {
                           id: job.id!,
                           queue: job.queueQualifiedName,
                         },
-                        removeDependencyOnFailure: true,
+                        onChildFailure: 'remove',
                       },
                     );
                     await delay(1000);

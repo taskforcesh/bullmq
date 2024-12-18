@@ -18,12 +18,6 @@ export interface QueueBaseOptions {
   connection: ConnectionOptions;
 
   /**
-   * Denotes commands should retry indefinitely.
-   * @deprecated
-   */
-  blockingConnection?: boolean;
-
-  /**
    * Prefix for all queue keys.
    */
   prefix?: string;

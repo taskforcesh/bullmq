@@ -99,18 +99,6 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
   }
 
   /**
-   * Get jobId that starts debounced state.
-   * @deprecated use getDeduplicationJobId method
-   *
-   * @param id - debounce identifier
-   */
-  async getDebounceJobId(id: string): Promise<string | null> {
-    const client = await this.client;
-
-    return client.get(`${this.keys.de}:${id}`);
-  }
-
-  /**
    * Get jobId from deduplicated state.
    *
    * @param id - deduplication identifier

@@ -1,9 +1,9 @@
 --[[
-  Function to recursively move from waitingChildren to failed.
+  Function to move from waitingChildren to failed.
+  Returns parent data and failedReason from parent.
 ]]
 
 -- Includes
---- @include "moveParentToWaitIfNeeded"
 --- @include "removeDeduplicationKeyIfNeeded"
 --- @include "removeJobsOnFail"
 
@@ -21,33 +21,15 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
 
     removeDeduplicationKeyIfNeeded(parentQueueKey .. ":", jobAttributes[2])
 
-    if jobAttributes[1] then
-      local parentData = cjson.decode(jobAttributes[1])
-      if parentData['fpof'] then
-        moveParentFromWaitingChildrenToFailed(
-          parentData['queueKey'],
-          parentData['queueKey'] .. ':' .. parentData['id'],
-          parentData['id'],
-          parentKey,
-          timestamp
-        )
-      elseif parentData['idof'] or parentData['rdof'] then
-        local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local grandParentDependenciesSet = grandParentKey .. ":dependencies"
-        if rcall("SREM", grandParentDependenciesSet, parentKey) == 1 then
-          moveParentToWaitIfNeeded(parentData['queueKey'], grandParentDependenciesSet,
-            grandParentKey, parentData['id'], timestamp)
-          if parentData['idof'] then
-            local grandParentFailedSet = grandParentKey .. ":failed"
-            rcall("HSET", grandParentFailedSet, parentKey, failedReason)
-          end
-        end
-      end
-    end
-
     local parentRawOpts = jobAttributes[3]
     local parentOpts = cjson.decode(parentRawOpts)
     
     removeJobsOnFail(parentQueuePrefix, parentFailedKey, parentId, parentOpts, timestamp)
+
+    if jobAttributes[1] then
+      return cjson.decode(jobAttributes[1]), failedReason
+    end
+    
+    return nil, nil
   end
 end

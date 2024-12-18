@@ -40,20 +40,26 @@ describe('flows', () => {
   });
 
   describe('when removeOnFail is true in last pending child', () => {
-    it('moves parent to wait without getting stuck', async () => {
+    it('moves parent to failed without getting stuck', async () => {
       const worker = new Worker(
         queueName,
         async job => {
-          if (job.name === 'child0') {
+          if (job.name === 'child1') {
+            await delay(50);
             throw new Error('fail');
           }
         },
         { connection, prefix },
       );
       await worker.waitUntilReady();
+      const queueEvents = new QueueEvents(queueName, {
+        connection,
+        prefix,
+      });
+      await queueEvents.waitUntilReady();
 
       const flow = new FlowProducer({ connection, prefix });
-      await flow.add({
+      const tree = await flow.add({
         name: 'parent',
         data: {},
         queueName,
@@ -62,33 +68,29 @@ describe('flows', () => {
             queueName,
             name: 'child0',
             data: {},
-            opts: {
-              removeOnFail: true,
-            },
           },
           {
             queueName,
             name: 'child1',
             data: {},
+            opts: {
+              removeOnFail: true,
+            },
           },
         ],
       });
 
-      const completed = new Promise<void>((resolve, reject) => {
-        worker.on('completed', async (job: Job) => {
-          try {
-            if (job.name === 'parent') {
-              const { processed } = await job.getDependenciesCount();
-              expect(processed).to.equal(1);
-              resolve();
-            }
-          } catch (err) {
-            reject(err);
+      const failed = new Promise<void>(resolve => {
+        queueEvents.on('failed', async ({ jobId }) => {
+          if (jobId === tree.job.id) {
+            const { processed } = await tree.job!.getDependenciesCount();
+            expect(processed).to.equal(1);
+            resolve();
           }
         });
       });
 
-      await completed;
+      await failed;
       await flow.close();
       await worker.close();
     });
@@ -252,9 +254,9 @@ describe('flows', () => {
     }).timeout(8000);
   });
 
-  describe('when child is debounced when added again with same debounce id', function () {
+  describe('when child is deduplicated when added again with same deduplication id', function () {
     describe('when ttl is not provided', function () {
-      it('waits until job is finished before removing debounce key', async function () {
+      it('waits until job is finished before removing deduplication key', async function () {
         const parentQueueName = `parent-queue-${v4()}`;
 
         const flow = new FlowProducer({ connection, prefix });
@@ -266,10 +268,10 @@ describe('flows', () => {
           async job => {
             await delay(100);
 
-            const jobIdFromDebounceKey = await queue.getDebounceJobId(
-              'debounce_id',
+            const jobIdFromDeduplicationKey = await queue.getDeduplicationJobId(
+              'deduplication_id',
             );
-            expect(jobIdFromDebounceKey).to.be.equal(job.id);
+            expect(jobIdFromDeduplicationKey).to.be.equal(job.id);
 
             await flow.add({
               name: 'parent',
@@ -281,8 +283,8 @@ describe('flows', () => {
                   name: 'child0',
                   data: {},
                   opts: {
-                    debounce: {
-                      id: 'debounce_id',
+                    deduplication: {
+                      id: 'deduplication_id',
                     },
                   },
                 },
@@ -309,15 +311,15 @@ describe('flows', () => {
               name: 'child0',
               data: {},
               opts: {
-                debounce: {
-                  id: 'debounce_id',
+                deduplication: {
+                  id: 'deduplication_id',
                 },
               },
             },
           ],
         });
 
-        let debouncedCounter = 0;
+        let deduplicatedCounter = 0;
 
         const completing = new Promise<void>(resolve => {
           queueEvents.once('completed', ({ jobId }) => {
@@ -325,8 +327,8 @@ describe('flows', () => {
             resolve();
           });
 
-          queueEvents.on('debounced', ({ jobId }) => {
-            debouncedCounter++;
+          queueEvents.on('deduplicated', ({ jobId }) => {
+            deduplicatedCounter++;
           });
         });
 
@@ -334,12 +336,12 @@ describe('flows', () => {
 
         await completing;
 
-        const jobIdFromDebounceKey = await queue.getDebounceJobId(
-          'debounce_id',
+        const jobIdFromDeduplicationKey = await queue.getDeduplicationJobId(
+          'deduplication_id',
         );
-        expect(jobIdFromDebounceKey).to.be.null;
+        expect(jobIdFromDeduplicationKey).to.be.null;
 
-        expect(debouncedCounter).to.be.equal(1);
+        expect(deduplicatedCounter).to.be.equal(1);
 
         await worker.close();
         await queueEvents.close();
@@ -757,7 +759,7 @@ describe('flows', () => {
     });
   });
 
-  describe('when ignoreDependencyOnFailure is provided', async () => {
+  describe('when onChildFailure is provided as ignore', async () => {
     it('moves parent to wait after children fail', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
@@ -810,19 +812,25 @@ describe('flows', () => {
             name,
             data: { idx: 0, foo: 'bar' },
             queueName,
-            opts: { ignoreDependencyOnFailure: true },
+            opts: {
+              onChildFailure: 'ignore',
+            },
           },
           {
             name,
             data: { idx: 1, foo: 'baz' },
             queueName,
-            opts: { ignoreDependencyOnFailure: true },
+            opts: {
+              onChildFailure: 'ignore',
+            },
           },
           {
             name,
             data: { idx: 2, foo: 'qux' },
             queueName,
-            opts: { ignoreDependencyOnFailure: true },
+            opts: {
+              onChildFailure: 'ignore',
+            },
           },
         ],
       });
@@ -862,7 +870,7 @@ describe('flows', () => {
     }).timeout(8000);
   });
 
-  describe('when removeDependencyOnFailure is provided', async () => {
+  describe('when onChildFailure is provided as remove', async () => {
     it('moves parent to wait after children fail', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
@@ -915,19 +923,25 @@ describe('flows', () => {
             name,
             data: { idx: 0, foo: 'bar' },
             queueName,
-            opts: { removeDependencyOnFailure: true },
+            opts: {
+              onChildFailure: 'remove',
+            },
           },
           {
             name,
             data: { idx: 1, foo: 'baz' },
             queueName,
-            opts: { removeDependencyOnFailure: true },
+            opts: {
+              onChildFailure: 'remove',
+            },
           },
           {
             name,
             data: { idx: 2, foo: 'qux' },
             queueName,
-            opts: { removeDependencyOnFailure: true },
+            opts: {
+              onChildFailure: 'remove',
+            },
           },
         ],
       });
@@ -956,6 +970,66 @@ describe('flows', () => {
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
     }).timeout(8000);
+  });
+
+  describe('when onChildFailure is provided as wait', () => {
+    it('keeps parent in waiting-children state', async () => {
+      const worker = new Worker(
+        queueName,
+        async job => {
+          if (job.name === 'child0') {
+            await delay(75);
+            throw new Error('fail');
+          }
+        },
+        { connection, prefix },
+      );
+      await worker.waitUntilReady();
+      const queueEvents = new QueueEvents(queueName, {
+        connection,
+        prefix,
+      });
+      await queueEvents.waitUntilReady();
+
+      const flow = new FlowProducer({ connection, prefix });
+      const tree = await flow.add({
+        name: 'parent',
+        data: {},
+        queueName,
+        children: [
+          {
+            queueName,
+            name: 'child0',
+            data: {},
+            opts: {
+              onChildFailure: 'wait',
+            },
+          },
+          {
+            queueName,
+            name: 'child1',
+            data: {},
+          },
+        ],
+      });
+
+      const failed = new Promise<void>(resolve => {
+        queueEvents.on('completed', async ({ jobId }) => {
+          if (jobId === tree.children![1].job.id) {
+            const { processed } = await tree.job!.getDependenciesCount();
+            expect(processed).to.equal(1);
+            resolve();
+          }
+        });
+      });
+
+      await failed;
+      const parentState = await tree.job.getState();
+      expect(parentState).to.equal('waiting-children');
+
+      await flow.close();
+      await worker.close();
+    });
   });
 
   describe('when chaining flows at runtime using step jobs', () => {
@@ -2105,7 +2179,7 @@ describe('flows', () => {
     }).timeout(8000);
   });
 
-  describe('when failParentOnFailure option is provided', async () => {
+  describe('when onChildFailure option is provided as fail', async () => {
     it('should move parent to failed when child is moved to failed', async () => {
       const name = 'child-job';
 
@@ -2165,13 +2239,13 @@ describe('flows', () => {
             name,
             data: { foo: 'qux' },
             queueName,
-            opts: { failParentOnFailure: true },
+            opts: { onChildFailure: 'fail' },
             children: [
               {
                 name,
                 data: { foo: 'bar' },
                 queueName: grandChildrenQueueName,
-                opts: { failParentOnFailure: true },
+                opts: { onChildFailure: 'fail' },
               },
               {
                 name,
@@ -2376,7 +2450,7 @@ describe('flows', () => {
       });
     });
 
-    describe('when removeDependencyOnFailure is provided', async () => {
+    describe('when onChildFailure is provided as remove', async () => {
       it('moves parent to wait after children fail', async () => {
         const name = 'child-job';
 
@@ -2428,13 +2502,15 @@ describe('flows', () => {
               name,
               data: { foo: 'qux' },
               queueName,
-              opts: { removeDependencyOnFailure: true },
+              opts: {
+                onChildFailure: 'remove',
+              },
               children: [
                 {
                   name,
                   data: { foo: 'bar' },
                   queueName: grandChildrenQueueName,
-                  opts: { failParentOnFailure: true },
+                  opts: { onChildFailure: 'fail' },
                 },
                 {
                   name,
@@ -2518,7 +2594,7 @@ describe('flows', () => {
       }).timeout(8000);
     });
 
-    describe('when ignoreDependencyOnFailure is provided', async () => {
+    describe('when onChildFailure is provided as ignore', async () => {
       it('moves parent to wait after children fail', async () => {
         const name = 'child-job';
 
@@ -2570,13 +2646,13 @@ describe('flows', () => {
               name,
               data: { foo: 'qux' },
               queueName,
-              opts: { ignoreDependencyOnFailure: true },
+              opts: { onChildFailure: 'ignore' },
               children: [
                 {
                   name,
                   data: { foo: 'bar' },
                   queueName: grandChildrenQueueName,
-                  opts: { failParentOnFailure: true },
+                  opts: { onChildFailure: 'fail' },
                 },
                 {
                   name,

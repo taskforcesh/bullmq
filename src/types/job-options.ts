@@ -1,4 +1,4 @@
-import { BaseJobOptions, DebounceOptions } from '../interfaces';
+import { BaseJobOptions, DeduplicationOptions } from '../interfaces';
 
 /**
  * These options will be stored in Redis with smaller
@@ -6,30 +6,15 @@ import { BaseJobOptions, DebounceOptions } from '../interfaces';
  */
 export type CompressableJobOptions = {
   /**
-   * Debounce options.
-   * @deprecated use deduplication option
-   */
-  debounce?: DebounceOptions;
-
-  /**
    * Deduplication options.
    */
-  deduplication?: DebounceOptions;
+  deduplication?: DeduplicationOptions;
 
   /**
-   * If true, moves parent to failed.
+   * Modes when a child fails: fail, ignore, remove, wait.
+   * @defaultValue fail
    */
-  failParentOnFailure?: boolean;
-
-  /**
-   * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
-   */
-  ignoreDependencyOnFailure?: boolean;
-
-  /**
-   * If true, removes the job from its parent dependencies when it fails after all attempts.
-   */
-  removeDependencyOnFailure?: boolean;
+  onChildFailure?: 'fail' | 'ignore' | 'remove' | 'wait';
 
   /**
    * Telemetry options
@@ -55,29 +40,19 @@ export type JobsOptions = BaseJobOptions & CompressableJobOptions;
  */
 export type RedisJobOptions = BaseJobOptions & {
   /**
-   * Debounce identifier.
+   * Deduplication identifier.
    */
   deid?: string;
 
   /**
-   * If true, moves parent to failed.
+   * Modes when a child fails: fail, ignore, remove, wait.
    */
-  fpof?: boolean;
-
-  /**
-   * If true, moves the jobId from its parent dependencies to failed dependencies when it fails after all attempts.
-   */
-  idof?: boolean;
+  ocf?: 'fail' | 'ignore' | 'remove' | 'wait';
 
   /**
    * Maximum amount of log entries that will be preserved
    */
   kl?: number;
-
-  /**
-   * If true, removes the job from its parent dependencies when it fails after all attempts.
-   */
-  rdof?: boolean;
 
   /**
    * TelemetryMetadata, provide for context propagation.
