@@ -1,3 +1,5 @@
+export const WAITING_CHILDREN_ERROR = 'bullmq:movedToWaitingChildren';
+
 /**
  * WaitingChildrenError
  *
@@ -6,7 +8,7 @@
  *
  */
 export class WaitingChildrenError extends Error {
-  constructor(message?: string) {
+  constructor(message: string = WAITING_CHILDREN_ERROR) {
     super(message);
     this.name = this.constructor.name;
     Object.setPrototypeOf(this, new.target.prototype);

@@ -2,7 +2,14 @@ import { expect } from 'chai';
 import { pathToFileURL } from 'url';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
-import { FlowProducer, Job, Queue, QueueEvents, Worker } from '../src/classes';
+import {
+  FlowProducer,
+  Job,
+  Queue,
+  QueueEvents,
+  UNRECOVERABLE_ERROR,
+  Worker,
+} from '../src/classes';
 import { beforeEach, before, after as afterAll, it } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../src/utils';
@@ -501,7 +508,7 @@ function sandboxProcessTests(
           'test',
           { foo: 'bar' },
           {
-            attempts: 3,
+            attempts: 5,
             backoff: 1000,
           },
         );
@@ -512,7 +519,7 @@ function sandboxProcessTests(
             after(2, (job: Job, error) => {
               const elapse = Date.now() - start;
               expect(error.name).to.be.eql('UnrecoverableError');
-              expect(error.message).to.be.eql('Unrecoverable');
+              expect(error.message).to.be.eql(UNRECOVERABLE_ERROR);
               expect(elapse).to.be.greaterThan(1000);
               expect(job.attemptsMade).to.be.eql(2);
               resolve();

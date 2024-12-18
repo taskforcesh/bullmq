@@ -33,7 +33,7 @@ import {
   invertObject,
 } from '../utils';
 import { Backoffs } from './backoffs';
-import { Scripts, raw2NextJobData } from './scripts';
+import { Scripts } from './scripts';
 import { UnrecoverableError } from './errors/unrecoverable-error';
 import type { QueueEvents } from './queue-events';
 import { SpanKind } from '../enums';
