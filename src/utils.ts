@@ -59,6 +59,20 @@ export function array2obj(arr: string[]): Record<string, string> {
   return obj;
 }
 
+export function objectToFlatArray(obj: Record<string, any>): string[] {
+  const arr = [];
+  for (const key in obj) {
+    if (
+      Object.prototype.hasOwnProperty.call(obj, key) &&
+      obj[key] !== undefined
+    ) {
+      arr[arr.length] = key;
+      arr[arr.length] = obj[key];
+    }
+  }
+  return arr;
+}
+
 export function delay(
   ms: number,
   abortController?: AbortController,
@@ -83,15 +97,20 @@ export function increaseMaxListeners(
   emitter.setMaxListeners(maxListeners + count);
 }
 
-export const invertObject = (obj: Record<string, string>) => {
-  return Object.entries(obj).reduce<Record<string, string>>(
-    (encodeMap, [key, value]) => {
-      encodeMap[value] = key;
-      return encodeMap;
-    },
-    {},
-  );
+type Invert<T extends Record<PropertyKey, PropertyKey>> = {
+  [V in T[keyof T]]: {
+    [K in keyof T]: T[K] extends V ? K : never;
+  }[keyof T];
 };
+
+export function invertObject<T extends Record<PropertyKey, PropertyKey>>(
+  obj: T,
+): Invert<T> {
+  return Object.entries(obj).reduce((result, [key, value]) => {
+    (result as Record<PropertyKey, PropertyKey>)[value] = key;
+    return result;
+  }, {} as Invert<T>);
+}
 
 export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {

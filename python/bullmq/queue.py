@@ -254,6 +254,9 @@ class Queue(EventEmitter):
     def getCompletedCount(self):
         return self.getJobCountByTypes('completed')
 
+    def getDelayedCount(self):
+        return self.getJobCountByTypes('delayed')
+
     def getFailedCount(self):
         return self.getJobCountByTypes('failed')
 

@@ -32,9 +32,7 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
 
   /**
    * Repeated job should start right now
-   * (work only with every settings)
-   *
-   * @deprecated
+   * ( work only with cron settings)
    */
   immediately?: boolean;
 
@@ -44,16 +42,15 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   count?: number;
 
   /**
+   * Offset in milliseconds to affect the next iteration time
+   *
+   * */
+  offset?: number;
+
+  /**
    * Internal property to store the previous time the job was executed.
    */
   prevMillis?: number;
-
-  /**
-   * Internal property to store the offset to apply to the next iteration.
-   *
-   * @deprecated
-   */
-  offset?: number;
 
   /**
    * Internal property to store de job id

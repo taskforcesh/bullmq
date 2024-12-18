@@ -1,21 +1,21 @@
 import { parseExpression } from 'cron-parser';
-import { RedisClient, RepeatBaseOptions, RepeatOptions } from '../interfaces';
-import { JobsOptions, RepeatStrategy } from '../types';
+import {
+  JobSchedulerJson,
+  JobSchedulerTemplateJson,
+  RedisClient,
+  RepeatBaseOptions,
+  RepeatOptions,
+} from '../interfaces';
+import {
+  JobSchedulerTemplateOptions,
+  JobsOptions,
+  RepeatStrategy,
+} from '../types';
 import { Job } from './job';
 import { QueueBase } from './queue-base';
 import { RedisConnection } from './redis-connection';
 import { SpanKind, TelemetryAttributes } from '../enums';
-
-export interface JobSchedulerJson {
-  key: string; // key is actually the job scheduler id
-  name: string;
-  id?: string | null;
-  endDate: number | null;
-  tz: string | null;
-  pattern: string | null;
-  every?: string | null;
-  next?: number;
-}
+import { array2obj } from '../utils';
 
 export class JobScheduler extends QueueBase {
   private repeatStrategy: RepeatStrategy;
@@ -33,13 +33,13 @@ export class JobScheduler extends QueueBase {
 
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
-    repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis' | 'offset'>,
+    repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis'>,
     jobName: N,
     jobData: T,
-    opts: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>,
-    { override }: { override: boolean },
+    opts: JobSchedulerTemplateOptions,
+    { override, producerId }: { override: boolean; producerId?: string },
   ): Promise<Job<T, R, N> | undefined> {
-    const { every, pattern } = repeatOpts;
+    const { every, pattern, offset } = repeatOpts;
 
     if (pattern && every) {
       throw new Error(
@@ -59,6 +59,12 @@ export class JobScheduler extends QueueBase {
       );
     }
 
+    if (repeatOpts.immediately && repeatOpts.every) {
+      console.warn(
+        "Using option immediately with every does not affect the job's schedule. Job will run immediately anyway.",
+      );
+    }
+
     // Check if we reached the limit of the repeatable job's iterations
     const iterationCount = repeatOpts.count ? repeatOpts.count + 1 : 1;
     if (
@@ -75,8 +81,6 @@ export class JobScheduler extends QueueBase {
       return;
     }
 
-    const prevMillis = opts.prevMillis || 0;
-
     // Check if we have a start date for the repeatable job
     const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
     if (startDate) {
@@ -84,15 +88,28 @@ export class JobScheduler extends QueueBase {
       now = startMillis > now ? startMillis : now;
     }
 
+    const prevMillis = opts.prevMillis || 0;
+    now = prevMillis < now ? now : prevMillis;
+
     let nextMillis: number;
+    let newOffset = offset;
+
     if (every) {
-      nextMillis = prevMillis + every;
+      const nextSlot = Math.floor(now / every) * every + every;
+      if (prevMillis || offset) {
+        nextMillis = nextSlot + (offset || 0);
+      } else {
+        nextMillis = now;
+        newOffset = every - (nextSlot - now);
+
+        // newOffset should always be positive, but as an extra safety check
+        newOffset = newOffset < 0 ? 0 : newOffset;
+      }
 
       if (nextMillis < now) {
         nextMillis = now;
       }
     } else if (pattern) {
-      now = prevMillis < now ? now : prevMillis;
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
     }
 
@@ -103,6 +120,8 @@ export class JobScheduler extends QueueBase {
           (<unknown>multi) as RedisClient,
           jobSchedulerId,
           nextMillis,
+          JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
+          Job.optsAsJSON(opts),
           {
             name: jobName,
             endDate: endDate ? new Date(endDate).getTime() : undefined,
@@ -124,6 +143,22 @@ export class JobScheduler extends QueueBase {
         'add',
         `${this.name}.${jobName}`,
         async (span, srcPropagationMedatada) => {
+          let telemetry = opts.telemetry;
+
+          if (srcPropagationMedatada) {
+            const omitContext = opts.telemetry?.omitContext;
+            const telemetryMetadata =
+              opts.telemetry?.metadata ||
+              (!omitContext && srcPropagationMedatada);
+
+            if (telemetryMetadata || omitContext) {
+              telemetry = {
+                metadata: telemetryMetadata,
+                omitContext,
+              };
+            }
+          }
+
           const job = this.createNextJob<T, R, N>(
             (<unknown>multi) as RedisClient,
             jobName,
@@ -131,11 +166,12 @@ export class JobScheduler extends QueueBase {
             jobSchedulerId,
             {
               ...opts,
-              repeat: filteredRepeatOpts,
-              telemetryMetadata: srcPropagationMedatada,
+              repeat: { ...filteredRepeatOpts, offset: newOffset },
+              telemetry,
             },
             jobData,
             iterationCount,
+            producerId,
           );
 
           const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
@@ -171,6 +207,8 @@ export class JobScheduler extends QueueBase {
     opts: JobsOptions,
     data: T,
     currentCount: number,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
   ) {
     //
     // Generate unique job id for this iteration.
@@ -197,6 +235,11 @@ export class JobScheduler extends QueueBase {
     const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
     job.addJob(client);
 
+    if (producerId) {
+      const producerJobKey = this.toKey(producerId);
+      client.hset(producerJobKey, 'nrjid', job.id);
+    }
+
     return job;
   }
 
@@ -204,13 +247,21 @@ export class JobScheduler extends QueueBase {
     return this.scripts.removeJobScheduler(jobSchedulerId);
   }
 
-  private async getSchedulerData(
+  private async getSchedulerData<D>(
     client: RedisClient,
     key: string,
     next?: number,
-  ): Promise<JobSchedulerJson> {
+  ): Promise<JobSchedulerJson<D>> {
     const jobData = await client.hgetall(this.toKey('repeat:' + key));
 
+    return this.transformSchedulerData<D>(key, jobData, next);
+  }
+
+  private async transformSchedulerData<D>(
+    key: string,
+    jobData: any,
+    next?: number,
+  ): Promise<JobSchedulerJson<D>> {
     if (jobData) {
       return {
         key,
@@ -219,6 +270,11 @@ export class JobScheduler extends QueueBase {
         tz: jobData.tz || null,
         pattern: jobData.pattern || null,
         every: jobData.every || null,
+        ...(jobData.data || jobData.opts
+          ? {
+              template: this.getTemplateFromJSON<D>(jobData.data, jobData.opts),
+            }
+          : {}),
         next,
       };
     }
@@ -241,27 +297,35 @@ export class JobScheduler extends QueueBase {
     };
   }
 
-  async getJobScheduler(id: string): Promise<JobSchedulerJson> {
-    const client = await this.client;
-    const jobData = await client.hgetall(this.toKey('repeat:' + id));
+  async getScheduler<D = any>(id: string): Promise<JobSchedulerJson<D>> {
+    const [rawJobData, next] = await this.scripts.getJobScheduler(id);
 
-    if (jobData) {
-      return {
-        key: id,
-        name: jobData.name,
-        endDate: parseInt(jobData.endDate) || null,
-        tz: jobData.tz || null,
-        pattern: jobData.pattern || null,
-        every: jobData.every || null,
-      };
-    }
+    return this.transformSchedulerData<D>(
+      id,
+      rawJobData ? array2obj(rawJobData) : null,
+      next ? parseInt(next) : null,
+    );
   }
 
-  async getJobSchedulers(
+  private getTemplateFromJSON<D = any>(
+    rawData?: string,
+    rawOpts?: string,
+  ): JobSchedulerTemplateJson<D> {
+    const template: JobSchedulerTemplateJson<D> = {};
+    if (rawData) {
+      template.data = JSON.parse(rawData);
+    }
+    if (rawOpts) {
+      template.opts = Job.optsFromJSON(rawOpts);
+    }
+    return template;
+  }
+
+  async getJobSchedulers<D = any>(
     start = 0,
     end = -1,
     asc = false,
-  ): Promise<JobSchedulerJson[]> {
+  ): Promise<JobSchedulerJson<D>[]> {
     const client = await this.client;
     const jobSchedulersKey = this.keys.repeat;
 
@@ -272,18 +336,17 @@ export class JobScheduler extends QueueBase {
     const jobs = [];
     for (let i = 0; i < result.length; i += 2) {
       jobs.push(
-        this.getSchedulerData(client, result[i], parseInt(result[i + 1])),
+        this.getSchedulerData<D>(client, result[i], parseInt(result[i + 1])),
       );
     }
     return Promise.all(jobs);
   }
 
-  async getSchedulersCount(
-    client: RedisClient,
-    prefix: string,
-    queueName: string,
-  ): Promise<number> {
-    return client.zcard(`${prefix}:${queueName}:repeat`);
+  async getSchedulersCount(): Promise<number> {
+    const jobSchedulersKey = this.keys.repeat;
+    const client = await this.client;
+
+    return client.zcard(jobSchedulersKey);
   }
 
   private getSchedulerNextJobId({

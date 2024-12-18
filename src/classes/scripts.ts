@@ -34,7 +34,7 @@ import {
   RedisJobOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
-import { array2obj, getParentKey, isVersionLowerThan } from '../utils';
+import { array2obj, getParentKey, isVersionLowerThan, objectToFlatArray } from '../utils';
 import { ChainableCommander } from 'ioredis';
 import { version as packageVersion } from '../version';
 export type JobData = [JobJsonRaw | number, string?];
@@ -316,6 +316,8 @@ export class Scripts {
     client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
+    templateData: string,
+    templateOpts: RedisJobOptions,
     opts: RepeatableOptions,
   ): Promise<string> {
     const queueKeys = this.queue.keys;
@@ -324,7 +326,15 @@ export class Scripts {
       queueKeys.repeat,
       queueKeys.delayed,
     ];
-    const args = [nextMillis, pack(opts), jobSchedulerId, queueKeys['']];
+
+    const args = [
+      nextMillis,
+      pack(opts),
+      jobSchedulerId,
+      templateData,
+      pack(templateOpts),
+      queueKeys[''],
+    ];
     return this.execCommand(client, 'addJobScheduler', keys.concat(args));
   }
 
@@ -452,6 +462,23 @@ export class Scripts {
     return this.execCommand(client, 'extendLock', args);
   }
 
+  async extendLocks(
+    jobIds: string[],
+    tokens: string[],
+    duration: number,
+  ): Promise<string[]> {
+    const client = await this.queue.client;
+
+    const args = [
+      this.queue.keys.stalled,
+      this.queue.toKey(''),
+      pack(tokens),
+      pack(jobIds),
+      duration,
+    ];
+    return this.execCommand(client, 'extendLocks', args);
+  }
+
   async updateData<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     data: T,
@@ -542,6 +569,7 @@ export class Scripts {
     token: string,
     timestamp: number,
     fetchNext = true,
+    fieldsToUpdate?: Record<string, any>,
   ): (string | number | boolean | Buffer)[] {
     const queueKeys = this.queue.keys;
     const opts: WorkerOptions = <WorkerOptions>this.queue.opts;
@@ -576,6 +604,7 @@ export class Scripts {
           ? opts.metrics?.maxDataPoints
           : '',
       }),
+      fieldsToUpdate ? pack(objectToFlatArray(fieldsToUpdate)) : void 0,
     ];
 
     return keys.concat(args);
@@ -779,6 +808,7 @@ export class Scripts {
     removeOnFailed: boolean | number | KeepJobs,
     token: string,
     fetchNext = false,
+    fieldsToUpdate?: Record<string, any>,
   ): (string | number | boolean | Buffer)[] {
     const timestamp = Date.now();
     return this.moveToFinishedArgs(
@@ -790,6 +820,7 @@ export class Scripts {
       token,
       timestamp,
       fetchNext,
+      fieldsToUpdate,
     );
   }
 
@@ -907,9 +938,9 @@ export class Scripts {
     token: string,
     delay: number,
     opts: MoveToDelayedOpts = {},
-  ): (string | number)[] {
+  ): (string | number | Buffer)[] {
     const queueKeys = this.queue.keys;
-    const keys: (string | number)[] = [
+    const keys: (string | number | Buffer)[] = [
       queueKeys.marker,
       queueKeys.active,
       queueKeys.prioritized,
@@ -927,17 +958,10 @@ export class Scripts {
       token,
       delay,
       opts.skipAttempt ? '1' : '0',
+      opts.fieldsToUpdate
+        ? pack(objectToFlatArray(opts.fieldsToUpdate))
+        : void 0,
     ]);
-  }
-
-  saveStacktraceArgs(
-    jobId: string,
-    stacktrace: string,
-    failedReason: string,
-  ): string[] {
-    const keys: string[] = [this.queue.toKey(jobId)];
-
-    return keys.concat([stacktrace, failedReason]);
   }
 
   moveToWaitingChildrenArgs(
@@ -1079,12 +1103,27 @@ export class Scripts {
     ]);
   }
 
+  getJobSchedulerArgs(id: string): string[] {
+    const keys: string[] = [this.queue.keys.repeat];
+
+    return keys.concat([id]);
+  }
+
+  async getJobScheduler(id: string): Promise<[any, string | null]> {
+    const client = await this.queue.client;
+
+    const args = this.getJobSchedulerArgs(id);
+
+    return this.execCommand(client, 'getJobScheduler', args);
+  }
+
   retryJobArgs(
     jobId: string,
     lifo: boolean,
     token: string,
-  ): (string | number)[] {
-    const keys: (string | number)[] = [
+    fieldsToUpdate?: Record<string, any>,
+  ): (string | number | Buffer)[] {
+    const keys: (string | number | Buffer)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.toKey(jobId),
@@ -1105,7 +1144,28 @@ export class Scripts {
       pushCmd,
       jobId,
       token,
+      fieldsToUpdate ? pack(objectToFlatArray(fieldsToUpdate)) : void 0,
     ]);
+  }
+
+  async retryJob(
+    jobId: string,
+    lifo: boolean,
+    token: string,
+    fieldsToUpdate?: Record<string, any>,
+  ): Promise<void> {
+    const client = await this.queue.client;
+
+    const args = this.retryJobArgs(jobId, lifo, token, fieldsToUpdate);
+    const result = await this.execCommand(client, 'retryJob', args);
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'retryJob',
+        state: 'active',
+      });
+    }
   }
 
   protected moveJobsToWaitArgs(

@@ -28,9 +28,7 @@ local rcall = redis.call
 --- @include "includes/isQueuePausedOrMaxed"
 --- @include "includes/moveParentIfNeeded"
 --- @include "includes/removeDeduplicationKeyIfNeeded"
---- @include "includes/removeJob"
---- @include "includes/removeJobsByMaxAge"
---- @include "includes/removeJobsByMaxCount"
+--- @include "includes/removeJobsOnFail"
 --- @include "includes/trimEvents"
 
 local stalledKey = KEYS[1]
@@ -96,29 +94,7 @@ if (#stalling > 0) then
                             failedReason, timestamp)
                     end
 
-                    if removeOnFailType == "number" then
-                        removeJobsByMaxCount(opts["removeOnFail"],
-                                                failedKey, queueKeyPrefix)
-                    elseif removeOnFailType == "boolean" then
-                        if opts["removeOnFail"] then
-                            removeJob(jobId, false, queueKeyPrefix,
-                                false --[[remove deduplication key]])
-                            rcall("ZREM", failedKey, jobId)
-                        end
-                    elseif removeOnFailType ~= "nil" then
-                        local maxAge = opts["removeOnFail"]["age"]
-                        local maxCount = opts["removeOnFail"]["count"]
-
-                        if maxAge ~= nil then
-                            removeJobsByMaxAge(timestamp, maxAge,
-                                                failedKey, queueKeyPrefix)
-                        end
-
-                        if maxCount ~= nil and maxCount > 0 then
-                            removeJobsByMaxCount(maxCount, failedKey,
-                                                    queueKeyPrefix)
-                        end
-                    end
+                    removeJobsOnFail(queueKeyPrefix, failedKey, jobId, opts, timestamp)
 
                     table.insert(failed, jobId)
                 else

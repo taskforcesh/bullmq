@@ -2,7 +2,7 @@ import { expect, assert } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
-import { FlowProducer, Queue, Worker } from '../src/classes';
+import { FlowProducer, Job, JobScheduler, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
   Telemetry,
@@ -16,7 +16,6 @@ import {
 } from '../src/interfaces';
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes } from '../src/enums';
-import { JobScheduler } from '../src/classes/job-scheduler';
 
 describe('Telemetry', () => {
   type ExtendedException = Exception & {
@@ -94,7 +93,7 @@ describe('Telemetry', () => {
       this.options = options;
     }
 
-    setSpanOnContext(ctx: any): any {
+    setSpanOnContext(ctx: any, omitContext?: boolean): any {
       context['getSpan'] = () => this;
       return { ...context, getMetadata_span: this['name'] };
     }
@@ -261,6 +260,7 @@ describe('Telemetry', () => {
     });
 
     it('should correctly handle errors and record them in telemetry for upsertJobScheduler', async () => {
+      const originalCreateNextJob = JobScheduler.prototype.createNextJob;
       const recordExceptionSpy = sinon.spy(
         MockSpan.prototype,
         'recordException',
@@ -284,6 +284,7 @@ describe('Telemetry', () => {
         const recordedError = recordExceptionSpy.firstCall.args[0];
         assert.equal(recordedError.message, errMessage);
       } finally {
+        JobScheduler.prototype.createNextJob = originalCreateNextJob;
         recordExceptionSpy.restore();
       }
     });
@@ -297,6 +298,7 @@ describe('Telemetry', () => {
         connection,
         telemetry: telemetryClient,
         name: 'testWorker',
+        prefix,
       });
 
       await worker.waitUntilReady();
@@ -329,6 +331,7 @@ describe('Telemetry', () => {
       const worker = new Worker(queueName, async () => 'some result', {
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
       await worker.waitUntilReady();
 
@@ -350,17 +353,20 @@ describe('Telemetry', () => {
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
       const testFlow = {
         name: 'parentJob',
         queueName,
+        prefix,
         data: { foo: 'bar' },
         children: [
           {
             name: 'childJob',
             queueName,
+            prefix,
             data: { baz: 'qux' },
           },
         ],
@@ -386,6 +392,7 @@ describe('Telemetry', () => {
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
@@ -421,6 +428,7 @@ describe('Telemetry', () => {
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
@@ -473,6 +481,7 @@ describe('Telemetry', () => {
       const flowProducer = new FlowProducer({
         connection,
         telemetry: telemetryClient,
+        prefix,
       });
 
       const traceSpy = sinon.spy(telemetryClient.tracer, 'startSpan');
@@ -510,6 +519,139 @@ describe('Telemetry', () => {
         recordExceptionSpy.restore();
         await flowProducer.close();
       }
+    });
+  });
+
+  describe('Omit Propagation', () => {
+    let fromMetadataSpy;
+
+    beforeEach(() => {
+      fromMetadataSpy = sinon.spy(
+        telemetryClient.contextManager,
+        'fromMetadata',
+      );
+    });
+
+    afterEach(() => fromMetadataSpy.restore());
+
+    it('should omit propagation on queue add', async () => {
+      let worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(queueName, async () => resolve(), {
+          connection,
+          telemetry: telemetryClient,
+          prefix,
+        });
+      });
+
+      const job = await queue.add(
+        'testJob',
+        { foo: 'bar' },
+        { telemetry: { omitContext: true } },
+      );
+
+      await processing;
+
+      expect(fromMetadataSpy.callCount).to.equal(0);
+      await worker.close();
+    });
+
+    it('should omit propagation on queue addBulk', async () => {
+      let worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(queueName, async () => resolve(), {
+          connection,
+          telemetry: telemetryClient,
+          prefix,
+        });
+      });
+
+      const jobs = [
+        {
+          name: 'job1',
+          data: { foo: 'bar' },
+          opts: { telemetry: { omitContext: true } },
+        },
+      ];
+      const addedJos = await queue.addBulk(jobs);
+      expect(addedJos).to.have.length(1);
+
+      await processing;
+
+      expect(fromMetadataSpy.callCount).to.equal(0);
+      await worker.close();
+    });
+
+    it('should omit propagation on job scheduler', async () => {
+      let worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(queueName, async () => resolve(), {
+          connection,
+          telemetry: telemetryClient,
+          prefix,
+        });
+      });
+
+      const jobSchedulerId = 'testJobScheduler';
+      const data = { foo: 'bar' };
+
+      const job = await queue.upsertJobScheduler(
+        jobSchedulerId,
+        { every: 1000, endDate: Date.now() + 1000, limit: 1 },
+        {
+          name: 'repeatable-job',
+          data,
+          opts: { telemetry: { omitContext: true } },
+        },
+      );
+
+      await processing;
+
+      expect(fromMetadataSpy.callCount).to.equal(0);
+      await worker.close();
+    });
+
+    it('should omit propagation on flow producer', async () => {
+      let worker;
+      const processing = new Promise<void>(resolve => {
+        worker = new Worker(queueName, async () => resolve(), {
+          connection,
+          telemetry: telemetryClient,
+          prefix,
+        });
+      });
+
+      const flowProducer = new FlowProducer({
+        connection,
+        telemetry: telemetryClient,
+        prefix,
+      });
+
+      const testFlow = {
+        name: 'parentJob',
+        queueName,
+        data: { foo: 'bar' },
+        children: [
+          {
+            name: 'childJob',
+            queueName,
+            data: { baz: 'qux' },
+            opts: { telemetry: { omitContext: true } },
+          },
+        ],
+        opts: { telemetry: { omitContext: true } },
+      };
+
+      const jobNode = await flowProducer.add(testFlow);
+      const jobs = jobNode.children
+        ? [jobNode.job, ...jobNode.children.map(c => c.job)]
+        : [jobNode.job];
+
+      await processing;
+
+      expect(fromMetadataSpy.callCount).to.equal(0);
+      await flowProducer.close();
+      await worker.close();
     });
   });
 });

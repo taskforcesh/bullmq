@@ -51,3 +51,7 @@ All jobs produced by this scheduler will use the given settings. Note that in th
 {% hint style="info" %}
 Since jobs produced by the Job Scheduler will get a special job ID in order to guarantee that jobs will never be created more often than the given repeat settings, you cannot choose a custom job id. However you can use the job's name if you need to discriminate these jobs from other jobs.
 {% endhint %}
+
+## Read more:
+
+- 💡 [Upsert Job Scheduler API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#upsertJobScheduler)

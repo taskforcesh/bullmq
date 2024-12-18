@@ -1,4 +1,6 @@
-import { RepeatOptions, KeepJobs, BackoffOptions } from './';
+import { BackoffOptions } from './backoff-options';
+import { KeepJobs } from './keep-jobs';
+import { RepeatOptions } from './repeat-options';
 
 export interface DefaultJobOptions {
   /**
@@ -112,9 +114,4 @@ export interface BaseJobOptions extends DefaultJobOptions {
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;
-
-  /**
-   * TelemetryMetadata, provide for context propagation.
-   */
-  telemetryMetadata?: string;
 }

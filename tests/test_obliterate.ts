@@ -47,6 +47,19 @@ describe('Obliterate', function () {
     expect(keys.length).to.be.eql(0);
   });
 
+  it('should obliterate a queue which is empty but has had jobs in the past', async () => {
+    await queue.waitUntilReady();
+
+    const job = await queue.add('test', { foo: 'bar' });
+    await job.remove();
+
+    await queue.obliterate();
+
+    const client = await queue.client;
+    const keys = await client.keys(`${prefix}:${queue.name}:*`);
+    expect(keys.length).to.be.eql(0);
+  });
+
   it('should obliterate a queue with jobs in different statuses', async () => {
     await queue.waitUntilReady();
 
