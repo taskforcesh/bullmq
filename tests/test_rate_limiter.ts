@@ -423,6 +423,53 @@ describe('Rate Limiter', function () {
       await worker.close();
     });
 
+    describe('when job does not exist', () => {
+      it('should fail with job existence error', async () => {
+        const dynamicLimit = 250;
+        const duration = 100;
+
+        const worker = new Worker(
+          queueName,
+          async job => {
+            if (job.attemptsStarted === 1) {
+              await queue.rateLimit(dynamicLimit);
+              await queue.obliterate({ force: true });
+              throw Worker.RateLimitError();
+            }
+          },
+          {
+            autorun: false,
+            concurrency: 10,
+            drainDelay: 10, // If test hangs, 10 seconds here helps to fail quicker.
+            limiter: {
+              max: 2,
+              duration,
+            },
+            connection,
+            prefix,
+          },
+        );
+
+        await worker.waitUntilReady();
+
+        const failing = new Promise<void>(resolve => {
+          worker.on('error', err => {
+            expect(err.message).to.be.equal(
+              `Missing key for job ${job.id}. moveJobFromActiveToWait`,
+            );
+            resolve();
+          });
+        });
+
+        const job = await queue.add('test', { foo: 'bar' });
+
+        worker.run();
+
+        await failing;
+        await worker.close();
+      }).timeout(4000);
+    });
+
     describe('when rate limit is too low', () => {
       it('should move job to wait anyway', async function () {
         this.timeout(4000);
