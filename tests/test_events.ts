@@ -791,9 +791,15 @@ describe('events', function () {
           );
 
           let deduplicatedCounter = 0;
-          queueEvents.on('deduplicated', ({ jobId }) => {
-            deduplicatedCounter++;
+          const deduplication = new Promise<void>(resolve => {
+            queueEvents.on('deduplicated', () => {
+              deduplicatedCounter++;
+              if (deduplicatedCounter == 2) {
+                resolve();
+              }
+            });
           });
+
           await job.remove();
 
           await queue.add(
@@ -814,6 +820,7 @@ describe('events', function () {
             { deduplication: { id: 'a1' } },
           );
           await secondJob.remove();
+          await deduplication;
 
           expect(deduplicatedCounter).to.be.equal(2);
         });
