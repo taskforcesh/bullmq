@@ -24,7 +24,8 @@ const sandbox = <T, R, N extends string>(
               );
             };
 
-            child = await childPool.retain(processFile, exitHandler);
+            child = await childPool.retain(processFile);
+            child.on('exit', exitHandler);
 
             msgHandler = async (msg: ChildMessage) => {
               switch (msg.cmd) {
@@ -76,9 +77,7 @@ const sandbox = <T, R, N extends string>(
       if (child) {
         child.off('message', msgHandler);
         child.off('exit', exitHandler);
-        if (child.exitCode !== null || /SIG.*/.test(`${child.signalCode}`)) {
-          childPool.remove(child);
-        } else {
+        if (child.exitCode === null && child.signalCode === null) {
           childPool.release(child);
         }
       }
