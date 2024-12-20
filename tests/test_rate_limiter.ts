@@ -455,7 +455,7 @@ describe('Rate Limiter', function () {
         const failing = new Promise<void>(resolve => {
           worker.on('error', err => {
             expect(err.message).to.be.equal(
-              `Missing key for job ${job.id}. moveJobFromActiveToWait`,
+              `Missing lock for job ${job.id}. moveJobFromActiveToWait`,
             );
             resolve();
           });
