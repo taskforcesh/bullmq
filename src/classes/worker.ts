@@ -1288,6 +1288,6 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
   ) {
-    return this.scripts.moveJobFromActiveToWait(job.id, token);
+    return job.moveToWait(token);
   }
 }
