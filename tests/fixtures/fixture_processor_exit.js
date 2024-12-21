@@ -7,7 +7,7 @@
 const delay = require('./delay');
 
 module.exports = function (/*job*/) {
-  return delay(500).then(() => {
+  return delay(200).then(() => {
     delay(100).then(() => {
       process.exit(0);
     });

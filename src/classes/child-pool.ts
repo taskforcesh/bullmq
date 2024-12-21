@@ -27,7 +27,7 @@ export class ChildPool {
     };
   }
 
-  async retain(processFile: string, exitHandler: any): Promise<Child> {
+  async retain(processFile: string): Promise<Child> {
     let child = this.getFree(processFile).pop();
 
     if (child) {
@@ -41,10 +41,17 @@ export class ChildPool {
       workerThreadsOptions: this.opts.workerThreadsOptions,
     });
 
-    child.on('exit', exitHandler);
+    child.on('exit', this.remove.bind(this, child));
 
     try {
       await child.init();
+
+      // Check status here as well, in case the child exited before we could
+      // retain it.
+      if (child.exitCode !== null || child.signalCode !== null) {
+        throw new Error('Child exited before it could be retained');
+      }
+
       this.retained[child.pid] = child;
 
       return child;
