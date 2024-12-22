@@ -941,7 +941,7 @@ describe('Job', function () {
       const job = (await worker.getNextJob(token)) as Job;
       const isWaiting = await job.isWaiting();
       expect(isWaiting).to.be.equal(false);
-      await job.moveToWait('0');
+      await job.moveToWait(token);
       const isisWaiting2 = await job.isWaiting();
       expect(isisWaiting2).to.be.equal(true);
       await worker.close();
