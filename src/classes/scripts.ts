@@ -1387,13 +1387,11 @@ export class Scripts {
    */
   async moveJobFromActiveToWait(jobId: string, token: string) {
     const client = await this.queue.client;
-    const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
     const keys: (string | number)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,
-      lockKey,
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.limiter,
@@ -1404,13 +1402,22 @@ export class Scripts {
 
     const args = [jobId, token, this.queue.toKey(jobId)];
 
-    const pttl = await this.execCommand(
+    const result = await this.execCommand(
       client,
       'moveJobFromActiveToWait',
       keys.concat(args),
     );
 
-    return pttl < 0 ? 0 : pttl;
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'moveJobFromActiveToWait',
+        state: 'active',
+      });
+    }
+
+    return result;
   }
 
   async obliterate(opts: { force: boolean; count: number }): Promise<number> {
