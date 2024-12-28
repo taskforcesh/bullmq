@@ -40,7 +40,7 @@ export class QueueEventsProducer extends QueueBase {
     const args: any[] = ['MAXLEN', '~', maxEvents, '*', 'event', eventName];
 
     for (const [key, value] of Object.entries(restArgs)) {
-      args.push(key, value);
+      args.push(key, JSON.stringify(value));
     }
 
     await client.xadd(key, ...args);
