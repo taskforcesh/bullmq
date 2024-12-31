@@ -81,36 +81,38 @@ export class JobScheduler extends QueueBase {
       return;
     }
 
-    // Check if we have a start date for the repeatable job
-    const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
-    if (startDate) {
-      const startMillis = new Date(startDate).getTime();
-      now = startMillis > now ? startMillis : now;
-    }
-
     const prevMillis = opts.prevMillis || 0;
     now = prevMillis < now ? now : prevMillis;
 
+    // Check if we have a start date for the repeatable job
+    const { startDate, immediately, ...filteredRepeatOpts } = repeatOpts;
+    let startMillis = now;
+    if (startDate) {
+      startMillis = new Date(startDate).getTime();
+      startMillis = startMillis > now ? startMillis : now;
+    }
+
     let nextMillis: number;
-    let newOffset = offset;
+    let newOffset = offset || 0;
 
     if (every) {
-      const nextSlot = Math.floor(now / every) * every + every;
+      const prevSlot = Math.floor(startMillis / every) * every;
+      const nextSlot = prevSlot + every;
       if (prevMillis || offset) {
-        nextMillis = nextSlot + (offset || 0);
+        nextMillis = nextSlot;
       } else {
-        nextMillis = now;
-        newOffset = every - (nextSlot - now);
+        nextMillis = prevSlot;
+        newOffset = startMillis - prevSlot;
 
-        // newOffset should always be positive, but as an extra safety check
+        // newOffset should always be positive, but we do an extra safety check
         newOffset = newOffset < 0 ? 0 : newOffset;
       }
+    } else if (pattern) {
+      nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
 
       if (nextMillis < now) {
         nextMillis = now;
       }
-    } else if (pattern) {
-      nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
     }
 
     const multi = (await this.client).multi();
@@ -163,6 +165,7 @@ export class JobScheduler extends QueueBase {
             (<unknown>multi) as RedisClient,
             jobName,
             nextMillis,
+            newOffset,
             jobSchedulerId,
             {
               ...opts,
@@ -203,6 +206,7 @@ export class JobScheduler extends QueueBase {
     client: RedisClient,
     name: N,
     nextMillis: number,
+    offset: number,
     jobSchedulerId: string,
     opts: JobsOptions,
     data: T,
@@ -219,7 +223,7 @@ export class JobScheduler extends QueueBase {
     });
 
     const now = Date.now();
-    const delay = nextMillis - now;
+    const delay = nextMillis + offset - now;
 
     const mergedOpts = {
       ...opts,
