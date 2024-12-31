@@ -120,7 +120,7 @@ describe('bulk jobs', () => {
     await removeAllQueueData(new IORedis(redisHost), parentQueueName);
   });
 
-  it.only('should keep workers busy', async () => {
+  it('should keep workers busy', async () => {
     const numJobs = 6;
     const queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -144,7 +144,7 @@ describe('bulk jobs', () => {
 
     let counter = 0;
     const completed = new Promise<void>(resolve => {
-      queueEvents.on('completed', ({ jobId})=> {
+      queueEvents.on('completed', ({ jobId }) => {
         counter++;
         console.log('completed', jobId, Date.now());
         if (counter === numJobs) {
