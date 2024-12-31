@@ -186,6 +186,9 @@ export class Job<
 
   protected toKey: (type: string) => string;
 
+  /**
+   * @deprecated use UnrecoverableError
+   */
   protected discarded: boolean;
 
   protected scripts: Scripts;
@@ -1228,6 +1231,7 @@ export class Job<
 
   /**
    * Marks a job to not be retried if it fails (even if attempts has been configured)
+   * @deprecated use UnrecoverableError
    */
   discard(): void {
     this.discarded = true;
