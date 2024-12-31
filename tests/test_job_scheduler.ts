@@ -206,11 +206,10 @@ describe('Job Scheduler', function () {
   });
 
   describe('when job schedulers are upserted in quick succession', function () {
-    let worker: Worker;
-    beforeEach(async function () {
+    it('should create only one job scheduler and one delayed job', async function () {
       const date = new Date('2017-02-07 9:24:00');
       this.clock.setSystemTime(date);
-      worker = new Worker(
+      const worker = new Worker(
         queueName,
         async () => {
           await this.clock.tickAsync(1);
@@ -222,11 +221,7 @@ describe('Job Scheduler', function () {
         },
       );
       await worker.waitUntilReady();
-    });
-    afterEach(async function () {
-      await worker.close();
-    });
-    it('should create only one job scheduler and one delayed job', async function () {
+
       const jobSchedulerId = 'test';
       await queue.upsertJobScheduler(jobSchedulerId, {
         every: ONE_MINUTE * 5,
@@ -249,6 +244,8 @@ describe('Job Scheduler', function () {
       await this.clock.tickAsync(ONE_MINUTE);
       const delayed = await queue.getDelayed();
       expect(delayed).to.have.length(1);
+
+      await worker.close();
     });
   });
 
