@@ -30,6 +30,7 @@ local templateOpts = cmsgpack.unpack(ARGV[5])
 local prefixKey = ARGV[6]
 
 -- Includes
+--- @include "includes/addDelayedJob"
 --- @include "includes/removeJob"
 
 local function storeRepeatableJob(schedulerId, repeatKey, nextMillis, rawOpts, templateData, templateOpts)
@@ -72,13 +73,14 @@ local function storeRepeatableJob(schedulerId, repeatKey, nextMillis, rawOpts, t
     unpack(optionalValues))
 end
 
+local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
+local nextDelayedJobKey =  repeatKey .. ":" .. jobSchedulerId .. ":" .. nextMillis
+
 -- If we are overriding a repeatable job we must delete the delayed job for
 -- the next iteration.
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
   local delayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
-  local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
-  local nextDelayedJobKey =  repeatKey .. ":" .. jobSchedulerId .. ":" .. nextMillis
 
   if rcall("ZSCORE", delayedKey, delayedJobId) ~= false
     and (rcall("EXISTS", nextDelayedJobKey) ~= 1 
@@ -88,4 +90,7 @@ if prevMillis ~= false then
   end
 end
 
-return storeRepeatableJob(jobSchedulerId, repeatKey, nextMillis, ARGV[2], ARGV[4], templateOpts)
+storeRepeatableJob(jobSchedulerId, repeatKey, nextMillis, ARGV[2], ARGV[4], templateOpts)
+
+addDelayedJob(jobIdKey, jobId, delayedKey, eventsKey, args[3], ARGV[2], opts, timestamp, repeatJobKey,
+  maxEvents, KEYS[1], parentKey, parentData)
