@@ -32,6 +32,7 @@ import {
   FinishedPropValAttribute,
   MinimalQueue,
   RedisJobOptions,
+  JobsOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
 import {
@@ -313,18 +314,26 @@ export class Scripts {
   }
 
   async addJobScheduler(
-    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
     templateData: string,
     templateOpts: RedisJobOptions,
     opts: RepeatableOptions,
+    delayedJobOpts: JobsOptions,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
   ): Promise<string> {
+    const client = await this.queue.client;
+
     const queueKeys = this.queue.keys;
 
     const keys: (string | number | Buffer)[] = [
-      queueKeys.repeat,
+      queueKeys.marker,
+      queueKeys.meta,
+      queueKeys.id,
       queueKeys.delayed,
+      queueKeys.events,
+      queueKeys.repeat,
     ];
 
     const args = [
@@ -333,8 +342,12 @@ export class Scripts {
       jobSchedulerId,
       templateData,
       pack(templateOpts),
+      pack(delayedJobOpts),
+      Date.now(),
       queueKeys[''],
+      producerId ? this.queue.toKey(producerId) : '',
     ];
+
     return this.execCommand(client, 'addJobScheduler', keys.concat(args));
   }
 

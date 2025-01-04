@@ -1,4 +1,3 @@
-import { ChainableCommander } from 'ioredis';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -864,6 +863,12 @@ export class Job<
    */
   get queueName(): string {
     return this.queue.name;
+  }
+
+  get jobSchedulerId(): string {
+    if (this.repeatJobKey) {
+      return this.repeatJobKey.slice(this.toKey('repeat').length + 1);
+    }
   }
 
   /**

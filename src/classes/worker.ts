@@ -793,7 +793,7 @@ will never work with more accuracy than 1ms. */
         if (job.repeatJobKey) {
           const jobScheduler = await this.jobScheduler;
           await jobScheduler.upsertJobScheduler(
-            job.repeatJobKey,
+            job.jobSchedulerId,
             job.opts.repeat,
             job.name,
             job.data,

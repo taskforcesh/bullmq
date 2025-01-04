@@ -116,18 +116,70 @@ export class JobScheduler extends QueueBase {
     const multi = (await this.client).multi();
     if (nextMillis) {
       if (override) {
-        this.scripts.addJobScheduler(
-          (<unknown>multi) as RedisClient,
-          jobSchedulerId,
-          nextMillis,
-          JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
-          Job.optsAsJSON(opts),
-          {
-            name: jobName,
-            endDate: endDate ? new Date(endDate).getTime() : undefined,
-            tz: repeatOpts.tz,
-            pattern,
-            every,
+        return this.trace<Job<T, R, N>>(
+          SpanKind.PRODUCER,
+          'add',
+          `${this.name}.${jobName}`,
+          async (span, srcPropagationMedatada) => {
+            let telemetry = opts.telemetry;
+
+            if (srcPropagationMedatada) {
+              const omitContext = opts.telemetry?.omitContext;
+              const telemetryMetadata =
+                opts.telemetry?.metadata ||
+                (!omitContext && srcPropagationMedatada);
+
+              if (telemetryMetadata || omitContext) {
+                telemetry = {
+                  metadata: telemetryMetadata,
+                  omitContext,
+                };
+              }
+            }
+
+            const mergedOpts = this.getNextJobOpts(
+              nextMillis,
+              jobSchedulerId,
+              {
+                ...opts,
+                repeat: { ...filteredRepeatOpts, offset: newOffset },
+                telemetry,
+              },
+              iterationCount,
+            );
+
+            const jobId = await this.scripts.addJobScheduler(
+              jobSchedulerId,
+              nextMillis,
+              JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
+              Job.optsAsJSON(opts),
+              {
+                name: jobName,
+                endDate: endDate ? new Date(endDate).getTime() : undefined,
+                tz: repeatOpts.tz,
+                pattern,
+                every,
+              },
+              Job.optsAsJSON(mergedOpts),
+              producerId,
+            );
+
+            const job = new this.Job<T, R, N>(
+              this,
+              jobName,
+              jobData,
+              mergedOpts,
+              jobId,
+            );
+
+            job.id = jobId;
+
+            span?.setAttributes({
+              [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+              [TelemetryAttributes.JobId]: job.id,
+            });
+
+            return job;
           },
         );
       } else {
@@ -218,6 +270,38 @@ export class JobScheduler extends QueueBase {
       nextMillis,
     });
 
+    const mergedOpts = this.getNextJobOpts(
+      nextMillis,
+      jobSchedulerId,
+      opts,
+      currentCount,
+    );
+
+    const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
+    job.addJob(client);
+
+    if (producerId) {
+      const producerJobKey = this.toKey(producerId);
+      client.hset(producerJobKey, 'nrjid', job.id);
+    }
+
+    return job;
+  }
+
+  private getNextJobOpts(
+    nextMillis: number,
+    jobSchedulerId: string,
+    opts: JobsOptions,
+    currentCount: number,
+  ): JobsOptions {
+    //
+    // Generate unique job id for this iteration.
+    //
+    const jobId = this.getSchedulerNextJobId({
+      jobSchedulerId,
+      nextMillis,
+    });
+
     const now = Date.now();
     const delay = nextMillis - now;
 
@@ -230,17 +314,15 @@ export class JobScheduler extends QueueBase {
       repeatJobKey: jobSchedulerId,
     };
 
-    mergedOpts.repeat = { ...opts.repeat, count: currentCount };
+    mergedOpts.repeat = {
+      ...opts.repeat,
+      count: currentCount,
+      endDate: opts.repeat?.endDate
+        ? new Date(opts.repeat.endDate).getTime()
+        : undefined,
+    };
 
-    const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
-    job.addJob(client);
-
-    if (producerId) {
-      const producerJobKey = this.toKey(producerId);
-      client.hset(producerJobKey, 'nrjid', job.id);
-    }
-
-    return job;
+    return mergedOpts;
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {

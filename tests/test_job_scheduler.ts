@@ -1649,6 +1649,7 @@ describe('Job Scheduler', function () {
             resolve();
           },
           {
+            autorun: false,
             connection,
             prefix,
           },
@@ -1667,6 +1668,8 @@ describe('Job Scheduler', function () {
 
       const delayedCountBeforeFailing = await queue.getDelayedCount();
       expect(delayedCountBeforeFailing).to.be.equal(0);
+
+      worker.run();
 
       await failing;
 
@@ -1954,7 +1957,7 @@ describe('Job Scheduler', function () {
   });
 
   // This test is flaky and too complex we need something simpler that tests the same thing
-  it.skip('should not re-add a repeatable job after it has been removed', async function () {
+  it('should not re-add a repeatable job after it has been removed', async function () {
     const repeat = await queue.repeat;
 
     let worker: Worker;
