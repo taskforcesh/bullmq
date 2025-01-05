@@ -144,13 +144,11 @@ export class JobScheduler extends QueueBase {
               jobSchedulerId,
               {
                 ...opts,
-                repeat: {
-                  ...filteredRepeatOpts,
-                  offset: newOffset ? newOffset : undefined,
-                },
+                repeat: filteredRepeatOpts,
                 telemetry,
               },
               iterationCount,
+              newOffset,
             );
 
             const jobId = await this.scripts.addJobScheduler(
@@ -282,6 +280,7 @@ export class JobScheduler extends QueueBase {
       jobSchedulerId,
       opts,
       currentCount,
+      offset,
     );
 
     const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
@@ -300,6 +299,7 @@ export class JobScheduler extends QueueBase {
     jobSchedulerId: string,
     opts: JobsOptions,
     currentCount: number,
+    offset?: number,
   ): JobsOptions {
     //
     // Generate unique job id for this iteration.
@@ -324,6 +324,7 @@ export class JobScheduler extends QueueBase {
     mergedOpts.repeat = {
       ...opts.repeat,
       count: currentCount,
+      offset,
       endDate: opts.repeat?.endDate
         ? new Date(opts.repeat.endDate).getTime()
         : undefined,
