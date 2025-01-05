@@ -838,7 +838,7 @@ describe('Job Scheduler', function () {
         async () => {
           this.clock.tick(nextTick);
         },
-        { connection, prefix },
+        { autorun: false, connection, prefix },
       );
 
       let prev: Job;
@@ -875,6 +875,8 @@ describe('Job Scheduler', function () {
 
       const delayedCountBefore = await queue.getDelayedCount();
       expect(delayedCountBefore).to.be.eq(1);
+
+      worker.run();
 
       await completing;
 

@@ -111,7 +111,7 @@ rcall("INCR", KEYS[3])
 local delayedOpts = cmsgpack.unpack(ARGV[6])
 
 addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerOpts['name'], ARGV[4], delayedOpts,
-  timestamp, schedulerKey, maxEvents, KEYS[1], nil, nil)
+  timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
 
 if ARGV[9] ~= "" then
   rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)

@@ -868,12 +868,6 @@ export class Job<
     return this.queue.name;
   }
 
-  get jobSchedulerId(): string {
-    if (this.repeatJobKey) {
-      return this.repeatJobKey.slice(this.toKey('repeat').length + 1);
-    }
-  }
-
   /**
    * @returns the prefix that is used.
    */

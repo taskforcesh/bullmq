@@ -186,6 +186,7 @@ export class Repeat extends QueueBase {
       key: repeat.key,
     });
 
+    console.log(legacyRepeatJobId, repeatConcatOptions, repeatJobKey);
     return this.scripts.removeRepeatable(
       legacyRepeatJobId,
       repeatConcatOptions,
