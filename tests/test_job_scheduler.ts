@@ -205,6 +205,50 @@ describe('Job Scheduler', function () {
     });
   });
 
+  describe('when job schedulers are upserted in quick succession', function () {
+    it('should create only one job scheduler and one delayed job', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await this.clock.tickAsync(1);
+        },
+        {
+          connection,
+          prefix,
+          concurrency: 1,
+        },
+      );
+      await worker.waitUntilReady();
+
+      const jobSchedulerId = 'test';
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE * 5,
+      });
+      await this.clock.tickAsync(1);
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE * 5,
+      });
+
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE * 5,
+      });
+
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE * 5,
+      });
+
+      const repeatableJobs = await queue.getJobSchedulers();
+      expect(repeatableJobs.length).to.be.eql(1);
+      await this.clock.tickAsync(ONE_MINUTE);
+      const delayed = await queue.getDelayed();
+      expect(delayed).to.have.length(1);
+
+      await worker.close();
+    });
+  });
+
   describe('when clocks are slightly out of sync', function () {
     it('should create only one delayed job', async function () {
       const date = new Date('2017-02-07 9:24:00');
@@ -1687,13 +1731,17 @@ describe('Job Scheduler', function () {
 
       await processingAfterFailing;
 
+      const failedCountAfterProcessing = await queue.getFailedCount();
+      expect(failedCountAfterProcessing).to.be.equal(0);
+
       await worker.close();
 
-      const delayedCount2 = await queue.getDelayedCount();
-      expect(delayedCount2).to.be.equal(1);
-
       const waitingCount = await queue.getWaitingCount();
-      expect(waitingCount).to.be.equal(0);
+      const delayedCount2 = await queue.getDelayedCount();
+
+      // Due to asynchronicities, the next job could be already in waiting state
+      // We just check that both are 1, as it should only exist 1 job in either waiting or delayed state
+      expect(waitingCount + delayedCount2).to.be.equal(1);
     });
 
     it('should not create a new delayed job if the failed job is retried with Job.retry()', async function () {
@@ -2256,7 +2304,7 @@ describe('Job Scheduler', function () {
     delayStub.restore();
   });
 
-  it('should repeat every 2 seconds with a startDate in the future', async function () {
+  it('should repeat every day with a startDate in the future', async function () {
     this.timeout(10000);
 
     // Set the initial system time
