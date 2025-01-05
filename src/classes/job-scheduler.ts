@@ -305,7 +305,7 @@ export class JobScheduler extends QueueBase {
     const now = Date.now();
     const delay = nextMillis - now;
 
-    const mergedOpts = {
+    const mergedOpts: JobsOptions = {
       ...opts,
       jobId,
       delay: delay < 0 ? 0 : delay,
