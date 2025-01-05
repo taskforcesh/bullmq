@@ -144,7 +144,10 @@ export class JobScheduler extends QueueBase {
               jobSchedulerId,
               {
                 ...opts,
-                repeat: { ...filteredRepeatOpts, offset: newOffset },
+                repeat: {
+                  ...filteredRepeatOpts,
+                  offset: newOffset ? newOffset : undefined,
+                },
                 telemetry,
               },
               iterationCount,
