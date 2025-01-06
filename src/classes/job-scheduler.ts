@@ -115,42 +115,40 @@ export class JobScheduler extends QueueBase {
       }
     }
 
-    const multi = (await this.client).multi();
     if (nextMillis) {
-      if (override) {
-        return this.trace<Job<T, R, N>>(
-          SpanKind.PRODUCER,
-          'add',
-          `${this.name}.${jobName}`,
-          async (span, srcPropagationMedatada) => {
-            let telemetry = opts.telemetry;
+      return this.trace<Job<T, R, N>>(
+        SpanKind.PRODUCER,
+        'add',
+        `${this.name}.${jobName}`,
+        async (span, srcPropagationMedatada) => {
+          let telemetry = opts.telemetry;
 
-            if (srcPropagationMedatada) {
-              const omitContext = opts.telemetry?.omitContext;
-              const telemetryMetadata =
-                opts.telemetry?.metadata ||
-                (!omitContext && srcPropagationMedatada);
+          if (srcPropagationMedatada) {
+            const omitContext = opts.telemetry?.omitContext;
+            const telemetryMetadata =
+              opts.telemetry?.metadata ||
+              (!omitContext && srcPropagationMedatada);
 
-              if (telemetryMetadata || omitContext) {
-                telemetry = {
-                  metadata: telemetryMetadata,
-                  omitContext,
-                };
-              }
+            if (telemetryMetadata || omitContext) {
+              telemetry = {
+                metadata: telemetryMetadata,
+                omitContext,
+              };
             }
+          }
+          const mergedOpts = this.getNextJobOpts(
+            nextMillis,
+            jobSchedulerId,
+            {
+              ...opts,
+              repeat: filteredRepeatOpts,
+              telemetry,
+            },
+            iterationCount,
+            newOffset,
+          );
 
-            const mergedOpts = this.getNextJobOpts(
-              nextMillis,
-              jobSchedulerId,
-              {
-                ...opts,
-                repeat: filteredRepeatOpts,
-                telemetry,
-              },
-              iterationCount,
-              newOffset,
-            );
-
+          if (override) {
             const jobId = await this.scripts.addJobScheduler(
               jobSchedulerId,
               nextMillis,
@@ -183,115 +181,36 @@ export class JobScheduler extends QueueBase {
             });
 
             return job;
-          },
-        );
-      } else {
-        this.scripts.updateJobSchedulerNextMillis(
-          (<unknown>multi) as RedisClient,
-          jobSchedulerId,
-          nextMillis,
-        );
-      }
+          } else {
+            const jobId = await this.scripts.updateJobSchedulerNextMillis(
+              jobSchedulerId,
+              nextMillis,
+              Job.optsAsJSON(mergedOpts),
+              producerId,
+            );
 
-      return this.trace<Job<T, R, N>>(
-        SpanKind.PRODUCER,
-        'add',
-        `${this.name}.${jobName}`,
-        async (span, srcPropagationMedatada) => {
-          let telemetry = opts.telemetry;
+            if (jobId) {
+              const job = new this.Job<T, R, N>(
+                this,
+                jobName,
+                jobData,
+                mergedOpts,
+                jobId,
+              );
 
-          if (srcPropagationMedatada) {
-            const omitContext = opts.telemetry?.omitContext;
-            const telemetryMetadata =
-              opts.telemetry?.metadata ||
-              (!omitContext && srcPropagationMedatada);
+              job.id = jobId;
 
-            if (telemetryMetadata || omitContext) {
-              telemetry = {
-                metadata: telemetryMetadata,
-                omitContext,
-              };
+              span?.setAttributes({
+                [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+                [TelemetryAttributes.JobId]: job.id,
+              });
+
+              return job;
             }
           }
-
-          const job = this.createNextJob<T, R, N>(
-            (<unknown>multi) as RedisClient,
-            jobName,
-            nextMillis,
-            newOffset,
-            jobSchedulerId,
-            {
-              ...opts,
-              repeat: { ...filteredRepeatOpts, offset: newOffset },
-              telemetry,
-            },
-            jobData,
-            iterationCount,
-            producerId,
-          );
-
-          const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
-
-          // Check if there are any errors
-          const erroredResult = results.find(result => result[0]);
-          if (erroredResult) {
-            throw new Error(
-              `Error upserting job scheduler ${jobSchedulerId} - ${erroredResult[0]}`,
-            );
-          }
-
-          // Get last result with the job id
-          const lastResult = results.pop();
-          job.id = lastResult[1] as string;
-
-          span?.setAttributes({
-            [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
-            [TelemetryAttributes.JobId]: job.id,
-          });
-
-          return job;
         },
       );
     }
-  }
-
-  private createNextJob<T = any, R = any, N extends string = string>(
-    client: RedisClient,
-    name: N,
-    nextMillis: number,
-    offset: number,
-    jobSchedulerId: string,
-    opts: JobsOptions,
-    data: T,
-    currentCount: number,
-    // The job id of the job that produced this next iteration
-    producerId?: string,
-  ) {
-    //
-    // Generate unique job id for this iteration.
-    //
-    const jobId = this.getSchedulerNextJobId({
-      jobSchedulerId,
-      nextMillis,
-    });
-
-    const mergedOpts = this.getNextJobOpts(
-      nextMillis,
-      jobSchedulerId,
-      opts,
-      currentCount,
-      offset,
-    );
-
-    const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
-    job.addJob(client);
-
-    if (producerId) {
-      const producerJobKey = this.toKey(producerId);
-      client.hset(producerJobKey, 'nrjid', job.id);
-    }
-
-    return job;
   }
 
   private getNextJobOpts(
