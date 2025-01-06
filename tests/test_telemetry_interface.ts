@@ -13,6 +13,8 @@ import {
   Attributes,
   Exception,
   Time,
+  Meter,
+  Configuration,
 } from '../src/interfaces';
 import * as sinon from 'sinon';
 import { SpanKind, TelemetryAttributes } from '../src/enums';
@@ -29,9 +31,61 @@ describe('Telemetry', () => {
     public tracer: Tracer<Context>;
     public contextManager: ContextManager<Context>;
 
+    public meter: Meter<Context>;
+
+    constructor(telemetry: Configuration) {
+      const { traces, metrics } = telemetry;
+
+      if (traces) {
+        this.tracer = new MockTracer();
+        this.contextManager = new MockContextManager();
+      }
+
+      if (metrics) {
+        this.meter = new MockMeter();
+      }
+    }
+  }
+
+  class MockMeter implements Meter {
+    createHistogram(name: string, options?: Record<string, string | number>) {
+      return new MockRecorder(name);
+    }
+    createGauge(name: string, options?: Record<string, string | number>) {
+      return new MockRecorder(name);
+    }
+    createCounter(name: string, options?: Record<string, string | number>) {
+      return new MockCounter(name);
+    }
+    createUpDownCounter(
+      name: string,
+      options?: Record<string, string | number>,
+    ) {
+      return new MockCounter(name);
+    }
+  }
+
+  const counters = {};
+  class MockCounter {
+    name: string;
     constructor(name: string) {
-      this.tracer = new MockTracer();
-      this.contextManager = new MockContextManager();
+      this.name = name;
+      counters[name] = 0;
+    }
+    add(value: number, attributes?: Attributes) {
+      counters[this.name] += value;
+    }
+  }
+
+  const recordings = {};
+  class MockRecorder {
+    name: string;
+    constructor(name: string) {
+      this.name = name;
+      recordings[name] = 0;
+    }
+    record(value: number, attributes?: Attributes) {
+      recordings[this.name] += value;
     }
   }
 
@@ -127,7 +181,14 @@ describe('Telemetry', () => {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    telemetryClient = new MockTelemetry('mockTracer');
+    telemetryClient = new MockTelemetry({
+      traces: {
+        name: 'mockTracer',
+      },
+      metrics: {
+        name: 'mockMeter',
+      },
+    });
 
     queue = new Queue(queueName, {
       connection,
@@ -139,6 +200,13 @@ describe('Telemetry', () => {
   afterEach(async function () {
     await queue.close();
     await removeAllQueueData(new IORedis(redisHost), queueName);
+
+    for (const key in counters) {
+      counters[key] = 0;
+    }
+    for (const key in recordings) {
+      recordings[key] = 0;
+    }
   });
 
   after(async function () {
@@ -509,6 +577,36 @@ describe('Telemetry', () => {
         recordExceptionSpy.restore();
         await flowProducer.close();
       }
+    });
+
+    it('should increment counter correctly', async () => {
+      const counter = telemetryClient.meter.createCounter('test_counter');
+      counter.add(1);
+      counter.add(2);
+      expect(counters['test_counter']).to.equal(3);
+    });
+
+    it('should record histogram value correctly', async () => {
+      const histogram = telemetryClient.meter.createHistogram('test_histogram');
+      histogram.record(5);
+      histogram.record(10);
+      expect(recordings['test_histogram']).to.equal(15);
+    });
+
+    it('should use upDownCounter to add and subtract values', async () => {
+      const upDownCounter = telemetryClient.meter.createUpDownCounter(
+        'test_up_down_counter',
+      );
+      upDownCounter.add(5);
+      upDownCounter.add(-2);
+      expect(counters['test_up_down_counter']).to.equal(3);
+    });
+
+    it('should record gauge value correctly', async () => {
+      const gauge = telemetryClient.meter.createGauge('test_gauge');
+      gauge.record(12);
+      gauge.record(8);
+      expect(recordings['test_gauge']).to.equal(20);
     });
   });
 });

@@ -7,6 +7,7 @@ import { AbortController } from 'node-abort-controller';
 // @ts-ignore
 import { CONNECTION_CLOSED_ERROR_MSG } from 'ioredis/built/utils';
 import {
+  Attributes,
   ChildMessage,
   ContextManager,
   Meter,
@@ -372,7 +373,7 @@ export async function trace<T>(
   callback: (
     span?: Span,
     dstPropagationMetadata?: string,
-    context?: any,
+    attributes?: Attributes,
   ) => Promise<T> | T,
   srcPropagationMetadata?: string,
 ) {
@@ -399,10 +400,12 @@ export async function trace<T>(
     );
 
     try {
-      span.setAttributes({
+      const attributes = {
         [TelemetryAttributes.QueueName]: queueName,
         [TelemetryAttributes.QueueOperation]: operation,
-      });
+      };
+
+      span.setAttributes(attributes);
 
       let messageContext: any;
       let dstPropagationMetadata: undefined | string;
@@ -418,7 +421,7 @@ export async function trace<T>(
       }
 
       return await contextManager.with(messageContext, () =>
-        callback(span, dstPropagationMetadata, messageContext),
+        callback(span, dstPropagationMetadata, attributes),
       );
     } catch (err) {
       span.recordException(err as Error);
@@ -444,7 +447,7 @@ export async function metric<T>(
   operation: string,
   span: Span,
   dstPropagationMetadata: string,
-  context: any,
+  attributes: Attributes,
   callback: (span?: Span, dstPropagationMetadata?: string) => Promise<T> | T,
 ) {
   if (!meter && span) {
@@ -455,7 +458,7 @@ export async function metric<T>(
     const start = Date.now();
 
     const histogram = meter.createHistogram(
-      `bullmq_histogram_${queueName}_${operation}`,
+      `bullmq.histogram.${queueName}.${operation}`,
       {
         description: `histogram for the ${queueName} ${operation}`,
         unit: 'ms',
@@ -463,14 +466,14 @@ export async function metric<T>(
     );
 
     const counter = meter.createCounter(
-      `bullmq_counter_${queueName}_${operation}`,
+      `bullmq.counter.${queueName}.${operation}`,
       {
         description: `counter for the ${queueName} ${operation}`,
       },
     );
 
     const counterError = meter.createCounter(
-      `bullmq_counter_error_${queueName}_${operation}`,
+      `bullmq.counter.error.${queueName}.${operation}`,
       {
         description: `error counter for the ${queueName} ${operation}`,
       },
@@ -481,15 +484,15 @@ export async function metric<T>(
       result = await callback(span, dstPropagationMetadata);
     } catch (err) {
       const end = Date.now();
-      histogram.record(end - start, undefined, context);
+      histogram.record(end - start, attributes);
 
-      counterError.add(1);
+      counterError.add(1, attributes);
       throw err;
     } finally {
       const end = Date.now();
-      histogram.record(end - start, undefined, context);
+      histogram.record(end - start, attributes);
 
-      counter.add(1);
+      counter.add(1, attributes);
     }
     return result;
   }
