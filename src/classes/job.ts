@@ -1,4 +1,3 @@
-import { ChainableCommander } from 'ioredis';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
