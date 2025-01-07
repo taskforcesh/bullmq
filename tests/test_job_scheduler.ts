@@ -2009,56 +2009,42 @@ describe('Job Scheduler', function () {
     });
   });
 
-  // This test is flaky and too complex we need something simpler that tests the same thing
-  it.skip('should not re-add a repeatable job after it has been removed', async function () {
-    const repeat = await queue.repeat;
-
-    let worker: Worker;
-    const jobId = 'xxxx';
+  it('should not re-add a repeatable job after it has been removed', async function () {
     const date = new Date('2017-02-07 9:24:00');
     const nextTick = 2 * ONE_SECOND + 100;
-    const addNextRepeatableJob = repeat.updateRepeatableJob;
     this.clock.setSystemTime(date);
 
     const repeatOpts = { pattern: '*/2 * * * * *' };
 
+    const worker = new Worker(
+      queueName,
+      async () => {
+        await queue.removeJobScheduler('test');
+      },
+      { connection, prefix },
+    );
+
     const afterRemoved = new Promise<void>(async resolve => {
-      worker = new Worker(
-        queueName,
-        async () => {
-          const repeatWorker = await worker.repeat;
-          (<unknown>repeatWorker.updateRepeatableJob) = async (
-            ...args: [string, unknown, JobsOptions, boolean?]
-          ) => {
-            // In order to simulate race condition
-            // Make removeRepeatables happen any time after a moveToX is called
-            await queue.removeRepeatable('test', repeatOpts, jobId);
-
-            // addNextRepeatableJob will now re-add the removed repeatable
-            const result = await addNextRepeatableJob.apply(repeat, args);
-            resolve();
-            return result;
-          };
-        },
-        { connection, prefix },
-      );
-
       worker.on('completed', () => {
-        this.clock.tick(nextTick);
+        resolve();
       });
     });
 
-    await queue.add('test', { foo: 'bar' }, { repeat: repeatOpts, jobId });
+    await queue.upsertJobScheduler('test', repeatOpts, {
+      data: { foo: 'bar' },
+    });
 
     this.clock.tick(nextTick);
 
     await afterRemoved;
 
-    const jobs = await queue.getRepeatableJobs();
-    // Repeatable job was recreated
+    const jobs = await queue.getJobSchedulers();
     expect(jobs.length).to.eql(0);
 
-    await worker!.close();
+    const delayedCount = await queue.getDelayedCount();
+    expect(delayedCount).to.eql(0);
+
+    await worker.close();
   });
 
   it('should allow adding a repeatable job after removing it', async function () {
