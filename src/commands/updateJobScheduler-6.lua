@@ -1,5 +1,5 @@
 --[[
-  Updates a job scheduler, i.e. a job factory that creates jobs based on a given schedule (repeat options).
+  Updates a job scheduler and adds next delayed job
 
     Input:
       KEYS[1] 'marker',
@@ -35,8 +35,7 @@ local schedulerKey = repeatKey .. ":" .. jobSchedulerId
 local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
 local nextDelayedJobKey =  schedulerKey .. ":" .. nextMillis
 
--- If we are overriding a repeatable job we must delete the delayed job for
--- the next iteration.
+-- Validate that scheduler exists.
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
     local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data")
