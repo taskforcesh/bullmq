@@ -32,6 +32,7 @@ import {
   FinishedPropValAttribute,
   MinimalQueue,
   RedisJobOptions,
+  JobsOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
 import {
@@ -313,18 +314,26 @@ export class Scripts {
   }
 
   async addJobScheduler(
-    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
     templateData: string,
     templateOpts: RedisJobOptions,
     opts: RepeatableOptions,
+    delayedJobOpts: JobsOptions,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
   ): Promise<string> {
+    const client = await this.queue.client;
+
     const queueKeys = this.queue.keys;
 
     const keys: (string | number | Buffer)[] = [
-      queueKeys.repeat,
+      queueKeys.marker,
+      queueKeys.meta,
+      queueKeys.id,
       queueKeys.delayed,
+      queueKeys.events,
+      queueKeys.repeat,
     ];
 
     const args = [
@@ -333,8 +342,12 @@ export class Scripts {
       jobSchedulerId,
       templateData,
       pack(templateOpts),
+      pack(delayedJobOpts),
+      Date.now(),
       queueKeys[''],
+      producerId ? this.queue.toKey(producerId) : '',
     ];
+
     return this.execCommand(client, 'addJobScheduler', keys.concat(args));
   }
 
@@ -1387,13 +1400,11 @@ export class Scripts {
    */
   async moveJobFromActiveToWait(jobId: string, token: string) {
     const client = await this.queue.client;
-    const lockKey = `${this.queue.toKey(jobId)}:lock`;
 
     const keys: (string | number)[] = [
       this.queue.keys.active,
       this.queue.keys.wait,
       this.queue.keys.stalled,
-      lockKey,
       this.queue.keys.paused,
       this.queue.keys.meta,
       this.queue.keys.limiter,
@@ -1404,13 +1415,22 @@ export class Scripts {
 
     const args = [jobId, token, this.queue.toKey(jobId)];
 
-    const pttl = await this.execCommand(
+    const result = await this.execCommand(
       client,
       'moveJobFromActiveToWait',
       keys.concat(args),
     );
 
-    return pttl < 0 ? 0 : pttl;
+    if (result < 0) {
+      throw this.finishedErrors({
+        code: result,
+        jobId,
+        command: 'moveJobFromActiveToWait',
+        state: 'active',
+      });
+    }
+
+    return result;
   }
 
   async obliterate(opts: { force: boolean; count: number }): Promise<number> {

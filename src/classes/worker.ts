@@ -569,7 +569,7 @@ export class Worker<
 
         return nextJob;
       },
-      nextJob?.opts.telemetryMetadata,
+      nextJob?.opts?.telemetry?.metadata,
     );
   }
 
@@ -788,7 +788,7 @@ will never work with more accuracy than 1ms. */
       job.token = token;
 
       // Add next scheduled job if necessary.
-      if (job.opts.repeat) {
+      if (job.opts.repeat && !job.nextRepeatableJobId) {
         // Use new job scheduler if possible
         if (job.repeatJobKey) {
           const jobScheduler = await this.jobScheduler;
@@ -798,7 +798,7 @@ will never work with more accuracy than 1ms. */
             job.name,
             job.data,
             job.opts,
-            { override: false },
+            { override: false, producerId: job.id },
           );
         } else {
           const repeat = await this.repeat;
@@ -821,7 +821,7 @@ will never work with more accuracy than 1ms. */
       return;
     }
 
-    const { telemetryMetadata: srcPropagationMedatada } = job.opts;
+    const srcPropagationMedatada = job.opts?.telemetry?.metadata;
 
     return this.telemetry<void | Job<DataType, ResultType, NameType>>(
       SpanKind.CONSUMER,
@@ -835,6 +835,8 @@ will never work with more accuracy than 1ms. */
         });
 
         const handleCompleted = async (result: ResultType) => {
+          jobsInProgress.delete(inProgressItem);
+
           if (!this.connection.closing) {
             const completed = await job.moveToCompleted(
               result,
@@ -855,6 +857,8 @@ will never work with more accuracy than 1ms. */
         };
 
         const handleFailed = async (err: Error) => {
+          jobsInProgress.delete(inProgressItem);
+
           if (!this.connection.closing) {
             try {
               // Check if the job was manually rate-limited
@@ -911,8 +915,6 @@ will never work with more accuracy than 1ms. */
             [TelemetryAttributes.JobFinishedTimestamp]: Date.now(),
             [TelemetryAttributes.JobProcessedTimestamp]: processedOn,
           });
-
-          jobsInProgress.delete(inProgressItem);
         }
       },
       srcPropagationMedatada,

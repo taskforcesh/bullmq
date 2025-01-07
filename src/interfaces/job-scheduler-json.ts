@@ -1,8 +1,8 @@
-import { JobsOptions } from '../types';
+import { JobSchedulerTemplateOptions } from '../types';
 
 export interface JobSchedulerTemplateJson<D = any> {
   data?: D;
-  opts?: Omit<JobsOptions, 'jobId' | 'repeat' | 'delay'>;
+  opts?: JobSchedulerTemplateOptions;
 }
 
 export interface JobSchedulerJson<D = any> {

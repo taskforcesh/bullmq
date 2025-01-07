@@ -20,7 +20,6 @@ import { EventEmitter } from 'events';
 import * as semver from 'semver';
 
 import { SpanKind, TelemetryAttributes } from './enums';
-import { JobsOptions, RedisJobOptions } from './types';
 
 export const errorObject: { [index: string]: any } = { value: null };
 
@@ -101,15 +100,20 @@ export function increaseMaxListeners(
   emitter.setMaxListeners(maxListeners + count);
 }
 
-export const invertObject = (obj: Record<string, string>) => {
-  return Object.entries(obj).reduce<Record<string, string>>(
-    (encodeMap, [key, value]) => {
-      encodeMap[value] = key;
-      return encodeMap;
-    },
-    {},
-  );
+type Invert<T extends Record<PropertyKey, PropertyKey>> = {
+  [V in T[keyof T]]: {
+    [K in keyof T]: T[K] extends V ? K : never;
+  }[keyof T];
 };
+
+export function invertObject<T extends Record<PropertyKey, PropertyKey>>(
+  obj: T,
+): Invert<T> {
+  return Object.entries(obj).reduce((result, [key, value]) => {
+    (result as Record<PropertyKey, PropertyKey>)[value] = key;
+    return result;
+  }, {} as Invert<T>);
+}
 
 export function isRedisInstance(obj: any): obj is Redis | Cluster {
   if (!obj) {
@@ -287,57 +291,6 @@ export const toString = (value: any): string => {
 };
 
 export const QUEUE_EVENT_SUFFIX = ':qe';
-
-const optsDecodeMap = {
-  de: 'deduplication',
-  fpof: 'failParentOnFailure',
-  idof: 'ignoreDependencyOnFailure',
-  kl: 'keepLogs',
-  rdof: 'removeDependencyOnFailure',
-  tm: 'telemetryMetadata',
-};
-
-const optsEncodeMap = invertObject(optsDecodeMap);
-optsEncodeMap.debounce = 'de';
-
-export function optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
-  const optionEntries = Object.entries(opts) as Array<[keyof JobsOptions, any]>;
-  const options: Partial<Record<string, any>> = {};
-  for (const item of optionEntries) {
-    const [attributeName, value] = item;
-    if (value !== undefined) {
-      if ((optsEncodeMap as Record<string, any>)[<string>attributeName]) {
-        options[(optsEncodeMap as Record<string, any>)[<string>attributeName]] =
-          value;
-      } else {
-        options[<string>attributeName] = value;
-      }
-    }
-  }
-
-  return options as RedisJobOptions;
-}
-
-export function optsFromJSON(rawOpts?: string): JobsOptions {
-  const opts = JSON.parse(rawOpts || '{}');
-
-  const optionEntries = Object.entries(opts) as Array<
-    [keyof RedisJobOptions, any]
-  >;
-
-  const options: Partial<Record<string, any>> = {};
-  for (const item of optionEntries) {
-    const [attributeName, value] = item;
-    if ((optsDecodeMap as Record<string, any>)[<string>attributeName]) {
-      options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
-        value;
-    } else {
-      options[<string>attributeName] = value;
-    }
-  }
-
-  return options as JobsOptions;
-}
 
 export function removeUndefinedFields<T extends Record<string, any>>(
   obj: Record<string, any>,

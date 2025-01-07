@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { after as afterNumExecutions } from 'lodash';
 import { after, beforeEach, describe, it, before } from 'mocha';
 import { v4 } from 'uuid';
 import { Queue, QueueEvents, Worker, Job } from '../src/classes';
@@ -142,8 +141,14 @@ describe('bulk jobs', () => {
     await worker.waitUntilReady();
     await worker2.waitUntilReady();
 
-    const completed = new Promise(resolve => {
-      queueEvents.on('completed', afterNumExecutions(numJobs, resolve));
+    let counter = 0;
+    const completed = new Promise<void>(resolve => {
+      queueEvents.on('completed', () => {
+        counter++;
+        if (counter === numJobs) {
+          resolve();
+        }
+      });
     });
 
     const jobs = Array.from(Array(numJobs).keys()).map(index => ({

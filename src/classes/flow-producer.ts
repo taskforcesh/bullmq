@@ -327,11 +327,27 @@ export class FlowProducer extends EventEmitter {
     const jobId = node.opts?.jobId || v4();
 
     return telemetry<Promise<JobNode>>(
-      async (span, dstPropagationMetadata) => {
+      async (span, srcPropagationMedatada) => {
         span?.setAttributes({
           [TelemetryAttributes.JobName]: node.name,
           [TelemetryAttributes.JobId]: jobId,
         });
+        const opts = node.opts;
+        let telemetry = opts?.telemetry;
+
+        if (srcPropagationMedatada && opts) {
+          const omitContext = opts.telemetry?.omitContext;
+          const telemetryMetadata =
+            opts.telemetry?.metadata ||
+            (!omitContext && srcPropagationMedatada);
+
+          if (telemetryMetadata || omitContext) {
+            telemetry = {
+              metadata: telemetryMetadata,
+              omitContext,
+            };
+          }
+        }
 
         const job = new this.Job(
           queue,
@@ -339,9 +355,9 @@ export class FlowProducer extends EventEmitter {
           node.data,
           {
             ...jobsOpts,
-            ...node.opts,
+            ...opts,
             parent: parent?.parentOpts,
-            telemetryMetadata: dstPropagationMetadata,
+            telemetry,
           },
           jobId,
         );
@@ -393,10 +409,10 @@ export class FlowProducer extends EventEmitter {
           return { job };
         }
       },
-      this.telemetry && {
+      {
         telemetry: this.telemetry,
         spanKind: SpanKind.PRODUCER,
-        queueName: node.name,
+        queueName: node.queueName,
         operation: 'addNode',
         destination: node.queueName,
       },

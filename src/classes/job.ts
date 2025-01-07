@@ -1,4 +1,3 @@
-import { ChainableCommander } from 'ioredis';
 import { debuglog } from 'util';
 import {
   BackoffOptions,
@@ -19,6 +18,8 @@ import {
   JobState,
   JobJsonSandbox,
   MinimalQueue,
+  RedisJobOptions,
+  CompressableJobOptions,
 } from '../types';
 import {
   errorObject,
@@ -28,8 +29,7 @@ import {
   parseObjectValues,
   tryCatch,
   removeUndefinedFields,
-  optsAsJSON,
-  optsFromJSON,
+  invertObject,
 } from '../utils';
 import { Backoffs } from './backoffs';
 import { Scripts } from './scripts';
@@ -38,6 +38,20 @@ import type { QueueEvents } from './queue-events';
 import { SpanKind } from '../enums';
 
 const logger = debuglog('bull');
+
+// Simple options decode map.
+const optsDecodeMap = {
+  de: 'deduplication',
+  fpof: 'failParentOnFailure',
+  idof: 'ignoreDependencyOnFailure',
+  kl: 'keepLogs',
+  rdof: 'removeDependencyOnFailure',
+} as const;
+
+const optsEncodeMap = {
+  ...invertObject(optsDecodeMap),
+  /*/ Legacy for backwards compatibility */ debounce: 'de',
+} as const;
 
 export const PRIORITY_LIMIT = 2 ** 21;
 
@@ -154,6 +168,12 @@ export class Job<
   repeatJobKey?: string;
 
   /**
+   * Produced next repetable job Id.
+   *
+   */
+  nextRepeatableJobId?: string;
+
+  /**
    * The token used for locking this job.
    */
   token?: string;
@@ -165,6 +185,9 @@ export class Job<
 
   protected toKey: (type: string) => string;
 
+  /**
+   * @deprecated use UnrecoverableError
+   */
   protected discarded: boolean;
 
   protected scripts: Scripts;
@@ -312,7 +335,7 @@ export class Job<
     jobId?: string,
   ): Job<T, R, N> {
     const data = JSON.parse(json.data || '{}');
-    const opts = optsFromJSON(json.opts);
+    const opts = Job.optsFromJSON(json.opts);
 
     const job = new this<T, R, N>(
       queue,
@@ -369,11 +392,42 @@ export class Job<
       job.processedBy = json.pb;
     }
 
+    if (json.nrjid) {
+      job.nextRepeatableJobId = json.nrjid;
+    }
+
     return job;
   }
 
   protected setScripts() {
     this.scripts = new Scripts(this.queue);
+  }
+
+  static optsFromJSON(rawOpts?: string): JobsOptions {
+    const opts = JSON.parse(rawOpts || '{}');
+
+    const optionEntries = Object.entries(opts) as Array<
+      [keyof RedisJobOptions, any]
+    >;
+
+    const options: Partial<Record<string, any>> = {};
+    for (const item of optionEntries) {
+      const [attributeName, value] = item;
+      if ((optsDecodeMap as Record<string, any>)[<string>attributeName]) {
+        options[(optsDecodeMap as Record<string, any>)[<string>attributeName]] =
+          value;
+      } else {
+        if (attributeName === 'tm') {
+          options.telemetry = { ...options.telemetry, metadata: value };
+        } else if (attributeName === 'omc') {
+          options.telemetry = { ...options.telemetry, omitContext: value };
+        } else {
+          options[<string>attributeName] = value;
+        }
+      }
+    }
+
+    return options as JobsOptions;
   }
 
   /**
@@ -436,7 +490,7 @@ export class Job<
       id: this.id,
       name: this.name,
       data: JSON.stringify(typeof this.data === 'undefined' ? {} : this.data),
-      opts: optsAsJSON(this.opts),
+      opts: Job.optsAsJSON(this.opts),
       parent: this.parent ? { ...this.parent } : undefined,
       parentKey: this.parentKey,
       progress: this.progress,
@@ -451,7 +505,39 @@ export class Job<
       deduplicationId: this.deduplicationId,
       repeatJobKey: this.repeatJobKey,
       returnvalue: JSON.stringify(this.returnvalue),
+      nrjid: this.nextRepeatableJobId,
     });
+  }
+
+  static optsAsJSON(opts: JobsOptions = {}): RedisJobOptions {
+    const optionEntries = Object.entries(opts) as Array<
+      [keyof JobsOptions, any]
+    >;
+    const options: Record<string, any> = {};
+
+    for (const [attributeName, value] of optionEntries) {
+      if (typeof value === 'undefined') {
+        continue;
+      }
+      if (attributeName in optsEncodeMap) {
+        const compressableAttribute = attributeName as keyof Omit<
+          CompressableJobOptions,
+          'debounce' | 'telemetry'
+        >;
+
+        const key = optsEncodeMap[compressableAttribute];
+        options[key] = value;
+      } else {
+        // Handle complex compressable fields separately
+        if (attributeName === 'telemetry') {
+          options.tm = value.metadata;
+          options.omc = value.omitContext;
+        } else {
+          options[attributeName] = value;
+        }
+      }
+    }
+    return options as RedisJobOptions;
   }
 
   /**
@@ -650,6 +736,10 @@ export class Job<
       this.getSpanOperation('moveToFailed'),
       this.queue.name,
       async (span, dstPropagationMedatadata) => {
+        let tm;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
+          tm = dstPropagationMedatadata;
+        }
         let result;
 
         this.updateStacktrace(err);
@@ -657,7 +747,7 @@ export class Job<
         const fieldsToUpdate = {
           failedReason: this.failedReason,
           stacktrace: JSON.stringify(this.stacktrace),
-          tm: dstPropagationMedatadata,
+          tm,
         };
 
         //
@@ -1070,7 +1160,7 @@ export class Job<
   /**
    * Moves the job to the delay set.
    *
-   * @param timestamp - timestamp where the job should be moved back to "wait"
+   * @param timestamp - timestamp when the job should be moved back to "wait"
    * @param token - token to check job is locked by current worker
    * @returns
    */
@@ -1140,6 +1230,7 @@ export class Job<
 
   /**
    * Marks a job to not be retried if it fails (even if attempts has been configured)
+   * @deprecated use UnrecoverableError
    */
   discard(): void {
     this.discarded = true;

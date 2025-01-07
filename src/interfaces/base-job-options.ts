@@ -114,9 +114,4 @@ export interface BaseJobOptions extends DefaultJobOptions {
    * Internal property used by repeatable jobs.
    */
   prevMillis?: number;
-
-  /**
-   * TelemetryMetadata, provide for context propagation.
-   */
-  telemetryMetadata?: string;
 }
