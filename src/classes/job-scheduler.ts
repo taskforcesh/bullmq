@@ -118,7 +118,7 @@ export class JobScheduler extends QueueBase {
     const multi = (await this.client).multi();
     if (nextMillis) {
       if (override) {
-        return this.trace<Job<T, R, N>>(
+        return this.telemetry<Job<T, R, N>>(
           SpanKind.PRODUCER,
           'add',
           `${this.name}.${jobName}`,
@@ -193,7 +193,7 @@ export class JobScheduler extends QueueBase {
         );
       }
 
-      return this.trace<Job<T, R, N>>(
+      return this.telemetry<Job<T, R, N>>(
         SpanKind.PRODUCER,
         'add',
         `${this.name}.${jobName}`,
