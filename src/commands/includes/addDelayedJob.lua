@@ -1,5 +1,8 @@
 --[[
-  Add marker if needed when a job is available.
+  Adds a delayed job to the queue by doing the following:
+    - Creates a new job key with the job data.
+    - adds to delayed zset.
+    - Emits a global event 'delayed' if the job is delayed.
 ]]
 
 -- Includes
