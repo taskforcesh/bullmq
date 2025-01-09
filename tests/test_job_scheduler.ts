@@ -13,8 +13,7 @@ import {
   getNextMillis,
   Worker,
 } from '../src/classes';
-import { JobsOptions } from '../src/types';
-import { removeAllQueueData } from '../src/utils';
+import { delay, removeAllQueueData } from '../src/utils';
 
 const moment = require('moment');
 
@@ -2045,6 +2044,70 @@ describe('Job Scheduler', function () {
     expect(delayedCount).to.eql(0);
 
     await worker.close();
+  });
+
+  describe('when overriding a scheduler', function () {
+    it('should not continue adding new delayed jobs from previous delayed record', async function () {
+      this.clock.restore();
+
+      const repeatOpts = { pattern: '*/2 * * * * *' };
+
+      let count = 0;
+      const worker = new Worker(
+        queueName,
+        async () => {
+          if (count === 0) {
+            await delay(2000);
+            await queue.pause(); // keep job in waiting list
+          }
+        },
+        { connection, prefix },
+      );
+
+      const completing = new Promise<void>(async resolve => {
+        worker.on('completed', async () => {
+          count++;
+          if (count === 1) {
+            const waitingCount = await queue.getWaitingCount();
+            expect(waitingCount).to.eql(1);
+
+            await queue.upsertJobScheduler(
+              'test',
+              { pattern: '*/15 * * * * *' },
+              {
+                data: { foo: 'baz' },
+              },
+            );
+
+            const waitingCount2 = await queue.getWaitingCount();
+            expect(waitingCount2).to.eql(1);
+            const delayedCount = await queue.getDelayedCount();
+            expect(delayedCount).to.eql(1);
+
+            await queue.resume();
+          } else {
+            resolve();
+          }
+        });
+      });
+
+      await queue.upsertJobScheduler('test', repeatOpts, {
+        data: { foo: 'bar' },
+      });
+
+      await completing;
+
+      const schedulerCount = await queue.getJobSchedulersCount();
+      expect(schedulerCount).to.eql(1);
+
+      const delayedCount = await queue.getDelayedCount();
+      expect(delayedCount).to.eql(1);
+
+      const totalJobs = await queue.getJobCountByTypes();
+      expect(totalJobs).to.eql(3); // 2 completed, 1 delayed
+
+      await worker.close();
+    });
   });
 
   it('should allow adding a repeatable job after removing it', async function () {
