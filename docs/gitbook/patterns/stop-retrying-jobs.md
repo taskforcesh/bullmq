@@ -5,10 +5,14 @@ When a processor throws an exception that is considered unrecoverable, you shoul
 ```typescript
 import { Worker, UnrecoverableError } from 'bullmq';
 
-const worker = new Worker('foo', async job => {
-  doSomeProcessing();
-  throw new UnrecoverableError('Unrecoverable');
-}, { connection });
+const worker = new Worker(
+  'foo',
+  async job => {
+    doSomeProcessing();
+    throw new UnrecoverableError('Unrecoverable');
+  },
+  { connection },
+);
 
 await queue.add(
   'test-retry',
@@ -22,24 +26,24 @@ await queue.add(
 
 ## Fail job when manual rate-limit
 
-When a job is rate limited using `Worker.RateLimitError` and tried again, the `attempts` check is ignored, as rate limiting is not considered a real error. However, if you want to manually check the attempts and avoid retrying the job, you can do the following:
+When a job is rate limited using `RateLimitError` and tried again, the `attempts` check is ignored, as rate limiting is not considered a real error. However, if you want to manually check the attempts and avoid retrying the job, you can check `job.attemptsStarted` as following:
 
 ```typescript
-import { Worker, UnrecoverableError } from 'bullmq';
+import { Worker, RateLimitError, UnrecoverableError } from 'bullmq';
 
 const worker = new Worker(
   'myQueue',
   async job => {
     const [isRateLimited, duration] = await doExternalCall();
     if (isRateLimited) {
-      await worker.rateLimit(duration);
-      if (job.attemptsMade >= job.opts.attempts) {
+      await queue.rateLimit(duration);
+      if (job.attemptsStarted >= job.opts.attempts) {
         throw new UnrecoverableError('Unrecoverable');
       }
       // Do not forget to throw this special exception,
       // since we must differentiate this case from a failure
       // in order to move the job to wait again.
-      throw Worker.RateLimitError();
+      throw new RateLimitError();
     }
   },
   {
@@ -52,6 +56,10 @@ const worker = new Worker(
 );
 ```
 
+{% hint style="info" %}
+`job.attemptsMade` is increased when any error different than `RateLimitError`, `DelayedError` or `WaitingChildrenError` is thrown. While `job.attemptsStarted` is increased every time that a job is moved to active.
+{% endhint %}
+
 ## Read more:
 
-- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#rateLimit)
+- 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#rateLimit)
