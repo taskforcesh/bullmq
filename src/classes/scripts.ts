@@ -369,6 +369,7 @@ export class Scripts {
       queueKeys.delayed,
       queueKeys.events,
       queueKeys.repeat,
+      producerId ? this.queue.toKey(producerId) : '',
     ];
 
     const args = [
@@ -377,7 +378,7 @@ export class Scripts {
       pack(delayedJobOpts),
       Date.now(),
       queueKeys[''],
-      producerId ? this.queue.toKey(producerId) : '',
+      producerId,
     ];
 
     return this.execCommand(client, 'updateJobScheduler', keys.concat(args));
