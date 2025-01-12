@@ -8,14 +8,14 @@
     KEYS[4] 'delayed'
     KEYS[5] events stream key
     KEYS[6] 'repeat' key
+    KEYS[7] producer key
 
     ARGV[1] next milliseconds
     ARGV[2] jobs scheduler id
     ARGV[3] msgpacked delayed opts
     ARGV[4] timestamp
     ARGV[5] prefix key
-    ARGV[6] producer key
-    ARGV[7] producer id
+    ARGV[6] producer id
 
     Output:
       next delayed job id  - OK
@@ -27,7 +27,7 @@ local timestamp = ARGV[4]
 local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[2]
 local prefixKey = ARGV[5]
-local producerId = ARGV[7]
+local producerId = ARGV[6]
 
 -- Includes
 --- @include "includes/addDelayedJob"
@@ -58,8 +58,8 @@ if prevMillis ~= false then
     addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerAttributes[1],
       schedulerAttributes[2] or "{}", delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
   
-    if ARGV[6] ~= "" then
-      rcall("HSET", ARGV[6], "nrjid", nextDelayedJobId)
+    if KEYS[7] ~= "" then
+      rcall("HSET", KEYS[7], "nrjid", nextDelayedJobId)
     end
 
     return nextDelayedJobId .. "" -- convert to string
