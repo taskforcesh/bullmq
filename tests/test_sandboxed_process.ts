@@ -520,16 +520,20 @@ function sandboxProcessTests(
           },
         );
 
-        await new Promise<void>(resolve => {
+        await new Promise<void>((resolve, reject) => {
           worker.on(
             'failed',
             after(2, (job: Job, error) => {
-              const elapse = Date.now() - start;
-              expect(error.name).to.be.eql('UnrecoverableError');
-              expect(error.message).to.be.eql(UNRECOVERABLE_ERROR);
-              expect(elapse).to.be.greaterThan(1000);
-              expect(job.attemptsMade).to.be.eql(2);
-              resolve();
+              try {
+                const elapse = Date.now() - start;
+                expect(error.name).to.be.eql('UnrecoverableError');
+                expect(error.message).to.be.eql(UNRECOVERABLE_ERROR);
+                expect(elapse).to.be.greaterThan(1000);
+                expect(job.attemptsMade).to.be.eql(2);
+                resolve();
+              } catch (err) {
+                reject(err);
+              }
             }),
           );
         });
