@@ -1984,7 +1984,7 @@ describe('workers', function () {
         connection,
         prefix,
         lockDuration: 1000,
-        lockRenewTime: 3000, // The lock will not be updated in time
+        lockRenewTime: 15000, // The lock will not be updated in time
       },
     );
     await worker.waitUntilReady();
