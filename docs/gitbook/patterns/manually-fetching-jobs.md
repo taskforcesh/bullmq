@@ -96,3 +96,24 @@ while (1) {
   }
 }
 ```
+
+## Rate Limiting
+
+If you want to move a job back to wait because your queue is rate limited.
+
+```typescript
+const worker = new Worker('my-queue', null, { connection, prefix });
+const token = 'my-token';
+await Job.create(queue, 'test', { foo: 'bar' });
+const job = (await worker.getNextJob(token)) as Job;
+
+await queue.rateLimit(60000);
+await job.moveToWait(token);
+```
+
+## Read more:
+
+- 💡 [Get Next Job API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#getNextJob)
+- 💡 [Move To Completed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToCompleted)
+- 💡 [Move To Failed API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToFailed)
+- 💡 [Move To Wait API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#moveToWait)
