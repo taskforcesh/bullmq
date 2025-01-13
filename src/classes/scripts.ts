@@ -32,6 +32,7 @@ import {
   FinishedPropValAttribute,
   MinimalQueue,
   RedisJobOptions,
+  JobsOptions,
 } from '../types';
 import { ErrorCode } from '../enums';
 import {
@@ -313,18 +314,26 @@ export class Scripts {
   }
 
   async addJobScheduler(
-    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
     templateData: string,
     templateOpts: RedisJobOptions,
     opts: RepeatableOptions,
+    delayedJobOpts: JobsOptions,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
   ): Promise<string> {
+    const client = await this.queue.client;
+
     const queueKeys = this.queue.keys;
 
     const keys: (string | number | Buffer)[] = [
-      queueKeys.repeat,
+      queueKeys.marker,
+      queueKeys.meta,
+      queueKeys.id,
       queueKeys.delayed,
+      queueKeys.events,
+      queueKeys.repeat,
     ];
 
     const args = [
@@ -333,9 +342,46 @@ export class Scripts {
       jobSchedulerId,
       templateData,
       pack(templateOpts),
+      pack(delayedJobOpts),
+      Date.now(),
       queueKeys[''],
+      producerId ? this.queue.toKey(producerId) : '',
     ];
+
     return this.execCommand(client, 'addJobScheduler', keys.concat(args));
+  }
+
+  async updateJobSchedulerNextMillis(
+    jobSchedulerId: string,
+    nextMillis: number,
+    delayedJobOpts: JobsOptions,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
+  ): Promise<string | null> {
+    const client = await this.queue.client;
+
+    const queueKeys = this.queue.keys;
+
+    const keys: (string | number | Buffer)[] = [
+      queueKeys.marker,
+      queueKeys.meta,
+      queueKeys.id,
+      queueKeys.delayed,
+      queueKeys.events,
+      queueKeys.repeat,
+      producerId ? this.queue.toKey(producerId) : '',
+    ];
+
+    const args = [
+      nextMillis,
+      jobSchedulerId,
+      pack(delayedJobOpts),
+      Date.now(),
+      queueKeys[''],
+      producerId,
+    ];
+
+    return this.execCommand(client, 'updateJobScheduler', keys.concat(args));
   }
 
   async updateRepeatableJobMillis(
@@ -351,14 +397,6 @@ export class Scripts {
       legacyCustomKey,
     ];
     return this.execCommand(client, 'updateRepeatableJobMillis', args);
-  }
-
-  async updateJobSchedulerNextMillis(
-    client: RedisClient,
-    jobSchedulerId: string,
-    nextMillis: number,
-  ): Promise<number> {
-    return client.zadd(this.queue.keys.repeat, nextMillis, jobSchedulerId);
   }
 
   private removeRepeatableArgs(

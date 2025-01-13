@@ -3,6 +3,7 @@ import { pathToFileURL } from 'url';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import {
+  Child,
   FlowProducer,
   Job,
   Queue,
@@ -13,7 +14,6 @@ import {
 import { beforeEach, before, after as afterAll, it } from 'mocha';
 import { v4 } from 'uuid';
 import { delay, removeAllQueueData } from '../src/utils';
-import { Child } from '../src/classes/child';
 const { stdout, stderr } = require('test-console');
 
 describe('Sandboxed process using child processes', () => {

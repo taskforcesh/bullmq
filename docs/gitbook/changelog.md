@@ -1,3 +1,31 @@
+## [5.34.9](https://github.com/taskforcesh/bullmq/compare/v5.34.8...v5.34.9) (2025-01-12)
+
+
+### Bug Fixes
+
+* **job-scheduler:** add next delayed job only when prevMillis matches with producerId ([#3001](https://github.com/taskforcesh/bullmq/issues/3001)) ([4ea35dd](https://github.com/taskforcesh/bullmq/commit/4ea35dd9e16ff0197f204210696f41c0c5bd0e30))
+
+## [5.34.8](https://github.com/taskforcesh/bullmq/compare/v5.34.7...v5.34.8) (2025-01-08)
+
+
+### Performance Improvements
+
+* **job-scheduler:** add delayed job and update scheduler in same script ([#2997](https://github.com/taskforcesh/bullmq/issues/2997)) ([9be28a0](https://github.com/taskforcesh/bullmq/commit/9be28a0c4a907798a447d02ca50662c12333dd82))
+
+## [5.34.7](https://github.com/taskforcesh/bullmq/compare/v5.34.6...v5.34.7) (2025-01-06)
+
+
+### Performance Improvements
+
+* **job-scheduler:** add delayed job and scheduler in same script ([#2993](https://github.com/taskforcesh/bullmq/issues/2993)) ([95718e8](https://github.com/taskforcesh/bullmq/commit/95718e888ba64b4071f21bbe0823b55a51ab145c))
+
+## [5.34.6](https://github.com/taskforcesh/bullmq/compare/v5.34.5...v5.34.6) (2024-12-31)
+
+
+### Bug Fixes
+
+* **job-scheduler:** avoid duplicates when upserting in a quick sequence ([#2991](https://github.com/taskforcesh/bullmq/issues/2991)) ([e8cdb99](https://github.com/taskforcesh/bullmq/commit/e8cdb99881bc7cebbc48cb7834da5eafa289712f))
+
 ## [5.34.5](https://github.com/taskforcesh/bullmq/compare/v5.34.4...v5.34.5) (2024-12-25)
 
 
