@@ -86,6 +86,7 @@
 * [Stop retrying jobs](patterns/stop-retrying-jobs.md)
 * [Timeout jobs](patterns/timeout-jobs.md)
 * [Redis Cluster](patterns/redis-cluster.md)
+* [TTL for Sandboxed processors](patterns/ttl-for-sandboxed-processors.md)
 
 ## BullMQ Pro
 
