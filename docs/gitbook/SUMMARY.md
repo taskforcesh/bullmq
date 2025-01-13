@@ -85,8 +85,8 @@
 * [Failing fast when Redis is down](patterns/failing-fast-when-redis-is-down.md)
 * [Stop retrying jobs](patterns/stop-retrying-jobs.md)
 * [Timeout jobs](patterns/timeout-jobs.md)
+* [Timeout for Sandboxed processors](patterns/timeout-for-sandboxed-processors.md)
 * [Redis Cluster](patterns/redis-cluster.md)
-* [TTL for Sandboxed processors](patterns/ttl-for-sandboxed-processors.md)
 
 ## BullMQ Pro
 
