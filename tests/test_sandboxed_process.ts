@@ -1105,6 +1105,39 @@ function sandboxProcessTests(
       );
 
       await worker.close();
+
+      const failedJobs = await queue.getFailed();
+      expect(failedJobs).to.have.lengthOf(1);
+      expect(failedJobs[0].failedReason).to.be.equal(
+        'Unexpected exit code: 1 signal: null',
+      );
+    });
+
+    it('should fail if wrapping with ttl pattern', async () => {
+      const processFile = __dirname + '/fixtures/fixture_processor_ttl.js';
+
+      const worker = new Worker(queueName, processFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const job = await queue.add('test', { exitCode: 1 });
+
+      await expect(job.waitUntilFinished(queueEvents)).to.be.rejectedWith(
+        'Unexpected exit code: 10 signal: null',
+      );
+
+      await worker.close();
+
+      const failedJobs = await queue.getFailed();
+      expect(failedJobs).to.have.lengthOf(1);
+      expect(failedJobs[0].failedReason).to.be.equal(
+        'Unexpected exit code: 10 signal: null',
+      );
+
+      expect(failedJobs[0].progress).to.be.equal(50);
     });
 
     it('should fail if the process file is broken', async () => {
