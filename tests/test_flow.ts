@@ -2129,14 +2129,14 @@ describe('flows', () => {
       let grandChildrenProcessor,
         processedGrandChildren = 0;
       const processingChildren = new Promise<void>(resolve => {
-        grandChildrenProcessor = async () => {
+        grandChildrenProcessor = async job => {
           processedGrandChildren++;
+
+          await delay(job.data.delay);
 
           if (processedGrandChildren === 2) {
             return resolve();
           }
-
-          await delay(200);
 
           throw new Error('failed');
         };
@@ -2169,13 +2169,13 @@ describe('flows', () => {
             children: [
               {
                 name,
-                data: { foo: 'bar' },
+                data: { foo: 'bar', delay: 200 },
                 queueName: grandChildrenQueueName,
                 opts: { failParentOnFailure: true },
               },
               {
                 name,
-                data: { foo: 'baz' },
+                data: { foo: 'baz', delay: 2500 },
                 queueName: grandChildrenQueueName,
               },
             ],
@@ -2186,6 +2186,12 @@ describe('flows', () => {
       const failed = new Promise<void>(resolve => {
         queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
           if (jobId === tree.job.id) {
+            await delay(200);
+            const grandChildState = await grandChildrenQueue.getJobState(
+              tree.children![1].children![1].job.id!,
+            );
+            expect(grandChildState).to.be.equal('active');
+
             expect(prev).to.be.equal('waiting-children');
             expect(failedReason).to.be.equal(
               `child ${prefix}:${queueName}:${tree.children[1].job.id} failed`,
