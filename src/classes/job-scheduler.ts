@@ -185,6 +185,7 @@ export class JobScheduler extends QueueBase {
             const jobId = await this.scripts.updateJobSchedulerNextMillis(
               jobSchedulerId,
               nextMillis,
+              JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
               Job.optsAsJSON(mergedOpts),
               producerId,
             );
