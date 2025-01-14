@@ -56,8 +56,16 @@ if prevMillis ~= false then
 
     local delayedOpts = cmsgpack.unpack(ARGV[4])
 
+    -- TODO: remove this workaround in next breaking change,
+    -- all job-schedulers must save job data
+    local templateData = schedulerAttributes[2] or ARGV[3]
+
+    if templateData and templateData ~= '{}' then
+      rcall("HSET", schedulerKey, "data", templateData)
+    end
+
     addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerAttributes[1],
-      schedulerAttributes[2] or ARGV[3], delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
+      templateData or '{}', delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
   
     if KEYS[7] ~= "" then
       rcall("HSET", KEYS[7], "nrjid", nextDelayedJobId)
