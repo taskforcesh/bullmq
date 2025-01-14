@@ -12,10 +12,11 @@
 
     ARGV[1] next milliseconds
     ARGV[2] jobs scheduler id
-    ARGV[3] msgpacked delayed opts
-    ARGV[4] timestamp
-    ARGV[5] prefix key
-    ARGV[6] producer id
+    ARGV[3] Json stringified delayed data
+    ARGV[4] msgpacked delayed opts
+    ARGV[5] timestamp
+    ARGV[6] prefix key
+    ARGV[7] producer id
 
     Output:
       next delayed job id  - OK
@@ -23,11 +24,11 @@
 local rcall = redis.call
 local repeatKey = KEYS[6]
 local delayedKey = KEYS[4]
-local timestamp = ARGV[4]
 local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[2]
-local prefixKey = ARGV[5]
-local producerId = ARGV[6]
+local timestamp = ARGV[5]
+local prefixKey = ARGV[6]
+local producerId = ARGV[7]
 
 -- Includes
 --- @include "includes/addDelayedJob"
@@ -53,10 +54,10 @@ if prevMillis ~= false then
 
     rcall("INCR", KEYS[3])
 
-    local delayedOpts = cmsgpack.unpack(ARGV[3])
+    local delayedOpts = cmsgpack.unpack(ARGV[4])
 
     addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerAttributes[1],
-      schedulerAttributes[2] or "{}", delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
+      schedulerAttributes[2] or ARGV[3], delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
   
     if KEYS[7] ~= "" then
       rcall("HSET", KEYS[7], "nrjid", nextDelayedJobId)

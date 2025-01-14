@@ -354,6 +354,7 @@ export class Scripts {
   async updateJobSchedulerNextMillis(
     jobSchedulerId: string,
     nextMillis: number,
+    templateData: string,
     delayedJobOpts: JobsOptions,
     // The job id of the job that produced this next iteration
     producerId?: string,
@@ -375,6 +376,7 @@ export class Scripts {
     const args = [
       nextMillis,
       jobSchedulerId,
+      templateData,
       pack(delayedJobOpts),
       Date.now(),
       queueKeys[''],
