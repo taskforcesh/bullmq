@@ -1306,6 +1306,7 @@ describe('Job Scheduler', function () {
           }
         } catch (error) {
           console.log(error);
+          reject(error);
         }
       });
     });
@@ -1326,6 +1327,72 @@ describe('Job Scheduler', function () {
     await completing;
     await worker.close();
     delayStub.restore();
+  });
+
+  describe('when template data is only present in delayed job', function () {
+    it('should continue saving data in next delayed jobs', async function () {
+      const client = await queue.client;
+
+      const date = new Date('2017-05-05 13:12:00');
+      this.clock.setSystemTime(date);
+
+      const nextTick = ONE_DAY + 10 * ONE_SECOND;
+      const delay = 5 * ONE_SECOND + 500;
+
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await client.hdel(`${prefix}:${queueName}:repeat:repeat`, 'data');
+          this.clock.tick(nextTick);
+        },
+        {
+          autorun: false,
+          connection,
+          prefix,
+          skipStalledCheck: true,
+          skipLockRenewal: true,
+        },
+      );
+      const delayStub = sinon.stub(worker, 'delay').callsFake(async () => {
+        console.log('delay');
+      });
+      const templateData = { foo: 'bar' };
+
+      let prev: Job;
+      let counter = 0;
+      const completing = new Promise<void>((resolve, reject) => {
+        worker.on('completed', async job => {
+          try {
+            expect(job.data).to.deep.equal(templateData);
+
+            counter++;
+            if (counter == 5) {
+              resolve();
+            }
+          } catch (error) {
+            console.log(error);
+            reject(error);
+          }
+        });
+      });
+
+      await queue.upsertJobScheduler(
+        'repeat',
+        {
+          pattern: '0 1 * * *',
+          endDate: new Date('2017-05-10 01:00:00'),
+        },
+        { data: { foo: 'bar' } },
+      );
+
+      this.clock.tick(nextTick + delay);
+
+      worker.run();
+
+      await completing;
+      await worker.close();
+      delayStub.restore();
+    });
   });
 
   describe('when utc option is provided', function () {
