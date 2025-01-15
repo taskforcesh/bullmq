@@ -4,7 +4,7 @@ Deduplication in BullMQ is a process where job execution is delayed and deduplic
 
 ## Simple Mode
 
-The Simple Mode takes a different approach by extending the deduplication duration until the job's completion or failure. This means as long as the job remains in an incomplete state (neither succeeded nor failed), any subsequent job with the same deduplication ID will be ignored.
+The Simple Mode extends the deduplication duration until the job's completion or failure. This means that as long as the job remains in an incomplete state (neither succeeded nor failed), any subsequent job with the same deduplication ID will be ignored.
 
 ```typescript
 // Add a job that will be deduplicated as this record is not finished (completed or failed).
@@ -46,7 +46,7 @@ Any manual deletion will disable the deduplication. For example, when calling _j
 
 ## Get Deduplication Job Id
 
-If you need to know which is the job id that started the deduplicated state. You can call **getDeduplicationJobId** method.
+If you need to know the id of the job that started the deduplicated state, you can call the **getDeduplicationJobId** method.
 
 ```typescript
 const jobId = await myQueue.getDeduplicationJobId('customValue');
@@ -54,7 +54,7 @@ const jobId = await myQueue.getDeduplicationJobId('customValue');
 
 ## Remove Deduplication Key
 
-If you need to stop deduplication before ttl finishes or before finishing a job. You can call **removeDeduplicationKey** method.
+If you need to stop deduplication before ttl finishes or before finishing a job, you can call the **removeDeduplicationKey** method.
 
 ```typescript
 await myQueue.removeDeduplicationKey('customValue');
