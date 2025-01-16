@@ -84,17 +84,16 @@ local schedulerKey = repeatKey .. ":" .. jobSchedulerId
 local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
 local nextDelayedJobKey =  schedulerKey .. ":" .. nextMillis
 
+local nextDelayedJobDoesNotExist = rcall("EXISTS", nextDelayedJobKey) ~= 1
 -- If we are overriding a repeatable job we must delete the delayed job for
 -- the next iteration.
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
-  local delayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
+  local prevDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
 
-  if rcall("ZSCORE", delayedKey, delayedJobId) ~= false
-    and (rcall("EXISTS", nextDelayedJobKey) ~= 1 
-    or delayedJobId == nextDelayedJobId) then
-    removeJob(delayedJobId, true, prefixKey, true --[[remove debounce key]])
-    rcall("ZREM", delayedKey, delayedJobId)
+  if rcall("ZSCORE", delayedKey, prevDelayedJobId) ~= false and  then
+    removeJob(prevDelayedJobId, true, prefixKey, true --[[remove debounce key]])
+    rcall("ZREM", delayedKey, prevDelayedJobId)
   end
 end
 
@@ -102,19 +101,21 @@ local schedulerOpts = cmsgpack.unpack(ARGV[2])
 
 storeRepeatableJob(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
 
-local eventsKey = KEYS[5]
-local metaKey = KEYS[2]
-local maxEvents = getOrSetMaxEvents(metaKey)
+if nextDelayedJobDoesNotExist then
+  local eventsKey = KEYS[5]
+  local metaKey = KEYS[2]
+  local maxEvents = getOrSetMaxEvents(metaKey)
 
-rcall("INCR", KEYS[3])
+  rcall("INCR", KEYS[3])
 
-local delayedOpts = cmsgpack.unpack(ARGV[6])
+  local delayedOpts = cmsgpack.unpack(ARGV[6])
 
-addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerOpts['name'], ARGV[4], delayedOpts,
-  timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
+  addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerOpts['name'], ARGV[4], delayedOpts,
+    timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
 
-if ARGV[9] ~= "" then
-  rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
+  if ARGV[9] ~= "" then
+    rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
+  end
+
+  return nextDelayedJobId .. "" -- convert to string
 end
-
-return nextDelayedJobId .. "" -- convert to string

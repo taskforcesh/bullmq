@@ -49,29 +49,31 @@ if prevMillis ~= false then
     rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
     rcall("HINCRBY", schedulerKey, "ic", 1)
 
-    local eventsKey = KEYS[5]
-    local metaKey = KEYS[2]
-    local maxEvents = getOrSetMaxEvents(metaKey)
+    if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
+      local eventsKey = KEYS[5]
+      local metaKey = KEYS[2]
+      local maxEvents = getOrSetMaxEvents(metaKey)
 
-    rcall("INCR", KEYS[3])
+      rcall("INCR", KEYS[3])
 
-    local delayedOpts = cmsgpack.unpack(ARGV[4])
+      local delayedOpts = cmsgpack.unpack(ARGV[4])
 
-    -- TODO: remove this workaround in next breaking change,
-    -- all job-schedulers must save job data
-    local templateData = schedulerAttributes[2] or ARGV[3]
+      -- TODO: remove this workaround in next breaking change,
+      -- all job-schedulers must save job data
+      local templateData = schedulerAttributes[2] or ARGV[3]
 
-    if templateData and templateData ~= '{}' then
-      rcall("HSET", schedulerKey, "data", templateData)
+      if templateData and templateData ~= '{}' then
+        rcall("HSET", schedulerKey, "data", templateData)
+      end
+
+        addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerAttributes[1],
+          templateData or '{}', delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
+      
+      if KEYS[7] ~= "" then
+        rcall("HSET", KEYS[7], "nrjid", nextDelayedJobId)
+      end
+
+      return nextDelayedJobId .. "" -- convert to string
     end
-
-    addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerAttributes[1],
-      templateData or '{}', delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
-  
-    if KEYS[7] ~= "" then
-      rcall("HSET", KEYS[7], "nrjid", nextDelayedJobId)
-    end
-
-    return nextDelayedJobId .. "" -- convert to string
   end
 end
