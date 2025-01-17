@@ -275,6 +275,7 @@ export class JobScheduler extends QueueBase {
     if (jobData) {
       return {
         key,
+        iterationCount: parseInt(jobData.ic) || null,
         name: jobData.name,
         endDate: parseInt(jobData.endDate) || null,
         tz: jobData.tz || null,

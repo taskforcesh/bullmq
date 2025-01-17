@@ -47,6 +47,7 @@ if prevMillis ~= false then
     local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data")
 
     rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
+    rcall("HINCRBY", schedulerKey, "ic", 1)
 
     local eventsKey = KEYS[5]
     local metaKey = KEYS[2]

@@ -408,6 +408,7 @@ describe('Job Scheduler', function () {
 
     expect(scheduler).to.deep.equal({
       key: 'test',
+      iterationCount: 1,
       name: 'test',
       endDate: null,
       tz: null,
@@ -750,6 +751,7 @@ describe('Job Scheduler', function () {
 
         expect(scheduler).to.deep.equal({
           key: 'rrule',
+          iterationCount: 1,
           name: 'rrule',
           endDate: null,
           next: 1486481042000,
