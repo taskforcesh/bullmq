@@ -76,7 +76,7 @@ local function storeRepeatableJob(schedulerId, schedulerKey, repeatKey, nextMill
     table.insert(optionalValues, templateData)
   end
 
-  rcall("HMSET", schedulerKey, "name", opts['name'],
+  rcall("HMSET", schedulerKey, "name", opts['name'], "ic", 1,
     unpack(optionalValues))
 end
 
