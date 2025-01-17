@@ -1721,6 +1721,7 @@ describe('Job Scheduler', function () {
 
       expect(jobSchedulers[0]).to.deep.equal({
         key: 'test',
+        iterationCount: 2,
         name: 'a',
         endDate: null,
         tz: 'Asia/Calcutta',
