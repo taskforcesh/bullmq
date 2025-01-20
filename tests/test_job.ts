@@ -933,6 +933,21 @@ describe('Job', function () {
     });
   });
 
+  describe('.moveToWait', () => {
+    it('moves job to wait from active', async function () {
+      const worker = new Worker(queueName, null, { connection, prefix });
+      const token = 'my-token';
+      await Job.create(queue, 'test', { foo: 'bar' });
+      const job = (await worker.getNextJob(token)) as Job;
+      const isWaiting = await job.isWaiting();
+      expect(isWaiting).to.be.equal(false);
+      await job.moveToWait(token);
+      const isisWaiting2 = await job.isWaiting();
+      expect(isisWaiting2).to.be.equal(true);
+      await worker.close();
+    });
+  });
+
   describe('.changeDelay', () => {
     it('can change delay of a delayed job', async function () {
       this.timeout(8000);
