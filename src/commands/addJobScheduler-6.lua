@@ -84,7 +84,6 @@ local schedulerKey = repeatKey .. ":" .. jobSchedulerId
 local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
 local nextDelayedJobKey =  schedulerKey .. ":" .. nextMillis
 
-local nextDelayedJobDoesNotExist = rcall("EXISTS", nextDelayedJobKey) ~= 1
 -- If we are overriding a repeatable job we must delete the delayed job for
 -- the next iteration.
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
@@ -100,6 +99,8 @@ end
 local schedulerOpts = cmsgpack.unpack(ARGV[2])
 
 storeRepeatableJob(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
+
+local nextDelayedJobDoesNotExist = rcall("EXISTS", nextDelayedJobKey) ~= 1
 
 if nextDelayedJobDoesNotExist then
   local eventsKey = KEYS[5]
