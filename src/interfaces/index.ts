@@ -26,3 +26,4 @@ export * from './sandboxed-job';
 export * from './sandboxed-options';
 export * from './worker-options';
 export * from './telemetry';
+export * from './receiver';
