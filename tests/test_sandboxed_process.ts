@@ -854,7 +854,7 @@ function sandboxProcessTests(
         parentWorker.on('failed', async (_, error: Error) => {
           try {
             expect(error.message).to.be.eql(
-              'TimeoutError: getChildrenValues timed out in (100ms)',
+              'TimeoutError: getChildrenValues timed out in (500ms)',
             );
             await parentWorker.close();
             resolve();
