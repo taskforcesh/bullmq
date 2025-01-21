@@ -884,6 +884,9 @@ function sandboxProcessTests(
       await parentWorker.close();
       await childWorker.close();
       await flow.close();
+
+      // Restore Job.getChildrenValues
+      Job.prototype.getChildrenValues = getChildrenValues;
     });
 
     it('should process and move to delayed', async () => {
