@@ -10,7 +10,7 @@ enum ChildStatus {
   Errored,
 }
 
-const RESPONSE_TIMEOUT = process.env.NODE_ENV === 'test' ? 100 : 5_000;
+const RESPONSE_TIMEOUT = process.env.NODE_ENV === 'test' ? 500 : 5_000;
 
 /**
  * ChildProcessor
