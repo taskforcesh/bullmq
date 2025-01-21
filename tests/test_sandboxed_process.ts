@@ -803,6 +803,11 @@ function sandboxProcessTests(
             reject(err);
           }
         });
+
+        parentWorker.on('failed', async (_, error: Error) => {
+          await parentWorker.close();
+          reject(error);
+        });
       });
 
       const flow = new FlowProducer({ connection, prefix });
