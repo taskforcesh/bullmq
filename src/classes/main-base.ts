@@ -5,12 +5,10 @@
 import { ChildProcessor } from './child-processor';
 import { ParentCommand, ChildCommand } from '../enums';
 import { errorToJSON, toString } from '../utils';
+import { Receiver } from '../interfaces';
 
-export default (
-  send: (msg: any) => Promise<void>,
-  receiver: { on: (evt: 'message', cb: (msg: any) => void) => void },
-) => {
-  const childProcessor = new ChildProcessor(send);
+export default (send: (msg: any) => Promise<void>, receiver: Receiver) => {
+  const childProcessor = new ChildProcessor(send, receiver);
 
   receiver?.on('message', async msg => {
     try {

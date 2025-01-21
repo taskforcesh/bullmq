@@ -28,32 +28,46 @@ const sandbox = <T, R, N extends string>(
             child.on('exit', exitHandler);
 
             msgHandler = async (msg: ChildMessage) => {
-              switch (msg.cmd) {
-                case ParentCommand.Completed:
-                  resolve(msg.value);
-                  break;
-                case ParentCommand.Failed:
-                case ParentCommand.Error: {
-                  const err = new Error();
-                  Object.assign(err, msg.value);
-                  reject(err);
-                  break;
+              try {
+                switch (msg.cmd) {
+                  case ParentCommand.Completed:
+                    resolve(msg.value);
+                    break;
+                  case ParentCommand.Failed:
+                  case ParentCommand.Error: {
+                    const err = new Error();
+                    Object.assign(err, msg.value);
+                    reject(err);
+                    break;
+                  }
+                  case ParentCommand.Progress:
+                    await job.updateProgress(msg.value);
+                    break;
+                  case ParentCommand.Log:
+                    await job.log(msg.value);
+                    break;
+                  case ParentCommand.MoveToDelayed:
+                    await job.moveToDelayed(
+                      msg.value?.timestamp,
+                      msg.value?.token,
+                    );
+                    break;
+                  case ParentCommand.Update:
+                    await job.updateData(msg.value);
+                    break;
+                  case ParentCommand.GetChildrenValues:
+                    {
+                      const value = await job.getChildrenValues();
+                      child.send({
+                        requestId: msg.requestId,
+                        cmd: ChildCommand.GetChildrenValuesResponse,
+                        value,
+                      });
+                    }
+                    break;
                 }
-                case ParentCommand.Progress:
-                  await job.updateProgress(msg.value);
-                  break;
-                case ParentCommand.Log:
-                  await job.log(msg.value);
-                  break;
-                case ParentCommand.MoveToDelayed:
-                  await job.moveToDelayed(
-                    msg.value?.timestamp,
-                    msg.value?.token,
-                  );
-                  break;
-                case ParentCommand.Update:
-                  await job.updateData(msg.value);
-                  break;
+              } catch (err) {
+                reject(err);
               }
             };
 
