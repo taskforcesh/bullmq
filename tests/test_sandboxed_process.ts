@@ -794,7 +794,7 @@ function sandboxProcessTests(
         parentWorker.on('completed', async (job: Job, value: any) => {
           try {
             expect(value).to.be.eql({
-              [`bull:${queueName}:${childJobId}`]: { childResult: 'bar' },
+              [`${prefix}:${queueName}:${childJobId}`]: { childResult: 'bar' },
             });
             await parentWorker.close();
             resolve();
