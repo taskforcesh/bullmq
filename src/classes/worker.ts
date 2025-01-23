@@ -1007,18 +1007,17 @@ will never work with more accuracy than 1ms. */
       return this.closing;
     }
 
-    await this.trace<void>(
-      SpanKind.INTERNAL,
-      'close',
-      this.name,
-      async span => {
-        span?.setAttributes({
-          [TelemetryAttributes.WorkerId]: this.id,
-          [TelemetryAttributes.WorkerName]: this.opts.name,
-          [TelemetryAttributes.WorkerForceClose]: force,
-        });
-
-        this.closing = (async () => {
+    this.closing = (async () => {
+      await this.trace<void>(
+        SpanKind.INTERNAL,
+        'close',
+        this.name,
+        async span => {
+          span?.setAttributes({
+            [TelemetryAttributes.WorkerId]: this.id,
+            [TelemetryAttributes.WorkerName]: this.opts.name,
+            [TelemetryAttributes.WorkerForceClose]: force,
+          });
           this.emit('closing', 'closing queue');
           this.abortDelayController?.abort();
 
@@ -1048,11 +1047,11 @@ will never work with more accuracy than 1ms. */
 
           this.closed = true;
           this.emit('closed');
-        })();
+        },
+      );
+    })();
 
-        return await this.closing;
-      },
-    );
+    return await this.closing;
   }
 
   /**
