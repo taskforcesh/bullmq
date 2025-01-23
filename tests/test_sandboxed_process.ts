@@ -768,6 +768,127 @@ function sandboxProcessTests(
       await worker.close();
     });
 
+    it('can get children values by calling getChildrenValues', async () => {
+      const childJobId = 'child-job-id';
+      const childProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_values_child.js';
+      const parentProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_values.js';
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const childWorker = new Worker(queueName, childProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const parentCompleting = new Promise<void>((resolve, reject) => {
+        parentWorker.on('completed', async (job: Job, value: any) => {
+          try {
+            expect(value).to.be.eql({
+              [`${prefix}:${queueName}:${childJobId}`]: { childResult: 'bar' },
+            });
+            await parentWorker.close();
+            resolve();
+          } catch (err) {
+            await parentWorker.close();
+            reject(err);
+          }
+        });
+
+        parentWorker.on('failed', async (_, error: Error) => {
+          await parentWorker.close();
+          reject(error);
+        });
+      });
+
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        opts: { jobId: 'job-id' },
+        children: [
+          { name: 'child-job', queueName, opts: { jobId: childJobId } },
+        ],
+      });
+
+      await parentCompleting;
+      await parentWorker.close();
+      await childWorker.close();
+      await flow.close();
+    });
+
+    it('will fail job if calling getChildrenValues is too slow', async () => {
+      // Mockup Job.getChildrenValues to be slow
+      const getChildrenValues = Job.prototype.getChildrenValues;
+      Job.prototype.getChildrenValues = async function () {
+        await delay(50000);
+        return getChildrenValues.call(this);
+      };
+
+      const childJobId = 'child-job-id';
+      const childProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_values_child.js';
+      const parentProcessFile =
+        __dirname + '/fixtures/fixture_processor_get_children_values.js';
+      const parentQueueName = `parent-queue-${v4()}`;
+
+      const parentWorker = new Worker(parentQueueName, parentProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const childWorker = new Worker(queueName, childProcessFile, {
+        connection,
+        prefix,
+        drainDelay: 1,
+        useWorkerThreads,
+      });
+
+      const parentFailing = new Promise<void>((resolve, reject) => {
+        parentWorker.on('failed', async (_, error: Error) => {
+          try {
+            expect(error.message).to.be.eql(
+              'TimeoutError: getChildrenValues timed out in (500ms)',
+            );
+            await parentWorker.close();
+            resolve();
+          } catch (err) {
+            await parentWorker.close();
+            reject(err);
+          }
+        });
+      });
+
+      const flow = new FlowProducer({ connection, prefix });
+      await flow.add({
+        name: 'parent-job',
+        queueName: parentQueueName,
+        opts: { jobId: 'job-id' },
+        children: [
+          { name: 'child-job', queueName, opts: { jobId: childJobId } },
+        ],
+      });
+
+      await parentFailing;
+      await parentWorker.close();
+      await childWorker.close();
+      await flow.close();
+
+      // Restore Job.getChildrenValues
+      Job.prototype.getChildrenValues = getChildrenValues;
+    });
+
     it('should process and move to delayed', async () => {
       const processFile =
         __dirname + '/fixtures/fixture_processor_move_to_delayed.js';
