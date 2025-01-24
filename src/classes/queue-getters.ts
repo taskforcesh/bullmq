@@ -572,4 +572,32 @@ export class QueueGetters<JobBase extends Job = Job> extends QueueBase {
     });
     return clients;
   }
+
+  /**
+   * Export the metrics for the queue in the Prometheus format.
+   * Automatically exports all the counts returned by getJobCounts().
+   *
+   * @returns - Returns a string with the metrics in the Prometheus format.
+   *
+   * @sa {@link https://prometheus.io/docs/instrumenting/exposition_formats/}
+   *
+   **/
+  async exportPrometheusMetrics(): Promise<string> {
+    const counts = await this.getJobCounts();
+    const metrics: string[] = [];
+
+    // Match the test's expected HELP text
+    metrics.push(
+      '# HELP bullmq_job_count Number of jobs in the queue by state',
+    );
+    metrics.push('# TYPE bullmq_job_count gauge');
+
+    for (const [state, count] of Object.entries(counts)) {
+      metrics.push(
+        `bullmq_job_count{queue="${this.name}", state="${state}"} ${count}`,
+      );
+    }
+
+    return metrics.join('\n');
+  }
 }
