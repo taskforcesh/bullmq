@@ -1,3 +1,10 @@
+# [5.36.0](https://github.com/taskforcesh/bullmq/compare/v5.35.1...v5.36.0) (2025-01-24)
+
+
+### Features
+
+* **job-scheduler:** save iteration count ([#3018](https://github.com/taskforcesh/bullmq/issues/3018)) ([ad5c07c](https://github.com/taskforcesh/bullmq/commit/ad5c07cc7672a3f7a7185310b1250763a5fef76b))
+
 ## [5.35.1](https://github.com/taskforcesh/bullmq/compare/v5.35.0...v5.35.1) (2025-01-23)
 
 
