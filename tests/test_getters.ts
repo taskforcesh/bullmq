@@ -4,6 +4,8 @@
 import { expect } from 'chai';
 import { after } from 'lodash';
 import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
+import * as sinon from 'sinon';
+
 import { default as IORedis } from 'ioredis';
 import { v4 } from 'uuid';
 import { FlowProducer, Queue, QueueEvents, Worker } from '../src/classes';
@@ -1009,6 +1011,47 @@ describe('Jobs getters', function () {
 
       await worker.close();
       await flowProducer.close();
+    });
+  });
+
+  describe('#exportPrometheusMetrics', () => {
+    afterEach(() => {
+      sinon.restore();
+    });
+
+    it('should export all job states in Prometheus gauge format', async () => {
+      const counts = {
+        waiting: 5,
+        active: 3,
+        completed: 10,
+        delayed: 2,
+        failed: 1,
+        paused: 0,
+      };
+
+      sinon.stub(queue, 'getJobCounts').resolves(counts);
+      const metrics = await queue.exportPrometheusMetrics();
+
+      expect(metrics).to.include(
+        '# HELP bullmq_job_count Number of jobs in the queue by state',
+      );
+      expect(metrics).to.include('# TYPE bullmq_job_count gauge');
+
+      // Verify all states are present
+      for (const [state, count] of Object.entries(counts)) {
+        const expectedLine = `bullmq_job_count{queue="${queueName}", state="${state}"} ${count}`;
+        expect(metrics).to.include(expectedLine);
+      }
+    });
+
+    it('should handle empty states gracefully', async () => {
+      const counts = {}; // Edge case (though BullMQ never returns this)
+      sinon.stub(queue, 'getJobCounts').resolves(counts);
+
+      const metrics = await queue.exportPrometheusMetrics();
+      expect(
+        metrics.split('\n').filter(l => l.startsWith('bullmq_job_count')),
+      ).to.have.lengthOf(0);
     });
   });
 });
