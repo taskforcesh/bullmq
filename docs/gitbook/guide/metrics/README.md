@@ -1,7 +1,10 @@
+---
+description: Built-in Metrics for your queues.
+---
+
 # Metrics
 
-BullMQ provides a simple metrics gathering functionality that allows you to track the performance of your queues.
-Workers can count the number of jobs they have processed per minute and store this data in a list to be consumed later.
+BullMQ provides a simple metrics gathering functionality that allows you to track the performance of your queues. Workers can count the number of jobs they have processed per minute and store this data in a list to be consumed later.
 
 You enable it on the worker settings by specifying how many data points you want to keep. We recommend 2 weeks of metrics data which should take a very small amount of space, just around 120Kb of RAM per queue.
 
@@ -43,5 +46,4 @@ const metrics = await queue.getMetrics('completed');
 */
 ```
 
-Note that the `getMetrics` method also accepts a `start` and `end` argument (`0` and `-1` by default), that you can
-use if you want to implement pagination.
+Note that the `getMetrics` method also accepts a `start` and `end` argument (`0` and `-1` by default), that you can use if you want to implement pagination.
