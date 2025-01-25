@@ -47,7 +47,6 @@ if prevMillis ~= false then
     local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data")
 
     rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
-    rcall("HINCRBY", schedulerKey, "ic", 1)
 
     if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
       local eventsKey = KEYS[5]
@@ -55,6 +54,7 @@ if prevMillis ~= false then
       local maxEvents = getOrSetMaxEvents(metaKey)
 
       rcall("INCR", KEYS[3])
+      rcall("HINCRBY", schedulerKey, "ic", 1)
 
       local delayedOpts = cmsgpack.unpack(ARGV[4])
 
@@ -66,8 +66,8 @@ if prevMillis ~= false then
         rcall("HSET", schedulerKey, "data", templateData)
       end
 
-        addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerAttributes[1],
-          templateData or '{}', delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
+      addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerAttributes[1],
+        templateData or '{}', delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
       
       if KEYS[7] ~= "" then
         rcall("HSET", KEYS[7], "nrjid", nextDelayedJobId)

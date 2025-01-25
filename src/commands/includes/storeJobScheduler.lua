@@ -36,6 +36,6 @@ local function storeJobScheduler(schedulerId, schedulerKey, repeatKey, nextMilli
     table.insert(optionalValues, templateData)
   end
 
-  rcall("HMSET", schedulerKey, "name", opts['name'], "ic", 1,
+  rcall("HMSET", schedulerKey, "name", opts['name'], "ic", 0,
     unpack(optionalValues))
 end

@@ -145,6 +145,7 @@ describe('bulk jobs', () => {
     const completed = new Promise<void>(resolve => {
       queueEvents.on('completed', () => {
         counter++;
+        console.log('counter', counter);
         if (counter === numJobs) {
           resolve();
         }

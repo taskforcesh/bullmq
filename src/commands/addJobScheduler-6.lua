@@ -62,14 +62,13 @@ local schedulerOpts = cmsgpack.unpack(ARGV[2])
 
 storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
 
-local nextDelayedJobDoesNotExist = rcall("EXISTS", nextDelayedJobKey) ~= 1
-
-if nextDelayedJobDoesNotExist then
+if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
   local eventsKey = KEYS[5]
   local metaKey = KEYS[2]
   local maxEvents = getOrSetMaxEvents(metaKey)
 
   rcall("INCR", KEYS[3])
+  rcall("HINCRBY", schedulerKey, "ic", 1)
 
   local delayedOpts = cmsgpack.unpack(ARGV[6])
 
