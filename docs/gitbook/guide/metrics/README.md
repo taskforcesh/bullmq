@@ -47,3 +47,7 @@ const metrics = await queue.getMetrics('completed');
 ```
 
 Note that the `getMetrics` method also accepts a `start` and `end` argument (`0` and `-1` by default), that you can use if you want to implement pagination.
+
+## Read more:
+
+- 💡 [Get Metrics API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getMetrics)
