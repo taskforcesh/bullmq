@@ -114,12 +114,11 @@ export class FlowProducer extends EventEmitter {
       ...opts,
     };
 
-    this.connection = new Connection(
-      opts.connection,
-      isRedisInstance(opts.connection),
-      false,
-      opts.skipVersionCheck,
-    );
+    this.connection = new Connection(opts.connection, {
+      shared: isRedisInstance(opts.connection),
+      blocking: false,
+      skipVersionCheck: opts.skipVersionCheck,
+    });
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
     this.connection.on('close', () => {
