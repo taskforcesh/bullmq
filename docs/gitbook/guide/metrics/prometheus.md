@@ -7,31 +7,31 @@ description: How to use the built-in prometheus exporter
 BullMQ provides a simple API that can be used to export metrics to Prometheus. You just need to create an endpoint in your webserver that calls exportPrometheusMetrics() and configure prometheus to consume from this endpoint. For example using vanilla NodeJS:
 
 ```typescript
-import http from "http";
-import { Queue } from "bullmq";
+import http from 'http';
+import { Queue } from 'bullmq';
 
-const queue = new Queue("my-queue");
+const queue = new Queue('my-queue');
 
 const server = http.createServer(
   async (req: http.IncomingMessage, res: http.ServerResponse) => {
     try {
-      if (req.url === "/metrics" && req.method === "GET") {
-        const metrics = await queue.exportMetrics();
+      if (req.url === '/metrics' && req.method === 'GET') {
+        const metrics = await queue.exportPrometheusMetrics();
 
         res.writeHead(200, {
-          "Content-Type": "text/plain",
-          "Content-Length": Buffer.byteLength(metrics),
+          'Content-Type': 'text/plain',
+          'Content-Length': Buffer.byteLength(metrics),
         });
         res.end(metrics);
       } else {
         res.writeHead(404);
-        res.end("Not Found");
+        res.end('Not Found');
       }
     } catch (err: unknown) {
       res.writeHead(500);
-      res.end(`Error: ${err instanceof Error ? err.message : "Unknown error"}`);
+      res.end(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
-  }
+  },
 );
 
 const PORT = process.env.PORT || 3000;
@@ -53,9 +53,9 @@ You will get an output similar to this:
 ```
 HELP bullmq_job_count Number of jobs in the queue by state
 TYPE bullmq_job_count gauge
-bullmq_job_count{queue="my-queue", state="waiting"} 5 
-bullmq_job_count{queue="my-queue", state="active"} 3 
-bullmq_job_count{queue="my-queue", state="completed"} 12 
+bullmq_job_count{queue="my-queue", state="waiting"} 5
+bullmq_job_count{queue="my-queue", state="active"} 3
+bullmq_job_count{queue="my-queue", state="completed"} 12
 bullmq_job_count{queue="my-queue", state="failed"} 2
 ```
 
@@ -70,7 +70,7 @@ const queue = new Queue('my-queue');
 
 app.get('/metrics', async (req, res) => {
   try {
-    const metrics = await queue.exportMetrics();
+    const metrics = await queue.exportPrometheusMetrics();
     res.set('Content-Type', 'text/plain');
     res.send(metrics);
   } catch (err) {
@@ -86,3 +86,6 @@ app.listen(PORT, () => {
 });
 ```
 
+## Read more:
+
+- 💡 [Export Prometheus Metrics API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#exportPrometheusMetrics)
