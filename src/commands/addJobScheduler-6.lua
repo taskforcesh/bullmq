@@ -40,45 +40,7 @@ local prefixKey = ARGV[8]
 --- @include "includes/addDelayedJob"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/removeJob"
-
-local function storeRepeatableJob(schedulerId, schedulerKey, repeatKey, nextMillis, opts, templateData, templateOpts)
-  rcall("ZADD", repeatKey, nextMillis, schedulerId)
-
-  local optionalValues = {}
-  if opts['tz'] then
-    table.insert(optionalValues, "tz")
-    table.insert(optionalValues, opts['tz'])
-  end
-
-  if opts['pattern'] then
-    table.insert(optionalValues, "pattern")
-    table.insert(optionalValues, opts['pattern'])
-  end
-
-  if opts['endDate'] then
-    table.insert(optionalValues, "endDate")
-    table.insert(optionalValues, opts['endDate'])
-  end
-  
-  if opts['every'] then
-    table.insert(optionalValues, "every")
-    table.insert(optionalValues, opts['every'])
-  end
-
-  local jsonTemplateOpts = cjson.encode(templateOpts)
-  if jsonTemplateOpts and jsonTemplateOpts ~= '{}' then
-    table.insert(optionalValues, "opts")
-    table.insert(optionalValues, jsonTemplateOpts)
-  end
-
-  if templateData and templateData ~= '{}' then
-    table.insert(optionalValues, "data")
-    table.insert(optionalValues, templateData)
-  end
-
-  rcall("HMSET", schedulerKey, "name", opts['name'], "ic", 1,
-    unpack(optionalValues))
-end
+--- @include "includes/storeJobScheduler"
 
 local schedulerKey = repeatKey .. ":" .. jobSchedulerId
 local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
@@ -98,7 +60,7 @@ end
 
 local schedulerOpts = cmsgpack.unpack(ARGV[2])
 
-storeRepeatableJob(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
+storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
 
 local nextDelayedJobDoesNotExist = rcall("EXISTS", nextDelayedJobKey) ~= 1
 
