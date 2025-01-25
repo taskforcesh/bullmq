@@ -64,6 +64,7 @@ export class RedisConnection extends EventEmitter {
       shared?: boolean;
       blocking?: boolean;
       skipVersionCheck?: boolean;
+      skipWaitingForReady?: boolean;
     },
   ) {
     super();
@@ -73,6 +74,7 @@ export class RedisConnection extends EventEmitter {
       shared: false,
       blocking: true,
       skipVersionCheck: false,
+      skipWaitingForReady: false,
       ...extraOptions,
     };
 
@@ -241,7 +243,9 @@ export class RedisConnection extends EventEmitter {
 
     this._client.on('ready', this.handleClientReady);
 
-    await RedisConnection.waitUntilReady(this._client);
+    if (!this.extraOptions.skipWaitingForReady) {
+      await RedisConnection.waitUntilReady(this._client);
+    }
 
     this.loadCommands(this.packageVersion);
 
