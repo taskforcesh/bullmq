@@ -127,14 +127,14 @@ describe('bulk jobs', () => {
     const worker = new Worker(
       queueName,
       async () => {
-        await delay(900);
+        await delay(800);
       },
       { connection, prefix },
     );
     const worker2 = new Worker(
       queueName,
       async () => {
-        await delay(900);
+        await delay(800);
       },
       { connection, prefix },
     );
@@ -145,7 +145,6 @@ describe('bulk jobs', () => {
     const completed = new Promise<void>(resolve => {
       queueEvents.on('completed', () => {
         counter++;
-        console.log('counter', counter);
         if (counter === numJobs) {
           resolve();
         }
