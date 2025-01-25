@@ -67,6 +67,7 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       shared: isRedisInstance(opts.connection),
       blocking: hasBlockingConnection,
       skipVersionCheck: opts.skipVersionCheck,
+      skipWaitingForReady: opts.skipWaitingForReady,
     });
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
