@@ -722,7 +722,7 @@ describe('queues', function () {
 
     beforeEach(async function () {
       client = new IORedis();
-      await client.flushall();
+      await client.del(BullMQRegistryKey);
     });
 
     afterEach(async function () {
@@ -743,6 +743,7 @@ describe('queues', function () {
       expect(result).to.not.be.null;
 
       // Clean up
+      await queue.obliterate();
       await queue.close();
     });
 
@@ -761,6 +762,7 @@ describe('queues', function () {
       );
       expect(result).to.be.null;
 
+      await queue.obliterate();
       await queue.close();
     });
 
@@ -791,14 +793,14 @@ describe('queues', function () {
 
       // Create multiple queues
       for (const name of queueNames) {
-        const q = new Queue(name);
-        await q.waitUntilReady();
-        queues.push(q);
+        const queue = new Queue(name);
+        queues.push(queue);
       }
 
-      // Let’s see them in ascending order (ZRANGE default).
-      // If you’re using creation timestamps, the order may not be strictly alphabetical,
-      // but for testing, we just ensure we can get them back.
+      await Promise.all(queues.map(q => q.waitUntilReady()));
+
+      await delay(100);
+
       const results = await Queue.getRegistry(client, 0, -1);
       expect(results).to.have.lengthOf(3);
       expect(results).to.include.members(
@@ -809,12 +811,13 @@ describe('queues', function () {
       const paginatedResults = await Queue.getRegistry(client, 0, 1);
       // Because ZRANGE end index is inclusive, "0,1" means 2 items
       expect(paginatedResults).to.have.lengthOf(2);
-      expect(paginatedResults).to.include.members(
-        queueNames.slice(0, 2).map(name => `bull:${name}`),
+      expect(queueNames.map(name => `bull:${name}`)).to.include.members(
+        paginatedResults,
       );
 
       // Clean up
       for (const queue of queues) {
+        await queue.obliterate();
         await queue.close();
       }
     });
