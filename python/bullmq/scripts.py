@@ -426,7 +426,7 @@ class Scripts:
         """
         Remove a queue completely
         """
-        keys = self.getKeys(['meta', ''])
+        keys = self.getKeys(['bullmq:registry', 'meta', ''])
         result = await self.commands["obliterate"](keys, args=[count, force or ""])
         if (result < 0):
             if (result == -1):
