@@ -183,6 +183,7 @@ export class Queue<
           const multi = client.multi();
           multi.hmset(this.keys.meta, this.metaValues);
           multi.zadd(BullMQRegistryKey, Date.now(), this.qualifiedName);
+          return multi.exec();
         }
       })
       .catch(err => {
