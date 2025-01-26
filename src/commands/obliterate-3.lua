@@ -100,8 +100,8 @@ if(maxCount <= 0) then
   return 1
 end
 
--- Remove from BullMQ registry
-rcall("ZREM", KEYS[1], KEYS[3])
+-- Remove from BullMQ registry. baseKey has an ending colon that needs to be removed
+rcall("ZREM", KEYS[1], string.sub(baseKey, 1, -2))
 
 if(maxCount > 0) then
   rcall("DEL",
