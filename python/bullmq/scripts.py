@@ -49,7 +49,7 @@ class Scripts:
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
             "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-5.lua")),
-            "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
+            "obliterate": self.redisClient.register_script(self.getScript("obliterate-3.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
             "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
             "removeJob": self.redisClient.register_script(self.getScript("removeJob-2.lua")),
