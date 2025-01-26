@@ -9,15 +9,16 @@
   however this behaviour can be overrided using the 'force' option.
   
   Input:
-    KEYS[1] meta
-    KEYS[2] base
+    KEYS[1] registry key
+    KEYS[2] meta
+    KEYS[3] base
 
     ARGV[1] count
     ARGV[2] force
 ]]
 
 local maxCount = tonumber(ARGV[1])
-local baseKey = KEYS[2]
+local baseKey = KEYS[3]
 
 local rcall = redis.call
 
@@ -33,7 +34,7 @@ local function removeLockKeys(keys)
 end
 
 -- 1) Check if paused, if not return with error.
-if rcall("HEXISTS", KEYS[1], "paused") ~= 1 then
+if rcall("HEXISTS", KEYS[2], "paused") ~= 1 then
   return -1 -- Error, NotPaused
 end
 
@@ -98,6 +99,9 @@ maxCount = removeZSetJobs(failedKey, true, baseKey, maxCount)
 if(maxCount <= 0) then
   return 1
 end
+
+-- Remove from BullMQ registry
+rcall("ZREM", KEYS[1], KEYS[3])
 
 if(maxCount > 0) then
   rcall("DEL",
