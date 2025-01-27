@@ -730,7 +730,7 @@ describe('queues', function () {
     });
 
     it('should add the queue to the registry ZSET when created', async () => {
-      const queue = new Queue('test-registry');
+      const queue = new Queue('test-registry', { connection: client, prefix });
 
       // Wait a tick for the queue’s init (if needed)
       await queue.waitUntilReady();
@@ -751,6 +751,7 @@ describe('queues', function () {
       const queue = new Queue('test-registry-skip', {
         skipMetasUpdate: true,
         connection: client,
+        prefix,
       });
 
       await queue.waitUntilReady();
@@ -767,7 +768,10 @@ describe('queues', function () {
     });
 
     it('should remove the queue from registry after obliterating a paused queue', async () => {
-      const queue = new Queue('test-registry-remove');
+      const queue = new Queue('test-registry-remove', {
+        connection: client,
+        prefix,
+      });
       await queue.waitUntilReady();
 
       // Pause the queue so obliterate can work normally in BullMQ
@@ -793,7 +797,7 @@ describe('queues', function () {
 
       // Create multiple queues
       for (const name of queueNames) {
-        const queue = new Queue(name);
+        const queue = new Queue(name, { connection: client, prefix });
         queues.push(queue);
       }
 
@@ -825,7 +829,10 @@ describe('queues', function () {
     // This test should pass however it seems that the paused logic in obliterate is
     // not working as expected.
     it.skip('should fail to obliterate if queue is not paused', async () => {
-      const queue = new Queue('test-registry-not-paused');
+      const queue = new Queue('test-registry-not-paused', {
+        connection: client,
+        prefix,
+      });
       await queue.waitUntilReady();
 
       let errorCode: number | null = null;
