@@ -808,14 +808,14 @@ describe('queues', function () {
       const results = await Queue.getRegistry(client, 0, -1);
       expect(results).to.have.lengthOf(3);
       expect(results).to.include.members(
-        queueNames.map(name => `bull:${name}`),
+        queueNames.map(name => `${prefix}:${name}`),
       );
 
       // Let’s do partial pagination: only the first 2
       const paginatedResults = await Queue.getRegistry(client, 0, 1);
       // Because ZRANGE end index is inclusive, "0,1" means 2 items
       expect(paginatedResults).to.have.lengthOf(2);
-      expect(queueNames.map(name => `bull:${name}`)).to.include.members(
+      expect(queueNames.map(name => `${prefix}:${name}`)).to.include.members(
         paginatedResults,
       );
 
