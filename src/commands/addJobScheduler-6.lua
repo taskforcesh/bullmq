@@ -53,6 +53,10 @@ if prevMillis ~= false then
   local prevDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
 
   if rcall("ZSCORE", delayedKey, prevDelayedJobId) ~= false then
+    -- Delayed job is not regenerated with new scheduler opts,
+    -- next delayed job will be scheduled with old repeat options.
+    -- This is why we need to remove the current delayed job.
+    -- This is happening in that way because we use opts from current delayed job to schedule the next one.
     removeJob(prevDelayedJobId, true, prefixKey, true --[[remove debounce key]])
     rcall("ZREM", delayedKey, prevDelayedJobId)
   end

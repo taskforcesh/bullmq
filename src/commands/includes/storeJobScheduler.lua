@@ -10,6 +10,11 @@ local function storeJobScheduler(schedulerId, schedulerKey, repeatKey, nextMilli
     table.insert(optionalValues, opts['tz'])
   end
 
+  if opts['limit'] then
+    table.insert(optionalValues, "limit")
+    table.insert(optionalValues, opts['limit'])
+  end
+
   if opts['pattern'] then
     table.insert(optionalValues, "pattern")
     table.insert(optionalValues, opts['pattern'])
