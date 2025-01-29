@@ -2297,7 +2297,7 @@ describe('Job Scheduler', function () {
   });
 
   it('should not repeat more than 5 times', async function () {
-    const date = new Date('2017-02-07 9:24:00');
+    const date = new Date('2017-02-07T09:24:00.000+05:30');
     this.clock.setSystemTime(date);
     const nextTick = ONE_SECOND + 500;
 
@@ -2317,7 +2317,7 @@ describe('Job Scheduler', function () {
       name: 'repeat',
       limit: 5,
       pattern: '*/1 * * * * *',
-      next: 1486481041000,
+      next: 1486439641000,
     });
 
     this.clock.tick(nextTick);
