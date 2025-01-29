@@ -926,7 +926,7 @@ describe('Job', function () {
       const job = (await worker.getNextJob(token)) as Job;
       const id = job.id;
       await job.moveToFailed(new Error('test error'), '0');
-      const sameJob = await queue.getJob(id);
+      const sameJob = await queue.getJob(id!);
       expect(sameJob).to.be.ok;
       expect(sameJob.stacktrace).to.be.not.empty;
       await worker.close();
