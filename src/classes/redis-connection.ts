@@ -59,12 +59,25 @@ export class RedisConnection extends EventEmitter {
   private handleClientReady: () => void;
 
   constructor(
-    opts?: ConnectionOptions,
-    private readonly shared: boolean = false,
-    private readonly blocking = true,
-    skipVersionCheck = false,
+    opts: ConnectionOptions,
+    private readonly extraOptions?: {
+      shared?: boolean;
+      blocking?: boolean;
+      skipVersionCheck?: boolean;
+      skipWaitingForReady?: boolean;
+    },
   ) {
     super();
+
+    // Set extra options defaults
+    this.extraOptions = {
+      shared: false,
+      blocking: true,
+      skipVersionCheck: false,
+      skipWaitingForReady: false,
+      ...extraOptions,
+    };
+
     if (!isRedisInstance(opts)) {
       this.checkBlockingOptions(overrideMessage, opts);
 
@@ -77,7 +90,7 @@ export class RedisConnection extends EventEmitter {
         ...opts,
       };
 
-      if (this.blocking) {
+      if (this.extraOptions.blocking) {
         this.opts.maxRetriesPerRequest = null;
       }
     } else {
@@ -101,7 +114,9 @@ export class RedisConnection extends EventEmitter {
     }
 
     this.skipVersionCheck =
-      skipVersionCheck || !!(this.opts && this.opts.skipVersionCheck);
+      extraOptions?.skipVersionCheck ||
+      !!(this.opts && this.opts.skipVersionCheck);
+
     this.handleClientError = (err: Error): void => {
       this.emit('error', err);
     };
@@ -123,7 +138,7 @@ export class RedisConnection extends EventEmitter {
     options?: RedisOptions,
     throwError = false,
   ) {
-    if (this.blocking && options && options.maxRetriesPerRequest) {
+    if (this.extraOptions.blocking && options && options.maxRetriesPerRequest) {
       if (throwError) {
         throw new Error(msg);
       } else {
@@ -228,7 +243,9 @@ export class RedisConnection extends EventEmitter {
 
     this._client.on('ready', this.handleClientReady);
 
-    await RedisConnection.waitUntilReady(this._client);
+    if (!this.extraOptions.skipWaitingForReady) {
+      await RedisConnection.waitUntilReady(this._client);
+    }
 
     this.loadCommands(this.packageVersion);
 
@@ -315,7 +332,7 @@ export class RedisConnection extends EventEmitter {
           // Not sure if we need to wait for this
           await this.initializing;
         }
-        if (!this.shared) {
+        if (!this.extraOptions.shared) {
           if (status == 'initializing' || force) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
