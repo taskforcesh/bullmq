@@ -2698,14 +2698,14 @@ describe('workers', function () {
       });
     });
 
-    describe('when job has been marked as discarded', () => {
-      it('does not retry a job', async () => {
+    describe('when job has been failed and moved to wait', () => {
+      it('saves failedReason', async () => {
         const worker = new Worker(
           queueName,
           async job => {
             expect(job.attemptsMade).to.equal(0);
-            job.discard();
-            throw new Error('unrecoverable error');
+            await queue.rateLimit(5000);
+            throw new Error('error');
           },
           { connection, prefix },
         );
@@ -2724,9 +2724,9 @@ describe('workers', function () {
           worker.on('failed', resolve);
         });
 
-        const state = await job.getState();
+        const updatedJob = await queue.getJob(job.id!);
 
-        expect(state).to.be.equal('failed');
+        expect(updatedJob.failedReason).to.be.equal('error');
 
         await worker.close();
       });

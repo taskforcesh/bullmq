@@ -24,6 +24,7 @@ import {
   KeepJobs,
   MoveToDelayedOpts,
   RepeatableOptions,
+  RetryJobOpts,
 } from '../interfaces';
 import {
   JobState,
@@ -1165,7 +1166,7 @@ export class Scripts {
     jobId: string,
     lifo: boolean,
     token: string,
-    fieldsToUpdate?: Record<string, any>,
+    opts: MoveToDelayedOpts = {},
   ): (string | number | Buffer)[] {
     const keys: (string | number | Buffer)[] = [
       this.queue.keys.active,
@@ -1189,19 +1190,21 @@ export class Scripts {
       pushCmd,
       jobId,
       token,
-      fieldsToUpdate ? pack(objectToFlatArray(fieldsToUpdate)) : void 0,
+      opts.fieldsToUpdate
+        ? pack(objectToFlatArray(opts.fieldsToUpdate))
+        : void 0,
     ]);
   }
 
   async retryJob(
     jobId: string,
     lifo: boolean,
-    token: string,
-    fieldsToUpdate?: Record<string, any>,
+    token = '0',
+    opts: MoveToDelayedOpts = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
-    const args = this.retryJobArgs(jobId, lifo, token, fieldsToUpdate);
+    const args = this.retryJobArgs(jobId, lifo, token, opts);
     const result = await this.execCommand(client, 'retryJob', args);
     if (result < 0) {
       throw this.finishedErrors({
