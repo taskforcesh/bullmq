@@ -1200,7 +1200,7 @@ export class Scripts {
     jobId: string,
     lifo: boolean,
     token = '0',
-    opts: MoveToDelayedOpts = {},
+    opts: RetryJobOpts = {},
   ): Promise<void> {
     const client = await this.queue.client;
 
