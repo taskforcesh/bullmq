@@ -39,7 +39,7 @@ export class JobScheduler extends QueueBase {
     opts: JobSchedulerTemplateOptions,
     { override, producerId }: { override: boolean; producerId?: string },
   ): Promise<Job<T, R, N> | undefined> {
-    const { every, pattern, offset } = repeatOpts;
+    const { every, limit, pattern, offset } = repeatOpts;
 
     if (pattern && every) {
       throw new Error(
@@ -160,6 +160,7 @@ export class JobScheduler extends QueueBase {
                 tz: repeatOpts.tz,
                 pattern,
                 every,
+                limit,
               },
               Job.optsAsJSON(mergedOpts),
               producerId,
@@ -273,21 +274,44 @@ export class JobScheduler extends QueueBase {
     next?: number,
   ): Promise<JobSchedulerJson<D>> {
     if (jobData) {
-      return {
+      const jobSchedulerData: JobSchedulerJson<D> = {
         key,
-        iterationCount: parseInt(jobData.ic) || null,
         name: jobData.name,
-        endDate: parseInt(jobData.endDate) || null,
-        tz: jobData.tz || null,
-        pattern: jobData.pattern || null,
-        every: jobData.every || null,
-        ...(jobData.data || jobData.opts
-          ? {
-              template: this.getTemplateFromJSON<D>(jobData.data, jobData.opts),
-            }
-          : {}),
         next,
       };
+
+      if (jobData.ic) {
+        jobSchedulerData.iterationCount = parseInt(jobData.ic);
+      }
+
+      if (jobData.limit) {
+        jobSchedulerData.limit = parseInt(jobData.limit);
+      }
+
+      if (jobData.endDate) {
+        jobSchedulerData.endDate = parseInt(jobData.endDate);
+      }
+
+      if (jobData.tz) {
+        jobSchedulerData.tz = jobData.tz;
+      }
+
+      if (jobData.pattern) {
+        jobSchedulerData.pattern = jobData.pattern;
+      }
+
+      if (jobData.every) {
+        jobSchedulerData.every = jobData.every;
+      }
+
+      if (jobData.data || jobData.opts) {
+        jobSchedulerData.template = this.getTemplateFromJSON<D>(
+          jobData.data,
+          jobData.opts,
+        );
+      }
+
+      return jobSchedulerData;
     }
 
     return this.keyToData(key, next);

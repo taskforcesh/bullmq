@@ -38,6 +38,16 @@ export interface QueueBaseOptions {
    * Telemetry client
    */
   telemetry?: Telemetry;
+
+  /**
+   * Skip waiting for connection ready.
+   *
+   * In some instances if you want the queue to fail fast if the connection is
+   * not ready you can set this to true. This could be useful for testing and when
+   * adding jobs via HTTP endpoints for example.
+   *
+   */
+  skipWaitingForReady?: boolean;
 }
 
 /**
@@ -75,11 +85,6 @@ export interface QueueOptions extends QueueBaseOptions {
    * Advanced options for the repeatable jobs.
    */
   settings?: AdvancedRepeatOptions;
-
-  /**
-   * Telemetry client
-   */
-  telemetry?: Telemetry;
 }
 
 /**

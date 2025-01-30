@@ -63,12 +63,12 @@ export class QueueBase extends EventEmitter implements MinimalQueue {
       throw new Error('Queue name cannot contain :');
     }
 
-    this.connection = new Connection(
-      opts.connection,
-      isRedisInstance(opts.connection),
-      hasBlockingConnection,
-      opts.skipVersionCheck,
-    );
+    this.connection = new Connection(opts.connection, {
+      shared: isRedisInstance(opts.connection),
+      blocking: hasBlockingConnection,
+      skipVersionCheck: opts.skipVersionCheck,
+      skipWaitingForReady: opts.skipWaitingForReady,
+    });
 
     this.connection.on('error', (error: Error) => this.emit('error', error));
     this.connection.on('close', () => {
