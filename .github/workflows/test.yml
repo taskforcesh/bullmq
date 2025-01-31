@@ -212,3 +212,28 @@ jobs:
         run: |
           cd python
           ./run_tests.sh
+
+  deno:
+    runs-on: ubuntu-latest
+    name: testing BullMQ with Deno
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Install Dependencies
+        run: set +e; deno cache tests/*.ts --allow-scripts --unstable-sloppy-imports; set -e
+
+      - name: Run Deno Tests
+        run: deno run ./tests/example_deno_test.ts --unstable-sloppy-imports
