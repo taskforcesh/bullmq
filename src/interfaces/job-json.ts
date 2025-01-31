@@ -47,3 +47,17 @@ export interface JobJsonRaw {
   ats?: string;
   pb?: string; // Worker name
 }
+// TODO: Evaluate tm value
+
+export interface JobRepeatOptsRaw {
+  tz?: string;
+  limit?: string;
+  pattern?: string;
+  endDate?: string;
+  every?: string;
+  opts?: string;
+  data?: string;
+  name: string;
+  ic: string;
+  prevM: number;
+}
