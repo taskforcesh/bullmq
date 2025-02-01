@@ -819,7 +819,7 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    if (!job || this.closing || this.paused) {
+    if (!job) {
       return;
     }
 
