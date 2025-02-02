@@ -472,6 +472,7 @@ export class Worker<
          * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
          */
         while (
+          !this.closing &&
           !this.waiting &&
           numTotal < this._concurrency &&
           (!this.limitUntil || numTotal == 0)
@@ -819,10 +820,6 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    if (!job || this.closing || this.paused) {
-      return;
-    }
-
     const srcPropagationMedatada = job.opts?.telemetry?.metadata;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
