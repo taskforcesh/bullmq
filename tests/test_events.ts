@@ -587,9 +587,15 @@ describe('events', function () {
           );
 
           let debouncedCounter = 0;
-          queueEvents.on('debounced', ({ jobId }) => {
-            debouncedCounter++;
+          const debounced = new Promise<void>(resolve => {
+            queueEvents.on('debounced', () => {
+              debouncedCounter++;
+              if (debouncedCounter == 2) {
+                resolve();
+              }
+            });
           });
+
           await job.remove();
 
           await queue.add(testName, { foo: 'bar' }, { debounce: { id: 'a1' } });
@@ -602,6 +608,11 @@ describe('events', function () {
             { debounce: { id: 'a1' } },
           );
           await secondJob.remove();
+          await debounced;
+
+          const getDeboundedJobId = await queue.getDebounceJobId('a1');
+
+          expect(getDeboundedJobId).to.be.null;
 
           expect(debouncedCounter).to.be.equal(2);
         });
@@ -822,6 +833,9 @@ describe('events', function () {
           await secondJob.remove();
           await deduplication;
 
+          const getDeduplicationJobId = await queue.getDeduplicationJobId('a1');
+
+          expect(getDeduplicationJobId).to.be.null;
           expect(deduplicatedCounter).to.be.equal(2);
         });
       });

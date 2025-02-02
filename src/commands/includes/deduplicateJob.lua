@@ -1,24 +1,24 @@
 --[[
-  Function to debounce a job.
+  Function to deduplicate a job.
 ]]
 
-local function deduplicateJob(prefixKey, deduplicationOpts, jobId, deduplicationKey, eventsKey, maxEvents)
+local function deduplicateJob(deduplicationOpts, jobId, deduplicationKey, eventsKey, maxEvents)
   local deduplicationId = deduplicationOpts and deduplicationOpts['id']
   if deduplicationId then
     local ttl = deduplicationOpts['ttl']
     local deduplicationKeyExists
     if ttl then
-      deduplicationKeyExists = not rcall('SET', deduplicationKey, jobId, 'PX', ttl, 'NX')
+      deduplicationKeyExists = rcall('SET', deduplicationKey, jobId, 'PX', ttl, 'NX')
     else
-      deduplicationKeyExists = not rcall('SET', deduplicationKey, jobId, 'NX')
+      deduplicationKeyExists = rcall('SET', deduplicationKey, jobId, 'NX')
     end
-    if deduplicationKeyExists then
-      local currentDebounceJobId = rcall('GET', deduplicationKey)
+    if deduplicationKeyExists == false  then
+      local currentDeduplicatedJobId = rcall('GET', deduplicationKey)
       rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-        "debounced", "jobId", currentDebounceJobId, "debounceId", deduplicationId)
+        "debounced", "jobId", currentDeduplicatedJobId, "debounceId", deduplicationId)
       rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents, "*", "event",
-        "deduplicated", "jobId", currentDebounceJobId, "deduplicationId", deduplicationId)
-      return currentDebounceJobId
+        "deduplicated", "jobId", currentDeduplicatedJobId, "deduplicationId", deduplicationId)
+      return currentDeduplicatedJobId
     end
   end
 end

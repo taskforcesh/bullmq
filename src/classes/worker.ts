@@ -189,6 +189,7 @@ export class Worker<
 
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
+  private waitingRun: Promise<void> = Promise.resolve();
   private _repeat: Repeat; // To be deprecated in v6 in favor of Job Scheduler
 
   protected _jobScheduler: JobScheduler;
@@ -431,6 +432,12 @@ export class Worker<
   }
 
   async run() {
+    this.waitingRun = this.waitRun();
+
+    await this.waitingRun;
+  }
+
+  async waitRun() {
     if (!this.processFn) {
       throw new Error('No process function is defined.');
     }
@@ -535,8 +542,8 @@ export class Worker<
         }
       }
 
+      await asyncFifoQueue.waitAll();
       this.running = false;
-      return await asyncFifoQueue.waitAll();
     } catch (error) {
       this.running = false;
       throw error;
@@ -1164,7 +1171,7 @@ will never work with more accuracy than 1ms. */
     }
 
     if (this.asyncFifoQueue) {
-      await this.asyncFifoQueue.waitAll();
+      await this.waitingRun;
     }
 
     reconnect && (await this.blockingConnection.reconnect());
