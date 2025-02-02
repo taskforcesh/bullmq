@@ -1,3 +1,17 @@
+# [5.40.0](https://github.com/taskforcesh/bullmq/compare/v5.39.2...v5.40.0) (2025-02-02)
+
+
+### Features
+
+* **job-scheduler:** revert add delayed job and update in the same script ([9f0f1ba](https://github.com/taskforcesh/bullmq/commit/9f0f1ba9b17874a757ac38c1878792c0df3c5a9a))
+
+## [5.39.2](https://github.com/taskforcesh/bullmq/compare/v5.39.1...v5.39.2) (2025-02-02)
+
+
+### Bug Fixes
+
+* **worker:** evaluate if a job needs to be fetched when moving to failed ([#3043](https://github.com/taskforcesh/bullmq/issues/3043)) ([406e21c](https://github.com/taskforcesh/bullmq/commit/406e21c9aadd7670f353c1c6b102a401fc327653))
+
 ## [5.39.1](https://github.com/taskforcesh/bullmq/compare/v5.39.0...v5.39.1) (2025-01-30)
 
 

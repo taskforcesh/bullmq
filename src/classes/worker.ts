@@ -878,7 +878,11 @@ will never work with more accuracy than 1ms. */
                 return;
               }
 
-              const result = await job.moveToFailed(err, token, true);
+              const result = await job.moveToFailed(
+                err,
+                token,
+                fetchNextCallback() && !(this.closing || this.paused),
+              );
               this.emit('failed', job, err, 'active');
 
               span?.addEvent('job failed', {
