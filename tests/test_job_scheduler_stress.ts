@@ -54,6 +54,7 @@ describe('Job Scheduler Stress', function () {
         connection,
         concurrency: 1,
         autorun: false,
+        prefix,
       },
     );
 
@@ -63,10 +64,6 @@ describe('Job Scheduler Stress', function () {
     });
 
     worker.run();
-
-    const queue = new Queue(queueName, {
-      connection,
-    });
 
     const maxIterations = 100;
     const jobSchedulerId = 'test';
