@@ -2410,7 +2410,8 @@ describe('workers', function () {
 
               // Wait for all the active jobs to finalize.
               expect(nbJobFinish).to.be.equal(3);
-              await worker.resume();
+              await delay(100);
+              worker.resume();
             }
           } catch (err) {
             console.error(err);
