@@ -241,8 +241,8 @@ describe('Job Scheduler', function () {
       const repeatableJobs = await queue.getJobSchedulers();
       expect(repeatableJobs.length).to.be.eql(1);
       await this.clock.tickAsync(ONE_MINUTE);
-      const delayed = await queue.getDelayed();
-      expect(delayed).to.have.length(1);
+      const counts = await queue.getJobCounts();
+      expect(counts.delayed + counts.completed + counts.waiting).to.be.eql(1);
 
       await worker.close();
     });
@@ -1533,6 +1533,8 @@ describe('Job Scheduler', function () {
 
   describe('when repeatable job is promoted', function () {
     it('keeps one repeatable and one delayed after being processed', async function () {
+      this.clock.restore();
+
       const repeatOpts = {
         pattern: '0 * 1 * *',
       };
@@ -1558,15 +1560,64 @@ describe('Job Scheduler', function () {
       const delayedCount2 = await queue.getDelayedCount();
       expect(delayedCount2).to.be.equal(1);
 
-      const configs = await repeat.getRepeatableJobs(0, -1, true);
+      const schedulersCount = await queue.getJobSchedulersCount();
 
       expect(delayedCount).to.be.equal(1);
 
       const count = await queue.count();
 
       expect(count).to.be.equal(1);
-      expect(configs).to.have.length(1);
+      expect(schedulersCount).to.be.equal(1);
       await worker.close();
+    });
+
+    describe('when scheduler is removed and re-added', function () {
+      it('should not add next delayed job if already existed in different state than delayed', async function () {
+        this.clock.restore();
+
+        const repeatOpts = {
+          pattern: '0 * 1 * *',
+        };
+
+        const worker = new Worker(
+          queueName,
+          async () => {
+            await queue.removeJobScheduler('test');
+            await queue.upsertJobScheduler('test', repeatOpts);
+          },
+          {
+            connection,
+            prefix,
+          },
+        );
+
+        const completing = new Promise<void>(resolve => {
+          worker.on('completed', () => {
+            resolve();
+          });
+        });
+
+        const repeatableJob = await queue.upsertJobScheduler(
+          'test',
+          repeatOpts,
+        );
+        const delayedCount = await queue.getDelayedCount();
+        expect(delayedCount).to.be.equal(1);
+
+        await repeatableJob!.promote();
+        await completing;
+
+        const delayedCountAfter = await queue.getDelayedCount();
+        expect(delayedCountAfter).to.be.equal(0);
+
+        const schedulersCount = await queue.getJobSchedulersCount();
+
+        const counts = await queue.getJobCounts();
+
+        expect(counts.completed).to.be.equal(1);
+        expect(schedulersCount).to.be.equal(1);
+        await worker.close();
+      });
     });
   });
 

@@ -127,14 +127,14 @@ describe('bulk jobs', () => {
     const worker = new Worker(
       queueName,
       async () => {
-        await delay(900);
+        await delay(800);
       },
       { connection, prefix },
     );
     const worker2 = new Worker(
       queueName,
       async () => {
-        await delay(900);
+        await delay(800);
       },
       { connection, prefix },
     );

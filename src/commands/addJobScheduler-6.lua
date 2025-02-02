@@ -40,50 +40,7 @@ local prefixKey = ARGV[8]
 --- @include "includes/addDelayedJob"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/removeJob"
-
-local function storeRepeatableJob(schedulerId, schedulerKey, repeatKey, nextMillis, opts, templateData, templateOpts)
-  rcall("ZADD", repeatKey, nextMillis, schedulerId)
-
-  local optionalValues = {}
-  if opts['tz'] then
-    table.insert(optionalValues, "tz")
-    table.insert(optionalValues, opts['tz'])
-  end
-
-  if opts['limit'] then
-    table.insert(optionalValues, "limit")
-    table.insert(optionalValues, opts['limit'])
-  end
-
-  if opts['pattern'] then
-    table.insert(optionalValues, "pattern")
-    table.insert(optionalValues, opts['pattern'])
-  end
-
-  if opts['endDate'] then
-    table.insert(optionalValues, "endDate")
-    table.insert(optionalValues, opts['endDate'])
-  end
-  
-  if opts['every'] then
-    table.insert(optionalValues, "every")
-    table.insert(optionalValues, opts['every'])
-  end
-
-  local jsonTemplateOpts = cjson.encode(templateOpts)
-  if jsonTemplateOpts and jsonTemplateOpts ~= '{}' then
-    table.insert(optionalValues, "opts")
-    table.insert(optionalValues, jsonTemplateOpts)
-  end
-
-  if templateData and templateData ~= '{}' then
-    table.insert(optionalValues, "data")
-    table.insert(optionalValues, templateData)
-  end
-
-  rcall("HMSET", schedulerKey, "name", opts['name'], "ic", 1,
-    unpack(optionalValues))
-end
+--- @include "includes/storeJobScheduler"
 
 local schedulerKey = repeatKey .. ":" .. jobSchedulerId
 local nextDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. nextMillis
@@ -93,33 +50,38 @@ local nextDelayedJobKey =  schedulerKey .. ":" .. nextMillis
 -- the next iteration.
 local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
-  local delayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
+  local prevDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
 
-  if rcall("ZSCORE", delayedKey, delayedJobId) ~= false
-    and (rcall("EXISTS", nextDelayedJobKey) ~= 1 
-    or delayedJobId == nextDelayedJobId) then
-    removeJob(delayedJobId, true, prefixKey, true --[[remove debounce key]])
-    rcall("ZREM", delayedKey, delayedJobId)
+  if rcall("ZSCORE", delayedKey, prevDelayedJobId) ~= false then
+    -- Delayed job is not regenerated with new scheduler opts,
+    -- next delayed job will be scheduled with old repeat options.
+    -- This is why we need to remove the current delayed job.
+    -- This is happening in that way because we use opts from current delayed job to schedule the next one.
+    removeJob(prevDelayedJobId, true, prefixKey, true --[[remove debounce key]])
+    rcall("ZREM", delayedKey, prevDelayedJobId)
   end
 end
 
 local schedulerOpts = cmsgpack.unpack(ARGV[2])
 
-storeRepeatableJob(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
+storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
 
-local eventsKey = KEYS[5]
-local metaKey = KEYS[2]
-local maxEvents = getOrSetMaxEvents(metaKey)
+if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
+  local eventsKey = KEYS[5]
+  local metaKey = KEYS[2]
+  local maxEvents = getOrSetMaxEvents(metaKey)
 
-rcall("INCR", KEYS[3])
+  rcall("INCR", KEYS[3])
+  rcall("HINCRBY", schedulerKey, "ic", 1)
 
-local delayedOpts = cmsgpack.unpack(ARGV[6])
+  local delayedOpts = cmsgpack.unpack(ARGV[6])
 
-addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerOpts['name'], ARGV[4], delayedOpts,
-  timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
+  addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerOpts['name'], ARGV[4], delayedOpts,
+    timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
 
-if ARGV[9] ~= "" then
-  rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
+  if ARGV[9] ~= "" then
+    rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
+  end
+
+  return nextDelayedJobId .. "" -- convert to string
 end
-
-return nextDelayedJobId .. "" -- convert to string

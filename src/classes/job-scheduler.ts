@@ -166,22 +166,24 @@ export class JobScheduler extends QueueBase {
               producerId,
             );
 
-            const job = new this.Job<T, R, N>(
-              this,
-              jobName,
-              jobData,
-              mergedOpts,
-              jobId,
-            );
+            if (jobId) {
+              const job = new this.Job<T, R, N>(
+                this,
+                jobName,
+                jobData,
+                mergedOpts,
+                jobId,
+              );
 
-            job.id = jobId;
+              job.id = jobId;
 
-            span?.setAttributes({
-              [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
-              [TelemetryAttributes.JobId]: job.id,
-            });
+              span?.setAttributes({
+                [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+                [TelemetryAttributes.JobId]: job.id,
+              });
 
-            return job;
+              return job;
+            }
           } else {
             const jobId = await this.scripts.updateJobSchedulerNextMillis(
               jobSchedulerId,
