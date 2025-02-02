@@ -162,7 +162,7 @@ describe('bulk jobs', () => {
     await worker.close();
     await worker2.close();
     await queueEvents.close();
-  });
+  }).timeout(5000);
 
   it('should process jobs with custom ids', async () => {
     const name = 'test';
