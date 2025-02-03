@@ -472,12 +472,10 @@ export class Worker<
          */
         while (
           !this.waiting &&
+          !this.paused &&
           numTotal < this._concurrency &&
           (!this.limitUntil || numTotal == 0)
         ) {
-          if (this.paused) {
-            break;
-          }
           const token = `${this.id}:${tokenPostfix++}`;
 
           const fetchedJob = this.retryIfFailed<void | Job<
