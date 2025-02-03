@@ -247,6 +247,56 @@ describe('Job Scheduler', function () {
 
       await worker.close();
     });
+
+    it('should create only one job scheduler and one delayed job with different settings', async function () {
+      const date = new Date('2017-02-07 9:24:00');
+      this.clock.setSystemTime(date);
+      const worker = new Worker(
+        queueName,
+        async () => {
+          await this.clock.tickAsync(1);
+        },
+        {
+          connection,
+          prefix,
+          concurrency: 1,
+        },
+      );
+      await worker.waitUntilReady();
+
+      const jobSchedulerId = 'test';
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE * 1,
+      });
+
+      await this.clock.tickAsync(1);
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE * 2,
+      });
+
+      await this.clock.tickAsync(1);
+
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE * 3,
+      });
+
+      await this.clock.tickAsync(1);
+
+      await queue.upsertJobScheduler(jobSchedulerId, {
+        every: ONE_MINUTE * 4,
+      });
+
+      const repeatableJobs = await queue.getJobSchedulers();
+      expect(repeatableJobs.length).to.be.eql(1);
+
+      expect(repeatableJobs[0]).to.be.have.property('every', '240000');
+
+      await this.clock.tickAsync(ONE_MINUTE);
+      const delayed = await queue.getDelayed();
+      expect(delayed).to.have.length(1);
+
+      await worker.close();
+    });
   });
 
   describe('when clocks are slightly out of sync', function () {
