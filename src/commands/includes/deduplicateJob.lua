@@ -2,7 +2,7 @@
   Function to debounce a job.
 ]]
 
-local function deduplicateJob(prefixKey, deduplicationOpts, jobId, deduplicationKey, eventsKey, maxEvents)
+local function deduplicateJob(deduplicationOpts, jobId, deduplicationKey, eventsKey, maxEvents)
   local deduplicationId = deduplicationOpts and deduplicationOpts['id']
   if deduplicationId then
     local ttl = deduplicationOpts['ttl']
