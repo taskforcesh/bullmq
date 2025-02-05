@@ -44,7 +44,7 @@ Do you need to work with BullMQ on platforms other than Node.js? If so, check ou
 
 # Official FrontEnd
 
-[<img src="http://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
+[<img src="https://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
 
 Supercharge your queues with a professional front end:
 
