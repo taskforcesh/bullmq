@@ -8,6 +8,9 @@
 --- @include "getJobsInZset"
 --- @include "getTimestamp"
 --- @include "removeJob"
+
+-- TODO: Need to check that current jobId is equal to current delayed job
+-- related to job scheduler
 local function isJobSchedulerJob(jobId, jobSchedulersKey)
     if jobSchedulersKey then
         local jobSchedulerId = jobId:match("repeat:(.*):%d+")

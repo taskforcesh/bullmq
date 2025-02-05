@@ -420,7 +420,7 @@ export class Scripts {
     jobId: string,
     removeChildren: boolean,
   ): (string | number)[] {
-    const keys: (string | number)[] = ['', 'meta'].map(name =>
+    const keys: (string | number)[] = ['', 'meta', 'repeat'].map(name =>
       this.queue.toKey(name),
     );
 

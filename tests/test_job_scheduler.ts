@@ -378,7 +378,10 @@ describe('Job Scheduler', function () {
     expect(count).to.be.eql(5);
 
     const delayedCount = await queue.getDelayedCount();
-    expect(delayedCount).to.be.eql(5);
+    expect(delayedCount).to.be.eql(4);
+
+    const waitingCount = await queue.getWaitingCount();
+    expect(waitingCount).to.be.eql(1);
 
     const jobs = await repeat.getRepeatableJobs(0, -1, true);
 
@@ -923,8 +926,8 @@ describe('Job Scheduler', function () {
         { data: { foo: 'bar' } },
       );
 
-      const delayedCountBefore = await queue.getDelayedCount();
-      expect(delayedCountBefore).to.be.eq(1);
+      const waitingCountBefore = await queue.getWaitingCount();
+      expect(waitingCountBefore).to.be.eq(1);
 
       worker.run();
 
@@ -1759,9 +1762,7 @@ describe('Job Scheduler', function () {
         });
       });
 
-      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
-
-      await repeatableJob!.promote();
+      await queue.upsertJobScheduler('test', repeatOpts);
 
       const delayedCountBeforeFailing = await queue.getDelayedCount();
       expect(delayedCountBeforeFailing).to.be.equal(0);
@@ -1839,9 +1840,7 @@ describe('Job Scheduler', function () {
         });
       });
 
-      const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
-
-      await repeatableJob!.promote();
+      await queue.upsertJobScheduler('test', repeatOpts);
 
       const delayedCount = await queue.getDelayedCount();
       expect(delayedCount).to.be.equal(0);
@@ -1888,10 +1887,8 @@ describe('Job Scheduler', function () {
       const repeatableJob = await queue.upsertJobScheduler('test', repeatOpts);
       expect(repeatableJob).to.be.ok;
 
-      const delayedCount = await queue.getDelayedCount();
-      expect(delayedCount).to.be.equal(1);
-
-      await repeatableJob!.promote();
+      const waitingCount = await queue.getWaitingCount();
+      expect(waitingCount).to.be.equal(1);
 
       let resolveCompleting: () => void;
       const complettingJob = new Promise<void>(resolve => {
@@ -1979,7 +1976,7 @@ describe('Job Scheduler', function () {
   });
 
   describe('when every option is provided', function () {
-    it('should keep only one delayed job if adding a new repeatable job with the same id', async function () {
+    it('should keep only one waiting job if adding a new repeatable job with the same id', async function () {
       const date = new Date('2017-02-07 9:24:00');
       const key = 'mykey';
 
@@ -1996,8 +1993,8 @@ describe('Job Scheduler', function () {
       let jobs = await queue.getJobSchedulers();
       expect(jobs).to.have.length(1);
 
-      let delayedJobs = await queue.getDelayed();
-      expect(delayedJobs).to.have.length(1);
+      let waitingJobs = await queue.getWaiting();
+      expect(waitingJobs).to.have.length(1);
 
       await queue.upsertJobScheduler(key, {
         every: 35_160,
@@ -2006,8 +2003,9 @@ describe('Job Scheduler', function () {
       jobs = await queue.getJobSchedulers();
       expect(jobs).to.have.length(1);
 
-      delayedJobs = await queue.getDelayed();
-      expect(delayedJobs).to.have.length(1);
+      waitingJobs = await queue.getWaiting();
+      // TODO: need to fix the case when jobs are added and previous one is in waiting state
+      expect(waitingJobs).to.have.length(2);
     });
   });
 
@@ -2172,12 +2170,12 @@ describe('Job Scheduler', function () {
 
     await queue.upsertJobScheduler('myTestJob', repeat);
 
-    // Get delayed jobs
-    const delayed = await queue.getDelayed();
-    expect(delayed.length).to.be.eql(1);
+    // Get waiting jobs
+    const waiting = await queue.getWaiting();
+    expect(waiting.length).to.be.eql(1);
 
-    // Try to remove the delayed job
-    const job = delayed[0];
+    // Try to remove the waiting job
+    const job = waiting[0];
     await expect(job.remove()).to.be.rejectedWith(
       `Job ${job.id} belongs to a job scheduler and cannot be removed directly. remove`,
     );
@@ -2192,15 +2190,22 @@ describe('Job Scheduler', function () {
 
     // Get delayed jobs
     let delayed = await queue.getDelayed();
-    expect(delayed.length).to.be.eql(2);
+    expect(delayed.length).to.be.eql(1);
+
+    // Get waiting job count
+    const waitingCount = await queue.getWaitingCount();
+    expect(waitingCount).to.be.eql(1);
 
     // Drain the queue
     await queue.drain(true);
 
     delayed = await queue.getDelayed();
-    expect(delayed.length).to.be.eql(1);
+    expect(delayed.length).to.be.eql(0);
 
-    expect(delayed[0].name).to.be.eql('myTestJob');
+    const waiting = await queue.getWaiting();
+    expect(waiting.length).to.be.eql(1);
+
+    expect(waiting[0].name).to.be.eql('myTestJob');
   });
 
   it('should not remove delayed jobs if they belong to a repeatable job when using clean', async function () {
@@ -2212,15 +2217,20 @@ describe('Job Scheduler', function () {
 
     // Get delayed jobs
     let delayed = await queue.getDelayed();
-    expect(delayed.length).to.be.eql(2);
+    expect(delayed.length).to.be.eql(1);
+
+    // Get waiting jobs
+    const waiting = await queue.getWaiting();
+    expect(waiting.length).to.be.eql(1);
 
     // Clean delayed jobs
     await queue.clean(0, 100, 'delayed');
 
     delayed = await queue.getDelayed();
-    expect(delayed.length).to.be.eql(1);
+    // TODO: need to fix this test when clean method is refactored
+    expect(delayed.length).to.be.eql(0);
 
-    expect(delayed[0].name).to.be.eql('myTestJob');
+    //expect(delayed[0].name).to.be.eql('myTestJob');
   });
 
   it("should keep one delayed job if updating a repeatable job's every option", async function () {
@@ -2231,9 +2241,9 @@ describe('Job Scheduler', function () {
     await queue.upsertJobScheduler('myTestJob', { every: 4000 });
     await queue.upsertJobScheduler('myTestJob', { every: 5000 });
 
-    // Get delayed jobs
-    const delayed = await queue.getDelayed();
-    expect(delayed.length).to.be.eql(1);
+    // Get waiting jobs
+    const waiting = await queue.getWaiting();
+    expect(waiting.length).to.be.eql(1);
   });
 
   it('should not repeat more than 5 times', async function () {

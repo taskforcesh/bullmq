@@ -5,6 +5,7 @@
     Input:
       KEYS[1] queue prefix
       KEYS[2] meta key
+      KEYS[3] repeat key
 
       ARGV[1] jobId
       ARGV[2] remove children
@@ -79,10 +80,18 @@ local prefix = KEYS[1]
 local jobId = ARGV[1]
 local shouldRemoveChildren = ARGV[2]
 local jobKey = prefix .. jobId
+local repeatKey = KEYS[3]
 
--- Check if the job belongs to a job scheduler and it is in delayed state.
-if rcall("ZSCORE", prefix .. "delayed", jobId) and rcall("HGET", jobKey, "rjk") then
-    return -8 -- Return error code as the job is part of a job scheduler and is in delayed state.
+local repeatJobKey = rcall("HGET", jobKey, "rjk")
+-- Check if the job belongs to a job scheduler and current delayed job matches with jobId.
+if repeatJobKey  then
+    local prevMillis = rcall("ZSCORE", repeatKey, repeatJobKey)
+    if prevMillis ~= false then
+        local currentDelayedJobId = "repeat:" .. repeatJobKey .. ":" .. prevMillis
+        if jobId == currentDelayedJobId then
+            return -8 -- Return error code as the job is part of a job scheduler and is in delayed state.
+        end
+    end
 end
 
 if not isLocked(prefix, jobId, shouldRemoveChildren) then
