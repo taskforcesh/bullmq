@@ -195,6 +195,7 @@ export class Worker<
   protected paused: boolean;
   protected processFn: Processor<DataType, ResultType, NameType>;
   protected running = false;
+  protected mainLoopRunning: Promise<void> | null = null;
 
   static RateLimitError(): Error {
     return new RateLimitError();
@@ -447,100 +448,107 @@ export class Worker<
 
       await this.startStalledCheckTimer();
 
-      const jobsInProgress = new Set<{ job: Job; ts: number }>();
-      this.startLockExtenderTimer(jobsInProgress);
-
-      const asyncFifoQueue = (this.asyncFifoQueue =
-        new AsyncFifoQueue<void | Job<DataType, ResultType, NameType>>());
-
-      let tokenPostfix = 0;
-
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
 
+      this.mainLoopRunning = this.mainLoop(client, bclient);
+
+      return this.mainLoopRunning;
+    } finally {
+      this.running = false;
+    }
+  }
+
+  /**
+   * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
+   * as efficiently as possible, providing concurrency and minimal unnecessary calls
+   * to Redis.
+   */
+  private async mainLoop(client: RedisClient, bclient: RedisClient) {
+    const asyncFifoQueue = (this.asyncFifoQueue = new AsyncFifoQueue<void | Job<
+      DataType,
+      ResultType,
+      NameType
+    >>());
+    const jobsInProgress = new Set<{ job: Job; ts: number }>();
+    this.startLockExtenderTimer(jobsInProgress);
+
+    let tokenPostfix = 0;
+
+    while (!this.closing && !this.paused) {
+      let numTotal = asyncFifoQueue.numTotal();
+
       /**
-       * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
-       * as efficiently as possible, providing concurrency and minimal unnecessary calls
-       * to Redis.
+       * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
+       * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
        */
-      while (!(this.closing || this.paused)) {
-        let numTotal = asyncFifoQueue.numTotal();
+      while (
+        !this.closing &&
+        !this.paused &&
+        !this.waiting &&
+        numTotal < this._concurrency &&
+        (!this.limitUntil || numTotal == 0)
+      ) {
+        const token = `${this.id}:${tokenPostfix++}`;
 
-        /**
-         * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
-         * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
-         */
-        while (
-          !this.waiting &&
-          !this.paused &&
-          numTotal < this._concurrency &&
-          (!this.limitUntil || numTotal == 0)
-        ) {
-          const token = `${this.id}:${tokenPostfix++}`;
+        const fetchedJob = this.retryIfFailed<void | Job<
+          DataType,
+          ResultType,
+          NameType
+        >>(
+          () => this._getNextJob(client, bclient, token, { block: true }),
+          this.opts.runRetryDelay,
+        );
+        asyncFifoQueue.add(fetchedJob);
 
-          const fetchedJob = this.retryIfFailed<void | Job<
-            DataType,
-            ResultType,
-            NameType
-          >>(
-            () => this._getNextJob(client, bclient, token, { block: true }),
-            this.opts.runRetryDelay,
-          );
-          asyncFifoQueue.add(fetchedJob);
+        numTotal = asyncFifoQueue.numTotal();
 
-          numTotal = asyncFifoQueue.numTotal();
-
-          if (this.waiting && numTotal > 1) {
-            // We are waiting for jobs but we have others that we could start processing already
-            break;
-          }
-
-          // We await here so that we fetch jobs in sequence, this is important to avoid unnecessary calls
-          // to Redis in high concurrency scenarios.
-          const job = await fetchedJob;
-
-          // No more jobs waiting but we have others that could start processing already
-          if (!job && numTotal > 1) {
-            break;
-          }
-
-          // If there are potential jobs to be processed and blockUntil is set, we should exit to avoid waiting
-          // for processing this job.
-          if (this.blockUntil) {
-            break;
-          }
+        if (this.waiting && numTotal > 1) {
+          // We are waiting for jobs but we have others that we could start processing already
+          break;
         }
 
-        // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
-        // we iterate until we find a job.
-        let job: Job<DataType, ResultType, NameType> | void;
-        do {
-          job = await asyncFifoQueue.fetch();
-        } while (!job && asyncFifoQueue.numQueued() > 0);
+        // We await here so that we fetch jobs in sequence, this is important to avoid unnecessary calls
+        // to Redis in high concurrency scenarios.
+        const job = await fetchedJob;
 
-        if (job) {
-          const token = job.token;
-          asyncFifoQueue.add(
-            this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-              () =>
-                this.processJob(
-                  <Job<DataType, ResultType, NameType>>job,
-                  token,
-                  () => asyncFifoQueue.numTotal() <= this._concurrency,
-                  jobsInProgress,
-                ),
-              this.opts.runRetryDelay,
-            ),
-          );
+        // No more jobs waiting but we have others that could start processing already
+        if (!job && numTotal > 1) {
+          break;
+        }
+
+        // If there are potential jobs to be processed and blockUntil is set, we should exit to avoid waiting
+        // for processing this job.
+        if (this.blockUntil) {
+          break;
         }
       }
 
-      this.running = false;
-      return await asyncFifoQueue.waitAll();
-    } catch (error) {
-      this.running = false;
-      throw error;
+      // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
+      // we iterate until we find a job.
+      let job: Job<DataType, ResultType, NameType> | void;
+      do {
+        job = await asyncFifoQueue.fetch();
+      } while (!job && asyncFifoQueue.numQueued() > 0);
+
+      if (job) {
+        const token = job.token;
+        asyncFifoQueue.add(
+          this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
+            () =>
+              this.processJob(
+                <Job<DataType, ResultType, NameType>>job,
+                token,
+                () => asyncFifoQueue.numTotal() <= this._concurrency,
+                jobsInProgress,
+              ),
+            this.opts.runRetryDelay,
+          ),
+        );
+      }
     }
+
+    return asyncFifoQueue.waitAll();
   }
 
   /**
@@ -815,10 +823,6 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    if (!job || this.closing) {
-      return;
-    }
-
     const srcPropagationMedatada = job.opts?.telemetry?.metadata;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
@@ -1160,8 +1164,8 @@ will never work with more accuracy than 1ms. */
       reconnect = false;
     }
 
-    if (this.asyncFifoQueue) {
-      await this.asyncFifoQueue.waitAll();
+    if (this.mainLoopRunning) {
+      await this.mainLoopRunning;
     }
 
     reconnect && (await this.blockingConnection.reconnect());

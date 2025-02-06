@@ -2404,18 +2404,6 @@ describe('workers', function () {
       const worker = new Worker(
         queueName,
         async () => {
-          try {
-            if (++i === 4) {
-              // Pause when all 4 works are processing
-              await worker.pause();
-
-              // Wait for all the active jobs to finalize.
-              expect(nbJobFinish).to.be.equal(3);
-            }
-          } catch (err) {
-            console.error(err);
-          }
-
           // 100 - i*20 is to force to finish job n°4 before lower jobs that will wait longer
           await delay(100 - i * 10);
           nbJobFinish++;
@@ -2433,6 +2421,15 @@ describe('workers', function () {
         },
       );
       await worker.waitUntilReady();
+
+      worker.on('active', async () => {
+        if (++i === 4) {
+          // Pause when all 4 works are processing
+          await worker.pause();
+          // Wait for all the active jobs to finalize.
+          expect(nbJobFinish).to.be.equal(3);
+        }
+      });
 
       const waiting = new Promise((resolve, reject) => {
         const cb = after(8, resolve);
