@@ -453,7 +453,8 @@ export class Worker<
 
       this.mainLoopRunning = this.mainLoop(client, bclient);
 
-      return this.mainLoopRunning;
+      // We must await here or finally will be called too early.
+      await this.mainLoopRunning;
     } finally {
       this.running = false;
     }
