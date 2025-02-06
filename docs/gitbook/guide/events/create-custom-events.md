@@ -39,6 +39,6 @@ Some event names are reserved from [Queue Listener API Reference](https://api.do
 
 ## Read more:
 
-- 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
-- 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html)
-- 💡 [Queue Events Producer API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsProducer.html)
+* 💡 [Queue Events API Reference](https://api.docs.bullmq.io/classes/v5.QueueEvents.html)
+* 💡 [Queue Events Listener API Reference](https://api.docs.bullmq.io/interfaces/v5.QueueEventsListener.html)
+* 💡 [Queue Events Producer API Reference](https://api.docs.bullmq.io/classes/v5.QueueEventsProducer.html)

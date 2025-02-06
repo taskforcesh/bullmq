@@ -238,7 +238,7 @@ Since there are a few job queue solutions, here is a table comparing them:
 
 ## Contributing
 
-Fork the repo, make some changes, submit a pull-request! Here is the [contributing](contributing.md) doc that has more details.
+Fork the repo, make some changes, submit a pull-request! Here is the [contributing](https://github.com/taskforcesh/bullmq/blob/master/contributing.md) doc that has more details.
 
 # Thanks
 
