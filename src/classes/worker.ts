@@ -185,7 +185,6 @@ export class Worker<
   private drained: boolean = false;
   private extendLocksTimer: NodeJS.Timeout | null = null;
   private limitUntil = 0;
-  private resumeWorker: () => void;
 
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
@@ -193,7 +192,7 @@ export class Worker<
 
   protected _jobScheduler: JobScheduler;
 
-  protected paused: Promise<void>;
+  protected paused: boolean;
   protected processFn: Processor<DataType, ResultType, NameType>;
   protected running = false;
 
@@ -442,7 +441,7 @@ export class Worker<
     try {
       this.running = true;
 
-      if (this.closing) {
+      if (this.closing || this.paused) {
         return;
       }
 
@@ -464,7 +463,7 @@ export class Worker<
        * as efficiently as possible, providing concurrency and minimal unnecessary calls
        * to Redis.
        */
-      while (!this.closing) {
+      while (!(this.closing || this.paused)) {
         let numTotal = asyncFifoQueue.numTotal();
 
         /**
@@ -473,6 +472,7 @@ export class Worker<
          */
         while (
           !this.waiting &&
+          !this.paused &&
           numTotal < this._concurrency &&
           (!this.limitUntil || numTotal == 0)
         ) {
@@ -582,11 +582,7 @@ export class Worker<
     { block = true }: GetNextJobOptions = {},
   ): Promise<Job<DataType, ResultType, NameType> | undefined> {
     if (this.paused) {
-      if (block) {
-        await this.paused;
-      } else {
-        return;
-      }
+      return;
     }
 
     if (this.closing) {
@@ -819,7 +815,7 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    if (!job || this.closing || this.paused) {
+    if (!job || this.closing) {
       return;
     }
 
@@ -944,14 +940,9 @@ will never work with more accuracy than 1ms. */
         });
 
         if (!this.paused) {
-          this.paused = new Promise(resolve => {
-            this.resumeWorker = function () {
-              resolve();
-              this.paused = null; // Allow pause to be checked externally for paused state.
-              this.resumeWorker = null;
-            };
-          });
+          this.paused = true;
           await (!doNotWaitActive && this.whenCurrentJobsFinished());
+          this.stalledCheckStopper?.();
           this.emit('paused');
         }
       },
@@ -963,14 +954,16 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    if (this.resumeWorker) {
+    if (!this.running) {
       this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
         });
 
-        this.resumeWorker();
+        this.paused = false;
+
+        this.run();
         this.emit('resumed');
       });
     }
@@ -1095,7 +1088,7 @@ will never work with more accuracy than 1ms. */
   }
 
   private async stalledChecker() {
-    while (!this.closing) {
+    while (!(this.closing || this.paused)) {
       try {
         await this.checkConnectionError(() => this.moveStalledJobsToWait());
       } catch (err) {

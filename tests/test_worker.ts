@@ -2399,6 +2399,7 @@ describe('workers', function () {
 
       let i = 0;
       let nbJobFinish = 0;
+      let runExecution: Promise<void>;
 
       const worker = new Worker(
         queueName,
@@ -2410,7 +2411,6 @@ describe('workers', function () {
 
               // Wait for all the active jobs to finalize.
               expect(nbJobFinish).to.be.equal(3);
-              await worker.resume();
             }
           } catch (err) {
             console.error(err);
@@ -2426,6 +2426,7 @@ describe('workers', function () {
           }
         },
         {
+          autorun: false,
           connection,
           prefix,
           concurrency: 4,
@@ -2439,7 +2440,21 @@ describe('workers', function () {
         worker.on('failed', cb);
         worker.on('error', reject);
       });
+      const pausing = new Promise<void>(resolve => {
+        worker.on('paused', async () => {
+          // test that loop is stopped and worker is actually paused
+          await runExecution;
+          expect(worker.isRunning()).to.be.false;
+
+          worker.resume();
+          resolve();
+        });
+      });
       await Promise.all(times(8, () => queue.add('test', {})));
+
+      runExecution = worker.run();
+
+      await pausing;
 
       await waiting;
 
