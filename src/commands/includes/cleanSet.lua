@@ -7,19 +7,8 @@
 --- @include "batches"
 --- @include "getJobsInZset"
 --- @include "getTimestamp"
+--- @include "isJobSchedulerJob"
 --- @include "removeJob"
-
--- TODO: Need to check that current jobId is equal to current delayed job
--- related to job scheduler
-local function isJobSchedulerJob(jobId, jobSchedulersKey)
-    if jobSchedulersKey then
-        local jobSchedulerId = jobId:match("repeat:(.*):%d+")
-        if jobSchedulerId then
-            return rcall("ZSCORE", jobSchedulersKey, jobSchedulerId)
-        end
-    end
-    return false
-end
 
 local function cleanSet(
     setKey,
@@ -39,10 +28,10 @@ local function cleanSet(
             break
         end
 
+        local jobKey = jobKeyPrefix .. job
         -- Extract a Job Scheduler Id from jobId ("repeat:job-scheduler-id:millis") 
         -- and check if it is in the scheduled jobs
-        if not isJobSchedulerJob(job, jobSchedulersKey) then
-            local jobKey = jobKeyPrefix .. job
+        if not isJobSchedulerJob(job, jobKey, jobSchedulersKey) then
             if isFinished then
                 removeJob(job, true, jobKeyPrefix, true --[[remove debounce key]] )
                 deletedCount = deletedCount + 1

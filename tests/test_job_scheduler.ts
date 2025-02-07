@@ -2216,21 +2216,20 @@ describe('Job Scheduler', function () {
     await queue.add('test', { foo: 'bar' }, { delay: 1000 });
 
     // Get delayed jobs
-    let delayed = await queue.getDelayed();
+    const delayed = await queue.getDelayed();
     expect(delayed.length).to.be.eql(1);
 
     // Get waiting jobs
-    const waiting = await queue.getWaiting();
+    let waiting = await queue.getWaiting();
     expect(waiting.length).to.be.eql(1);
 
-    // Clean delayed jobs
-    await queue.clean(0, 100, 'delayed');
+    // Clean wait jobs
+    await queue.clean(0, 100, 'wait');
 
-    delayed = await queue.getDelayed();
-    // TODO: need to fix this test when clean method is refactored
-    expect(delayed.length).to.be.eql(0);
+    waiting = await queue.getWaiting();
+    expect(waiting.length).to.be.eql(1);
 
-    //expect(delayed[0].name).to.be.eql('myTestJob');
+    expect(waiting[0].name).to.be.eql('myTestJob');
   });
 
   it("should keep one delayed job if updating a repeatable job's every option", async function () {

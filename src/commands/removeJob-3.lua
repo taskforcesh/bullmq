@@ -19,6 +19,7 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/destructureJobKey"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/isJobSchedulerJob"
 --- @include "includes/isLocked"
 --- @include "includes/removeDeduplicationKey"
 --- @include "includes/removeJobFromAnyState"
@@ -82,16 +83,8 @@ local shouldRemoveChildren = ARGV[2]
 local jobKey = prefix .. jobId
 local repeatKey = KEYS[3]
 
-local repeatJobKey = rcall("HGET", jobKey, "rjk")
--- Check if the job belongs to a job scheduler and current delayed job matches with jobId.
-if repeatJobKey  then
-    local prevMillis = rcall("ZSCORE", repeatKey, repeatJobKey)
-    if prevMillis ~= false then
-        local currentDelayedJobId = "repeat:" .. repeatJobKey .. ":" .. prevMillis
-        if jobId == currentDelayedJobId then
-            return -8 -- Return error code as the job is part of a job scheduler and is in delayed state.
-        end
-    end
+if isJobSchedulerJob(jobId, jobKey, repeatKey) then
+    return -8
 end
 
 if not isLocked(prefix, jobId, shouldRemoveChildren) then
