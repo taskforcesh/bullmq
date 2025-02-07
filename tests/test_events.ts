@@ -29,7 +29,6 @@ describe('events', function () {
 
   beforeEach(async function () {
     queueName = `test-${v4()}`;
-    console.log('queueName', queueName);
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
