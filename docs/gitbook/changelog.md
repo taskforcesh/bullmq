@@ -1,3 +1,10 @@
+## [5.40.1](https://github.com/taskforcesh/bullmq/compare/v5.40.0...v5.40.1) (2025-02-07)
+
+
+### Bug Fixes
+
+* **worker:** wait fetched jobs to be processed when closing ([#3059](https://github.com/taskforcesh/bullmq/issues/3059)) ([d4de2f5](https://github.com/taskforcesh/bullmq/commit/d4de2f5e88d57ea00274e62ab23d09f4806196f8))
+
 # [5.40.0](https://github.com/taskforcesh/bullmq/compare/v5.39.2...v5.40.0) (2025-02-02)
 
 
