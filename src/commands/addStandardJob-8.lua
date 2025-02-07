@@ -94,8 +94,8 @@ else
     end
 end
 
-local deduplicationJobId = deduplicateJob(opts['de'],
-  jobId, deduplicationKey, eventsKey, maxEvents)
+local deduplicationJobId = deduplicateJob(opts['de'], jobId,
+  deduplicationKey, eventsKey, maxEvents)
 if deduplicationJobId then
   return deduplicationJobId
 end
