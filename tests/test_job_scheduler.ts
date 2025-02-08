@@ -318,6 +318,9 @@ describe('Job Scheduler', function () {
           pattern: '2 10 * * * *',
         });
 
+        const waitingCountAfter = await queue.getWaitingCount();
+        expect(waitingCountAfter).to.be.eql(0);
+
         const delayedCount = await queue.getDelayedCount();
         expect(delayedCount).to.be.eql(1);
       });
@@ -343,6 +346,9 @@ describe('Job Scheduler', function () {
         await queue.upsertJobScheduler(jobSchedulerId, {
           pattern: '2 10 * * * *',
         });
+
+        const waitingCountAfter = await queue.getWaitingCount();
+        expect(waitingCountAfter).to.be.eql(0);
 
         const delayedCount = await queue.getDelayedCount();
         expect(delayedCount).to.be.eql(1);
@@ -376,6 +382,9 @@ describe('Job Scheduler', function () {
         await queue.upsertJobScheduler(jobSchedulerId, {
           pattern: '2 10 * * * *',
         });
+
+        const prioritizedCountAfter = await queue.getPrioritizedCount();
+        expect(prioritizedCountAfter).to.be.eql(0);
 
         const delayedCount = await queue.getDelayedCount();
         expect(delayedCount).to.be.eql(1);
