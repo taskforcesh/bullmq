@@ -326,6 +326,10 @@ export class Scripts {
     const keys: (string | number | Buffer)[] = [
       queueKeys.repeat,
       queueKeys.delayed,
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.prioritized,
     ];
 
     const args = [
