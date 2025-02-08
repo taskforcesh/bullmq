@@ -340,6 +340,14 @@ describe('Job Scheduler', function () {
     });
   });
 
+  describe('when job scheduler does not exist', function () {
+    it('should return undefined', async function () {
+      const scheduler = await queue.getJobScheduler('test');
+
+      expect(scheduler).to.be.undefined;
+    });
+  });
+
   it('should create job schedulers with different cron patterns', async function () {
     const date = new Date('2017-02-07T15:24:00.000Z');
     this.clock.setSystemTime(date);
