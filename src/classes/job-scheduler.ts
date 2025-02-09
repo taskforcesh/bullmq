@@ -1,5 +1,6 @@
 import { parseExpression } from 'cron-parser';
 import {
+  JobRepeatOptsRaw,
   JobSchedulerJson,
   JobSchedulerTemplateJson,
   RedisClient,
@@ -33,6 +34,7 @@ export class JobScheduler extends QueueBase {
 
   async upsertJobScheduler<T = any, R = any, N extends string = string>(
     jobSchedulerId: string,
+    rawRepeatOpts: JobRepeatOptsRaw,
     repeatOpts: Omit<RepeatOptions, 'key' | 'prevMillis'>,
     jobName: N,
     jobData: T,
@@ -261,11 +263,11 @@ export class JobScheduler extends QueueBase {
     return this.transformSchedulerData<D>(key, jobData, next);
   }
 
-  private async transformSchedulerData<D>(
+  private transformSchedulerData<D>(
     key: string,
     jobData: any,
     next?: number,
-  ): Promise<JobSchedulerJson<D>> {
+  ): JobSchedulerJson<D> {
     if (jobData) {
       return {
         key,
@@ -283,6 +285,7 @@ export class JobScheduler extends QueueBase {
       };
     }
 
+    // TODO: remove next line in next breaking change
     return this.keyToData(key, next);
   }
 
