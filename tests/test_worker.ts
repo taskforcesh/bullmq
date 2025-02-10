@@ -3,7 +3,7 @@ import { default as IORedis } from 'ioredis';
 import { after, times } from 'lodash';
 import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   Queue,
   QueueEvents,
@@ -37,7 +37,7 @@ describe('workers', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -1005,7 +1005,7 @@ describe('workers', function () {
 
   describe('when sharing connection', () => {
     it('should not fail', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
 
       const connection = new IORedis({
         host: redisHost,
@@ -1697,7 +1697,7 @@ describe('workers', function () {
         const connection = new IORedis(redisHost, {
           maxRetriesPerRequest: null,
         });
-        const queueName2 = `test-shared-${v4()}`;
+        const queueName2 = `test-shared-${randomUUID()}`;
 
         const queue2 = new Queue(queueName2, {
           defaultJobOptions: { removeOnComplete: true },
@@ -3224,7 +3224,7 @@ describe('workers', function () {
       describe('when creating children at runtime', () => {
         it('should wait children as one step of the parent job', async function () {
           this.timeout(8000);
-          const parentQueueName = `parent-queue-${v4()}`;
+          const parentQueueName = `parent-queue-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,
@@ -3342,7 +3342,7 @@ describe('workers', function () {
         describe('when skip attempt option is provided as true', () => {
           it('should wait children as one step of the parent job whithout incrementing attemptMade', async function () {
             this.timeout(8000);
-            const parentQueueName = `parent-queue-${v4()}`;
+            const parentQueueName = `parent-queue-${randomUUID()}`;
             const parentQueue = new Queue(parentQueueName, {
               connection,
               prefix,
@@ -4092,7 +4092,7 @@ describe('workers', function () {
         const parentToken2 = 'parent-token2';
         const childToken = 'child-token';
 
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, { connection, prefix });
         const parentWorker = new Worker(parentQueueName, null, {
@@ -4220,7 +4220,7 @@ describe('workers', function () {
           const parentToken = 'parent-token';
           const childToken = 'child-token';
 
-          const parentQueueName = `parent-queue-${v4()}`;
+          const parentQueueName = `parent-queue-${randomUUID()}`;
 
           const parentQueue = new Queue(parentQueueName, {
             connection,
@@ -4305,7 +4305,7 @@ describe('workers', function () {
       const value = { bar: 'something' };
       const parentToken = 'parent-token';
 
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
 
       const parentQueue = new Queue(parentQueueName, { connection, prefix });
       const parentWorker = new Worker(parentQueueName, null, {

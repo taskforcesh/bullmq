@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { default as IORedis, RedisOptions } from 'ioredis';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   Queue,
   Job,
@@ -174,7 +174,7 @@ describe('connection', () => {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 

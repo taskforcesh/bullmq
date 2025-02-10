@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
 import * as sinon from 'sinon';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 import { Queue, QueueEvents, Repeat, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
@@ -32,7 +32,7 @@ describe('metrics', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     repeat = new Repeat(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });

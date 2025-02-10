@@ -2,7 +2,7 @@ import { after } from 'lodash';
 import { describe, beforeEach, it, before, after as afterAll } from 'mocha';
 import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { Queue, Job, Worker, QueueEvents } from '../src/classes';
 import { removeAllQueueData, delay } from '../src/utils';
 
@@ -20,7 +20,7 @@ describe('Delayed jobs', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     await queue.waitUntilReady();
   });
