@@ -1671,6 +1671,7 @@ describe('Job Scheduler', function () {
           throw new Error('failed');
         },
         {
+          autorun: false,
           connection,
           prefix,
         },
@@ -1691,6 +1692,12 @@ describe('Job Scheduler', function () {
       expect(delayedCount).to.be.equal(1);
 
       await repeatableJob!.promote();
+
+      const priorityCount = await queue.getPrioritizedCount();
+      expect(priorityCount).to.be.equal(1);
+
+      worker.run();
+
       await failing;
 
       const failedCount = await queue.getFailedCount();

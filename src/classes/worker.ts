@@ -565,7 +565,7 @@ export class Worker<
       { block },
     );
 
-    return this.trace<Job<DataType, ResultType, NameType>>(
+    return this.trace<Job<DataType, ResultType, NameType> | undefined>(
       SpanKind.INTERNAL,
       'getNextJob',
       this.name,
