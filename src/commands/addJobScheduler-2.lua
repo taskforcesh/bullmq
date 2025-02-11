@@ -49,4 +49,4 @@ if prevMillis ~= false then
 end
 
 local schedulerOpts = cmsgpack.unpack(ARGV[2])
-return storeRepeatableJob(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
+return storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, schedulerOpts, ARGV[4], templateOpts)
