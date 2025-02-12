@@ -283,7 +283,10 @@ export class JobScheduler extends QueueBase {
       };
     }
 
-    return this.keyToData(key, next);
+    // TODO: remove this check and keyToData as it is here only to support legacy code
+    if (key.includes(':')) {
+      return this.keyToData(key, next);
+    }
   }
 
   private keyToData(key: string, next?: number): JobSchedulerJson {
@@ -301,7 +304,9 @@ export class JobScheduler extends QueueBase {
     };
   }
 
-  async getScheduler<D = any>(id: string): Promise<JobSchedulerJson<D>> {
+  async getScheduler<D = any>(
+    id: string,
+  ): Promise<JobSchedulerJson<D> | undefined> {
     const [rawJobData, next] = await this.scripts.getJobScheduler(id);
 
     return this.transformSchedulerData<D>(
