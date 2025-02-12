@@ -283,6 +283,7 @@ export class JobScheduler extends QueueBase {
       };
     }
 
+    // TODO: remove this check and keyToData as it is here only to support legacy code
     if (key.includes(':')) {
       return this.keyToData(key, next);
     }
