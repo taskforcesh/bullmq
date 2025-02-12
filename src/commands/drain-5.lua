@@ -20,7 +20,7 @@ local queueBaseKey = ARGV[1]
 removeListJobs(KEYS[1], true, queueBaseKey, 0) -- wait
 removeListJobs(KEYS[2], true, queueBaseKey, 0) -- paused
 
-if KEYS[3] ~= "" then
+if KEYS[3] ~= queueBaseKey then
 
     -- We must not remove delayed jobs if they are associated to a job scheduler.
     local scheduledJobs = {}

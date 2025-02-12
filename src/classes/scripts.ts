@@ -656,7 +656,7 @@ export class Scripts {
     const keys: (string | number)[] = [
       queueKeys.wait,
       queueKeys.paused,
-      delayed ? queueKeys.delayed : '',
+      delayed ? queueKeys.delayed : this.queue.toKey(''),
       queueKeys.prioritized,
       queueKeys.repeat,
     ];
