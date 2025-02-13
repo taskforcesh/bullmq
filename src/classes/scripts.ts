@@ -656,12 +656,12 @@ export class Scripts {
     const keys: (string | number)[] = [
       queueKeys.wait,
       queueKeys.paused,
-      delayed ? queueKeys.delayed : this.queue.toKey(''),
+      queueKeys.delayed,
       queueKeys.prioritized,
       queueKeys.repeat,
     ];
 
-    const args = [queueKeys['']];
+    const args = [queueKeys[''], delayed ? '1' : '0'];
 
     return keys.concat(args);
   }

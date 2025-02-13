@@ -10,6 +10,7 @@
     KEYS[5] 'jobschedulers' (repeat)
 
     ARGV[1]  queue key prefix
+    ARGV[2]  should clean delayed jobs
 ]]
 local rcall = redis.call
 local queueBaseKey = ARGV[1]
@@ -20,7 +21,7 @@ local queueBaseKey = ARGV[1]
 removeListJobs(KEYS[1], true, queueBaseKey, 0) -- wait
 removeListJobs(KEYS[2], true, queueBaseKey, 0) -- paused
 
-if KEYS[3] ~= queueBaseKey then
+if ARGV[2] == "1" then
 
     -- We must not remove delayed jobs if they are associated to a job scheduler.
     local scheduledJobs = {}
