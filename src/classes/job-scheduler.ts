@@ -39,7 +39,7 @@ export class JobScheduler extends QueueBase {
     opts: JobSchedulerTemplateOptions,
     { override, producerId }: { override: boolean; producerId?: string },
   ): Promise<Job<T, R, N> | undefined> {
-    const { every, pattern, offset } = repeatOpts;
+    const { every, limit, pattern, offset } = repeatOpts;
 
     if (pattern && every) {
       throw new Error(
@@ -128,6 +128,7 @@ export class JobScheduler extends QueueBase {
             name: jobName,
             endDate: endDate ? new Date(endDate).getTime() : undefined,
             tz: repeatOpts.tz,
+            limit,
             pattern,
             every,
           },
@@ -267,23 +268,46 @@ export class JobScheduler extends QueueBase {
     next?: number,
   ): Promise<JobSchedulerJson<D>> {
     if (jobData) {
-      return {
+      const jobSchedulerData: JobSchedulerJson<D> = {
         key,
         name: jobData.name,
-        endDate: parseInt(jobData.endDate) || null,
-        tz: jobData.tz || null,
-        pattern: jobData.pattern || null,
-        every: jobData.every || null,
-        ...(jobData.data || jobData.opts
-          ? {
-              template: this.getTemplateFromJSON<D>(jobData.data, jobData.opts),
-            }
-          : {}),
         next,
       };
+
+      if (jobData.limit) {
+        jobSchedulerData.limit = parseInt(jobData.limit);
+      }
+
+      if (jobData.endDate) {
+        jobSchedulerData.endDate = parseInt(jobData.endDate);
+      }
+
+      if (jobData.tz) {
+        jobSchedulerData.tz = jobData.tz;
+      }
+
+      if (jobData.pattern) {
+        jobSchedulerData.pattern = jobData.pattern;
+      }
+
+      if (jobData.every) {
+        jobSchedulerData.every = jobData.every;
+      }
+
+      if (jobData.data || jobData.opts) {
+        jobSchedulerData.template = this.getTemplateFromJSON<D>(
+          jobData.data,
+          jobData.opts,
+        );
+      }
+
+      return jobSchedulerData;
     }
 
-    return this.keyToData(key, next);
+    // TODO: remove this check and keyToData as it is here only to support legacy code
+    if (key.includes(':')) {
+      return this.keyToData(key, next);
+    }
   }
 
   private keyToData(key: string, next?: number): JobSchedulerJson {
@@ -301,7 +325,9 @@ export class JobScheduler extends QueueBase {
     };
   }
 
-  async getScheduler<D = any>(id: string): Promise<JobSchedulerJson<D>> {
+  async getScheduler<D = any>(
+    id: string,
+  ): Promise<JobSchedulerJson<D> | undefined> {
     const [rawJobData, next] = await this.scripts.getJobScheduler(id);
 
     return this.transformSchedulerData<D>(
