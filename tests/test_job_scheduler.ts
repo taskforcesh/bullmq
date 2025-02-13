@@ -468,10 +468,7 @@ describe('Job Scheduler', function () {
     expect(scheduler).to.deep.equal({
       key: 'test',
       name: 'test',
-      endDate: null,
-      tz: null,
       pattern: '*/2 * * * * *',
-      every: null,
       next: 1486481042000,
       template: {
         data: {
@@ -810,11 +807,8 @@ describe('Job Scheduler', function () {
         expect(scheduler).to.deep.equal({
           key: 'rrule',
           name: 'rrule',
-          endDate: null,
           next: 1486481042000,
-          tz: null,
           pattern: 'RRULE:FREQ=SECONDLY;INTERVAL=2;WKST=MO',
-          every: null,
         });
 
         this.clock.tick(nextTick);
@@ -1720,10 +1714,8 @@ describe('Job Scheduler', function () {
       expect(jobSchedulers[0]).to.deep.equal({
         key: 'test',
         name: 'a',
-        endDate: null,
         tz: 'Asia/Calcutta',
         pattern: '0 * 1 * *',
-        every: null,
         next: 1488310200000,
         template: {
           data: {
@@ -2267,10 +2259,8 @@ describe('Job Scheduler', function () {
     const scheduler = await queue.getJobScheduler('repeat');
 
     expect(scheduler).to.deep.equal({
-      endDate: null,
-      every: null,
-      tz: null,
       key: 'repeat',
+      limit: 5,
       name: 'repeat',
       pattern: '*/1 * * * * *',
       next: 1486439641000,
