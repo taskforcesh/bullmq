@@ -694,6 +694,16 @@ export class Job<
     return result;
   }
 
+  /**
+   * Moves a job to the wait or prioritized state.
+   *
+   * @param token - Worker token used to acquire completed job.
+   * @returns Returns pttl.
+   */
+  moveToWait(token: string): Promise<number> {
+    return this.scripts.moveJobFromActiveToWait(this.id, token);
+  }
+
   private async shouldRetryJob(err: Error): Promise<[boolean, number]> {
     if (
       this.attemptsMade + 1 < this.opts.attempts &&
