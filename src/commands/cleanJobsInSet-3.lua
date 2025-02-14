@@ -33,7 +33,8 @@ end
 
 local result
 if ARGV[4] == "active" then
-  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false --[[ hasFinished ]])
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], false --[[ hasFinished ]],
+                      KEYS[3])
 elseif ARGV[4] == "delayed" then
   rangeEnd = "+inf"
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
@@ -43,7 +44,8 @@ elseif ARGV[4] == "prioritized" then
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
                     {"timestamp"}, false  --[[ hasFinished ]])
 elseif ARGV[4] == "wait" or ARGV[4] == "paused" then
-  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true --[[ hasFinished ]])
+  result = cleanList(KEYS[1], ARGV[1], rangeStart, rangeEnd, ARGV[2], true --[[ hasFinished ]],
+                      KEYS[3])
 else
   rangeEnd = ARGV[2]
   result = cleanSet(KEYS[1], ARGV[1], rangeEnd, ARGV[2], limit,
