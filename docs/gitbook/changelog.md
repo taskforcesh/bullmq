@@ -1,3 +1,24 @@
+## [5.40.5](https://github.com/taskforcesh/bullmq/compare/v5.40.4...v5.40.5) (2025-02-14)
+
+
+### Bug Fixes
+
+* **drain:** pass delayed key for redis cluster ([#3074](https://github.com/taskforcesh/bullmq/issues/3074)) ([05ea32b](https://github.com/taskforcesh/bullmq/commit/05ea32b7e4f0cd4099783fd81d2b3214d7a293d5))
+
+## [5.40.4](https://github.com/taskforcesh/bullmq/compare/v5.40.3...v5.40.4) (2025-02-13)
+
+
+### Bug Fixes
+
+* **job-scheduler:** restore limit option to be saved ([#3071](https://github.com/taskforcesh/bullmq/issues/3071)) ([3e649f7](https://github.com/taskforcesh/bullmq/commit/3e649f7399514b343447ed2073cc07e4661f7390))
+
+## [5.40.3](https://github.com/taskforcesh/bullmq/compare/v5.40.2...v5.40.3) (2025-02-12)
+
+
+### Bug Fixes
+
+* **job-scheduler:** return undefined in getJobScheduler when it does not exist ([#3065](https://github.com/taskforcesh/bullmq/issues/3065)) fixes [#3062](https://github.com/taskforcesh/bullmq/issues/3062) ([548cc1c](https://github.com/taskforcesh/bullmq/commit/548cc1ce8080042b4b44009ea99108bd24193895))
+
 ## [5.40.2](https://github.com/taskforcesh/bullmq/compare/v5.40.1...v5.40.2) (2025-02-07)
 
 
