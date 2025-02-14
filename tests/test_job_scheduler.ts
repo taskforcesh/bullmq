@@ -2104,8 +2104,7 @@ describe('Job Scheduler', function () {
       expect(jobs).to.have.length(1);
 
       waitingJobs = await queue.getWaiting();
-      // TODO: need to fix the case when jobs are added and previous one is in waiting state
-      expect(waitingJobs).to.have.length(2);
+      expect(waitingJobs).to.have.length(1);
     });
   });
 
