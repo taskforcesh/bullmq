@@ -714,23 +714,25 @@ describe('workers', function () {
       worker = new Worker(
         queueName,
         async job => {
-          const fetchedJob = await queue.getJob(job.id!);
-
           try {
-            expect(fetchedJob).to.be.ok;
-            expect(fetchedJob!.processedBy).to.be.equal(worker.opts.name);
+            await delay(100);
+            expect(job).to.be.ok;
+            expect(job!.processedBy).to.be.equal(worker.opts.name);
           } catch (err) {
             reject(err);
           }
 
-          resolve();
+          if (job.data.foo === 'baz') {
+            resolve();
+          }
         },
         { connection, prefix, name: 'foobar' },
       );
       await worker.waitUntilReady();
     });
 
-    await queue.add('test', { foo: 'bar' });
+    await queue.add('test1', { foo: 'bar' });
+    await queue.add('test2', { foo: 'baz' });
 
     await processing;
 

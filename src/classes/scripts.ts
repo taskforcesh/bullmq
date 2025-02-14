@@ -597,6 +597,7 @@ export class Scripts {
       queueKeys[''],
       pack({
         token,
+        name: opts.name,
         keepJobs,
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
