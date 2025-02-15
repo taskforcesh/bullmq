@@ -1020,8 +1020,6 @@ will never work with more accuracy than 1ms. */
           this.emit('closing', 'closing queue');
           this.abortDelayController?.abort();
 
-          this.resume();
-
           // Define the async cleanup functions
           const asyncCleanups = [
             () => {
