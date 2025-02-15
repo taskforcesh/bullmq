@@ -101,11 +101,7 @@ describe('Jobs getters', function () {
         prefix,
         name: 'worker1',
       });
-      await new Promise<void>(resolve => {
-        worker.on('ready', () => {
-          resolve();
-        });
-      });
+      await worker.waitUntilReady();
 
       const workers = await queue.getWorkers();
       expect(workers).to.have.length(1);
@@ -119,11 +115,7 @@ describe('Jobs getters', function () {
         prefix,
         name: 'worker2',
       });
-      await new Promise<void>(resolve => {
-        worker2.on('ready', () => {
-          resolve();
-        });
-      });
+      await worker2.waitUntilReady();
 
       const nextWorkers = await queue.getWorkers();
       expect(nextWorkers).to.have.length(2);
