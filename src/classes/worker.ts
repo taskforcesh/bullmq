@@ -173,11 +173,6 @@ export class Worker<
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
-  private asyncFifoQueue: AsyncFifoQueue<void | Job<
-    DataType,
-    ResultType,
-    NameType
-  >>;
   private blockingConnection: RedisConnection;
   private blockUntil = 0;
   private _concurrency: number;
@@ -466,11 +461,11 @@ export class Worker<
    * to Redis.
    */
   private async mainLoop(client: RedisClient, bclient: RedisClient) {
-    const asyncFifoQueue = (this.asyncFifoQueue = new AsyncFifoQueue<void | Job<
+    const asyncFifoQueue = new AsyncFifoQueue<void | Job<
       DataType,
       ResultType,
       NameType
-    >>());
+    >>();
     const jobsInProgress = new Set<{ job: Job; ts: number }>();
     this.startLockExtenderTimer(jobsInProgress);
 

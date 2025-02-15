@@ -42,6 +42,7 @@
       opts - fpof - fail parent on fail
       opts - idof - ignore dependency on fail
       opts - rdof - remove dependency on fail
+      opts - name - worker name
 
     Output:
       0 OK
