@@ -1,3 +1,10 @@
+## [5.41.2](https://github.com/taskforcesh/bullmq/compare/v5.41.1...v5.41.2) (2025-02-16)
+
+
+### Bug Fixes
+
+* **worker:** do not resume when closing ([#3080](https://github.com/taskforcesh/bullmq/issues/3080)) ([024ee0f](https://github.com/taskforcesh/bullmq/commit/024ee0f3f0e808c256712d3ccb1bcadb025eb931))
+
 ## [5.41.1](https://github.com/taskforcesh/bullmq/compare/v5.41.0...v5.41.1) (2025-02-15)
 
 
