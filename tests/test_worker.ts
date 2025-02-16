@@ -907,7 +907,7 @@ describe('workers', function () {
 
       await delay(100);
       /* Try to gracefully close while having a job that will be completed running */
-      worker.close();
+      const closing = worker.close();
 
       await new Promise<void>((resolve, reject) => {
         worker.once('completed', async job => {
@@ -925,6 +925,7 @@ describe('workers', function () {
       const count = await queue.getJobCounts('active', 'completed');
       expect(count.active).to.be.eq(0);
       expect(count.completed).to.be.eq(1);
+      await closing;
     });
   });
 
