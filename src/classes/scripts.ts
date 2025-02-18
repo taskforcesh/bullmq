@@ -1274,7 +1274,9 @@ export class Scripts {
     }
   }
 
-  async moveToActive(client: RedisClient, token: string, name?: string) {
+  async moveToActive(token: string, name?: string) {
+    const client = await this.queue.client;
+
     const opts = this.queue.opts as WorkerOptions;
 
     const queueKeys = this.queue.keys;

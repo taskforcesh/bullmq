@@ -492,7 +492,7 @@ export class Worker<
           ResultType,
           NameType
         >>(
-          () => this._getNextJob(client, bclient, token, { block: true }),
+          () => this._getNextJob(bclient, token, { block: true }),
           this.opts.runRetryDelay,
         );
         asyncFifoQueue.add(fetchedJob);
@@ -554,7 +554,6 @@ export class Worker<
    */
   async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
     const nextJob = await this._getNextJob(
-      await this.client,
       await this.blockingConnection.client,
       token,
       { block },
@@ -580,7 +579,6 @@ export class Worker<
   }
 
   private async _getNextJob(
-    client: RedisClient,
     bclient: RedisClient,
     token: string,
     { block = true }: GetNextJobOptions = {},
@@ -599,7 +597,7 @@ export class Worker<
         this.blockUntil = await this.waiting;
 
         if (this.blockUntil <= 0 || this.blockUntil - Date.now() < 1) {
-          return await this.moveToActive(client, token, this.opts.name);
+          return await this.moveToActive(token, this.opts.name);
         }
       } catch (err) {
         // Swallow error if locally not paused or not closing since we did not force a disconnection
@@ -622,7 +620,7 @@ export class Worker<
           this.abortDelayController,
         );
       }
-      return this.moveToActive(client, token, this.opts.name);
+      return this.moveToActive(token, this.opts.name);
     }
   }
 
@@ -664,12 +662,11 @@ will never work with more accuracy than 1ms. */
   }
 
   protected async moveToActive(
-    client: RedisClient,
     token: string,
     name?: string,
   ): Promise<Job<DataType, ResultType, NameType>> {
     const [jobData, id, limitUntil, delayUntil] =
-      await this.scripts.moveToActive(client, token, name);
+      await this.scripts.moveToActive(token, name);
     this.updateDelays(limitUntil, delayUntil);
 
     return this.nextJobFromJobData(jobData, id, token);
@@ -871,7 +868,9 @@ will never work with more accuracy than 1ms. */
                 err instanceof WaitingChildrenError ||
                 err.name == 'WaitingChildrenError'
               ) {
-                return;
+                if (fetchNextCallback() && !(this.closing || this.paused)) {
+                  return this.moveToActive(token, this.opts.name);
+                }
               }
 
               const result = await job.moveToFailed(
