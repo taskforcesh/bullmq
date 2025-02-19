@@ -963,7 +963,9 @@ will never work with more accuracy than 1ms. */
 
         this.paused = false;
 
-        this.run();
+        if (this.processFn) {
+          this.run();
+        }
         this.emit('resumed');
       });
     }
