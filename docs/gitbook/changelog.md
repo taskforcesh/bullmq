@@ -1,3 +1,10 @@
+## [5.41.3](https://github.com/taskforcesh/bullmq/compare/v5.41.2...v5.41.3) (2025-02-19)
+
+
+### Bug Fixes
+
+* **worker:** do not execute run method when no processor is defined when resuming ([#3089](https://github.com/taskforcesh/bullmq/issues/3089)) ([4a66933](https://github.com/taskforcesh/bullmq/commit/4a66933496db68a84ec7eb7c153fcedb7bd14c7b))
+
 ## [5.41.2](https://github.com/taskforcesh/bullmq/compare/v5.41.1...v5.41.2) (2025-02-16)
 
 
