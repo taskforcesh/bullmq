@@ -297,6 +297,99 @@ describe('Job Scheduler', function () {
 
       await worker.close();
     });
+
+    describe('when generated job is in waiting state', function () {
+      it('should upsert scheduler by removing waiting job', async function () {
+        const date = new Date('2017-02-07 9:24:00');
+        this.clock.setSystemTime(date);
+
+        const jobSchedulerId = 'test';
+
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          pattern: '10 * * * * *',
+        });
+        const delayedJobs = await queue.getDelayed();
+        await delayedJobs[0].promote();
+
+        const waitingCount = await queue.getWaitingCount();
+        expect(waitingCount).to.be.eql(1);
+
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          pattern: '2 10 * * * *',
+        });
+
+        const waitingCountAfter = await queue.getWaitingCount();
+        expect(waitingCountAfter).to.be.eql(0);
+
+        const delayedCount = await queue.getDelayedCount();
+        expect(delayedCount).to.be.eql(1);
+      });
+    });
+
+    describe('when generated job is in paused state', function () {
+      it('should upsert scheduler by removing paused job', async function () {
+        const date = new Date('2017-02-07 9:24:00');
+        this.clock.setSystemTime(date);
+
+        const jobSchedulerId = 'test';
+
+        await queue.pause();
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          pattern: '10 * * * * *',
+        });
+        const delayedJobs = await queue.getDelayed();
+        await delayedJobs[0].promote();
+
+        const waitingCount = await queue.getWaitingCount();
+        expect(waitingCount).to.be.eql(1);
+
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          pattern: '2 10 * * * *',
+        });
+
+        const waitingCountAfter = await queue.getWaitingCount();
+        expect(waitingCountAfter).to.be.eql(0);
+
+        const delayedCount = await queue.getDelayedCount();
+        expect(delayedCount).to.be.eql(1);
+      });
+    });
+
+    describe('when generated job is in prioritized state', function () {
+      it('should upsert scheduler by removing prioritized job', async function () {
+        const date = new Date('2017-02-07 9:24:00');
+        this.clock.setSystemTime(date);
+
+        const jobSchedulerId = 'test';
+
+        await queue.upsertJobScheduler(
+          jobSchedulerId,
+          {
+            pattern: '10 * * * * *',
+          },
+          {
+            opts: {
+              priority: 1,
+            },
+          },
+        );
+        const delayedJobs = await queue.getDelayed();
+        await delayedJobs[0].promote();
+
+        const prioritizedCount = await queue.getPrioritizedCount();
+        expect(prioritizedCount).to.be.eql(1);
+
+        await queue.upsertJobScheduler(jobSchedulerId, {
+          pattern: '2 10 * * * *',
+        });
+
+        const prioritizedCountAfter = await queue.getPrioritizedCount();
+        expect(prioritizedCountAfter).to.be.eql(0);
+
+        const delayedCount = await queue.getDelayedCount();
+        expect(delayedCount).to.be.eql(1);
+      });
+    });
   });
 
   describe('when clocks are slightly out of sync', function () {
@@ -2011,8 +2104,7 @@ describe('Job Scheduler', function () {
       expect(jobs).to.have.length(1);
 
       waitingJobs = await queue.getWaiting();
-      // TODO: need to fix the case when jobs are added and previous one is in waiting state
-      expect(waitingJobs).to.have.length(2);
+      expect(waitingJobs).to.have.length(1);
     });
   });
 
