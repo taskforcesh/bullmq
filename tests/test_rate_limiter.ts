@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, every } from 'lodash';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   FlowProducer,
   Queue,
@@ -26,7 +26,7 @@ describe('Rate Limiter', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -201,7 +201,7 @@ describe('Rate Limiter', function () {
     it('should obey the rate limit per queue', async function () {
       this.timeout(20000);
       const name = 'child-job';
-      const parentQueueName = `parent-queue-${v4()}`;
+      const parentQueueName = `parent-queue-${randomUUID()}`;
       const parentQueueEvents = new QueueEvents(parentQueueName, {
         connection,
         prefix,
