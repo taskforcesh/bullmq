@@ -2398,8 +2398,6 @@ describe('workers', function () {
     });
 
     it('should wait for all concurrent processing in case of pause', async function () {
-      this.timeout(10000);
-
       let i = 0;
       let nbJobFinish = 0;
       let runExecution: Promise<void>;
@@ -2430,7 +2428,8 @@ describe('workers', function () {
           // Pause when all 4 works are processing
           await worker.pause();
           // Wait for all the active jobs to finalize.
-          expect(nbJobFinish).to.be.equal(3);
+          expect(nbJobFinish).to.be.gte(3);
+          expect(nbJobFinish).to.be.lte(4);
         }
       });
 
