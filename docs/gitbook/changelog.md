@@ -1,3 +1,10 @@
+## [5.41.5](https://github.com/taskforcesh/bullmq/compare/v5.41.4...v5.41.5) (2025-02-21)
+
+
+### Bug Fixes
+
+* **job-scheduler:** consider removing current job from wait, paused or prioritized ([#3066](https://github.com/taskforcesh/bullmq/issues/3066)) ([97cd2b1](https://github.com/taskforcesh/bullmq/commit/97cd2b147d541e0984d1c2e107110e1a9d56d9b5))
+
 ## [5.41.4](https://github.com/taskforcesh/bullmq/compare/v5.41.3...v5.41.4) (2025-02-21)
 
 
