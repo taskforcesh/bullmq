@@ -48,7 +48,7 @@ class Scripts:
             "moveToActive": self.redisClient.register_script(self.getScript("moveToActive-11.lua")),
             "moveToDelayed": self.redisClient.register_script(self.getScript("moveToDelayed-8.lua")),
             "moveToFinished": self.redisClient.register_script(self.getScript("moveToFinished-14.lua")),
-            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-5.lua")),
+            "moveToWaitingChildren": self.redisClient.register_script(self.getScript("moveToWaitingChildren-7.lua")),
             "obliterate": self.redisClient.register_script(self.getScript("obliterate-2.lua")),
             "pause": self.redisClient.register_script(self.getScript("pause-7.lua")),
             "promote": self.redisClient.register_script(self.getScript("promote-9.lua")),
@@ -170,14 +170,16 @@ class Scripts:
         return self.commands["cleanJobsInSet"](keys=keys, args=args)
 
     def moveToWaitingChildrenArgs(self, job_id, token, opts: dict = {}):
-        keys = [self.toKey(job_id) + ":lock",
-                self.keys['active'],
+        keys = [self.keys['active'],
                 self.keys['waiting-children'],
                 self.toKey(job_id),
-                self.keys['stalled']]
+                self.toKey(job_id) + ":dependencies",
+                self.keys['stalled'],
+                self.keys['failed'],
+                self.keys['events']]
         child_key = opts.get("child") if opts else None
         args = [token, get_parent_key(child_key) or "", round(time.time() * 1000), job_id,
-                "1" if opts.get("skipAttempt") else "0"]
+                self.keys['']]
 
         return (keys, args)
 

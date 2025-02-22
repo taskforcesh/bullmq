@@ -120,6 +120,8 @@ if rcall("EXISTS", jobKey) == 1 then
     end
 
     removeJobsOnFail(ARGV[5], failedKey, jobId, opts, timestamp)
+
+    return 0
   end
 end
 
