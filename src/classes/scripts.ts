@@ -337,6 +337,7 @@ export class Scripts {
       queueKeys.marker,
       queueKeys.id,
       queueKeys.events,
+      queueKeys.pc,
     ];
 
     const args = [
