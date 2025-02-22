@@ -13,7 +13,7 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
     local parentFailedKey = parentQueueKey .. ":failed"
     rcall("ZADD", parentFailedKey, timestamp, parentId)
     local failedReason = "child " .. jobIdKey .. " failed"
-    rcall("HMSET", parentKey, "failedReason", failedReason, "finishedOn", timestamp)
+    rcall("HSET", parentKey, "failedReason", failedReason, "finishedOn", timestamp)
     rcall("XADD", parentQueueKey .. ":events", "*", "event", "failed", "jobId", parentId, "failedReason",
       failedReason, "prev", "waiting-children")
 
@@ -49,5 +49,12 @@ local function moveParentFromWaitingChildrenToFailed( parentQueueKey, parentKey,
     local parentOpts = cjson.decode(parentRawOpts)
     
     removeJobsOnFail(parentQueuePrefix, parentFailedKey, parentId, parentOpts, timestamp)
+  elseif rcall("EXISTS", parentKey) == 1 then
+    local failedReason = rcall("HGET", parentKey, "failedReason")
+
+    -- make sure to not overwrite the failed reason if already existed
+    if not failedReason then
+      rcall("HSET", parentKey, "failedReason", "child " .. jobIdKey .. " failed")
+    end
   end
 end

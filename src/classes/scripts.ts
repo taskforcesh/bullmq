@@ -984,11 +984,13 @@ export class Scripts {
     const childKey = getParentKey(opts.child);
 
     const keys: (string | number)[] = [
-      `${jobId}:lock`,
       'active',
       'waiting-children',
       jobId,
+      `${jobId}:dependencies`,
       'stalled',
+      'failed',
+      'events',
     ].map(name => {
       return this.queue.toKey(name);
     });
@@ -998,6 +1000,7 @@ export class Scripts {
       childKey ?? '',
       JSON.stringify(timestamp),
       jobId,
+      this.queue.toKey(''),
     ]);
   }
 

@@ -25,4 +25,3 @@ local function addDelayedJob(jobIdKey, jobId, delayedKey, eventsKey, name, data,
   -- mark that a delayed job is available
   addDelayMarkerIfNeeded(markerKey, delayedKey)
 end
-  
