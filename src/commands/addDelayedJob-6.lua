@@ -94,8 +94,10 @@ if deduplicationJobId then
   return deduplicationJobId
 end
 
-addDelayedJob(jobIdKey, jobId, delayedKey, eventsKey, args[3], ARGV[2], opts, timestamp, repeatJobKey,
-  maxEvents, KEYS[1], parentKey, parentData)
+local delay, priority = storeJob(eventsKey, jobIdKey, jobId, args[3], ARGV[2],
+    opts, timestamp, parentKey, parentData, repeatJobKey)
+
+addDelayedJob(jobId, delayedKey, eventsKey, timestamp, maxEvents, KEYS[1], delay)
 
 -- Check if this job is a child of another job, if so add it to the parents dependencies
 if parentDependenciesKey ~= nil then
