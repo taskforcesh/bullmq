@@ -146,6 +146,8 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
             end
         else
             if opts['fpof'] then
+                local unsuccesssfulSet = parentKey .. ":unsuccessful"
+                rcall("HSET", unsuccesssfulSet, jobIdKey, ARGV[4])
                 moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey,
                                                       parentId, jobIdKey,
                                                       timestamp)

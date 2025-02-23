@@ -988,6 +988,7 @@ export class Scripts {
       'waiting-children',
       jobId,
       `${jobId}:dependencies`,
+      `${jobId}:unsuccessful`,
       'stalled',
       'failed',
       'events',

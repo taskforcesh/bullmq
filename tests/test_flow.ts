@@ -32,7 +32,7 @@ describe('flows', () => {
 
   afterEach(async function () {
     await queue.close();
-    await removeAllQueueData(new IORedis(redisHost), queueName);
+    //await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
@@ -1079,7 +1079,6 @@ describe('flows', () => {
 
     describe('when parent is not in waiting-children state when one child with failParentOnFailure failed', () => {
       it('should fail parent when trying to move it to waiting children', async function () {
-        this.timeout(8000);
         const childrenQueueName = `children-queue-${v4()}`;
         const grandchildrenQueueName = `grandchildren-queue-${v4()}`;
 
@@ -1100,7 +1099,6 @@ describe('flows', () => {
           { connection, prefix },
         );
 
-        let childId: string;
         const worker = new Worker(
           queueName,
           async (job: Job, token?: string) => {
@@ -1108,7 +1106,7 @@ describe('flows', () => {
             while (step !== Step.Finish) {
               switch (step) {
                 case Step.Initial: {
-                  const { job: child } = await flow.add({
+                  await flow.add({
                     name: 'child-job',
                     queueName: childrenQueueName,
                     data: {},
@@ -1130,7 +1128,6 @@ describe('flows', () => {
                       failParentOnFailure: true,
                     },
                   });
-                  childId = child.id!;
                   await job.updateData({
                     step: Step.Second,
                   });
@@ -1186,9 +1183,7 @@ describe('flows', () => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             if (jobId === job.id) {
               expect(prev).to.be.equal('active');
-              expect(failedReason).to.be.equal(
-                `child ${prefix}:${childrenQueueName}:${childId} failed`,
-              );
+              expect(failedReason).to.be.equal(`children are failed`);
               resolve();
             }
           });

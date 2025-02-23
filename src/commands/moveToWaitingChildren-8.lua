@@ -6,9 +6,10 @@
     KEYS[2] wait-children key
     KEYS[3] job key
     KEYS[4] job dependencies key
-    KEYS[5] stalled key
-    KEYS[6] failed key
-    KEYS[7] events key
+    KEYS[5] job unsuccessful key
+    KEYS[6] stalled key
+    KEYS[7] failed key
+    KEYS[8] events key
 
     ARGV[1] token
     ARGV[2] child key
@@ -28,8 +29,9 @@ local activeKey = KEYS[1]
 local waitingChildrenKey = KEYS[2]
 local jobKey = KEYS[3]
 local jobDependenciesKey = KEYS[4]
-local stalledKey = KEYS[5]
-local failedKey = KEYS[6]
+local jobUnsuccessfulKey = KEYS[5]
+local stalledKey = KEYS[6]
+local failedKey = KEYS[7]
 local timestamp = ARGV[3]
 local jobId = ARGV[4]
 
@@ -56,38 +58,16 @@ local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
 end
 
 if rcall("EXISTS", jobKey) == 1 then
-  local failedReason = rcall("HGET", jobKey, "failedReason")
-  if not failedReason then
-    if ARGV[2] ~= "" then
-      if rcall("SISMEMBER", jobDependenciesKey, ARGV[2]) ~= 0 then
-        local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
-        if errorCode < 0 then
-          return errorCode
-        end
-        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobId, timestamp)
-      end
-  
-      return 1
-    else
-      if rcall("SCARD", jobDependenciesKey) ~= 0 then 
-        local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
-        if errorCode < 0 then
-          return errorCode
-        end
-        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobId, timestamp)
-      end
-  
-      return 1
-    end
-  else
+  if rcall("HLEN", jobUnsuccessfulKey) ~= 0 then
     -- TODO: refactor this logic in an include later
     local jobAttributes = rcall("HMGET", jobKey, "parent", "deid", "opts")
 
     removeDeduplicationKeyIfNeeded(ARGV[5], jobAttributes[2])
   
+    local failedReason = "children are failed"
     rcall("ZADD", failedKey, timestamp, jobId)
     rcall("HSET", jobKey, "finishedOn", timestamp)
-    rcall("XADD", KEYS[7], "*", "event", "failed", "jobId", jobId, "failedReason",
+    rcall("XADD", KEYS[8], "*", "event", "failed", "jobId", jobId, "failedReason",
       failedReason, "prev", "active")
 
     local rawParentData = jobAttributes[1]
@@ -97,6 +77,9 @@ if rcall("EXISTS", jobKey) == 1 then
     if rawParentData ~= false then
       if opts['fpof'] then
         local parentData = cjson.decode(rawParentData)
+        local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
+        local parentUnsuccesssfulHash = parentKey .. ":unsuccessful"
+        rcall("HSET", parentUnsuccesssfulHash, jobKey, failedReason)                        
         moveParentFromWaitingChildrenToFailed(
             parentData['queueKey'],
             parentData['queueKey'] .. ':' .. parentData['id'],
@@ -122,6 +105,28 @@ if rcall("EXISTS", jobKey) == 1 then
     removeJobsOnFail(ARGV[5], failedKey, jobId, opts, timestamp)
 
     return 0
+  else
+    if ARGV[2] ~= "" then
+      if rcall("SISMEMBER", jobDependenciesKey, ARGV[2]) ~= 0 then
+        local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
+        if errorCode < 0 then
+          return errorCode
+        end
+        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobId, timestamp)
+      end
+  
+      return 1
+    else
+      if rcall("SCARD", jobDependenciesKey) ~= 0 then 
+        local errorCode = removeLock(jobKey, stalledKey, ARGV[1], jobId)
+        if errorCode < 0 then
+          return errorCode
+        end
+        return moveToWaitingChildren(activeKey, waitingChildrenKey, jobId, timestamp)
+      end
+  
+      return 1
+    end    
   end
 end
 
