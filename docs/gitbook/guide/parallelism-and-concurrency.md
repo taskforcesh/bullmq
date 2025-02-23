@@ -26,7 +26,7 @@ BullMQ allows you to set a concurrency setting on your workers. This setting is 
 
 Threads are a mechanism used by the operating system to provide concurrent (and parallel) execution,  by pre-empting a given thread by another one (in the case of threads running in the same CPU), or by running threads in parallel if there are several CPU cores available. In practice however, a modern OS runs hundreds if not thousands of threads at any given time, so actually no guarantee running code in several threads will indeed run in parallel, there is just a chance they will, and this depends a lot on how the given OS has implemented its scheduler, this can be quite complex but as a rule of thumb we can say that if there are 2 threads that consume a lot of CPU, and there are at least 2 cores, then most likely these two threads will run each on its dedicated CPU.
 
-NodeJS has thread support, but it is important to note that these threads are pretty heavy and almost consume the same amount of memory as if they were running in two different SO processes. The reason for this is that every NodeJS thread requires a complete V8 VM, with a lot of built-in libraries, which will add up to several dozens of megabytes.
+NodeJS has thread support, but it is important to note that these threads are pretty heavy and almost consume the same amount of memory as if they were running in two different OS processes. The reason for this is that every NodeJS thread requires a complete V8 VM, with a lot of built-in libraries, which will add up to several dozens of megabytes.
 
 ## How to best use BullMQ's concurrency then?
 
@@ -37,6 +37,3 @@ The concurrency factor will just take advantage of NodeJS's event loop so that t
 If the jobs are very CPU intensive without IO calls, then there is no point in having a large concurrency number as it will just add overhead. Still, since BullMQ itself also performs IO operations (when updating Redis and fetching new jobs), there is a chance that a slight concurrency factor may even improve the throughput of CPU-intensive jobs.
 
 Secondly, you can run as many workers as you want. Every worker will run in parallel if it has a CPU at its disposal. You can run several workers in a given machine if the machine has more than one core, but you can also run workers in totally different machines. The jobs running on different workers will be running in parallel, so even if the job is CPU-intensive you will be able to increase the throughput which will normally scale linearly with the number of workers.
-
-
-

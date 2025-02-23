@@ -21,8 +21,9 @@
    -3 - Job not in active set
 ]]
 local rcall = redis.call
+local stalledKey = KEYS[5]
 
--- Includes
+--- Includes
 --- @include "includes/removeLock"
 
 local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
@@ -43,7 +44,7 @@ end
 if rcall("EXISTS", KEYS[4]) == 1 then
   if ARGV[2] ~= "" then
     if rcall("SISMEMBER", KEYS[4] .. ":dependencies", ARGV[2]) ~= 0 then
-      local errorCode = removeLock(KEYS[4], KEYS[5], ARGV[1], ARGV[4])
+      local errorCode = removeLock(KEYS[4], stalledKey, ARGV[1], ARGV[4])
       if errorCode < 0 then
         return errorCode
       end
@@ -53,7 +54,7 @@ if rcall("EXISTS", KEYS[4]) == 1 then
     return 1
   else
     if rcall("SCARD", KEYS[4] .. ":dependencies") ~= 0 then 
-      local errorCode = removeLock(KEYS[4], KEYS[5], ARGV[1], ARGV[4])
+      local errorCode = removeLock(KEYS[4], stalledKey, ARGV[1], ARGV[4])
       if errorCode < 0 then
         return errorCode
       end

@@ -36,8 +36,8 @@ Prior to BullMQ 2.0, in order for delay jobs to work you need to have at least o
 From BullMQ 2.0 and onwards, the `QueueScheduler` is not needed anymore.
 {% endhint %}
 
-There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remaining of this guide for more information regarding these options.
+There are many other options available such as priorities, backoff settings, lifo behaviour, remove-on-complete policies, etc. Please check the remainder of this guide for more information regarding these options.
 
 ## Read more:
 
-* 💡 [Queue API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html)
+- 💡 [Queue API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html)

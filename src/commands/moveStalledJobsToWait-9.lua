@@ -29,9 +29,8 @@ local rcall = redis.call
 --- @include "includes/getTargetQueueList"
 --- @include "includes/moveParentFromWaitingChildrenToFailed"
 --- @include "includes/moveParentToWaitIfNeeded"
---- @include "includes/removeJob"
---- @include "includes/removeJobsByMaxAge"
---- @include "includes/removeJobsByMaxCount"
+--- @include "includes/removeDeduplicationKeyIfNeeded"
+--- @include "includes/removeJobsOnFail"
 --- @include "includes/trimEvents"
 
 local stalledKey = KEYS[1]
@@ -43,7 +42,7 @@ local metaKey = KEYS[6]
 local pausedKey = KEYS[7]
 local markerKey = KEYS[8]
 local eventStreamKey = KEYS[9]
-local maxStalledJobCount = ARGV[1]
+local maxStalledJobCount = tonumber(ARGV[1])
 local queueKeyPrefix = ARGV[2]
 local timestamp = ARGV[3]
 local maxCheckTime = ARGV[4]
@@ -61,8 +60,6 @@ local stalled = {}
 local failed = {}
 if (#stalling > 0) then
     rcall('DEL', stalledKey)
-
-    local MAX_STALLED_JOB_COUNT = tonumber(maxStalledJobCount)
 
     -- Remove from active list
     for i, jobId in ipairs(stalling) do
@@ -82,13 +79,14 @@ if (#stalling > 0) then
                     -- If this job has been stalled too many times, such as if it crashes the worker, then fail it.
                     local stalledCount =
                         rcall("HINCRBY", jobKey, "stalledCounter", 1)
-                    if (stalledCount > MAX_STALLED_JOB_COUNT) then
-                        local jobAttributes = rcall("HMGET", jobKey, "opts", "parent")
+                    if (stalledCount > maxStalledJobCount) then
+                        local jobAttributes = rcall("HMGET", jobKey, "opts", "parent", "deid")
                         local rawOpts = jobAttributes[1]
                         local rawParentData = jobAttributes[2]
                         local opts = cjson.decode(rawOpts)
-                        local removeOnFailType = type(opts["removeOnFail"])
                         rcall("ZADD", failedKey, timestamp, jobId)
+                        removeDeduplicationKeyIfNeeded(queueKeyPrefix, jobAttributes[3])
+
                         local failedReason =
                             "job stalled more than allowable limit"
                         rcall("HMSET", jobKey, "failedReason", failedReason,
@@ -97,56 +95,40 @@ if (#stalling > 0) then
                               "failed", "jobId", jobId, 'prev', 'active',
                               'failedReason', failedReason)
 
-                        if opts['fpof'] and rawParentData ~= false then
-                            local parentData = cjson.decode(rawParentData)
-                            moveParentFromWaitingChildrenToFailed(
-                                parentData['queueKey'],
-                                parentData['queueKey'] .. ':' .. parentData['id'],
-                                parentData['id'],
-                                jobKey,
-                                timestamp
-                            )
-                        elseif opts['idof'] then
-                            local parentData = cjson.decode(rawParentData)
-                            local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-                            local dependenciesSet = parentKey .. ":dependencies"
-                            if rcall("SREM", dependenciesSet, jobKey) == 1 then
-                                moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
-                                                         parentKey, parentData['id'], timestamp)
-                                local failedSet = parentKey .. ":failed"
-                                rcall("HSET", failedSet, jobKey, failedReason)
+                        if rawParentData ~= false then
+                            if opts['fpof'] then
+                                local parentData = cjson.decode(rawParentData)
+                                moveParentFromWaitingChildrenToFailed(
+                                    parentData['queueKey'],
+                                    parentData['queueKey'] .. ':' .. parentData['id'],
+                                    parentData['id'],
+                                    jobKey,
+                                    timestamp
+                                )
+                            elseif opts['idof'] or opts['rdof'] then
+                                local parentData = cjson.decode(rawParentData)
+                                local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
+                                local dependenciesSet = parentKey .. ":dependencies"
+                                if rcall("SREM", dependenciesSet, jobKey) == 1 then
+                                    moveParentToWaitIfNeeded(parentData['queueKey'], dependenciesSet,
+                                                             parentKey, parentData['id'], timestamp)
+                                    if opts['idof'] then
+                                       local failedSet = parentKey .. ":failed"
+                                       rcall("HSET", failedSet, jobKey, failedReason)
+                                    end
+                                end
                             end
                         end
-                        if removeOnFailType == "number" then
-                            removeJobsByMaxCount(opts["removeOnFail"],
-                                                  failedKey, queueKeyPrefix)
-                        elseif removeOnFailType == "boolean" then
-                            if opts["removeOnFail"] then
-                                removeJob(jobId, false, queueKeyPrefix)
-                                rcall("ZREM", failedKey, jobId)
-                            end
-                        elseif removeOnFailType ~= "nil" then
-                            local maxAge = opts["removeOnFail"]["age"]
-                            local maxCount = opts["removeOnFail"]["count"]
 
-                            if maxAge ~= nil then
-                                removeJobsByMaxAge(timestamp, maxAge,
-                                                    failedKey, queueKeyPrefix)
-                            end
-
-                            if maxCount ~= nil and maxCount > 0 then
-                                removeJobsByMaxCount(maxCount, failedKey,
-                                                      queueKeyPrefix)
-                            end
-                        end
+                        removeJobsOnFail(queueKeyPrefix, failedKey, jobId, opts, timestamp)
 
                         table.insert(failed, jobId)
                     else
-                        local target, isPaused=
-                            getTargetQueueList(metaKey, waitKey, pausedKey)
+                        local target, isPausedOrMaxed =
+                            getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
 
                         -- Move the job back to the wait queue, to immediately be picked up by a waiting worker.
-                        addJobInTargetList(target, markerKey, "RPUSH", isPaused, jobId)
+                        addJobInTargetList(target, markerKey, "RPUSH", isPausedOrMaxed, jobId)
 
                         rcall("XADD", eventStreamKey, "*", "event",
                               "waiting", "jobId", jobId, 'prev', 'active')

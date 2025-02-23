@@ -25,7 +25,7 @@ if rcall("EXISTS", jobKey) ~= 1 then return -1 end
 
 if rcall("EXISTS", parentKey) ~= 1 then return -5 end
 
-if removeParentDependencyKey(jobKey, false, parentKey, KEYS[1]) then
+if removeParentDependencyKey(jobKey, false, parentKey, KEYS[1], nil) then
   rcall("HDEL", jobKey, "parentKey", "parent")
 
   return 0

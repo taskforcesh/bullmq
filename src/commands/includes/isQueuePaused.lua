@@ -3,5 +3,5 @@
   (since an empty list and !EXISTS are not really the same).
 ]]
 local function isQueuePaused(queueMetaKey)
-    return rcall("HEXISTS", queueMetaKey, "paused") == 1
+  return rcall("HEXISTS", queueMetaKey, "paused") == 1
 end

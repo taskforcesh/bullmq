@@ -1,7 +1,8 @@
 import { ChildProcess, fork } from 'child_process';
-import { Worker } from 'worker_threads';
 import { AddressInfo, createServer } from 'net';
+import { Worker } from 'worker_threads';
 import { ChildCommand, ParentCommand } from '../enums';
+import { SandboxedOptions } from '../interfaces';
 import { EventEmitter } from 'events';
 
 /**
@@ -40,7 +41,7 @@ export class Child extends EventEmitter {
   constructor(
     private mainFile: string,
     public processFile: string,
-    private opts = {
+    private opts: SandboxedOptions = {
       useWorkerThreads: false,
     },
   ) {
@@ -51,7 +52,9 @@ export class Child extends EventEmitter {
     if (this.childProcess) {
       return this.childProcess.pid;
     } else if (this.worker) {
-      return this.worker.threadId;
+      // Worker threads pids can become negative when they are terminated
+      // so we need to use the absolute value to index the retained object
+      return Math.abs(this.worker.threadId);
     } else {
       throw new Error('No child process or worker thread');
     }
@@ -83,11 +86,15 @@ export class Child extends EventEmitter {
         stdin: true,
         stdout: true,
         stderr: true,
+        ...(this.opts.workerThreadsOptions
+          ? this.opts.workerThreadsOptions
+          : {}),
       });
     } else {
       this.childProcess = parent = fork(this.mainFile, [], {
         execArgv,
         stdio: 'pipe',
+        ...(this.opts.workerForkOptions ? this.opts.workerForkOptions : {}),
       });
     }
 

@@ -103,15 +103,33 @@ For this purpose, you can use the **`getRateLimitTtl`** method like this:
 import { Queue } from 'bullmq';
 
 const queue = new Queue('myQueue', { connection });
+const maxJobs = 100;
 
-const ttl = await queue.getRateLimitTtl();
+const ttl = await queue.getRateLimitTtl(maxJobs);
 
 if (ttl > 0) {
   console.log('Queue is rate limited');
 }
 ```
 
+### Remove Rate Limit Key
+
+Sometimes is useful to stop a rate limit delay.
+
+For this purpose, you can use the **`removeRateLimitKey`** method like this:
+
+```typescript
+import { Queue } from 'bullmq';
+
+const queue = new Queue('myQueue', { connection });
+
+await queue.removeRateLimitKey();
+```
+
+By removing rate limit key, workers will be able to pick jobs again and your rate limit counter is reset to zero.
+
 ## Read more:
 
 - 💡 [Rate Limit API Reference](https://api.docs.bullmq.io/classes/v5.Worker.html#rateLimit)
 - 💡 [Get Rate Limit Ttl API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getRateLimitTtl)
+- 💡 [Remove Rate Limit Key API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#removeRateLimitKey)

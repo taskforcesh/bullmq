@@ -23,21 +23,38 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
    * Number of times the job should repeat at max.
    */
   limit?: number;
+
   /**
    * Repeat after this amount of milliseconds
    * (`pattern` setting cannot be used together with this setting.)
    */
   every?: number;
+
   /**
    * Repeated job should start right now
-   * ( work only with every settings)
+   * ( work only with cron settings)
    */
   immediately?: boolean;
+
   /**
    * The start value for the repeat iteration count.
    */
   count?: number;
-  prevMillis?: number;
+
+  /**
+   * Offset in milliseconds to affect the next iteration time
+   *
+   * */
   offset?: number;
+
+  /**
+   * Internal property to store the previous time the job was executed.
+   */
+  prevMillis?: number;
+
+  /**
+   * Internal property to store de job id
+   * @deprecated
+   */
   jobId?: string;
 }

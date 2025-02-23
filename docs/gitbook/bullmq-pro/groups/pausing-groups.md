@@ -28,5 +28,5 @@ await myQueue.resumeGroup('groupId');
 
 ## Read more:
 
-- 💡 [Pause Group API Reference](https://api.bullmq.pro/classes/v6.Queue.html#pauseGroup)
-- 💡 [Resume Group API Reference](https://api.bullmq.pro/classes/v6.Queue.html#resumeGroup)
+- 💡 [Pause Group API Reference](https://api.bullmq.pro/classes/v7.Queue.html#pauseGroup)
+- 💡 [Resume Group API Reference](https://api.bullmq.pro/classes/v7.Queue.html#resumeGroup)

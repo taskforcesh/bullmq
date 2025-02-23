@@ -1,5 +1,5 @@
 import { ParentCommand } from '../enums';
-import { SandboxedJob } from '../interfaces';
+import { SandboxedJob, Receiver } from '../interfaces';
 import { JobJsonSandbox } from '../types';
 import { errorToJSON } from '../utils';
 
@@ -9,6 +9,8 @@ enum ChildStatus {
   Terminating,
   Errored,
 }
+
+const RESPONSE_TIMEOUT = process.env.NODE_ENV === 'test' ? 500 : 5_000;
 
 /**
  * ChildProcessor
@@ -22,7 +24,10 @@ export class ChildProcessor {
   public processor: any;
   public currentJobPromise: Promise<unknown> | undefined;
 
-  constructor(private send: (msg: any) => Promise<void>) {}
+  constructor(
+    private send: (msg: any) => Promise<void>,
+    private receiver: Receiver,
+  ) {}
 
   public async init(processorFile: string): Promise<void> {
     let processor;
@@ -114,13 +119,13 @@ export class ChildProcessor {
     job: JobJsonSandbox,
     send: (msg: any) => Promise<void>,
   ): SandboxedJob {
-    return {
+    const wrappedJob = {
       ...job,
       data: JSON.parse(job.data || '{}'),
       opts: job.opts,
       returnValue: JSON.parse(job.returnvalue || '{}'),
       /*
-       * Emulate the real job `updateProgress` function, should works as `progress` function.
+       * Proxy `updateProgress` function, should works as `progress` function.
        */
       async updateProgress(progress: number | object) {
         // Locally store reference to new progress value
@@ -133,32 +138,76 @@ export class ChildProcessor {
         });
       },
       /*
-       * Emulate the real job `log` function.
+       * Proxy job `log` function.
        */
       log: async (row: any) => {
-        send({
+        await send({
           cmd: ParentCommand.Log,
           value: row,
         });
       },
       /*
-       * Emulate the real job `moveToDelayed` function.
+       * Proxy `moveToDelayed` function.
        */
       moveToDelayed: async (timestamp: number, token?: string) => {
-        send({
+        await send({
           cmd: ParentCommand.MoveToDelayed,
           value: { timestamp, token },
         });
       },
       /*
-       * Emulate the real job `updateData` function.
+       * Proxy `updateData` function.
        */
       updateData: async (data: any) => {
-        send({
+        await send({
           cmd: ParentCommand.Update,
           value: data,
         });
+        wrappedJob.data = data;
+      },
+
+      /**
+       * Proxy `getChildrenValues` function.
+       */
+      getChildrenValues: async () => {
+        const requestId = Math.random().toString(36).substring(2, 15);
+        await send({
+          requestId,
+          cmd: ParentCommand.GetChildrenValues,
+        });
+
+        return waitResponse(
+          requestId,
+          this.receiver,
+          RESPONSE_TIMEOUT,
+          'getChildrenValues',
+        );
       },
     };
+
+    return wrappedJob;
   }
 }
+
+const waitResponse = async (
+  requestId: string,
+  receiver: Receiver,
+  timeout: number,
+  cmd: string,
+) => {
+  return new Promise((resolve, reject) => {
+    const listener = (msg: { requestId: string; value: any }) => {
+      if (msg.requestId === requestId) {
+        resolve(msg.value);
+        receiver.off('message', listener);
+      }
+    };
+    receiver.on('message', listener);
+
+    setTimeout(() => {
+      receiver.off('message', listener);
+
+      reject(new Error(`TimeoutError: ${cmd} timed out in (${timeout}ms)`));
+    }, timeout);
+  });
+};

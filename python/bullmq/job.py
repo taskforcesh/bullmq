@@ -5,7 +5,7 @@ from bullmq.backoffs import Backoffs
 if TYPE_CHECKING:
     from bullmq.queue import Queue
 from bullmq.types import JobOptions
-from bullmq.utils import get_parent_key
+from bullmq.utils import get_parent_key, parse_json_string_values
 
 import json
 import time
@@ -153,7 +153,7 @@ class Job:
                 elif delay:
                     keys, args = self.scripts.moveToDelayedArgs(
                         self.id,
-                        round(time.time() * 1000) + delay,
+                        round(time.time() * 1000),
                         token,
                         delay
                     )
@@ -203,12 +203,16 @@ class Job:
                 self.stacktrace = self.stacktrace[-(stackTraceLimit-1):stackTraceLimit]
 
         keys, args = self.scripts.saveStacktraceArgs(
-            self.id, json.dumps(self.stacktrace, separators=(',', ':')), err)
+            self.id, json.dumps(self.stacktrace, separators=(',', ':'), allow_nan=False), err)
 
         await self.scripts.commands["saveStacktrace"](keys=keys, args=args, client=pipe)
 
     def moveToWaitingChildren(self, token, opts:dict):
         return self.scripts.moveToWaitingChildren(self.id, token, opts)
+
+    async def getChildrenValues(self):
+        results = await self.queue.client.hgetall(f"{self.queue.prefix}:{self.queue.name}:{self.id}:processed")
+        return parse_json_string_values(results)
 
     @staticmethod
     def fromJSON(queue: Queue, rawData: dict, jobId: str | None = None):
@@ -254,7 +258,7 @@ class Job:
             job.parentKey = rawData.get("parentKey")
 
         if rawData.get("parent"):
-           job.parent = json.loads(rawData.get("parent"))
+            job.parent = json.loads(rawData.get("parent"))
 
         return job
 
@@ -274,7 +278,7 @@ class Job:
 
         if keepLogs:
             multi.ltrim(logs_key, -keepLogs, -1)
-        
+
         result = await multi.execute()
 
         return min(keepLogs, result[0]) if keepLogs else result[0]

@@ -25,7 +25,7 @@ await myQueue.add('wall', { color: 'blue' }, { priority: 7 });
 // finally pink.
 ```
 
-If several jobs are added with the same priority value, then the jobs within that priority will be processed in [FIFO (_First in, first out_)](../fifo.md) fashion.
+If several jobs are added with the same priority value, then the jobs within that priority will be processed in [FIFO (_First in, first out_)](fifo.md) fashion.
 
 ## Change priority
 
@@ -39,7 +39,7 @@ await job.changePriority({
 });
 ```
 
-or if you want to use the [LIFO (_Last In, First Out_)](../lifo.md) option:
+or if you want to use the [LIFO (_Last In, First Out_)](lifo.md) option:
 
 ```typescript
 const job = await Job.create(queue, 'test2', { foo: 'bar' }, { priority: 16 });
@@ -59,8 +59,23 @@ const jobs = await queue.getJobs(['prioritized']);
 const jobs2 = await queue.getPrioritized();
 ```
 
+## Get Counts per Priority
+
+If you want to get the `count` of jobs in `prioritized` status (priorities higher than 0) or in `waiting` status (priority 0), use the **`getCountsPerPriority`** method. For example, let's say that you want to get counts for `priority` `1` and `0`:
+
+```typescript
+const counts = await queue.getCountsPerPriority([1, 0]);
+/*
+{
+  '1': 11,
+  '0': 10
+}
+*/
+```
+
 ## Read more:
 
 * 📋 [Faster Priority jobs](https://bullmq.io/news/062123/faster-priority-jobs/)
 * 💡 [Change Priority API Reference](https://api.docs.bullmq.io/classes/v5.Job.html#changePriority)
 * 💡 [Get Prioritized API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getPrioritized)
+* 💡 [Get Counts per Priority API Reference](https://api.docs.bullmq.io/classes/v5.Queue.html#getCountsPerPriority)

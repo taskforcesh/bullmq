@@ -18,6 +18,9 @@ export interface JobJson {
   parent?: ParentKeys;
   parentKey?: string;
   repeatJobKey?: string;
+  nextRepeatableJobKey?: string;
+  debounceId?: string;
+  deduplicationId?: string;
   processedBy?: string;
 }
 
@@ -37,7 +40,9 @@ export interface JobJsonRaw {
   returnvalue: string;
   parentKey?: string;
   parent?: string;
+  deid?: string;
   rjk?: string;
+  nrjid?: string;
   atm?: string;
   ats?: string;
   pb?: string; // Worker name

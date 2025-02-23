@@ -107,6 +107,36 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close(force=True)
         await queue.close()
 
+    async def test_process_job_fail_with_nan_as_return_value(self):
+        queue = Queue(queueName)
+        data = {"foo": "bar"}
+        job = await queue.add("test-job", data, {"removeOnComplete": False})
+
+        failedReason = "Out of range float values are not JSON compliant"
+
+        async def process(job: Job, token: str):
+            print("Processing job", job)
+            return float('nan')
+
+        worker = Worker(queueName, process)
+
+        processing = Future()
+        worker.on("failed", lambda job, result: processing.set_result(None))
+        await processing
+        failedJob = await Job.fromId(queue, job.id)
+
+
+        self.assertEqual(failedJob.id, job.id)
+        self.assertEqual(failedJob.attemptsMade, 1)
+        self.assertEqual(failedJob.data, data)
+        self.assertEqual(failedJob.failedReason, f'"{failedReason}"')
+        self.assertEqual(len(failedJob.stacktrace), 1)
+        self.assertEqual(failedJob.returnvalue, None)
+        self.assertNotEqual(failedJob.finishedOn, None)
+        
+        await worker.close(force=True)
+        await queue.close()
+
     async def test_process_jobs_fail(self):
         queue = Queue(queueName)
         data = {"foo": "bar"}
@@ -299,7 +329,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
                     })
                     step = Step.Second
                 elif step == Step.Second:
-                    await queue.add('child-2', {"foo": "bar" },{
+                    await queue.add('child-2', { "foo": "bar" }, {
                         "parent": {
                             "id": job.id,
                             "queue": job.queueQualifiedName
@@ -364,7 +394,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         async def process(job: Job, token: str):
             nonlocal num_jobs_processing
-            nonlocal wait 
+            nonlocal wait
             nonlocal pending_message_to_process
             num_jobs_processing += 1
             self.assertLess(num_jobs_processing, 5)

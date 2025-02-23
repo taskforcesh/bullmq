@@ -11,11 +11,8 @@
   <br/>
   <br/>
   <p>
-    <a href="https://openbase.com/js/bullmq?utm_source=embedded&utm_medium=badge&utm_campaign=rate-badge">
-      <img src="https://badges.openbase.com/js/rating/bullmq.svg"/>
-    </a>
-    <a href="https://gitter.im/OptimalBits/bull">
-      <img src="https://badges.gitter.im/Join%20Chat.svg"/>
+    <a href="https://join.slack.com/t/bullmq/shared_invite/zt-1nbtpk6mv-TItWpF9jf3k4yrCaS0PPZA">
+      <img src="https://img.shields.io/badge/Slack-4A154B"/>
     </a>    
     <a href="https://badge.fury.io/js/bullmq">
       <img src="https://badge.fury.io/js/bullmq.svg"/>
@@ -25,6 +22,9 @@
     </a>
     <a href="https://github.com/semantic-release/semantic-release">
       <img src="https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg"/>
+    </a>
+    <a href="https://gurubase.io/g/bullmq">
+      <img src="https://img.shields.io/badge/Gurubase-Ask%20BullMQ%20Guru-006BFF"/>
     </a>
   </p>
   <p>
@@ -42,15 +42,9 @@ You can find tutorials and news in this blog: https://blog.taskforce.sh/
 
 Do you need to work with BullMQ on platforms other than Node.js? If so, check out the [BullMQ Proxy](https://github.com/taskforcesh/bullmq-proxy)
 
-## 🌟 Rediscover Scale Conference 2024
-
-Discover the latest in in-memory and real-time data technologies at **Rediscover Scale 2024**. Ideal for engineers, architects, and technical leaders looking to push technological boundaries. Connect with experts and advance your skills at The Foundry SF, San Francisco.
-
-[Learn more and register here!](https://www.rediscoverscale.com/)
-
 # Official FrontEnd
 
-[<img src="http://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
+[<img src="https://taskforce.sh/assets/logo_square.png" width="150" alt="Taskforce.sh, Inc" style="padding: 200px"/>](https://taskforce.sh)
 
 Supercharge your queues with a professional front end:
 
@@ -73,16 +67,6 @@ Sign up at [Taskforce.sh](https://taskforce.sh)
     <td>
       Dragonfly is a new Redis™ drop-in replacement that is fully compatible with BullMQ and brings some important advantages over Redis™ such as massive
       better performance by utilizing all CPU cores available and faster and more memory efficient data structures. Read more <a href="https://www.dragonflydb.io/docs/integrations/bullmq">here</a> on how to use it with BullMQ.
-    </td>
-  </tr>
-  <tr>
-    <td>
-      <a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">
-        <img src="https://www.memetria.com/images/logo/memetria-logo.svg" width=350 alt="Memetria for Redis" />
-      </a>
-    </td>
-    <td>
-    If you need high quality production Redis instances for your BullMQ project, please consider subscribing to <a href="https://dashboard.memetria.com/new?utm_campaign=BULLMQ">Memetria for Redis</a>, leaders in Redis hosting that works perfectly with BullMQ. Use the promo code "BULLMQ" when signing up to help us sponsor the development of BullMQ!    
     </td>
   </tr>
 </table>
@@ -230,30 +214,31 @@ This is just scratching the surface, check all the features and more in the offi
 
 Since there are a few job queue solutions, here is a table comparing them:
 
-| Feature                   |   [BullMQ-Pro](https://bullmq.io/#bullmq-pro)    |     [BullMQ](https://bullmq.io)      |      Bull       |  Kue  | Bee      | Agenda |
-| :------------------------ | :-------------: | :-------------: | :-------------: | :---: | -------- | ------ |
-| Backend                   |      redis      |      redis      |      redis      | redis | redis    | mongo  |
-| Observables               |        ✓        |                 |                 |       |          |        |
-| Group Rate Limit          |        ✓        |                 |                 |       |          |        |
-| Group Support             |        ✓        |                 |                 |       |          |        |
-| Batches Support           |        ✓        |                 |                 |       |          |        |
-| Parent/Child Dependencies |        ✓        |        ✓        |                 |       |          |        |
-| Priorities                |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Concurrency               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
-| Delayed jobs              |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Global events             |        ✓        |        ✓        |        ✓        |   ✓   |          |        |
-| Rate Limiter              |        ✓        |        ✓        |        ✓        |       |          |        |
-| Pause/Resume              |        ✓        |        ✓        |        ✓        |   ✓   |          |        |
-| Sandboxed worker          |        ✓        |        ✓        |        ✓        |       |          |        |
-| Repeatable jobs           |        ✓        |        ✓        |        ✓        |       |          | ✓      |
-| Atomic ops                |        ✓        |        ✓        |        ✓        |       | ✓        |        |
-| Persistence               |        ✓        |        ✓        |        ✓        |   ✓   | ✓        | ✓      |
-| UI                        |        ✓        |        ✓        |        ✓        |   ✓   |          | ✓      |
-| Optimized for             | Jobs / Messages | Jobs / Messages | Jobs / Messages | Jobs  | Messages | Jobs   |
+| Feature                   | [BullMQ-Pro](https://bullmq.io/#bullmq-pro) | [BullMQ](https://bullmq.io) |      Bull       |  Kue  | Bee      | Agenda |
+| :------------------------ | :-----------------------------------------: | :-------------------------: | :-------------: | :---: | -------- | ------ |
+| Backend                   |                    redis                    |            redis            |      redis      | redis | redis    | mongo  |
+| Observables               |                      ✓                      |                             |                 |       |          |        |
+| Group Rate Limit          |                      ✓                      |                             |                 |       |          |        |
+| Group Support             |                      ✓                      |                             |                 |       |          |        |
+| Batches Support           |                      ✓                      |                             |                 |       |          |        |
+| Parent/Child Dependencies |                      ✓                      |              ✓              |                 |       |          |        |
+| Debouncing                |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Priorities                |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Concurrency               |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
+| Delayed jobs              |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Global events             |                      ✓                      |              ✓              |        ✓        |   ✓   |          |        |
+| Rate Limiter              |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Pause/Resume              |                      ✓                      |              ✓              |        ✓        |   ✓   |          |        |
+| Sandboxed worker          |                      ✓                      |              ✓              |        ✓        |       |          |        |
+| Repeatable jobs           |                      ✓                      |              ✓              |        ✓        |       |          | ✓      |
+| Atomic ops                |                      ✓                      |              ✓              |        ✓        |       | ✓        |        |
+| Persistence               |                      ✓                      |              ✓              |        ✓        |   ✓   | ✓        | ✓      |
+| UI                        |                      ✓                      |              ✓              |        ✓        |   ✓   |          | ✓      |
+| Optimized for             |               Jobs / Messages               |       Jobs / Messages       | Jobs / Messages | Jobs  | Messages | Jobs   |
 
 ## Contributing
 
-Fork the repo, make some changes, submit a pull-request! Here is the [contributing](contributing.md) doc that has more details.
+Fork the repo, make some changes, submit a pull-request! Here is the [contributing](https://github.com/taskforcesh/bullmq/blob/master/contributing.md) doc that has more details.
 
 # Thanks
 

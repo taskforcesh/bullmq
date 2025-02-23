@@ -46,6 +46,24 @@ export interface QueueEventsListener extends IoredisListener {
   ) => void;
 
   /**
+   * Listen to 'debounced' event.
+   * @deprecated use deduplicated event
+   *
+   * This event is triggered when a job is debounced because debounceId still existed.
+   */
+  debounced: (args: { jobId: string; debounceId: string }, id: string) => void;
+
+  /**
+   * Listen to 'deduplicated' event.
+   *
+   * This event is triggered when a job is deduplicated because deduplicatedId still existed.
+   */
+  deduplicated: (
+    args: { jobId: string; deduplicationId: string },
+    id: string,
+  ) => void;
+
+  /**
    * Listen to 'delayed' event.
    *
    * This event is triggered when a job is delayed.
@@ -154,6 +172,12 @@ export interface QueueEventsListener extends IoredisListener {
   'waiting-children': (args: { jobId: string }, id: string) => void;
 }
 
+type CustomParameters<T> = T extends (...args: infer Args) => void
+  ? Args
+  : never;
+
+type KeyOf<T extends object> = Extract<keyof T, string>;
+
 /**
  * The QueueEvents class is used for listening to the global events
  * emitted by a given queue.
@@ -178,9 +202,9 @@ export class QueueEvents extends QueueBase {
         connection: isRedisInstance(connection)
           ? (<RedisClient>connection).duplicate()
           : connection,
-        blockingConnection: true,
       },
       Connection,
+      true,
     );
 
     this.opts = Object.assign(
@@ -195,34 +219,34 @@ export class QueueEvents extends QueueBase {
     }
   }
 
-  emit<U extends keyof QueueEventsListener>(
-    event: U,
-    ...args: Parameters<QueueEventsListener[U]>
-  ): boolean {
+  emit<
+    QEL extends QueueEventsListener = QueueEventsListener,
+    U extends KeyOf<QEL> = KeyOf<QEL>,
+  >(event: U, ...args: CustomParameters<QEL[U]>): boolean {
     return super.emit(event, ...args);
   }
 
-  off<U extends keyof QueueEventsListener>(
-    eventName: U,
-    listener: QueueEventsListener[U],
-  ): this {
-    super.off(eventName, listener);
+  off<
+    QEL extends QueueEventsListener = QueueEventsListener,
+    U extends KeyOf<QEL> = KeyOf<QEL>,
+  >(eventName: U, listener: QEL[U]): this {
+    super.off(eventName, listener as (...args: any[]) => void);
     return this;
   }
 
-  on<U extends keyof QueueEventsListener>(
-    event: U,
-    listener: QueueEventsListener[U],
-  ): this {
-    super.on(event, listener);
+  on<
+    QEL extends QueueEventsListener = QueueEventsListener,
+    U extends KeyOf<QEL> = KeyOf<QEL>,
+  >(event: U, listener: QEL[U]): this {
+    super.on(event, listener as (...args: any[]) => void);
     return this;
   }
 
-  once<U extends keyof QueueEventsListener>(
-    event: U,
-    listener: QueueEventsListener[U],
-  ): this {
-    super.once(event, listener);
+  once<
+    QEL extends QueueEventsListener = QueueEventsListener,
+    U extends KeyOf<QEL> = KeyOf<QEL>,
+  >(event: U, listener: QEL[U]): this {
+    super.once(event, listener as (...args: any[]) => void);
     return this;
   }
 
@@ -292,7 +316,9 @@ export class QueueEvents extends QueueBase {
             this.emit(event, id);
           } else {
             this.emit(event as any, restArgs, id);
-            this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);
+            if (restArgs.jobId) {
+              this.emit(`${event}:${restArgs.jobId}` as any, restArgs, id);
+            }
           }
         }
       }

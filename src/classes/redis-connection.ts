@@ -12,6 +12,7 @@ import {
   isRedisInstance,
   isRedisVersionLowerThan,
 } from '../utils';
+import { version as packageVersion } from '../version';
 import * as scripts from '../scripts';
 
 const overrideMessage = [
@@ -51,18 +52,31 @@ export class RedisConnection extends EventEmitter {
   private readonly initializing: Promise<RedisClient>;
 
   private version: string;
+  protected packageVersion = packageVersion;
   private skipVersionCheck: boolean;
   private handleClientError: (e: Error) => void;
   private handleClientClose: () => void;
   private handleClientReady: () => void;
 
   constructor(
-    opts?: ConnectionOptions,
-    private readonly shared: boolean = false,
-    private readonly blocking = true,
-    skipVersionCheck = false,
+    opts: ConnectionOptions,
+    private readonly extraOptions?: {
+      shared?: boolean;
+      blocking?: boolean;
+      skipVersionCheck?: boolean;
+      skipWaitingForReady?: boolean;
+    },
   ) {
     super();
+
+    // Set extra options defaults
+    this.extraOptions = {
+      shared: false,
+      blocking: true,
+      skipVersionCheck: false,
+      skipWaitingForReady: false,
+      ...extraOptions,
+    };
 
     if (!isRedisInstance(opts)) {
       this.checkBlockingOptions(overrideMessage, opts);
@@ -76,7 +90,7 @@ export class RedisConnection extends EventEmitter {
         ...opts,
       };
 
-      if (this.blocking) {
+      if (this.extraOptions.blocking) {
         this.opts.maxRetriesPerRequest = null;
       }
     } else {
@@ -100,7 +114,9 @@ export class RedisConnection extends EventEmitter {
     }
 
     this.skipVersionCheck =
-      skipVersionCheck || !!(this.opts && this.opts.skipVersionCheck);
+      extraOptions?.skipVersionCheck ||
+      !!(this.opts && this.opts.skipVersionCheck);
+
     this.handleClientError = (err: Error): void => {
       this.emit('error', err);
     };
@@ -122,7 +138,7 @@ export class RedisConnection extends EventEmitter {
     options?: RedisOptions,
     throwError = false,
   ) {
-    if (this.blocking && options && options.maxRetriesPerRequest) {
+    if (this.extraOptions.blocking && options && options.maxRetriesPerRequest) {
       if (throwError) {
         throw new Error(msg);
       } else {
@@ -195,13 +211,17 @@ export class RedisConnection extends EventEmitter {
     return this.initializing;
   }
 
-  protected loadCommands(providedScripts?: Record<string, RawCommand>): void {
+  protected loadCommands(
+    packageVersion: string,
+    providedScripts?: Record<string, RawCommand>,
+  ): void {
     const finalScripts =
       providedScripts || (scripts as Record<string, RawCommand>);
     for (const property in finalScripts as Record<string, RawCommand>) {
       // Only define the command if not already defined
-      if (!(<any>this._client)[finalScripts[property].name]) {
-        (<any>this._client).defineCommand(finalScripts[property].name, {
+      const commandName = `${finalScripts[property].name}:${packageVersion}`;
+      if (!(<any>this._client)[commandName]) {
+        (<any>this._client).defineCommand(commandName, {
           numberOfKeys: finalScripts[property].keys,
           lua: finalScripts[property].content,
         });
@@ -211,7 +231,8 @@ export class RedisConnection extends EventEmitter {
 
   private async init() {
     if (!this._client) {
-      this._client = new IORedis(this.opts);
+      const { url, ...rest } = this.opts;
+      this._client = url ? new IORedis(url, rest) : new IORedis(rest);
     }
 
     increaseMaxListeners(this._client, 3);
@@ -222,9 +243,11 @@ export class RedisConnection extends EventEmitter {
 
     this._client.on('ready', this.handleClientReady);
 
-    await RedisConnection.waitUntilReady(this._client);
+    if (!this.extraOptions.skipWaitingForReady) {
+      await RedisConnection.waitUntilReady(this._client);
+    }
 
-    this.loadCommands();
+    this.loadCommands(this.packageVersion);
 
     if (this._client['status'] !== 'end') {
       this.version = await this.getRedisVersion();
@@ -298,7 +321,7 @@ export class RedisConnection extends EventEmitter {
     return client.connect();
   }
 
-  async close(): Promise<void> {
+  async close(force = false): Promise<void> {
     if (!this.closing) {
       const status = this.status;
       this.status = 'closing';
@@ -309,8 +332,8 @@ export class RedisConnection extends EventEmitter {
           // Not sure if we need to wait for this
           await this.initializing;
         }
-        if (!this.shared) {
-          if (status == 'initializing') {
+        if (!this.extraOptions.shared) {
+          if (status == 'initializing' || force) {
             // If we have not still connected to Redis, we need to disconnect.
             this._client.disconnect();
           } else {

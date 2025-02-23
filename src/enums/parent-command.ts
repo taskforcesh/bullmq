@@ -8,4 +8,5 @@ export enum ParentCommand {
   MoveToDelayed,
   Progress,
   Update,
+  GetChildrenValues,
 }

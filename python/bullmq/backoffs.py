@@ -34,4 +34,5 @@ def lookup_strategy(backoff: BackoffOptions, custom_strategy):
     elif custom_strategy:
         return custom_strategy
     else:
-        raise Exception(f"Unknown backoff strategy {backoff_type}. If a custom backoff strategy is used, specify it when the queue is created.")
+        raise Exception(f"Unknown backoff strategy {backoff_type}. " +
+                        "If a custom backoff strategy is used, specify it when the queue is created.")
