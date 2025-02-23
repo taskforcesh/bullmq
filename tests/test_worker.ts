@@ -4532,4 +4532,14 @@ describe('workers', function () {
 
     await worker.close();
   });
+
+  it('should accept file with valid extensions when initializing a sandboxed worker', async () => {
+    const worker = new Worker(
+      queueName,
+      `${__dirname}/../tests/sandboxed-worker-sample-files/worker1.tsx`,
+      { connection: {}, concurrency: 1 },
+    );
+
+    await worker.close();
+  });
 });
