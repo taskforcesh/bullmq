@@ -115,32 +115,7 @@ export class JobScheduler extends QueueBase {
       }
     }
 
-    const multi = (await this.client).multi();
     if (nextMillis) {
-      if (override) {
-        this.scripts.addJobScheduler(
-          (<unknown>multi) as RedisClient,
-          jobSchedulerId,
-          nextMillis,
-          JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
-          Job.optsAsJSON(opts),
-          {
-            name: jobName,
-            endDate: endDate ? new Date(endDate).getTime() : undefined,
-            tz: repeatOpts.tz,
-            limit,
-            pattern,
-            every,
-          },
-        );
-      } else {
-        this.scripts.updateJobSchedulerNextMillis(
-          (<unknown>multi) as RedisClient,
-          jobSchedulerId,
-          nextMillis,
-        );
-      }
-
       return this.trace<Job<T, R, N>>(
         SpanKind.PRODUCER,
         'add',
@@ -160,6 +135,61 @@ export class JobScheduler extends QueueBase {
                 omitContext,
               };
             }
+          }
+
+          const multi = (await this.client).multi();
+
+          if (override) {
+            const mergedOpts = this.getNextJobOpts(
+              nextMillis,
+              jobSchedulerId,
+              {
+                ...opts,
+                repeat: filteredRepeatOpts,
+                telemetry,
+              },
+              iterationCount,
+              newOffset,
+            );
+            const jobId = await this.scripts.addJobScheduler(
+              jobSchedulerId,
+              nextMillis,
+              JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
+              Job.optsAsJSON(opts),
+              {
+                name: jobName,
+                endDate: endDate ? new Date(endDate).getTime() : undefined,
+                tz: repeatOpts.tz,
+                pattern,
+                every,
+                limit,
+              },
+              Job.optsAsJSON(mergedOpts),
+              producerId,
+            );
+
+            const job = new this.Job<T, R, N>(
+              this,
+              jobName,
+              jobData,
+              mergedOpts,
+              jobId,
+            );
+
+            job.id = jobId;
+
+            span?.setAttributes({
+              [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+              [TelemetryAttributes.JobId]: job.id,
+            });
+
+            return job;
+          } else {
+            this.scripts.updateJobSchedulerNextMillis(
+              (<unknown>multi) as RedisClient,
+              jobSchedulerId,
+              nextMillis,
+            );
           }
 
           const job = this.createNextJob<T, R, N>(
@@ -201,6 +231,45 @@ export class JobScheduler extends QueueBase {
         },
       );
     }
+  }
+
+  private getNextJobOpts(
+    nextMillis: number,
+    jobSchedulerId: string,
+    opts: JobsOptions,
+    currentCount: number,
+    offset?: number,
+  ): JobsOptions {
+    //
+    // Generate unique job id for this iteration.
+    //
+    const jobId = this.getSchedulerNextJobId({
+      jobSchedulerId,
+      nextMillis,
+    });
+
+    const now = Date.now();
+    const delay = nextMillis + offset - now;
+
+    const mergedOpts: JobsOptions = {
+      ...opts,
+      jobId,
+      delay: delay < 0 ? 0 : delay,
+      timestamp: now,
+      prevMillis: nextMillis,
+      repeatJobKey: jobSchedulerId,
+    };
+
+    mergedOpts.repeat = {
+      ...opts.repeat,
+      count: currentCount,
+      offset,
+      endDate: opts.repeat?.endDate
+        ? new Date(opts.repeat.endDate).getTime()
+        : undefined,
+    };
+
+    return mergedOpts;
   }
 
   private createNextJob<T = any, R = any, N extends string = string>(
@@ -262,11 +331,11 @@ export class JobScheduler extends QueueBase {
     return this.transformSchedulerData<D>(key, jobData, next);
   }
 
-  private async transformSchedulerData<D>(
+  private transformSchedulerData<D>(
     key: string,
     jobData: any,
     next?: number,
-  ): Promise<JobSchedulerJson<D>> {
+  ): JobSchedulerJson<D> {
     if (jobData) {
       const jobSchedulerData: JobSchedulerJson<D> = {
         key,

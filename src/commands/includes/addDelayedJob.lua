@@ -8,13 +8,9 @@
 -- Includes
 --- @include "addDelayMarkerIfNeeded"
 --- @include "getDelayedScore"
---- @include "storeJob"
 
-local function addDelayedJob(jobIdKey, jobId, delayedKey, eventsKey, name, data, opts, timestamp, repeatJobKey,
-  maxEvents, markerKey, parentKey, parentData)
-  -- Store the job.
-  local delay, priority = storeJob(eventsKey, jobIdKey, jobId, name, data,
-    opts, timestamp, parentKey, parentData, repeatJobKey)
+local function addDelayedJob(jobId, delayedKey, eventsKey, timestamp,
+  maxEvents, markerKey, delay)
 
   local score, delayedTimestamp = getDelayedScore(delayedKey, timestamp, tonumber(delay))
 
@@ -25,4 +21,3 @@ local function addDelayedJob(jobIdKey, jobId, delayedKey, eventsKey, name, data,
   -- mark that a delayed job is available
   addDelayMarkerIfNeeded(markerKey, delayedKey)
 end
-  
