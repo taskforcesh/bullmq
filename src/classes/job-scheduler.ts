@@ -137,20 +137,19 @@ export class JobScheduler extends QueueBase {
             }
           }
 
-          const multi = (await this.client).multi();
+          const mergedOpts = this.getNextJobOpts(
+            nextMillis,
+            jobSchedulerId,
+            {
+              ...opts,
+              repeat: filteredRepeatOpts,
+              telemetry,
+            },
+            iterationCount,
+            newOffset,
+          );
 
           if (override) {
-            const mergedOpts = this.getNextJobOpts(
-              nextMillis,
-              jobSchedulerId,
-              {
-                ...opts,
-                repeat: filteredRepeatOpts,
-                telemetry,
-              },
-              iterationCount,
-              newOffset,
-            );
             const jobId = await this.scripts.addJobScheduler(
               jobSchedulerId,
               nextMillis,
@@ -185,49 +184,33 @@ export class JobScheduler extends QueueBase {
 
             return job;
           } else {
-            this.scripts.updateJobSchedulerNextMillis(
-              (<unknown>multi) as RedisClient,
+            const jobId = await this.scripts.updateJobSchedulerNextMillis(
               jobSchedulerId,
               nextMillis,
+              JSON.stringify(typeof jobData === 'undefined' ? {} : jobData),
+              Job.optsAsJSON(mergedOpts),
+              producerId,
             );
+
+            if (jobId) {
+              const job = new this.Job<T, R, N>(
+                this,
+                jobName,
+                jobData,
+                mergedOpts,
+                jobId,
+              );
+
+              job.id = jobId;
+
+              span?.setAttributes({
+                [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
+                [TelemetryAttributes.JobId]: job.id,
+              });
+
+              return job;
+            }
           }
-
-          const job = this.createNextJob<T, R, N>(
-            (<unknown>multi) as RedisClient,
-            jobName,
-            nextMillis,
-            newOffset,
-            jobSchedulerId,
-            {
-              ...opts,
-              repeat: { ...filteredRepeatOpts, offset: newOffset },
-              telemetry,
-            },
-            jobData,
-            iterationCount,
-            producerId,
-          );
-
-          const results = await multi.exec(); // multi.exec returns an array of results [ err, result ][]
-
-          // Check if there are any errors
-          const erroredResult = results.find(result => result[0]);
-          if (erroredResult) {
-            throw new Error(
-              `Error upserting job scheduler ${jobSchedulerId} - ${erroredResult[0]}`,
-            );
-          }
-
-          // Get last result with the job id
-          const lastResult = results.pop();
-          job.id = lastResult[1] as string;
-
-          span?.setAttributes({
-            [TelemetryAttributes.JobSchedulerId]: jobSchedulerId,
-            [TelemetryAttributes.JobId]: job.id,
-          });
-
-          return job;
         },
       );
     }

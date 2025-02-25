@@ -371,11 +371,42 @@ export class Scripts {
   }
 
   async updateJobSchedulerNextMillis(
-    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
-  ): Promise<number> {
-    return client.zadd(this.queue.keys.repeat, nextMillis, jobSchedulerId);
+    templateData: string,
+    delayedJobOpts: JobsOptions,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
+  ): Promise<string | null> {
+    const client = await this.queue.client;
+
+    const queueKeys = this.queue.keys;
+
+    const keys: (string | number | Buffer)[] = [
+      queueKeys.repeat,
+      queueKeys.delayed,
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.prioritized,
+      queueKeys.marker,
+      queueKeys.id,
+      queueKeys.events,
+      queueKeys.pc,
+      producerId ? this.queue.toKey(producerId) : '',
+    ];
+
+    const args = [
+      nextMillis,
+      jobSchedulerId,
+      templateData,
+      pack(delayedJobOpts),
+      Date.now(),
+      queueKeys[''],
+      producerId,
+    ];
+
+    return this.execCommand(client, 'updateJobScheduler', keys.concat(args));
   }
 
   private removeRepeatableArgs(
