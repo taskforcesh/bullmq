@@ -144,7 +144,7 @@ class Worker(EventEmitter):
                 self.blockUntil = 0
 
         if delay_until:
-            self.blockUntil = max(delay_until, 0) or 0
+            self.blockUntil = max(int(delay_until), 0) or 0
 
         if job_data:
             self.drained = False

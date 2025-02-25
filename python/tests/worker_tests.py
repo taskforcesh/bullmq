@@ -268,6 +268,34 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
         await worker.close()
 
+    async def test_retry_job_after_delay_with_exponential_backoff(self):
+        queue = Queue(queueName)
+
+        async def process1(job: Job, token: str):
+            if job.attemptsMade < 2:
+                raise Exception("Not yet!")
+            return None
+
+        worker = Worker(queueName, process1)
+
+        start = round(time.time() * 1000)
+        await queue.add("test", { "foo": "bar" },
+                {"attempts": 3, "backoff": {"type": "exponential", "delay": 1000}})
+
+        completed_events = Future()
+
+        def completing(job: Job, result):
+            elapse = round(time.time() * 1000) - start
+            self.assertGreater(elapse, 2000)
+            completed_events.set_result(None)
+
+        worker.on("completed", completing)
+
+        await completed_events
+
+        await queue.close()
+        await worker.close()
+    
     async def test_retry_job_after_delay_with_custom_backoff(self):
         queue = Queue(queueName)
 
