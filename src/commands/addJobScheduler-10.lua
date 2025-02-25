@@ -42,12 +42,10 @@ local templateOpts = cmsgpack.unpack(ARGV[5])
 local prefixKey = ARGV[8]
 
 -- Includes
---- @include "includes/addDelayedJob"
---- @include "includes/addJobWithPriority"
+--- @include "includes/addJobFromScheduler"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePaused"
 --- @include "includes/removeJob"
---- @include "includes/storeJob"
 --- @include "includes/storeJobScheduler"
 
 -- If we are overriding a repeatable job we must delete the delayed job for
@@ -91,35 +89,8 @@ if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
 
     rcall("INCR", KEYS[8])
 
-    local delayedOpts = cmsgpack.unpack(ARGV[6])
-
-    local delay, priority = storeJob(eventsKey, nextDelayedJobKey, nextDelayedJobId, schedulerOpts['name'], ARGV[4],
-        delayedOpts, ARGV[7], nil, nil, jobSchedulerId)
-
-    if delay ~= 0 then
-        addDelayedJob(nextDelayedJobId, delayedKey, eventsKey,
-            ARGV[7], maxEvents, KEYS[7], delay)
-    else
-        local isPaused = isQueuePaused(KEYS[5])
-      
-        -- Standard or priority add
-        if priority == 0 then
-            if isPaused then
-                -- LIFO or FIFO
-                local pushCmd = delayedOpts['lifo'] and 'RPUSH' or 'LPUSH'
-                rcall(pushCmd, KEYS[4], nextDelayedJobId)
-            else
-                -- LIFO or FIFO
-                local pushCmd = delayedOpts['lifo'] and 'RPUSH' or 'LPUSH'
-                rcall(pushCmd, KEYS[3], nextDelayedJobId)
-            end
-        else
-            -- Priority add
-            addJobWithPriority(KEYS[7], KEYS[6], priority, nextDelayedJobId, KEYS[10], isPaused)
-        end
-        -- Emit waiting event
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents,  "*", "event", "waiting", "jobId", nextDelayedJobId)
-    end
+    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], KEYS[3], KEYS[4], KEYS[5], prioritizedKey,
+      KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerOpts['name'], maxEvents, ARGV[7], ARGV[4], jobSchedulerId)
 
     if ARGV[9] ~= "" then
         rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
