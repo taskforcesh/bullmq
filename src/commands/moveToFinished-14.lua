@@ -103,7 +103,7 @@ if rcall("EXISTS", jobIdKey) == 1 then -- // Make sure job exists
     local parentKey = jobAttributes[1] or ""
     local parentId = ""
     local parentQueueKey = ""
-    if jobAttributes[2] ~= false then
+    if jobAttributes[2] then
         local jsonDecodedParent = cjson.decode(jobAttributes[2])
         parentId = jsonDecodedParent['id']
         parentQueueKey = jsonDecodedParent['queueKey']
