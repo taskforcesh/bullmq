@@ -741,9 +741,12 @@ export class Job<
   ): Promise<void | any[]> {
     this.failedReason = err?.message;
 
+    // Check if an automatic retry should be performed
+    const [shouldRetry, retryDelay] = await this.shouldRetryJob(err);
+
     return this.queue.trace<Promise<void | any[]>>(
       SpanKind.INTERNAL,
-      this.getSpanOperation('moveToFailed'),
+      this.getSpanOperation(shouldRetry, retryDelay),
       this.queue.name,
       async (span, dstPropagationMedatadata) => {
         let tm;
@@ -760,12 +763,7 @@ export class Job<
           tm,
         };
 
-        //
-        // Check if an automatic retry should be performed
-        //
         let finishedOn: number;
-        const [shouldRetry, retryDelay] = await this.shouldRetryJob(err);
-
         if (shouldRetry) {
           if (retryDelay) {
             // Retry with delay
@@ -818,15 +816,16 @@ export class Job<
     );
   }
 
-  private getSpanOperation(command: string) {
-    switch (command) {
-      case 'moveToDelayed':
+  private getSpanOperation(shouldRetry: boolean, retryDelay: number): string {
+    if (shouldRetry) {
+      if (retryDelay) {
         return 'delay';
-      case 'retryJob':
-        return 'retry';
-      case 'moveToFinished':
-        return 'fail';
+      }
+
+      return 'retry';
     }
+
+    return 'fail';
   }
 
   /**
