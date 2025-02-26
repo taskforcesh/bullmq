@@ -1,3 +1,11 @@
+## [5.41.6](https://github.com/taskforcesh/bullmq/compare/v5.41.5...v5.41.6) (2025-02-26)
+
+
+### Bug Fixes
+
+* **flow:** consider delayed state when moving a parent to failed ([#3112](https://github.com/taskforcesh/bullmq/issues/3112)) ([6a28b86](https://github.com/taskforcesh/bullmq/commit/6a28b861346a3efa89574a78b396954d6c4ed113))
+* **telemetry:** fix span name for moveToFailed logic ([#3113](https://github.com/taskforcesh/bullmq/issues/3113)) ([7a4b500](https://github.com/taskforcesh/bullmq/commit/7a4b500dc63320807e051d8efd2b8fee07bb0db5))
+
 ## [5.41.5](https://github.com/taskforcesh/bullmq/compare/v5.41.4...v5.41.5) (2025-02-21)
 
 
