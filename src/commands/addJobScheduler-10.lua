@@ -34,6 +34,9 @@
 local rcall = redis.call
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
+local waitKey = KEYS[3]
+local pausedKey = KEYS[4]
+local metaKey = KEYS[5]
 local prioritizedKey = KEYS[6]
 
 local nextMillis = ARGV[1]
@@ -66,12 +69,12 @@ if prevMillis ~= false then
             removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
             rcall("ZREM", prioritizedKey, currentJobId)
         else
-            if isQueuePaused(KEYS[5]) then
-                if rcall("LREM", KEYS[4], 1, currentJobId) > 0 then
+            if isQueuePaused(metaKey) then
+                if rcall("LREM", pausedKey, 1, currentJobId) > 0 then
                     removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
                 end
             else
-                if rcall("LREM", KEYS[3], 1, currentJobId) > 0 then
+                if rcall("LREM", waitKey, 1, currentJobId) > 0 then
                     removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
                 end
             end
@@ -84,12 +87,11 @@ storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, scheduler
 
 if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
     local eventsKey = KEYS[9]
-    local metaKey = KEYS[5]
     local maxEvents = getOrSetMaxEvents(metaKey)
 
     rcall("INCR", KEYS[8])
 
-    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], KEYS[3], KEYS[4], KEYS[5], prioritizedKey,
+    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], waitKey, pausedKey, metaKey, prioritizedKey,
       KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerOpts['name'], maxEvents, ARGV[7], ARGV[4], jobSchedulerId)
 
     if ARGV[9] ~= "" then

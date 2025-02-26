@@ -28,6 +28,9 @@
 local rcall = redis.call
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
+local waitKey = KEYS[3]
+local pausedKey = KEYS[4]
+local metaKey = KEYS[5]
 local prioritizedKey = KEYS[6]
 local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[2]
@@ -55,7 +58,6 @@ if prevMillis ~= false then
     rcall("HINCRBY", schedulerKey, "ic", 1)
 
     local eventsKey = KEYS[9]
-    local metaKey = KEYS[5]
     local maxEvents = getOrSetMaxEvents(metaKey)
 
     rcall("INCR", KEYS[8])
@@ -68,7 +70,7 @@ if prevMillis ~= false then
       rcall("HSET", schedulerKey, "data", templateData)
     end
 
-    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], KEYS[3], KEYS[4], KEYS[5], prioritizedKey,
+    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], waitKey, pausedKey, metaKey, prioritizedKey,
       KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerAttributes[1], maxEvents, ARGV[5],
       templateData or '{}', jobSchedulerId)
 
