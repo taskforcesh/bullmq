@@ -824,7 +824,7 @@ export class Job<
         return 'delay';
       case 'retryJob':
         return 'retry';
-      case 'moveToFinished':
+      case 'moveToFailed':
         return 'fail';
     }
   }
