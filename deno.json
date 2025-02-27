@@ -1,0 +1,25 @@
+{
+  "imports": {
+    "events": "node:events",
+    "path": "node:path",
+    "fs": "https://deno.land/std@0.110.0/node/fs.ts",
+    "child_process": "node:child_process",
+    "worker_threads": "node:worker_threads",
+    "net": "node:net",
+    "util": "node:util",
+    "crypto": "node:crypto",
+    "url": "node:url",
+    "lodash": "https://raw.githubusercontent.com/lodash/lodash/4.17.21-es/lodash.js",
+    "msgpackr-extract@3.0.3": "npm:msgpackr-extract@3.0.3",
+    "process": "node:process",
+    "ioredis": "https://esm.sh/ioredis"
+  },
+  "compilerOptions": {
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "strictPropertyInitialization": false,
+    "allowJs": true
+  },
+  "nodeModulesDir": "auto"
+}
