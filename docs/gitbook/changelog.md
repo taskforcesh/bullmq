@@ -1,3 +1,10 @@
+## [5.41.7](https://github.com/taskforcesh/bullmq/compare/v5.41.6...v5.41.7) (2025-02-27)
+
+
+### Bug Fixes
+
+* **scheduler:** validate repeatKey if present when cleaning failed jobs ([#3115](https://github.com/taskforcesh/bullmq/issues/3115)) fixes [#3114](https://github.com/taskforcesh/bullmq/issues/3114) ([d4cad84](https://github.com/taskforcesh/bullmq/commit/d4cad8402628f1773299c9cf33e6cc6a0e694037))
+
 ## [5.41.6](https://github.com/taskforcesh/bullmq/compare/v5.41.5...v5.41.6) (2025-02-26)
 
 
