@@ -27,6 +27,7 @@ import {
   RetryJobOpts,
 } from '../interfaces';
 import {
+  JobsOptions,
   JobState,
   JobType,
   FinishedStatus,
@@ -314,18 +315,29 @@ export class Scripts {
   }
 
   async addJobScheduler(
-    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
     templateData: string,
     templateOpts: RedisJobOptions,
     opts: RepeatableOptions,
+    delayedJobOpts: JobsOptions,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
   ): Promise<string> {
+    const client = await this.queue.client;
     const queueKeys = this.queue.keys;
 
     const keys: (string | number | Buffer)[] = [
       queueKeys.repeat,
       queueKeys.delayed,
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.prioritized,
+      queueKeys.marker,
+      queueKeys.id,
+      queueKeys.events,
+      queueKeys.pc,
     ];
 
     const args = [
@@ -334,8 +346,12 @@ export class Scripts {
       jobSchedulerId,
       templateData,
       pack(templateOpts),
+      pack(delayedJobOpts),
+      Date.now(),
       queueKeys[''],
+      producerId ? this.queue.toKey(producerId) : '',
     ];
+
     return this.execCommand(client, 'addJobScheduler', keys.concat(args));
   }
 
