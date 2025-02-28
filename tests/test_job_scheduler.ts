@@ -242,8 +242,8 @@ describe('Job Scheduler', function () {
       const repeatableJobs = await queue.getJobSchedulers();
       expect(repeatableJobs.length).to.be.eql(1);
       await this.clock.tickAsync(ONE_MINUTE);
-      const delayed = await queue.getDelayed();
-      expect(delayed).to.have.length(1);
+      const count = await queue.getJobCountByTypes('delayed', 'waiting');
+      expect(count).to.be.equal(1);
 
       await worker.close();
     });
@@ -292,8 +292,8 @@ describe('Job Scheduler', function () {
       expect(repeatableJobs[0]).to.be.have.property('every', '240000');
 
       await this.clock.tickAsync(ONE_MINUTE);
-      const delayed = await queue.getDelayed();
-      expect(delayed).to.have.length(1);
+      const count = await queue.getJobCountByTypes('delayed', 'waiting');
+      expect(count).to.be.equal(1);
 
       await worker.close();
     });
