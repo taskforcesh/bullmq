@@ -144,6 +144,7 @@ class Worker(EventEmitter):
                 self.blockUntil = 0
 
         if delay_until:
+            print("delay_until", type(delay_until))
             self.blockUntil = max(delay_until, 0) or 0
 
         if job_data:
