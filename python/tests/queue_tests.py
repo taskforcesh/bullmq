@@ -124,12 +124,12 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
 
-        events_length = await queue.client.xlen(f"test:{queueName}:events")
+        events_length = await queue.client.xlen(f"{custom_prefix}:{queueName}:events")
         self.assertEqual(events_length, 8)
 
         await queue.trimEvents(0)
 
-        events_length = await queue.client.xlen(f"test:{queue.name}:events")
+        events_length = await queue.client.xlen(f"{custom_prefix}:{queue.name}:events")
 
         self.assertEqual(events_length, 0)
 
