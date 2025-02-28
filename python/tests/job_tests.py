@@ -5,24 +5,26 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 import unittest
+import os
 
 from bullmq import Queue, Job
 from uuid import uuid4
 
 queueName = f"__test_queue__{uuid4().hex}"
+prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestJob(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         print("Setting up test queue")
         # Delete test queue
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         await queue.pause()
         await queue.obliterate()
         await queue.close()
 
     async def test_set_and_get_progress_as_number(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
         await job.updateProgress(42)
         stored_job = await Job.fromId(queue, job.id)
@@ -31,7 +33,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_set_and_get_progress_as_object(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
         await job.updateProgress({"total": 120, "completed": 40})
         stored_job = await Job.fromId(queue, job.id)
@@ -40,7 +42,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_get_job_state(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
         state = await job.getState()
 
@@ -49,7 +51,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_job_log(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         firstLog = 'some log text 1'
         secondLog = 'some log text 2'
         job = await queue.add("test-job", {"foo": "bar"}, {})
@@ -63,7 +65,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_update_job_data(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test", {"foo": "bar"}, {})
         await job.updateData({"baz": "qux"})
         stored_job = await Job.fromId(queue, job.id)
@@ -73,7 +75,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_job_data_json_compliant(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test", {"foo": "bar"}, {})
         with self.assertRaises(ValueError):
             await job.updateData({"baz": float('nan')})
@@ -81,7 +83,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_update_job_data_when_is_removed(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test", {"foo": "bar"}, {})
         await job.remove()
         with self.assertRaises(TypeError):
@@ -90,7 +92,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_promote_delayed_job(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test", {"foo": "bar"}, {"delay": 1500})
         isDelayed = await job.isDelayed()
         self.assertEqual(isDelayed, True)
