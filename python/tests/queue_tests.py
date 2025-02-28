@@ -11,30 +11,31 @@ from uuid import uuid4
 
 import asyncio
 import unittest
+import os
 import time
 
 queueName = f"__test_queue__{uuid4().hex}"
-
+prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestQueue(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         print("Setting up test queue")
         # Delete test queue
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         await queue.pause()
         await queue.obliterate()
         await queue.close()
 
     async def test_add_job(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
 
         self.assertEqual(job.id, "1")
         await queue.close()
 
     async def test_get_jobs(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job1 = await queue.add("test-job", {"foo": "bar"}, {})
         job2 = await queue.add("test-job", {"foo": "bar"}, {})
         jobs = await queue.getJobs(["wait"])
@@ -44,7 +45,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_get_job_state(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
         state = await queue.getJobState(job.id)
 
@@ -52,7 +53,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_add_job_with_options(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         attempts = 3
         delay = 1000
@@ -66,7 +67,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_is_paused(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         await queue.pause()
         isPaused = await queue.isPaused()
 
@@ -81,7 +82,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_is_paused_with_custom_prefix(self):
-        queue = Queue(queueName, {"prefix": "test"})
+        custom_prefix = "{" + prefix + "}"
+        queue = Queue(queueName, {"prefix": custom_prefix})
         await queue.pause()
         isPaused = await queue.isPaused()
 
@@ -97,7 +99,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_trim_events_manually(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
@@ -115,7 +117,8 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_trim_events_manually_with_custom_prefix(self):
-        queue = Queue(queueName, {"prefix": "test"})
+        custom_prefix = "{" + prefix + "}"
+        queue = Queue(queueName, {"prefix": custom_prefix})
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
         await queue.add("test", data={}, opts={})
@@ -134,7 +137,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_get_delayed_count(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         delay = 1000
         await queue.add("test-job", data=data, opts={"delay": delay})
@@ -146,7 +149,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_retry_failed_jobs(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job_count = 8
 
         fail = True
@@ -158,7 +161,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             return
         order = 0
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         failed_events = Future()
 
@@ -209,7 +212,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_retry_completed_jobs(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job_count = 8
 
         async def process(job: Job, token: str):
@@ -217,7 +220,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             return
         order = 0
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         completed_events1 = Future()
 
@@ -265,7 +268,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_retry_failed_jobs_before_timestamp(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job_count = 8
 
         fail = True
@@ -277,7 +280,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             return
         order = 0
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         failed_events = Future()
         timestamp = 0
@@ -332,7 +335,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_retry_jobs_when_queue_is_paused(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job_count = 8
 
         fail = True
@@ -344,7 +347,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             return
         order = 0
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         failed_events = Future()
 
@@ -382,7 +385,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_promote_all_delayed_jobs(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job_count = 8
 
         for index in range(job_count):
@@ -402,7 +405,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
             return
         order = 0
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         completed_events = Future()
 
@@ -426,7 +429,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_remove_job(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         job = await queue.add("test", {"foo": "bar"}, {})
         await queue.remove(job.id)
         job = await Job.fromId(queue, job.id)
@@ -435,7 +438,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_get_counts_per_priority(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         jobs = [{
             "name": "test",
             "data": {},
@@ -456,7 +459,7 @@ class TestQueue(unittest.IsolatedAsyncioTestCase):
 
     async def test_reusable_redis(self):
         conn = redis.Redis(decode_responses=True, host="localhost", port="6379", db=0)
-        queue = Queue(queueName, {"connection": conn})
+        queue = Queue(queueName, {"connection": conn, "prefix": prefix})
         job = await queue.add("test-job", {"foo": "bar"}, {})
 
         self.assertEqual(job.id, "1")

@@ -5,6 +5,7 @@ https://bbc.github.io/cloudfit-public-docs/asyncio/testing.html
 """
 
 from asyncio import Future
+import os
 
 from bullmq import Queue, Job, FlowProducer, Worker
 from uuid import uuid4
@@ -12,13 +13,14 @@ from uuid import uuid4
 import unittest
 
 queue_name = f"__test_queue__{uuid4().hex}"
+prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestJob(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         print("Setting up test queue")
         # Delete test queue
-        queue = Queue(queue_name)
+        queue = Queue(queue_name, {"prefix": prefix})
         await queue.pause()
         await queue.obliterate()
         await queue.close()
@@ -48,10 +50,10 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
             processing_parent.set_result(None)
             return 1
 
-        parent_worker = Worker(parent_queue_name, process2)
-        children_worker = Worker(queue_name, process1)
+        parent_worker = Worker(parent_queue_name, process2, {"prefix": prefix})
+        children_worker = Worker(queue_name, process1, {"prefix": prefix})
 
-        flow = FlowProducer()
+        flow = FlowProducer({}, {"prefix": prefix})
         await flow.add(
             {
                 "name": 'parent-job',
@@ -72,7 +74,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await children_worker.close()
         await flow.close()
 
-        parent_queue = Queue(parent_queue_name)
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
         await parent_queue.pause()
         await parent_queue.obliterate()
         await parent_queue.close()
@@ -105,10 +107,10 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
                 processing_parents.set_result(None)
             return 1
 
-        parent_worker = Worker(parent_queue_name, process2)
-        children_worker = Worker(queue_name, process1)
+        parent_worker = Worker(parent_queue_name, process2, {"prefix": prefix})
+        children_worker = Worker(queue_name, process1, {"prefix": prefix})
 
-        flow = FlowProducer()
+        flow = FlowProducer({},{"prefix": prefix})
         await flow.addBulk([
             {
                 "name": 'parent-job-1',
@@ -135,7 +137,7 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await children_worker.close()
         await flow.close()
 
-        parent_queue = Queue(parent_queue_name)
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
         await parent_queue.pause()
         await parent_queue.obliterate()
         await parent_queue.close()
@@ -166,10 +168,10 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
             processing_parent.set_result(children_values)
             return 1
 
-        parent_worker = Worker(parent_queue_name, process2)
-        children_worker = Worker(queue_name, process1)
+        parent_worker = Worker(parent_queue_name, process2, {"prefix": prefix})
+        children_worker = Worker(queue_name, process1, {"prefix": prefix})
 
-        flow = FlowProducer()
+        flow = FlowProducer({},{"prefix": prefix})
         await flow.add(
             {
                 "name": 'parent-job',
@@ -197,13 +199,13 @@ class TestJob(unittest.IsolatedAsyncioTestCase):
         await children_worker.close()
         await flow.close()
 
-        parent_queue = Queue(parent_queue_name)
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
         await parent_queue.pause()
         await parent_queue.obliterate()
         await parent_queue.close()
 
     async def test_get_children_values_on_simple_jobs(self):
-        queue = Queue(queue_name)
+        queue = Queue(queue_name, {"prefix": prefix})
         job = await queue.add("test", {"foo": "bar"}, {"delay": 1500})
         children_values = await job.getChildrenValues()
         self.assertEqual(children_values, {})
