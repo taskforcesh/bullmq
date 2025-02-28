@@ -179,7 +179,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(3)
             return "done"
 
-        worker = Worker(queueName, process, {"lockDuration": 1000 "prefix": prefix})
+        worker = Worker(queueName, process, {"lockDuration": 1000, "prefix": prefix})
 
         processing = Future()
         worker.on("completed", lambda job, result: processing.set_result(None))

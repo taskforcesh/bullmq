@@ -29,7 +29,7 @@ class FlowProducer:
     Instantiate a FlowProducer object
     """
 
-    #pass only queueOpts, no need 2 parameters in next breaking change
+    #TODO: pass only queueOpts, no need 2 parameters in next breaking change
     def __init__(self, redisOpts: dict | str = {}, opts: QueueBaseOptions = {}):
         """
         Initialize a connection
