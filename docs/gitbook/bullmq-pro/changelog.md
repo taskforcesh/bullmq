@@ -1,3 +1,119 @@
+## [7.30.4](https://github.com/taskforcesh/bullmq-pro/compare/v7.30.3...v7.30.4) (2025-03-01)
+
+
+### Bug Fixes
+
+* **job-scheduler:** consider removing current job from wait, paused or prioritized ([#3066](https://github.com/taskforcesh/bullmq/issues/3066)) ([97cd2b1](https://github.com/taskforcesh/bullmq/commit/97cd2b147d541e0984d1c2e107110e1a9d56d9b5))
+
+
+### Performance Improvements
+
+* **delayed:** add marker once when promoting delayed jobs ([#3096](https://github.com/taskforcesh/bullmq/issues/3096)) (python) ([38912fb](https://github.com/taskforcesh/bullmq/commit/38912fba969d614eb44d05517ba2ec8bc418a16e))
+
+## [7.30.3](https://github.com/taskforcesh/bullmq-pro/compare/v7.30.2...v7.30.3) (2025-02-21)
+
+
+### Bug Fixes
+
+* **repeat:** use JobPro class when creating delayed job ([#292](https://github.com/taskforcesh/bullmq-pro/issues/292)) ([ce9eff8](https://github.com/taskforcesh/bullmq-pro/commit/ce9eff8a7c000afb5bc23173267f44b2040a0c6a))
+* **worker:** do not execute run method when no processor is defined when resuming ([#3089](https://github.com/taskforcesh/bullmq/issues/3089)) ([4a66933](https://github.com/taskforcesh/bullmq/commit/4a66933496db68a84ec7eb7c153fcedb7bd14c7b))
+* **worker:** do not resume when closing ([#3080](https://github.com/taskforcesh/bullmq/issues/3080)) ([024ee0f](https://github.com/taskforcesh/bullmq/commit/024ee0f3f0e808c256712d3ccb1bcadb025eb931))
+* **job:** set processedBy when moving job to active in moveToFinished ([#3077](https://github.com/taskforcesh/bullmq/issues/3077)) fixes [#3073](https://github.com/taskforcesh/bullmq/issues/3073) ([1aa970c](https://github.com/taskforcesh/bullmq/commit/1aa970ced3c55949aea6726c4ad29531089f5370))
+* **drain:** pass delayed key for redis cluster ([#3074](https://github.com/taskforcesh/bullmq/issues/3074)) ([05ea32b](https://github.com/taskforcesh/bullmq/commit/05ea32b7e4f0cd4099783fd81d2b3214d7a293d5))
+* **job-scheduler:** restore limit option to be saved ([#3071](https://github.com/taskforcesh/bullmq/issues/3071)) ([3e649f7](https://github.com/taskforcesh/bullmq/commit/3e649f7399514b343447ed2073cc07e4661f7390))
+* **job-scheduler:** return undefined in getJobScheduler when it does not exist ([#3065](https://github.com/taskforcesh/bullmq/issues/3065)) fixes [#3062](https://github.com/taskforcesh/bullmq/issues/3062) ([548cc1c](https://github.com/taskforcesh/bullmq/commit/548cc1ce8080042b4b44009ea99108bd24193895))
+* fix return type of getNextJob ([b970281](https://github.com/taskforcesh/bullmq/commit/b9702812e6961f0f5a834f66d43cfb2feabaafd8))
+
+
+### Features
+
+* **job:** add moveToWait method for manual processing ([#2978](https://github.com/taskforcesh/bullmq/issues/2978)) ([5a97491](https://github.com/taskforcesh/bullmq/commit/5a97491a0319df320b7858657e03c357284e0108))
+* **queue:** support removeGlobalConcurrency method ([#3076](https://github.com/taskforcesh/bullmq/issues/3076)) ([ece8532](https://github.com/taskforcesh/bullmq/commit/ece853203adb420466dfaf3ff8bccc73fb917147))
+
+
+### Performance Improvements
+
+* **add-job:** add job into wait or prioritized state when delay is provided as 0 ([#3052](https://github.com/taskforcesh/bullmq/issues/3052)) ([3e990eb](https://github.com/taskforcesh/bullmq/commit/3e990eb742b3a12065110f33135f282711fdd7b9))
+
+## [7.30.2](https://github.com/taskforcesh/bullmq-pro/compare/v7.30.1...v7.30.2) (2025-02-20)
+
+
+### Bug Fixes
+
+* **worker:** wait fetched jobs to be processed when closing ([#3059](https://github.com/taskforcesh/bullmq/issues/3059)) ([d4de2f5](https://github.com/taskforcesh/bullmq/commit/d4de2f5e88d57ea00274e62ab23d09f4806196f8))
+
+
+## [7.30.1](https://github.com/taskforcesh/bullmq-pro/compare/v7.30.0...v7.30.1) (2025-02-20)
+
+
+### Bug Fixes
+
+* **job:** save processedBy attribute when preparing for processing ([#300](https://github.com/taskforcesh/bullmq-pro/issues/300)) ([c947f6e](https://github.com/taskforcesh/bullmq-pro/commit/c947f6eab80ecd7124e77a589e23f50909e0dee8))
+
+# [7.30.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.29.0...v7.30.0) (2025-02-19)
+
+
+### Features
+
+* **groups:** support local limiter options ([#262](https://github.com/taskforcesh/bullmq-pro/issues/262)) ([fed293c](https://github.com/taskforcesh/bullmq-pro/commit/fed293cceb575caa7be4987cb65c488faf700075))
+
+# [7.29.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.28.0...v7.29.0) (2025-02-18)
+
+
+### Features
+
+* **job-scheduler:** revert add delayed job and update in the same script ([9f0f1ba](https://github.com/taskforcesh/bullmq/commit/9f0f1ba9b17874a757ac38c1878792c0df3c5a9a))
+
+# [7.28.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.27.0...v7.28.0) (2025-02-15)
+
+
+### Bug Fixes
+
+* **worker:** evaluate if a job needs to be fetched when moving to failed ([#3043](https://github.com/taskforcesh/bullmq/issues/3043)) ([406e21c](https://github.com/taskforcesh/bullmq/commit/406e21c9aadd7670f353c1c6b102a401fc327653))
+* **retry-job:** consider updating failures in job ([#3036](https://github.com/taskforcesh/bullmq/issues/3036)) ([21e8495](https://github.com/taskforcesh/bullmq/commit/21e8495b5f2bf5418d86f60b59fad25d306a0298))
+* **flow-producer:** add support for skipWaitingForReady ([6d829fc](https://github.com/taskforcesh/bullmq/commit/6d829fceda9f204f193c533ffc780962692b8f16))
+
+
+### Features
+
+* **job-scheduler:** save limit option ([#3033](https://github.com/taskforcesh/bullmq/issues/3033)) ([a1571ea](https://github.com/taskforcesh/bullmq/commit/a1571ea03be6c6c41794fa272c38c29588351bbf))
+* **queue:** add option to skip wait until connection ready ([e728299](https://github.com/taskforcesh/bullmq/commit/e72829922d4234b92290346dce5d33f5b98ee373))
+
+# [7.27.0](https://github.com/taskforcesh/bullmq-pro/compare/v7.26.6...v7.27.0) (2025-02-12)
+
+
+### Bug Fixes
+
+* **worker:** avoid possible hazard in closing worker ([0f07467](https://github.com/taskforcesh/bullmq/commit/0f0746727176d7ff285ae2d1f35048109b4574c5))
+
+
+### Features
+
+* **queue-getters:** add prometheus exporter ([078ae9d](https://github.com/taskforcesh/bullmq/commit/078ae9db80f6ca64ff0a8135b57a6dc71d71cb1e))
+* **job-scheduler:** save iteration count ([#3018](https://github.com/taskforcesh/bullmq/issues/3018)) ([ad5c07c](https://github.com/taskforcesh/bullmq/commit/ad5c07cc7672a3f7a7185310b1250763a5fef76b))
+* **sandbox:** add support for getChildrenValues ([dcc3b06](https://github.com/taskforcesh/bullmq/commit/dcc3b0628f992546d7b93f509795e5d4eb3e1b15))
+
+## [7.26.6](https://github.com/taskforcesh/bullmq-pro/compare/v7.26.5...v7.26.6) (2025-02-03)
+
+
+### Bug Fixes
+
+* **worker:** add missing otel trace when extending locks ([#290](https://github.com/taskforcesh/bullmq-pro/issues/290)) ([efbf948](https://github.com/taskforcesh/bullmq-pro/commit/efbf948585fee4614311db7789d4d351ecc87767))
+
+## [7.26.5](https://github.com/taskforcesh/bullmq-pro/compare/v7.26.4...v7.26.5) (2025-02-02)
+
+
+### Bug Fixes
+
+* **worker:** remove the use of multi in extend locks ([3862075](https://github.com/taskforcesh/bullmq-pro/commit/3862075ab4e41cfa4c1f6b3f87ba50a5087f8c0d))
+
+## [7.26.4](https://github.com/taskforcesh/bullmq-pro/compare/v7.26.3...v7.26.4) (2025-01-30)
+
+
+### Bug Fixes
+
+* **retry-job:** pass stalled key instead of limiter ([#291](https://github.com/taskforcesh/bullmq-pro/issues/291)) ([e981c69](https://github.com/taskforcesh/bullmq-pro/commit/e981c69067afa68f86be7599b3f835e53406dd9b))
+
 ## [7.26.3](https://github.com/taskforcesh/bullmq-pro/compare/v7.26.2...v7.26.3) (2025-01-26)
 
 
