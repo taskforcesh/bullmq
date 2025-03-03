@@ -170,11 +170,6 @@ export class Worker<
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
-  private asyncFifoQueue: AsyncFifoQueue<void | Job<
-    DataType,
-    ResultType,
-    NameType
-  >>;
   private blockingConnection: RedisConnection;
   private blockUntil = 0;
   private _concurrency: number;
@@ -463,11 +458,11 @@ export class Worker<
    * to Redis.
    */
   private async mainLoop(client: RedisClient, bclient: RedisClient) {
-    const asyncFifoQueue = (this.asyncFifoQueue = new AsyncFifoQueue<void | Job<
+    const asyncFifoQueue = new AsyncFifoQueue<void | Job<
       DataType,
       ResultType,
       NameType
-    >>());
+    >>();
     const jobsInProgress = new Set<{ job: Job; ts: number }>();
     this.startLockExtenderTimer(jobsInProgress);
 
@@ -965,7 +960,9 @@ will never work with more accuracy than 1ms. */
 
         this.paused = false;
 
-        this.run();
+        if (this.processFn) {
+          this.run();
+        }
         this.emit('resumed');
       });
     }
@@ -1021,8 +1018,6 @@ will never work with more accuracy than 1ms. */
           });
           this.emit('closing', 'closing queue');
           this.abortDelayController?.abort();
-
-          this.resume();
 
           // Define the async cleanup functions
           const asyncCleanups = [
@@ -1285,6 +1280,6 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
   ) {
-    return this.scripts.moveJobFromActiveToWait(job.id, token);
+    return job.moveToWait(token);
   }
 }

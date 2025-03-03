@@ -27,6 +27,7 @@ import {
   RetryJobOpts,
 } from '../interfaces';
 import {
+  JobsOptions,
   JobState,
   JobType,
   FinishedStatus,
@@ -224,7 +225,7 @@ export class Scripts {
 
     if (parentOpts.waitChildrenKey) {
       result = await this.addParentJob(client, job, encodedOpts, args);
-    } else if (typeof opts.delay == 'number') {
+    } else if (typeof opts.delay == 'number' && opts.delay > 0) {
       result = await this.addDelayedJob(client, job, encodedOpts, args);
     } else if (opts.priority) {
       result = await this.addPrioritizedJob(client, job, encodedOpts, args);
@@ -314,18 +315,29 @@ export class Scripts {
   }
 
   async addJobScheduler(
-    client: RedisClient,
     jobSchedulerId: string,
     nextMillis: number,
     templateData: string,
     templateOpts: RedisJobOptions,
     opts: RepeatableOptions,
+    delayedJobOpts: JobsOptions,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
   ): Promise<string> {
+    const client = await this.queue.client;
     const queueKeys = this.queue.keys;
 
     const keys: (string | number | Buffer)[] = [
       queueKeys.repeat,
       queueKeys.delayed,
+      queueKeys.wait,
+      queueKeys.paused,
+      queueKeys.meta,
+      queueKeys.prioritized,
+      queueKeys.marker,
+      queueKeys.id,
+      queueKeys.events,
+      queueKeys.pc,
     ];
 
     const args = [
@@ -334,8 +346,12 @@ export class Scripts {
       jobSchedulerId,
       templateData,
       pack(templateOpts),
+      pack(delayedJobOpts),
+      Date.now(),
       queueKeys[''],
+      producerId ? this.queue.toKey(producerId) : '',
     ];
+
     return this.execCommand(client, 'addJobScheduler', keys.concat(args));
   }
 
@@ -420,7 +436,7 @@ export class Scripts {
     jobId: string,
     removeChildren: boolean,
   ): (string | number)[] {
-    const keys: (string | number)[] = ['', 'meta'].map(name =>
+    const keys: (string | number)[] = ['', 'meta', 'repeat'].map(name =>
       this.queue.toKey(name),
     );
 
@@ -597,6 +613,7 @@ export class Scripts {
       queueKeys[''],
       pack({
         token,
+        name: opts.name,
         keepJobs,
         limiter: opts.limiter,
         lockDuration: opts.lockDuration,
@@ -656,12 +673,12 @@ export class Scripts {
     const keys: (string | number)[] = [
       queueKeys.wait,
       queueKeys.paused,
-      delayed ? queueKeys.delayed : '',
+      queueKeys.delayed,
       queueKeys.prioritized,
       queueKeys.repeat,
     ];
 
-    const args = [queueKeys['']];
+    const args = [queueKeys[''], delayed ? '1' : '0'];
 
     return keys.concat(args);
   }

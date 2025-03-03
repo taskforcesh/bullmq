@@ -175,6 +175,26 @@ describe('Delayed jobs', function () {
     });
   });
 
+  describe('when delay is provided as 0', function () {
+    describe('when priority is not provided', function () {
+      it('should add job directly into wait state', async function () {
+        const job = await queue.add('test', {}, { delay: 0 });
+
+        const state = await job.getState();
+        expect(state).to.be.eql('waiting');
+      });
+    });
+
+    describe('when priority is provided', function () {
+      it('should add job directly into prioritized state', async function () {
+        const job = await queue.add('test', {}, { delay: 0, priority: 1 });
+
+        const state = await job.getState();
+        expect(state).to.be.eql('prioritized');
+      });
+    });
+  });
+
   describe('when queue is paused', function () {
     it('should keep moving delayed jobs to waiting', async function () {
       const delayTime = 2500;

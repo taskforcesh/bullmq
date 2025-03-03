@@ -297,6 +297,14 @@ export class Queue<
   }
 
   /**
+   * Remove global concurrency value.
+   */
+  async removeGlobalConcurrency() {
+    const client = await this.client;
+    return client.hdel(this.keys.meta, 'concurrency');
+  }
+
+  /**
    * Adds a new job to the queue.
    *
    * @param name - Name of the job to be added to the queue.

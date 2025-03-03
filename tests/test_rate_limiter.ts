@@ -96,8 +96,6 @@ describe('Rate Limiter', function () {
         'completed',
         // after every job has been completed
         after(numJobs, async () => {
-          await worker.close();
-
           try {
             const timeDiff = new Date().getTime() - startTime;
             expect(timeDiff).to.be.gte((numJobs - 1) * 1000);
@@ -745,8 +743,6 @@ describe('Rate Limiter', function () {
             'completed',
             // after every job has been completed
             after(numJobs, async args => {
-              await worker.close();
-
               try {
                 expect(args.jobId).to.be.equal('1');
                 resolve();

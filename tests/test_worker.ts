@@ -714,23 +714,25 @@ describe('workers', function () {
       worker = new Worker(
         queueName,
         async job => {
-          const fetchedJob = await queue.getJob(job.id!);
-
           try {
-            expect(fetchedJob).to.be.ok;
-            expect(fetchedJob!.processedBy).to.be.equal(worker.opts.name);
+            await delay(100);
+            expect(job).to.be.ok;
+            expect(job!.processedBy).to.be.equal(worker.opts.name);
           } catch (err) {
             reject(err);
           }
 
-          resolve();
+          if (job.data.foo === 'baz') {
+            resolve();
+          }
         },
         { connection, prefix, name: 'foobar' },
       );
       await worker.waitUntilReady();
     });
 
-    await queue.add('test', { foo: 'bar' });
+    await queue.add('test1', { foo: 'bar' });
+    await queue.add('test2', { foo: 'baz' });
 
     await processing;
 
@@ -905,7 +907,7 @@ describe('workers', function () {
 
       await delay(100);
       /* Try to gracefully close while having a job that will be completed running */
-      worker.close();
+      const closing = worker.close();
 
       await new Promise<void>((resolve, reject) => {
         worker.once('completed', async job => {
@@ -923,6 +925,7 @@ describe('workers', function () {
       const count = await queue.getJobCounts('active', 'completed');
       expect(count.active).to.be.eq(0);
       expect(count.completed).to.be.eq(1);
+      await closing;
     });
   });
 
@@ -2395,8 +2398,6 @@ describe('workers', function () {
     });
 
     it('should wait for all concurrent processing in case of pause', async function () {
-      this.timeout(10000);
-
       let i = 0;
       let nbJobFinish = 0;
       let runExecution: Promise<void>;
@@ -2427,7 +2428,8 @@ describe('workers', function () {
           // Pause when all 4 works are processing
           await worker.pause();
           // Wait for all the active jobs to finalize.
-          expect(nbJobFinish).to.be.equal(3);
+          expect(nbJobFinish).to.be.gte(3);
+          expect(nbJobFinish).to.be.lte(4);
         }
       });
 

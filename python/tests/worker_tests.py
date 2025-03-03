@@ -13,21 +13,23 @@ from enum import Enum
 import asyncio
 import unittest
 import time
+import os
 
 queueName = f"__test_queue__{uuid4().hex}"
+prefix = os.environ.get('BULLMQ_TEST_PREFIX') or "bull"
 
 class TestWorker(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
         print("Setting up test queue")
         # Delete test queue
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         await queue.pause()
         await queue.obliterate()
         await queue.close()
 
     async def test_process_jobs(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
@@ -35,7 +37,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             print("Processing job", job)
             return "done"
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         processing = Future()
         worker.on("completed", lambda job, result: processing.set_result(None))
@@ -54,7 +56,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_process_job_with_array_as_return_value(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
@@ -62,7 +64,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             print("Processing job", job)
             return ['foo']
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         processing = Future()
         worker.on("completed", lambda job, result: processing.set_result(None))
@@ -81,7 +83,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_process_job_with_boolean_as_return_value(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
@@ -89,7 +91,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             print("Processing job", job)
             return True
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         processing = Future()
         worker.on("completed", lambda job, result: processing.set_result(None))
@@ -108,7 +110,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_process_job_fail_with_nan_as_return_value(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
@@ -118,7 +120,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             print("Processing job", job)
             return float('nan')
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         processing = Future()
         worker.on("failed", lambda job, result: processing.set_result(None))
@@ -138,7 +140,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_process_jobs_fail(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
@@ -148,7 +150,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             print("Processing job", job)
             raise Exception(failedReason)
 
-        worker = Worker(queueName, process)
+        worker = Worker(queueName, process, {"prefix": prefix})
 
         processing = Future()
         worker.on("failed", lambda job, result: processing.set_result(None))
@@ -169,7 +171,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_process_renews_lock(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
@@ -177,7 +179,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(3)
             return "done"
 
-        worker = Worker(queueName, process, {"lockDuration": 1000})
+        worker = Worker(queueName, process, {"lockDuration": 1000, "prefix": prefix})
 
         processing = Future()
         worker.on("completed", lambda job, result: processing.set_result(None))
@@ -196,7 +198,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_process_stalled_jobs(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
@@ -208,7 +210,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(2)
             return "done1"
 
-        worker = Worker(queueName, process1, {"lockDuration": 1000})
+        worker = Worker(queueName, process1, {"lockDuration": 1000, "prefix": prefix})
 
         await startProcessing
         await worker.close(force=True)
@@ -217,7 +219,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             return "done2"
 
         worker2 = Worker(queueName, process2, {
-            "lockDuration": 1000, "stalledInterval": 1000})
+            "lockDuration": 1000, "stalledInterval": 1000, "prefix": prefix})
 
         processing = Future()
         worker2.on("completed", lambda job,
@@ -241,14 +243,14 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await queue.close()
 
     async def test_retry_job_after_delay_with_fixed_backoff(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
 
         async def process1(job: Job, token: str):
             if job.attemptsMade < 2:
                 raise Exception("Not yet!")
             return None
 
-        worker = Worker(queueName, process1)
+        worker = Worker(queueName, process1, {"prefix": prefix})
 
         start = round(time.time() * 1000)
         await queue.add("test", { "foo": "bar" },
@@ -269,7 +271,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         await worker.close()
 
     async def test_retry_job_after_delay_with_custom_backoff(self):
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
 
         async def process1(job: Job, token: str):
             if job.attemptsMade < 2:
@@ -281,7 +283,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
         worker = Worker(queueName, process1, {"settings": {
             "backoffStrategy": backoff_strategy
-        }})
+        }, "prefix": prefix})
 
         start = round(time.time() * 1000)
         await queue.add("test", { "foo": "bar" },
@@ -303,8 +305,8 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
     async def test_create_children_at_runtime(self):
         parent_queue_name = f"__parent_queue__{uuid4().hex}"
-        parent_queue = Queue(parent_queue_name)
-        queue = Queue(queueName)
+        parent_queue = Queue(parent_queue_name, {"prefix": prefix})
+        queue = Queue(queueName, {"prefix": prefix})
 
         class Step(int, Enum):
             Initial = 1
@@ -358,8 +360,8 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.2)
             return None
 
-        worker = Worker(parent_queue_name, parent_process, {})
-        children_worker = Worker(queueName, children_process, {})
+        worker = Worker(parent_queue_name, parent_process, {"prefix": prefix})
+        children_worker = Worker(queueName, children_process, {"prefix": prefix})
 
         await parent_queue.add( "test", {"step": Step.Initial},
             {
@@ -390,7 +392,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         pending_message_to_process = 8
         wait = 0.01
         job_count = 0
-        queue = Queue(queueName)
+        queue = Queue(queueName, {"prefix": prefix})
 
         async def process(job: Job, token: str):
             nonlocal num_jobs_processing
@@ -409,7 +411,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
         for _ in range(8):
             await queue.add("test", data={})
 
-        worker = Worker(queueName, process, {"concurrency": 4 })
+        worker = Worker(queueName, process, {"concurrency": 4, "prefix": prefix})
 
         completed_events = Future()
 
@@ -428,7 +430,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
 
     async def test_reusable_redis(self):
         conn = redis.Redis(decode_responses=True, host="localhost", port="6379", db=0)
-        queue = Queue(queueName, {"connection": conn})
+        queue = Queue(queueName, {"connection": conn, "prefix": prefix})
         data = {"foo": "bar"}
         job = await queue.add("test-job", data, {"removeOnComplete": False})
 
@@ -436,7 +438,7 @@ class TestWorker(unittest.IsolatedAsyncioTestCase):
             print("Processing job", job)
             return "done"
 
-        worker = Worker(queueName, process, {"connection": conn})
+        worker = Worker(queueName, process, {"connection": conn, "prefix": prefix})
 
         processing = Future()
         worker.on("completed", lambda job, result: processing.set_result(None))
