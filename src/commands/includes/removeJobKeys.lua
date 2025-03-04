@@ -3,6 +3,6 @@
 ]]
 
 local function removeJobKeys(jobKey)
-  return rcall("DEL", jobKey, jobKey .. ':logs',
-    jobKey .. ':dependencies', jobKey .. ':processed', jobKey .. ':failed')
+  return rcall("DEL", jobKey, jobKey .. ':logs', jobKey .. ':dependencies',
+    jobKey .. ':processed', jobKey .. ':failed', jobKey .. ':unsuccessful')
 end
