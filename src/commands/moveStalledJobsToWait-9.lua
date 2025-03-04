@@ -102,7 +102,7 @@ if (#stalling > 0) then
                                 -- no for now as it would imply a breaking change
                                 local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
                                 local unsuccesssfulSet = parentKey .. ":unsuccessful"
-                                rcall("HSET", unsuccesssfulSet, jobKey, failedReason)
+                                rcall("ZADD", unsuccesssfulSet, timestamp, jobKey)
                                 moveParentFromWaitingChildrenToFailed(
                                     parentData['queueKey'],
                                     parentData['queueKey'] .. ':' .. parentData['id'],

@@ -58,7 +58,7 @@ local function moveToWaitingChildren (activeKey, waitingChildrenKey, jobId,
 end
 
 if rcall("EXISTS", jobKey) == 1 then
-  if rcall("HLEN", jobUnsuccessfulKey) ~= 0 then
+  if rcall("ZCARD", jobUnsuccessfulKey) ~= 0 then
     -- TODO: refactor this logic in an include later
     local jobAttributes = rcall("HMGET", jobKey, "parent", "deid", "opts")
 
@@ -78,8 +78,8 @@ if rcall("EXISTS", jobKey) == 1 then
       if opts['fpof'] then
         local parentData = cjson.decode(rawParentData)
         local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
-        local parentUnsuccesssfulHash = parentKey .. ":unsuccessful"
-        rcall("HSET", parentUnsuccesssfulHash, jobKey, failedReason)                        
+        local parentUnsuccesssful = parentKey .. ":unsuccessful"
+        rcall("ZADD", parentUnsuccesssful, timestamp, jobKey)                        
         moveParentFromWaitingChildrenToFailed(
             parentData['queueKey'],
             parentData['queueKey'] .. ':' .. parentData['id'],

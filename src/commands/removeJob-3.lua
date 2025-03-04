@@ -66,10 +66,10 @@ local function removeJob(prefix, jobId, parentKey, removeChildren)
             end
         end
 
-        local unsuccessful = rcall("HGETALL", jobKey .. ":unsuccessful")
+        local unsuccessful = rcall("ZRANGE", jobKey .. ":unsuccessful", 0, -1)
 
         if (#unsuccessful > 0) then
-            for i = 1, #unsuccessful, 2 do
+            for i = 1, #unsuccessful, 1 do
                 local childJobId = getJobIdFromKey(unsuccessful[i])
                 local childJobPrefix = getJobKeyPrefix(unsuccessful[i], childJobId)
                 removeJob(childJobPrefix, childJobId, jobKey, removeChildren)

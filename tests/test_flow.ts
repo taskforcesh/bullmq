@@ -4463,6 +4463,110 @@ describe('flows', () => {
       });
     });
 
+    describe('when there are unsuccessful children', () => {
+      it('removes all children when removing a parent', async () => {
+        const parentQueueName = `parent-queue-${v4()}`;
+        const name = 'child-job';
+
+        const flow = new FlowProducer({ connection, prefix });
+        const tree = await flow.add({
+          name: 'parent-job',
+          queueName: parentQueueName,
+          data: {},
+          children: [
+            { name, data: { idx: 0, foo: 'bar' }, queueName },
+            {
+              name,
+              data: { idx: 0, foo: 'baz' },
+              queueName,
+              children: [
+                {
+                  name,
+                  data: { idx: 0, foo: 'qux' },
+                  queueName,
+                  opts: { failParentOnFailure: true },
+                },
+              ],
+              opts: { failParentOnFailure: true },
+            },
+          ],
+        });
+
+        expect(await tree.job.getState()).to.be.equal('waiting-children');
+
+        expect(await tree.children[0].job.getState()).to.be.equal('waiting');
+        expect(await tree.children[1].job.getState()).to.be.equal(
+          'waiting-children',
+        );
+
+        expect(await tree.children[1].children[0].job.getState()).to.be.equal(
+          'waiting',
+        );
+
+        for (let i = 0; i < tree.children.length; i++) {
+          const child = tree.children[i];
+          const childJob = await Job.fromId(queue, child.job.id);
+          expect(childJob.parent).to.deep.include({
+            id: tree.job.id,
+            queueKey: `${prefix}:${parentQueueName}`,
+          });
+        }
+
+        const parentQueueEvents = new QueueEvents(parentQueueName, {
+          connection,
+          prefix,
+        });
+        await parentQueueEvents.waitUntilReady();
+
+        const childrenWorker = new Worker(
+          queueName,
+          async () => {
+            throw new Error('failure');
+          },
+          {
+            autorun: false,
+            connection,
+            prefix,
+          },
+        );
+        await childrenWorker.waitUntilReady();
+
+        const failing = new Promise<void>(resolve => {
+          parentQueueEvents.on('failed', ({ jobId }) => {
+            if (jobId === tree.job.id) {
+              resolve();
+            }
+          });
+        });
+
+        childrenWorker.run();
+        await failing;
+        await tree.job.remove();
+
+        const parentQueue = new Queue(parentQueueName, { connection, prefix });
+        const parentJob = await Job.fromId(parentQueue, tree.job.id);
+        expect(parentJob).to.be.undefined;
+
+        for (let i = 0; i < tree.children.length; i++) {
+          const child = tree.children[i];
+          const childJob = await Job.fromId(queue, child.job.id);
+          expect(childJob).to.be.undefined;
+        }
+
+        const jobs = await queue.getJobCountByTypes('failed');
+        expect(jobs).to.be.equal(0);
+
+        expect(await tree.children[0].job.getState()).to.be.equal('unknown');
+        expect(await tree.children[1].job.getState()).to.be.equal('unknown');
+        expect(await tree.job.getState()).to.be.equal('unknown');
+
+        await flow.close();
+        await childrenWorker.close();
+        await parentQueue.close();
+        await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      });
+    });
+
     it('should not remove anything if there is a locked job in the tree', async () => {
       const parentQueueName = `parent-queue-${v4()}`;
       const name = 'child-job';

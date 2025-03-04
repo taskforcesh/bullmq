@@ -27,8 +27,8 @@ local function moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey, 
     if jobAttributes[1] then
       local parentData = cjson.decode(jobAttributes[1])
       local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
-      local grandParentUnsuccesssfulSet = grandParentKey .. ":unsuccessful"
-      rcall("HSET", grandParentUnsuccesssfulSet, parentKey, failedReason)
+      local grandParentUnsuccesssful = grandParentKey .. ":unsuccessful"
+      rcall("ZADD", grandParentUnsuccesssful, timestamp, parentKey)
       if parentData['fpof'] then
         moveParentFromWaitingChildrenToFailed(
           parentData['queueKey'],
@@ -102,7 +102,7 @@ local function moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey, 
 
     if grandParentKey then
       local grandParentUnsuccesssfulSet = grandParentKey .. ":unsuccessful"
-      rcall("HSET", grandParentUnsuccesssfulSet, parentKey, failedReason)
+      rcall("ZADD", grandParentUnsuccesssfulSet, timestamp, parentKey)
     end
   end
 end
