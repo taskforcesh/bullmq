@@ -33,7 +33,7 @@ describe('flows', () => {
 
   afterEach(async function () {
     await queue.close();
-    //await removeAllQueueData(new IORedis(redisHost), queueName);
+    await removeAllQueueData(new IORedis(redisHost), queueName);
   });
 
   afterAll(async function () {
