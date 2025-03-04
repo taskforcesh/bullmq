@@ -34,6 +34,9 @@
 local rcall = redis.call
 local repeatKey = KEYS[1]
 local delayedKey = KEYS[2]
+local waitKey = KEYS[3]
+local pausedKey = KEYS[4]
+local metaKey = KEYS[5]
 local prioritizedKey = KEYS[6]
 
 local nextMillis = ARGV[1]
@@ -42,12 +45,10 @@ local templateOpts = cmsgpack.unpack(ARGV[5])
 local prefixKey = ARGV[8]
 
 -- Includes
---- @include "includes/addDelayedJob"
---- @include "includes/addJobWithPriority"
+--- @include "includes/addJobFromScheduler"
 --- @include "includes/getOrSetMaxEvents"
 --- @include "includes/isQueuePaused"
 --- @include "includes/removeJob"
---- @include "includes/storeJob"
 --- @include "includes/storeJobScheduler"
 
 -- If we are overriding a repeatable job we must delete the delayed job for
@@ -68,12 +69,12 @@ if prevMillis ~= false then
             removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
             rcall("ZREM", prioritizedKey, currentJobId)
         else
-            if isQueuePaused(KEYS[5]) then
-                if rcall("LREM", KEYS[4], 1, currentJobId) > 0 then
+            if isQueuePaused(metaKey) then
+                if rcall("LREM", pausedKey, 1, currentJobId) > 0 then
                     removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
                 end
             else
-                if rcall("LREM", KEYS[3], 1, currentJobId) > 0 then
+                if rcall("LREM", waitKey, 1, currentJobId) > 0 then
                     removeJob(currentJobId, true, prefixKey, true --[[remove debounce key]] )
                 end
             end
@@ -86,40 +87,12 @@ storeJobScheduler(jobSchedulerId, schedulerKey, repeatKey, nextMillis, scheduler
 
 if rcall("EXISTS", nextDelayedJobKey) ~= 1 then
     local eventsKey = KEYS[9]
-    local metaKey = KEYS[5]
     local maxEvents = getOrSetMaxEvents(metaKey)
 
     rcall("INCR", KEYS[8])
 
-    local delayedOpts = cmsgpack.unpack(ARGV[6])
-
-    local delay, priority = storeJob(eventsKey, nextDelayedJobKey, nextDelayedJobId, schedulerOpts['name'], ARGV[4],
-        delayedOpts, ARGV[7], nil, nil, jobSchedulerId)
-
-    if delay ~= 0 then
-        addDelayedJob(nextDelayedJobId, delayedKey, eventsKey,
-            ARGV[7], maxEvents, KEYS[7], delay)
-    else
-        local isPaused = isQueuePaused(KEYS[5])
-      
-        -- Standard or priority add
-        if priority == 0 then
-            if isPaused then
-                -- LIFO or FIFO
-                local pushCmd = delayedOpts['lifo'] and 'RPUSH' or 'LPUSH'
-                rcall(pushCmd, KEYS[4], nextDelayedJobId)
-            else
-                -- LIFO or FIFO
-                local pushCmd = delayedOpts['lifo'] and 'RPUSH' or 'LPUSH'
-                rcall(pushCmd, KEYS[3], nextDelayedJobId)
-            end
-        else
-            -- Priority add
-            addJobWithPriority(KEYS[7], KEYS[6], priority, nextDelayedJobId, KEYS[10], isPaused)
-        end
-        -- Emit waiting event
-        rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents,  "*", "event", "waiting", "jobId", nextDelayedJobId)
-    end
+    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[6], waitKey, pausedKey, metaKey, prioritizedKey,
+      KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerOpts['name'], maxEvents, ARGV[7], ARGV[4], jobSchedulerId)
 
     if ARGV[9] ~= "" then
         rcall("HSET", ARGV[9], "nrjid", nextDelayedJobId)
