@@ -1,5 +1,5 @@
 import { default as IORedis } from 'ioredis';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { expect } from 'chai';
 import { after } from 'lodash';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
@@ -28,7 +28,7 @@ describe('events', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queue.waitUntilReady();
@@ -47,7 +47,7 @@ describe('events', function () {
 
   describe('when autorun option is provided as false', function () {
     it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queue2 = new Queue(queueName2, { connection, prefix });
       const queueEvents2 = new QueueEvents(queueName2, {
         autorun: false,
@@ -74,7 +74,7 @@ describe('events', function () {
 
     describe('when run method is called when queueEvent is running', function () {
       it('throws error', async () => {
-        const queueName2 = `test-${v4()}`;
+        const queueName2 = `test-${randomUUID()}`;
         const queue2 = new Queue(queueName2, { connection, prefix });
         const queueEvents2 = new QueueEvents(queueName2, {
           autorun: false,
@@ -857,7 +857,7 @@ describe('events', function () {
         prefix,
       });
       const name = 'parent-job';
-      const childrenQueueName = `children-queue-${v4()}`;
+      const childrenQueueName = `children-queue-${randomUUID()}`;
 
       const childrenWorker = new Worker(
         childrenQueueName,
@@ -1244,7 +1244,7 @@ describe('events', function () {
   });
 
   it('should trim events manually', async () => {
-    const queueName = 'test-manual-' + v4();
+    const queueName = 'test-manual-' + randomUUID();
     const trimmedQueue = new Queue(queueName, { connection, prefix });
 
     await trimmedQueue.add('test', {});
@@ -1270,7 +1270,7 @@ describe('events', function () {
 
   describe('when publishing custom events', function () {
     it('emits waiting when a job has been added', async () => {
-      const queueName2 = `test-${v4()}`;
+      const queueName2 = `test-${randomUUID()}`;
       const queueEventsProducer = new QueueEventsProducer(queueName2, {
         connection,
         prefix,
