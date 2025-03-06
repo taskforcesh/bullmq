@@ -6,7 +6,7 @@ local function isJobSchedulerJob(jobId, jobKey, jobSchedulersKey)
   local repeatJobKey = rcall("HGET", jobKey, "rjk")
   if repeatJobKey  then
     local prevMillis = rcall("ZSCORE", jobSchedulersKey, repeatJobKey)
-    if prevMillis ~= false then
+    if prevMillis then
       local currentDelayedJobId = "repeat:" .. repeatJobKey .. ":" .. prevMillis
       return jobId == currentDelayedJobId
     end

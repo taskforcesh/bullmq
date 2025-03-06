@@ -45,7 +45,6 @@ local prefixKey = ARGV[8]
 --- @include "includes/addDelayedJob"
 --- @include "includes/addJobWithPriority"
 --- @include "includes/getOrSetMaxEvents"
---- @include "includes/getTargetQueueList"
 --- @include "includes/isQueuePaused"
 --- @include "includes/removeJob"
 --- @include "includes/storeJob"

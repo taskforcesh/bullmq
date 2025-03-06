@@ -17,7 +17,7 @@ local nextMillis = ARGV[1]
 local customKey = ARGV[2]
 local legacyCustomKey = ARGV[3]
 
-if rcall("ZSCORE", repeatKey, customKey) ~= false then
+if rcall("ZSCORE", repeatKey, customKey) then
     rcall("ZADD", repeatKey, nextMillis, customKey)
     return customKey
 elseif rcall("ZSCORE", repeatKey, legacyCustomKey) ~= false then

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bullmq"
-version = "2.12.0"
+version = "2.12.1"
 description='BullMQ for Python'
 readme="README.md"
 authors = [
@@ -27,7 +27,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "setuptools==68.0.0",
     "pre-commit==3.3.3",
     "build==0.8.0",
     "python-semantic-release==7.28.1",
@@ -48,7 +47,7 @@ bullmq = ["commands/*.lua", "types/*"]
 branch = "master"
 version_variable = "bullmq/__init__.py:__version__"
 version_toml = "pyproject.toml:project.version"
-build_command = "python3 setup.py sdist"
+build_command = "python3 -m build"
 tag_format = "vpy{version}"
 version_source = "commit"
 changelog_file = "../docs/gitbook/python/changelog.md"
