@@ -1,3 +1,10 @@
+# [3.1.0](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v3.0.0...v3.1.0) (2025-03-06)
+
+
+### Features
+
+* support nestjs v11 ([#17](https://github.com/taskforcesh/nestjs-bullmq-pro/issues/17)) ([4b07bd5](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/4b07bd56075824ca8e8372124cc4c67c843625bb))
+
 # [3.0.0](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v2.1.1...v3.0.0) (2024-04-05)
 
 
@@ -50,7 +57,7 @@
 
 ### Bug Fixes
 
-* **package:** point to dist files ([#2](https://github.com/taskforcesh/nestjs-bullmq-pro/issues/2)) ([c55826c](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/c55826ca8aa7b57a684788f28a0b2d23c009615b))
+* **package:** point to dist files ([#2](https://github.com/taskforcesh/nestjs-bullmq-pro/issues/2)) \([c55826c](https://github.com/taskforcesh/nestjs-bullmq-pro/commit/c55826ca8aa7b57a684788f28a0b2d23c009615b)\)
 
 ## [1.0.2](https://github.com/taskforcesh/nestjs-bullmq-pro/compare/v1.0.1...v1.0.2) (2023-01-18)
 
