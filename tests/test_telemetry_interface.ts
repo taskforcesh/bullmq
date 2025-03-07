@@ -1,7 +1,7 @@
 import { expect, assert } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after, beforeEach, describe, it, before } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { FlowProducer, Job, JobScheduler, Queue, Worker } from '../src/classes';
 import { removeAllQueueData } from '../src/utils';
 import {
@@ -126,7 +126,7 @@ describe('Telemetry', () => {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     telemetryClient = new MockTelemetry('mockTracer');
 
     queue = new Queue(queueName, {

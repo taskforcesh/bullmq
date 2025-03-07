@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it, after as afterAll } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import {
   FlowProducer,
   Queue,
@@ -25,7 +25,7 @@ describe('Cleaner', () => {
   });
 
   beforeEach(async () => {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
     queueEvents = new QueueEvents(queueName, { connection, prefix });
     await queueEvents.waitUntilReady();
@@ -504,7 +504,7 @@ describe('Cleaner', () => {
 
       describe('when parent has pending children in different queue', async () => {
         it('keeps parent in waiting-children', async () => {
-          const childrenQueueName = `test-${v4()}`;
+          const childrenQueueName = `test-${randomUUID()}`;
           const childrenQueue = new Queue(childrenQueueName, {
             connection,
             prefix,
@@ -647,7 +647,7 @@ describe('Cleaner', () => {
     describe('when parent belongs to different queue', async () => {
       describe('when parent has more than 1 pending children', async () => {
         it('deletes each children until trying to move parent to wait', async () => {
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,
@@ -703,7 +703,7 @@ describe('Cleaner', () => {
 
       describe('when parent has only 1 pending children', async () => {
         it('moves parent to wait to try to process it', async () => {
-          const parentQueueName = `test-${v4()}`;
+          const parentQueueName = `test-${randomUUID()}`;
           const parentQueue = new Queue(parentQueueName, {
             connection,
             prefix,

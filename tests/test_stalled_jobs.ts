@@ -3,7 +3,7 @@ import { delay, removeAllQueueData } from '../src/utils';
 import { default as IORedis } from 'ioredis';
 import { after } from 'lodash';
 import { beforeEach, describe, it, before, after as afterAll } from 'mocha';
-import { v4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { expect } from 'chai';
 
 describe('stalled jobs', function () {
@@ -18,7 +18,7 @@ describe('stalled jobs', function () {
   });
 
   beforeEach(async function () {
-    queueName = `test-${v4()}`;
+    queueName = `test-${randomUUID()}`;
     queue = new Queue(queueName, { connection, prefix });
   });
 
@@ -382,7 +382,7 @@ describe('stalled jobs', function () {
       it('should move parent to failed when child is moved to failed', async function () {
         this.timeout(6000);
         const concurrency = 4;
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -471,7 +471,7 @@ describe('stalled jobs', function () {
       it('should move parent to waiting when child is moved to failed and save child failedReason', async function () {
         this.timeout(6000);
         const concurrency = 4;
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
@@ -565,7 +565,7 @@ describe('stalled jobs', function () {
       it('should move parent to waiting when child is moved to failed', async function () {
         this.timeout(6000);
         const concurrency = 4;
-        const parentQueueName = `parent-queue-${v4()}`;
+        const parentQueueName = `parent-queue-${randomUUID()}`;
 
         const parentQueue = new Queue(parentQueueName, {
           connection,
