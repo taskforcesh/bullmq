@@ -1164,7 +1164,12 @@ describe('Job', function () {
 
         const worker = new Worker(
           queueName,
-          async () => {
+          async (job: Job) => {
+            if (job.name === 'test1') {
+              expect(job.priority).to.be.eql(8);
+            } else {
+              expect(job.priority).to.be.eql(1);
+            }
             await delay(20);
           },
           { connection, prefix },
