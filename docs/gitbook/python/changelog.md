@@ -5,10 +5,7 @@
 ## v2.12.1 (2025-02-28)
 ### Fix
 * **worker:** Cast delay_until to integer [python] ([#3116](https://github.com/taskforcesh/bullmq/issues/3116)) ([`db617e4`](https://github.com/taskforcesh/bullmq/commit/db617e48ef1dd52446bfd73e15f24957df2ca315))
-* **scheduler:** Validate repeatKey if present when cleaning failed jobs (#3115) fixes #3114 ([`d4cad84`](https://github.com/taskforcesh/bullmq/commit/d4cad8402628f1773299c9cf33e6cc6a0e694037))
-* **telemetry:** Fix span name for moveToFailed logic ([#3113](https://github.com/taskforcesh/bullmq/issues/3113)) ([`7a4b500`](https://github.com/taskforcesh/bullmq/commit/7a4b500dc63320807e051d8efd2b8fee07bb0db5))
 * **flow:** Consider delayed state when moving a parent to failed ([#3112](https://github.com/taskforcesh/bullmq/issues/3112)) ([`6a28b86`](https://github.com/taskforcesh/bullmq/commit/6a28b861346a3efa89574a78b396954d6c4ed113))
-* **job-scheduler:** Consider removing current job from wait, paused or prioritized ([#3066](https://github.com/taskforcesh/bullmq/issues/3066)) ([`97cd2b1`](https://github.com/taskforcesh/bullmq/commit/97cd2b147d541e0984d1c2e107110e1a9d56d9b5))
 
 ## v2.12.0 (2025-02-21)
 
@@ -61,15 +58,12 @@
 
 - Proper way to get version ([`b4e25c1`](https://github.com/taskforcesh/bullmq/commit/b4e25c13cafc001748ee6eb590133feb8ee24d7b))
 - **redis:** Use version for naming loaded lua scripts ([`fe73f6d`](https://github.com/taskforcesh/bullmq/commit/fe73f6d4d776dc9f99ad3a094e5c59c5fafc96f1))
-- **repeat:** Also consider startDate when using "every" ([`25bbaa8`](https://github.com/taskforcesh/bullmq/commit/25bbaa81af87f9944a64bc4fb7e0c76ef223ada4))
-- **repeatable:** Avoid delayed job deletion if next job already existed ([#2778](https://github.com/taskforcesh/bullmq/issues/2778)) ([`6a851c1`](https://github.com/taskforcesh/bullmq/commit/6a851c1140b336f0e458b6dfe1022470ac41fceb))
 
 ## v2.9.4 (2024-09-10)
 
 ### Fix
 
 - **metrics:** Differentiate points in different minutes to be more accurate (#2766) (python) ([`7cb670e`](https://github.com/taskforcesh/bullmq/commit/7cb670e1bf9560a24de3da52427b4f6b6152a59a))
-- **repeat:** Replace delayed job when updating repeat key ([`88029bb`](https://github.com/taskforcesh/bullmq/commit/88029bbeab2a58768f9c438318f540010cd286a7))
 
 ### Performance
 

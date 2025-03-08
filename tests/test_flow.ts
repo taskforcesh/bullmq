@@ -3459,10 +3459,11 @@ describe('flows', () => {
       const childrenWorker = new Worker(
         queueName,
         async (job: Job) => {
-          await delay(500);
+          await delay(400);
           return values[job.data.idx];
         },
         {
+          autorun: false,
           connection,
           prefix,
         },
@@ -3506,6 +3507,7 @@ describe('flows', () => {
       ]);
 
       const parentWorker = new Worker(topQueueName, parentProcessor, {
+        autorun: false,
         connection,
         prefix,
       });
@@ -3538,6 +3540,9 @@ describe('flows', () => {
 
       expect(children[0].job.id).to.be.ok;
       expect(children[0].job.data.foo).to.be.eql('bar');
+
+      childrenWorker.run();
+      parentWorker.run();
 
       await completed;
       await delayed;
