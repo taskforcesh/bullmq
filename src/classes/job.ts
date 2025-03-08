@@ -349,6 +349,8 @@ export class Job<
 
     job.delay = parseInt(json.delay);
 
+    job.priority = parseInt(json.priority);
+
     job.timestamp = parseInt(json.timestamp);
 
     if (json.finishedOn) {
