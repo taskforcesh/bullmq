@@ -1243,22 +1243,19 @@ will never work with more accuracy than 1ms. */
         });
 
         // Todo: check if there any listeners on failed event
-        const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
-        for (let i = 0; i < failed.length; i++) {
-          jobPromises.push(
-            Job.fromId<DataType, ResultType, NameType>(
-              this as MinimalQueue,
-              failed[i],
+        for (let i = 0; i < failed.length; i += chunkSize) {
+          const chunk: string[] = failed.slice(i, i + chunkSize);
+          const jobs: Job<DataType, ResultType, NameType>[] = await Promise.all(
+            chunk.map((id: string) =>
+              Job.fromId<DataType, ResultType, NameType>(
+                this as MinimalQueue,
+                id,
+              ),
             ),
           );
 
-          if ((i + 1) % chunkSize === 0) {
-            this.notifyFailedJobs(await Promise.all(jobPromises));
-            jobPromises.length = 0;
-          }
+          this.notifyFailedJobs(jobs);
         }
-
-        this.notifyFailedJobs(await Promise.all(jobPromises));
       },
     );
   }
