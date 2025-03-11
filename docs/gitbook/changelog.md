@@ -1,3 +1,10 @@
+## [5.41.9](https://github.com/taskforcesh/bullmq/compare/v5.41.8...v5.41.9) (2025-03-11)
+
+
+### Bug Fixes
+
+* **scheduler:** remove multi when updating a job scheduler ([#3108](https://github.com/taskforcesh/bullmq/issues/3108)) ([4b619ca](https://github.com/taskforcesh/bullmq/commit/4b619cab9a6bf8d25efec83dcdf0adaaa362e12a))
+
 ## [5.41.8](https://github.com/taskforcesh/bullmq/compare/v5.41.7...v5.41.8) (2025-03-08)
 
 
