@@ -3339,6 +3339,7 @@ describe('workers', function () {
           await worker.close();
           await childrenWorker.close();
           await parentQueue.close();
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
 
         describe('when skip attempt option is provided as true', () => {
@@ -3461,6 +3462,7 @@ describe('workers', function () {
             await worker.close();
             await childrenWorker.close();
             await parentQueue.close();
+            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
           });
         });
       });

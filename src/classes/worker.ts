@@ -552,7 +552,10 @@ export class Worker<
    * @param token - worker token to be assigned to retrieved job
    * @returns a Job or undefined if no job was available in the queue.
    */
-  async getNextJob(token: string, { block = true }: GetNextJobOptions = {}) {
+  async getNextJob(
+    token: string,
+    { block = true }: GetNextJobOptions = {},
+  ): Promise<ReturnType<typeof this.Job>> {
     const nextJob = await this._getNextJob(
       await this.client,
       await this.blockingConnection.client,
