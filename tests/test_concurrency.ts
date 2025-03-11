@@ -258,8 +258,6 @@ describe('Concurrency', () => {
           'completed',
           // after every job has been completed
           after(numJobs, async () => {
-            await worker.close();
-
             try {
               const timeDiff = new Date().getTime() - startTime;
               expect(timeDiff).to.be.gte(
@@ -342,8 +340,6 @@ describe('Concurrency', () => {
             'completed',
             // after every job has been completed
             after(numJobs, async () => {
-              await worker.close();
-
               try {
                 const timeDiff = new Date().getTime() - startTime;
                 expect(timeDiff).to.be.gte(numJobs * dynamicLimit);

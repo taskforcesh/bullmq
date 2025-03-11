@@ -1076,6 +1076,8 @@ describe('flows', () => {
       await worker.close();
       await childrenWorker.close();
       await grandchildrenWorker.close();
+      await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+      await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
     });
   });
 
@@ -1468,6 +1470,7 @@ describe('flows', () => {
       await flow.close();
 
       await removeAllQueueData(new IORedis(redisHost), parentQueueName);
+      await removeAllQueueData(new IORedis(redisHost), grandchildrenQueueName);
     }).timeout(8000);
   });
 
@@ -2372,6 +2375,11 @@ describe('flows', () => {
         await flow.close();
         await worker.close();
         await grandchildrenWorker.close();
+        await removeAllQueueData(new IORedis(redisHost), childrenQueueName);
+        await removeAllQueueData(
+          new IORedis(redisHost),
+          grandchildrenQueueName,
+        );
       });
     });
 
