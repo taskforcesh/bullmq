@@ -562,6 +562,7 @@ describe('Job Scheduler', function () {
     const scheduler = await queue.getJobScheduler('test');
 
     expect(scheduler).to.deep.equal({
+      iterationCount: 1,
       key: 'test',
       name: 'test',
       pattern: '*/2 * * * * *',
@@ -901,6 +902,7 @@ describe('Job Scheduler', function () {
         const scheduler = await queue.getJobScheduler('rrule');
 
         expect(scheduler).to.deep.equal({
+          iterationCount: 1,
           key: 'rrule',
           name: 'rrule',
           next: 1486481042000,
@@ -1808,6 +1810,7 @@ describe('Job Scheduler', function () {
       expect(jobSchedulers).to.have.length(1);
 
       expect(jobSchedulers[0]).to.deep.equal({
+        iterationCount: 2,
         key: 'test',
         name: 'a',
         tz: 'Asia/Calcutta',
@@ -2360,6 +2363,7 @@ describe('Job Scheduler', function () {
     const scheduler = await queue.getJobScheduler('repeat');
 
     expect(scheduler).to.deep.equal({
+      iterationCount: 1,
       key: 'repeat',
       limit: 5,
       name: 'repeat',
