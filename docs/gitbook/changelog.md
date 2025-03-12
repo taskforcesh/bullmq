@@ -1,3 +1,21 @@
+# [5.42.0](https://github.com/taskforcesh/bullmq/compare/v5.41.9...v5.42.0) (2025-03-12)
+
+
+### Bug Fixes
+
+* **flow:** consider to fail a parent not in waiting-children when failParentOnFailure is provided ([#3098](https://github.com/taskforcesh/bullmq/issues/3098)) ([589adb4](https://github.com/taskforcesh/bullmq/commit/589adb4f89bcb7d7721200333c2d605eb6ba7864))
+* **job-scheduler:** restore iterationCount attribute ([#3134](https://github.com/taskforcesh/bullmq/issues/3134)) ([eec7114](https://github.com/taskforcesh/bullmq/commit/eec711468de39ec10da9206d7f8c5ad1eb0df882))
+
+
+### Features
+
+* **job:** add complete span in moveToCompleted method ([#3132](https://github.com/taskforcesh/bullmq/issues/3132)) ([c37123c](https://github.com/taskforcesh/bullmq/commit/c37123cc84632328d8c4e251641688eb36ac1a8a))
+
+
+### Performance Improvements
+
+* **worker:** optimize job retrieval for failed jobs in chunks ([#3127](https://github.com/taskforcesh/bullmq/issues/3127)) ([e0f02ce](https://github.com/taskforcesh/bullmq/commit/e0f02ceb00ced5ca00a6c73d96801a040c40d958))
+
 ## [5.41.9](https://github.com/taskforcesh/bullmq/compare/v5.41.8...v5.41.9) (2025-03-11)
 
 
