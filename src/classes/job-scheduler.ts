@@ -326,6 +326,10 @@ export class JobScheduler extends QueueBase {
         next,
       };
 
+      if (jobData.ic) {
+        jobSchedulerData.iterationCount = parseInt(jobData.ic);
+      }
+
       if (jobData.limit) {
         jobSchedulerData.limit = parseInt(jobData.limit);
       }
