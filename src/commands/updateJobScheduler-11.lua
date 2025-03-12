@@ -2,13 +2,17 @@
   Updates a job scheduler and adds next delayed job
 
   Input:
-    KEYS[1] 'marker',
-    KEYS[2] 'meta'
-    KEYS[3] 'id'
-    KEYS[4] 'delayed'
-    KEYS[5] events stream key
-    KEYS[6] 'repeat' key
-    KEYS[7] producer key
+    KEYS[1]  'repeat' key
+    KEYS[2]  'delayed'
+    KEYS[3]  'wait' key
+    KEYS[4]  'paused' key
+    KEYS[5]  'meta'
+    KEYS[6]  'prioritized' key
+    KEYS[7]  'marker',
+    KEYS[8]  'id'
+    KEYS[9]  events stream key
+    KEYS[10] 'pc' priority counter
+    KEYS[11] producer key
 
     ARGV[1] next milliseconds
     ARGV[2] jobs scheduler id
@@ -22,8 +26,12 @@
       next delayed job id  - OK
 ]]
 local rcall = redis.call
-local repeatKey = KEYS[6]
-local delayedKey = KEYS[4]
+local repeatKey = KEYS[1]
+local delayedKey = KEYS[2]
+local waitKey = KEYS[3]
+local pausedKey = KEYS[4]
+local metaKey = KEYS[5]
+local prioritizedKey = KEYS[6]
 local nextMillis = ARGV[1]
 local jobSchedulerId = ARGV[2]
 local timestamp = ARGV[5]
@@ -31,7 +39,7 @@ local prefixKey = ARGV[6]
 local producerId = ARGV[7]
 
 -- Includes
---- @include "includes/addDelayedJob"
+--- @include "includes/addJobFromScheduler"
 --- @include "includes/getOrSetMaxEvents"
 
 local schedulerKey = repeatKey .. ":" .. jobSchedulerId
@@ -43,19 +51,16 @@ local prevMillis = rcall("ZSCORE", repeatKey, jobSchedulerId)
 if prevMillis ~= false then
   local currentDelayedJobId =  "repeat:" .. jobSchedulerId .. ":" .. prevMillis
 
-  if producerId == currentDelayedJobId then
+  if producerId == currentDelayedJobId and rcall("EXISTS", nextDelayedJobKey) ~= 1 then
     local schedulerAttributes = rcall("HMGET", schedulerKey, "name", "data")
 
     rcall("ZADD", repeatKey, nextMillis, jobSchedulerId)
     rcall("HINCRBY", schedulerKey, "ic", 1)
 
-    local eventsKey = KEYS[5]
-    local metaKey = KEYS[2]
+    local eventsKey = KEYS[9]
     local maxEvents = getOrSetMaxEvents(metaKey)
 
-    rcall("INCR", KEYS[3])
-
-    local delayedOpts = cmsgpack.unpack(ARGV[4])
+    rcall("INCR", KEYS[8])
 
     -- TODO: remove this workaround in next breaking change,
     -- all job-schedulers must save job data
@@ -65,11 +70,13 @@ if prevMillis ~= false then
       rcall("HSET", schedulerKey, "data", templateData)
     end
 
-    addDelayedJob(nextDelayedJobKey, nextDelayedJobId, delayedKey, eventsKey, schedulerAttributes[1],
-      templateData or '{}', delayedOpts, timestamp, jobSchedulerId, maxEvents, KEYS[1], nil, nil)
-  
-    if KEYS[7] ~= "" then
-      rcall("HSET", KEYS[7], "nrjid", nextDelayedJobId)
+    addJobFromScheduler(nextDelayedJobKey, nextDelayedJobId, ARGV[4], waitKey, pausedKey, metaKey, prioritizedKey,
+      KEYS[10], delayedKey, KEYS[7], eventsKey, schedulerAttributes[1], maxEvents, ARGV[5],
+      templateData or '{}', jobSchedulerId)
+
+    -- TODO: remove this workaround in next breaking change
+    if KEYS[11] ~= "" then
+      rcall("HSET", KEYS[11], "nrjid", nextDelayedJobId)
     end
 
     return nextDelayedJobId .. "" -- convert to string
