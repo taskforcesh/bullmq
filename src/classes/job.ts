@@ -668,32 +668,44 @@ export class Job<
     token: string,
     fetchNext = true,
   ): Promise<void | any[]> {
-    await this.queue.waitUntilReady();
+    return this.queue.trace<Promise<void | any[]>>(
+      SpanKind.INTERNAL,
+      'complete',
+      this.queue.name,
+      async (span, dstPropagationMedatadata) => {
+        let tm;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
+          tm = dstPropagationMedatadata;
+        }
 
-    this.returnvalue = returnValue || void 0;
+        await this.queue.waitUntilReady();
 
-    const stringifiedReturnValue = tryCatch(JSON.stringify, JSON, [
-      returnValue,
-    ]);
-    if (stringifiedReturnValue === errorObject) {
-      throw errorObject.value;
-    }
+        this.returnvalue = returnValue || void 0;
 
-    const args = this.scripts.moveToCompletedArgs(
-      this,
-      stringifiedReturnValue,
-      this.opts.removeOnComplete,
-      token,
-      fetchNext,
+        const stringifiedReturnValue = tryCatch(JSON.stringify, JSON, [
+          returnValue,
+        ]);
+        if (stringifiedReturnValue === errorObject) {
+          throw errorObject.value;
+        }
+
+        const args = this.scripts.moveToCompletedArgs(
+          this,
+          stringifiedReturnValue,
+          this.opts.removeOnComplete,
+          token,
+          fetchNext,
+        );
+
+        const result = await this.scripts.moveToFinished(this.id, args);
+        this.finishedOn = args[
+          this.scripts.moveToFinishedKeys.length + 1
+        ] as number;
+        this.attemptsMade += 1;
+
+        return result;
+      },
     );
-
-    const result = await this.scripts.moveToFinished(this.id, args);
-    this.finishedOn = args[
-      this.scripts.moveToFinishedKeys.length + 1
-    ] as number;
-    this.attemptsMade += 1;
-
-    return result;
   }
 
   /**
