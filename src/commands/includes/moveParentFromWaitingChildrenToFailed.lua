@@ -16,7 +16,7 @@ local function moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey, 
     local parentFailedKey = parentQueueKey .. ":failed"
     rcall("ZADD", parentFailedKey, timestamp, parentId)
     local failedReason = "child " .. jobIdKey .. " failed"
-    rcall("HMSET", parentKey, "failedReason", failedReason, "finishedOn", timestamp)
+    rcall("HSET", parentKey, "failedReason", failedReason, "finishedOn", timestamp)
     rcall("XADD", parentQueueKey .. ":events", "*", "event", "failed", "jobId", parentId, "failedReason",
       failedReason, "prev", "waiting-children")
 
@@ -26,6 +26,9 @@ local function moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey, 
 
     if jobAttributes[1] then
       local parentData = cjson.decode(jobAttributes[1])
+      local grandParentKey = parentData['queueKey'] .. ':' .. parentData['id']
+      local grandParentUnsuccesssful = grandParentKey .. ":unsuccessful"
+      rcall("ZADD", grandParentUnsuccesssful, timestamp, parentKey)
       if parentData['fpof'] then
         moveParentFromWaitingChildrenToFailed(
           parentData['queueKey'],
@@ -94,5 +97,12 @@ local function moveParentFromWaitingChildrenToFailed(parentQueueKey, parentKey, 
     local parentOpts = cjson.decode(parentRawOpts)
     
     removeJobsOnFail(parentQueuePrefix, parentFailedKey, parentId, parentOpts, timestamp)
+  else
+    local grandParentKey = rcall("HGET", parentKey, "parentKey")
+
+    if grandParentKey then
+      local grandParentUnsuccesssfulSet = grandParentKey .. ":unsuccessful"
+      rcall("ZADD", grandParentUnsuccesssfulSet, timestamp, parentKey)
+    end
   end
 end

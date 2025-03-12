@@ -65,6 +65,16 @@ local function removeJob(prefix, jobId, parentKey, removeChildren)
                 removeJob(childJobPrefix, childJobId, jobKey, removeChildren)
             end
         end
+
+        local unsuccessful = rcall("ZRANGE", jobKey .. ":unsuccessful", 0, -1)
+
+        if (#unsuccessful > 0) then
+            for i = 1, #unsuccessful, 1 do
+                local childJobId = getJobIdFromKey(unsuccessful[i])
+                local childJobPrefix = getJobKeyPrefix(unsuccessful[i], childJobId)
+                removeJob(childJobPrefix, childJobId, jobKey, removeChildren)
+            end
+        end
     end
 
     local prev = removeJobFromAnyState(prefix, jobId)
