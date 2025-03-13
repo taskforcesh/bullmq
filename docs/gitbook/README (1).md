@@ -85,7 +85,7 @@ Sometimes you need to listen to all the workers events in a given place, for thi
 ```typescript
 import { QueueEvents } from 'bullmq';
 
-const queueEvents = new QueueEvents();
+const queueEvents = new QueueEvents('foo');
 
 queueEvents.on('waiting', ({ jobId }) => {
   console.log(`A job with ID ${jobId} is waiting`);
