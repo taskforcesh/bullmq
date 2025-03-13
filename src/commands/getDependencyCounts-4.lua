@@ -1,5 +1,5 @@
 --[[
-  Get counts per provided states
+  Get counts per child states
 
     Input:
       KEYS[1]    processed key
