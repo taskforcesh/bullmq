@@ -1061,51 +1061,42 @@ export class Job<
   /**
    * Get children job counts if this job is a parent and has children.
    *
-   * @returns dependencies count separated by processed and unprocessed.
+   * @returns dependencies count separated by processed, unprocessed, ignored and failed.
    */
   async getDependenciesCount(
     opts: {
+      failed?: boolean;
+      ignored?: boolean;
       processed?: boolean;
       unprocessed?: boolean;
     } = {},
   ): Promise<{
+    failed?: number;
+    ignored?: number;
     processed?: number;
     unprocessed?: number;
   }> {
-    const client = await this.queue.client;
-    const multi = client.multi();
+    const types: string[] = [];
+    Object.entries(opts).forEach(([key, value]) => {
+      if (value) {
+        types.push(key);
+      }
+    });
 
-    const updatedOpts =
-      !opts.processed && !opts.unprocessed
-        ? { processed: true, unprocessed: true }
-        : opts;
+    const finalTypes = types.length
+      ? types
+      : ['processed', 'unprocessed', 'ignored', 'failed'];
+    const responses = await this.scripts.getDependencyCounts(
+      this.id,
+      finalTypes,
+    );
 
-    if (updatedOpts.processed) {
-      multi.hlen(this.toKey(`${this.id}:processed`));
-    }
+    const counts: { [index: string]: number } = {};
+    responses.forEach((res, index) => {
+      counts[`${finalTypes[index]}`] = res || 0;
+    });
 
-    if (updatedOpts.unprocessed) {
-      multi.scard(this.toKey(`${this.id}:dependencies`));
-    }
-
-    const [[err1, result1] = [], [err2, result2] = []] =
-      (await multi.exec()) as [[null | Error, number], [null | Error, number]];
-
-    const processed = updatedOpts.processed ? result1 : undefined;
-    const unprocessed = updatedOpts.unprocessed
-      ? updatedOpts.processed
-        ? result2
-        : result1
-      : undefined;
-
-    return {
-      ...(updatedOpts.processed
-        ? {
-            processed,
-          }
-        : {}),
-      ...(updatedOpts.unprocessed ? { unprocessed } : {}),
-    };
+    return counts;
   }
 
   /**

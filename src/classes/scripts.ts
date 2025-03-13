@@ -834,6 +834,31 @@ export class Scripts {
     return await this.execCommand(client, 'getCountsPerPriority', args);
   }
 
+  protected getDependencyCountsArgs(
+    jobId: string,
+    types: string[],
+  ): (string | number)[] {
+    const keys: string[] = [
+      `${jobId}:processed`,
+      `${jobId}:dependencies`,
+      `${jobId}:failed`,
+      `${jobId}:unsuccessful`,
+    ].map(name => {
+      return this.queue.toKey(name);
+    });
+
+    const args = types;
+
+    return keys.concat(args);
+  }
+
+  async getDependencyCounts(jobId: string, types: string[]): Promise<number[]> {
+    const client = await this.queue.client;
+    const args = this.getDependencyCountsArgs(jobId, types);
+
+    return await this.execCommand(client, 'getDependencyCounts', args);
+  }
+
   moveToCompletedArgs<T = any, R = any, N extends string = string>(
     job: MinimalJob<T, R, N>,
     returnvalue: R,
