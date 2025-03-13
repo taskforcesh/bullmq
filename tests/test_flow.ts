@@ -600,8 +600,10 @@ describe('flows', () => {
           worker.on('completed', async (job: Job) => {
             try {
               if (job.name === 'parent') {
-                const { unprocessed, processed } =
+                const { unprocessed, processed, ignored, failed } =
                   await job.getDependenciesCount();
+                expect(ignored).to.equal(0);
+                expect(failed).to.equal(0);
                 expect(unprocessed).to.equal(0);
                 expect(processed).to.equal(0);
                 resolve();
@@ -845,6 +847,10 @@ describe('flows', () => {
       expect(children[2].job.data.foo).to.be.eql('qux');
 
       await completed;
+
+      const { ignored } = await job.getDependenciesCount({ ignored: true });
+
+      expect(ignored).to.be.equal(3);
 
       const failedChildrenValues = await job.getFailedChildrenValues();
 
@@ -2581,7 +2587,7 @@ describe('flows', () => {
           ],
         });
 
-        const failed = new Promise<void>(resolve => {
+        const failing = new Promise<void>(resolve => {
           queueEvents.on('failed', async ({ jobId, failedReason, prev }) => {
             if (jobId === tree.job.id) {
               expect(prev).to.be.equal('waiting-children');
@@ -2602,7 +2608,11 @@ describe('flows', () => {
         expect(parentState).to.be.eql('waiting-children');
 
         await processingChildren;
-        await failed;
+        await failing;
+
+        const { failed } = await job.getDependenciesCount({ failed: true });
+
+        expect(failed).to.be.equal(1);
 
         const { children: grandChildren } = children[1];
         const updatedGrandchildJob = await grandChildrenQueue.getJob(
