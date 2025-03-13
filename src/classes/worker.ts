@@ -174,11 +174,6 @@ export class Worker<
   readonly id: string;
 
   private abortDelayController: AbortController | null = null;
-  private asyncFifoQueue: AsyncFifoQueue<void | Job<
-    DataType,
-    ResultType,
-    NameType
-  >>;
   private blockingConnection: RedisConnection;
   private blockUntil = 0;
   private _concurrency: number;
@@ -186,7 +181,6 @@ export class Worker<
   private drained: boolean = false;
   private extendLocksTimer: NodeJS.Timeout | null = null;
   private limitUntil = 0;
-  private resumeWorker: () => void;
 
   private stalledCheckStopper?: () => void;
   private waiting: Promise<number> | null = null;
@@ -194,9 +188,10 @@ export class Worker<
 
   protected _jobScheduler: JobScheduler;
 
-  protected paused: Promise<void>;
+  protected paused: boolean;
   protected processFn: Processor<DataType, ResultType, NameType>;
   protected running = false;
+  protected mainLoopRunning: Promise<void> | null = null;
 
   static RateLimitError(): Error {
     return new RateLimitError();
@@ -443,105 +438,114 @@ export class Worker<
     try {
       this.running = true;
 
-      if (this.closing) {
+      if (this.closing || this.paused) {
         return;
       }
 
       await this.startStalledCheckTimer();
 
-      const jobsInProgress = new Set<{ job: Job; ts: number }>();
-      this.startLockExtenderTimer(jobsInProgress);
-
-      const asyncFifoQueue = (this.asyncFifoQueue =
-        new AsyncFifoQueue<void | Job<DataType, ResultType, NameType>>());
-
-      let tokenPostfix = 0;
-
       const client = await this.client;
       const bclient = await this.blockingConnection.client;
 
+      this.mainLoopRunning = this.mainLoop(client, bclient);
+
+      // We must await here or finally will be called too early.
+      await this.mainLoopRunning;
+    } finally {
+      this.running = false;
+    }
+  }
+
+  /**
+   * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
+   * as efficiently as possible, providing concurrency and minimal unnecessary calls
+   * to Redis.
+   */
+  private async mainLoop(client: RedisClient, bclient: RedisClient) {
+    const asyncFifoQueue = new AsyncFifoQueue<void | Job<
+      DataType,
+      ResultType,
+      NameType
+    >>();
+    const jobsInProgress = new Set<{ job: Job; ts: number }>();
+    this.startLockExtenderTimer(jobsInProgress);
+
+    let tokenPostfix = 0;
+
+    while (!this.closing && !this.paused) {
+      let numTotal = asyncFifoQueue.numTotal();
+
       /**
-       * This is the main loop in BullMQ. Its goals are to fetch jobs from the queue
-       * as efficiently as possible, providing concurrency and minimal unnecessary calls
-       * to Redis.
+       * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
+       * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
        */
-      while (!this.closing) {
-        let numTotal = asyncFifoQueue.numTotal();
+      while (
+        !this.closing &&
+        !this.paused &&
+        !this.waiting &&
+        numTotal < this._concurrency &&
+        (!this.limitUntil || numTotal == 0)
+      ) {
+        const token = `${this.id}:${tokenPostfix++}`;
 
-        /**
-         * This inner loop tries to fetch jobs concurrently, but if we are waiting for a job
-         * to arrive at the queue we should not try to fetch more jobs (as it would be pointless)
-         */
-        while (
-          !this.waiting &&
-          numTotal < this._concurrency &&
-          (!this.limitUntil || numTotal == 0)
-        ) {
-          const token = `${this.id}:${tokenPostfix++}`;
+        const fetchedJob = this.retryIfFailed<void | Job<
+          DataType,
+          ResultType,
+          NameType
+        >>(
+          () => this._getNextJob(client, bclient, token, { block: true }),
+          this.opts.runRetryDelay,
+        );
+        asyncFifoQueue.add(fetchedJob);
 
-          const fetchedJob = this.retryIfFailed<void | Job<
-            DataType,
-            ResultType,
-            NameType
-          >>(
-            () => this._getNextJob(client, bclient, token, { block: true }),
-            this.opts.runRetryDelay,
-          );
-          asyncFifoQueue.add(fetchedJob);
+        numTotal = asyncFifoQueue.numTotal();
 
-          numTotal = asyncFifoQueue.numTotal();
-
-          if (this.waiting && numTotal > 1) {
-            // We are waiting for jobs but we have others that we could start processing already
-            break;
-          }
-
-          // We await here so that we fetch jobs in sequence, this is important to avoid unnecessary calls
-          // to Redis in high concurrency scenarios.
-          const job = await fetchedJob;
-
-          // No more jobs waiting but we have others that could start processing already
-          if (!job && numTotal > 1) {
-            break;
-          }
-
-          // If there are potential jobs to be processed and blockUntil is set, we should exit to avoid waiting
-          // for processing this job.
-          if (this.blockUntil) {
-            break;
-          }
+        if (this.waiting && numTotal > 1) {
+          // We are waiting for jobs but we have others that we could start processing already
+          break;
         }
 
-        // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
-        // we iterate until we find a job.
-        let job: Job<DataType, ResultType, NameType> | void;
-        do {
-          job = await asyncFifoQueue.fetch();
-        } while (!job && asyncFifoQueue.numQueued() > 0);
+        // We await here so that we fetch jobs in sequence, this is important to avoid unnecessary calls
+        // to Redis in high concurrency scenarios.
+        const job = await fetchedJob;
 
-        if (job) {
-          const token = job.token;
-          asyncFifoQueue.add(
-            this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
-              () =>
-                this.processJob(
-                  <Job<DataType, ResultType, NameType>>job,
-                  token,
-                  () => asyncFifoQueue.numTotal() <= this._concurrency,
-                  jobsInProgress,
-                ),
-              this.opts.runRetryDelay,
-            ),
-          );
+        // No more jobs waiting but we have others that could start processing already
+        if (!job && numTotal > 1) {
+          break;
+        }
+
+        // If there are potential jobs to be processed and blockUntil is set, we should exit to avoid waiting
+        // for processing this job.
+        if (this.blockUntil) {
+          break;
         }
       }
 
-      this.running = false;
-      return await asyncFifoQueue.waitAll();
-    } catch (error) {
-      this.running = false;
-      throw error;
+      // Since there can be undefined jobs in the queue (when a job fails or queue is empty)
+      // we iterate until we find a job.
+      let job: Job<DataType, ResultType, NameType> | void;
+      do {
+        job = await asyncFifoQueue.fetch();
+      } while (!job && asyncFifoQueue.numQueued() > 0);
+
+      if (job) {
+        const token = job.token;
+        asyncFifoQueue.add(
+          this.retryIfFailed<void | Job<DataType, ResultType, NameType>>(
+            () =>
+              this.processJob(
+                <Job<DataType, ResultType, NameType>>job,
+                token,
+                () => asyncFifoQueue.numTotal() <= this._concurrency,
+                jobsInProgress,
+              ),
+            this.opts.runRetryDelay,
+          ),
+        );
+      }
     }
+
+    return asyncFifoQueue.waitAll();
   }
 
   /**
@@ -557,7 +561,7 @@ export class Worker<
       { block },
     );
 
-    return this.trace<Job<DataType, ResultType, NameType>>(
+    return this.trace<Job<DataType, ResultType, NameType> | undefined>(
       SpanKind.INTERNAL,
       'getNextJob',
       this.name,
@@ -583,11 +587,7 @@ export class Worker<
     { block = true }: GetNextJobOptions = {},
   ): Promise<Job<DataType, ResultType, NameType> | undefined> {
     if (this.paused) {
-      if (block) {
-        await this.paused;
-      } else {
-        return;
-      }
+      return;
     }
 
     if (this.closing) {
@@ -822,10 +822,6 @@ will never work with more accuracy than 1ms. */
     fetchNextCallback = () => true,
     jobsInProgress: Set<{ job: Job; ts: number }>,
   ): Promise<void | Job<DataType, ResultType, NameType>> {
-    if (!job || this.closing || this.paused) {
-      return;
-    }
-
     const srcPropagationMedatada = job.opts?.telemetry?.metadata;
 
     return this.trace<void | Job<DataType, ResultType, NameType>>(
@@ -882,7 +878,11 @@ will never work with more accuracy than 1ms. */
                 return;
               }
 
-              const result = await job.moveToFailed(err, token, true);
+              const result = await job.moveToFailed(
+                err,
+                token,
+                fetchNextCallback() && !(this.closing || this.paused),
+              );
               this.emit('failed', job, err, 'active');
 
               span?.addEvent('job failed', {
@@ -950,14 +950,9 @@ will never work with more accuracy than 1ms. */
         });
 
         if (!this.paused) {
-          this.paused = new Promise(resolve => {
-            this.resumeWorker = function () {
-              resolve();
-              this.paused = null; // Allow pause to be checked externally for paused state.
-              this.resumeWorker = null;
-            };
-          });
+          this.paused = true;
           await (!doNotWaitActive && this.whenCurrentJobsFinished());
+          this.stalledCheckStopper?.();
           this.emit('paused');
         }
       },
@@ -969,14 +964,18 @@ will never work with more accuracy than 1ms. */
    * Resumes processing of this worker (if paused).
    */
   resume(): void {
-    if (this.resumeWorker) {
+    if (!this.running) {
       this.trace<void>(SpanKind.INTERNAL, 'resume', this.name, span => {
         span?.setAttributes({
           [TelemetryAttributes.WorkerId]: this.id,
           [TelemetryAttributes.WorkerName]: this.opts.name,
         });
 
-        this.resumeWorker();
+        this.paused = false;
+
+        if (this.processFn) {
+          this.run();
+        }
         this.emit('resumed');
       });
     }
@@ -1032,8 +1031,6 @@ will never work with more accuracy than 1ms. */
           });
           this.emit('closing', 'closing queue');
           this.abortDelayController?.abort();
-
-          this.resume();
 
           // Define the async cleanup functions
           const asyncCleanups = [
@@ -1101,7 +1098,7 @@ will never work with more accuracy than 1ms. */
   }
 
   private async stalledChecker() {
-    while (!this.closing) {
+    while (!(this.closing || this.paused)) {
       try {
         await this.checkConnectionError(() => this.moveStalledJobsToWait());
       } catch (err) {
@@ -1173,8 +1170,8 @@ will never work with more accuracy than 1ms. */
       reconnect = false;
     }
 
-    if (this.asyncFifoQueue) {
-      await this.asyncFifoQueue.waitAll();
+    if (this.mainLoopRunning) {
+      await this.mainLoopRunning;
     }
 
     reconnect && (await this.blockingConnection.reconnect());
@@ -1256,22 +1253,19 @@ will never work with more accuracy than 1ms. */
         });
 
         // Todo: check if there any listeners on failed event
-        const jobPromises: Promise<Job<DataType, ResultType, NameType>>[] = [];
-        for (let i = 0; i < failed.length; i++) {
-          jobPromises.push(
-            Job.fromId<DataType, ResultType, NameType>(
-              this as MinimalQueue,
-              failed[i],
+        for (let i = 0; i < failed.length; i += chunkSize) {
+          const chunk: string[] = failed.slice(i, i + chunkSize);
+          const jobs: Job<DataType, ResultType, NameType>[] = await Promise.all(
+            chunk.map((id: string) =>
+              Job.fromId<DataType, ResultType, NameType>(
+                this as MinimalQueue,
+                id,
+              ),
             ),
           );
 
-          if ((i + 1) % chunkSize === 0) {
-            this.notifyFailedJobs(await Promise.all(jobPromises));
-            jobPromises.length = 0;
-          }
+          this.notifyFailedJobs(jobs);
         }
-
-        this.notifyFailedJobs(await Promise.all(jobPromises));
       },
     );
   }
@@ -1296,6 +1290,6 @@ will never work with more accuracy than 1ms. */
     job: Job<DataType, ResultType, NameType>,
     token: string,
   ) {
-    return this.scripts.moveJobFromActiveToWait(job.id, token);
+    return job.moveToWait(token);
   }
 }

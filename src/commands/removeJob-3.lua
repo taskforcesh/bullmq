@@ -5,6 +5,7 @@
     Input:
       KEYS[1] queue prefix
       KEYS[2] meta key
+      KEYS[3] repeat key
 
       ARGV[1] jobId
       ARGV[2] remove children
@@ -18,6 +19,7 @@ local rcall = redis.call
 -- Includes
 --- @include "includes/destructureJobKey"
 --- @include "includes/getOrSetMaxEvents"
+--- @include "includes/isJobSchedulerJob"
 --- @include "includes/isLocked"
 --- @include "includes/removeDeduplicationKey"
 --- @include "includes/removeJobFromAnyState"
@@ -63,6 +65,16 @@ local function removeJob(prefix, jobId, parentKey, removeChildren)
                 removeJob(childJobPrefix, childJobId, jobKey, removeChildren)
             end
         end
+
+        local unsuccessful = rcall("ZRANGE", jobKey .. ":unsuccessful", 0, -1)
+
+        if (#unsuccessful > 0) then
+            for i = 1, #unsuccessful, 1 do
+                local childJobId = getJobIdFromKey(unsuccessful[i])
+                local childJobPrefix = getJobKeyPrefix(unsuccessful[i], childJobId)
+                removeJob(childJobPrefix, childJobId, jobKey, removeChildren)
+            end
+        end
     end
 
     local prev = removeJobFromAnyState(prefix, jobId)
@@ -79,10 +91,10 @@ local prefix = KEYS[1]
 local jobId = ARGV[1]
 local shouldRemoveChildren = ARGV[2]
 local jobKey = prefix .. jobId
+local repeatKey = KEYS[3]
 
--- Check if the job belongs to a job scheduler and it is in delayed state.
-if rcall("ZSCORE", prefix .. "delayed", jobId) and rcall("HGET", jobKey, "rjk") then
-    return -8 -- Return error code as the job is part of a job scheduler and is in delayed state.
+if isJobSchedulerJob(jobId, jobKey, repeatKey) then
+    return -8
 end
 
 if not isLocked(prefix, jobId, shouldRemoveChildren) then

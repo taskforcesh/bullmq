@@ -65,11 +65,11 @@ end
 -- If we are overriding a repeatable job we must delete the delayed job for
 -- the next iteration.
 local prevMillis = rcall("ZSCORE", repeatKey, customKey)
-if prevMillis ~= false then
+if prevMillis then
   local delayedJobId =  "repeat:" .. customKey .. ":" .. prevMillis
   local nextDelayedJobId =  repeatKey .. ":" .. customKey .. ":" .. nextMillis
 
-  if rcall("ZSCORE", delayedKey, delayedJobId) ~= false
+  if rcall("ZSCORE", delayedKey, delayedJobId)
    and rcall("EXISTS", nextDelayedJobId) ~= 1 then
     removeJob(delayedJobId, true, prefixKey, true --[[remove debounce key]])
     rcall("ZREM", delayedKey, delayedJobId)

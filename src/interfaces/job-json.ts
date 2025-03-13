@@ -34,6 +34,7 @@ export interface JobJsonRaw {
   attemptsMade?: string;
   finishedOn?: string;
   processedOn?: string;
+  priority: string;
   timestamp: string;
   failedReason: string;
   stacktrace: string[];

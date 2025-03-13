@@ -350,6 +350,8 @@ export class Job<
 
     job.delay = parseInt(json.delay);
 
+    job.priority = parseInt(json.priority);
+
     job.timestamp = parseInt(json.timestamp);
 
     if (json.finishedOn) {
@@ -667,32 +669,54 @@ export class Job<
     token: string,
     fetchNext = true,
   ): Promise<void | any[]> {
-    await this.queue.waitUntilReady();
+    return this.queue.trace<Promise<void | any[]>>(
+      SpanKind.INTERNAL,
+      'complete',
+      this.queue.name,
+      async (span, dstPropagationMedatadata) => {
+        let tm;
+        if (!this.opts?.telemetry?.omitContext && dstPropagationMedatadata) {
+          tm = dstPropagationMedatadata;
+        }
 
-    this.returnvalue = returnValue || void 0;
+        await this.queue.waitUntilReady();
 
-    const stringifiedReturnValue = tryCatch(JSON.stringify, JSON, [
-      returnValue,
-    ]);
-    if (stringifiedReturnValue === errorObject) {
-      throw errorObject.value;
-    }
+        this.returnvalue = returnValue || void 0;
 
-    const args = this.scripts.moveToCompletedArgs(
-      this,
-      stringifiedReturnValue,
-      this.opts.removeOnComplete,
-      token,
-      fetchNext,
+        const stringifiedReturnValue = tryCatch(JSON.stringify, JSON, [
+          returnValue,
+        ]);
+        if (stringifiedReturnValue === errorObject) {
+          throw errorObject.value;
+        }
+
+        const args = this.scripts.moveToCompletedArgs(
+          this,
+          stringifiedReturnValue,
+          this.opts.removeOnComplete,
+          token,
+          fetchNext,
+        );
+
+        const result = await this.scripts.moveToFinished(this.id, args);
+        this.finishedOn = args[
+          this.scripts.moveToFinishedKeys.length + 1
+        ] as number;
+        this.attemptsMade += 1;
+
+        return result;
+      },
     );
+  }
 
-    const result = await this.scripts.moveToFinished(this.id, args);
-    this.finishedOn = args[
-      this.scripts.moveToFinishedKeys.length + 1
-    ] as number;
-    this.attemptsMade += 1;
-
-    return result;
+  /**
+   * Moves a job to the wait or prioritized state.
+   *
+   * @param token - Worker token used to acquire completed job.
+   * @returns Returns pttl.
+   */
+  moveToWait(token: string): Promise<number> {
+    return this.scripts.moveJobFromActiveToWait(this.id, token);
   }
 
   private async shouldRetryJob(err: Error): Promise<[boolean, number]> {
@@ -732,9 +756,12 @@ export class Job<
   ): Promise<void | any[]> {
     this.failedReason = err?.message;
 
+    // Check if an automatic retry should be performed
+    const [shouldRetry, retryDelay] = await this.shouldRetryJob(err);
+
     return this.queue.trace<Promise<void | any[]>>(
       SpanKind.INTERNAL,
-      this.getSpanOperation('moveToFailed'),
+      this.getSpanOperation(shouldRetry, retryDelay),
       this.queue.name,
       async (span, dstPropagationMedatadata) => {
         let tm;
@@ -751,12 +778,7 @@ export class Job<
           tm,
         };
 
-        //
-        // Check if an automatic retry should be performed
-        //
         let finishedOn: number;
-        const [shouldRetry, retryDelay] = await this.shouldRetryJob(err);
-
         if (shouldRetry) {
           if (retryDelay) {
             // Retry with delay
@@ -809,15 +831,16 @@ export class Job<
     );
   }
 
-  private getSpanOperation(command: string) {
-    switch (command) {
-      case 'moveToDelayed':
+  private getSpanOperation(shouldRetry: boolean, retryDelay: number): string {
+    if (shouldRetry) {
+      if (retryDelay) {
         return 'delay';
-      case 'retryJob':
-        return 'retry';
-      case 'moveToFinished':
-        return 'fail';
+      }
+
+      return 'retry';
     }
+
+    return 'fail';
   }
 
   /**

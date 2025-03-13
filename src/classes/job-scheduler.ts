@@ -138,6 +138,7 @@ export class JobScheduler extends QueueBase {
               };
             }
           }
+
           const mergedOpts = this.getNextJobOpts(
             nextMillis,
             jobSchedulerId,
@@ -256,6 +257,51 @@ export class JobScheduler extends QueueBase {
     return mergedOpts;
   }
 
+  private createNextJob<T = any, R = any, N extends string = string>(
+    client: RedisClient,
+    name: N,
+    nextMillis: number,
+    offset: number,
+    jobSchedulerId: string,
+    opts: JobsOptions,
+    data: T,
+    currentCount: number,
+    // The job id of the job that produced this next iteration
+    producerId?: string,
+  ) {
+    //
+    // Generate unique job id for this iteration.
+    //
+    const jobId = this.getSchedulerNextJobId({
+      jobSchedulerId,
+      nextMillis,
+    });
+
+    const now = Date.now();
+    const delay = nextMillis + offset - now;
+
+    const mergedOpts = {
+      ...opts,
+      jobId,
+      delay: delay < 0 ? 0 : delay,
+      timestamp: now,
+      prevMillis: nextMillis,
+      repeatJobKey: jobSchedulerId,
+    };
+
+    mergedOpts.repeat = { ...opts.repeat, count: currentCount };
+
+    const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
+    job.addJob(client);
+
+    if (producerId) {
+      const producerJobKey = this.toKey(producerId);
+      client.hset(producerJobKey, 'nrjid', job.id);
+    }
+
+    return job;
+  }
+
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
     return this.scripts.removeJobScheduler(jobSchedulerId);
   }
@@ -316,8 +362,10 @@ export class JobScheduler extends QueueBase {
       return jobSchedulerData;
     }
 
-    // TODO: remove next line in next breaking change
-    return this.keyToData(key, next);
+    // TODO: remove this check and keyToData as it is here only to support legacy code
+    if (key.includes(':')) {
+      return this.keyToData(key, next);
+    }
   }
 
   private keyToData(key: string, next?: number): JobSchedulerJson {
@@ -335,7 +383,9 @@ export class JobScheduler extends QueueBase {
     };
   }
 
-  async getScheduler<D = any>(id: string): Promise<JobSchedulerJson<D>> {
+  async getScheduler<D = any>(
+    id: string,
+  ): Promise<JobSchedulerJson<D> | undefined> {
     const [rawJobData, next] = await this.scripts.getJobScheduler(id);
 
     return this.transformSchedulerData<D>(

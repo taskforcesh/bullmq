@@ -158,7 +158,7 @@ export class Queue<
 
   protected libName = 'bullmq';
 
-  private _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
+  protected _repeat?: Repeat; // To be deprecated in v6 in favor of JobScheduler
   protected _jobScheduler?: JobScheduler;
 
   constructor(
@@ -294,6 +294,14 @@ export class Queue<
   async setGlobalConcurrency(concurrency: number) {
     const client = await this.client;
     return client.hset(this.keys.meta, 'concurrency', concurrency);
+  }
+
+  /**
+   * Remove global concurrency value.
+   */
+  async removeGlobalConcurrency() {
+    const client = await this.client;
+    return client.hdel(this.keys.meta, 'concurrency');
   }
 
   /**

@@ -212,3 +212,57 @@ jobs:
         run: |
           cd python
           ./run_tests.sh
+
+  python-dragonflydb:
+    runs-on: ubuntu-latest
+
+    name: testing python@${{ matrix.python-version }}, dragonflydb@latest
+
+    strategy:
+      matrix:
+        node-version: [lts/*]
+        python-version: ['3.10']
+
+    services:
+      dragonflydb:
+        image: docker.dragonflydb.io/dragonflydb/dragonfly:v1.24.0
+        env:
+          DFLY_cluster_mode: emulated
+          DFLY_lock_on_hashtags: true
+          HEALTHCHECK_PORT: 6379
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@c85c95e3d7251135ab7dc9ce3241c5835cc595a9 # v3
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'yarn'
+      - run: yarn install --ignore-engines --frozen-lockfile --non-interactive
+      - run: yarn build
+      - run: yarn copy:lua:python
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@61a6322f88396a6271a6ee3565807d608ecaddd1 # v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 mypy types-redis
+          pip install -r python/requirements.txt
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          flake8 ./python --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          flake8 ./python --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - name: Test with pytest
+        run: |
+          cd python
+          ./run_tests_dragonfly.sh

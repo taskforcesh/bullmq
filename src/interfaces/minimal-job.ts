@@ -9,6 +9,10 @@ export interface MoveToDelayedOpts {
   fieldsToUpdate?: Record<string, any>;
 }
 
+export interface RetryJobOpts {
+  fieldsToUpdate?: Record<string, any>;
+}
+
 export interface MoveToWaitingChildrenOpts {
   child?: {
     id: string;

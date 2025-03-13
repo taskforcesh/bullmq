@@ -33,6 +33,7 @@
     opts - token - lock token
     opts - lockDuration
     opts - limiter
+    opts - name - worker name
 ]]
 local rcall = redis.call
 local waitKey = KEYS[1]

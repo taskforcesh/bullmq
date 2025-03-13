@@ -95,9 +95,14 @@ if (#stalling > 0) then
                               "failed", "jobId", jobId, 'prev', 'active',
                               'failedReason', failedReason)
 
-                        if rawParentData ~= false then
+                        if rawParentData then
                             if opts['fpof'] then
                                 local parentData = cjson.decode(rawParentData)
+                                -- TODO: need to remove this job from dependencies set in next breaking change
+                                -- no for now as it would imply a breaking change
+                                local parentKey = parentData['queueKey'] .. ':' .. parentData['id']
+                                local unsuccesssfulSet = parentKey .. ":unsuccessful"
+                                rcall("ZADD", unsuccesssfulSet, timestamp, jobKey)
                                 moveParentFromWaitingChildrenToFailed(
                                     parentData['queueKey'],
                                     parentData['queueKey'] .. ':' .. parentData['id'],

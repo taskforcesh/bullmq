@@ -12,7 +12,7 @@ local function updateExistingJobsParent(parentKey, parent, parentData,
                                         parentDependenciesKey, completedKey,
                                         jobIdKey, jobId, timestamp)
     if parentKey ~= nil then
-        if rcall("ZSCORE", completedKey, jobId) ~= false then
+        if rcall("ZSCORE", completedKey, jobId) then
             local returnvalue = rcall("HGET", jobIdKey, "returnvalue")
             updateParentDepsIfNeeded(parentKey, parent['queueKey'],
                                      parentDependenciesKey, parent['id'],

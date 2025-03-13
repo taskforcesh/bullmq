@@ -5,10 +5,11 @@
 
 -- Includes
 --- @include "getTimestamp"
+--- @include "isJobSchedulerJob"
 --- @include "removeJob"
 
 local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd,
-  timestamp, isWaiting)
+  timestamp, isWaiting, jobSchedulersKey)
   local jobs = rcall("LRANGE", listKey, rangeStart, rangeEnd)
   local deleted = {}
   local deletedCount = 0
@@ -21,7 +22,8 @@ local function cleanList(listKey, jobKeyPrefix, rangeStart, rangeEnd,
     end
   
     local jobKey = jobKeyPrefix .. job
-    if (isWaiting or rcall("EXISTS", jobKey .. ":lock") == 0) then
+    if (isWaiting or rcall("EXISTS", jobKey .. ":lock") == 0) and
+      not isJobSchedulerJob(job, jobKey, jobSchedulersKey) then
       -- Find the right timestamp of the job to compare to maxTimestamp:
       -- * finishedOn says when the job was completed, but it isn't set unless the job has actually completed
       -- * processedOn represents when the job was last attempted, but it doesn't get populated until

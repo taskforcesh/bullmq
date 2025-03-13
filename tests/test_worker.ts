@@ -714,23 +714,25 @@ describe('workers', function () {
       worker = new Worker(
         queueName,
         async job => {
-          const fetchedJob = await queue.getJob(job.id!);
-
           try {
-            expect(fetchedJob).to.be.ok;
-            expect(fetchedJob!.processedBy).to.be.equal(worker.opts.name);
+            await delay(100);
+            expect(job).to.be.ok;
+            expect(job!.processedBy).to.be.equal(worker.opts.name);
           } catch (err) {
             reject(err);
           }
 
-          resolve();
+          if (job.data.foo === 'baz') {
+            resolve();
+          }
         },
         { connection, prefix, name: 'foobar' },
       );
       await worker.waitUntilReady();
     });
 
-    await queue.add('test', { foo: 'bar' });
+    await queue.add('test1', { foo: 'bar' });
+    await queue.add('test2', { foo: 'baz' });
 
     await processing;
 
@@ -905,7 +907,7 @@ describe('workers', function () {
 
       await delay(100);
       /* Try to gracefully close while having a job that will be completed running */
-      worker.close();
+      const closing = worker.close();
 
       await new Promise<void>((resolve, reject) => {
         worker.once('completed', async job => {
@@ -923,6 +925,7 @@ describe('workers', function () {
       const count = await queue.getJobCounts('active', 'completed');
       expect(count.active).to.be.eq(0);
       expect(count.completed).to.be.eq(1);
+      await closing;
     });
   });
 
@@ -2395,27 +2398,13 @@ describe('workers', function () {
     });
 
     it('should wait for all concurrent processing in case of pause', async function () {
-      this.timeout(10000);
-
       let i = 0;
       let nbJobFinish = 0;
+      let runExecution: Promise<void>;
 
       const worker = new Worker(
         queueName,
         async () => {
-          try {
-            if (++i === 4) {
-              // Pause when all 4 works are processing
-              await worker.pause();
-
-              // Wait for all the active jobs to finalize.
-              expect(nbJobFinish).to.be.equal(3);
-              await worker.resume();
-            }
-          } catch (err) {
-            console.error(err);
-          }
-
           // 100 - i*20 is to force to finish job n°4 before lower jobs that will wait longer
           await delay(100 - i * 10);
           nbJobFinish++;
@@ -2426,6 +2415,7 @@ describe('workers', function () {
           }
         },
         {
+          autorun: false,
           connection,
           prefix,
           concurrency: 4,
@@ -2433,13 +2423,37 @@ describe('workers', function () {
       );
       await worker.waitUntilReady();
 
+      worker.on('active', async () => {
+        if (++i === 4) {
+          // Pause when all 4 works are processing
+          await worker.pause();
+          // Wait for all the active jobs to finalize.
+          expect(nbJobFinish).to.be.gte(3);
+          expect(nbJobFinish).to.be.lte(4);
+        }
+      });
+
       const waiting = new Promise((resolve, reject) => {
         const cb = after(8, resolve);
         worker.on('completed', cb);
         worker.on('failed', cb);
         worker.on('error', reject);
       });
+      const pausing = new Promise<void>(resolve => {
+        worker.on('paused', async () => {
+          // test that loop is stopped and worker is actually paused
+          await runExecution;
+          expect(worker.isRunning()).to.be.false;
+
+          worker.resume();
+          resolve();
+        });
+      });
       await Promise.all(times(8, () => queue.add('test', {})));
+
+      runExecution = worker.run();
+
+      await pausing;
 
       await waiting;
 
@@ -2698,14 +2712,14 @@ describe('workers', function () {
       });
     });
 
-    describe('when job has been marked as discarded', () => {
-      it('does not retry a job', async () => {
+    describe('when job has been failed and moved to wait', () => {
+      it('saves failedReason', async () => {
         const worker = new Worker(
           queueName,
           async job => {
             expect(job.attemptsMade).to.equal(0);
-            job.discard();
-            throw new Error('unrecoverable error');
+            await queue.rateLimit(5000);
+            throw new Error('error');
           },
           { connection, prefix },
         );
@@ -2724,9 +2738,9 @@ describe('workers', function () {
           worker.on('failed', resolve);
         });
 
-        const state = await job.getState();
+        const updatedJob = await queue.getJob(job.id!);
 
-        expect(state).to.be.equal('failed');
+        expect(updatedJob.failedReason).to.be.equal('error');
 
         await worker.close();
       });
@@ -3325,6 +3339,7 @@ describe('workers', function () {
           await worker.close();
           await childrenWorker.close();
           await parentQueue.close();
+          await removeAllQueueData(new IORedis(redisHost), parentQueueName);
         });
 
         describe('when skip attempt option is provided as true', () => {
@@ -3447,6 +3462,7 @@ describe('workers', function () {
             await worker.close();
             await childrenWorker.close();
             await parentQueue.close();
+            await removeAllQueueData(new IORedis(redisHost), parentQueueName);
           });
         });
       });

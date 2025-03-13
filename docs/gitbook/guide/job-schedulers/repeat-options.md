@@ -81,3 +81,7 @@ await myQueue.upsertJobScheduler(
   },
 );
 ```
+
+{% hint style="danger" %}
+From version 5.19.0 and onwards the "immediately" option has been deprecated. The current behaviour is as if "immediately" was always true, in other words, the first repetition will always be immediately for a new inserted job scheduler, and then repeat according to the "every" setting. Subsequent calls to upsertJobScheduler for **existing** schedulers will not lead to immediate repetitions and will instead follow the "every" interval.
+{% endhint %}
