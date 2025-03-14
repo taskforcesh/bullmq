@@ -338,6 +338,7 @@ export class Scripts {
       queueKeys.id,
       queueKeys.events,
       queueKeys.pc,
+      queueKeys.active,
     ];
 
     const args = [
@@ -394,6 +395,7 @@ export class Scripts {
       queueKeys.events,
       queueKeys.pc,
       producerId ? this.queue.toKey(producerId) : '',
+      queueKeys.active,
     ];
 
     const args = [

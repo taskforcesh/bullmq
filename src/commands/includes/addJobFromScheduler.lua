@@ -7,9 +7,12 @@
 --- @include "addJobWithPriority"
 --- @include "isQueuePaused"
 --- @include "storeJob"
+--- @include "getTargetQueueList"
+--- @include "addJobInTargetList"
 
-local function addJobFromScheduler(jobKey, jobId, rawOpts, waitKey, pausedKey, metaKey, prioritizedKey,
-  priorityCounter, delayedKey, markerKey, eventsKey, name, maxEvents, timestamp, data, jobSchedulerId)
+local function addJobFromScheduler(jobKey, jobId, rawOpts, waitKey, pausedKey, activeKey, metaKey, 
+  prioritizedKey, priorityCounter, delayedKey, markerKey, eventsKey, name, maxEvents, timestamp,
+  data, jobSchedulerId)
   local opts = cmsgpack.unpack(rawOpts)
 
   local delay, priority = storeJob(eventsKey, jobKey, jobId, name, data,
@@ -22,15 +25,9 @@ local function addJobFromScheduler(jobKey, jobId, rawOpts, waitKey, pausedKey, m
   
     -- Standard or priority add
     if priority == 0 then
-      if isPaused then
-        -- LIFO or FIFO
-        local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-        rcall(pushCmd, pausedKey, jobId)
-      else
-        -- LIFO or FIFO
-        local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-        rcall(pushCmd, waitKey, jobId)
-      end
+      local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
+      local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
+      addJobInTargetList(target, markerKey, pushCmd, isPausedOrMaxed, jobId)
     else
       -- Priority add
       addJobWithPriority(markerKey, prioritizedKey, priority, jobId, priorityCounter, isPaused)
