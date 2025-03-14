@@ -93,19 +93,19 @@ export class JobScheduler extends QueueBase {
     }
 
     let nextMillis: number;
-    let newOffset = offset || 0;
+    let newOffset = 0;
 
     if (every) {
       const prevSlot = Math.floor(startMillis / every) * every;
       const nextSlot = prevSlot + every;
-      if (prevMillis || offset) {
+      newOffset = startMillis - prevSlot;
+      // newOffset should always be positive, but we do an extra safety check
+      newOffset = newOffset < 0 ? 0 : newOffset;
+
+      if (prevMillis) {
         nextMillis = nextSlot;
       } else {
         nextMillis = prevSlot;
-        newOffset = startMillis - prevSlot;
-
-        // newOffset should always be positive, but we do an extra safety check
-        newOffset = newOffset < 0 ? 0 : newOffset;
       }
     } else if (pattern) {
       nextMillis = await this.repeatStrategy(now, repeatOpts, jobName);
@@ -246,58 +246,12 @@ export class JobScheduler extends QueueBase {
     mergedOpts.repeat = {
       ...opts.repeat,
       count: currentCount,
-      offset,
       endDate: opts.repeat?.endDate
         ? new Date(opts.repeat.endDate).getTime()
         : undefined,
     };
 
     return mergedOpts;
-  }
-
-  private createNextJob<T = any, R = any, N extends string = string>(
-    client: RedisClient,
-    name: N,
-    nextMillis: number,
-    offset: number,
-    jobSchedulerId: string,
-    opts: JobsOptions,
-    data: T,
-    currentCount: number,
-    // The job id of the job that produced this next iteration
-    producerId?: string,
-  ) {
-    //
-    // Generate unique job id for this iteration.
-    //
-    const jobId = this.getSchedulerNextJobId({
-      jobSchedulerId,
-      nextMillis,
-    });
-
-    const now = Date.now();
-    const delay = nextMillis + offset - now;
-
-    const mergedOpts = {
-      ...opts,
-      jobId,
-      delay: delay < 0 ? 0 : delay,
-      timestamp: now,
-      prevMillis: nextMillis,
-      repeatJobKey: jobSchedulerId,
-    };
-
-    mergedOpts.repeat = { ...opts.repeat, count: currentCount };
-
-    const job = new this.Job<T, R, N>(this, name, data, mergedOpts, jobId);
-    job.addJob(client);
-
-    if (producerId) {
-      const producerJobKey = this.toKey(producerId);
-      client.hset(producerJobKey, 'nrjid', job.id);
-    }
-
-    return job;
   }
 
   async removeJobScheduler(jobSchedulerId: string): Promise<number> {
