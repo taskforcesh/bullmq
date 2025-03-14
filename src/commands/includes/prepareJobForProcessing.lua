@@ -10,6 +10,14 @@
 -- Includes
 --- @include "addBaseMarkerIfNeeded"
 
+local function getRepeatJobKey(jobAttributes)
+  for i = 1, #jobAttributes, 2 do
+    if jobAttributes[i] == "rjk" then
+      return jobAttributes[i + 1]
+    end
+  end
+end
+
 local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey,
     jobId, processedOn, maxJobs, markerKey, opts)
   local jobKey = keyPrefix .. jobId
@@ -46,5 +54,13 @@ local function prepareJobForProcessing(keyPrefix, rateLimiterKey, eventStreamKey
 
   addBaseMarkerIfNeeded(markerKey, false)
 
-  return {rcall("HGETALL", jobKey), jobId, 0, 0} -- get job data
+  local jobAttributes = rcall("HGETALL", jobKey)
+
+  local repeatJobKey = getRepeatJobKey(jobAttributes)
+
+  if repeatJobKey then
+    return {jobAttributes, jobId, rcall("HGETALL", keyPrefix .. "repeat:" .. repeatJobKey), 0, 0}
+  end
+
+  return {jobAttributes, jobId, 0, 0, 0} -- get job data
 end
