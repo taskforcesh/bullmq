@@ -21,16 +21,15 @@ local function addJobFromScheduler(jobKey, jobId, rawOpts, waitKey, pausedKey, a
   if delay ~= 0 then
     addDelayedJob(jobId, delayedKey, eventsKey, timestamp, maxEvents, markerKey, delay)
   else
-    local isPaused = isQueuePaused(metaKey)
+    local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
   
     -- Standard or priority add
     if priority == 0 then
       local pushCmd = opts['lifo'] and 'RPUSH' or 'LPUSH'
-      local target, isPausedOrMaxed = getTargetQueueList(metaKey, activeKey, waitKey, pausedKey)
       addJobInTargetList(target, markerKey, pushCmd, isPausedOrMaxed, jobId)
     else
       -- Priority add
-      addJobWithPriority(markerKey, prioritizedKey, priority, jobId, priorityCounter, isPaused)
+      addJobWithPriority(markerKey, prioritizedKey, priority, jobId, priorityCounter, isPausedOrMaxed)
     end
     -- Emit waiting event
     rcall("XADD", eventsKey, "MAXLEN", "~", maxEvents,  "*", "event", "waiting", "jobId", jobId)
