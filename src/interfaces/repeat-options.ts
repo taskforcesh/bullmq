@@ -42,7 +42,7 @@ export interface RepeatOptions extends Omit<ParserOptions, 'iterator'> {
   count?: number;
 
   /**
-   * TODO: remove this property in favor of `key`
+   * @deprecated
    * Offset in milliseconds to affect the next iteration time
    *
    * */
